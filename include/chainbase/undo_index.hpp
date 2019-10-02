@@ -353,36 +353,36 @@ namespace eosio {
          state.old_values.clear_and_dispose([this](node* p){ dispose(*p); });
       }
       // returns true if the node should be destroyed
-     bool on_remove( node& obj) {
-        if (!_undo_stack.empty()) {
-           auto& undo_info = _undo_stack.back();
-           auto new_pos = undo_info.new_ids.find( obj.id );
-           if ( new_pos != undo_info.new_ids.end() ) {
-              id_node* p = &*new_pos;
-              undo_info.new_ids.erase( new_pos );
-              dispose(p);
-              return true;
-           }
-           auto old_pos = undo_info.old_values.find( obj.id );
-           if( old_pos != undo_info.old_values.end() ) {
-              auto& node_ref = *old_pos;
-              undo_info.old_values.erase(old_pos);
-              undo_info.removed_values.insert(node_ref);
-              return true;
-           } else {
-              undo_info.removed_values.insert(obj);
-              return false;
-           }
-        }
-        return true;
-     }
-     indices_type _indices;
-     boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
-     rebind_alloc_t<Allocator, node> _allocator;
-     rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
-     id_type _next_id = 0;
-     int64_t _revision = 0;
-  };
+      bool on_remove( node& obj) {
+         if (!_undo_stack.empty()) {
+            auto& undo_info = _undo_stack.back();
+            auto new_pos = undo_info.new_ids.find( obj.id );
+            if ( new_pos != undo_info.new_ids.end() ) {
+               id_node* p = &*new_pos;
+               undo_info.new_ids.erase( new_pos );
+               dispose(p);
+               return true;
+            }
+            auto old_pos = undo_info.old_values.find( obj.id );
+            if( old_pos != undo_info.old_values.end() ) {
+               auto& node_ref = *old_pos;
+               undo_info.old_values.erase(old_pos);
+               undo_info.removed_values.insert(node_ref);
+               return true;
+            } else {
+               undo_info.removed_values.insert(obj);
+               return false;
+            }
+         }
+         return true;
+      }
+      indices_type _indices;
+      boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
+      rebind_alloc_t<Allocator, node> _allocator;
+      rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
+      id_type _next_id = 0;
+      int64_t _revision = 0;
+   };
 
 }
 
