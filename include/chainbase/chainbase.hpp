@@ -28,6 +28,7 @@
 #include <typeinfo>
 
 #include <chainbase/pinnable_mapped_file.hpp>
+#include <chainbase/undo_index.hpp>
 
 #ifndef CHAINBASE_NUM_RW_LOCKS
    #define CHAINBASE_NUM_RW_LOCKS 10
@@ -173,6 +174,10 @@ namespace chainbase {
          int32_t& _target;
    };
 
+   template<typename MultiIndexType>
+   using generic_index = multi_index_to_undo_index<MultiIndexType>;
+
+#if 0
    /**
     *  The value_type stored in the multiindex container must have a integer field with the name 'id'.  This will
     *  be the primary key and it will be assigned and managed by generic_index.
@@ -567,6 +572,7 @@ namespace chainbase {
          uint32_t                        _size_of_value_type = 0;
          uint32_t                        _size_of_this = 0;
    };
+#endif
 
    class abstract_session {
       public:
@@ -901,7 +907,7 @@ namespace chainbase {
              CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indices().template get< IndexedByType >();
-             auto itr = idx.find( std::forward< CompatibleKey >( key ) );
+             auto itr = idx.find( std::forward< CompatibleKey >( key ), idx.key_comp() );
              if( itr == idx.end() ) return nullptr;
              return &*itr;
          }
@@ -911,10 +917,7 @@ namespace chainbase {
          {
              CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
-             const auto& idx = get_index< index_type >().indices();
-             auto itr = idx.find( key );
-             if( itr == idx.end() ) return nullptr;
-             return &*itr;
+             return get_index< index_type >().find( key );
          }
 
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >

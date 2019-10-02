@@ -1,13 +1,20 @@
-#ifndef EOSIO_UNDO_INDEX_HPP_INCLUDED
-#define EOSIO_UNDO_INDEX_HPP_INCLUDED
+#ifndef EOSIO_CHAINBASE_UNDO_INDEX_HPP_INCLUDED
+#define EOSIO_CHAINBASE_UNDO_INDEX_HPP_INCLUDED
 
+#include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/throw_exception.hpp>
+#include <boost/mpl/copy.hpp>
+#include <boost/mpl/back_inserter.hpp>
+#include <boost/mp11/mpl.hpp>
+#include <boost/mp11/list.hpp>
+#include <boost/mp11/algorithm.hpp>
+#include <boost/iterator/transform_iterator.hpp>
 #include <memory>
 #include <type_traits>
 
-namespace eosio {
+namespace chainbase {
 
    template<typename F>
    struct scope_exit {
@@ -35,6 +42,28 @@ namespace eosio {
    template<typename Allocator, typename T>
    using rebind_alloc_t = typename std::allocator_traits<Allocator>::template rebind_alloc<T>;
 
+   template<typename Index>
+   struct index_tag_impl { using type = void; };
+   template<template<typename...> class Index, typename Tag, typename... T>
+   struct index_tag_impl<Index<boost::multi_index::tag<Tag>, T...>> { using type = Tag; };
+   template<typename Index>
+   using index_tag = typename index_tag_impl<Index>::type;
+
+   template<typename Index>
+   using index_key = typename Index::key_from_value_type;
+   template<typename Index>
+   using index_compare = typename Index::compare_type;
+
+   template<typename Tag, typename... Keys>
+   using index_of_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Keys>...>, Tag>;
+
+   template<typename R>
+   struct cast_f {
+      typedef R result_type;
+      template<typename T>
+      R operator()(T&& t) const { return static_cast<R>(static_cast<T&&>(t)); }
+   };
+
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
       template<typename K>
@@ -43,9 +72,11 @@ namespace eosio {
             boost::intrusive::tag<K>,
             boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
             boost::intrusive::optimize_size<true>>;
+
     public:
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
       using value_type = T;
+      using allocator_type = Allocator;
 
       undo_index() = default;
       explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _new_ids_allocator{a} {}
@@ -54,8 +85,10 @@ namespace eosio {
             dispose(state);
          }
          clear_impl<1>();
-         std::get<0>(_indices).clear_and_dispose([&](node* p){ dispose(*p); });
+         std::get<0>(_indices).clear_and_dispose([&](pointer p){ dispose(*p); });
       }
+
+      void validate() const {}
     
       struct node : hook<Keys>..., T {
          template<typename... A>
@@ -64,12 +97,22 @@ namespace eosio {
       };
 
       using indices_type = std::tuple<
-         boost::intrusive::set<node, boost::intrusive::base_hook<hook<Keys>>, boost::intrusive::key_of_value<get_key<Keys, node>>>...>;
+         boost::intrusive::set<
+            node,
+            boost::intrusive::base_hook<hook<Keys>>,
+            boost::intrusive::key_of_value<get_key<index_key<Keys>, node>>,
+            boost::intrusive::compare<index_compare<Keys>>>...>;
+
+     using index0_type = std::tuple_element_t<0, indices_type>;
 
       struct id_node : hook<void>  {
          id_node(const id_type& id) : _item(id) {}
          id_type _item;
       };
+
+      using id_pointer = typename rebind_alloc_t<Allocator, id_node>::pointer;
+      using pointer = typename rebind_alloc_t<Allocator, node>::pointer;
+      using const_iterator = boost::iterators::transform_iterator<cast_f<const T&>, typename index0_type::const_iterator>;
 
       struct undo_state {
          std::tuple_element_t<0, indices_type> old_values;
@@ -80,12 +123,16 @@ namespace eosio {
 
       template<typename Constructor>
       const value_type& emplace( Constructor&& c ) {
-         node* p = _allocator.allocate(1);
+         pointer p = _allocator.allocate(1);
          auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
-         _allocator.construct(p);
+         auto new_id = _next_id;
+         auto constructor = [&]( value_type& v ) {
+            v.id = new_id;
+            c( v );
+         };
+         // _allocator.construct(p, constructor, _allocator);
+         new (&*p) node(constructor, _allocator);
          auto guard1 = scope_exit{[&]{ _allocator.destroy(p); }};
-         p->id = _next_id;
-         c(static_cast<T&>(*p));
          if(!insert_impl(*p))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );
          auto guard2 = scope_exit{ [&]{ erase_impl(*p); } };
@@ -127,12 +174,43 @@ namespace eosio {
          }
       }
 
+      template<typename CompatibleKey>
+      const value_type& get( CompatibleKey&& key )const {
+         auto ptr = find( key );
+         if( !ptr ) {
+            std::stringstream ss;
+            ss << "key not found (" << boost::core::demangle( typeid( key ).name() ) << "): " << key;
+            BOOST_THROW_EXCEPTION( std::out_of_range( ss.str().c_str() ) );
+         }
+         return *ptr;
+      }
+
+      void remove_object( int64_t id ) {
+         const value_type* val = find( typename value_type::id_type(id) );
+         if( !val ) BOOST_THROW_EXCEPTION( std::out_of_range( boost::lexical_cast<std::string>(id) ) );
+         remove( *val );
+      }
+
       class session {
        public:
          session(undo_index& idx, bool enabled)
           : _index(idx),
             _apply(enabled),
             _revision(enabled?idx.add_session():-1) {}
+         session(session&& other)
+           : _index(other._index),
+             _apply(other._apply)
+         {
+            other._apply = false;
+         }
+         session& operator=(session&& other) {
+            if(this != &other) {
+               undo();
+               _apply = other._apply;
+               other._apply = false;
+            }
+            return *this;
+         }
          ~session() { if(_apply) _index.undo(); }
          void push() { _apply = false; }
          void squash() {
@@ -143,10 +221,11 @@ namespace eosio {
             if ( _apply ) _index.undo();
             _apply = false;
          }
-         int64_t revision() const { return _revision; }
+         int64_t revision() const {
+            // It looks like chainbase doesn't implement this correctly.  We hope it isn't actually used.
+            BOOST_THROW_EXCEPTION(std::logic_error{"session::revision is unsupported"});
+         }
        private:
-         session(session&&) = delete;
-         session& operator=(session&&) = delete;
          undo_index& _index;
          bool _apply = true;
          int64_t _revision = 0;
@@ -158,38 +237,75 @@ namespace eosio {
          return session{*this, enabled};
       }
 
-     /**
-      * Discards all undo history prior to revision
-      */
-     void commit( int64_t revision ) {
-        revision = std::min(revision, _revision);
-        while( _revision - _undo_stack.size() < revision ) {
-           dispose(_undo_stack.front());
-           _undo_stack.pop_front();
-        }
-     }
+      void set_revision( uint64_t revision ) {
+         if( _undo_stack.size() != 0 )
+            BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
 
-    private:
+         if( revision > std::numeric_limits<int64_t>::max() )
+            BOOST_THROW_EXCEPTION( std::logic_error("revision to set is too high") );
 
-      int64_t add_session() {
-         _undo_stack.emplace_back();
-         _undo_stack.back().old_next_id = _next_id;
-         return ++_revision;
+         _revision = static_cast<int64_t>(revision);
+      }
+
+      std::pair<int64_t, int64_t> undo_stack_revision_range() const {
+         return { _revision - _undo_stack.size(), _revision };
+      }
+
+      /**
+       * Discards all undo history prior to revision
+       */
+      void commit( int64_t revision ) {
+         revision = std::min(revision, _revision);
+         while( _revision - _undo_stack.size() < revision ) {
+            dispose(_undo_stack.front());
+            _undo_stack.pop_front();
+         }
+      }
+
+      const undo_index& indices() const { return *this; }
+      template<typename Tag>
+      const auto& get() const { return std::get<index_of_tag<Tag, Keys...>::value>(_indices); }
+
+      template<int N>
+      const auto& get() const { return std::get<N>(_indices); }
+
+      std::size_t size() const {
+         return std::get<0>(_indices).size();
+      }
+
+      bool empty() const {
+         return std::get<0>(_indices).empty();
+      }
+
+      template<typename Tag, typename Iter>
+      auto project(Iter iter) const {
+         return get<Tag>().iterator_to(static_cast<const node&>(*iter));
+      }
+
+      const auto& stack() const { return _undo_stack; }
+
+      auto begin() const { return const_iterator(get<0>().begin(), cast_f<const T&>{}); }
+      auto end() const { return const_iterator(get<0>().end(), cast_f<const T&>{}); }
+
+      void undo_all() {
+         while(!_undo_stack.empty()) {
+            undo();
+         }
       }
 
       void undo() {
          undo_state& undo_info = _undo_stack.back();
          // erase all new_ids
-         undo_info.new_ids.clear_and_dispose([&](id_node* id){
+         undo_info.new_ids.clear_and_dispose([&](id_pointer id){
             auto& node_ref = *std::get<0>(_indices).find(id->_item);
             erase_impl(node_ref);
             dispose(node_ref);
-            dispose(id);
+            dispose(&*id);
          });
          // replace old_values - if there is a conflict, erase the conflict
-         undo_info.old_values.clear_and_dispose([this](node* p) { insert_or_replace(*p); });
+         undo_info.old_values.clear_and_dispose([this](pointer p) { insert_or_replace(*p); });
          // insert all removed_values
-         undo_info.removed_values.clear_and_dispose([this](node* p) { insert_impl(*p); });
+         undo_info.removed_values.clear_and_dispose([this](pointer p) { insert_impl(*p); });
          _next_id = undo_info.old_next_id;
          _undo_stack.pop_back();
          --_revision;
@@ -203,22 +319,22 @@ namespace eosio {
          }
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         last_state.new_ids.clear_and_dispose([this, &prev_state](id_node* p) {
+         last_state.new_ids.clear_and_dispose([this, &prev_state](id_pointer p) {
             auto iter = prev_state.removed_values.find(p->_item);
             if ( iter != prev_state.removed_values.end() ) {
                auto& node_ref = *iter;
                prev_state.removed_values.erase(iter);
                prev_state.old_values.insert(node_ref);
-               dispose(p);
+               dispose(&*p);
             } else {
                // Not in old_values or new_ids
                prev_state.new_ids.insert(*p);
             }
          });
-         last_state.removed_values.clear_and_dispose([this, &prev_state](node* p){
+         last_state.removed_values.clear_and_dispose([this, &prev_state](pointer p){
             auto new_iter = prev_state.new_ids.find(p->id);
             if (new_iter != prev_state.new_ids.end()) {
-               prev_state.new_ids.erase_and_dispose(new_iter, [this](id_node* id){ dispose(id); });
+               prev_state.new_ids.erase_and_dispose(new_iter, [this](id_pointer id){ dispose(&*id); });
                dispose(*p);
             } else {
                auto old_iter = prev_state.old_values.find(p->id);
@@ -233,7 +349,7 @@ namespace eosio {
                }
             }
          });
-         last_state.old_values.clear_and_dispose([this, &prev_state](node* p){
+         last_state.old_values.clear_and_dispose([this, &prev_state](pointer p){
             auto new_iter = prev_state.new_ids.find(p->id);
             if (new_iter != prev_state.new_ids.end()) {
                dispose(*p);
@@ -250,6 +366,15 @@ namespace eosio {
          _undo_stack.pop_back();
          --_revision;
       }
+
+    private:
+
+      int64_t add_session() {
+         _undo_stack.emplace_back();
+         _undo_stack.back().old_next_id = _next_id;
+         return ++_revision;
+      }
+
       template<int N = 0>
       bool insert_impl(node& p) {
          if constexpr (N < sizeof...(Keys)) {
@@ -299,7 +424,7 @@ namespace eosio {
                undo_info.old_values.insert(elem);
             } else {
                // Not in old_values or new_ids
-               id_node* new_id = _new_ids_allocator.allocate(1);
+               id_pointer new_id = _new_ids_allocator.allocate(1);
                auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
                _new_ids_allocator.construct(new_id, value.id);
                guard0.cancel();
@@ -317,12 +442,12 @@ namespace eosio {
                // Nothing to do
             } else {
                // Not in removed_values
-               node* p = _allocator.allocate(1);
+               pointer p = _allocator.allocate(1);
                auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
                _allocator.construct(p, obj);
                guard0.cancel();
                undo_info.old_values.insert(*p);
-               return p;
+               return &*p;
             }
          }
          return nullptr;
@@ -348,9 +473,9 @@ namespace eosio {
          _new_ids_allocator.deallocate(p, 1);
       }
       void dispose(undo_state& state) noexcept {
-         state.new_ids.clear_and_dispose([this](id_node* p){ dispose(p); });
-         state.old_values.clear_and_dispose([this](node* p){ dispose(*p); });
-         state.old_values.clear_and_dispose([this](node* p){ dispose(*p); });
+         state.new_ids.clear_and_dispose([this](id_pointer p){ dispose(&*p); });
+         state.old_values.clear_and_dispose([this](pointer p){ dispose(*p); });
+         state.old_values.clear_and_dispose([this](pointer p){ dispose(*p); });
       }
       // returns true if the node should be destroyed
       bool on_remove( node& obj) {
@@ -376,6 +501,7 @@ namespace eosio {
          }
          return true;
       }
+      using alloc_traits = std::allocator_traits<rebind_alloc_t<Allocator, node>>;
       indices_type _indices;
       boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
       rebind_alloc_t<Allocator, node> _allocator;
@@ -384,6 +510,24 @@ namespace eosio {
       int64_t _revision = 0;
    };
 
+   template<typename MultiIndexContainer>
+   struct multi_index_to_undo_index_impl;
+
+   template<typename T, typename I, typename A>
+   struct mi_to_ui_ii;
+   template<typename T, typename... I, typename A>
+   struct mi_to_ui_ii<T, boost::mp11::mp_list<I...>, A> {
+      using type = undo_index<T, A, I...>;
+   };
+
+   template<typename T, typename I, typename A>
+   struct multi_index_to_undo_index_impl<boost::multi_index_container<T, I, A>> {
+      using as_mp11 = typename boost::mpl::copy<I, boost::mpl::back_inserter<boost::mp11::mp_list<>>>::type;
+      using type = typename mi_to_ui_ii<T, as_mp11, A>::type;
+   };
+
+   template<typename MultiIndexContainer>
+   using multi_index_to_undo_index = typename multi_index_to_undo_index_impl<MultiIndexContainer>::type;
 }
 
 #endif
