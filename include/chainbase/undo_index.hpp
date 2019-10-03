@@ -39,6 +39,84 @@ namespace chainbase {
       const auto& operator()(const T& t) { return t; }
    };
 
+   template<typename T>
+   struct value_holder {
+      template<typename... A>
+      value_holder(A&&... a) : _item(static_cast<A&&>(a)...) {}
+      T _item;
+   };
+
+   template<class Tag>
+   struct offset_node_base {
+      offset_node_base() = default;
+      offset_node_base(const offset_node_base&) {}
+      constexpr offset_node_base& operator=(const offset_node_base&) { return *this; }
+      std::ptrdiff_t _parent;
+      std::ptrdiff_t _left;
+      std::ptrdiff_t _right;
+      int _color;
+   };
+
+   template<class Tag>
+   struct offset_node_traits {
+      using node = offset_node_base<Tag>;
+      using node_ptr = node*;
+      using const_node_ptr = const node*;
+      using color = int;
+      static node_ptr get_parent(const_node_ptr n) {
+         if(n->_parent == 1) return nullptr;
+         return (node_ptr)((char*)n + n->_parent);
+      }
+      static void set_parent(node_ptr n, node_ptr parent) {
+         if(parent == nullptr) n->_parent = 1;
+         else n->_parent = (char*)parent - (char*)n;
+      }
+      static node_ptr get_left(const_node_ptr n) {
+         if(n->_left == 1) return nullptr;
+         return (node_ptr)((char*)n + n->_left);
+      }
+      static void set_left(node_ptr n, node_ptr left) {
+         if(left == nullptr) n->_left = 1;
+         else n->_left = (char*)left - (char*)n;
+      }
+      static node_ptr get_right(const_node_ptr n) {
+         if(n->_right == 1) return nullptr;
+         return (node_ptr)((char*)n + n->_right);
+      }
+      static void set_right(node_ptr n, node_ptr right) {
+         if(right == nullptr) n->_right = 1;
+         else n->_right = (char*)right - (char*)n;
+      }
+      static color get_color(node_ptr n) {
+         return n->_color;
+      }
+      static void set_color(node_ptr n, color c) {
+         n->_color = c;
+      }
+      static color black() { return 0; }
+      static color red() { return 1; }
+   };
+
+   template<typename Node, typename Key>
+   struct offset_node_value_traits {
+      using node_traits = offset_node_traits<Key>;
+      using node_ptr = typename node_traits::node_ptr;
+      using const_node_ptr = typename node_traits::const_node_ptr;
+      using value_type = typename Node::value_type;
+      using pointer = value_type*;
+      using const_pointer = const value_type*;
+
+      static node_ptr to_node_ptr(value_type &value) {
+         return node_ptr{static_cast<Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
+      }
+      static const_node_ptr to_node_ptr(const value_type &value) {
+         return const_node_ptr{static_cast<const Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
+      }
+      static pointer to_value_ptr(node_ptr n) { return pointer{&static_cast<Node*>(&*n)->_item}; }
+      static const_pointer to_value_ptr(const_node_ptr n) { return pointer{&static_cast<const Node*>(&*n)->_item}; }
+
+      static constexpr boost::intrusive::link_mode_type link_mode = boost::intrusive::normal_link;
+   };
    template<typename Allocator, typename T>
    using rebind_alloc_t = typename std::allocator_traits<Allocator>::template rebind_alloc<T>;
 
@@ -52,13 +130,6 @@ namespace chainbase {
    struct identity_index {
       using key_from_value_type = identity_key;
       using compare_type = std::less<>;
-   };
-
-   template<typename T>
-   struct value_holder {
-      template<typename... A>
-      value_holder(A&&... a) : _item(static_cast<A&&>(a)...) {}
-      T _item;
    };
 
    template<typename Index>
@@ -77,12 +148,14 @@ namespace chainbase {
    };
 
    template<typename K, typename Allocator>
-   using hook = 
+   using hook = offset_node_base<K>;
+#if 0
       boost::intrusive::set_base_hook<
          boost::intrusive::tag<K>,
          boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
          boost::intrusive::link_mode<boost::intrusive::normal_link>,
          boost::intrusive::constant_time_size<true>>;
+#endif
 
    template<typename Alloc, typename T>
    using ptr_t = typename rebind_alloc_t<Alloc, T>::pointer;
@@ -111,7 +184,8 @@ namespace chainbase {
    template<typename Node, typename Key>
    using set_base = boost::intrusive::set<
       typename Node::value_type,
-      boost::intrusive::function_hook<hook_f<Node, Key, typename Node::allocator_type>>,
+     //boost::intrusive::function_hook<hook_f<Node, Key, typename Node::allocator_type>>,
+     boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
       boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
       boost::intrusive::compare<index_compare<Key>>>;
   
@@ -192,8 +266,8 @@ namespace chainbase {
          id_node(const id_type& id) : value_holder<id_type>(id) {}
       };
 
-      using id_pointer = typename rebind_alloc_t<Allocator, id_type>::pointer;
-      using pointer = typename rebind_alloc_t<Allocator, value_type>::pointer;
+      using id_pointer = id_type*;//typename rebind_alloc_t<Allocator, id_type>::pointer;
+      using pointer = value_type*;//typename rebind_alloc_t<Allocator, value_type>::pointer;
       using const_iterator = boost::iterators::transform_iterator<cast_f<const T&>, typename index0_type::const_iterator>;
 
       struct undo_state {
@@ -396,7 +470,7 @@ namespace chainbase {
             dispose(&*id);
          });
          // replace old_values - if there is a conflict, erase the conflict
-         undo_info.old_values.clear_and_dispose([this](pointer p) { insert_or_replace(*p); });
+         undo_info.old_values.clear_and_dispose([this](pointer p) { replace_impl(*p); });
          // insert all removed_values
          undo_info.removed_values.clear_and_dispose([this](pointer p) { insert_impl(*p); });
          _next_id = undo_info.old_next_id;
@@ -511,7 +585,7 @@ namespace chainbase {
 
       // inserts a node and removes any existing nodes that conflict with it
       template<int N = 0>
-      void insert_or_replace(value_type& p) {
+      void replace_impl(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
             auto [iter, inserted] = std::get<N>(_indices).insert(p);
             if(!inserted) {
@@ -520,7 +594,7 @@ namespace chainbase {
                dispose(conflict);
                std::get<N>(_indices).insert(p);
             }
-            insert_or_replace<N + 1>(p);
+            replace_impl<N + 1>(p);
          }
       }
 
