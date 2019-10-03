@@ -907,7 +907,7 @@ namespace chainbase {
              CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indices().template get< IndexedByType >();
-             auto itr = idx.find( std::forward< CompatibleKey >( key ), idx.key_comp() );
+             auto itr = idx.find( std::forward< CompatibleKey >( key ) );
              if( itr == idx.end() ) return nullptr;
              return &*itr;
          }

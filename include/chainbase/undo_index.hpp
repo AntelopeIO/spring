@@ -30,14 +30,13 @@ namespace chainbase {
 
    template<typename Key, typename T>
    struct get_key {
-      using type = std::decay_t<decltype(Key{}(std::declval<const T&>().item()))>;
-      decltype(auto) operator()(const T& arg) const { return Key{}(arg.item()); }
+      using type = std::decay_t<decltype(Key{}(std::declval<const T&>()))>;
+      decltype(auto) operator()(const T& arg) const { return Key{}(arg); }
    };
 
-   template<typename T>
    struct identity_key {
-      using type = std::decay_t<decltype(std::declval<const T&>()._item)>;
-      const auto& operator()(const T& t) { return t._item; }
+      template<typename T>
+      const auto& operator()(const T& t) { return t; }
    };
 
    template<typename Allocator, typename T>
@@ -49,6 +48,11 @@ namespace chainbase {
    struct index_tag_impl<Index<boost::multi_index::tag<Tag>, T...>> { using type = Tag; };
    template<typename Index>
    using index_tag = typename index_tag_impl<Index>::type;
+
+   struct identity_index {
+      using key_from_value_type = identity_key;
+      using compare_type = std::less<>;
+   };
 
    template<typename Index>
    using index_key = typename Index::key_from_value_type;
@@ -65,24 +69,68 @@ namespace chainbase {
       R operator()(T&& t) const { return static_cast<R>(static_cast<T&&>(t)); }
    };
 
-#if 0
-   template<typename Node, typename... Args>
-   struct set_impl {
-     using const_iterator = boost::iterators::transform_iterator<cast_f<const value_type&>, typename impl_type::const_iterator>;
-     using impl_type = boost::intrusive::set<Node, Args...>;
-     impl_type _impl;
+   template<typename K, typename Allocator>
+   using hook = 
+      boost::intrusive::set_base_hook<
+         boost::intrusive::tag<K>,
+         boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
+         boost::intrusive::link_mode<boost::intrusive::normal_link>,
+         boost::intrusive::constant_time_size<true>>;
+
+   template<typename Alloc, typename T>
+   using ptr_t = typename rebind_alloc_t<Alloc, T>::pointer;
+   template<typename Alloc, typename T>
+   using cptr_t = typename rebind_alloc_t<Alloc, T>::const_pointer;
+
+   template<typename Node, typename Key, typename A>
+   struct hook_f {
+      using hook_type = hook<Key, A>;
+      using hook_ptr = ptr_t<A, hook_type>;
+      using const_hook_ptr = cptr_t<A, hook_type>;
+      using value_type = typename Node::value_type;
+      using pointer = ptr_t<A, value_type>;
+      using const_pointer = cptr_t<A, value_type>;
+
+      static hook_ptr to_hook_ptr(value_type &value) { return hook_ptr{static_cast<Node*>(&value)}; }
+      static const_hook_ptr to_hook_ptr(const value_type &value) { return hook_ptr{static_cast<const Node*>(&value)}; }
+      static pointer to_value_ptr(const hook_ptr& n) { return pointer{static_cast<Node*>(&*n)}; }
+      static const_pointer to_value_ptr(const const_hook_ptr& n) { return pointer{static_cast<const Node*>(&*n)}; }
    };
-#endif
+
+   template<typename Node, typename Key>
+   using set_base = boost::intrusive::set<
+      typename Node::value_type,
+      boost::intrusive::function_hook<hook_f<Node, Key, typename Node::allocator_type>>,
+      boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
+      boost::intrusive::compare<index_compare<Key>>>;
+  
+   template<typename Node, typename Key>
+   struct set_impl : set_base<Node, Key> {
+     using base_type = set_base<Node, Key>;
+      template<typename K>
+      auto find(K&& k) {
+         return base_type::find(static_cast<K&&>(k), this->key_comp());
+      }
+      template<typename K>
+      auto find(K&& k) const {
+         return base_type::find(static_cast<K&&>(k), this->key_comp());
+      }
+      template<typename K>
+      auto lower_bound(K&& k) const {
+         return base_type::lower_bound(static_cast<K&&>(k), this->key_comp());
+      }
+      template<typename K>
+      auto upper_bound(K&& k) const {
+         return base_type::upper_bound(static_cast<K&&>(k), this->key_comp());
+      }
+      template<typename K>
+      auto equal_range(K&& k) const {
+         return base_type::equal_range(static_cast<K&&>(k), this->key_comp());
+      }
+   };
 
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
-      template<typename K>
-      using hook = 
-         boost::intrusive::set_base_hook<
-            boost::intrusive::tag<K>,
-            boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
-            boost::intrusive::link_mode<boost::intrusive::normal_link>,
-            boost::intrusive::constant_time_size<true>>;
 
     public:
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
@@ -101,40 +149,38 @@ namespace chainbase {
 
       void validate() const {}
     
-      struct node : hook<Keys>..., T {
+      struct node : hook<Keys, Allocator>..., T {
+         using value_type = T;
+         using allocator_type = Allocator;
          template<typename... A>
          explicit node(A&&... a) : T{a...} {}
          const T& item() const { return *this; }
       };
 
-      using indices_type = std::tuple<
-         boost::intrusive::set<
-            node,
-            boost::intrusive::base_hook<hook<Keys>>,
-            boost::intrusive::key_of_value<get_key<index_key<Keys>, node>>,
-            boost::intrusive::compare<index_compare<Keys>>>...>;
+      using indices_type = std::tuple<set_impl<node, Keys>...>;
 
-     using index0_type = std::tuple_element_t<0, indices_type>;
+      using index0_type = std::tuple_element_t<0, indices_type>;
 
-      struct id_node : hook<void>  {
-         id_node(const id_type& id) : _item(id) {}
-         id_type _item;
+      struct id_node : hook<identity_index, Allocator>, id_type  {
+         using value_type = id_type;
+         using allocator_type = Allocator;
+         id_node(const id_type& id) : id_type(id) {}
       };
 
-      using id_pointer = typename rebind_alloc_t<Allocator, id_node>::pointer;
-      using pointer = typename rebind_alloc_t<Allocator, node>::pointer;
+      using id_pointer = typename rebind_alloc_t<Allocator, id_type>::pointer;
+      using pointer = typename rebind_alloc_t<Allocator, value_type>::pointer;
       using const_iterator = boost::iterators::transform_iterator<cast_f<const T&>, typename index0_type::const_iterator>;
 
       struct undo_state {
          std::tuple_element_t<0, indices_type> old_values;
          std::tuple_element_t<0, indices_type> removed_values;
-         boost::intrusive::set<id_node, boost::intrusive::base_hook<hook<void>>, boost::intrusive::key_of_value<identity_key<id_node>>> new_ids;
+         set_impl<id_node, identity_index> new_ids;
          id_type old_next_id = 0;
       };
 
       template<typename Constructor>
       const value_type& emplace( Constructor&& c ) {
-         pointer p = _allocator.allocate(1);
+         auto p = _allocator.allocate(1);
          auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
          auto new_id = _next_id;
          auto constructor = [&]( value_type& v ) {
@@ -315,7 +361,7 @@ namespace chainbase {
          undo_state& undo_info = _undo_stack.back();
          // erase all new_ids
          undo_info.new_ids.clear_and_dispose([&](id_pointer id){
-            auto& node_ref = *std::get<0>(_indices).find(id->_item);
+            auto& node_ref = *std::get<0>(_indices).find(*id);
             erase_impl(node_ref);
             dispose(node_ref);
             dispose(&*id);
@@ -340,7 +386,7 @@ namespace chainbase {
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
          last_state.new_ids.clear_and_dispose([this, &prev_state](id_pointer p) {
-            auto iter = prev_state.removed_values.find(p->_item);
+            auto iter = prev_state.removed_values.find(*p);
             if ( iter != prev_state.removed_values.end() ) {
                auto& node_ref = *iter;
                prev_state.removed_values.erase(iter);
@@ -403,7 +449,7 @@ namespace chainbase {
       }
 
       template<int N = 0>
-      bool insert_impl(node& p) {
+      bool insert_impl(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
             auto [iter, inserted] = std::get<N>(_indices).insert(p);
             if(!inserted) return false;
@@ -419,11 +465,11 @@ namespace chainbase {
 
       // inserts a node and removes any existing nodes that conflict with it
       template<int N = 0>
-      void insert_or_replace(node& p) {
+      void insert_or_replace(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
             auto [iter, inserted] = std::get<N>(_indices).insert(p);
             if(!inserted) {
-               node& conflict = *iter;
+               value_type& conflict = *iter;
                erase_impl(conflict);
                dispose(conflict);
                std::get<N>(_indices).insert(p);
@@ -433,7 +479,7 @@ namespace chainbase {
       }
 
       template<int N = sizeof...(Keys)>
-      void erase_impl(node& p) {
+      void erase_impl(value_type& p) {
          if constexpr (N > 0) {
             auto& setN = std::get<N-1>(_indices);
             setN.erase(setN.iterator_to(p));
@@ -451,7 +497,7 @@ namespace chainbase {
                undo_info.old_values.insert(elem);
             } else {
                // Not in old_values or new_ids
-               id_pointer new_id = _new_ids_allocator.allocate(1);
+               auto new_id = _new_ids_allocator.allocate(1);
                auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
                _new_ids_allocator.construct(new_id, value.id);
                guard0.cancel();
@@ -469,7 +515,7 @@ namespace chainbase {
                // Nothing to do
             } else {
                // Not in removed_values
-               pointer p = _allocator.allocate(1);
+               auto p = _allocator.allocate(1);
                auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
                _allocator.construct(p, obj);
                guard0.cancel();
@@ -495,9 +541,15 @@ namespace chainbase {
          _allocator.destroy(p);
          _allocator.deallocate(p, 1);
       }
+      void dispose(value_type& node_ref) noexcept {
+         dispose(static_cast<node&>(node_ref));
+      }
       void dispose(id_node* p) noexcept {
          _new_ids_allocator.destroy(p);
          _new_ids_allocator.deallocate(p, 1);
+      }
+      void dispose(id_type* p) noexcept {
+         dispose(static_cast<id_node*>(p));
       }
       void dispose(undo_state& state) noexcept {
          state.new_ids.clear_and_dispose([this](id_pointer p){ dispose(&*p); });
@@ -510,7 +562,7 @@ namespace chainbase {
             auto& undo_info = _undo_stack.back();
             auto new_pos = undo_info.new_ids.find( obj.id );
             if ( new_pos != undo_info.new_ids.end() ) {
-               id_node* p = &*new_pos;
+               id_type* p = &*new_pos;
                undo_info.new_ids.erase( new_pos );
                dispose(p);
                return true;
