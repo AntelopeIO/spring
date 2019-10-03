@@ -14,6 +14,7 @@
 #include <memory>
 #include <type_traits>
 #include <iostream>
+#include <sstream>
 
 namespace chainbase {
 
@@ -104,8 +105,11 @@ namespace chainbase {
       boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
       boost::intrusive::compare<index_compare<Key>>>;
   
+   template<typename T, typename Allocator, typename... Keys>
+   class undo_index;
+  
    template<typename Node, typename Key>
-   struct set_impl : set_base<Node, Key> {
+   struct set_impl : private set_base<Node, Key> {
      using base_type = set_base<Node, Key>;
       template<typename K>
       auto find(K&& k) {
@@ -127,6 +131,15 @@ namespace chainbase {
       auto equal_range(K&& k) const {
          return base_type::equal_range(static_cast<K&&>(k), this->key_comp());
       }
+      using base_type::begin;
+      using base_type::end;
+      using base_type::rbegin;
+      using base_type::rend;
+      using base_type::size;
+      using base_type::iterator_to;
+      using base_type::empty;
+      template<typename T, typename Allocator, typename... Keys>
+      friend class undo_index;
    };
 
    template<typename T, typename Allocator, typename... Keys>
@@ -138,7 +151,9 @@ namespace chainbase {
       using allocator_type = Allocator;
 
       undo_index() = default;
-      explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _new_ids_allocator{a} {}
+      explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _new_ids_allocator{a} {
+        dump_info("create");
+      }
       ~undo_index() {
          for(undo_state& state : _undo_stack) {
             dispose(state);
@@ -203,6 +218,7 @@ namespace chainbase {
 
       template<typename Modifier>
       void modify( const value_type& obj, Modifier&& m) {
+         dump_info2("modify");
          node* backup = on_modify(obj);
          node& node_ref = const_cast<node&>(static_cast<const node&>( obj ));
          erase_impl(node_ref);
@@ -210,6 +226,7 @@ namespace chainbase {
          if(!insert_impl(node_ref) && backup) {
             insert_impl(*backup);
          }
+         dump_info2("post-modify");
       }
 
       void remove( const value_type& obj ) {
@@ -322,6 +339,7 @@ namespace chainbase {
             dispose(_undo_stack.front());
             _undo_stack.pop_front();
          }
+         dump_info2("post-commit");
       }
 
       const undo_index& indices() const { return *this; }
@@ -373,6 +391,7 @@ namespace chainbase {
          _next_id = undo_info.old_next_id;
          _undo_stack.pop_back();
          --_revision;
+         dump_info2("post-undo");
       }
       void squash() {
          dump_info("squash");
@@ -425,24 +444,40 @@ namespace chainbase {
                   dispose(*p);
                } else {
                   // Not in removed_values
-                  prev_state.removed_values.insert(*p);
+                  prev_state.old_values.insert(*p);
                }
             }
          });
          _undo_stack.pop_back();
          --_revision;
+         dump_info2("post-squash");
       }
 
     private:
 
+#if 1
+     void dump_info(const char*) const {}
+     void dump_info2(const char*) const {}
+#else
       void dump_info(const char* fn) const {
         std::cout << fn << ": " << "revision=" << _revision
                   << ", undo_stack_size=" << _undo_stack.size()
                   << ", size=" << size()
-                  << ", next_id=" << _next_id << std::endl; 
+                  << ", next_id=" << _next_id
+                  << ", this= " << (const void*)this << std::endl;
+        dump_info2(fn);
       }
+      void dump_info2(const char* fn) const {
+        if constexpr(value_type::type_id == 2) {
+            if(!get<0>().empty()) {
+              std::cout << fn << ": recv_sequence: " << (get<0>().begin())->recv_sequence << ", account_metadata_object, this=" << (const void*)this << std::endl;
+            }
+}
+      }
+#endif
 
       int64_t add_session() {
+        dump_info("add_session");
          _undo_stack.emplace_back();
          _undo_stack.back().old_next_id = _next_id;
          return ++_revision;
