@@ -11,6 +11,7 @@
 #include <boost/iterator/transform_iterator.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/core/demangle.hpp>
+#include <boost/interprocess/interprocess_fwd.hpp>
 #include <memory>
 #include <type_traits>
 #include <sstream>
@@ -226,6 +227,13 @@ namespace chainbase {
       friend class undo_index;
    };
 
+   template<typename T>
+   auto& propagate_allocator(std::allocator<T>& a) { return a; }
+   template<typename T, typename S>
+   auto& propagate_allocator(boost::interprocess::allocator<T, S>& a) { return a; }
+   template<typename T, typename S, std::size_t N>
+   auto propagate_allocator(boost::interprocess::node_allocator<T, S, N>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
+
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
 
@@ -287,7 +295,7 @@ namespace chainbase {
             c( v );
          };
          // _allocator.construct(p, constructor, _allocator);
-         new (&*p) node(constructor, _allocator);
+         new (&*p) node(constructor, propagate_allocator(_allocator));
          auto guard1 = scope_exit{[&]{ _allocator.destroy(p); }};
          if(!insert_impl(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );

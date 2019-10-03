@@ -7,6 +7,7 @@
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
+#include <boost/interprocess/allocators/node_allocator.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
 #include <boost/core/demangle.hpp>
@@ -52,6 +53,9 @@ namespace chainbase {
    template<typename T>
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
 
+   template<typename T>
+   using node_allocator = bip::node_allocator<T, pinnable_mapped_file::segment_manager>;
+  
    typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
    template<typename T>
@@ -1002,5 +1006,5 @@ namespace chainbase {
    };
 
    template<typename Object, typename... Args>
-   using shared_multi_index_container = boost::multi_index_container<Object,Args..., chainbase::allocator<Object> >;
+   using shared_multi_index_container = boost::multi_index_container<Object,Args..., chainbase::node_allocator<Object> >;
 }  // namepsace chainbase
