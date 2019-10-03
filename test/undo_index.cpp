@@ -1,4 +1,4 @@
-#include "undo_index.hpp"
+#include <chainbase/undo_index.hpp>
 
 #include <boost/multi_index/key.hpp>
 

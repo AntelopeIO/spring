@@ -13,6 +13,7 @@
 #include <boost/iterator/transform_iterator.hpp>
 #include <memory>
 #include <type_traits>
+#include <iostream>
 
 namespace chainbase {
 
@@ -64,6 +65,15 @@ namespace chainbase {
       R operator()(T&& t) const { return static_cast<R>(static_cast<T&&>(t)); }
    };
 
+#if 0
+   template<typename Node, typename... Args>
+   struct set_impl {
+     using const_iterator = boost::iterators::transform_iterator<cast_f<const value_type&>, typename impl_type::const_iterator>;
+     using impl_type = boost::intrusive::set<Node, Args...>;
+     impl_type _impl;
+   };
+#endif
+
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
       template<typename K>
@@ -71,7 +81,8 @@ namespace chainbase {
          boost::intrusive::set_base_hook<
             boost::intrusive::tag<K>,
             boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
-            boost::intrusive::optimize_size<true>>;
+            boost::intrusive::link_mode<boost::intrusive::normal_link>,
+            boost::intrusive::constant_time_size<true>>;
 
     public:
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
@@ -92,7 +103,7 @@ namespace chainbase {
     
       struct node : hook<Keys>..., T {
          template<typename... A>
-         node(A&&... a) : T{a...} {}
+         explicit node(A&&... a) : T{a...} {}
          const T& item() const { return *this; }
       };
 
@@ -223,7 +234,8 @@ namespace chainbase {
          }
          int64_t revision() const {
             // It looks like chainbase doesn't implement this correctly.  We hope it isn't actually used.
-            BOOST_THROW_EXCEPTION(std::logic_error{"session::revision is unsupported"});
+            // BOOST_THROW_EXCEPTION(std::logic_error{"session::revision is unsupported"});
+           return _revision;
          }
        private:
          undo_index& _index;
@@ -234,10 +246,12 @@ namespace chainbase {
       int64_t revision() const { return _revision; }
 
       session start_undo_session( bool enabled ) {
+         dump_info("start_undo_session");
          return session{*this, enabled};
       }
 
       void set_revision( uint64_t revision ) {
+         dump_info("set_revision");
          if( _undo_stack.size() != 0 )
             BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
 
@@ -248,6 +262,7 @@ namespace chainbase {
       }
 
       std::pair<int64_t, int64_t> undo_stack_revision_range() const {
+         dump_info("revision_range");
          return { _revision - _undo_stack.size(), _revision };
       }
 
@@ -255,6 +270,7 @@ namespace chainbase {
        * Discards all undo history prior to revision
        */
       void commit( int64_t revision ) {
+         dump_info("commit");
          revision = std::min(revision, _revision);
          while( _revision - _undo_stack.size() < revision ) {
             dispose(_undo_stack.front());
@@ -294,6 +310,8 @@ namespace chainbase {
       }
 
       void undo() {
+         dump_info("undo");
+         if (_undo_stack.empty()) return;
          undo_state& undo_info = _undo_stack.back();
          // erase all new_ids
          undo_info.new_ids.clear_and_dispose([&](id_pointer id){
@@ -311,9 +329,11 @@ namespace chainbase {
          --_revision;
       }
       void squash() {
+         dump_info("squash");
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
+            --_revision;
             _undo_stack.pop_back();
             return;
          }
@@ -368,6 +388,13 @@ namespace chainbase {
       }
 
     private:
+
+      void dump_info(const char* fn) const {
+        std::cout << fn << ": " << "revision=" << _revision
+                  << ", undo_stack_size=" << _undo_stack.size()
+                  << ", size=" << size()
+                  << ", next_id=" << _next_id << std::endl; 
+      }
 
       int64_t add_session() {
          _undo_stack.emplace_back();
