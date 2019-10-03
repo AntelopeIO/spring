@@ -1,16 +1,18 @@
 #include <chainbase/undo_index.hpp>
 
 #include <boost/multi_index/key.hpp>
+#include <boost/multi_index/ordered_index.hpp>
 
-#define BOOST_TEST_MAIN
-#include <boost/test/included/unit_test.hpp>
+#include <boost/test/unit_test.hpp>
 
 struct basic_element_t {
+   template<typename C, typename A>
+   basic_element_t(C&& c, const std::allocator<A>&) { c(*this); }
    uint64_t id;
 };
 
 BOOST_AUTO_TEST_CASE(test_simple) {
-   eosio::undo_index<basic_element_t, std::allocator<void>, boost::multi_index::key<&basic_element_t::id>> i0;
+   chainbase::undo_index<basic_element_t, std::allocator<void>, boost::multi_index::ordered_unique<boost::multi_index::key<&basic_element_t::id>>> i0;
    i0.emplace([](basic_element_t& elem) {});
    const basic_element_t* element = i0.find(0);
    BOOST_TEST((element != nullptr && element->id == 0));
@@ -26,14 +28,16 @@ BOOST_AUTO_TEST_CASE(test_simple) {
 }
 
 struct test_element_t {
+   template<typename C, typename A>
+   test_element_t(C&& c, const std::allocator<A>&) { c(*this); }
    uint64_t id;
    int secondary;
 };
 
 BOOST_AUTO_TEST_CASE(test_insert_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -47,9 +51,9 @@ BOOST_AUTO_TEST_CASE(test_insert_undo) {
 
 
 BOOST_AUTO_TEST_CASE(test_modify_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -62,9 +66,9 @@ BOOST_AUTO_TEST_CASE(test_modify_undo) {
 
 
 BOOST_AUTO_TEST_CASE(test_remove_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -76,9 +80,9 @@ BOOST_AUTO_TEST_CASE(test_remove_undo) {
 }
 
 BOOST_AUTO_TEST_CASE(test_insert_modify_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -94,9 +98,9 @@ BOOST_AUTO_TEST_CASE(test_insert_modify_undo) {
 
 
 BOOST_AUTO_TEST_CASE(test_insert_modify_squash) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -113,9 +117,9 @@ BOOST_AUTO_TEST_CASE(test_insert_modify_squash) {
 }
 
 BOOST_AUTO_TEST_CASE(test_insert_remove_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -130,9 +134,9 @@ BOOST_AUTO_TEST_CASE(test_insert_remove_undo) {
 }
 
 BOOST_AUTO_TEST_CASE(test_insert_remove_squash) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -149,9 +153,9 @@ BOOST_AUTO_TEST_CASE(test_insert_remove_squash) {
 }
 
 BOOST_AUTO_TEST_CASE(test_modify_modify_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -165,9 +169,9 @@ BOOST_AUTO_TEST_CASE(test_modify_modify_undo) {
 }
 
 BOOST_AUTO_TEST_CASE(test_modify_modify_squash) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -183,9 +187,9 @@ BOOST_AUTO_TEST_CASE(test_modify_modify_squash) {
 }
 
 BOOST_AUTO_TEST_CASE(test_modify_remove_undo) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -199,9 +203,9 @@ BOOST_AUTO_TEST_CASE(test_modify_remove_undo) {
 }
 
 BOOST_AUTO_TEST_CASE(test_modify_remove_squash) {
-   eosio::undo_index<test_element_t, std::allocator<void>,
-                     boost::multi_index::key<&test_element_t::id>,
-                     boost::multi_index::key<&test_element_t::secondary> > i0;
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.find(0)->secondary == 42);
    {
@@ -217,6 +221,8 @@ BOOST_AUTO_TEST_CASE(test_modify_remove_squash) {
 }
 
 struct conflict_element_t {
+   template<typename C, typename A>
+   conflict_element_t(C&& c, const std::allocator<A>&) { c(*this); }
    uint64_t id;
    int x0;
    int x1;
@@ -224,11 +230,11 @@ struct conflict_element_t {
 };
 
 BOOST_AUTO_TEST_CASE(test_modify_conflict) {
-   eosio::undo_index<conflict_element_t, std::allocator<void>,
-                     boost::multi_index::key<&conflict_element_t::id>,
-                     boost::multi_index::key<&conflict_element_t::x0>,
-                     boost::multi_index::key<&conflict_element_t::x1>,
-                     boost::multi_index::key<&conflict_element_t::x2> > i0;
+   chainbase::undo_index<conflict_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x1>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x2>>> i0;
    // insert 3 elements
    i0.emplace([](conflict_element_t& elem) { elem.x0 = 0; elem.x1 = 10; elem.x2 = 10; });
    i0.emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 1; elem.x2 = 11; });

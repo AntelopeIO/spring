@@ -5,15 +5,14 @@
 #include <boost/intrusive/set.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/throw_exception.hpp>
-#include <boost/mpl/copy.hpp>
-#include <boost/mpl/back_inserter.hpp>
-#include <boost/mp11/mpl.hpp>
+#include <boost/mpl/fold.hpp>
 #include <boost/mp11/list.hpp>
 #include <boost/mp11/algorithm.hpp>
 #include <boost/iterator/transform_iterator.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/core/demangle.hpp>
 #include <memory>
 #include <type_traits>
-#include <iostream>
 #include <sstream>
 
 namespace chainbase {
@@ -55,6 +54,13 @@ namespace chainbase {
       using compare_type = std::less<>;
    };
 
+   template<typename T>
+   struct value_holder {
+      template<typename... A>
+      value_holder(A&&... a) : _item(static_cast<A&&>(a)...) {}
+      T _item;
+   };
+
    template<typename Index>
    using index_key = typename Index::key_from_value_type;
    template<typename Index>
@@ -92,10 +98,14 @@ namespace chainbase {
       using pointer = ptr_t<A, value_type>;
       using const_pointer = cptr_t<A, value_type>;
 
-      static hook_ptr to_hook_ptr(value_type &value) { return hook_ptr{static_cast<Node*>(&value)}; }
-      static const_hook_ptr to_hook_ptr(const value_type &value) { return hook_ptr{static_cast<const Node*>(&value)}; }
-      static pointer to_value_ptr(const hook_ptr& n) { return pointer{static_cast<Node*>(&*n)}; }
-      static const_pointer to_value_ptr(const const_hook_ptr& n) { return pointer{static_cast<const Node*>(&*n)}; }
+      static hook_ptr to_hook_ptr(value_type &value) {
+         return hook_ptr{static_cast<Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
+      }
+      static const_hook_ptr to_hook_ptr(const value_type &value) {
+         return hook_ptr{static_cast<const Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
+      }
+      static pointer to_value_ptr(const hook_ptr& n) { return pointer{&static_cast<Node*>(&*n)->_item}; }
+      static const_pointer to_value_ptr(const const_hook_ptr& n) { return pointer{&static_cast<const Node*>(&*n)->_item}; }
    };
 
    template<typename Node, typename Key>
@@ -164,11 +174,11 @@ namespace chainbase {
 
       void validate() const {}
     
-      struct node : hook<Keys, Allocator>..., T {
+      struct node : hook<Keys, Allocator>..., value_holder<T> {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
-         explicit node(A&&... a) : T{a...} {}
+         explicit node(A&&... a) : value_holder<T>{a...} {}
          const T& item() const { return *this; }
       };
 
@@ -176,10 +186,10 @@ namespace chainbase {
 
       using index0_type = std::tuple_element_t<0, indices_type>;
 
-      struct id_node : hook<identity_index, Allocator>, id_type  {
+      struct id_node : hook<identity_index, Allocator>, value_holder<id_type>  {
          using value_type = id_type;
          using allocator_type = Allocator;
-         id_node(const id_type& id) : id_type(id) {}
+         id_node(const id_type& id) : value_holder<id_type>(id) {}
       };
 
       using id_pointer = typename rebind_alloc_t<Allocator, id_type>::pointer;
@@ -205,32 +215,33 @@ namespace chainbase {
          // _allocator.construct(p, constructor, _allocator);
          new (&*p) node(constructor, _allocator);
          auto guard1 = scope_exit{[&]{ _allocator.destroy(p); }};
-         if(!insert_impl(*p))
+         if(!insert_impl(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );
-         auto guard2 = scope_exit{ [&]{ erase_impl(*p); } };
-         on_create(*p);
+         auto guard2 = scope_exit{ [&]{ erase_impl(p->_item); } };
+         on_create(p->_item);
          ++_next_id;
          guard2.cancel();
          guard1.cancel();
          guard0.cancel();
-         return *p;
+         return p->_item;
       }
 
       template<typename Modifier>
       void modify( const value_type& obj, Modifier&& m) {
          dump_info2("modify");
-         node* backup = on_modify(obj);
-         node& node_ref = const_cast<node&>(static_cast<const node&>( obj ));
-         erase_impl(node_ref);
-         m(const_cast<T&>(obj));
-         if(!insert_impl(node_ref) && backup) {
-            insert_impl(*backup);
-         }
+         /*value_type* backup = */on_modify(obj);
+         value_type& node_ref = const_cast<value_type&>(obj);
+         //erase_impl(node_ref);
+         m(node_ref);
+         post_modify<1>(node_ref); // The object id cannot be modified
+         //if(!insert_impl(node_ref) && backup) {
+         //   insert_impl(*backup);
+         //}
          dump_info2("post-modify");
       }
 
       void remove( const value_type& obj ) {
-         auto& node_ref = const_cast<node&>(static_cast<const node&>(obj));
+         auto& node_ref = const_cast<value_type&>(obj);
          erase_impl(node_ref);
          if(on_remove(node_ref)) {
             dispose(node_ref);
@@ -359,7 +370,7 @@ namespace chainbase {
 
       template<typename Tag, typename Iter>
       auto project(Iter iter) const {
-         return get<Tag>().iterator_to(static_cast<const node&>(*iter));
+         return get<Tag>().iterator_to(*iter);
       }
 
       const auto& stack() const { return _undo_stack; }
@@ -513,6 +524,33 @@ namespace chainbase {
          }
       }
 
+      // Moves a modified node into the correct location
+      template<int N = 0>
+      void post_modify(value_type& p) {
+         if constexpr (N < sizeof...(Keys)) {
+            auto& idx = std::get<N>(_indices);
+            auto iter = idx.iterator_to(p);
+            bool fixup = false;
+            if (iter != idx.begin()) {
+               auto copy = iter;
+               --copy;
+               if (!idx.value_comp()(*copy, p)) fixup = true;
+            }
+            ++iter;
+            if (iter != idx.end()) {
+               if(!idx.value_comp()(p, *iter)) fixup = true;
+            }
+            if(fixup) {
+               auto iter2 = idx.iterator_to(p);
+               idx.erase(iter2);
+               auto [_, inserted] = idx.insert(p);
+               (void)inserted;
+               assert(inserted);
+            }
+            post_modify<N+1>(p);
+         }
+      }
+
       template<int N = sizeof...(Keys)>
       void erase_impl(value_type& p) {
          if constexpr (N > 0) {
@@ -536,12 +574,12 @@ namespace chainbase {
                auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
                _new_ids_allocator.construct(new_id, value.id);
                guard0.cancel();
-               _undo_stack.back().new_ids.insert(*new_id);
+               _undo_stack.back().new_ids.insert(new_id->_item);
             }
          }
       }
 
-      node* on_modify( const value_type& obj) {
+      value_type* on_modify( const value_type& obj) {
          if (!_undo_stack.empty()) {
             auto& undo_info = _undo_stack.back();
             if ( undo_info.new_ids.find( obj.id ) != undo_info.new_ids.end() ) {
@@ -554,8 +592,8 @@ namespace chainbase {
                auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
                _allocator.construct(p, obj);
                guard0.cancel();
-               undo_info.old_values.insert(*p);
-               return &*p;
+               undo_info.old_values.insert(p->_item);
+               return &p->_item;
             }
          }
          return nullptr;
@@ -577,14 +615,14 @@ namespace chainbase {
          _allocator.deallocate(p, 1);
       }
       void dispose(value_type& node_ref) noexcept {
-         dispose(static_cast<node&>(node_ref));
+         dispose(static_cast<node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
       }
       void dispose(id_node* p) noexcept {
          _new_ids_allocator.destroy(p);
          _new_ids_allocator.deallocate(p, 1);
       }
       void dispose(id_type* p) noexcept {
-         dispose(static_cast<id_node*>(p));
+         dispose(static_cast<id_node*>(boost::intrusive::get_parent_from_member(p, &value_holder<id_type>::_item)));
       }
       void dispose(undo_state& state) noexcept {
          state.new_ids.clear_and_dispose([this](id_pointer p){ dispose(&*p); });
@@ -592,7 +630,7 @@ namespace chainbase {
          state.old_values.clear_and_dispose([this](pointer p){ dispose(*p); });
       }
       // returns true if the node should be destroyed
-      bool on_remove( node& obj) {
+      bool on_remove( value_type& obj) {
          if (!_undo_stack.empty()) {
             auto& undo_info = _undo_stack.back();
             auto new_pos = undo_info.new_ids.find( obj.id );
@@ -634,9 +672,14 @@ namespace chainbase {
       using type = undo_index<T, A, I...>;
    };
 
+   struct to_mp11 {
+      template<typename State, typename T>
+      using apply = boost::mpl::identity<boost::mp11::mp_push_back<State, T>>;
+   };
+
    template<typename T, typename I, typename A>
    struct multi_index_to_undo_index_impl<boost::multi_index_container<T, I, A>> {
-      using as_mp11 = typename boost::mpl::copy<I, boost::mpl::back_inserter<boost::mp11::mp_list<>>>::type;
+      using as_mp11 = typename boost::mpl::fold<I, boost::mp11::mp_list<>, to_mp11>::type;
       using type = typename mi_to_ui_ii<T, as_mp11, A>::type;
    };
 
