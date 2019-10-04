@@ -240,12 +240,19 @@ namespace chainbase {
       friend class undo_index;
    };
 
+   template<typename T, typename S>
+   class chainbase_node_allocator;
+
    template<typename T>
    auto& propagate_allocator(std::allocator<T>& a) { return a; }
    template<typename T, typename S>
    auto& propagate_allocator(boost::interprocess::allocator<T, S>& a) { return a; }
    template<typename T, typename S, std::size_t N>
    auto propagate_allocator(boost::interprocess::node_allocator<T, S, N>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
+   template<typename T, typename S, std::size_t N>
+   auto propagate_allocator(boost::interprocess::private_node_allocator<T, S, N>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
+   template<typename T, typename S>
+   auto propagate_allocator(chainbase::chainbase_node_allocator<T, S>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
 
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {

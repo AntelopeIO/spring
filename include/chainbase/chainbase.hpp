@@ -8,6 +8,7 @@
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/allocators/node_allocator.hpp>
+#include <boost/interprocess/allocators/private_node_allocator.hpp>
 #include <boost/interprocess/sync/interprocess_sharable_mutex.hpp>
 #include <boost/interprocess/sync/sharable_lock.hpp>
 #include <boost/core/demangle.hpp>
@@ -50,16 +51,128 @@ namespace chainbase {
    using std::unique_ptr;
    using std::vector;
 
+   template<typename T, typename S = pinnable_mapped_file::segment_manager>
+   class chainbase_node_allocator {
+    public:
+      using value_type = T;
+      using reference = T&;
+      using const_reference = const T&;
+      using pointer = bip::offset_ptr<T>;
+      using const_pointer = bip::offset_ptr<const T>;
+      using void_pointer = bip::offset_ptr<void>;
+      using const_void_pointer = bip::offset_ptr<const void>;
+      using segment_manager = pinnable_mapped_file::segment_manager;
+      using difference_type = std::ptrdiff_t;
+      using size_type = std::size_t;
+      template<typename U>
+      struct rebind { using other = chainbase_node_allocator<U, S>; };
+      chainbase_node_allocator(segment_manager* manager) : _manager{manager} {}
+      chainbase_node_allocator(const chainbase_node_allocator& other) : _manager(other._manager) {}
+      template<typename U>
+      chainbase_node_allocator(const chainbase_node_allocator<U, S>& other) : _manager(other._manager) {}
+      pointer allocate(std::size_t num) {
+         if (num == 1) {
+            if (_freelist == nullptr) {
+               get_some();
+            }
+            list_item* result = &*_freelist;
+            _freelist = _freelist->_next;
+            result->~list_item();
+            return pointer{(T*)result};
+         } else {
+            return pointer{(T*)_manager->allocate(num*sizeof(T))};
+         }
+      }
+      void deallocate(const pointer& p, std::size_t num) {
+         if (num == 1) {
+            _freelist = new (&*p) list_item{_freelist};
+         } else {
+            _manager->deallocate(&*p);
+         }
+      }
+      pointer address(reference val) const { return pointer{&val}; }
+      const_pointer address(const_reference val) const { return const_pointer{&val}; }
+      template<typename... A>
+      void construct(const pointer &p, A&&... a) {
+         new(&*p) T{a...};
+      }
+      void destroy(const pointer& p) {
+         p->~T();
+      }
+      bool operator==(const chainbase_node_allocator& other) const { return this == &other; }
+      bool operator!=(const chainbase_node_allocator& other) const { return this != &other; }
+      segment_manager* get_segment_manager() const { return _manager.get(); }
+    private:
+      template<typename T2, typename S2>
+      friend class chainbase_node_allocator;
+      void get_some() {
+         char* result = (char*)_manager->allocate(sizeof(T) * 64);
+         _freelist = bip::offset_ptr<list_item>{(list_item*)result};
+         for(int i = 0; i < 63; ++i) {
+            char* next = result + sizeof(T);
+            new(result) list_item{bip::offset_ptr<list_item>{(list_item*)next}};
+            result = next;
+         }
+         new(result) list_item{nullptr};
+      }
+      struct list_item { bip::offset_ptr<list_item> _next; };
+      bip::offset_ptr<pinnable_mapped_file::segment_manager> _manager;
+      bip::offset_ptr<list_item> _freelist{};
+   };
+
    template<typename T>
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
 
    template<typename T>
-   using node_allocator = bip::private_node_allocator<T, pinnable_mapped_file::segment_manager>;
+   using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
   
    typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
    template<typename T>
    using shared_vector = std::vector<T, allocator<T> >;
+
+  #if 0
+   struct shared_cow_string {
+      struct impl {
+         uint32_t reference_count;
+         uint32_t size;
+         char data[0];
+      };
+      shared_cow_string(const allocator<char>& alloc) : _data(nullptr), _alloc(alloc) {}
+      shared_cow_string(const shared_cow_string& other) : _data(other._data), _alloc(other._alloc) {
+         if(_data != nullptr) {
+            ++_data->reference_count;
+         }
+      }
+      shared_cow_string(shared_cow_string&& other) : _data(other._data), _alloc(other._alloc) {
+         other._data = nullptr;
+      }
+      shared_cow_string& operator=(shared_cow_string&& other) {
+         if (this != &other) {
+            _data = other._data;
+            other._data = nullptr;
+         }
+      }
+      ~shared_cow_string() {
+         dec_refcount();
+      }
+      void assign(const char* ptr, std::size_t size) {
+         impl* ptr = (impl*)_alloc.allocate(sizeof(impl) + size);
+         ptr->size = size;
+         if (_data) {
+            dec_refcount();
+         }
+         _data = ptr;
+      }
+      void dec_refcount() {
+         if(_data && --_data->reference_count == 0) {
+            _alloc.deallocate((char*)&*data, sizeof(shared_cow_string) + _data->size);
+         }
+      }
+      bip::offset_ptr<impl> _data;
+      allocator< char > _alloc;
+   };
+  #endif
 
    struct strcmp_less
    {
