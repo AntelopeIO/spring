@@ -24,6 +24,7 @@ BOOST_AUTO_TEST_CASE(test_simple) {
    const basic_element_t* e2 = i0.find(1);
    BOOST_TEST((e2 != nullptr && e2->id == 1));
 
+   i0.modify(*element, [](basic_element_t& elem) {});
    i0.remove(*element);
    element = i0.find(0);
    BOOST_TEST(element == nullptr);
@@ -183,6 +184,18 @@ BOOST_AUTO_TEST_CASE(test_remove_push) {
    BOOST_TEST(i0.find(0) == nullptr);
 }
 
+BOOST_AUTO_TEST_CASE(test_insert_modify) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
+   BOOST_TEST(i0.find(1)->secondary == 12);
+   i0.modify(*i0.find(1), [](test_element_t& elem) { elem.secondary = 24; });
+   BOOST_TEST(i0.find(1)->secondary == 24);
+}
+
 BOOST_AUTO_TEST_CASE(test_insert_modify_undo) {
    chainbase::undo_index<test_element_t, std::allocator<void>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
@@ -322,6 +335,22 @@ BOOST_AUTO_TEST_CASE(test_modify_remove_squash) {
    session2.squash();
    }
    BOOST_TEST(i0.find(0)->secondary == 42);
+}
+
+BOOST_AUTO_TEST_CASE(test_squash_one) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
+   BOOST_TEST(i0.find(0)->secondary == 18);
+   auto session2 = i0.start_undo_session(true);
+   i0.remove(*i0.find(0));
+   BOOST_TEST(i0.find(0) == nullptr);
+   session2.squash();
+   }
 }
 
 struct conflict_element_t {

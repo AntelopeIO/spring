@@ -492,6 +492,7 @@ namespace chainbase {
             return;
          } else if (_undo_stack.size() == 1) {
             --_revision;
+            dispose(_undo_stack.back());
             _undo_stack.pop_back();
             return;
          }
