@@ -54,7 +54,7 @@ namespace chainbase {
    using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
 
    template<typename T>
-   using node_allocator = bip::node_allocator<T, pinnable_mapped_file::segment_manager>;
+   using node_allocator = bip::private_node_allocator<T, pinnable_mapped_file::segment_manager>;
   
    typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
