@@ -33,7 +33,7 @@ typedef multi_index_container<
      ordered_non_unique< BOOST_MULTI_INDEX_MEMBER(book,int,a) >,
      ordered_non_unique< BOOST_MULTI_INDEX_MEMBER(book,int,b) >
   >,
-  chainbase::allocator<book>
+  chainbase::node_allocator<book>
 > book_index;
 
 CHAINBASE_SET_INDEX_TYPE( book, book_index )
