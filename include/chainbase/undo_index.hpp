@@ -3,6 +3,7 @@
 
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
+#include <boost/intrusive/avl_set.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/throw_exception.hpp>
 #include <boost/mpl/fold.hpp>
@@ -88,6 +89,7 @@ namespace chainbase {
          if(right == nullptr) n->_right = 1;
          else n->_right = (char*)right - (char*)n;
       }
+      // red-black tree
       static color get_color(node_ptr n) {
          return n->_color;
       }
@@ -96,6 +98,17 @@ namespace chainbase {
       }
       static color black() { return 0; }
       static color red() { return 1; }
+      // avl tree
+      using balance = int;
+      static balance get_balance(node_ptr n) {
+         return n->_color;
+      }
+      static void set_balance(node_ptr n, balance c) {
+         n->_color = c;
+      }
+      static balance negative() { return -1; }
+      static balance zero() { return 0; }
+      static balance positive() { return 1; }
    };
 
    template<typename Node, typename Key>
@@ -183,7 +196,7 @@ namespace chainbase {
    };
 
    template<typename Node, typename Key>
-   using set_base = boost::intrusive::set<
+   using set_base = boost::intrusive::avl_set<
       typename Node::value_type,
      //boost::intrusive::function_hook<hook_f<Node, Key, typename Node::allocator_type>>,
      boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
