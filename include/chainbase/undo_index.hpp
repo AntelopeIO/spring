@@ -114,7 +114,7 @@ namespace chainbase {
          return const_node_ptr{static_cast<const Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
       }
       static pointer to_value_ptr(node_ptr n) { return pointer{&static_cast<Node*>(&*n)->_item}; }
-      static const_pointer to_value_ptr(const_node_ptr n) { return pointer{&static_cast<const Node*>(&*n)->_item}; }
+      static const_pointer to_value_ptr(const_node_ptr n) { return const_pointer{&static_cast<const Node*>(&*n)->_item}; }
 
       static constexpr boost::intrusive::link_mode_type link_mode = boost::intrusive::normal_link;
    };
@@ -709,7 +709,7 @@ namespace chainbase {
       void dispose(undo_state& state) noexcept {
          state.new_ids.clear_and_dispose([this](id_pointer p){ dispose(&*p); });
          state.old_values.clear_and_dispose([this](pointer p){ dispose(*p); });
-         state.old_values.clear_and_dispose([this](pointer p){ dispose(*p); });
+         state.removed_values.clear_and_dispose([this](pointer p){ dispose(*p); });
       }
       // returns true if the node should be destroyed
       bool on_remove( value_type& obj) {

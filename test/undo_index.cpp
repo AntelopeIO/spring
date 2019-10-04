@@ -11,6 +11,8 @@ struct basic_element_t {
    uint64_t id;
 };
 
+BOOST_AUTO_TEST_SUITE(undo_index_tests)
+
 BOOST_AUTO_TEST_CASE(test_simple) {
    chainbase::undo_index<basic_element_t, std::allocator<void>, boost::multi_index::ordered_unique<boost::multi_index::key<&basic_element_t::id>>> i0;
    i0.emplace([](basic_element_t& elem) {});
@@ -49,6 +51,41 @@ BOOST_AUTO_TEST_CASE(test_insert_undo) {
    BOOST_TEST(i0.find(1) == nullptr);
 }
 
+BOOST_AUTO_TEST_CASE(test_insert_squash) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session0 = i0.start_undo_session(true);
+   auto session1 = i0.start_undo_session(true);
+   i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
+   BOOST_TEST(i0.find(1)->secondary == 12);
+   session1.squash();
+   BOOST_TEST(i0.find(1)->secondary == 12);
+   }
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   BOOST_TEST(i0.find(1) == nullptr);
+}
+
+BOOST_AUTO_TEST_CASE(test_insert_push) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session = i0.start_undo_session(true);
+   i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
+   BOOST_TEST(i0.find(1)->secondary == 12);
+   session.push();
+   i0.commit(i0.revision());
+   }
+   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   BOOST_TEST(i0.find(1)->secondary == 12);
+}
 
 BOOST_AUTO_TEST_CASE(test_modify_undo) {
    chainbase::undo_index<test_element_t, std::allocator<void>,
@@ -64,6 +101,39 @@ BOOST_AUTO_TEST_CASE(test_modify_undo) {
    BOOST_TEST(i0.find(0)->secondary == 42);
 }
 
+BOOST_AUTO_TEST_CASE(test_modify_squash) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session0 = i0.start_undo_session(true);
+   auto session1 = i0.start_undo_session(true);
+   i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
+   BOOST_TEST(i0.find(0)->secondary == 18);
+   session1.squash();
+   BOOST_TEST(i0.find(0)->secondary == 18);
+   }
+   BOOST_TEST(i0.find(0)->secondary == 42);
+}
+
+BOOST_AUTO_TEST_CASE(test_modify_push) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session = i0.start_undo_session(true);
+   i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
+   BOOST_TEST(i0.find(0)->secondary == 18);
+   session.push();
+   i0.commit(i0.revision());
+   }
+   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(i0.find(0)->secondary == 18);
+}
 
 BOOST_AUTO_TEST_CASE(test_remove_undo) {
    chainbase::undo_index<test_element_t, std::allocator<void>,
@@ -77,6 +147,40 @@ BOOST_AUTO_TEST_CASE(test_remove_undo) {
    BOOST_TEST(i0.find(0) == nullptr);
    }
    BOOST_TEST(i0.find(0)->secondary == 42);
+}
+
+BOOST_AUTO_TEST_CASE(test_remove_squash) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session0 = i0.start_undo_session(true);
+   auto session1 = i0.start_undo_session(true);
+   i0.remove(*i0.find(0));
+   BOOST_TEST(i0.find(0) == nullptr);
+   session1.squash();
+   BOOST_TEST(i0.find(0) == nullptr);
+   }
+   BOOST_TEST(i0.find(0)->secondary == 42);
+}
+
+BOOST_AUTO_TEST_CASE(test_remove_push) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   {
+   auto session = i0.start_undo_session(true);
+   i0.remove(*i0.find(0));
+   BOOST_TEST(i0.find(0) == nullptr);
+   session.push();
+   i0.commit(i0.revision());
+   }
+   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(i0.find(0) == nullptr);
 }
 
 BOOST_AUTO_TEST_CASE(test_insert_modify_undo) {
@@ -254,3 +358,5 @@ BOOST_AUTO_TEST_CASE(test_modify_conflict) {
    BOOST_TEST(i0.find(1)->x1 == 1);
    BOOST_TEST(i0.find(2)->x2 == 2);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
