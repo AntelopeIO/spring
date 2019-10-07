@@ -646,20 +646,12 @@ namespace chainbase {
 
       void on_create(const value_type& value) {
          if(!_undo_stack.empty()) {
-            auto& undo_info = _undo_stack.back();
-            auto pos = undo_info.removed_values.find(value.id);
-            if(pos != undo_info.removed_values.end()) {
-               auto& elem = *pos;
-               undo_info.removed_values.erase(pos);
-               undo_info.old_values.insert(elem);
-            } else {
-               // Not in old_values or new_ids
-               auto new_id = _new_ids_allocator.allocate(1);
-               auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
-               _new_ids_allocator.construct(new_id, value.id);
-               guard0.cancel();
-               _undo_stack.back().new_ids.insert(new_id->_item);
-            }
+            // Not in old_values, removed_values, or new_ids
+            auto new_id = _new_ids_allocator.allocate(1);
+            auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
+            _new_ids_allocator.construct(new_id, value.id);
+            guard0.cancel();
+            _undo_stack.back().new_ids.insert(new_id->_item);
          }
       }
 
