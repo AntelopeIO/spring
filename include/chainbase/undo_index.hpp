@@ -305,8 +305,9 @@ namespace chainbase {
          // _allocator.construct(p, constructor, _allocator);
          new (&*p) node(constructor, propagate_allocator(_allocator));
          auto guard1 = scope_exit{[&]{ _allocator.destroy(p); }};
-         if(!insert_impl(p->_item))
+         if(!insert_impl<1>(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );
+         std::get<0>(_indices).push_back(p->_item); // cannot fail and we know that it will definitely insert at the end.
          auto guard2 = scope_exit{ [&]{ erase_impl(p->_item); } };
          on_create(p->_item);
          ++_next_id;
@@ -652,7 +653,7 @@ namespace chainbase {
             auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
             _new_ids_allocator.construct(new_id, value.id);
             guard0.cancel();
-            _undo_stack.back().new_ids.insert(new_id->_item);
+            _undo_stack.back().new_ids.push_back(new_id->_item);
             to_node(value)._mtime = _revision;
          }
       }
