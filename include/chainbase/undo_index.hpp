@@ -4,6 +4,7 @@
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/intrusive/avl_set.hpp>
+#include <boost/intrusive/slist.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/throw_exception.hpp>
 #include <boost/mpl/fold.hpp>
@@ -109,6 +110,12 @@ namespace chainbase {
       static balance negative() { return -1; }
       static balance zero() { return 0; }
       static balance positive() { return 1; }
+
+      // list
+      static node_ptr get_next(const_node_ptr n) { return get_right(n); }
+      static void set_next(node_ptr n, node_ptr next) { set_right(n, next); }
+      static node_ptr get_previous(const_node_ptr n) { return get_left(n); }
+      static void set_previous(node_ptr n, node_ptr previous) { set_left(n, previous); }
    };
 
    template<typename Node, typename Key>
@@ -198,11 +205,15 @@ namespace chainbase {
    template<typename Node, typename Key>
    using set_base = boost::intrusive::set<
       typename Node::value_type,
-     //boost::intrusive::function_hook<hook_f<Node, Key, typename Node::allocator_type>>,
-     boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
+      boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
       boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
       boost::intrusive::compare<index_compare<Key>>>;
-  
+
+   template<typename Node, typename Key>
+   using list_base = boost::intrusive::slist<
+      typename Node::value_type,
+      boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>>;
+
    template<typename T, typename Allocator, typename... Keys>
    class undo_index;
   
@@ -282,6 +293,7 @@ namespace chainbase {
          template<typename... A>
          explicit node(A&&... a) : value_holder<T>{a...} {}
          const T& item() const { return *this; }
+         int64_t _mtime = 0;
       };
 
       using indices_type = std::tuple<set_impl<node, Keys>...>;
@@ -294,13 +306,23 @@ namespace chainbase {
          id_node(const id_type& id) : value_holder<id_type>(id) {}
       };
 
+      using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Keys...>>;
+      struct old_node : hook<key0_type, Allocator>, value_holder<T> {
+         using value_type = T;
+         using allocator_type = Allocator;
+         template<typename... A>
+         explicit old_node(A&&... a) : value_holder<T>{a...} {}
+         int64_t _mtime = 0;
+         typename rebind_alloc_t<Allocator, node>::pointer _current;
+      };
+
       using id_pointer = id_type*;//typename rebind_alloc_t<Allocator, id_type>::pointer;
       using pointer = value_type*;//typename rebind_alloc_t<Allocator, value_type>::pointer;
       using const_iterator = boost::iterators::transform_iterator<cast_f<const T&>, typename index0_type::const_iterator>;
 
       struct undo_state {
-         std::tuple_element_t<0, indices_type> old_values;
-         std::tuple_element_t<0, indices_type> removed_values;
+         list_base<old_node, key0_type> old_values;
+         list_base<node, key0_type> removed_values;
          set_impl<id_node, identity_index> new_ids;
          id_type old_next_id = 0;
       };
@@ -499,13 +521,25 @@ namespace chainbase {
          });
          // replace old_values - if there is a conflict, erase the conflict
          undo_info.old_values.clear_and_dispose([this](pointer p) {
-            auto iter = std::get<0>(_indices).find(*p);
+            auto iter = &to_old_node(*p)._current->_item;
             *iter = std::move(*p);
-            post_modify<1>(*iter);
+            // We expect this to be the current revision
+            auto prev_mtime = to_node(*iter)._mtime;
+            to_node(*iter)._mtime = to_old_node(*p)._mtime;
+            if (prev_mtime == _revision) {
+               post_modify<1>(*iter);
+            } else {
+               // removed
+               assert(prev_mtime == -_revision);
+            }
             dispose_old(*p);
          });
          // insert all removed_values
-         undo_info.removed_values.clear_and_dispose([this](pointer p) { insert_impl(*p); });
+         undo_info.removed_values.clear_and_dispose([this](pointer p) {
+            auto& mtime = to_node(*p)._mtime;
+            mtime = -mtime;
+            insert_impl(*p);
+         });
          _next_id = undo_info.old_next_id;
          _undo_stack.pop_back();
          --_revision;
@@ -523,27 +557,20 @@ namespace chainbase {
          }
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         last_state.new_ids.clear_and_dispose([&prev_state](id_pointer p) {
+         last_state.new_ids.clear_and_dispose([this, &prev_state](id_pointer p) {
             // Not present in old_values, removed_values, or new_ids
             prev_state.new_ids.insert(*p);
+            // update revision #
+            --to_node(*std::get<0>(_indices).find(*p))._mtime;
          });
          last_state.removed_values.clear_and_dispose([this, &prev_state](pointer p){
             auto new_iter = prev_state.new_ids.find(p->id);
             if (new_iter != prev_state.new_ids.end()) {
                prev_state.new_ids.erase_and_dispose(new_iter, [this](id_pointer id){ dispose(&*id); });
-               dispose_old(*p);
+               dispose_node(*p);
             } else {
-               auto old_iter = prev_state.old_values.find(p->id);
-               if (old_iter != prev_state.old_values.end()) {
-                  auto& node_ref = *old_iter;
-                  prev_state.old_values.erase(old_iter);
-                  *p = std::move(node_ref);
-                  prev_state.removed_values.insert(*p);
-                  dispose_old(node_ref);
-               } else {
-                  // Not in removed_values
-                  prev_state.removed_values.insert(*p);
-               }
+               // Not in removed_values
+               prev_state.removed_values.push_front(*p);
             }
          });
          last_state.old_values.clear_and_dispose([this, &prev_state](pointer p){
@@ -551,10 +578,18 @@ namespace chainbase {
             if (new_iter != prev_state.new_ids.end()) {
                dispose_old(*p);
             } else {
-               // Not in removed_values
-               auto [old_iter, inserted] = prev_state.old_values.insert(*p);
-               if (!inserted) {
+               auto& n = to_old_node(*p);
+               if(n._mtime == _revision - 1) {
                   dispose_old(*p);
+               } else {
+                  prev_state.old_values.push_front(*p);
+               }
+               // update revision #
+               assert(std::abs(n._current->_mtime) == _revision);
+               if(n._current->_mtime == _revision) {
+                  --n._current->_mtime;
+               } else {
+                  ++n._current->_mtime; // was also removed in the same revision
                }
             }
          });
@@ -652,23 +687,25 @@ namespace chainbase {
             _new_ids_allocator.construct(new_id, value.id);
             guard0.cancel();
             _undo_stack.back().new_ids.insert(new_id->_item);
+            to_node(value)._mtime = _revision;
          }
       }
 
       value_type* on_modify( const value_type& obj) {
          if (!_undo_stack.empty()) {
             auto& undo_info = _undo_stack.back();
-            if ( undo_info.new_ids.find( obj.id ) != undo_info.new_ids.end() ) {
-               // Nothing to do
-            } else if(undo_info.old_values.find( obj.id ) != undo_info.old_values.end() ) {
+            if ( to_node(obj)._mtime == _revision ) {
                // Nothing to do
             } else {
                // Not in removed_values
                auto p = _old_values_allocator.allocate(1);
                auto guard0 = scope_exit{[&]{ _old_values_allocator.deallocate(p, 1); }};
                _old_values_allocator.construct(p, obj);
+               p->_mtime = to_node(obj)._mtime;
+               p->_current = &to_node(obj);
                guard0.cancel();
-               undo_info.old_values.insert(p->_item);
+               undo_info.old_values.push_front(p->_item);
+               to_node(obj)._mtime = _revision;
                return &p->_item;
             }
          }
@@ -693,13 +730,13 @@ namespace chainbase {
       void dispose_node(value_type& node_ref) noexcept {
          dispose_node(static_cast<node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
       }
-      void dispose_old(node& node_ref) noexcept {
-         node* p{&node_ref};
+      void dispose_old(old_node& node_ref) noexcept {
+         old_node* p{&node_ref};
          _old_values_allocator.destroy(p);
          _old_values_allocator.deallocate(p, 1);
       }
       void dispose_old(value_type& node_ref) noexcept {
-         dispose_old(static_cast<node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
+         dispose_old(static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
       }
       void dispose(id_node* p) noexcept {
          _new_ids_allocator.destroy(p);
@@ -713,6 +750,15 @@ namespace chainbase {
          state.old_values.clear_and_dispose([this](pointer p){ dispose_old(*p); });
          state.removed_values.clear_and_dispose([this](pointer p){ dispose_node(*p); });
       }
+      static node& to_node(value_type& obj) {
+         return static_cast<node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
+      }
+      static node& to_node(const value_type& obj) {
+         return to_node(const_cast<value_type&>(obj));
+      }
+      static old_node& to_old_node(value_type& obj) {
+         return static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
+      }
       // returns true if the node should be destroyed
       bool on_remove( value_type& obj) {
          if (!_undo_stack.empty()) {
@@ -724,14 +770,9 @@ namespace chainbase {
                dispose(p);
                return true;
             }
-            auto old_pos = undo_info.old_values.find( obj.id );
-            if( old_pos != undo_info.old_values.end() ) {
-               auto& node_ref = *old_pos;
-               undo_info.old_values.erase(old_pos);
-               obj = std::move(node_ref);
-               dispose_old(node_ref);
-            }
-            undo_info.removed_values.insert(obj);
+            auto& mtime = to_node(obj)._mtime;
+            mtime = -mtime;
+            undo_info.removed_values.push_front(obj);
             return false;
          }
          return true;
@@ -740,7 +781,7 @@ namespace chainbase {
       indices_type _indices;
       boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
       rebind_alloc_t<Allocator, node> _allocator;
-      rebind_alloc_t<Allocator, node> _old_values_allocator;
+      rebind_alloc_t<Allocator, old_node> _old_values_allocator;
       rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
       id_type _next_id = 0;
       int64_t _revision = 0;

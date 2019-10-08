@@ -362,6 +362,8 @@ struct conflict_element_t {
    int x2;
 };
 
+// The current chainbase doesn't support this, and it isn't required by nodeos.
+#if 0
 BOOST_AUTO_TEST_CASE(test_modify_conflict) {
    chainbase::undo_index<conflict_element_t, std::allocator<void>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
@@ -387,5 +389,6 @@ BOOST_AUTO_TEST_CASE(test_modify_conflict) {
    BOOST_TEST(i0.find(1)->x1 == 1);
    BOOST_TEST(i0.find(2)->x2 == 2);
 }
+#endif
 
 BOOST_AUTO_TEST_SUITE_END()
