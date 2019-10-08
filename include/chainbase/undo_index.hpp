@@ -170,7 +170,7 @@ namespace chainbase {
    using cptr_t = typename rebind_alloc_t<Alloc, T>::const_pointer;
 
    template<typename Node, typename Key>
-   using set_base = boost::intrusive::set<
+   using set_base = boost::intrusive::avl_set<
       typename Node::value_type,
       boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
       boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
