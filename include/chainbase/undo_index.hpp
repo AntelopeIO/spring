@@ -161,46 +161,13 @@ namespace chainbase {
    template<typename Tag, typename... Keys>
    using index_of_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Keys>...>, Tag>;
 
-   template<typename R>
-   struct cast_f {
-      typedef R result_type;
-      template<typename T>
-      R operator()(T&& t) const { return static_cast<R>(static_cast<T&&>(t)); }
-   };
-
    template<typename K, typename Allocator>
    using hook = offset_node_base<K>;
-#if 0
-      boost::intrusive::set_base_hook<
-         boost::intrusive::tag<K>,
-         boost::intrusive::void_pointer<typename std::allocator_traits<Allocator>::void_pointer>,
-         boost::intrusive::link_mode<boost::intrusive::normal_link>,
-         boost::intrusive::constant_time_size<true>>;
-#endif
 
    template<typename Alloc, typename T>
    using ptr_t = typename rebind_alloc_t<Alloc, T>::pointer;
    template<typename Alloc, typename T>
    using cptr_t = typename rebind_alloc_t<Alloc, T>::const_pointer;
-
-   template<typename Node, typename Key, typename A>
-   struct hook_f {
-      using hook_type = hook<Key, A>;
-      using hook_ptr = ptr_t<A, hook_type>;
-      using const_hook_ptr = cptr_t<A, hook_type>;
-      using value_type = typename Node::value_type;
-      using pointer = ptr_t<A, value_type>;
-      using const_pointer = cptr_t<A, value_type>;
-
-      static hook_ptr to_hook_ptr(value_type &value) {
-         return hook_ptr{static_cast<Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
-      }
-      static const_hook_ptr to_hook_ptr(const value_type &value) {
-         return hook_ptr{static_cast<const Node*>(boost::intrusive::get_parent_from_member(&value, &value_holder<value_type>::_item))};
-      }
-      static pointer to_value_ptr(const hook_ptr& n) { return pointer{&static_cast<Node*>(&*n)->_item}; }
-      static const_pointer to_value_ptr(const const_hook_ptr& n) { return pointer{&static_cast<const Node*>(&*n)->_item}; }
-   };
 
    template<typename Node, typename Key>
    using set_base = boost::intrusive::set<
@@ -267,7 +234,6 @@ namespace chainbase {
 
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
-
     public:
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
       using value_type = T;
@@ -316,9 +282,9 @@ namespace chainbase {
          typename rebind_alloc_t<Allocator, node>::pointer _current;
       };
 
-      using id_pointer = id_type*;//typename rebind_alloc_t<Allocator, id_type>::pointer;
-      using pointer = value_type*;//typename rebind_alloc_t<Allocator, value_type>::pointer;
-      using const_iterator = boost::iterators::transform_iterator<cast_f<const T&>, typename index0_type::const_iterator>;
+      using id_pointer = id_type*;
+      using pointer = value_type*;
+      using const_iterator = typename index0_type::const_iterator;
 
       struct undo_state {
          list_base<old_node, key0_type> old_values;
@@ -499,8 +465,8 @@ namespace chainbase {
 
       const auto& stack() const { return _undo_stack; }
 
-      auto begin() const { return const_iterator(get<0>().begin(), cast_f<const T&>{}); }
-      auto end() const { return const_iterator(get<0>().end(), cast_f<const T&>{}); }
+      auto begin() const { return get<0>().begin(); }
+      auto end() const { return get<0>().end(); }
 
       void undo_all() {
          while(!_undo_stack.empty()) {
