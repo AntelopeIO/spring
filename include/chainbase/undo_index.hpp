@@ -423,6 +423,9 @@ namespace chainbase {
          if( revision > std::numeric_limits<int64_t>::max() )
             BOOST_THROW_EXCEPTION( std::logic_error("revision to set is too high") );
 
+         if( revision < _revision )
+            BOOST_THROW_EXCEPTION( std::logic_error("revision cannot decrease") );
+
          _revision = static_cast<int64_t>(revision);
       }
 
@@ -519,9 +522,21 @@ namespace chainbase {
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
-            --_revision;
+            undo_state& last_state = _undo_stack.back();
+            last_state.new_ids.clear_and_dispose([this](id_pointer p) {
+               // update revision #
+               --to_node(*std::get<0>(_indices).find(*p))._mtime;
+            });
+            last_state.old_values.clear_and_dispose([this](pointer p){
+               auto& n = to_old_node(*p);
+               // update revision #
+               assert(std::abs(n._current->_mtime) == _revision);
+               --n._current->_mtime; // If this was removed, we're discarding it anyway.
+               dispose_old(*p);
+            });
             dispose(_undo_stack.back());
             _undo_stack.pop_back();
+            --_revision;
             return;
          }
          undo_state& last_state = _undo_stack.back();
