@@ -526,6 +526,7 @@ namespace chainbase {
             last_state.new_ids.clear_and_dispose([this](id_pointer p) {
                // update revision #
                --to_node(*std::get<0>(_indices).find(*p))._mtime;
+               dispose(p);
             });
             last_state.old_values.clear_and_dispose([this](pointer p){
                auto& n = to_old_node(*p);
@@ -563,17 +564,17 @@ namespace chainbase {
                dispose_old(*p);
             } else {
                auto& n = to_old_node(*p);
-               if(n._mtime == _revision - 1) {
-                  dispose_old(*p);
-               } else {
-                  prev_state.old_values.push_front(*p);
-               }
                // update revision #
                assert(std::abs(n._current->_mtime) == _revision);
                if(n._current->_mtime == _revision) {
                   --n._current->_mtime;
                } else {
                   ++n._current->_mtime; // was also removed in the same revision
+               }
+               if(n._mtime == _revision - 1) {
+                  dispose_old(*p);
+               } else {
+                  prev_state.old_values.push_front(*p);
                }
             }
          });
