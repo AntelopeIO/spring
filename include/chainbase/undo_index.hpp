@@ -3,7 +3,7 @@
 
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
-#include <boost/intrusive/avl_set.hpp>
+#include <boost/intrusive/avltree.hpp>
 #include <boost/intrusive/slist.hpp>
 #include <boost/container/deque.hpp>
 #include <boost/throw_exception.hpp>
@@ -170,7 +170,7 @@ namespace chainbase {
    using cptr_t = typename rebind_alloc_t<Alloc, T>::const_pointer;
 
    template<typename Node, typename Key>
-   using set_base = boost::intrusive::avl_set<
+   using set_base = boost::intrusive::avltree<
       typename Node::value_type,
       boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
       boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
@@ -324,7 +324,7 @@ namespace chainbase {
          value_type& node_ref = const_cast<value_type&>(obj);
          //erase_impl(node_ref);
          m(node_ref);
-         post_modify<1>(node_ref); // The object id cannot be modified
+         post_modify<true, 1>(node_ref); // The object id cannot be modified
          //if(!insert_impl(node_ref) && backup) {
          //   insert_impl(*backup);
          //}
@@ -486,7 +486,7 @@ namespace chainbase {
             dispose_node(node_ref);
             dispose(&*id);
          });
-         // replace old_values - if there is a conflict, erase the conflict
+         // replace old_values
          undo_info.old_values.clear_and_dispose([this](pointer p) {
             auto iter = &to_old_node(*p)._current->_item;
             *iter = std::move(*p);
@@ -494,9 +494,11 @@ namespace chainbase {
             auto prev_mtime = to_node(*iter)._mtime;
             to_node(*iter)._mtime = to_old_node(*p)._mtime;
             if (prev_mtime == _revision) {
-               post_modify<1>(*iter);
+               // Non-unique items are transient and are guaranteed to be fixed
+               // by the time we finish processing old_values.
+               post_modify<false, 1>(*iter);
             } else {
-               // removed
+               // The item was removed.  It will be inserted when we process removed_values
                assert(prev_mtime == -_revision);
             }
             dispose_old(*p);
@@ -526,7 +528,7 @@ namespace chainbase {
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
          last_state.new_ids.clear_and_dispose([this, &prev_state](id_pointer p) {
             // Not present in old_values, removed_values, or new_ids
-            prev_state.new_ids.insert(*p);
+            prev_state.new_ids.insert_unique(*p);
             // update revision #
             --to_node(*std::get<0>(_indices).find(*p))._mtime;
          });
@@ -598,7 +600,7 @@ namespace chainbase {
       template<int N = 0>
       bool insert_impl(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
-            auto [iter, inserted] = std::get<N>(_indices).insert(p);
+            auto [iter, inserted] = std::get<N>(_indices).insert_unique(p);
             if(!inserted) return false;
             auto guard = scope_exit{[this,iter=iter]{ std::get<N>(_indices).erase(iter); }};
             if(insert_impl<N+1>(p)) {
@@ -611,7 +613,7 @@ namespace chainbase {
       }
 
       // Moves a modified node into the correct location
-      template<int N = 0>
+      template<bool unique, int N = 0>
       void post_modify(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
             auto& idx = std::get<N>(_indices);
@@ -629,11 +631,15 @@ namespace chainbase {
             if(fixup) {
                auto iter2 = idx.iterator_to(p);
                idx.erase(iter2);
-               auto [_, inserted] = idx.insert(p);
-               (void)inserted;
-               assert(inserted);
+               if constexpr (unique) {
+                  auto [_, inserted] = idx.insert_unique(p);
+                  (void)inserted;
+                  assert(inserted);
+               } else {
+                  idx.insert_equal(p);
+               }
             }
-            post_modify<N+1>(p);
+            post_modify<unique, N+1>(p);
          }
       }
 

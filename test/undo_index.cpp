@@ -4,12 +4,40 @@
 #include <boost/multi_index/ordered_index.hpp>
 
 #include <boost/test/unit_test.hpp>
+#include <boost/test/data/monomorphic.hpp>
 
 struct basic_element_t {
    template<typename C, typename A>
    basic_element_t(C&& c, const std::allocator<A>&) { c(*this); }
    uint64_t id;
 };
+
+namespace {
+int exception_counter = 0;
+int throw_at = -1;
+struct test_exception_base {};
+template<typename E>
+struct test_exception : E, test_exception_base {
+  template<typename... A>
+  test_exception(A&&... a) : E{static_cast<E&&>(a)...} {}
+};
+template<typename E, typename... A>
+void throw_point(A&&... a) {
+   if(exception_counter++ == throw_at) throw E{static_cast<A&&>(a)...};
+}
+template<typename F>
+void test_exceptions(F&& f) {
+   for(throw_at = 0; ; ++throw_at) {
+      try {
+         f();
+      } catch(...) {
+         continue;
+      }
+      break;
+   }
+   throw_at = -1;
+}
+}
 
 BOOST_AUTO_TEST_SUITE(undo_index_tests)
 
@@ -353,6 +381,16 @@ BOOST_AUTO_TEST_CASE(test_squash_one) {
    }
 }
 
+BOOST_AUTO_TEST_CASE(test_insert_non_unique) {
+   chainbase::undo_index<test_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.find(0)->secondary == 42);
+   BOOST_CHECK_THROW(i0.emplace([](test_element_t& elem) { elem.secondary = 42; }),  std::exception);
+   BOOST_TEST(i0.find(0)->secondary == 42);
+}
+
 struct conflict_element_t {
    template<typename C, typename A>
    conflict_element_t(C&& c, const std::allocator<A>&) { c(*this); }
@@ -362,8 +400,6 @@ struct conflict_element_t {
    int x2;
 };
 
-// The current chainbase doesn't support this, and it isn't required by nodeos.
-#if 0
 BOOST_AUTO_TEST_CASE(test_modify_conflict) {
    chainbase::undo_index<conflict_element_t, std::allocator<void>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
@@ -388,6 +424,47 @@ BOOST_AUTO_TEST_CASE(test_modify_conflict) {
    BOOST_TEST(i0.find(0)->x0 == 0);
    BOOST_TEST(i0.find(1)->x1 == 1);
    BOOST_TEST(i0.find(2)->x2 == 2);
+   // Check lookup in the other indices
+   BOOST_TEST(i0.get<1>().find(0)->x0 == 0);
+   BOOST_TEST(i0.get<1>().find(11)->x0 == 11);
+   BOOST_TEST(i0.get<1>().find(12)->x0 == 12);
+   BOOST_TEST(i0.get<2>().find(10)->x1 == 10);
+   BOOST_TEST(i0.get<2>().find(1)->x1 == 1);
+   BOOST_TEST(i0.get<2>().find(12)->x1 == 12);
+   BOOST_TEST(i0.get<3>().find(10)->x2 == 10);
+   BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
+   BOOST_TEST(i0.get<3>().find(2)->x2 == 2);
+}
+
+#if 0
+BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false}), use_undo) {
+   chainbase::undo_index<conflict_element_t, std::allocator<void>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x1>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x2>>> i0;
+   // insert 3 elements
+   i0.emplace([](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
+   i0.emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
+   i0.emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
+   {
+   auto session = i0.start_undo_session(use_undo);
+   // Insert a value with a duplicate
+   i0.emplace([](conflict_element_t& elem) { elem.x0 = 81; elem.x1 = 11; elem.x2 = 91; });
+   }
+   BOOST_TEST(i0.find(0)->x0 == 0);
+   BOOST_TEST(i0.find(1)->x1 == 1);
+   BOOST_TEST(i0.find(2)->x2 == 2);
+   // Check lookup in the other indices
+   BOOST_TEST(i0.get<1>().find(0)->x0 == 0);
+   BOOST_TEST(i0.get<1>().find(11)->x0 == 11);
+   BOOST_TEST(i0.get<1>().find(12)->x0 == 12);
+   BOOST_TEST(i0.get<2>().find(10)->x1 == 10);
+   BOOST_TEST(i0.get<2>().find(1)->x1 == 1);
+   BOOST_TEST(i0.get<2>().find(12)->x1 == 12);
+   BOOST_TEST(i0.get<3>().find(10)->x2 == 10);
+   BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
+   BOOST_TEST(i0.get<3>().find(2)->x2 == 2);
 }
 #endif
 
