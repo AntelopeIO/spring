@@ -244,9 +244,7 @@ namespace chainbase {
         dump_info("create");
       }
       ~undo_index() {
-         for(undo_state& state : _undo_stack) {
-            dispose(state);
-         }
+         dispose(_old_values.before_begin(), _removed_values.before_begin());
          clear_impl<1>();
          std::get<0>(_indices).clear_and_dispose([&](pointer p){ dispose_node(*p); });
       }
@@ -288,8 +286,8 @@ namespace chainbase {
       using const_iterator = typename index0_type::const_iterator;
 
       struct undo_state {
-         list_base<old_node, key0_type> old_values;
-         list_base<node, key0_type> removed_values;
+         typename rebind_alloc_t<Allocator, T>::pointer old_values_end;
+         typename rebind_alloc_t<Allocator, T>::pointer removed_values_end;
          set_impl<id_node, identity_index> new_ids;
          id_type old_next_id = 0;
          uint64_t ctime = 0;
@@ -442,9 +440,13 @@ namespace chainbase {
       void commit( int64_t revision ) {
          dump_info("commit");
          revision = std::min(revision, _revision);
-         while( _revision - _undo_stack.size() < revision ) {
-            dispose(_undo_stack.front());
-            _undo_stack.pop_front();
+         if (revision == _revision) {
+            dispose(_old_values.before_begin(), _removed_values.before_begin());
+            _undo_stack.clear();
+         } else {
+            auto iter = _undo_stack.begin() + (_undo_stack.size() - (_revision - revision));
+            dispose(_old_values.iterator_to(*iter->old_values_end), _removed_values.iterator_to(*iter->removed_values_end));
+            _undo_stack.erase(_undo_stack.begin(), iter);
          }
          dump_info2("post-commit");
       }
@@ -492,7 +494,7 @@ namespace chainbase {
             dispose_node(*p);
          });
          // replace old_values
-         undo_info.old_values.clear_and_dispose([this, &undo_info](pointer p) {
+         _old_values.erase_after_and_dispose(_old_values.before_begin(), _old_values.iterator_to(*undo_info.old_values_end), [this, &undo_info](pointer p) {
             auto iter = &to_old_node(*p)._current->_item;
             *iter = std::move(*p);
             auto& node_mtime = to_node(*iter)._mtime;
@@ -512,7 +514,7 @@ namespace chainbase {
             dispose_old(*p);
          });
          // insert all removed_values
-         undo_info.removed_values.clear_and_dispose([this, &undo_info](pointer p) {
+         _removed_values.erase_after_and_dispose(_removed_values.before_begin(), _removed_values.iterator_to(*undo_info.removed_values_end), [this, &undo_info](pointer p) {
             if (p->id < undo_info.old_next_id) {
                get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
                insert_impl(*p);
@@ -530,20 +532,8 @@ namespace chainbase {
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
-            dispose(_undo_stack.back());
-            _undo_stack.pop_back();
-            --_revision;
-            return;
+            dispose(_old_values.before_begin(), _removed_values.before_begin());
          }
-         undo_state& last_state = _undo_stack.back();
-         undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         last_state.removed_values.clear_and_dispose([&prev_state](pointer p){
-            // Not in removed_values
-            prev_state.removed_values.push_front(*p);
-         });
-         last_state.old_values.clear_and_dispose([&prev_state](pointer p){
-            prev_state.old_values.push_front(*p);
-         });
          _undo_stack.pop_back();
          --_revision;
          dump_info2("post-squash");
@@ -575,6 +565,8 @@ namespace chainbase {
       int64_t add_session() {
         dump_info("add_session");
          _undo_stack.emplace_back();
+         _undo_stack.back().old_values_end = &*_old_values.begin();
+         _undo_stack.back().removed_values_end = &*_removed_values.begin();
          _undo_stack.back().old_next_id = _next_id;
          _undo_stack.back().ctime = ++_monotonic_revision;
          return ++_revision;
@@ -655,7 +647,7 @@ namespace chainbase {
                p->_mtime = to_node(obj)._mtime;
                p->_current = &to_node(obj);
                guard0.cancel();
-               undo_info.old_values.push_front(p->_item);
+               _old_values.push_front(p->_item);
                to_node(obj)._mtime = _monotonic_revision;
                return &p->_item;
             }
@@ -696,10 +688,10 @@ namespace chainbase {
       void dispose(id_type* p) noexcept {
          dispose(static_cast<id_node*>(boost::intrusive::get_parent_from_member(p, &value_holder<id_type>::_item)));
       }
-      void dispose(undo_state& state) noexcept {
-         state.new_ids.clear_and_dispose([this](id_pointer p){ dispose(&*p); });
-         state.old_values.clear_and_dispose([this](pointer p){ dispose_old(*p); });
-         state.removed_values.clear_and_dispose([this](pointer p){ dispose_node(*p); });
+      void dispose(typename list_base<old_node, key0_type>::iterator old_start, typename list_base<node, key0_type>::iterator removed_start) noexcept {
+         // This will leave one element around.  That's okay, because we'll clean it up the next time.
+         _old_values.erase_after_and_dispose(old_start, _old_values.end(), [this](pointer p){ dispose_old(*p); });
+         _removed_values.erase_after_and_dispose(removed_start, _removed_values.end(), [this](pointer p){ dispose_node(*p); });
       }
       static node& to_node(value_type& obj) {
          return static_cast<node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
@@ -719,7 +711,7 @@ namespace chainbase {
             }
             get_removed_field(obj) = erased_flag;
 
-            undo_info.removed_values.push_front(obj);
+            _removed_values.push_front(obj);
             return false;
          }
          return true;
@@ -730,6 +722,8 @@ namespace chainbase {
       using alloc_traits = std::allocator_traits<rebind_alloc_t<Allocator, node>>;
       indices_type _indices;
       boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
+      list_base<old_node, key0_type> _old_values;
+      list_base<node, key0_type> _removed_values;
       rebind_alloc_t<Allocator, node> _allocator;
       rebind_alloc_t<Allocator, old_node> _old_values_allocator;
       rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
