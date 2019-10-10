@@ -492,23 +492,33 @@ namespace chainbase {
             dispose_node(*p);
          });
          // replace old_values
-         undo_info.old_values.clear_and_dispose([this](pointer p) {
+         undo_info.old_values.clear_and_dispose([this, &undo_info](pointer p) {
             auto iter = &to_old_node(*p)._current->_item;
             *iter = std::move(*p);
-            to_node(*iter)._mtime = to_old_node(*p)._mtime;
-            if (get_removed_field(*iter) != erased_flag) {
-               // Non-unique items are transient and are guaranteed to be fixed
-               // by the time we finish processing old_values.
-               post_modify<false, 1>(*iter);
-            } else {
-               // The item was removed.  It will be inserted when we process removed_values
+            auto& node_mtime = to_node(*iter)._mtime;
+            auto restored_mtime = to_old_node(*p)._mtime;
+            // Skip restoring values that overwrite an earlier modify in the same session.
+            // Duplicate modifies can only happen because of squash.
+            if(restored_mtime < undo_info.ctime) {
+               node_mtime = restored_mtime;
+               if (get_removed_field(*iter) != erased_flag) {
+                  // Non-unique items are transient and are guaranteed to be fixed
+                  // by the time we finish processing old_values.
+                  post_modify<false, 1>(*iter);
+               } else {
+                  // The item was removed.  It will be inserted when we process removed_values
+               }
             }
             dispose_old(*p);
          });
          // insert all removed_values
-         undo_info.removed_values.clear_and_dispose([this](pointer p) {
-            get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
-            insert_impl(*p);
+         undo_info.removed_values.clear_and_dispose([this, &undo_info](pointer p) {
+            if (p->id < undo_info.old_next_id) {
+               get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
+               insert_impl(*p);
+            } else {
+               dispose_node(*p);
+            }
          });
          _next_id = undo_info.old_next_id;
          _undo_stack.pop_back();
@@ -527,25 +537,12 @@ namespace chainbase {
          }
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         last_state.removed_values.clear_and_dispose([this, &prev_state](pointer p){
-            if (p->id >= prev_state.old_next_id) {
-               dispose_node(*p);
-            } else {
-               // Not in removed_values
-               prev_state.removed_values.push_front(*p);
-            }
+         last_state.removed_values.clear_and_dispose([&prev_state](pointer p){
+            // Not in removed_values
+            prev_state.removed_values.push_front(*p);
          });
-         last_state.old_values.clear_and_dispose([this, &prev_state](pointer p){
-            if (p->id >= prev_state.old_next_id) {
-               dispose_old(*p);
-            } else {
-               auto& n = to_old_node(*p);
-               if(n._mtime >= prev_state.ctime) {
-                  dispose_old(*p);
-               } else {
-                  prev_state.old_values.push_front(*p);
-               }
-            }
+         last_state.old_values.clear_and_dispose([&prev_state](pointer p){
+            prev_state.old_values.push_front(*p);
          });
          _undo_stack.pop_back();
          --_revision;
