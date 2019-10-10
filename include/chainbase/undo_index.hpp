@@ -259,8 +259,9 @@ namespace chainbase {
          template<typename... A>
          explicit node(A&&... a) : value_holder<T>{a...} {}
          const T& item() const { return *this; }
-         int64_t _mtime = 0;
+         uint64_t _mtime = 0;
       };
+      static constexpr int erased_flag = 2; // 0,1,and -1 are used by the tree
 
       using indices_type = std::tuple<set_impl<node, Keys>...>;
 
@@ -278,7 +279,7 @@ namespace chainbase {
          using allocator_type = Allocator;
          template<typename... A>
          explicit old_node(A&&... a) : value_holder<T>{a...} {}
-         int64_t _mtime = 0;
+         uint64_t _mtime = 0;
          typename rebind_alloc_t<Allocator, node>::pointer _current;
       };
 
@@ -291,6 +292,7 @@ namespace chainbase {
          list_base<node, key0_type> removed_values;
          set_impl<id_node, identity_index> new_ids;
          id_type old_next_id = 0;
+         uint64_t ctime = 0;
       };
 
       template<typename Constructor>
@@ -493,23 +495,19 @@ namespace chainbase {
          undo_info.old_values.clear_and_dispose([this](pointer p) {
             auto iter = &to_old_node(*p)._current->_item;
             *iter = std::move(*p);
-            // We expect this to be the current revision
-            auto prev_mtime = to_node(*iter)._mtime;
             to_node(*iter)._mtime = to_old_node(*p)._mtime;
-            if (prev_mtime == _revision) {
+            if (get_removed_field(*iter) != erased_flag) {
                // Non-unique items are transient and are guaranteed to be fixed
                // by the time we finish processing old_values.
                post_modify<false, 1>(*iter);
             } else {
                // The item was removed.  It will be inserted when we process removed_values
-               assert(prev_mtime == -_revision);
             }
             dispose_old(*p);
          });
          // insert all removed_values
          undo_info.removed_values.clear_and_dispose([this](pointer p) {
-            auto& mtime = to_node(*p)._mtime;
-            mtime = -mtime;
+            get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
             insert_impl(*p);
          });
          _next_id = undo_info.old_next_id;
@@ -522,19 +520,6 @@ namespace chainbase {
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
-            undo_state& last_state = _undo_stack.back();
-            // update revision # of new_ids
-            auto& by_id = std::get<0>(_indices);
-            std::for_each(by_id.lower_bound(last_state.old_next_id), by_id.cend(), [](const value_type& p){
-               --to_node(p)._mtime;
-            });
-            last_state.old_values.clear_and_dispose([this](pointer p){
-               auto& n = to_old_node(*p);
-               // update revision #
-               assert(std::abs(n._current->_mtime) == _revision);
-               --n._current->_mtime; // If this was removed, we're discarding it anyway.
-               dispose_old(*p);
-            });
             dispose(_undo_stack.back());
             _undo_stack.pop_back();
             --_revision;
@@ -542,11 +527,6 @@ namespace chainbase {
          }
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         // update revision # of new_ids
-         auto& by_id = std::get<0>(_indices);
-         std::for_each(by_id.lower_bound(last_state.old_next_id), by_id.cend(), [](const value_type& p){
-            --to_node(p)._mtime;
-         });
          last_state.removed_values.clear_and_dispose([this, &prev_state](pointer p){
             if (p->id >= prev_state.old_next_id) {
                dispose_node(*p);
@@ -560,14 +540,7 @@ namespace chainbase {
                dispose_old(*p);
             } else {
                auto& n = to_old_node(*p);
-               // update revision #
-               assert(std::abs(n._current->_mtime) == _revision);
-               if(n._current->_mtime == _revision) {
-                  --n._current->_mtime;
-               } else {
-                  ++n._current->_mtime; // was also removed in the same revision
-               }
-               if(n._mtime == _revision - 1) {
+               if(n._mtime >= prev_state.ctime) {
                   dispose_old(*p);
                } else {
                   prev_state.old_values.push_front(*p);
@@ -606,6 +579,7 @@ namespace chainbase {
         dump_info("add_session");
          _undo_stack.emplace_back();
          _undo_stack.back().old_next_id = _next_id;
+         _undo_stack.back().ctime = ++_monotonic_revision;
          return ++_revision;
       }
 
@@ -667,14 +641,14 @@ namespace chainbase {
       void on_create(const value_type& value) {
          if(!_undo_stack.empty()) {
             // Not in old_values, removed_values, or new_ids
-            to_node(value)._mtime = _revision;
+            to_node(value)._mtime = _monotonic_revision;
          }
       }
 
       value_type* on_modify( const value_type& obj) {
          if (!_undo_stack.empty()) {
             auto& undo_info = _undo_stack.back();
-            if ( to_node(obj)._mtime == _revision ) {
+            if ( to_node(obj)._mtime >= undo_info.ctime ) {
                // Nothing to do
             } else {
                // Not in removed_values
@@ -685,7 +659,7 @@ namespace chainbase {
                p->_current = &to_node(obj);
                guard0.cancel();
                undo_info.old_values.push_front(p->_item);
-               to_node(obj)._mtime = _revision;
+               to_node(obj)._mtime = _monotonic_revision;
                return &p->_item;
             }
          }
@@ -746,12 +720,15 @@ namespace chainbase {
             if ( obj.id >= undo_info.old_next_id ) {
                return true;
             }
-            auto& mtime = to_node(obj)._mtime;
-            mtime = -mtime;
+            get_removed_field(obj) = erased_flag;
+
             undo_info.removed_values.push_front(obj);
             return false;
          }
          return true;
+      }
+      static int& get_removed_field(const value_type& obj) {
+         return static_cast<hook<key0_type, Allocator>&>(to_node(obj))._color;
       }
       using alloc_traits = std::allocator_traits<rebind_alloc_t<Allocator, node>>;
       indices_type _indices;
@@ -761,6 +738,7 @@ namespace chainbase {
       rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
       id_type _next_id = 0;
       int64_t _revision = 0;
+      uint64_t _monotonic_revision = 0;
    };
 
    template<typename MultiIndexContainer>
