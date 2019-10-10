@@ -221,8 +221,8 @@ namespace chainbase {
    template<typename T, typename S>
    class chainbase_node_allocator;
 
-   template<typename T>
-   auto& propagate_allocator(std::allocator<T>& a) { return a; }
+   template<template<typename> class A, typename T>
+   auto& propagate_allocator(A<T>& a) { return a; }
    template<typename T, typename S>
    auto& propagate_allocator(boost::interprocess::allocator<T, S>& a) { return a; }
    template<typename T, typename S, std::size_t N>
@@ -293,6 +293,7 @@ namespace chainbase {
          uint64_t ctime = 0;
       };
 
+      // Exception safety: strong
       template<typename Constructor>
       const value_type& emplace( Constructor&& c ) {
          auto p = _allocator.allocate(1);
@@ -317,21 +318,38 @@ namespace chainbase {
          return p->_item;
       }
 
+      // Exception safety: basic.
+      // If the modifier leaves the object in a state that conflicts
+      // with another object, it will either be reverted or erased.
       template<typename Modifier>
       void modify( const value_type& obj, Modifier&& m) {
-         dump_info2("modify");
-         /*value_type* backup = */on_modify(obj);
+         value_type* backup = on_modify(obj);
          value_type& node_ref = const_cast<value_type&>(obj);
-         //erase_impl(node_ref);
-         m(node_ref);
-         post_modify<true, 1>(node_ref); // The object id cannot be modified
-         //if(!insert_impl(node_ref) && backup) {
-         //   insert_impl(*backup);
-         //}
-         dump_info2("post-modify");
+         bool success = false;
+         {
+            auto guard0 = scope_exit{[&]{
+               if(!post_modify<true, 1>(node_ref)) { // The object id cannot be modified
+                  if(backup) {
+                     node_ref = std::move(*backup);
+                     bool success = post_modify<true, 1>(node_ref);
+                     (void)success;
+                     assert(success);
+                     assert(backup == &_old_values.front());
+                     _old_values.pop_front_and_dispose([this](pointer p){ dispose_old(*p); });
+                  } else {
+                     remove(obj);
+                  }
+               } else {
+                  success = true;
+               }
+            }};
+            m(node_ref);
+         }
+         if(!success)
+            BOOST_THROW_EXCEPTION( std::logic_error{ "could not modify object, most likely a uniqueness constraint was violated" } );
       }
 
-      void remove( const value_type& obj ) {
+      void remove( const value_type& obj ) noexcept {
          auto& node_ref = const_cast<value_type&>(obj);
          erase_impl(node_ref);
          if(on_remove(node_ref)) {
@@ -437,7 +455,7 @@ namespace chainbase {
       /**
        * Discards all undo history prior to revision
        */
-      void commit( int64_t revision ) {
+      void commit( int64_t revision ) noexcept {
          dump_info("commit");
          revision = std::min(revision, _revision);
          if (revision == _revision) {
@@ -482,7 +500,7 @@ namespace chainbase {
          }
       }
 
-      void undo() {
+      void undo() noexcept {
          dump_info("undo");
          if (_undo_stack.empty()) return;
          undo_state& undo_info = _undo_stack.back();
@@ -495,13 +513,13 @@ namespace chainbase {
          });
          // replace old_values
          _old_values.erase_after_and_dispose(_old_values.before_begin(), _old_values.iterator_to(*undo_info.old_values_end), [this, &undo_info](pointer p) {
-            auto iter = &to_old_node(*p)._current->_item;
-            *iter = std::move(*p);
-            auto& node_mtime = to_node(*iter)._mtime;
             auto restored_mtime = to_old_node(*p)._mtime;
             // Skip restoring values that overwrite an earlier modify in the same session.
             // Duplicate modifies can only happen because of squash.
             if(restored_mtime < undo_info.ctime) {
+               auto iter = &to_old_node(*p)._current->_item;
+               *iter = std::move(*p);
+               auto& node_mtime = to_node(*iter)._mtime;
                node_mtime = restored_mtime;
                if (get_removed_field(*iter) != erased_flag) {
                   // Non-unique items are transient and are guaranteed to be fixed
@@ -527,7 +545,7 @@ namespace chainbase {
          --_revision;
          dump_info2("post-undo");
       }
-      void squash() {
+      void squash() noexcept {
          dump_info("squash");
          if (_undo_stack.empty()) {
             return;
@@ -589,7 +607,7 @@ namespace chainbase {
 
       // Moves a modified node into the correct location
       template<bool unique, int N = 0>
-      void post_modify(value_type& p) {
+      bool post_modify(value_type& p) {
          if constexpr (N < sizeof...(Keys)) {
             auto& idx = std::get<N>(_indices);
             auto iter = idx.iterator_to(p);
@@ -607,15 +625,18 @@ namespace chainbase {
                auto iter2 = idx.iterator_to(p);
                idx.erase(iter2);
                if constexpr (unique) {
-                  auto [_, inserted] = idx.insert_unique(p);
-                  (void)inserted;
-                  assert(inserted);
+                  auto [new_pos, inserted] = idx.insert_unique(p);
+                  if (!inserted) {
+                     idx.insert_before(new_pos, p);
+                     return false;
+                  }
                } else {
                   idx.insert_equal(p);
                }
             }
-            post_modify<unique, N+1>(p);
+            return post_modify<unique, N+1>(p);
          }
+         return true;
       }
 
       template<int N = 0>

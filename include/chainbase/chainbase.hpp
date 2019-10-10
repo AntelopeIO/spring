@@ -51,7 +51,7 @@ namespace chainbase {
    using std::unique_ptr;
    using std::vector;
 
-   template<typename T, typename S = pinnable_mapped_file::segment_manager>
+   template<typename T, typename S>
    class chainbase_node_allocator {
     public:
       using value_type = T;
