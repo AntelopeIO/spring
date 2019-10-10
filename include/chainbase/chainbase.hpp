@@ -275,6 +275,8 @@ namespace chainbase {
 
          friend bool operator < ( const oid& a, const oid& b ) { return a._id < b._id; }
          friend bool operator > ( const oid& a, const oid& b ) { return a._id > b._id; }
+         friend bool operator <= ( const oid& a, const oid& b ) { return a._id <= b._id; }
+         friend bool operator >= ( const oid& a, const oid& b ) { return a._id >= b._id; }
          friend bool operator == ( const oid& a, const oid& b ) { return a._id == b._id; }
          friend bool operator != ( const oid& a, const oid& b ) { return a._id != b._id; }
          friend std::ostream& operator<<(std::ostream& s, const oid& id) {

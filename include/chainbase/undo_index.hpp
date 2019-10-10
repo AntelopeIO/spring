@@ -483,11 +483,11 @@ namespace chainbase {
          if (_undo_stack.empty()) return;
          undo_state& undo_info = _undo_stack.back();
          // erase all new_ids
-         undo_info.new_ids.clear_and_dispose([&](id_pointer id){
-            auto& node_ref = *std::get<0>(_indices).find(*id);
-            erase_impl(node_ref);
-            dispose_node(node_ref);
-            dispose(&*id);
+         auto& by_id = std::get<0>(_indices);
+         auto new_ids_iter = by_id.lower_bound(undo_info.old_next_id);
+         by_id.erase_and_dispose(new_ids_iter, by_id.end(), [this](pointer p){
+            erase_impl<1>(*p);
+            dispose_node(*p);
          });
          // replace old_values
          undo_info.old_values.clear_and_dispose([this](pointer p) {
@@ -523,10 +523,10 @@ namespace chainbase {
             return;
          } else if (_undo_stack.size() == 1) {
             undo_state& last_state = _undo_stack.back();
-            last_state.new_ids.clear_and_dispose([this](id_pointer p) {
-               // update revision #
-               --to_node(*std::get<0>(_indices).find(*p))._mtime;
-               dispose(p);
+            // update revision # of new_ids
+            auto& by_id = std::get<0>(_indices);
+            std::for_each(by_id.lower_bound(last_state.old_next_id), by_id.cend(), [](const value_type& p){
+               --to_node(p)._mtime;
             });
             last_state.old_values.clear_and_dispose([this](pointer p){
                auto& n = to_old_node(*p);
@@ -542,16 +542,13 @@ namespace chainbase {
          }
          undo_state& last_state = _undo_stack.back();
          undo_state& prev_state = _undo_stack[_undo_stack.size() - 2];
-         last_state.new_ids.clear_and_dispose([this, &prev_state](id_pointer p) {
-            // Not present in old_values, removed_values, or new_ids
-            prev_state.new_ids.insert_unique(*p);
-            // update revision #
-            --to_node(*std::get<0>(_indices).find(*p))._mtime;
+         // update revision # of new_ids
+         auto& by_id = std::get<0>(_indices);
+         std::for_each(by_id.lower_bound(last_state.old_next_id), by_id.cend(), [](const value_type& p){
+            --to_node(p)._mtime;
          });
          last_state.removed_values.clear_and_dispose([this, &prev_state](pointer p){
-            auto new_iter = prev_state.new_ids.find(p->id);
-            if (new_iter != prev_state.new_ids.end()) {
-               prev_state.new_ids.erase_and_dispose(new_iter, [this](id_pointer id){ dispose(&*id); });
+            if (p->id >= prev_state.old_next_id) {
                dispose_node(*p);
             } else {
                // Not in removed_values
@@ -559,8 +556,7 @@ namespace chainbase {
             }
          });
          last_state.old_values.clear_and_dispose([this, &prev_state](pointer p){
-            auto new_iter = prev_state.new_ids.find(p->id);
-            if (new_iter != prev_state.new_ids.end()) {
+            if (p->id >= prev_state.old_next_id) {
                dispose_old(*p);
             } else {
                auto& n = to_old_node(*p);
@@ -659,23 +655,18 @@ namespace chainbase {
          }
       }
 
-      template<int N = sizeof...(Keys)>
+      template<int N = 0>
       void erase_impl(value_type& p) {
-         if constexpr (N > 0) {
-            auto& setN = std::get<N-1>(_indices);
+         if constexpr (N < sizeof...(Keys)) {
+            auto& setN = std::get<N>(_indices);
             setN.erase(setN.iterator_to(p));
-            erase_impl<N-1>(p);
+            erase_impl<N+1>(p);
          }
       }
 
       void on_create(const value_type& value) {
          if(!_undo_stack.empty()) {
             // Not in old_values, removed_values, or new_ids
-            auto new_id = _new_ids_allocator.allocate(1);
-            auto guard0 = scope_exit{[&]{ _new_ids_allocator.deallocate(new_id, 1); }};
-            _new_ids_allocator.construct(new_id, value.id);
-            guard0.cancel();
-            _undo_stack.back().new_ids.push_back(new_id->_item);
             to_node(value)._mtime = _revision;
          }
       }
@@ -752,11 +743,7 @@ namespace chainbase {
       bool on_remove( value_type& obj) {
          if (!_undo_stack.empty()) {
             auto& undo_info = _undo_stack.back();
-            auto new_pos = undo_info.new_ids.find( obj.id );
-            if ( new_pos != undo_info.new_ids.end() ) {
-               id_type* p = &*new_pos;
-               undo_info.new_ids.erase( new_pos );
-               dispose(p);
+            if ( obj.id >= undo_info.old_next_id ) {
                return true;
             }
             auto& mtime = to_node(obj)._mtime;
