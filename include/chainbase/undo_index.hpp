@@ -31,15 +31,11 @@ namespace chainbase {
       bool _canceled = false;
    };
 
+   // Adapts multi_index's idea of keys to intrusive
    template<typename Key, typename T>
    struct get_key {
       using type = std::decay_t<decltype(Key{}(std::declval<const T&>()))>;
       decltype(auto) operator()(const T& arg) const { return Key{}(arg); }
-   };
-
-   struct identity_key {
-      template<typename T>
-      const auto& operator()(const T& t) { return t; }
    };
 
    template<typename T>
@@ -148,11 +144,6 @@ namespace chainbase {
    template<typename Index>
    using index_tag = typename index_tag_impl<Index>::type;
 
-   struct identity_index {
-      using key_from_value_type = identity_key;
-      using compare_type = std::less<>;
-   };
-
    template<typename Index>
    using index_key = typename Index::key_from_value_type;
    template<typename Index>
@@ -163,11 +154,6 @@ namespace chainbase {
 
    template<typename K, typename Allocator>
    using hook = offset_node_base<K>;
-
-   template<typename Alloc, typename T>
-   using ptr_t = typename rebind_alloc_t<Alloc, T>::pointer;
-   template<typename Alloc, typename T>
-   using cptr_t = typename rebind_alloc_t<Alloc, T>::const_pointer;
 
    template<typename Node, typename Key>
    using set_base = boost::intrusive::avltree<
@@ -187,6 +173,7 @@ namespace chainbase {
    template<typename Node, typename Key>
    struct set_impl : private set_base<Node, Key> {
      using base_type = set_base<Node, Key>;
+      // Allow compatible keys to match multi_index
       template<typename K>
       auto find(K&& k) {
          return base_type::find(static_cast<K&&>(k), this->key_comp());
@@ -221,6 +208,7 @@ namespace chainbase {
    template<typename T, typename S>
    class chainbase_node_allocator;
 
+   // Allows nested object to use a different allocator from the container.
    template<template<typename> class A, typename T>
    auto& propagate_allocator(A<T>& a) { return a; }
    template<typename T, typename S>
@@ -232,6 +220,8 @@ namespace chainbase {
    template<typename T, typename S>
    auto propagate_allocator(chainbase::chainbase_node_allocator<T, S>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
 
+   // Similar to boost::multi_index_container with an undo stack.
+   // Keys should be instances of ordered_unique.
    template<typename T, typename Allocator, typename... Keys>
    class undo_index {
     public:
@@ -240,9 +230,7 @@ namespace chainbase {
       using allocator_type = Allocator;
 
       undo_index() = default;
-      explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _old_values_allocator{a}, _new_ids_allocator{a} {
-        dump_info("create");
-      }
+      explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _old_values_allocator{a} {}
       ~undo_index() {
          dispose(_old_values.before_begin(), _removed_values.before_begin());
          clear_impl<1>();
@@ -257,7 +245,7 @@ namespace chainbase {
          template<typename... A>
          explicit node(A&&... a) : value_holder<T>{a...} {}
          const T& item() const { return *this; }
-         uint64_t _mtime = 0;
+         uint64_t _mtime = 0; // _monotonic_revision when the node was last modified or created.
       };
       static constexpr int erased_flag = 2; // 0,1,and -1 are used by the tree
 
@@ -265,20 +253,14 @@ namespace chainbase {
 
       using index0_type = std::tuple_element_t<0, indices_type>;
 
-      struct id_node : hook<identity_index, Allocator>, value_holder<id_type>  {
-         using value_type = id_type;
-         using allocator_type = Allocator;
-         id_node(const id_type& id) : value_holder<id_type>(id) {}
-      };
-
       using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Keys...>>;
       struct old_node : hook<key0_type, Allocator>, value_holder<T> {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
          explicit old_node(A&&... a) : value_holder<T>{a...} {}
-         uint64_t _mtime = 0;
-         typename rebind_alloc_t<Allocator, node>::pointer _current;
+         uint64_t _mtime = 0; // Backup of the node's _mtime, to be restored on undo
+         typename rebind_alloc_t<Allocator, node>::pointer _current; // pointer to the actual node
       };
 
       using id_pointer = id_type*;
@@ -288,9 +270,8 @@ namespace chainbase {
       struct undo_state {
          typename rebind_alloc_t<Allocator, T>::pointer old_values_end;
          typename rebind_alloc_t<Allocator, T>::pointer removed_values_end;
-         set_impl<id_node, identity_index> new_ids;
          id_type old_next_id = 0;
-         uint64_t ctime = 0;
+         uint64_t ctime = 0; // _monotonic_revision at the point the undo_state was created
       };
 
       // Exception safety: strong
@@ -429,12 +410,10 @@ namespace chainbase {
       int64_t revision() const { return _revision; }
 
       session start_undo_session( bool enabled ) {
-         dump_info("start_undo_session");
          return session{*this, enabled};
       }
 
       void set_revision( uint64_t revision ) {
-         dump_info("set_revision");
          if( _undo_stack.size() != 0 )
             BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
 
@@ -448,7 +427,6 @@ namespace chainbase {
       }
 
       std::pair<int64_t, int64_t> undo_stack_revision_range() const {
-         dump_info("revision_range");
          return { _revision - _undo_stack.size(), _revision };
       }
 
@@ -456,7 +434,6 @@ namespace chainbase {
        * Discards all undo history prior to revision
        */
       void commit( int64_t revision ) noexcept {
-         dump_info("commit");
          revision = std::min(revision, _revision);
          if (revision == _revision) {
             dispose(_old_values.before_begin(), _removed_values.before_begin());
@@ -466,7 +443,6 @@ namespace chainbase {
             dispose(_old_values.iterator_to(*iter->old_values_end), _removed_values.iterator_to(*iter->removed_values_end));
             _undo_stack.erase(_undo_stack.begin(), iter);
          }
-         dump_info2("post-commit");
       }
 
       const undo_index& indices() const { return *this; }
@@ -500,8 +476,8 @@ namespace chainbase {
          }
       }
 
+      // Resets the contents to the state at the top of the undo stack.
       void undo() noexcept {
-         dump_info("undo");
          if (_undo_stack.empty()) return;
          undo_state& undo_info = _undo_stack.back();
          // erase all new_ids
@@ -543,10 +519,9 @@ namespace chainbase {
          _next_id = undo_info.old_next_id;
          _undo_stack.pop_back();
          --_revision;
-         dump_info2("post-undo");
       }
+      // Combines the top two states on the undo stack
       void squash() noexcept {
-         dump_info("squash");
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
@@ -554,34 +529,13 @@ namespace chainbase {
          }
          _undo_stack.pop_back();
          --_revision;
-         dump_info2("post-squash");
       }
 
     private:
 
-#if 1
-     void dump_info(const char*) const {}
-     void dump_info2(const char*) const {}
-#else
-      void dump_info(const char* fn) const {
-        std::cout << fn << ": " << "revision=" << _revision
-                  << ", undo_stack_size=" << _undo_stack.size()
-                  << ", size=" << size()
-                  << ", next_id=" << _next_id
-                  << ", this= " << (const void*)this << std::endl;
-        dump_info2(fn);
-      }
-      void dump_info2(const char* fn) const {
-        if constexpr(value_type::type_id == 2) {
-            if(!get<0>().empty()) {
-              std::cout << fn << ": recv_sequence: " << (get<0>().begin())->recv_sequence << ", account_metadata_object, this=" << (const void*)this << std::endl;
-            }
-}
-      }
-#endif
-
+      // starts a new undo session.
+      // Exception safety: strong
       int64_t add_session() {
-        dump_info("add_session");
          _undo_stack.emplace_back();
          _undo_stack.back().old_values_end = &*_old_values.begin();
          _undo_stack.back().removed_values_end = &*_removed_values.begin();
@@ -675,10 +629,6 @@ namespace chainbase {
          }
          return nullptr;
       }
-      void commit_one() noexcept {
-         dispose(_undo_stack.front());
-         _undo_stack.pop_front();
-      }
       template<int N = 0>
       void clear_impl() noexcept {
          if constexpr(N < sizeof...(Keys)) {
@@ -701,13 +651,6 @@ namespace chainbase {
       }
       void dispose_old(value_type& node_ref) noexcept {
          dispose_old(static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
-      }
-      void dispose(id_node* p) noexcept {
-         _new_ids_allocator.destroy(p);
-         _new_ids_allocator.deallocate(p, 1);
-      }
-      void dispose(id_type* p) noexcept {
-         dispose(static_cast<id_node*>(boost::intrusive::get_parent_from_member(p, &value_holder<id_type>::_item)));
       }
       void dispose(typename list_base<old_node, key0_type>::iterator old_start, typename list_base<node, key0_type>::iterator removed_start) noexcept {
          // This will leave one element around.  That's okay, because we'll clean it up the next time.
@@ -737,6 +680,7 @@ namespace chainbase {
          }
          return true;
       }
+      // Returns the field indicating whether the node has been removed
       static int& get_removed_field(const value_type& obj) {
          return static_cast<hook<key0_type, Allocator>&>(to_node(obj))._color;
       }
@@ -747,7 +691,6 @@ namespace chainbase {
       list_base<node, key0_type> _removed_values;
       rebind_alloc_t<Allocator, node> _allocator;
       rebind_alloc_t<Allocator, old_node> _old_values_allocator;
-      rebind_alloc_t<Allocator, id_node> _new_ids_allocator;
       id_type _next_id = 0;
       int64_t _revision = 0;
       uint64_t _monotonic_revision = 0;
@@ -774,6 +717,7 @@ namespace chainbase {
       using type = typename mi_to_ui_ii<T, as_mp11, A>::type;
    };
 
+   // Converts a multi_index_container to a corresponding undo_index.
    template<typename MultiIndexContainer>
    using multi_index_to_undo_index = typename multi_index_to_undo_index_impl<MultiIndexContainer>::type;
 }

@@ -19,8 +19,7 @@ struct test_exception : E, test_exception_base {
 };
 template<typename E, typename... A>
 void throw_point(A&&... a) {
-   if(exception_counter++ == throw_at) {
-     std::cerr << "Throwing: " << throw_at << std::endl;
+   if(throw_at != -1 && exception_counter++ >= throw_at) {
      throw test_exception<E>{static_cast<A&&>(a)...};
    }
 }
@@ -532,7 +531,7 @@ BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false
    {
    auto session = i0.start_undo_session(true);
    // Insert a value with a duplicate
-   BOOST_CHECK_THROW(i0.emplace([](conflict_element_t& elem) { elem.x0 = 81; elem.x1 = 11; elem.x2 = 91; }), std::exception);
+   BOOST_CHECK_THROW(i0.emplace([](conflict_element_t& elem) { elem.x0 = 81; elem.x1 = 11; elem.x2 = 91; }), std::logic_error);
    }
    BOOST_TEST(i0.find(0)->x0 == 10);
    BOOST_TEST(i0.find(1)->x1 == 11);
@@ -549,7 +548,7 @@ BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false
    BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
 }
 
-BOOST_AUTO_TEST_CASE(test_modify_fail) {
+EXCEPTION_TEST_CASE(test_modify_fail) {
    chainbase::undo_index<conflict_element_t, test_allocator<void>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
@@ -563,7 +562,7 @@ BOOST_AUTO_TEST_CASE(test_modify_fail) {
    auto session = i0.start_undo_session(true);
    // Insert a value with a duplicate
    i0.emplace([](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 81; elem.x2 = 91; });
-   BOOST_CHECK_THROW(i0.modify(i0.get(3), [](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 10; elem.x2 = 91; }), std::exception);
+   BOOST_CHECK_THROW(i0.modify(i0.get(3), [](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 10; elem.x2 = 91; }), std::logic_error);
    }
    BOOST_TEST(i0.get<0>().size() == 3);
    BOOST_TEST(i0.get<1>().size() == 3);
