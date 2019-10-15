@@ -699,8 +699,10 @@ namespace chainbase {
       }
       void dispose(typename list_base<old_node, key0_type>::iterator old_start, typename list_base<node, key0_type>::iterator removed_start) noexcept {
          // This will leave one element around.  That's okay, because we'll clean it up the next time.
-         _old_values.erase_after_and_dispose(old_start, _old_values.end(), [this](pointer p){ dispose_old(*p); });
-         _removed_values.erase_after_and_dispose(removed_start, _removed_values.end(), [this](pointer p){ dispose_node(*p); });
+         if(old_start != _old_values.end())
+            _old_values.erase_after_and_dispose(old_start, _old_values.end(), [this](pointer p){ dispose_old(*p); });
+         if(removed_start != _removed_values.end())
+            _removed_values.erase_after_and_dispose(removed_start, _removed_values.end(), [this](pointer p){ dispose_node(*p); });
       }
       static node& to_node(value_type& obj) {
          return static_cast<node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
