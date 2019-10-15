@@ -167,6 +167,17 @@ namespace chainbase {
       typename Node::value_type,
       boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>>;
 
+   template<typename L, typename It, typename Pred, typename Disposer>
+   void remove_if_after_and_dispose(L& l, It it, It end, Pred&& p, Disposer&& d) {
+      for(;;) {
+         It next = it;
+         ++next;
+         if(next == end) break;
+         if(p(*next)) { l.erase_after_and_dispose(it, d); }
+         else { it = next; }
+      }
+   }
+
    template<typename T, typename Allocator, typename... Keys>
    class undo_index;
   
@@ -531,7 +542,33 @@ namespace chainbase {
          --_revision;
       }
 
+      void squash_and_compress() noexcept {
+         if(_undo_stack.size() >= 2) {
+            compress_impl(_undo_stack[_undo_stack.size() - 2].ctime);
+         }
+         squash();
+      }
+
+      void compress_last_undo_session() noexcept {
+         compress_impl(_undo_stack.back().ctime);
+      }
+
     private:
+
+      void compress_impl(uint64_t session_start) {
+         remove_if_after_and_dispose(_old_values, _old_values.before_begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end),
+                                     [session_start](value_type& v){
+                                        if(to_node(v)._mtime >= session_start) return true;
+                                        auto& item = to_old_node(v)._current->_item;
+                                        if (get_removed_field(item) == erased_flag) {
+                                           item = std::move(v);
+                                           to_node(item)._mtime = to_old_node(v)._mtime;
+                                           return true;
+                                        }
+                                        return false;
+                                     },
+                                     [&](pointer p) { dispose_old(*p); });
+      }
 
       // starts a new undo session.
       // Exception safety: strong
