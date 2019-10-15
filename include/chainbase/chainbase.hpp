@@ -762,7 +762,6 @@ namespace chainbase {
          virtual void push()             = 0;
          virtual void squash()           = 0;
          virtual void undo()             = 0;
-         virtual int64_t revision()const  = 0;
    };
 
    template<typename SessionType>
@@ -774,7 +773,6 @@ namespace chainbase {
          virtual void push() override  { _session.push();  }
          virtual void squash() override{ _session.squash(); }
          virtual void undo() override  { _session.undo();  }
-         virtual int64_t revision()const override  { return _session.revision();  }
       private:
          SessionType _session;
    };
@@ -910,11 +908,9 @@ namespace chainbase {
 
          struct session {
             public:
-               session( session&& s ):_index_sessions( std::move(s._index_sessions) ),_revision( s._revision ){}
+               session( session&& s ):_index_sessions( std::move(s._index_sessions) ){}
                session( vector<std::unique_ptr<abstract_session>>&& s ):_index_sessions( std::move(s) )
                {
-                  if( _index_sessions.size() )
-                     _revision = _index_sessions[0]->revision();
                }
 
                ~session() {
@@ -939,14 +935,11 @@ namespace chainbase {
                   _index_sessions.clear();
                }
 
-               int64_t revision()const { return _revision; }
-
             private:
                friend class database;
                session(){}
 
                vector< std::unique_ptr<abstract_session> > _index_sessions;
-               int64_t _revision = -1;
          };
 
          session start_undo_session( bool enabled );

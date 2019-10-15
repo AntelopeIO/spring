@@ -381,8 +381,9 @@ namespace chainbase {
        public:
          session(undo_index& idx, bool enabled)
           : _index(idx),
-            _apply(enabled),
-            _revision(enabled?idx.add_session():-1) {}
+            _apply(enabled) {
+            if(enabled) idx.add_session();
+         }
          session(session&& other)
            : _index(other._index),
              _apply(other._apply)
@@ -407,15 +408,9 @@ namespace chainbase {
             if ( _apply ) _index.undo();
             _apply = false;
          }
-         int64_t revision() const {
-            // It looks like chainbase doesn't implement this correctly.  We hope it isn't actually used.
-            // BOOST_THROW_EXCEPTION(std::logic_error{"session::revision is unsupported"});
-           return _revision;
-         }
        private:
          undo_index& _index;
          bool _apply = true;
-         int64_t _revision = 0;
       };
 
       int64_t revision() const { return _revision; }
