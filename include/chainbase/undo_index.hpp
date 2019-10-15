@@ -473,6 +473,24 @@ namespace chainbase {
 
       const auto& stack() const { return _undo_stack; }
 
+      struct delta {
+         boost::iterator_range<typename index0_type::const_iterator> new_values;
+         boost::iterator_range<typename list_base<old_node, key0_type>::const_iterator> old_values;
+         boost::iterator_range<typename list_base<node, key0_type>::const_iterator> removed_values;
+      };
+
+      delta last_undo_session() const {
+        if(_undo_stack.empty())
+           return { { get<0>().end(), get<0>().end() },
+                    { _old_values.end(), _old_values.end() },
+                    { _removed_values.end(), _removed_values.end() } };
+         // FIXME: the problems with being lazy...
+         const_cast<undo_index*>(this)->compress_last_undo_session();
+         return { { get<0>().lower_bound(_undo_stack.back().old_next_id), get<0>().end() },
+                  { _old_values.begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end) },
+                  { _removed_values.begin(), _removed_values.iterator_to(*_undo_stack.back().removed_values_end) } };
+      }
+
       auto begin() const { return get<0>().begin(); }
       auto end() const { return get<0>().end(); }
 
