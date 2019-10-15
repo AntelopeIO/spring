@@ -252,7 +252,7 @@ namespace chainbase {
     private:
       void dec_refcount() {
          if(_data && --_data->reference_count == 0) {
-            _alloc.deallocate((char*)&*_data, sizeof(shared_cow_string) + _data->size);
+            _alloc.deallocate((char*)&*_data, sizeof(shared_cow_string) + _data->size + 1);
          }
       }
       bip::offset_ptr<impl> _data;
