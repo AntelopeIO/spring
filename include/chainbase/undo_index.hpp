@@ -544,21 +544,29 @@ namespace chainbase {
 
       void squash_and_compress() noexcept {
          if(_undo_stack.size() >= 2) {
-            compress_impl(_undo_stack[_undo_stack.size() - 2].ctime);
+            compress_impl(_undo_stack[_undo_stack.size() - 2]);
          }
          squash();
       }
 
       void compress_last_undo_session() noexcept {
-         compress_impl(_undo_stack.back().ctime);
+         compress_impl(_undo_stack.back());
       }
 
     private:
 
-      void compress_impl(uint64_t session_start) {
+      // Removes elements of the last undo session that would be redundant
+      // if all the sessions after @c session were squashed.
+      //
+      // WARNING: This function leaves any undo sessions after @c session in
+      // an indeterminate state.  The caller MUST use squash to restore the
+      // undo stack to a sane state.
+      void compress_impl(undo_state& session) noexcept {
+         auto session_start = session.ctime;
+         auto old_next_id = session.old_next_id;
          remove_if_after_and_dispose(_old_values, _old_values.before_begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end),
                                      [session_start](value_type& v){
-                                        if(to_node(v)._mtime >= session_start) return true;
+                                        if(to_old_node(v)._mtime >= session_start) return true;
                                         auto& item = to_old_node(v)._current->_item;
                                         if (get_removed_field(item) == erased_flag) {
                                            item = std::move(v);
@@ -568,6 +576,11 @@ namespace chainbase {
                                         return false;
                                      },
                                      [&](pointer p) { dispose_old(*p); });
+         remove_if_after_and_dispose(_removed_values, _removed_values.before_begin(), _removed_values.iterator_to(*_undo_stack.back().removed_values_end),
+                                     [old_next_id](value_type& v){
+                                        return v.id >= old_next_id;
+                                     },
+                                     [this](pointer p) { dispose_node(*p); });
       }
 
       // starts a new undo session.
