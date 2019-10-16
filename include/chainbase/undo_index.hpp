@@ -544,8 +544,13 @@ namespace chainbase {
          _undo_stack.pop_back();
          --_revision;
       }
+
       // Combines the top two states on the undo stack
       void squash() noexcept {
+         squash_and_compress();
+      }
+
+      void squash_fast() noexcept {
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
@@ -559,7 +564,7 @@ namespace chainbase {
          if(_undo_stack.size() >= 2) {
             compress_impl(_undo_stack[_undo_stack.size() - 2]);
          }
-         squash();
+         squash_fast();
       }
 
       void compress_last_undo_session() noexcept {
