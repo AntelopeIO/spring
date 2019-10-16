@@ -248,7 +248,10 @@ namespace chainbase {
          std::get<0>(_indices).clear_and_dispose([&](pointer p){ dispose_node(*p); });
       }
 
-      void validate() const {}
+      void validate()const {
+         if( sizeof(node) != _size_of_value_type || sizeof(*this) != _size_of_this )
+            BOOST_THROW_EXCEPTION( std::runtime_error("content of memory does not match data expected by executable") );
+      }
     
       struct node : hook<Keys, Allocator>..., value_holder<T> {
          using value_type = T;
@@ -764,6 +767,8 @@ namespace chainbase {
       id_type _next_id = 0;
       int64_t _revision = 0;
       uint64_t _monotonic_revision = 0;
+      uint32_t                        _size_of_value_type = sizeof(node);
+      uint32_t                        _size_of_this = sizeof(undo_index);
    };
 
    template<typename MultiIndexContainer>
