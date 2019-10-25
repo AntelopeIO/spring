@@ -120,6 +120,9 @@ namespace chainbase {
          else return nullptr;
       }
       int compare(std::size_t start, std::size_t count, const char* other, std::size_t other_size) const {
+         std::size_t sz = size();
+         if(start > sz) BOOST_THROW_EXCEPTION(std::out_of_range{"shared_cow_string::compare"});
+         count = std::min(count, sz - start);
          std::size_t cmp_len = std::min(count, other_size);
          const char* start_ptr = data() + start;
          int result = std::char_traits<char>::compare(start_ptr, other, cmp_len);
