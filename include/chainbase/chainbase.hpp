@@ -56,8 +56,6 @@ namespace chainbase {
 
    template<typename T>
    using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
-  
-   //typedef bip::basic_string< char, std::char_traits< char >, allocator< char > > shared_string;
 
    template<typename T>
    using shared_vector = std::vector<T, allocator<T> >;

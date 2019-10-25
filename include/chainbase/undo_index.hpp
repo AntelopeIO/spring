@@ -1,5 +1,4 @@
-#ifndef EOSIO_CHAINBASE_UNDO_INDEX_HPP_INCLUDED
-#define EOSIO_CHAINBASE_UNDO_INDEX_HPP_INCLUDED
+#pragma once
 
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
@@ -519,7 +518,7 @@ namespace chainbase {
          return get<Tag>().iterator_to(*iter);
       }
 
-      const auto& stack() const { return _undo_stack; }
+      bool has_undo_session() const { return !_undo_stack.empty(); }
 
       struct delta {
          boost::iterator_range<typename index0_type::const_iterator> new_values;
@@ -532,7 +531,8 @@ namespace chainbase {
            return { { get<0>().end(), get<0>().end() },
                     { _old_values.end(), _old_values.end() },
                     { _removed_values.end(), _removed_values.end() } };
-         // FIXME: the problems with being lazy...
+         // Warning: This is safe ONLY as long as nothing exposes the undo stack to client code.
+         // Compressing the undo stack does not change the logical state of the undo_index.
          const_cast<undo_index*>(this)->compress_last_undo_session();
          return { { get<0>().lower_bound(_undo_stack.back().old_next_id), get<0>().end() },
                   { _old_values.begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end) },
@@ -841,5 +841,3 @@ namespace chainbase {
    template<typename MultiIndexContainer>
    using multi_index_to_undo_index = typename multi_index_to_undo_index_impl<MultiIndexContainer>::type;
 }
-
-#endif

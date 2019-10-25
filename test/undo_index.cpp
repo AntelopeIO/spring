@@ -178,7 +178,7 @@ EXCEPTION_TEST_CASE(test_insert_push) {
    session.push();
    i0.commit(i0.revision());
    }
-   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(!i0.has_undo_session());
    BOOST_TEST(i0.find(0)->secondary == 42);
    BOOST_TEST(i0.find(1)->secondary == 12);
 }
@@ -230,7 +230,7 @@ EXCEPTION_TEST_CASE(test_modify_push) {
    session.push();
    i0.commit(i0.revision());
    }
-   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(!i0.has_undo_session());
    BOOST_TEST(i0.find(0)->secondary == 18);
 }
 
@@ -281,7 +281,7 @@ EXCEPTION_TEST_CASE(test_remove_push) {
    session.push();
    i0.commit(i0.revision());
    }
-   BOOST_TEST(i0.stack().size() == 0);
+   BOOST_TEST(!i0.has_undo_session());
    BOOST_TEST(i0.find(0) == nullptr);
 }
 
