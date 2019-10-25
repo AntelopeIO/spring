@@ -281,6 +281,51 @@ namespace chainbase {
       using pointer = value_type*;
       using const_iterator = typename index0_type::const_iterator;
 
+      // The undo stack is implemented as a deque of undo_states
+      // that index into a pair of singly linked lists.
+      //
+      // The primary key (id) is managed by the undo_index.  The id's are assigned sequentially to
+      // objects in the order of insertion.  User code MUST NOT modify the primary key.
+      // A given id can only be reused if its insertion is undone.
+      //
+      // Each undo session remembers the state of the table at the point when it was created.
+      //
+      // Within the undo state at the top of the undo stack:
+      // A primary key is new if it is at least old_next_id.
+      //
+      // A primary key is removed if it exists in the removed_values list before removed_values_end.
+      // A node has a flag which indicates whether it has been removed.
+      //
+      // A primary key is modified if it exists in the old_values list before old_values_end
+      //
+      // A primary key exists at most once in either the main table or removed values.
+      // Every primary key in old_values also exists in either the main table OR removed_values.
+      // If a primary key exists in both removed_values AND old_values, undo will restore the value from old_values.
+      // A primary key may appear in old_values any number of times.  If it appears more than once
+      //   within a single undo session, undo will restore the oldest value.
+      //
+      // The following describes the minimal set of operations required to maintain the undo stack:
+      // start session: remember next_id and the current heads of old_values and removed_values.
+      // squash: drop the last undo state
+      // create: nop
+      // modify: push a copy of the object onto old_values
+      // remove: move node to removed index and set removed flag
+      //
+      // Operations on a given key MUST always follow the sequence: CREATE MODIFY* REMOVE?
+      // When undoing multiple operations on the same key, the final result is determined
+      // by the oldest operation.  Therefore, the following optimizations can be applied:
+      //  - A primary key which is new may be discarded from old_values and removed_values
+      //  - If a primary key has multiple modifications, all but the oldest can be discarded.
+      //  - If a primary key is both modified and removed, the modified value can replace
+      //    the removed value, and can then be discarded.
+      // These optimizations may be applied at any time, but are not required by the class
+      // invariants.
+      //
+      // Notes regarding memory:
+      // Nodes in the main table share the same layout as nodes in removed_values and may
+      // be freely moved between the two.  This permits undo to restore removed nodes
+      // without allocating memory.
+      //
       struct undo_state {
          typename rebind_alloc_t<Allocator, T>::pointer old_values_end;
          typename rebind_alloc_t<Allocator, T>::pointer removed_values_end;
