@@ -46,6 +46,8 @@ namespace chainbase {
       template<typename T2, typename S2>
       friend class chainbase_node_allocator;
       void get_some() {
+         static_assert(sizeof(T) >= sizeof(list_item), "Too small for free list");
+         static_assert(sizeof(T) % alignof(list_item) == 0, "Bad alignment for free list");
          char* result = (char*)_manager->allocate(sizeof(T) * 64);
          _freelist = bip::offset_ptr<list_item>{(list_item*)result};
          for(int i = 0; i < 63; ++i) {
