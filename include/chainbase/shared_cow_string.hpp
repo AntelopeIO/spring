@@ -100,16 +100,15 @@ namespace chainbase {
       void assign(const unsigned char* ptr, std::size_t size) {
          assign((char*)ptr, size);
       }
-      const char * c_str() const {
+      const char * data() const {
          if (_data) return _data->data;
          else return nullptr;
       }
-      const char * data() const { return c_str(); }
       std::size_t size() const {
          if (_data) return _data->size;
          else return 0;
       }
-      const_iterator begin() const { return c_str(); }
+      const_iterator begin() const { return data(); }
       const_iterator end() const {
          if (_data) return _data->data + _data->size;
          else return nullptr;
