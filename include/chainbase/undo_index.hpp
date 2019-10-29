@@ -187,10 +187,6 @@ namespace chainbase {
       using base_type = set_base<Node, OrderedIndex>;
       // Allow compatible keys to match multi_index
       template<typename K>
-      auto find(K&& k) {
-         return base_type::find(static_cast<K&&>(k), this->key_comp());
-      }
-      template<typename K>
       auto find(K&& k) const {
          return base_type::find(static_cast<K&&>(k), this->key_comp());
       }
