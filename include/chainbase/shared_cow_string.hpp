@@ -74,22 +74,18 @@ namespace chainbase {
       ~shared_cow_string() {
          dec_refcount();
       }
-      void resize(std::size_t new_size) {
+      void resize(std::size_t new_size, boost::container::default_init_t) {
          impl* new_data = (impl*)&*_alloc.allocate(sizeof(impl) + new_size + 1);
          new_data->reference_count = 1;
          new_data->size = new_size;
-         std::size_t size = this->size();
-         if (new_size < size) {
-            std::memcpy(new_data->data, _data->data, new_size);
-         } else {
-            if(size != 0) {
-               std::memcpy(new_data->data, _data->data, size);
-            }
-            std::memset(new_data->data + size, 0, new_size - size);
-         }
          new_data->data[new_size] = '\0';
          dec_refcount();
          _data = new_data;
+      }
+      template<typename F>
+      void resize_and_fill(std::size_t new_size, F&& f) {
+         resize(new_size, boost::container::default_init);
+         static_cast<F&&>(f)(_data->data, new_size);
       }
       void assign(const char* ptr, std::size_t size) {
          impl* new_data = (impl*)&*_alloc.allocate(sizeof(impl) + size + 1);
