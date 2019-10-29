@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_SUITE(undo_index_tests)
    void name##impl ()
 
 EXCEPTION_TEST_CASE(test_simple) {
-   chainbase::undo_index<basic_element_t, test_allocator<void>, boost::multi_index::ordered_unique<boost::multi_index::key<&basic_element_t::id>>> i0;
+   chainbase::undo_index<basic_element_t, test_allocator<basic_element_t>, boost::multi_index::ordered_unique<boost::multi_index::key<&basic_element_t::id>>> i0;
    i0.emplace([](basic_element_t& elem) {});
    const basic_element_t* element = i0.find(0);
    BOOST_TEST((element != nullptr && element->id == 0));
@@ -130,7 +130,7 @@ auto capture_state(const C& index) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -146,7 +146,7 @@ EXCEPTION_TEST_CASE(test_insert_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -165,7 +165,7 @@ EXCEPTION_TEST_CASE(test_insert_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_push) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary> > > i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -184,7 +184,7 @@ EXCEPTION_TEST_CASE(test_insert_push) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -199,7 +199,7 @@ EXCEPTION_TEST_CASE(test_modify_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -217,7 +217,7 @@ EXCEPTION_TEST_CASE(test_modify_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_push) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -235,7 +235,7 @@ EXCEPTION_TEST_CASE(test_modify_push) {
 }
 
 EXCEPTION_TEST_CASE(test_remove_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -250,7 +250,7 @@ EXCEPTION_TEST_CASE(test_remove_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_remove_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -268,7 +268,7 @@ EXCEPTION_TEST_CASE(test_remove_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_remove_push) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -286,7 +286,7 @@ EXCEPTION_TEST_CASE(test_remove_push) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_modify) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -298,7 +298,7 @@ EXCEPTION_TEST_CASE(test_insert_modify) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_modify_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -317,7 +317,7 @@ EXCEPTION_TEST_CASE(test_insert_modify_undo) {
 
 
 EXCEPTION_TEST_CASE(test_insert_modify_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -337,7 +337,7 @@ EXCEPTION_TEST_CASE(test_insert_modify_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_remove_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -355,7 +355,7 @@ EXCEPTION_TEST_CASE(test_insert_remove_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_remove_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -375,7 +375,7 @@ EXCEPTION_TEST_CASE(test_insert_remove_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_modify_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -392,7 +392,7 @@ EXCEPTION_TEST_CASE(test_modify_modify_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_modify_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -411,7 +411,7 @@ EXCEPTION_TEST_CASE(test_modify_modify_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_remove_undo) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -428,7 +428,7 @@ EXCEPTION_TEST_CASE(test_modify_remove_undo) {
 }
 
 EXCEPTION_TEST_CASE(test_modify_remove_squash) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -447,7 +447,7 @@ EXCEPTION_TEST_CASE(test_modify_remove_squash) {
 }
 
 EXCEPTION_TEST_CASE(test_squash_one) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -463,7 +463,7 @@ EXCEPTION_TEST_CASE(test_squash_one) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_non_unique) {
-   chainbase::undo_index<test_element_t, test_allocator<void>,
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::secondary>>> i0;
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
@@ -483,7 +483,7 @@ struct conflict_element_t {
 };
 
 EXCEPTION_TEST_CASE(test_modify_conflict) {
-   chainbase::undo_index<conflict_element_t, test_allocator<void>,
+   chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x1>>,
@@ -519,7 +519,7 @@ EXCEPTION_TEST_CASE(test_modify_conflict) {
 }
 
 BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false}), use_undo) {
-   chainbase::undo_index<conflict_element_t, test_allocator<void>,
+   chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x1>>,
@@ -549,7 +549,7 @@ BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false
 }
 
 EXCEPTION_TEST_CASE(test_modify_fail) {
-   chainbase::undo_index<conflict_element_t, test_allocator<void>,
+   chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::id>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x0>>,
                          boost::multi_index::ordered_unique<boost::multi_index::key<&conflict_element_t::x1>>,

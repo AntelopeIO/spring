@@ -267,6 +267,7 @@ namespace chainbase {
       using indices_type = std::tuple<set_impl<node, Keys>...>;
 
       using index0_type = std::tuple_element_t<0, indices_type>;
+      using alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<node>;
 
       using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Keys...>>;
       struct old_node : hook<key0_type, Allocator>, value_holder<T> {
@@ -275,7 +276,7 @@ namespace chainbase {
          template<typename... A>
          explicit old_node(A&&... a) : value_holder<T>{a...} {}
          uint64_t _mtime = 0; // Backup of the node's _mtime, to be restored on undo
-         typename rebind_alloc_t<Allocator, node>::pointer _current; // pointer to the actual node
+         typename alloc_traits::pointer _current; // pointer to the actual node
       };
 
       using id_pointer = id_type*;
@@ -328,8 +329,8 @@ namespace chainbase {
       // without allocating memory.
       //
       struct undo_state {
-         typename rebind_alloc_t<Allocator, T>::pointer old_values_end;
-         typename rebind_alloc_t<Allocator, T>::pointer removed_values_end;
+         typename std::allocator_traits<Allocator>::pointer old_values_end;
+         typename std::allocator_traits<Allocator>::pointer removed_values_end;
          id_type old_next_id = 0;
          uint64_t ctime = 0; // _monotonic_revision at the point the undo_state was created
       };
@@ -337,16 +338,15 @@ namespace chainbase {
       // Exception safety: strong
       template<typename Constructor>
       const value_type& emplace( Constructor&& c ) {
-         auto p = _allocator.allocate(1);
-         auto guard0 = scope_exit{[&]{ _allocator.deallocate(p, 1); }};
+         auto p = alloc_traits::allocate(_allocator, 1);
+         auto guard0 = scope_exit{[&]{ alloc_traits::deallocate(_allocator, p, 1); }};
          auto new_id = _next_id;
          auto constructor = [&]( value_type& v ) {
             v.id = new_id;
             c( v );
          };
-         // _allocator.construct(p, constructor, _allocator);
-         new (&*p) node(constructor, propagate_allocator(_allocator));
-         auto guard1 = scope_exit{[&]{ _allocator.destroy(p); }};
+         alloc_traits::construct(_allocator, &*p, constructor, propagate_allocator(_allocator));
+         auto guard1 = scope_exit{[&]{ alloc_traits::destroy(_allocator, &*p); }};
          if(!insert_impl<1>(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );
          std::get<0>(_indices).push_back(p->_item); // cannot fail and we know that it will definitely insert at the end.
@@ -734,9 +734,9 @@ namespace chainbase {
                // Nothing to do
             } else {
                // Not in removed_values
-               auto p = _old_values_allocator.allocate(1);
+               auto p = old_alloc_traits::allocate(_old_values_allocator, 1);
                auto guard0 = scope_exit{[&]{ _old_values_allocator.deallocate(p, 1); }};
-               _old_values_allocator.construct(p, obj);
+               old_alloc_traits::construct(_old_values_allocator, &*p, obj);
                p->_mtime = to_node(obj)._mtime;
                p->_current = &to_node(obj);
                guard0.cancel();
@@ -756,16 +756,16 @@ namespace chainbase {
       }
       void dispose_node(node& node_ref) noexcept {
          node* p{&node_ref};
-         _allocator.destroy(p);
-         _allocator.deallocate(p, 1);
+         alloc_traits::destroy(_allocator, p);
+         alloc_traits::deallocate(_allocator, p, 1);
       }
       void dispose_node(value_type& node_ref) noexcept {
          dispose_node(static_cast<node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
       }
       void dispose_old(old_node& node_ref) noexcept {
          old_node* p{&node_ref};
-         _old_values_allocator.destroy(p);
-         _old_values_allocator.deallocate(p, 1);
+         old_alloc_traits::destroy(_old_values_allocator, p);
+         old_alloc_traits::deallocate(_old_values_allocator, p, 1);
       }
       void dispose_old(value_type& node_ref) noexcept {
          dispose_old(static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
@@ -804,7 +804,7 @@ namespace chainbase {
       static int& get_removed_field(const value_type& obj) {
          return static_cast<hook<key0_type, Allocator>&>(to_node(obj))._color;
       }
-      using alloc_traits = std::allocator_traits<rebind_alloc_t<Allocator, node>>;
+      using old_alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<old_node>;
       indices_type _indices;
       boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
       list_base<old_node, key0_type> _old_values;

@@ -13,17 +13,8 @@ namespace chainbase {
    class chainbase_node_allocator {
     public:
       using value_type = T;
-      using reference = T&;
-      using const_reference = const T&;
       using pointer = bip::offset_ptr<T>;
-      using const_pointer = bip::offset_ptr<const T>;
-      using void_pointer = bip::offset_ptr<void>;
-      using const_void_pointer = bip::offset_ptr<const void>;
       using segment_manager = pinnable_mapped_file::segment_manager;
-      using difference_type = std::ptrdiff_t;
-      using size_type = std::size_t;
-      template<typename U>
-      struct rebind { using other = chainbase_node_allocator<U, S>; };
       chainbase_node_allocator(segment_manager* manager) : _manager{manager} {}
       chainbase_node_allocator(const chainbase_node_allocator& other) : _manager(other._manager) {}
       template<typename U>
@@ -47,15 +38,6 @@ namespace chainbase {
          } else {
             _manager->deallocate(&*p);
          }
-      }
-      pointer address(reference val) const { return pointer{&val}; }
-      const_pointer address(const_reference val) const { return const_pointer{&val}; }
-      template<typename... A>
-      void construct(const pointer &p, A&&... a) {
-         new(&*p) T{a...};
-      }
-      void destroy(const pointer& p) {
-         p->~T();
       }
       bool operator==(const chainbase_node_allocator& other) const { return this == &other; }
       bool operator!=(const chainbase_node_allocator& other) const { return this != &other; }
