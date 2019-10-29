@@ -23,6 +23,8 @@ namespace chainbase {
    struct scope_exit {
     public:
       scope_exit(F&& f) : _f(f) {}
+      scope_exit(const scope_exit&) = delete;
+      scope_exit& operator=(const scope_exit&) = delete;
       ~scope_exit() { if(!_canceled) _f(); }
       void cancel() { _canceled = true; }
     private:
