@@ -65,6 +65,7 @@ namespace chainbase {
       }
       shared_cow_string& operator=(shared_cow_string&& other) {
          if (this != &other) {
+            dec_refcount();
             _data = other._data;
             other._data = nullptr;
          }
@@ -97,9 +98,7 @@ namespace chainbase {
          if(size)
             std::memcpy(new_data->data, ptr, size);
          new_data->data[size] = '\0';
-         if (_data) {
-            dec_refcount();
-         }
+         dec_refcount();
          _data = new_data;
       }
       void assign(const unsigned char* ptr, std::size_t size) {
