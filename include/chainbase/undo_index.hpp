@@ -145,13 +145,8 @@ namespace chainbase {
    template<typename Index>
    using index_tag = typename index_tag_impl<Index>::type;
 
-   template<typename Index>
-   using index_key = typename Index::key_from_value_type;
-   template<typename Index>
-   using index_compare = typename Index::compare_type;
-
    template<typename Tag, typename... Indices>
-   using index_of_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Indices>...>, Tag>;
+   using find_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Indices>...>, Tag>;
 
    template<typename K, typename Allocator>
    using hook = offset_node_base<K>;
@@ -160,8 +155,8 @@ namespace chainbase {
    using set_base = boost::intrusive::avltree<
       typename Node::value_type,
       boost::intrusive::value_traits<offset_node_value_traits<Node, OrderedIndex>>,
-      boost::intrusive::key_of_value<get_key<index_key<OrderedIndex>, typename Node::value_type>>,
-      boost::intrusive::compare<index_compare<OrderedIndex>>>;
+      boost::intrusive::key_of_value<get_key<typename OrderedIndex::key_from_value_type, typename Node::value_type>>,
+      boost::intrusive::compare<typename OrderedIndex::compare_type>>;
 
    template<typename Node, typename Tag>
    using list_base = boost::intrusive::slist<
@@ -498,7 +493,7 @@ namespace chainbase {
 
       const undo_index& indices() const { return *this; }
       template<typename Tag>
-      const auto& get() const { return std::get<index_of_tag<Tag, Indices...>::value>(_indices); }
+      const auto& get() const { return std::get<find_tag<Tag, Indices...>::value>(_indices); }
 
       template<int N>
       const auto& get() const { return std::get<N>(_indices); }
@@ -513,7 +508,7 @@ namespace chainbase {
 
       template<typename Tag, typename Iter>
       auto project(Iter iter) const {
-         return project<index_of_tag<Tag, Indices...>::value>(iter);
+         return project<find_tag<Tag, Indices...>::value>(iter);
       }
 
       template<int N, typename Iter>
