@@ -33,10 +33,10 @@ namespace chainbase {
    };
 
    // Adapts multi_index's idea of keys to intrusive
-   template<typename Key, typename T>
+   template<typename KeyExtractor, typename T>
    struct get_key {
-      using type = std::decay_t<decltype(Key{}(std::declval<const T&>()))>;
-      decltype(auto) operator()(const T& arg) const { return Key{}(arg); }
+      using type = std::decay_t<decltype(KeyExtractor{}(std::declval<const T&>()))>;
+      decltype(auto) operator()(const T& arg) const { return KeyExtractor{}(arg); }
    };
 
    template<typename T>
@@ -115,9 +115,9 @@ namespace chainbase {
       static void set_previous(node_ptr n, node_ptr previous) { set_left(n, previous); }
    };
 
-   template<typename Node, typename Key>
+   template<typename Node, typename Tag>
    struct offset_node_value_traits {
-      using node_traits = offset_node_traits<Key>;
+      using node_traits = offset_node_traits<Tag>;
       using node_ptr = typename node_traits::node_ptr;
       using const_node_ptr = typename node_traits::const_node_ptr;
       using value_type = typename Node::value_type;
@@ -150,23 +150,23 @@ namespace chainbase {
    template<typename Index>
    using index_compare = typename Index::compare_type;
 
-   template<typename Tag, typename... Keys>
-   using index_of_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Keys>...>, Tag>;
+   template<typename Tag, typename... Indices>
+   using index_of_tag = boost::mp11::mp_find<boost::mp11::mp_list<index_tag<Indices>...>, Tag>;
 
    template<typename K, typename Allocator>
    using hook = offset_node_base<K>;
 
-   template<typename Node, typename Key>
+   template<typename Node, typename OrderedIndex>
    using set_base = boost::intrusive::avltree<
       typename Node::value_type,
-      boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>,
-      boost::intrusive::key_of_value<get_key<index_key<Key>, typename Node::value_type>>,
-      boost::intrusive::compare<index_compare<Key>>>;
+      boost::intrusive::value_traits<offset_node_value_traits<Node, OrderedIndex>>,
+      boost::intrusive::key_of_value<get_key<index_key<OrderedIndex>, typename Node::value_type>>,
+      boost::intrusive::compare<index_compare<OrderedIndex>>>;
 
-   template<typename Node, typename Key>
+   template<typename Node, typename Tag>
    using list_base = boost::intrusive::slist<
       typename Node::value_type,
-      boost::intrusive::value_traits<offset_node_value_traits<Node, Key>>>;
+      boost::intrusive::value_traits<offset_node_value_traits<Node, Tag>>>;
 
    template<typename L, typename It, typename Pred, typename Disposer>
    void remove_if_after_and_dispose(L& l, It it, It end, Pred&& p, Disposer&& d) {
@@ -179,12 +179,12 @@ namespace chainbase {
       }
    }
 
-   template<typename T, typename Allocator, typename... Keys>
+   template<typename T, typename Allocator, typename... Indices>
    class undo_index;
   
-   template<typename Node, typename Key>
-   struct set_impl : private set_base<Node, Key> {
-     using base_type = set_base<Node, Key>;
+   template<typename Node, typename OrderedIndex>
+   struct set_impl : private set_base<Node, OrderedIndex> {
+      using base_type = set_base<Node, OrderedIndex>;
       // Allow compatible keys to match multi_index
       template<typename K>
       auto find(K&& k) {
@@ -213,7 +213,7 @@ namespace chainbase {
       using base_type::size;
       using base_type::iterator_to;
       using base_type::empty;
-      template<typename T, typename Allocator, typename... Keys>
+      template<typename T, typename Allocator, typename... Indices>
       friend class undo_index;
    };
 
@@ -234,7 +234,7 @@ namespace chainbase {
 
    // Similar to boost::multi_index_container with an undo stack.
    // Keys should be instances of ordered_unique.
-   template<typename T, typename Allocator, typename... Keys>
+   template<typename T, typename Allocator, typename... Indices>
    class undo_index {
     public:
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
@@ -254,7 +254,7 @@ namespace chainbase {
             BOOST_THROW_EXCEPTION( std::runtime_error("content of memory does not match data expected by executable") );
       }
     
-      struct node : hook<Keys, Allocator>..., value_holder<T> {
+      struct node : hook<Indices, Allocator>..., value_holder<T> {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
@@ -264,12 +264,12 @@ namespace chainbase {
       };
       static constexpr int erased_flag = 2; // 0,1,and -1 are used by the tree
 
-      using indices_type = std::tuple<set_impl<node, Keys>...>;
+      using indices_type = std::tuple<set_impl<node, Indices>...>;
 
       using index0_type = std::tuple_element_t<0, indices_type>;
       using alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<node>;
 
-      using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Keys...>>;
+      using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Indices...>>;
       struct old_node : hook<key0_type, Allocator>, value_holder<T> {
          using value_type = T;
          using allocator_type = Allocator;
@@ -502,7 +502,7 @@ namespace chainbase {
 
       const undo_index& indices() const { return *this; }
       template<typename Tag>
-      const auto& get() const { return std::get<index_of_tag<Tag, Keys...>::value>(_indices); }
+      const auto& get() const { return std::get<index_of_tag<Tag, Indices...>::value>(_indices); }
 
       template<int N>
       const auto& get() const { return std::get<N>(_indices); }
@@ -664,7 +664,7 @@ namespace chainbase {
 
       template<int N = 0>
       bool insert_impl(value_type& p) {
-         if constexpr (N < sizeof...(Keys)) {
+         if constexpr (N < sizeof...(Indices)) {
             auto [iter, inserted] = std::get<N>(_indices).insert_unique(p);
             if(!inserted) return false;
             auto guard = scope_exit{[this,iter=iter]{ std::get<N>(_indices).erase(iter); }};
@@ -680,7 +680,7 @@ namespace chainbase {
       // Moves a modified node into the correct location
       template<bool unique, int N = 0>
       bool post_modify(value_type& p) {
-         if constexpr (N < sizeof...(Keys)) {
+         if constexpr (N < sizeof...(Indices)) {
             auto& idx = std::get<N>(_indices);
             auto iter = idx.iterator_to(p);
             bool fixup = false;
@@ -713,7 +713,7 @@ namespace chainbase {
 
       template<int N = 0>
       void erase_impl(value_type& p) {
-         if constexpr (N < sizeof...(Keys)) {
+         if constexpr (N < sizeof...(Indices)) {
             auto& setN = std::get<N>(_indices);
             setN.erase(setN.iterator_to(p));
             erase_impl<N+1>(p);
@@ -749,7 +749,7 @@ namespace chainbase {
       }
       template<int N = 0>
       void clear_impl() noexcept {
-         if constexpr(N < sizeof...(Keys)) {
+         if constexpr(N < sizeof...(Indices)) {
             std::get<N>(_indices).clear();
             clear_impl<N+1>();
          }
