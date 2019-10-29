@@ -592,6 +592,8 @@ BOOST_AUTO_TEST_CASE(test_project) {
    i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
    BOOST_TEST(i0.project<by_secondary>(i0.begin()) == i0.get<by_secondary>().begin());
    BOOST_TEST(i0.project<by_secondary>(i0.end()) == i0.get<by_secondary>().end());
+   BOOST_TEST(i0.project<1>(i0.begin()) == i0.get<by_secondary>().begin());
+   BOOST_TEST(i0.project<1>(i0.end()) == i0.get<by_secondary>().end());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
