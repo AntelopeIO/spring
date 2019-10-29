@@ -341,10 +341,8 @@ namespace chainbase {
          if(!insert_impl<1>(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );
          std::get<0>(_indices).push_back(p->_item); // cannot fail and we know that it will definitely insert at the end.
-         auto guard2 = scope_exit{ [&]{ erase_impl(p->_item); } };
          on_create(p->_item);
          ++_next_id;
-         guard2.cancel();
          guard1.cancel();
          guard0.cancel();
          return p->_item;
@@ -718,7 +716,7 @@ namespace chainbase {
          }
       }
 
-      void on_create(const value_type& value) {
+      void on_create(const value_type& value) noexcept {
          if(!_undo_stack.empty()) {
             // Not in old_values, removed_values, or new_ids
             to_node(value)._mtime = _monotonic_revision;
