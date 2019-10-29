@@ -517,6 +517,8 @@ namespace chainbase {
 
       template<typename Tag, typename Iter>
       auto project(Iter iter) const {
+         if(iter == get<boost::mp11::mp_find<boost::mp11::mp_list<typename set_impl<node, Indices>::const_iterator...>, Iter>::value>().end())
+            return get<Tag>().end();
          return get<Tag>().iterator_to(*iter);
       }
 

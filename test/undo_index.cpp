@@ -583,4 +583,15 @@ EXCEPTION_TEST_CASE(test_modify_fail) {
    BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
 }
 
+struct by_secondary {};
+
+BOOST_AUTO_TEST_CASE(test_project) {
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+                         boost::multi_index::ordered_unique<boost::multi_index::key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<boost::multi_index::tag<by_secondary>, boost::multi_index::key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
+   BOOST_TEST(i0.project<by_secondary>(i0.begin()) == i0.get<by_secondary>().begin());
+   BOOST_TEST(i0.project<by_secondary>(i0.end()) == i0.get<by_secondary>().end());
+}
+
 BOOST_AUTO_TEST_SUITE_END()
