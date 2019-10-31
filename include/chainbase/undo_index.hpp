@@ -260,6 +260,8 @@ namespace chainbase {
       using index0_type = std::tuple_element_t<0, indices_type>;
       using alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<node>;
 
+      static_assert(std::is_same_v<typename index0_type::key_type, id_type>, "first index must be id");
+
       using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Indices...>>;
       struct old_node : hook<key0_type, Allocator>, value_holder<T> {
          using value_type = T;
