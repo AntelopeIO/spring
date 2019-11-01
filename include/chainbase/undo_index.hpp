@@ -493,7 +493,7 @@ namespace chainbase {
             _undo_stack.clear();
          } else {
             auto iter = _undo_stack.begin() + (_undo_stack.size() - (_revision - revision));
-            dispose(_old_values.iterator_to(*iter->old_values_end), _removed_values.iterator_to(*iter->removed_values_end));
+            dispose(get_old_values_end(*iter), get_removed_values_end(*iter));
             _undo_stack.erase(_undo_stack.begin(), iter);
          }
       }
@@ -542,8 +542,8 @@ namespace chainbase {
          // Compressing the undo stack does not change the logical state of the undo_index.
          const_cast<undo_index*>(this)->compress_last_undo_session();
          return { { get<0>().lower_bound(_undo_stack.back().old_next_id), get<0>().end() },
-                  { _old_values.begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end) },
-                  { _removed_values.begin(), _removed_values.iterator_to(*_undo_stack.back().removed_values_end) } };
+                  { _old_values.begin(), get_old_values_end(_undo_stack.back()) },
+                  { _removed_values.begin(), get_removed_values_end(_undo_stack.back()) } };
       }
 
       auto begin() const { return get<0>().begin(); }
@@ -567,7 +567,7 @@ namespace chainbase {
             dispose_node(*p);
          });
          // replace old_values
-         _old_values.erase_after_and_dispose(_old_values.before_begin(), _old_values.iterator_to(*undo_info.old_values_end), [this, &undo_info](pointer p) {
+         _old_values.erase_after_and_dispose(_old_values.before_begin(), get_old_values_end(undo_info), [this, &undo_info](pointer p) {
             auto restored_mtime = to_old_node(*p)._mtime;
             // Skip restoring values that overwrite an earlier modify in the same session.
             // Duplicate modifies can only happen because of squash.
@@ -587,7 +587,7 @@ namespace chainbase {
             dispose_old(*p);
          });
          // insert all removed_values
-         _removed_values.erase_after_and_dispose(_removed_values.before_begin(), _removed_values.iterator_to(*undo_info.removed_values_end), [this, &undo_info](pointer p) {
+         _removed_values.erase_after_and_dispose(_removed_values.before_begin(), get_removed_values_end(undo_info), [this, &undo_info](pointer p) {
             if (p->id < undo_info.old_next_id) {
                get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
                insert_impl(*p);
@@ -637,7 +637,7 @@ namespace chainbase {
       void compress_impl(undo_state& session) noexcept {
          auto session_start = session.ctime;
          auto old_next_id = session.old_next_id;
-         remove_if_after_and_dispose(_old_values, _old_values.before_begin(), _old_values.iterator_to(*_undo_stack.back().old_values_end),
+         remove_if_after_and_dispose(_old_values, _old_values.before_begin(), get_old_values_end(_undo_stack.back()),
                                      [session_start](value_type& v){
                                         if(to_old_node(v)._mtime >= session_start) return true;
                                         auto& item = to_old_node(v)._current->_item;
@@ -649,7 +649,7 @@ namespace chainbase {
                                         return false;
                                      },
                                      [&](pointer p) { dispose_old(*p); });
-         remove_if_after_and_dispose(_removed_values, _removed_values.before_begin(), _removed_values.iterator_to(*_undo_stack.back().removed_values_end),
+         remove_if_after_and_dispose(_removed_values, _removed_values.before_begin(), get_removed_values_end(_undo_stack.back()),
                                      [old_next_id](value_type& v){
                                         return v.id >= old_next_id;
                                      },
@@ -660,8 +660,8 @@ namespace chainbase {
       // Exception safety: strong
       int64_t add_session() {
          _undo_stack.emplace_back();
-         _undo_stack.back().old_values_end = &*_old_values.begin();
-         _undo_stack.back().removed_values_end = &*_removed_values.begin();
+         _undo_stack.back().old_values_end = _old_values.empty()?nullptr:&*_old_values.begin();
+         _undo_stack.back().removed_values_end = _removed_values.empty()?nullptr:&*_removed_values.begin();
          _undo_stack.back().old_next_id = _next_id;
          _undo_stack.back().ctime = ++_monotonic_revision;
          return ++_revision;
@@ -795,6 +795,31 @@ namespace chainbase {
       static old_node& to_old_node(value_type& obj) {
          return static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
       }
+
+      auto get_old_values_end(const undo_state& info) {
+         if(info.old_values_end == nullptr) {
+            return _old_values.end();
+         } else {
+            return _old_values.iterator_to(*info.old_values_end);
+         }
+      }
+
+      auto get_old_values_end(const undo_state& info) const {
+         return static_cast<decltype(_old_values.cend())>(const_cast<undo_index*>(this)->get_old_values_end(info));
+      }
+
+      auto get_removed_values_end(const undo_state& info) {
+         if(info.removed_values_end == nullptr) {
+            return _removed_values.end();
+         } else {
+            return _removed_values.iterator_to(*info.removed_values_end);
+         }
+      }
+
+      auto get_removed_values_end(const undo_state& info) const {
+         return static_cast<decltype(_removed_values.cend())>(const_cast<undo_index*>(this)->get_removed_values_end(info));
+      }
+
       // returns true if the node should be destroyed
       bool on_remove( value_type& obj) {
          if (!_undo_stack.empty()) {
