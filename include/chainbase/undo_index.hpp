@@ -13,6 +13,7 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/core/demangle.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
+#include <cassert>
 #include <memory>
 #include <type_traits>
 #include <sstream>
@@ -382,7 +383,10 @@ namespace chainbase {
                   success = true;
                }
             }};
+            auto old_id = obj.id;
             m(node_ref);
+            (void)old_id;
+            assert(obj.id == old_id);
          }
          if(!success)
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not modify object, most likely a uniqueness constraint was violated" } );
