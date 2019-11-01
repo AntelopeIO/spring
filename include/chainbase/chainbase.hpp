@@ -57,9 +57,6 @@ namespace chainbase {
    template<typename T>
    using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
 
-   template<typename T>
-   using shared_vector = std::vector<T, allocator<T> >;
-
    using shared_string = shared_cow_string;
 
    typedef boost::interprocess::interprocess_sharable_mutex read_write_mutex;
