@@ -242,7 +242,7 @@ namespace chainbase {
       undo_index() = default;
       explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _old_values_allocator{a} {}
       ~undo_index() {
-         dispose(_old_values.before_begin(), _removed_values.before_begin());
+         dispose_undo();
          clear_impl<1>();
          std::get<0>(_indices).clear_and_dispose([&](pointer p){ dispose_node(*p); });
       }
@@ -489,7 +489,7 @@ namespace chainbase {
       void commit( int64_t revision ) noexcept {
          revision = std::min(revision, _revision);
          if (revision == _revision) {
-            dispose(_old_values.before_begin(), _removed_values.before_begin());
+            dispose_undo();
             _undo_stack.clear();
          } else {
             auto iter = _undo_stack.begin() + (_undo_stack.size() - (_revision - revision));
@@ -609,7 +609,7 @@ namespace chainbase {
          if (_undo_stack.empty()) {
             return;
          } else if (_undo_stack.size() == 1) {
-            dispose(_old_values.before_begin(), _removed_values.before_begin());
+            dispose_undo();
          }
          _undo_stack.pop_back();
          --_revision;
@@ -781,6 +781,10 @@ namespace chainbase {
             _old_values.erase_after_and_dispose(old_start, _old_values.end(), [this](pointer p){ dispose_old(*p); });
          if(removed_start != _removed_values.end())
             _removed_values.erase_after_and_dispose(removed_start, _removed_values.end(), [this](pointer p){ dispose_node(*p); });
+      }
+      void dispose_undo() noexcept {
+         _old_values.clear_and_dispose([this](pointer p){ dispose_old(*p); });
+         _removed_values.clear_and_dispose([this](pointer p){ dispose_node(*p); });
       }
       static node& to_node(value_type& obj) {
          return static_cast<node&>(*boost::intrusive::get_parent_from_member(&obj, &value_holder<value_type>::_item));
