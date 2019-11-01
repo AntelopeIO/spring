@@ -158,6 +158,11 @@ namespace chainbase {
       boost::intrusive::key_of_value<get_key<typename OrderedIndex::key_from_value_type, typename Node::value_type>>,
       boost::intrusive::compare<typename OrderedIndex::compare_type>>;
 
+   template<typename OrderedIndex>
+   constexpr bool is_valid_index = false;
+   template<typename... T>
+   constexpr bool is_valid_index<boost::multi_index::ordered_unique<T...>> = true;
+
    template<typename Node, typename Tag>
    using list_base = boost::intrusive::slist<
       typename Node::value_type,
@@ -231,6 +236,8 @@ namespace chainbase {
       using id_type = std::decay_t<decltype(std::declval<T>().id)>;
       using value_type = T;
       using allocator_type = Allocator;
+
+      static_assert((... && is_valid_index<Indices>), "Only ordered_unique indices are supported");
 
       undo_index() = default;
       explicit undo_index(const Allocator& a) : _undo_stack{a}, _allocator{a}, _old_values_allocator{a} {}
