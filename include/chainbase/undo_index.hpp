@@ -256,7 +256,7 @@ namespace chainbase {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
-         explicit node(A&&... a) : value_holder<T>{a...} {}
+         explicit node(A&&... a) : value_holder<T>{static_cast<A&&>(a)...} {}
          const T& item() const { return *this; }
          uint64_t _mtime = 0; // _monotonic_revision when the node was last modified or created.
       };
@@ -274,7 +274,7 @@ namespace chainbase {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
-         explicit old_node(A&&... a) : value_holder<T>{a...} {}
+         explicit old_node(const T& t) : value_holder<T>{t} {}
          uint64_t _mtime = 0; // Backup of the node's _mtime, to be restored on undo
          typename alloc_traits::pointer _current; // pointer to the actual node
       };
@@ -399,7 +399,7 @@ namespace chainbase {
       template<typename CompatibleKey>
       const value_type* find( CompatibleKey&& key) const {
          const auto& index = std::get<0>(_indices);
-         auto iter = index.find(key);
+         auto iter = index.find(static_cast<CompatibleKey&&>(key));
          if (iter != index.end()) {
             return &*iter;
          } else {
@@ -409,7 +409,7 @@ namespace chainbase {
 
       template<typename CompatibleKey>
       const value_type& get( CompatibleKey&& key )const {
-         auto ptr = find( key );
+         auto ptr = find( static_cast<CompatibleKey&&>(key) );
          if( !ptr ) {
             std::stringstream ss;
             ss << "key not found (" << boost::core::demangle( typeid( key ).name() ) << "): " << key;
