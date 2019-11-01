@@ -229,7 +229,7 @@ namespace chainbase {
    auto propagate_allocator(chainbase::chainbase_node_allocator<T, S>& a) { return boost::interprocess::allocator<T, S>{a.get_segment_manager()}; }
 
    // Similar to boost::multi_index_container with an undo stack.
-   // Keys should be instances of ordered_unique.
+   // Indices should be instances of ordered_unique.
    template<typename T, typename Allocator, typename... Indices>
    class undo_index {
     public:
@@ -264,13 +264,13 @@ namespace chainbase {
 
       using indices_type = std::tuple<set_impl<node, Indices>...>;
 
-      using index0_type = std::tuple_element_t<0, indices_type>;
+      using index0_set_type = std::tuple_element_t<0, indices_type>;
       using alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<node>;
 
-      static_assert(std::is_same_v<typename index0_type::key_type, id_type>, "first index must be id");
+      static_assert(std::is_same_v<typename index0_set_type::key_type, id_type>, "first index must be id");
 
-      using key0_type = boost::mp11::mp_first<boost::mp11::mp_list<Indices...>>;
-      struct old_node : hook<key0_type, Allocator>, value_holder<T> {
+      using index0_type = boost::mp11::mp_first<boost::mp11::mp_list<Indices...>>;
+      struct old_node : hook<index0_type, Allocator>, value_holder<T> {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
@@ -281,7 +281,7 @@ namespace chainbase {
 
       using id_pointer = id_type*;
       using pointer = value_type*;
-      using const_iterator = typename index0_type::const_iterator;
+      using const_iterator = typename index0_set_type::const_iterator;
 
       // The undo stack is implemented as a deque of undo_states
       // that index into a pair of singly linked lists.
@@ -528,9 +528,9 @@ namespace chainbase {
       bool has_undo_session() const { return !_undo_stack.empty(); }
 
       struct delta {
-         boost::iterator_range<typename index0_type::const_iterator> new_values;
-         boost::iterator_range<typename list_base<old_node, key0_type>::const_iterator> old_values;
-         boost::iterator_range<typename list_base<node, key0_type>::const_iterator> removed_values;
+         boost::iterator_range<typename index0_set_type::const_iterator> new_values;
+         boost::iterator_range<typename list_base<old_node, index0_type>::const_iterator> old_values;
+         boost::iterator_range<typename list_base<node, index0_type>::const_iterator> removed_values;
       };
 
       delta last_undo_session() const {
@@ -775,7 +775,7 @@ namespace chainbase {
       void dispose_old(value_type& node_ref) noexcept {
          dispose_old(static_cast<old_node&>(*boost::intrusive::get_parent_from_member(&node_ref, &value_holder<value_type>::_item)));
       }
-      void dispose(typename list_base<old_node, key0_type>::iterator old_start, typename list_base<node, key0_type>::iterator removed_start) noexcept {
+      void dispose(typename list_base<old_node, index0_type>::iterator old_start, typename list_base<node, index0_type>::iterator removed_start) noexcept {
          // This will leave one element around.  That's okay, because we'll clean it up the next time.
          if(old_start != _old_values.end())
             _old_values.erase_after_and_dispose(old_start, _old_values.end(), [this](pointer p){ dispose_old(*p); });
@@ -836,13 +836,13 @@ namespace chainbase {
       }
       // Returns the field indicating whether the node has been removed
       static int& get_removed_field(const value_type& obj) {
-         return static_cast<hook<key0_type, Allocator>&>(to_node(obj))._color;
+         return static_cast<hook<index0_type, Allocator>&>(to_node(obj))._color;
       }
       using old_alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<old_node>;
       indices_type _indices;
       boost::container::deque<undo_state, rebind_alloc_t<Allocator, undo_state>> _undo_stack;
-      list_base<old_node, key0_type> _old_values;
-      list_base<node, key0_type> _removed_values;
+      list_base<old_node, index0_type> _old_values;
+      list_base<node, index0_type> _removed_values;
       rebind_alloc_t<Allocator, node> _allocator;
       rebind_alloc_t<Allocator, old_node> _old_values_allocator;
       id_type _next_id = 0;
