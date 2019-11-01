@@ -491,7 +491,7 @@ namespace chainbase {
          if (revision == _revision) {
             dispose_undo();
             _undo_stack.clear();
-         } else {
+         } else if( (_revision - revision) < _undo_stack.size() ) {
             auto iter = _undo_stack.begin() + (_undo_stack.size() - (_revision - revision));
             dispose(get_old_values_end(*iter), get_removed_values_end(*iter));
             _undo_stack.erase(_undo_stack.begin(), iter);
