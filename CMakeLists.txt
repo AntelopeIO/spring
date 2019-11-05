@@ -21,9 +21,9 @@ FIND_PACKAGE(Boost 1.57 REQUIRED COMPONENTS filesystem unit_test_framework)
 SET(PLATFORM_LIBRARIES)
 
 if(CMAKE_CXX_STANDARD EQUAL 98)
-   message(FATAL_ERROR "chainbase requires c++14 or newer")
+   message(FATAL_ERROR "chainbase requires c++17 or newer")
 elseif(NOT CMAKE_CXX_STANDARD)
-   set(CMAKE_CXX_STANDARD 14)
+   set(CMAKE_CXX_STANDARD 17)
    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
