@@ -75,6 +75,11 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
             grow = shared_file_size - existing_file_size;
             bfs::resize_file(_data_file_path, shared_file_size);
          }
+         else if(shared_file_size < existing_file_size) {
+             std::cerr << "CHAINBASE: \"" << _database_name << "\" requested size of " << shared_file_size << " is less than "
+                "existing size of " << existing_file_size << ". This database will not be shrunk and will "
+                "remain at " << existing_file_size << std::endl;
+         }
          _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
          _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
          file_mapped_segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
@@ -114,7 +119,7 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 
       try {
          if(mode == heap)
-            _mapped_region = bip::mapped_region(bip::anonymous_shared_memory(shared_file_size));
+            _mapped_region = bip::mapped_region(bip::anonymous_shared_memory(_file_mapped_region.get_size()));
          else
             _mapped_region = get_huge_region(hugepage_paths);
 
@@ -186,7 +191,7 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) 
 
       if(time(nullptr) != t) {
          t = time(nullptr);
-         std::cerr << "              " << offset/(_mapped_region.get_size()/100) << "% complete..." << std::endl;
+         std::cerr << "              " << offset/(_file_mapped_region.get_size()/100) << "% complete..." << std::endl;
       }
       sig_ios.poll();
    }
