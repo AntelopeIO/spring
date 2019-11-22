@@ -606,4 +606,41 @@ BOOST_AUTO_TEST_CASE(test_project) {
    BOOST_TEST(i0.project<1>(i0.end()) == i0.get<by_secondary>().end());
 }
 
+
+EXCEPTION_TEST_CASE(test_remove_tracking_session) {
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+                         boost::multi_index::ordered_unique<key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 20; });
+   auto session = i0.start_undo_session(true);
+   auto tracker = i0.track_removed();
+   i0.emplace([](test_element_t& elem) { elem.secondary = 21; });
+   const test_element_t& elem0 = *i0.find(0);
+   const test_element_t& elem1 = *i0.find(1);
+   BOOST_CHECK(!tracker.is_removed(elem0));
+   BOOST_CHECK(!tracker.is_removed(elem1));
+   tracker.remove(elem0);
+   tracker.remove(elem1);
+   BOOST_CHECK(tracker.is_removed(elem0));
+   BOOST_CHECK(tracker.is_removed(elem1));
+}
+
+
+EXCEPTION_TEST_CASE(test_remove_tracking_no_session) {
+   chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+                         boost::multi_index::ordered_unique<key<&test_element_t::id>>,
+                         boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0;
+   i0.emplace([](test_element_t& elem) { elem.secondary = 20; });
+   auto tracker = i0.track_removed();
+   i0.emplace([](test_element_t& elem) { elem.secondary = 21; });
+   const test_element_t& elem0 = *i0.find(0);
+   const test_element_t& elem1 = *i0.find(1);
+   BOOST_CHECK(!tracker.is_removed(elem0));
+   BOOST_CHECK(!tracker.is_removed(elem1));
+   tracker.remove(elem0);
+   tracker.remove(elem1);
+   BOOST_CHECK(tracker.is_removed(elem0));
+   BOOST_CHECK(tracker.is_removed(elem1));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
