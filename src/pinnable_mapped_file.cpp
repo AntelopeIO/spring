@@ -13,7 +13,7 @@
 namespace chainbase {
 
 const char* chainbase_error_category::name() const noexcept {
-   return CHAINBASE_CATEGORY_NAME;
+   return "chainbase";
 }
 
 std::string chainbase_error_category::message(int ev) const {
@@ -61,8 +61,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    _writable(writable)
 {
    if(shared_file_size % _db_size_multiple_requirement) {
-      std::cerr << "Database must be mulitple of " <<  std::to_string(_db_size_multiple_requirement) << " bytes" << std::endl;
-      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_size)));
+      std::string what_str("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
+      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_size), what_str));
    }
 #ifndef __linux__
    if(hugepage_paths.size())
@@ -76,8 +76,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 #endif
 
    if(!_writable && !bfs::exists(_data_file_path)){
-      std::cerr << "database file not found at " <<  _data_file_path.string() << std::endl;
-      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::not_found)));
+      std::string what_str("database file not found at " + _data_file_path.string());
+      BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::not_found), what_str));
    }
 
    bfs::create_directories(dir);
@@ -91,11 +91,11 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 
       db_header* dbheader = reinterpret_cast<db_header*>(header);
       if(dbheader->id != header_id) {
-         std::cerr << "\"" << _database_name << "\" database format not compatible with this version of chainbase." << std::endl;
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version)));
+         std::string what_str("\"" + _database_name + "\" database format not compatible with this version of chainbase.");
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::incorrect_db_version), what_str));
       }
       if(!allow_dirty && dbheader->dirty) {
-         std::cerr << "\"" + _database_name + "\" database dirty flag set" << std::endl;
+         std::string what_str("\"" + _database_name + "\" database dirty flag set");
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::dirty)));
       }
       if(dbheader->dbenviron != environment()) {
@@ -174,8 +174,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
          if(mode == locked) {
 #ifndef _WIN32
             if(mlock(_mapped_region.get_address(), _mapped_region.get_size())) {
-	       std::cerr << "Failed to mlock database \"" <<  _database_name << "\"" << std::endl;
-               BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock)));
+               std::string what_str("Failed to mlock database \"" + _database_name + "\"");
+               BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock), what_str));
 	       }
             std::cerr << "CHAINBASE: Database \"" << _database_name << "\" has been successfully locked in memory" << std::endl;
 #endif

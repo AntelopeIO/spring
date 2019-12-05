@@ -6,8 +6,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/asio/io_service.hpp>
 
-#define CHAINBASE_CATEGORY_NAME "chainbase"
-
 namespace chainbase {
 
 namespace bip = boost::interprocess;
