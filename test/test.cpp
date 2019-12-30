@@ -40,7 +40,7 @@ CHAINBASE_SET_INDEX_TYPE( book, book_index )
 
 
 BOOST_AUTO_TEST_CASE( open_and_create ) {
-   boost::filesystem::path temp = boost::filesystem::unique_path();
+   boost::filesystem::path temp = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
    try {
       std::cerr << temp << " \n";
 
@@ -129,6 +129,7 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
       bfs::remove_all( temp );
       throw;
    }
+   bfs::remove_all( temp );
 }
 
 // BOOST_AUTO_TEST_SUITE_END()
