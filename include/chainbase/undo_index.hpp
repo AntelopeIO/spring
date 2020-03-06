@@ -392,6 +392,41 @@ namespace chainbase {
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not modify object, most likely a uniqueness constraint was violated" } );
       }
 
+      // Allows testing whether a value has been removed from the undo_index.
+      //
+      // The lifetime of an object removed through a removed_nodes_tracker
+      // does not end before the removed_nodes_tracker is destroyed or invalidated.
+      //
+      // A removed_nodes_tracker is invalidated by the following members of undo_index:
+      // start_undo_session, commit, squash, and undo.
+      class removed_nodes_tracker {
+       public:
+         explicit removed_nodes_tracker(undo_index& idx) : _self(&idx) {}
+         ~removed_nodes_tracker() {
+            _removed_values.clear_and_dispose([this](value_type* obj) { _self->dispose_node(*obj); });
+         }
+         removed_nodes_tracker(const removed_nodes_tracker&) = delete;
+         removed_nodes_tracker& operator=(const removed_nodes_tracker&) = delete;
+         bool is_removed(const value_type& obj) const {
+            return undo_index::get_removed_field(obj) == erased_flag;
+         }
+         // Must be used in place of undo_index::remove
+         void remove(const value_type& obj) {
+            _self->remove(obj, *this);
+         }
+       private:
+         friend class undo_index;
+         void save(value_type& obj) {
+            undo_index::get_removed_field(obj) = erased_flag;
+            _removed_values.push_front(obj);
+         }
+         undo_index* _self;
+         list_base<node, index0_type> _removed_values;
+      };
+      auto track_removed() {
+         return removed_nodes_tracker(*this);
+      }
+
       void remove( const value_type& obj ) noexcept {
          auto& node_ref = const_cast<value_type&>(obj);
          erase_impl(node_ref);
@@ -399,6 +434,18 @@ namespace chainbase {
             dispose_node(node_ref);
          }
       }
+
+    private:
+
+      void remove( const value_type& obj, removed_nodes_tracker& tracker ) noexcept {
+         auto& node_ref = const_cast<value_type&>(obj);
+         erase_impl(node_ref);
+         if(on_remove(node_ref)) {
+            tracker.save(node_ref);
+         }
+      }
+
+    public:
 
       template<typename CompatibleKey>
       const value_type* find( CompatibleKey&& key) const {
