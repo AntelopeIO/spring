@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <typeindex>
 #include <typeinfo>
+#include <set>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/shared_cow_string.hpp>
