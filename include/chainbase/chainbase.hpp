@@ -408,11 +408,11 @@ namespace chainbase {
             _index_list.push_back( new_index );
          }
 
-         auto get_segment_manager() -> decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager()) {
+         pinnable_mapped_file::segment_manager* get_segment_manager() {
             return _db_file.get_segment_manager();
          }
 
-         auto get_segment_manager()const -> std::add_const_t< decltype( ((pinnable_mapped_file*)nullptr)->get_segment_manager() ) > {
+         const pinnable_mapped_file::segment_manager* get_segment_manager() const {
             return _db_file.get_segment_manager();
          }
 
