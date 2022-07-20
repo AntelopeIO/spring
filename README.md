@@ -1,16 +1,16 @@
 # ChainBase - a fast version controlled, transactional database
 
-  ChainBase is designed to meet the demanding requirments of blockchain applications, but is suitable for use
+  ChainBase is designed to meet the demanding requirements of blockchain applications, but is suitable for use
   in any application that requires a robust transactional database with the ability have near-infinite levels of undo
   history.
 
-  While chainbase was designed for blockchain applications, it is suitable for any program that needs to
+  While ChainBase was designed for blockchain applications, it is suitable for any program that needs to
   persist complex application state with the ability to undo.
 
 ## Features
 
   - Supports multiple objects (tables) with multiple indicies (based upon boost::multi_index_container)
-  - State is persistant and sharable among multiple processes
+  - State is persistant and shareable among multiple processes
   - Nested Transactional Writes with ability to undo changes
 
 ## Dependencies
@@ -117,10 +117,10 @@ By default ChainBase provides no synchronization and has the same concurrency re
 boost::multi_index_container.  This means that two or more threads may read the database at the
 same time, but all writes must be protected by a mutex.  
 
-Multiple processes may open the same database if care is taken to use interpocess locking on the
+Multiple processes may open the same database if care is taken to use interprocess locking on the
 database.  
 
-## Persistance
+## Persistence
 
 By default data is only flushed to disk upon request or when the program exits. So long as the program
 does not crash in the middle of a call to db.modify(), or db.create() the content of the
@@ -145,13 +145,13 @@ If portability is desired, the developer will have to export the database to a s
 ## Background
 
 Blockchain applications depend upon a high performance database capable of millions of read/write
-operations per second.  Additionally blockchains operate on the basis of "eventually consistant" which
+operations per second.  Additionally blockchains operate on the basis of "eventually consistent" which
 means that any changes made to the database are potentially reversible for an unknown amount of time depending
 upon the consenus protocol used.
 
 Existing database such as [libbitcoin Database](https://github.com/libbitcoin/libbitcoin-database) achieve high
 peformance using similar techniques (memory mapped files), but they are heavily specialised and do not implement
-the logic necessary for multiple indicies or undo history.
+the logic necessary for multiple indices or undo history.
 
 Databases such as LevelDB provide a simple Key/Value database, but suffer from poor performance relative to
 memory mapped file implementations.
