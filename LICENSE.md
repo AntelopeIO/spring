@@ -1,4 +1,4 @@
-eosnetworkfoundation/mandel-chainbase
+AntelopeIO/chainbase
 
 Copyright (c) 2021-2022 EOS Network Foundation (ENF) and its contributors.  All rights reserved. 
 This ENF software is based upon:
