@@ -242,11 +242,11 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) 
 
       if(time(nullptr) != t) {
          t = time(nullptr);
-         std::cerr << "              " << offset/(_file_mapped_region.get_size()/100) << "% complete..." << std::endl;
+         std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, " << offset/(_file_mapped_region.get_size()/100) << "% complete..." << std::endl;
       }
       sig_ios.poll();
    }
-   std::cerr << "           Complete" << std::endl;
+   std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, complete." << std::endl;
 }
 
 bool pinnable_mapped_file::all_zeros(char* data, size_t sz) {
@@ -272,13 +272,13 @@ void pinnable_mapped_file::save_database_file() {
 
       if(time(nullptr) != t) {
          t = time(nullptr);
-         std::cerr << "              " << offset/(_file_mapped_region.get_size()/100) << "% complete..." << std::endl;
+         std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, " << offset/(_file_mapped_region.get_size()/100) << "% complete..." << std::endl;
       }
    }
-   std::cerr << "           Syncing buffers..." << std::endl;
+   std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << std::endl;
    if(_file_mapped_region.flush(0, 0, false) == false)
       std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
-   std::cerr << "           Complete" << std::endl;
+   std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, complete." << std::endl;
 }
 
 pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) :
