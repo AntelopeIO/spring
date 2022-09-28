@@ -277,7 +277,7 @@ void pinnable_mapped_file::save_database_file() {
    }
    std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << std::endl;
    if(_file_mapped_region.flush(0, 0, false) == false)
-      std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << std::endl;
+      std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << std::endl;
    std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, complete." << std::endl;
 }
 
