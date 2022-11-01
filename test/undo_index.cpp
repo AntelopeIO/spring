@@ -7,6 +7,12 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 
+// gcc-11 adds new dynamic memory warnings that return false positives for many of the stack allocated instantiations of
+// chainbase::undo_index<>. For example, see test_insert_modify. Evaluation of the actual behavior using ASAN with gcc-11 and
+// clang-11 indicates these are false positives. The warning is disabled for gcc-11 only.
+#if defined(__GNUC__) && (__GNUC__ == 11) && !defined(__clang__)
+#  pragma GCC diagnostic ignored "-Wfree-nonheap-object"
+#endif
 
 namespace {
 int exception_counter = 0;
