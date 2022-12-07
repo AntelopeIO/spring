@@ -446,6 +446,9 @@ namespace chainbase {
          template<typename MultiIndexType>
          generic_index<MultiIndexType>& get_mutable_index()
          {
+            if ( _read_only_mode ) {
+               BOOST_THROW_EXCEPTION( std::logic_error( "attempting to get mutable index in read-only mode" ) );
+            }
             CHAINBASE_REQUIRE_WRITE_LOCK("get_mutable_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
@@ -502,6 +505,9 @@ namespace chainbase {
          template<typename ObjectType, typename Modifier>
          void modify( const ObjectType& obj, Modifier&& m )
          {
+             if ( _read_only_mode ) {
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to modify a record in read-only mode" ) );
+             }
              CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              get_mutable_index<index_type>().modify( obj, m );
@@ -510,6 +516,9 @@ namespace chainbase {
          template<typename ObjectType>
          void remove( const ObjectType& obj )
          {
+             if ( _read_only_mode ) {
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to remove a record in read-only mode" ) );
+             }
              CHAINBASE_REQUIRE_WRITE_LOCK("remove", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().remove( obj );
@@ -518,6 +527,9 @@ namespace chainbase {
          template<typename ObjectType, typename Constructor>
          const ObjectType& create( Constructor&& con )
          {
+             if ( _read_only_mode ) {
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to create a record in read-only mode" ) );
+             }
              CHAINBASE_REQUIRE_WRITE_LOCK("create", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
@@ -533,9 +545,25 @@ namespace chainbase {
             return ret;
          }
 
+         void set_read_only_mode() {
+            _read_only_mode = true;
+         }
+
+         void unset_read_only_mode() {
+            _read_only_mode = false;
+         }
+
       private:
          pinnable_mapped_file                                        _db_file;
          bool                                                        _read_only = false;
+
+         /**
+          * This is a catch-all flag. When set to true, an exception is
+          * throw when modification  attempt is made on chainbase.
+          * This ensures state is not modified by mistake when application
+          * does not intend to change state.
+          */
+         bool                                                        _read_only_mode = false;
 
          /**
           * This is a sparse list of known indices kept to accelerate creation of undo sessions
