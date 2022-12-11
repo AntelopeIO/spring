@@ -14,6 +14,7 @@ namespace chainbase {
       _db_file(dir, flags & database::read_write, shared_file_size, allow_dirty, db_map_mode),
       _read_only(flags == database::read_only)
    {
+      _read_only_mode = _read_only;
    }
 
    database::~database()
@@ -24,22 +25,13 @@ namespace chainbase {
 
    void database::set_require_locking( bool enable_require_locking )
    {
-#ifdef CHAINBASE_CHECK_LOCKING
-      _enable_require_locking = enable_require_locking;
-#endif
+      ;
    }
-
-#ifdef CHAINBASE_CHECK_LOCKING
-   void database::require_lock_fail( const char* method, const char* lock_type, const char* tname )const
-   {
-      std::string err_msg = "database::" + std::string( method ) + " require_" + std::string( lock_type ) + "_lock() failed on type " + std::string( tname );
-      std::cerr << err_msg << std::endl;
-      BOOST_THROW_EXCEPTION( std::runtime_error( err_msg ) );
-   }
-#endif
 
    void database::undo()
    {
+      if ( _read_only_mode )
+         BOOST_THROW_EXCEPTION( std::logic_error( "attempting to undo in read-only mode" ) );
       for( auto& item : _index_list )
       {
          item->undo();
@@ -48,6 +40,8 @@ namespace chainbase {
 
    void database::squash()
    {
+      if ( _read_only_mode )
+         BOOST_THROW_EXCEPTION( std::logic_error( "attempting to squash in read-only mode" ) );
       for( auto& item : _index_list )
       {
          item->squash();
@@ -56,6 +50,8 @@ namespace chainbase {
 
    void database::commit( int64_t revision )
    {
+      if ( _read_only_mode )
+         BOOST_THROW_EXCEPTION( std::logic_error( "attempting to commit in read-only mode" ) );
       for( auto& item : _index_list )
       {
          item->commit( revision );
@@ -64,6 +60,8 @@ namespace chainbase {
 
    void database::undo_all()
    {
+      if ( _read_only_mode )
+         BOOST_THROW_EXCEPTION( std::logic_error( "attempting to undo_all in read-only mode" ) );
       for( auto& item : _index_list )
       {
          item->undo_all();
@@ -72,6 +70,8 @@ namespace chainbase {
 
    database::session database::start_undo_session( bool enabled )
    {
+      if ( _read_only_mode )
+         BOOST_THROW_EXCEPTION( std::logic_error( "attempting to start_undo_session in read-only mode" ) );
       if( enabled ) {
          vector< std::unique_ptr<abstract_session> > _sub_sessions;
          _sub_sessions.reserve( _index_list.size() );

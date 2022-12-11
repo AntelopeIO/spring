@@ -37,14 +37,6 @@
    #define CHAINBASE_NUM_RW_LOCKS 10
 #endif
 
-#ifdef CHAINBASE_CHECK_LOCKING
-   #define CHAINBASE_REQUIRE_READ_LOCK(m, t) require_read_lock(m, typeid(t).name())
-   #define CHAINBASE_REQUIRE_WRITE_LOCK(m, t) require_write_lock(m, typeid(t).name())
-#else
-   #define CHAINBASE_REQUIRE_READ_LOCK(m, t)
-   #define CHAINBASE_REQUIRE_WRITE_LOCK(m, t)
-#endif
-
 namespace chainbase {
 
    namespace bip = boost::interprocess;
@@ -268,22 +260,6 @@ namespace chainbase {
          void flush();
          void set_require_locking( bool enable_require_locking );
 
-#ifdef CHAINBASE_CHECK_LOCKING
-         void require_lock_fail( const char* method, const char* lock_type, const char* tname )const;
-
-         void require_read_lock( const char* method, const char* tname )const
-         {
-            if( BOOST_UNLIKELY( _enable_require_locking & _read_only & (_read_lock_count <= 0) ) )
-               require_lock_fail(method, "read", tname);
-         }
-
-         void require_write_lock( const char* method, const char* tname )
-         {
-            if( BOOST_UNLIKELY( _enable_require_locking & (_write_lock_count <= 0) ) )
-               require_lock_fail(method, "write", tname);
-         }
-#endif
-
          struct session {
             public:
                session( session&& s ):_index_sessions( std::move(s._index_sessions) ){}
@@ -335,7 +311,9 @@ namespace chainbase {
 
          void set_revision( uint64_t revision )
          {
-             CHAINBASE_REQUIRE_WRITE_LOCK( "set_revision", uint64_t );
+             if ( _read_only_mode ) {
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to set revision in read-only mode" ) );
+             }
              for( auto i : _index_list ) i->set_revision( revision );
          }
 
@@ -424,7 +402,6 @@ namespace chainbase {
          template<typename MultiIndexType>
          const generic_index<MultiIndexType>& get_index()const
          {
-            CHAINBASE_REQUIRE_READ_LOCK("get_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -435,7 +412,6 @@ namespace chainbase {
          template<typename MultiIndexType, typename ByIndex>
          auto get_index()const -> decltype( ((generic_index<MultiIndexType>*)( nullptr ))->indices().template get<ByIndex>() )
          {
-            CHAINBASE_REQUIRE_READ_LOCK("get_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -449,7 +425,6 @@ namespace chainbase {
             if ( _read_only_mode ) {
                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to get mutable index in read-only mode" ) );
             }
-            CHAINBASE_REQUIRE_WRITE_LOCK("get_mutable_index", typename MultiIndexType::value_type);
             typedef generic_index<MultiIndexType> index_type;
             typedef index_type*                   index_type_ptr;
             assert( _index_map.size() > index_type::value_type::type_id );
@@ -460,7 +435,6 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType* find( CompatibleKey&& key )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              const auto& idx = get_index< index_type >().indices().template get< IndexedByType >();
              auto itr = idx.find( std::forward< CompatibleKey >( key ) );
@@ -471,7 +445,6 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType* find( oid< ObjectType > key = oid< ObjectType >() ) const
          {
-             CHAINBASE_REQUIRE_READ_LOCK("find", ObjectType);
              typedef typename get_index_type< ObjectType >::type index_type;
              return get_index< index_type >().find( key );
          }
@@ -479,7 +452,6 @@ namespace chainbase {
          template< typename ObjectType, typename IndexedByType, typename CompatibleKey >
          const ObjectType& get( CompatibleKey&& key )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType, IndexedByType >( std::forward< CompatibleKey >( key ) );
              if( !obj ) {
                 std::stringstream ss;
@@ -492,7 +464,6 @@ namespace chainbase {
          template< typename ObjectType >
          const ObjectType& get( const oid< ObjectType >& key = oid< ObjectType >() )const
          {
-             CHAINBASE_REQUIRE_READ_LOCK("get", ObjectType);
              auto obj = find< ObjectType >( key );
              if( !obj ) {
                 std::stringstream ss;
@@ -508,7 +479,6 @@ namespace chainbase {
              if ( _read_only_mode ) {
                 BOOST_THROW_EXCEPTION( std::logic_error( "attempting to modify a record in read-only mode" ) );
              }
-             CHAINBASE_REQUIRE_WRITE_LOCK("modify", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              get_mutable_index<index_type>().modify( obj, m );
          }
@@ -519,7 +489,6 @@ namespace chainbase {
              if ( _read_only_mode ) {
                 BOOST_THROW_EXCEPTION( std::logic_error( "attempting to remove a record in read-only mode" ) );
              }
-             CHAINBASE_REQUIRE_WRITE_LOCK("remove", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().remove( obj );
          }
@@ -530,7 +499,6 @@ namespace chainbase {
              if ( _read_only_mode ) {
                 BOOST_THROW_EXCEPTION( std::logic_error( "attempting to create a record in read-only mode" ) );
              }
-             CHAINBASE_REQUIRE_WRITE_LOCK("create", ObjectType);
              typedef typename get_index_type<ObjectType>::type index_type;
              return get_mutable_index<index_type>().emplace( std::forward<Constructor>(con) );
          }
@@ -550,6 +518,8 @@ namespace chainbase {
          }
 
          void unset_read_only_mode() {
+             if ( _read_only )
+                BOOST_THROW_EXCEPTION( std::logic_error( "attempting to unset read_only_mode while database was opened as read only" ) );
             _read_only_mode = false;
          }
 
@@ -558,10 +528,12 @@ namespace chainbase {
          bool                                                        _read_only = false;
 
          /**
-          * This is a catch-all flag. When set to true, an exception is
-          * throw when modification  attempt is made on chainbase.
-          * This ensures state is not modified by mistake when application
-          * does not intend to change state.
+          * _read_only_mode is dynamic which can be toggled back and for 
+          * by users, while _read_only is static throughout the lifetime 
+          * of the database instance. When _read_only_mode is set to true,
+          * an exception is thrown when modification attempt is made on
+          * chainbase. This ensures state is not modified by mistake when
+          * application does not intend to change state.
           */
          bool                                                        _read_only_mode = false;
 
@@ -574,12 +546,6 @@ namespace chainbase {
           * This is a full map (size 2^16) of all possible index designed for constant time lookup
           */
          vector<unique_ptr<abstract_index>>                          _index_map;
-
-#ifdef CHAINBASE_CHECK_LOCKING
-         int32_t                                                     _read_lock_count = 0;
-         int32_t                                                     _write_lock_count = 0;
-         bool                                                        _enable_require_locking = false;
-#endif
    };
 
    template<typename Object, typename... Args>
