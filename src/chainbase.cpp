@@ -23,11 +23,6 @@ namespace chainbase {
       _index_map.clear();
    }
 
-   void database::set_require_locking( bool enable_require_locking )
-   {
-      ;
-   }
-
    void database::undo()
    {
       if ( _read_only_mode )
