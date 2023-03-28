@@ -1,5 +1,4 @@
 #define BOOST_TEST_MODULE chainbase test
-
 #include <boost/test/unit_test.hpp>
 #include <chainbase/chainbase.hpp>
 
@@ -8,6 +7,7 @@
 #include <boost/multi_index/member.hpp>
 
 #include <iostream>
+#include "temp_directory.hpp"
 
 using namespace chainbase;
 using namespace boost::multi_index;
@@ -40,7 +40,8 @@ CHAINBASE_SET_INDEX_TYPE( book, book_index )
 
 
 BOOST_AUTO_TEST_CASE( open_and_create ) {
-   boost::filesystem::path temp = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+   temp_directory temp_dir;
+   const auto& temp = temp_dir.path();
    try {
       std::cerr << temp << " \n";
 
@@ -126,10 +127,8 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
       BOOST_REQUIRE_EQUAL( new_book.a, copy_new_book.a );
       BOOST_REQUIRE_EQUAL( new_book.b, copy_new_book.b );
    } catch ( ... ) {
-      bfs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
 }
 
 // BOOST_AUTO_TEST_SUITE_END()

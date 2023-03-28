@@ -3,13 +3,11 @@
 #include <system_error>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/asio/io_service.hpp>
-
+#include <filesystem>
 namespace chainbase {
 
 namespace bip = boost::interprocess;
-namespace bfs = boost::filesystem;
 
 enum db_error_code {
    ok = 0,
@@ -47,7 +45,7 @@ class pinnable_mapped_file {
          locked
       };
 
-      pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode);
+      pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode);
       pinnable_mapped_file(pinnable_mapped_file&& o);
       pinnable_mapped_file& operator=(pinnable_mapped_file&&);
       pinnable_mapped_file(const pinnable_mapped_file&) = delete;
@@ -64,7 +62,7 @@ class pinnable_mapped_file {
       void                                          setup_non_file_mapping();
 
       bip::file_lock                                _mapped_file_lock;
-      bfs::path                                     _data_file_path;
+      std::filesystem::path                                     _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
 
