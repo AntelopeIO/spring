@@ -62,7 +62,7 @@ class pinnable_mapped_file {
       void                                          setup_non_file_mapping();
 
       bip::file_lock                                _mapped_file_lock;
-      std::filesystem::path                                     _data_file_path;
+      std::filesystem::path                         _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
 
