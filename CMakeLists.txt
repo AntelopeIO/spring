@@ -65,7 +65,10 @@ endif()
 file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
 target_link_libraries( chainbase ${PLATFORM_LIBRARIES} )
-target_include_directories( chainbase PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" )
+target_include_directories( chainbase PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  ${Boost_INCLUDE_DIRS})
 
 if(WIN32)
    target_link_libraries( chainbase ws2_32 mswsock )
