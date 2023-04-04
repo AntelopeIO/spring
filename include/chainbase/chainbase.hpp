@@ -40,7 +40,6 @@
 namespace chainbase {
 
    namespace bip = boost::interprocess;
-   namespace bfs = boost::filesystem;
    using std::unique_ptr;
    using std::vector;
 
@@ -251,8 +250,8 @@ namespace chainbase {
 
          using database_index_row_count_multiset = std::multiset<std::pair<unsigned, std::string>>;
 
-         database(const bfs::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0, bool allow_dirty = false,
-                  pinnable_mapped_file::map_mode = pinnable_mapped_file::map_mode::mapped);
+         database(const std::filesystem::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0,
+                  bool allow_dirty = false, pinnable_mapped_file::map_mode = pinnable_mapped_file::map_mode::mapped);
          ~database();
          database(database&&) = default;
          database& operator=(database&&) = default;
@@ -527,8 +526,8 @@ namespace chainbase {
          bool                                                        _read_only = false;
 
          /**
-          * _read_only_mode is dynamic which can be toggled back and for 
-          * by users, while _read_only is static throughout the lifetime 
+          * _read_only_mode is dynamic which can be toggled back and for
+          * by users, while _read_only is static throughout the lifetime
           * of the database instance. When _read_only_mode is set to true,
           * an exception is thrown when modification attempt is made on
           * chainbase. This ensures state is not modified by mistake when
