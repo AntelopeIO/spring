@@ -16,7 +16,7 @@ IF( WIN32 )
   set(BOOST_ALL_DYN_LINK OFF) # force dynamic linking for all libraries
 ENDIF(WIN32)
 
-FIND_PACKAGE(Boost 1.57 REQUIRED COMPONENTS unit_test_framework)
+FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS unit_test_framework)
 
 SET(PLATFORM_LIBRARIES)
 
@@ -64,8 +64,10 @@ endif()
 
 file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
-target_link_libraries( chainbase ${PLATFORM_LIBRARIES} )
-target_include_directories( chainbase PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" )
+target_link_libraries( chainbase ${PLATFORM_LIBRARIES} Boost::boost)
+target_include_directories( chainbase PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
 if(WIN32)
    target_link_libraries( chainbase ws2_32 mswsock )
