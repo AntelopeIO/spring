@@ -521,7 +521,7 @@ namespace chainbase {
          if( _undo_stack.size() != 0 )
             BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
 
-         if( revision > std::numeric_limits<int64_t>::max() )
+         if( revision > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) )
             BOOST_THROW_EXCEPTION( std::logic_error("revision to set is too high") );
 
          if( static_cast<int64_t>(revision) < _revision )
