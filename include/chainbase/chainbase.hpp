@@ -162,7 +162,7 @@ namespace chainbase {
          virtual uint32_t type_id()const  = 0;
          virtual uint64_t row_count()const = 0;
          virtual const std::string& type_name()const = 0;
-         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const = 0;
+         virtual std::pair<uint64_t, uint64_t> undo_stack_revision_range()const = 0;
 
          virtual void remove_object( int64_t id ) = 0;
 
@@ -189,7 +189,7 @@ namespace chainbase {
          virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
          virtual uint64_t row_count()const override { return _base.indices().size(); }
          virtual const std::string& type_name() const override { return BaseIndex_name; }
-         virtual std::pair<int64_t, int64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
+         virtual std::pair<uint64_t, uint64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
 
          virtual void     remove_object( int64_t id ) override { return _base.remove_object( id ); }
       private:

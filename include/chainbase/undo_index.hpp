@@ -511,7 +511,7 @@ namespace chainbase {
          bool _apply = true;
       };
 
-      int64_t revision() const { return _revision; }
+      uint64_t revision() const { return _revision; }
 
       session start_undo_session( bool enabled ) {
          return session{*this, enabled};
@@ -521,28 +521,25 @@ namespace chainbase {
          if( _undo_stack.size() != 0 )
             BOOST_THROW_EXCEPTION( std::logic_error("cannot set revision while there is an existing undo stack") );
 
-         if( revision > std::numeric_limits<int64_t>::max() )
-            BOOST_THROW_EXCEPTION( std::logic_error("revision to set is too high") );
-
-         if( static_cast<int64_t>(revision) < _revision )
+         if( revision < _revision )
             BOOST_THROW_EXCEPTION( std::logic_error("revision cannot decrease") );
 
-         _revision = static_cast<int64_t>(revision);
+         _revision = revision;
       }
 
-      std::pair<int64_t, int64_t> undo_stack_revision_range() const {
+      std::pair<uint64_t, uint64_t> undo_stack_revision_range() const {
          return { _revision - _undo_stack.size(), _revision };
       }
 
       /**
        * Discards all undo history prior to revision
        */
-      void commit( int64_t revision ) noexcept {
+      void commit( uint64_t revision ) noexcept {
          revision = std::min(revision, _revision);
          if (revision == _revision) {
             dispose_undo();
             _undo_stack.clear();
-         } else if( static_cast<uint64_t>(_revision - revision) < _undo_stack.size() ) {
+         } else if( _revision - revision < _undo_stack.size() ) {
             auto iter = _undo_stack.begin() + (_undo_stack.size() - (_revision - revision));
             dispose(get_old_values_end(*iter), get_removed_values_end(*iter));
             _undo_stack.erase(_undo_stack.begin(), iter);
@@ -897,7 +894,7 @@ namespace chainbase {
       rebind_alloc_t<Allocator, node> _allocator;
       rebind_alloc_t<Allocator, old_node> _old_values_allocator;
       id_type _next_id = 0;
-      int64_t _revision = 0;
+      uint64_t _revision = 0;
       uint64_t _monotonic_revision = 0;
       uint32_t                        _size_of_value_type = sizeof(node);
       uint32_t                        _size_of_this = sizeof(undo_index);
