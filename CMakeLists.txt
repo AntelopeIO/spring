@@ -73,6 +73,12 @@ if(WIN32)
    target_link_libraries( chainbase ws2_32 mswsock )
 endif()
 
+# for BSD we should avoid any pthread calls such as pthread_mutex_lock 
+# in boost/interprocess
+if(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+  target_compile_definitions(chainbase PUBLIC BOOST_INTERPROCESS_FORCE_GENERIC_EMULATION)
+endif()
+
 enable_testing()
 add_subdirectory( test )
 

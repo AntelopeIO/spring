@@ -1,10 +1,5 @@
 #pragma once
 
-// for BSD we should avoid any pthread calls such as pthread_mutex_lock
-#if defined(__FreeBSD__)
-#define BOOST_INTERPROCESS_FORCE_GENERIC_EMULATION
-#endif
-
 #include <system_error>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
