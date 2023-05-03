@@ -5,7 +5,6 @@
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/asio/io_service.hpp>
 #include <filesystem>
-
 namespace chainbase {
 
 namespace bip = boost::interprocess;
