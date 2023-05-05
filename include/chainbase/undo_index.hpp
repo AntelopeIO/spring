@@ -47,16 +47,18 @@ namespace chainbase {
       T _item;
    };
 
+#pragma pack(push, 2)
    template<class Tag>
    struct offset_node_base {
       offset_node_base() = default;
       offset_node_base(const offset_node_base&) {}
       constexpr offset_node_base& operator=(const offset_node_base&) { return *this; }
-      std::ptrdiff_t _parent;
-      std::ptrdiff_t _left;
-      std::ptrdiff_t _right;
-      int _color;
+      int64_t _parent:42;
+      int64_t _left:42;
+      int64_t _right:42;
+      int16_t _color:2;
    };
+#pragma pack(pop)
 
    template<class Tag>
    struct offset_node_traits {
@@ -261,7 +263,7 @@ namespace chainbase {
          const T& item() const { return *this; }
          uint64_t _mtime = 0; // _monotonic_revision when the node was last modified or created.
       };
-      static constexpr int erased_flag = 2; // 0,1,and -1 are used by the tree
+      static constexpr int erased_flag = -2; // 0,1,and -1 are used by the tree
 
       using indices_type = std::tuple<set_impl<node, Indices>...>;
 
@@ -417,7 +419,7 @@ namespace chainbase {
        private:
          friend class undo_index;
          void save(value_type& obj) {
-            undo_index::get_removed_field(obj) = erased_flag;
+            undo_index::set_removed_field(obj, erased_flag);
             _removed_values.push_front(obj);
          }
          undo_index* _self;
@@ -640,7 +642,7 @@ namespace chainbase {
          // insert all removed_values
          _removed_values.erase_after_and_dispose(_removed_values.before_begin(), get_removed_values_end(undo_info), [this, &undo_info](pointer p) {
             if (p->id < undo_info.old_next_id) {
-               get_removed_field(*p) = 0; // Will be overwritten by tree algorithms, because we're reusing the color.
+               set_removed_field(*p, 0); // Will be overwritten by tree algorithms, because we're reusing the color.
                insert_impl(*p);
             } else {
                dispose_node(*p);
@@ -878,7 +880,7 @@ namespace chainbase {
             if ( obj.id >= undo_info.old_next_id ) {
                return true;
             }
-            get_removed_field(obj) = erased_flag;
+            set_removed_field(obj, erased_flag);
 
             _removed_values.push_front(obj);
             return false;
@@ -886,8 +888,11 @@ namespace chainbase {
          return true;
       }
       // Returns the field indicating whether the node has been removed
-      static int& get_removed_field(const value_type& obj) {
+      static int get_removed_field(const value_type& obj) {
          return static_cast<hook<index0_type, Allocator>&>(to_node(obj))._color;
+      }
+      static void set_removed_field(const value_type& obj, int val) {
+         static_cast<hook<index0_type, Allocator>&>(to_node(obj))._color = val;
       }
       using old_alloc_traits = typename std::allocator_traits<Allocator>::template rebind_traits<old_node>;
       indices_type _indices;
