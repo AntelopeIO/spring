@@ -1,0 +1,28 @@
+name: "Build & Test"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        os: ["debian:buster", "ubuntu:jammy"]
+    container: ${{matrix.os}}
+    steps:
+      - name: Install deps
+        run: |
+          apt-get update && apt-get upgrade -y
+          apt-get install -y build-essential cmake libboost-dev libboost-system-dev libboost-test-dev
+      - uses: actions/checkout@v3
+      - name: Build & Test
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -- -j $(nproc)
+          cd build && ctest --output-on-failure -j $(nproc)
