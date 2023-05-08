@@ -16,7 +16,7 @@ IF( WIN32 )
   set(BOOST_ALL_DYN_LINK OFF) # force dynamic linking for all libraries
 ENDIF(WIN32)
 
-if(NOT boost_headers_SOURCE_DIR)
+if(NOT TARGET Boost::unit_test_framework)
    FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS unit_test_framework)
 endif()
 
