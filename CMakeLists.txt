@@ -66,7 +66,7 @@ endif()
 
 file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
-target_link_libraries( chainbase ${PLATFORM_LIBRARIES}
+target_link_libraries( chainbase PUBLIC ${PLATFORM_LIBRARIES}
                         Boost::headers Boost::interprocess Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio Boost::system )
 target_include_directories( chainbase PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
@@ -79,7 +79,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 if(WIN32)
-   target_link_libraries( chainbase ws2_32 mswsock )
+   target_link_libraries( chainbase PUBLIC ws2_32 mswsock )
 endif()
 
 # for BSD we should avoid any pthread calls such as pthread_mutex_lock 
