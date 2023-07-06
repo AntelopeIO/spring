@@ -70,7 +70,7 @@ target_link_libraries( chainbase PUBLIC ${PLATFORM_LIBRARIES} Boost::system Boos
 
 if(TARGET Boost::headers)
   target_link_libraries( chainbase PUBLIC
-                          Boost::headers Boost::interprocess Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio::system )
+                          Boost::headers Boost::interprocess Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio )
 endif()
 
 target_include_directories( chainbase PUBLIC
