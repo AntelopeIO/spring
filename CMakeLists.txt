@@ -16,7 +16,9 @@ IF( WIN32 )
   set(BOOST_ALL_DYN_LINK OFF) # force dynamic linking for all libraries
 ENDIF(WIN32)
 
-FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
+if(NOT TARGET Boost::unit_test_framework)
+   FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
+endif()
 
 SET(PLATFORM_LIBRARIES)
 
@@ -64,10 +66,16 @@ endif()
 
 file(GLOB HEADERS "include/chainbase/*.hpp")
 add_library( chainbase src/chainbase.cpp src/pinnable_mapped_file.cpp ${HEADERS} )
-target_link_libraries( chainbase PUBLIC ${PLATFORM_LIBRARIES} Boost::boost Boost::system)
+target_link_libraries( chainbase PUBLIC ${PLATFORM_LIBRARIES} Boost::system Boost::unit_test_framework )
+
+if(TARGET Boost::asio)
+  target_link_libraries( chainbase PUBLIC
+                         Boost::headers Boost::interprocess Boost::chrono Boost::multi_index Boost::lexical_cast Boost::asio )
+endif()
+
 target_include_directories( chainbase PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+  "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"  )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 8 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
@@ -76,7 +84,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 if(WIN32)
-   target_link_libraries( chainbase ws2_32 mswsock )
+   target_link_libraries( chainbase PUBLIC ws2_32 mswsock )
 endif()
 
 # for BSD we should avoid any pthread calls such as pthread_mutex_lock 
