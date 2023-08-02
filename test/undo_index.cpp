@@ -580,10 +580,10 @@ EXCEPTION_TEST_CASE(test_modify_fail) {
    i0.emplace([](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 81; elem.x2 = 91; });
    BOOST_CHECK_THROW(i0.modify(i0.get(3), [](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 10; elem.x2 = 91; }), std::logic_error);
    }
-   BOOST_TEST(i0.get<0>().size() == 3);
-   BOOST_TEST(i0.get<1>().size() == 3);
-   BOOST_TEST(i0.get<2>().size() == 3);
-   BOOST_TEST(i0.get<3>().size() == 3);
+   BOOST_TEST(i0.get<0>().size() == 3u);
+   BOOST_TEST(i0.get<1>().size() == 3u);
+   BOOST_TEST(i0.get<2>().size() == 3u);
+   BOOST_TEST(i0.get<3>().size() == 3u);
    BOOST_TEST(i0.find(0)->x0 == 10);
    BOOST_TEST(i0.find(1)->x1 == 11);
    BOOST_TEST(i0.find(2)->x2 == 12);
