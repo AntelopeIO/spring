@@ -18,7 +18,7 @@ const char* chainbase_error_category::name() const noexcept {
 
 std::string chainbase_error_category::message(int ev) const {
    switch(ev) {
-      case db_error_code::ok: 
+      case db_error_code::ok:
          return "Ok";
       case db_error_code::dirty:
          return "Database dirty flag set";
@@ -50,8 +50,8 @@ const std::error_category& chainbase_error_category() {
    return the_category;
 }
 
-pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
-   _data_file_path(bfs::absolute(dir/"shared_memory.bin")),
+pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
+   _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
    _writable(writable)
 {
@@ -63,14 +63,14 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    if(mode != mapped)
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::unsupported_win32_mode)));
 #endif
-   if(!_writable && !bfs::exists(_data_file_path)){
+   if(!_writable && !std::filesystem::exists(_data_file_path)){
       std::string what_str("database file not found at " + _data_file_path.string());
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::not_found), what_str));
    }
 
-   bfs::create_directories(dir);
+   std::filesystem::create_directories(dir);
 
-   if(bfs::exists(_data_file_path)) {
+   if(std::filesystem::exists(_data_file_path)) {
       char header[header_size];
       std::ifstream hs(_data_file_path.generic_string(), std::ifstream::binary);
       hs.read(header, header_size);
@@ -97,22 +97,21 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
    }
 
    segment_manager* file_mapped_segment_manager = nullptr;
-   if(!bfs::exists(_data_file_path)) {
+   if(!std::filesystem::exists(_data_file_path)) {
       std::ofstream ofs(_data_file_path.generic_string(), std::ofstream::trunc);
-      //win32 impl of bfs::resize_file() doesn't like the file being open
       ofs.close();
-      bfs::resize_file(_data_file_path, shared_file_size);
+      std::filesystem::resize_file(_data_file_path, shared_file_size);
       _file_mapping = bip::file_mapping(_data_file_path.generic_string().c_str(), bip::read_write);
       _file_mapped_region = bip::mapped_region(_file_mapping, bip::read_write);
       file_mapped_segment_manager = new ((char*)_file_mapped_region.get_address()+header_size) segment_manager(shared_file_size-header_size);
       new (_file_mapped_region.get_address()) db_header;
    }
    else if(_writable) {
-         auto existing_file_size = bfs::file_size(_data_file_path);
+         auto existing_file_size = std::filesystem::file_size(_data_file_path);
          size_t grow = 0;
          if(shared_file_size > existing_file_size) {
             grow = shared_file_size - existing_file_size;
-            bfs::resize_file(_data_file_path, shared_file_size);
+            std::filesystem::resize_file(_data_file_path, shared_file_size);
          }
          else if(shared_file_size < existing_file_size) {
              std::cerr << "CHAINBASE: \"" << _database_name << "\" requested size of " << shared_file_size << " is less than "
@@ -133,8 +132,8 @@ pinnable_mapped_file::pinnable_mapped_file(const bfs::path& dir, bool writable, 
 
    if(_writable) {
       //remove meta file created in earlier versions
-      boost::system::error_code ec;
-      bfs::remove(bfs::absolute(dir/"shared_memory.meta"), ec);
+      std::error_code ec;
+      std::filesystem::remove(std::filesystem::absolute(dir/"shared_memory.meta"), ec);
 
       _mapped_file_lock = bip::file_lock(_data_file_path.generic_string().c_str());
       if(!_mapped_file_lock.try_lock())

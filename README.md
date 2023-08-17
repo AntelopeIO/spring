@@ -9,8 +9,8 @@
 
 ## Features
 
-  - Supports multiple objects (tables) with multiple indicies (based upon boost::multi_index_container)
-  - State is persistant and shareable among multiple processes
+  - Supports multiple objects (tables) with multiple indices (based upon boost::multi_index_container)
+  - State is persistent and shareable among multiple processes
   - Nested Transactional Writes with ability to undo changes
 
 ## Dependencies
@@ -74,7 +74,7 @@ int main( int argc, char** argv ) {
    db.add_index< book_index >(); /// open or create the book_index
 
 
-   const auto& book_idx = db.get_index<book_index>().indicies();
+   const auto& book_idx = db.get_index<book_index>().indices();
 
    /**
       Returns a const reference to the book, this pointer will remain
@@ -124,7 +124,7 @@ database.
 
 By default data is only flushed to disk upon request or when the program exits. So long as the program
 does not crash in the middle of a call to db.modify(), or db.create() the content of the
-database should remain in a consistant state. This means that you should minimize the complexity of the
+database should remain in a consistent state. This means that you should minimize the complexity of the
 lambdas used to create and/or modify state.
 
 If the operating system crashes or the computer loses power, then the database will be left in an undefined

@@ -56,10 +56,10 @@ struct environment  {
    uint8_t reserved[512] = {};
    char compiler[256] = {};
 
-   bool operator==(const environment& other) {
+   bool operator==(const environment& other) const {
       return !memcmp(this, &other, sizeof(environment));
    } 
-   bool operator!=(const environment& other) {
+   bool operator!=(const environment& other) const {
       return !(*this == other);
    }
 } __attribute__ ((packed));
