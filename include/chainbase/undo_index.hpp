@@ -23,7 +23,7 @@ namespace chainbase {
    template<typename F>
    struct scope_exit {
     public:
-      scope_exit(F&& f) : _f(f) {}
+      [[nodiscard]] scope_exit(F&& f) : _f(std::move(f)) {}
       scope_exit(const scope_exit&) = delete;
       scope_exit& operator=(const scope_exit&) = delete;
       ~scope_exit() { if(!_canceled) _f(); }
@@ -47,18 +47,16 @@ namespace chainbase {
       T _item;
    };
 
-#pragma pack(push, 2)
    template<class Tag>
-   struct offset_node_base {
+   struct __attribute__((packed, aligned(4))) offset_node_base {
       offset_node_base() = default;
       offset_node_base(const offset_node_base&) {}
       constexpr offset_node_base& operator=(const offset_node_base&) { return *this; }
       int64_t _parent:42;
       int64_t _left:42;
       int64_t _right:42;
-      int16_t _color:2;
+      int64_t _color:2;
    };
-#pragma pack(pop)
 
    template<class Tag>
    struct offset_node_traits {
