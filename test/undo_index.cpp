@@ -1,5 +1,6 @@
 #include <chainbase/undo_index.hpp>
 #include <chainbase/chainbase.hpp>
+#include <filesystem>
 
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>
@@ -52,7 +53,7 @@ struct throwing_copy {
 };
 
 namespace bip = boost::interprocess;
-namespace bfs = boost::filesystem;
+namespace fs  = std::filesystem;
 
 template<typename T>
 using test_allocator_base = chainbase::chainbase_node_allocator<T, chainbase::pinnable_mapped_file::segment_manager>;
@@ -110,7 +111,7 @@ BOOST_AUTO_TEST_SUITE(undo_index_tests)
    void name##impl ()
 
 EXCEPTION_TEST_CASE(test_simple) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -130,10 +131,10 @@ EXCEPTION_TEST_CASE(test_simple) {
       element = i0.find(0);
       BOOST_TEST(element == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 struct test_element_t {
@@ -168,7 +169,7 @@ auto capture_state(const C& index) {
 }
 
 EXCEPTION_TEST_CASE(test_insert_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -186,14 +187,14 @@ EXCEPTION_TEST_CASE(test_insert_undo) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -214,13 +215,13 @@ EXCEPTION_TEST_CASE(test_insert_squash) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );}
+   fs::remove_all( temp );}
 
 EXCEPTION_TEST_CASE(test_insert_push) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -241,14 +242,14 @@ EXCEPTION_TEST_CASE(test_insert_push) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1)->secondary == 12);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -265,14 +266,14 @@ EXCEPTION_TEST_CASE(test_modify_undo) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -292,14 +293,14 @@ EXCEPTION_TEST_CASE(test_modify_squash) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_push) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -319,14 +320,14 @@ EXCEPTION_TEST_CASE(test_modify_push) {
       BOOST_TEST(!i0.has_undo_session());
       BOOST_TEST(i0.find(0)->secondary == 18);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_remove_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -343,14 +344,14 @@ EXCEPTION_TEST_CASE(test_remove_undo) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_remove_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -370,14 +371,14 @@ EXCEPTION_TEST_CASE(test_remove_squash) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_remove_push) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -397,14 +398,14 @@ EXCEPTION_TEST_CASE(test_remove_push) {
       BOOST_TEST(!i0.has_undo_session());
       BOOST_TEST(i0.find(0) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_modify) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -418,14 +419,14 @@ EXCEPTION_TEST_CASE(test_insert_modify) {
       i0.modify(*i0.find(1), [](test_element_t& elem) { elem.secondary = 24; });
       BOOST_TEST(i0.find(1)->secondary == 24);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_modify_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -445,15 +446,15 @@ EXCEPTION_TEST_CASE(test_insert_modify_undo) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 
 EXCEPTION_TEST_CASE(test_insert_modify_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -475,14 +476,14 @@ EXCEPTION_TEST_CASE(test_insert_modify_squash) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_remove_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -502,14 +503,14 @@ EXCEPTION_TEST_CASE(test_insert_remove_undo) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_remove_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -531,14 +532,14 @@ EXCEPTION_TEST_CASE(test_insert_remove_squash) {
       BOOST_TEST(i0.find(0)->secondary == 42);
       BOOST_TEST(i0.find(1) == nullptr);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_modify_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -557,14 +558,14 @@ EXCEPTION_TEST_CASE(test_modify_modify_undo) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_modify_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -585,14 +586,14 @@ EXCEPTION_TEST_CASE(test_modify_modify_squash) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_remove_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -611,14 +612,14 @@ EXCEPTION_TEST_CASE(test_modify_remove_undo) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_remove_squash) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -639,14 +640,14 @@ EXCEPTION_TEST_CASE(test_modify_remove_squash) {
       }
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_squash_one) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -664,14 +665,14 @@ EXCEPTION_TEST_CASE(test_squash_one) {
          session2.squash();
       }
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_insert_non_unique) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -683,10 +684,10 @@ EXCEPTION_TEST_CASE(test_insert_non_unique) {
       BOOST_CHECK_THROW(i0.emplace([](test_element_t& elem) { elem.secondary = 42; }),  std::exception);
       BOOST_TEST(i0.find(0)->secondary == 42);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 struct conflict_element_t {
@@ -700,7 +701,7 @@ struct conflict_element_t {
 };
 
 EXCEPTION_TEST_CASE(test_modify_conflict) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -738,14 +739,14 @@ EXCEPTION_TEST_CASE(test_modify_conflict) {
       BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
       BOOST_TEST(i0.get<3>().find(2)->x2 == 2);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false}), use_undo) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -777,14 +778,14 @@ BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false
       BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
       BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 EXCEPTION_TEST_CASE(test_modify_fail) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -821,16 +822,16 @@ EXCEPTION_TEST_CASE(test_modify_fail) {
       BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
       BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 struct by_secondary {};
 
 BOOST_AUTO_TEST_CASE(test_project) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -843,15 +844,15 @@ BOOST_AUTO_TEST_CASE(test_project) {
       BOOST_TEST(i0.project<1>(i0.begin()) == i0.get<by_secondary>().begin());
       BOOST_TEST(i0.project<1>(i0.end()) == i0.get<by_secondary>().end());
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 
 EXCEPTION_TEST_CASE(test_remove_tracking_session) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -871,15 +872,15 @@ EXCEPTION_TEST_CASE(test_remove_tracking_session) {
       BOOST_CHECK(tracker.is_removed(elem0));
       BOOST_CHECK(tracker.is_removed(elem1));
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 
 EXCEPTION_TEST_CASE(test_remove_tracking_no_session) {
-   bfs::path temp = bfs::temp_directory_path() / bfs::unique_path();
+   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
@@ -898,10 +899,10 @@ EXCEPTION_TEST_CASE(test_remove_tracking_no_session) {
       BOOST_CHECK(tracker.is_removed(elem0));
       BOOST_CHECK(tracker.is_removed(elem1));
    } catch ( ... ) {
-      bfs::remove_all( temp );
+      fs::remove_all( temp );
       throw;
    }
-   bfs::remove_all( temp );
+   fs::remove_all( temp );
 }
 
 BOOST_AUTO_TEST_SUITE_END()
