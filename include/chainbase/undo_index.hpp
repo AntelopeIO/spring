@@ -66,27 +66,39 @@ namespace chainbase {
       using color = int;
       static node_ptr get_parent(const_node_ptr n) {
          if(n->_parent == 1) return nullptr;
-         return (node_ptr)((char*)n + n->_parent);
+         return (node_ptr)((char*)n + (n->_parent << 2));
       }
       static void set_parent(node_ptr n, node_ptr parent) {
          if(parent == nullptr) n->_parent = 1;
-         else n->_parent = (char*)parent - (char*)n;
+         else {
+            int64_t offset = (char*)parent - (char*)n;
+            assert((offset & 0x3) == 0);
+            n->_parent = offset >> 2;
+         }
       }
       static node_ptr get_left(const_node_ptr n) {
          if(n->_left == 1) return nullptr;
-         return (node_ptr)((char*)n + n->_left);
+         return (node_ptr)((char*)n + (n->_left << 2));
       }
       static void set_left(node_ptr n, node_ptr left) {
          if(left == nullptr) n->_left = 1;
-         else n->_left = (char*)left - (char*)n;
+         else {
+            int64_t offset = (char*)left - (char*)n;
+            assert((offset & 0x3) == 0);
+            n->_left = offset >> 2;
+         }
       }
       static node_ptr get_right(const_node_ptr n) {
          if(n->_right == 1) return nullptr;
-         return (node_ptr)((char*)n + n->_right);
+         return (node_ptr)((char*)n + (n->_right << 2));
       }
       static void set_right(node_ptr n, node_ptr right) {
          if(right == nullptr) n->_right = 1;
-         else n->_right = (char*)right - (char*)n;
+         else {
+            int64_t offset = (char*)right - (char*)n;
+            assert((offset & 0x3) == 0);
+            n->_right = offset >> 2;
+         }
       }
       // red-black tree
       static color get_color(node_ptr n) {
