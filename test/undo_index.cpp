@@ -1,5 +1,5 @@
-#include "chainbase/chainbase.hpp"
 #include <chainbase/undo_index.hpp>
+#include <chainbase/chainbase.hpp>
 
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/ordered_index.hpp>
