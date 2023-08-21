@@ -59,13 +59,13 @@ namespace chainbase {
    };
 
    // --------------------------------------------------------------------------------------
-   // Because the pointers are always aligned to an 8 byte boundary
-   // (so the 3 least significant bits are always 0), we store pointer offsets
-   // shifted by three bits, extending our maximum memory support from 2^41 = 2TB
-   // to 2^44 = 16TB.
+   // Because the pointers are always aligned to an 4 byte boundary
+   // (so the 2 least significant bits are always 0), we store pointer offsets
+   // shifted by two bits, extending our maximum memory support from 2^41 = 2TB
+   // to 2^43 = 8TB.
    // A concern could be that `1` is a special value meaning `nullptr`. However we could not
-   // get an offset of 8, since `sizeof(offset_node_base) == 16`, so we could not have
-   // difference between two `node_ptr` less than 16.
+   // get an offset of 4, since `sizeof(offset_node_base) == 16`, so we could not have
+   // difference between two different `node_ptr` be less than 16.
    // --------------------------------------------------------------------------------------
    template<class Tag>
    struct offset_node_traits {
@@ -75,38 +75,38 @@ namespace chainbase {
       using color = int;
       static node_ptr get_parent(const_node_ptr n) {
          if(n->_parent == 1) return nullptr;
-         return (node_ptr)((char*)n + (n->_parent << 3));
+         return (node_ptr)((char*)n + (n->_parent << 2));
       }
       static void set_parent(node_ptr n, node_ptr parent) {
          if(parent == nullptr) n->_parent = 1;
          else {
             int64_t offset = (char*)parent - (char*)n;
-            assert((offset & 0x7) == 0);
-            n->_parent = offset >> 3;
+            assert((offset & 0x3) == 0);
+            n->_parent = offset >> 2;
          }
       }
       static node_ptr get_left(const_node_ptr n) {
          if(n->_left == 1) return nullptr;
-         return (node_ptr)((char*)n + (n->_left << 3));
+         return (node_ptr)((char*)n + (n->_left << 2));
       }
       static void set_left(node_ptr n, node_ptr left) {
          if(left == nullptr) n->_left = 1;
          else {
             int64_t offset = (char*)left - (char*)n;
-            assert((offset & 0x7) == 0);
-            n->_left = offset >> 3;
+            assert((offset & 0x3) == 0);
+            n->_left = offset >> 2;
          }
       }
       static node_ptr get_right(const_node_ptr n) {
          if(n->_right == 1) return nullptr;
-         return (node_ptr)((char*)n + (n->_right << 3));
+         return (node_ptr)((char*)n + (n->_right << 2));
       }
       static void set_right(node_ptr n, node_ptr right) {
          if(right == nullptr) n->_right = 1;
          else {
             int64_t offset = (char*)right - (char*)n;
-            assert((offset & 0x7) == 0);
-            n->_right = offset >> 3;
+            assert((offset & 0x3) == 0);
+            n->_right = offset >> 2;
          }
       }
       // red-black tree
