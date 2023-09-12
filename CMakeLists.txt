@@ -95,6 +95,7 @@ endif()
 
 enable_testing()
 add_subdirectory( test )
+add_subdirectory( benchmark )
 
 if(CHAINBASE_INSTALL_COMPONENT)
    set(INSTALL_COMPONENT_ARGS COMPONENT ${CHAINBASE_INSTALL_COMPONENT} EXCLUDE_FROM_ALL)
