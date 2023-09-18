@@ -79,4 +79,6 @@ namespace chainbase {
       }
    }
 
+   std::optional<shared_cow_string::allocator_type> shared_cow_string::_s_alloc;
+
 }  // namespace chainbase

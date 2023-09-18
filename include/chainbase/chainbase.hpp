@@ -391,6 +391,11 @@ namespace chainbase {
             return _db_file.get_segment_manager();
          }
 
+         template<typename T>
+         allocator<T> get_allocator() const {
+            return allocator<T>(_db_file.get_segment_manager());
+         }
+
          size_t get_free_memory()const
          {
             return _db_file.get_segment_manager()->get_free_memory();
