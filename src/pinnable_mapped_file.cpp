@@ -1,5 +1,6 @@
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/environment.hpp>
+#include <chainbase/pagemap_accessor.hpp>
 #include <boost/interprocess/managed_external_buffer.hpp>
 #include <boost/interprocess/anonymous_shared_memory.hpp>
 #include <boost/asio/signal_set.hpp>
@@ -54,7 +55,8 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
    _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
    _writable(writable),
-   _sharable(mode == mapped_shared)
+   _sharable(mode == mapped_shared),
+   _pagemap_update_on_exit(false)
 {
    if(shared_file_size % _db_size_multiple_requirement) {
       std::string what_str("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
@@ -149,6 +151,8 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          // with an `MAP_PRIVATE` mapping, so the disk file will not be updated until program exit.
          _file_mapped_region = bip::mapped_region(_file_mapping, bip::copy_on_write);
          _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
+         pagemap_accessor().clear_refs();
+         _pagemap_update_on_exit = true;
       } else {
          _segment_manager = file_mapped_segment_manager;
       }
@@ -274,18 +278,27 @@ void pinnable_mapped_file::save_database_file(const char* src, size_t sz) {
    std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, this could take a moment..." << '\n';
    size_t offset = 0;
    time_t t = time(nullptr);
+   pagemap_accessor pagemap;
+   int fd = -1;
+   if (_pagemap_update_on_exit) 
+      fd = open(_data_file_path.generic_string().c_str(),  O_RDWR);
+   auto cleanup = pagemap_accessor::make_scoped_exit([fd] { if (fd >= 0) close(fd); });
+   
    while(offset != sz) {
       size_t copy_size = std::min(_db_size_copy_increment, sz - offset);
-      if(!all_zeros(src+offset, copy_size)) {
-         bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
-         char *dst = (char *)dst_rgn.get_address();
-         memcpy(dst, src+offset, copy_size);
+      if (_pagemap_update_on_exit) {
+         pagemap.update_file_from_region({ (std::byte*)(src+offset), copy_size }, fd, offset, true);
+      } else {
+         if(!all_zeros(src+offset, copy_size)) {
+            bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
+            char *dst = (char *)dst_rgn.get_address();
+            memcpy(dst, src+offset, copy_size);
 
-         std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << '\n';
-         if(dst_rgn.flush(0, 0, false) == false)
-            std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+            std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << '\n';
+            if(dst_rgn.flush(0, 0, false) == false)
+               std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+         }
       }
-      
       offset += copy_size;
 
       if(time(nullptr) != t) {
