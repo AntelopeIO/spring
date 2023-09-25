@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        os: ["debian:buster", "ubuntu:jammy"]
+        os: ["debian:bullseye", "ubuntu:jammy"]
     container: ${{matrix.os}}
     steps:
       - name: Install deps
