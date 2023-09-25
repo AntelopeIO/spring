@@ -40,9 +40,10 @@ class pinnable_mapped_file {
       typedef typename bip::managed_mapped_file::segment_manager segment_manager;
 
       enum map_mode {
-         mapped,
-         heap,
-         locked
+         mapped,        // file is mmaped in MAP_PRIVATE mode, and only updated at exit
+         mapped_shared, // file is mmaped in MAP_SHARED mode, and changes can be seen by another chainbase instance
+         heap,          // file is copied at startup to an anonymous mapping using huge pages (if available)
+         locked         // file is copied at startup to an anonymous mapping using huge pages (if available) and locked in memory
       };
 
       pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode);
@@ -57,14 +58,15 @@ class pinnable_mapped_file {
    private:
       void                                          set_mapped_file_db_dirty(bool);
       void                                          load_database_file(boost::asio::io_service& sig_ios);
-      void                                          save_database_file();
-      bool                                          all_zeros(char* data, size_t sz);
+      void                                          save_database_file(const char* src, size_t sz);
+      static bool                                   all_zeros(const char* data, size_t sz);
       void                                          setup_non_file_mapping();
 
       bip::file_lock                                _mapped_file_lock;
       std::filesystem::path                         _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
+      bool                                          _sharable;
 
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
@@ -81,6 +83,7 @@ class pinnable_mapped_file {
       segment_manager*                              _segment_manager = nullptr;
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
+      constexpr static size_t                       _db_size_copy_increment       = 1024*1024*1024; //1GB
 };
 
 std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runtime);
