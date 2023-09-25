@@ -136,14 +136,12 @@ public:
                size_t j = i + 1;
                while (j<num_pages && is_marked_dirty(pm[j]))
                   ++j;
-               std::byte *dest = mapping + (i * pagesz);
-               size_t length = pagesz * (j - i);
-               memcpy(dest, rgn.data() + (i * pagesz), length);
-               if (flush)
-                  msync(dest, length, MS_SYNC);
+               memcpy(mapping + (i * pagesz), rgn.data() + (i * pagesz), pagesz * (j - i));
                i += j - i - 1;
             }
          }
+         if (flush)
+            msync(mapping, rgn.size(), MS_SYNC);
          return true;
       }
       return false;
