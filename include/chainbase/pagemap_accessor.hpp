@@ -1,9 +1,8 @@
 #pragma once
 
-#include <cstring>
-#include <sys/mman.h> // mmap
 #include <fcntl.h>    // open 
 #include <unistd.h>   // pread, sysconf
+#include <cstring>
 #include <cstdlib> 
 #include <cassert>
 #include <optional>
@@ -12,8 +11,12 @@
 #include <filesystem>
 #include <vector>
 #include <span>
+#include <boost/interprocess/managed_external_buffer.hpp>
+#include <boost/interprocess/anonymous_shared_memory.hpp>
 
 namespace chainbase {
+
+namespace bip = boost::interprocess;
 
 class pagemap_accessor {
 public:
@@ -120,28 +123,27 @@ public:
    // The specified region *must* be a multiple of the system's page size, and the specified
    // regioon should exist in the disk file.
    // --------------------------------------------------------------------------------------
-   bool update_file_from_region(std::span<std::byte> rgn, int fd, size_t offset, bool flush) const {
+   bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush) const {
       assert(rgn.size() % pagesz == 0);
       size_t num_pages = rgn.size() / pagesz;
       std::vector<uint64_t> pm(num_pages);
       
       // get modified pages
       read((uintptr_t)rgn.data(), pm);
-      
-      std::byte* mapping = (std::byte*)mmap(NULL, rgn.size(), PROT_READ|PROT_WRITE, MAP_SHARED, fd, offset);
-      if (mapping) {
-         auto cleanup = make_scoped_exit([&] { munmap(mapping, rgn.size()); });
+      bip::mapped_region map_rgn(mapping, bip::read_write, offset, rgn.size());
+      std::byte* dest = (std::byte*)map_rgn.get_address();
+      if (dest) {
          for (size_t i=0; i<num_pages; ++i) {
             if (is_marked_dirty(pm[i])) {
                size_t j = i + 1;
                while (j<num_pages && is_marked_dirty(pm[j]))
                   ++j;
-               memcpy(mapping + (i * pagesz), rgn.data() + (i * pagesz), pagesz * (j - i));
+               memcpy(dest + (i * pagesz), rgn.data() + (i * pagesz), pagesz * (j - i));
                i += j - i - 1;
             }
          }
          if (flush)
-            msync(mapping, rgn.size(), MS_SYNC);
+            map_rgn.flush();
          return true;
       }
       return false;
@@ -158,7 +160,7 @@ private:
       }
    }
 
-   void _close() {
+   void _close() const {
       if (_pagemap_fd >= 0) {
          ::close(_pagemap_fd);
          _pagemap_fd = -1;

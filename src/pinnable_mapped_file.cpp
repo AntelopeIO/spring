@@ -279,15 +279,14 @@ void pinnable_mapped_file::save_database_file(const char* src, size_t sz) {
    size_t offset = 0;
    time_t t = time(nullptr);
    pagemap_accessor pagemap;
-   int fd = -1;
+   bip::file_mapping  mapping;
    if (_pagemap_update_on_exit) 
-      fd = open(_data_file_path.generic_string().c_str(),  O_RDWR);
-   auto cleanup = pagemap_accessor::make_scoped_exit([fd] { if (fd >= 0) close(fd); });
+      mapping = bip::file_mapping(_data_file_path.generic_string().c_str(),   bip::read_write);
    
    while(offset != sz) {
       size_t copy_size = std::min(_db_size_copy_increment, sz - offset);
       if (_pagemap_update_on_exit) {
-         pagemap.update_file_from_region({ (std::byte*)(src+offset), copy_size }, fd, offset, true);
+         pagemap.update_file_from_region({ (std::byte*)(src+offset), copy_size }, mapping, offset, true);
       } else {
          if(!all_zeros(src+offset, copy_size)) {
             bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
