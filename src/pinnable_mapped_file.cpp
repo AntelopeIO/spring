@@ -148,8 +148,10 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
    if(mode == mapped || mode == mapped_shared) {
       if (_writable && !_sharable) {
          // previous mapped region was RW so we could set the dirty flag in it... recreate it
-         // with an `MAP_PRIVATE` mapping, so the disk file will not be updated until program exit.
-         _file_mapped_region = bip::mapped_region(_file_mapping, bip::copy_on_write);
+         // with an `copy_on_write` mapping, so the disk file will not be updated (until we do
+         // it manually when `this` is destroyed).
+         auto cow_region =  bip::mapped_region(_file_mapping, bip::copy_on_write);
+         _file_mapped_region.swap(cow_region);
          _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
          pagemap_accessor().clear_refs();
          _pagemap_update_on_exit = true;

@@ -143,7 +143,7 @@ public:
             }
          }
          if (flush)
-            map_rgn.flush();
+            map_rgn.flush(0, rgn.size(), /* async = */ false);
          return true;
       }
       return false;
