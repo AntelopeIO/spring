@@ -56,6 +56,7 @@ const std::error_category& chainbase_error_category() {
 pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
    _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
+   _database_size(shared_file_size),
    _writable(writable),
    _sharable(mode == mapped_shared)
 {
@@ -179,8 +180,6 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::aborted)));
       });
 
-      _file_mapped_region_size = _file_mapped_region.get_size();
-
       try {
          setup_non_file_mapping();
          _file_mapped_region = bip::mapped_region();
@@ -259,8 +258,8 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) 
    char* const dst = (char*)_non_file_mapped_mapping;
    size_t offset = 0;
    time_t t = time(nullptr);
-   while(offset != _file_mapped_region_size) {
-      size_t copy_size = std::min(_db_size_copy_increment, _file_mapped_region_size - offset);
+   while(offset != _database_size) {
+      size_t copy_size = std::min(_db_size_copy_increment, _database_size - offset);
       bip::mapped_region src_rgn(_file_mapping, bip::read_only, offset, copy_size);
       memcpy(dst+offset, src_rgn.get_address(), copy_size);
       offset += copy_size;
@@ -285,10 +284,10 @@ bool pinnable_mapped_file::all_zeros(const std::byte* data, size_t sz) {
    return true;
 }
 
-std::pair<std::byte*, size_t> pinnable_mapped_file::get_mapped_region() const {
+std::pair<std::byte*, size_t> pinnable_mapped_file::get_region_to_save() const {
    if (_non_file_mapped_mapping)
-      return { (std::byte*)_non_file_mapped_mapping, _file_mapped_region_size };
-   return { (std::byte*)_file_mapped_region.get_address(), _file_mapped_region.get_size() };
+      return { (std::byte*)_non_file_mapped_mapping, _database_size };
+   return { (std::byte*)_file_mapped_region.get_address(), _database_size };
 }
 
 void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
@@ -297,7 +296,7 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    size_t offset = 0;
    time_t t = time(nullptr);
    pagemap_accessor pagemap;
-   auto [src, sz] = get_mapped_region();
+   auto [src, sz] = get_region_to_save();
    
    while(offset != sz) {
       size_t copy_size = std::min(_db_size_copy_increment,  sz - offset);

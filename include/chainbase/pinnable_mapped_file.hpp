@@ -65,17 +65,17 @@ class pinnable_mapped_file {
       void                                          save_database_file(bool flush = true);
       static bool                                   all_zeros(const std::byte* data, size_t sz);
       void                                          setup_non_file_mapping();
-      std::pair<std::byte*, size_t>                 get_mapped_region() const;
+      std::pair<std::byte*, size_t>                 get_region_to_save() const;
 
       bip::file_lock                                _mapped_file_lock;
       std::filesystem::path                         _data_file_path;
       std::string                                   _database_name;
+      size_t                                        _database_size;
       bool                                          _writable;
       bool                                          _sharable;
 
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
-      size_t                                        _file_mapped_region_size;
       void*                                         _non_file_mapped_mapping = nullptr;
       size_t                                        _non_file_mapped_mapping_size = 0;
 
