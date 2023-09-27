@@ -22,7 +22,9 @@ enum db_error_code {
    bad_header,
    no_access,
    aborted,
-   no_mlock
+   no_mlock,
+   clear_refs_failed,
+   pagemap_update_failed
 };
 
 const std::error_category& chainbase_error_category();
@@ -43,7 +45,7 @@ class pinnable_mapped_file {
 
       enum map_mode {
          mapped,        // file is mmaped in MAP_PRIVATE mode, and only updated at exit
-         mapped_shared, // file is mmaped in MAP_SHARED mode, and changes can be seen by another chainbase instance
+         mapped_shared, // file is mmaped in MAP_SHARED mode. Only mode where changes can be seen by another chainbase instance
          heap,          // file is copied at startup to an anonymous mapping using huge pages (if available)
          locked         // file is copied at startup to an anonymous mapping using huge pages (if available) and locked in memory
       };

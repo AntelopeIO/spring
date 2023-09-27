@@ -20,24 +20,6 @@ namespace bip = boost::interprocess;
 
 class pagemap_accessor {
 public:
-   template<typename F>
-   class scoped_exit {
-   public:
-      template<typename C>
-      [[nodiscard]] scoped_exit(C&& c): callback(std::forward<C>(c)){}
-
-      scoped_exit(scoped_exit&& mv) = default;
-      scoped_exit(const scoped_exit&) = delete;
-      scoped_exit& operator=(const scoped_exit&) = delete;
-
-      ~scoped_exit() { try { callback(); } catch(...) {} }
-   private:
-      F callback;
-   };
-
-   template<typename F>
-   static scoped_exit<F> make_scoped_exit(F&& c) { return scoped_exit<F>(std::forward<F>(c)); }
-   
    struct pagemap_entry {
       uint64_t pfn        : 54;
       uint64_t soft_dirty : 1;
@@ -56,19 +38,15 @@ public:
       _close();
    }
 
-   void clear_refs() const {
+   bool clear_refs() const {
       int fd = ::open("/proc/self/clear_refs", O_WRONLY);
-      if (fd < 0) {
-         perror("open clear_refs file failed");
-         exit(1);
-      }
-      auto cleanup = make_scoped_exit([fd] { ::close(fd); });
+      if (fd < 0)
+         return false;
       
       const char *v = "4";
-      if (write(fd, v, 1) < 1) {
-         perror("Can't clear soft-dirty bit");
-         exit(1);
-      }
+      bool res = write(fd, v, 1) == 1;
+      ::close(fd);
+      return res;
    }
    
    std::optional<pagemap_entry> get_entry(uintptr_t vaddr) const {
@@ -99,7 +77,8 @@ public:
    }
 
    bool read(uintptr_t vaddr, std::span<uint64_t> dest_uint64) const {
-      _open(); // make sure file is open
+      if (!_open()) // make sure file is open
+         return false;
       assert(_pagemap_fd >= 0);
       auto dest = std::as_writable_bytes(dest_uint64);
       std::byte* cur = dest.data();
@@ -107,11 +86,8 @@ public:
       uintptr_t offset = (vaddr / pagesz) * sizeof(uint64_t);
       while (bytes_remaining != 0) {
          ssize_t ret = pread(_pagemap_fd, cur, bytes_remaining, offset + (cur - dest.data()));
-         if (ret < 0) {
-            perror("Can't read pagemap");
-            exit(1);
+         if (ret < 0)
             return false;
-         }
          bytes_remaining -= (size_t)ret;
          cur += ret;
       }
@@ -129,7 +105,8 @@ public:
       std::vector<uint64_t> pm(num_pages);
       
       // get modified pages
-      read((uintptr_t)rgn.data(), pm);
+      if (!read((uintptr_t)rgn.data(), pm))
+         return false;
       bip::mapped_region map_rgn(mapping, bip::read_write, offset, rgn.size());
       std::byte* dest = (std::byte*)map_rgn.get_address();
       if (dest) {
@@ -142,29 +119,29 @@ public:
                i += j - i - 1;
             }
          }
-         if (flush)
-            map_rgn.flush(0, rgn.size(), /* async = */ false);
+         if (flush && !map_rgn.flush(0, rgn.size(), /* async = */ false))
+            std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
          return true;
       }
       return false;
    }
    
 private:
-   void _open() const {
+   bool _open() const {
       if (_pagemap_fd < 0) {
          _pagemap_fd = ::open("/proc/self/pagemap", O_RDONLY);
-         if (_pagemap_fd < 0) {
-            perror("open pagemap failed");
-            exit(1);
-         }
+         if (_pagemap_fd < 0) 
+            return false;
       }
+      return true;
    }
 
-   void _close() const {
+   bool _close() const {
       if (_pagemap_fd >= 0) {
          ::close(_pagemap_fd);
          _pagemap_fd = -1;
       }
+      return true;
    }
    
    static inline size_t pagesz = sysconf(_SC_PAGE_SIZE);

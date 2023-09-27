@@ -161,7 +161,8 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
             pmm->save_database_file(true);
 
          // then clear the Soft-Dirty bits
-         pagemap_accessor().clear_refs();
+         if (!pagemap_accessor().clear_refs())
+            BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::clear_refs_failed)));
          
          _instance_tracker.push_back(this); // so we can save dirty pages before another instance calls `clear_refs()`
       } else {
@@ -300,9 +301,11 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    
    while(offset != sz) {
       size_t copy_size = std::min(_db_size_copy_increment,  sz - offset);
-      if (std::find(_instance_tracker.begin(), _instance_tracker.end(), this) != _instance_tracker.end()) {
-         pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush);
-      } else {
+      bool mapped_writable_instance = std::find(_instance_tracker.begin(), _instance_tracker.end(), this) != _instance_tracker.end();
+      if (!mapped_writable_instance ||
+          !pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush)) {
+         if (mapped_writable_instance)
+            std::cerr << "CHAINBASE: ERROR: pagemap update of db file failed... using non-pagemap version" << '\n';
          if(!all_zeros(src+offset, copy_size)) {
             bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
             char *dst = (char *)dst_rgn.get_address();
