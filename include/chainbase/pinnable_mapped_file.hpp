@@ -5,6 +5,8 @@
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/asio/io_service.hpp>
 #include <filesystem>
+#include <vector>
+
 namespace chainbase {
 
 namespace bip = boost::interprocess;
@@ -58,16 +60,16 @@ class pinnable_mapped_file {
    private:
       void                                          set_mapped_file_db_dirty(bool);
       void                                          load_database_file(boost::asio::io_service& sig_ios);
-      void                                          save_database_file(const char* src, size_t sz);
-      static bool                                   all_zeros(const char* data, size_t sz);
+      void                                          save_database_file(bool flush = true);
+      static bool                                   all_zeros(const std::byte* data, size_t sz);
       void                                          setup_non_file_mapping();
+      std::pair<std::byte*, size_t>                 get_mapped_region() const;
 
       bip::file_lock                                _mapped_file_lock;
       std::filesystem::path                         _data_file_path;
       std::string                                   _database_name;
       bool                                          _writable;
       bool                                          _sharable;
-      bool                                          _pagemap_update_on_exit;
 
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
@@ -82,6 +84,8 @@ class pinnable_mapped_file {
 #endif
 
       segment_manager*                              _segment_manager = nullptr;
+
+      static std::vector<pinnable_mapped_file*>     _instance_tracker;
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
       constexpr static size_t                       _db_size_copy_increment       = 1024*1024*1024; //1GB

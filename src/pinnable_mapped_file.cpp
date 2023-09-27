@@ -13,6 +13,8 @@
 
 namespace chainbase {
 
+std::vector<pinnable_mapped_file*> pinnable_mapped_file::_instance_tracker;
+
 const char* chainbase_error_category::name() const noexcept {
    return "chainbase";
 }
@@ -55,8 +57,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
    _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
    _writable(writable),
-   _sharable(mode == mapped_shared),
-   _pagemap_update_on_exit(false)
+   _sharable(mode == mapped_shared)
 {
    if(shared_file_size % _db_size_multiple_requirement) {
       std::string what_str("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
@@ -153,8 +154,16 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          auto cow_region =  bip::mapped_region(_file_mapping, bip::copy_on_write);
          _file_mapped_region.swap(cow_region);
          _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
+
+         // before we clear the Soft-Dirty bits for the whole process, make sure all writable, non-sharable
+         // chainbase dbs using mapped mode are flushed to disk
+         for (auto pmm : _instance_tracker)
+            pmm->save_database_file(true);
+
+         // then clear the Soft-Dirty bits
          pagemap_accessor().clear_refs();
-         _pagemap_update_on_exit = true;
+         
+         _instance_tracker.push_back(this); // so we can save dirty pages before another instance calls `clear_refs()`
       } else {
          _segment_manager = file_mapped_segment_manager;
       }
@@ -265,7 +274,7 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) 
    std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, complete." << '\n';
 }
 
-bool pinnable_mapped_file::all_zeros(const char* data, size_t sz) {
+bool pinnable_mapped_file::all_zeros(const std::byte* data, size_t sz) {
    uint64_t* p = (uint64_t*)data;
    uint64_t* end = p+sz/sizeof(uint64_t);
    while(p != end) {
@@ -275,26 +284,35 @@ bool pinnable_mapped_file::all_zeros(const char* data, size_t sz) {
    return true;
 }
 
-void pinnable_mapped_file::save_database_file(const char* src, size_t sz) {
+std::pair<std::byte*, size_t> pinnable_mapped_file::get_mapped_region() const {
+   if (_non_file_mapped_mapping)
+      return { (std::byte*)_non_file_mapped_mapping, _file_mapped_region_size };
+   return { (std::byte*)_file_mapped_region.get_address(), _file_mapped_region.get_size() };
+}
+
+void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    assert(_writable);
    std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, this could take a moment..." << '\n';
    size_t offset = 0;
    time_t t = time(nullptr);
    pagemap_accessor pagemap;
+   auto [src, sz] = get_mapped_region();
    
    while(offset != sz) {
-      size_t copy_size = std::min(_db_size_copy_increment, sz - offset);
-      if (_pagemap_update_on_exit) {
-         pagemap.update_file_from_region({ (std::byte*)(src+offset), copy_size }, _file_mapping, offset, true);
+      size_t copy_size = std::min(_db_size_copy_increment,  sz - offset);
+      if (std::find(_instance_tracker.begin(), _instance_tracker.end(), this) != _instance_tracker.end()) {
+         pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush);
       } else {
          if(!all_zeros(src+offset, copy_size)) {
             bip::mapped_region dst_rgn(_file_mapping, bip::read_write, offset, copy_size);
             char *dst = (char *)dst_rgn.get_address();
             memcpy(dst, src+offset, copy_size);
 
-            std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << '\n';
-            if(dst_rgn.flush(0, 0, false) == false)
-               std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+            if (flush) {
+               std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << '\n';
+               if(dst_rgn.flush(0, 0, false) == false)
+                  std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
+            }
          }
       }
       offset += copy_size;
@@ -337,7 +355,7 @@ pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) 
 pinnable_mapped_file::~pinnable_mapped_file() {
    if(_writable) {
       if(_non_file_mapped_mapping) { //in heap or locked mode
-         save_database_file((const char*)_non_file_mapped_mapping, _file_mapped_region_size);
+         save_database_file();
 #ifndef _WIN32
          if(munmap(_non_file_mapped_mapping, _non_file_mapped_mapping_size))
             std::cerr << "CHAINBASE: ERROR: unmapping failed: " << strerror(errno) << '\n';
@@ -347,7 +365,9 @@ pinnable_mapped_file::~pinnable_mapped_file() {
             if(_file_mapped_region.flush(0, 0, false) == false)
                std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << '\n';
          } else {
-            save_database_file((const char*)_file_mapped_region.get_address(), _file_mapped_region.get_size());
+            save_database_file(); // must be before `this` is removed from _instance_tracker
+            if (auto it = std::find(_instance_tracker.begin(), _instance_tracker.end(), this); it != _instance_tracker.end())
+               _instance_tracker.erase(it);
             _file_mapped_region = bip::mapped_region();
             set_mapped_file_db_dirty(false);
          }
