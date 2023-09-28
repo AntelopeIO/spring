@@ -17,7 +17,7 @@ IF( WIN32 )
 ENDIF(WIN32)
 
 if(NOT TARGET Boost::unit_test_framework)
-   FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
+   FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS random system unit_test_framework)
 endif()
 
 SET(PLATFORM_LIBRARIES)
