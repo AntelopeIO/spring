@@ -43,6 +43,8 @@ std::string chainbase_error_category::message(int ev) const {
          return "Database load aborted";
       case db_error_code::no_mlock:
          return "Failed to mlock database";
+      case db_error_code::clear_refs_failed:
+         return "Failed to clear Soft-Dirty bits";
       default:
          return "Unrecognized error code";
    }

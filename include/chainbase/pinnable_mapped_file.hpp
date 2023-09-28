@@ -23,8 +23,7 @@ enum db_error_code {
    no_access,
    aborted,
    no_mlock,
-   clear_refs_failed,
-   pagemap_update_failed
+   clear_refs_failed
 };
 
 const std::error_category& chainbase_error_category();
