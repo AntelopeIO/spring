@@ -152,14 +152,17 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          // previous mapped region was RW so we could set the dirty flag in it... recreate it
          // with an `copy_on_write` mapping, so the disk file will not be updated (until we do
          // it manually when `this` is destroyed).
-         auto cow_region =  bip::mapped_region(_file_mapping, bip::copy_on_write);
-         _file_mapped_region.swap(cow_region);
-         _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
+         _file_mapped_region = bip::mapped_region(); // delete old r/w mapping before creating new one
 
          // before we clear the Soft-Dirty bits for the whole process, make sure all writable, non-sharable
          // chainbase dbs using mapped mode are flushed to disk
          for (auto pmm : _instance_tracker)
             pmm->save_database_file(true);
+
+         _file_mapped_region = bip::mapped_region(_file_mapping, bip::copy_on_write);
+         *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty; // set dirty bit in our memory mapping
+
+         _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
 
          // then clear the Soft-Dirty bits
          if (!pagemap_accessor().clear_refs())
