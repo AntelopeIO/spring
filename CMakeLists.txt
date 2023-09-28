@@ -17,7 +17,7 @@ IF( WIN32 )
 ENDIF(WIN32)
 
 if(NOT TARGET Boost::unit_test_framework)
-   FIND_PACKAGE(Boost 1.74 REQUIRED COMPONENTS random system unit_test_framework)
+   FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
 endif()
 
 SET(PLATFORM_LIBRARIES)
@@ -95,7 +95,7 @@ endif()
 
 enable_testing()
 add_subdirectory( test )
-add_subdirectory( benchmark )
+#add_subdirectory( benchmark )
 
 if(CHAINBASE_INSTALL_COMPONENT)
    set(INSTALL_COMPONENT_ARGS COMPONENT ${CHAINBASE_INSTALL_COMPONENT} EXCLUDE_FROM_ALL)
