@@ -20,20 +20,6 @@ namespace bip = boost::interprocess;
 
 class pagemap_accessor {
 public:
-   struct pagemap_entry {
-      uint64_t pfn        : 54;
-      uint64_t soft_dirty : 1;
-      uint64_t exclusive  : 1;
-      uint64_t file_page  : 1;
-      uint64_t swapped    : 1;
-      uint64_t present    : 1;
-
-      void print(uintptr_t addr, const char *name) {
-         // printf("%jx %jx %u %u %u %u %s\n", (uintmax_t)addr, (uintmax_t)pfn, soft_dirty,
-         //        file_page, swapped, present, name);
-      }
-   };
-
    ~pagemap_accessor() {
       _close();
    }
@@ -49,19 +35,6 @@ public:
       return res;
    }
    
-   std::optional<pagemap_entry> get_entry(uintptr_t vaddr) const {
-      uint64_t data;
-      read(vaddr, { &data, 1 });
-      return pagemap_entry {
-         .pfn        = data & (((uint64_t)1 << 54) - 1),
-         .soft_dirty = (data >> 55) & 1,
-         .exclusive  = (data >> 56) & 1,
-         .file_page  = (data >> 61) & 1,
-         .swapped    = (data >> 62) & 1,
-         .present    = (data >> 63) & 1
-      };
-   }
-
    static bool is_marked_dirty(uint64_t entry) {
       return !!(entry & (1Ull << 55));
    }
