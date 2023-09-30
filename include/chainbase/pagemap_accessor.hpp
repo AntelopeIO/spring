@@ -25,6 +25,9 @@ public:
    }
 
    bool clear_refs() const {
+      if constexpr (!_pagemap_supported)
+         return false;
+      
       int fd = ::open("/proc/self/clear_refs", O_WRONLY);
       if (fd < 0)
          return false;
@@ -33,6 +36,10 @@ public:
       bool res = write(fd, v, 1) == 1;
       ::close(fd);
       return res;
+   }
+   
+   static constexpr bool pagemap_supported() {
+      return _pagemap_supported;
    }
    
    static bool is_marked_dirty(uint64_t entry) {
@@ -45,11 +52,15 @@ public:
 
    bool page_dirty(uintptr_t vaddr) const {
       uint64_t data;
-      read(vaddr, { &data, 1 });
+      if (!read(vaddr, { &data, 1 }))
+         return true;
       return this->is_marked_dirty(data);
    }
 
    bool read(uintptr_t vaddr, std::span<uint64_t> dest_uint64) const {
+      if constexpr (!_pagemap_supported)
+         return false;
+      
       if (!_open()) // make sure file is open
          return false;
       assert(_pagemap_fd >= 0);
@@ -73,6 +84,9 @@ public:
    // regioon should exist in the disk file.
    // --------------------------------------------------------------------------------------
    bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush) const {
+      if constexpr (!_pagemap_supported)
+         return false;
+      
       assert(rgn.size() % pagesz == 0);
       size_t num_pages = rgn.size() / pagesz;
       std::vector<uint64_t> pm(num_pages);
@@ -98,9 +112,10 @@ public:
       }
       return false;
    }
-   
+
 private:
    bool _open() const {
+      assert(_pagemap_supported);
       if (_pagemap_fd < 0) {
          _pagemap_fd = ::open("/proc/self/pagemap", O_RDONLY);
          if (_pagemap_fd < 0) 
@@ -111,6 +126,7 @@ private:
 
    bool _close() const {
       if (_pagemap_fd >= 0) {
+         assert(_pagemap_supported);
          ::close(_pagemap_fd);
          _pagemap_fd = -1;
       }
@@ -118,6 +134,12 @@ private:
    }
    
    static inline size_t pagesz = sysconf(_SC_PAGE_SIZE);
+   
+#if defined(__linux__) && defined(__x86_64__)
+   static constexpr bool _pagemap_supported = true;
+#else
+   static constexpr bool _pagemap_supported = false;
+#endif
    
    mutable int _pagemap_fd = -1;
 };

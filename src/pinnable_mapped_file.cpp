@@ -167,10 +167,12 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
 
          // then clear the Soft-Dirty bits
-         if (!pagemap_accessor().clear_refs())
-            BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::clear_refs_failed)));
-         
-         _instance_tracker.push_back(this); // so we can save dirty pages before another instance calls `clear_refs()`
+         pagemap_accessor pagemap;
+         if (pagemap.pagemap_supported()) {
+            if (!pagemap.clear_refs())
+               BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::clear_refs_failed)));
+            _instance_tracker.push_back(this); // so we can save dirty pages before another instance calls `clear_refs()`
+         }
       } else {
          _segment_manager = file_mapped_segment_manager;
       }
