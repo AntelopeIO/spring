@@ -32,6 +32,12 @@ public:
       if (fd < 0)
          return false;
       
+      // Clear soft-dirty bits from the task's PTEs.
+      // This is done by writing "4" into the /proc/PID/clear_refs file of the task in question.
+      // 
+      // After this, when the task tries to modify a page at some virtual address, the #PF occurs
+      // and the kernel sets the soft-dirty bit on the respective PTE.
+      // ----------------------------------------------------------------------------------------
       const char *v = "4";
       bool res = write(fd, v, 1) == 1;
       ::close(fd);
@@ -81,7 +87,7 @@ public:
    // copies the modified pages with the virtual address space specified by `rgn` to an
    // equivalent region starting at `offest` within the (open) file pointed by `fd`.
    // The specified region *must* be a multiple of the system's page size, and the specified
-   // regioon should exist in the disk file.
+   // region should exist in the disk file.
    // --------------------------------------------------------------------------------------
    bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush) const {
       if constexpr (!_pagemap_supported)
