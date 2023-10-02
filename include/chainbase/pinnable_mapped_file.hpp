@@ -23,7 +23,8 @@ enum db_error_code {
    no_access,
    aborted,
    no_mlock,
-   clear_refs_failed
+   clear_refs_failed,
+   tempfs_incompatible_mode
 };
 
 const std::error_category& chainbase_error_category();

@@ -9,6 +9,8 @@
 
 #ifdef __linux__
 #include <linux/mman.h>
+#include <sys/vfs.h>
+#include <linux/magic.h>
 #endif
 
 namespace chainbase {
@@ -45,6 +47,8 @@ std::string chainbase_error_category::message(int ev) const {
          return "Failed to mlock database";
       case db_error_code::clear_refs_failed:
          return "Failed to clear Soft-Dirty bits";
+      case tempfs_incompatible_mode:
+         return "We recommend storing the state db file on tmpfs only when database-map-mode=mapped_shared";
       default:
          return "Unrecognized error code";
    }
@@ -53,6 +57,15 @@ std::string chainbase_error_category::message(int ev) const {
 const std::error_category& chainbase_error_category() {
    static class chainbase_error_category the_category;
    return the_category;
+}
+
+static bool on_tempfs_filesystem(std::filesystem::path& path) {
+#ifdef __linux__
+   struct statfs info;
+   statfs(path.generic_string().c_str(), &info);
+   return info.f_type == TMPFS_MAGIC;
+#endif
+   return false;
 }
 
 pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
@@ -151,13 +164,21 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 
    if(mode == mapped || mode == mapped_shared) {
       if (_writable && !_sharable) {
+         // First make sure the db file is not on a ram-based tempfs, as it would be an
+         // unnecessary waste of RAM to have both the db file *and* the modified pages in RAM.
+         // ----------------------------------------------------------------------------------
+         if (on_tempfs_filesystem(_data_file_path))
+            BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::tempfs_incompatible_mode)));
+
          // previous mapped region was RW so we could set the dirty flag in it... recreate it
          // with an `copy_on_write` mapping, so the disk file will not be updated (until we do
          // it manually when `this` is destroyed).
+         // ----------------------------------------------------------------------------------
          _file_mapped_region = bip::mapped_region(); // delete old r/w mapping before creating new one
 
-         // before we clear the Soft-Dirty bits for the whole process, make sure all writable, non-sharable
-         // chainbase dbs using mapped mode are flushed to disk
+         // before we clear the Soft-Dirty bits for the whole process, make sure all writable,
+         // non-sharable chainbase dbs using mapped mode are flushed to disk
+         // ----------------------------------------------------------------------------------
          for (auto pmm : _instance_tracker)
             pmm->save_database_file(true);
 
@@ -167,6 +188,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
 
          // then clear the Soft-Dirty bits
+         // ------------------------------
          pagemap_accessor pagemap;
          if (pagemap.pagemap_supported()) {
             if (!pagemap.clear_refs())
@@ -178,6 +200,12 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       }
    }
    else {
+      // First make sure the db file is not on a ram-based tempfs, as it would be an unnecessary
+      // waste of RAM to have both the db file *and* a separate private mapping in RAM.
+      // ---------------------------------------------------------------------------------------
+      if (on_tempfs_filesystem(_data_file_path))
+         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::tempfs_incompatible_mode)));
+
       boost::asio::io_service sig_ios;
       boost::asio::signal_set sig_set(sig_ios, SIGINT, SIGTERM);
 #ifdef SIGPIPE
