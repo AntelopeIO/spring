@@ -58,6 +58,7 @@ class pinnable_mapped_file {
       ~pinnable_mapped_file();
 
       segment_manager* get_segment_manager() const { return _segment_manager;}
+      void             revert_to_mapped_mode();
 
    private:
       void                                          set_mapped_file_db_dirty(bool);
@@ -65,6 +66,7 @@ class pinnable_mapped_file {
       void                                          save_database_file(bool flush = true);
       static bool                                   all_zeros(const std::byte* data, size_t sz);
       void                                          setup_non_file_mapping();
+      void                                          setup_copy_on_write_mapping();
       std::pair<std::byte*, size_t>                 get_region_to_save() const;
 
       bip::file_lock                                _mapped_file_lock;

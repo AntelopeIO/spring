@@ -520,6 +520,10 @@ namespace chainbase {
             _read_only_mode = false;
          }
 
+         void revert_to_mapped_mode() {
+            _db_file.revert_to_mapped_mode();
+         }
+
       private:
          pinnable_mapped_file                                        _db_file;
          bool                                                        _read_only = false;
