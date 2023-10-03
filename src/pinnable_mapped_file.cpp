@@ -269,22 +269,23 @@ void pinnable_mapped_file::revert_to_mapped_mode() {
    }
 }
 
-void pinnable_mapped_file::check_memory_usage() {
+// returns the number of pages flushed to disk
+size_t pinnable_mapped_file::check_memory_and_flush_if_needed() {
    if (_non_file_mapped_mapping || _sharable || !_writable)
-      return;
+      return 0;
 
    // we are in `copy_on_write` mode.
-   static time_t last_check_time = 0;
+   static time_t check_time = 0;
    constexpr int check_interval = 60; // seconds
    constexpr size_t one_gb = 1ull << 30;
 
+   size_t written_pages {0};
    const time_t current_time = time(NULL);
-   if(current_time >= last_check_time) {
-      last_check_time = current_time + check_interval;
+   if(current_time >= check_time) {
+      check_time = current_time + check_interval;
 
       size_t avail_ram_gb = get_available_ram() / one_gb;
       if (avail_ram_gb <= 2) {
-         size_t written_pages {0};
          auto [src, sz] = get_region_to_save();
          pagemap_accessor pagemap;
          size_t offset = 0;
@@ -294,9 +295,9 @@ void pinnable_mapped_file::check_memory_usage() {
                break;
             offset += copy_size;
          }
-         std::cerr << "CHAINBASE: flushed " << written_pages << " to disk to decrease memory pressure\n";
       }
    }
+   return written_pages;
 }
 
 void pinnable_mapped_file::setup_non_file_mapping() {

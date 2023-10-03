@@ -59,7 +59,7 @@ class pinnable_mapped_file {
 
       segment_manager* get_segment_manager() const { return _segment_manager;}
       void             revert_to_mapped_mode();
-      void             check_memory_usage();
+      size_t           check_memory_and_flush_if_needed();
 
 
    private:

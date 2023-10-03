@@ -524,8 +524,8 @@ namespace chainbase {
             _db_file.revert_to_mapped_mode();
          }
 
-         void check_memory_usage() {
-            _db_file.check_memory_usage();
+         size_t check_memory_and_flush_if_needed() {
+            return _db_file.check_memory_and_flush_if_needed();
          }
 
       private:
