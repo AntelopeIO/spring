@@ -2,17 +2,14 @@
 
 #include <fcntl.h>    // open 
 #include <unistd.h>   // pread, sysconf
-#include <cstring>
 #include <cstdlib> 
 #include <cassert>
-#include <optional>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
 #include <vector>
 #include <span>
-#include <boost/interprocess/managed_external_buffer.hpp>
-#include <boost/interprocess/anonymous_shared_memory.hpp>
+#include <boost/interprocess/managed_mapped_file.hpp>
 
 namespace chainbase {
 

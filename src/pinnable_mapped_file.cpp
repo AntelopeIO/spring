@@ -1,8 +1,6 @@
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/environment.hpp>
 #include <chainbase/pagemap_accessor.hpp>
-#include <boost/interprocess/managed_external_buffer.hpp>
-#include <boost/interprocess/anonymous_shared_memory.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <iostream>
 #include <fstream>
