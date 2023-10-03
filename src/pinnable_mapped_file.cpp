@@ -327,7 +327,7 @@ void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) 
       if(time(nullptr) != t) {
          t = time(nullptr);
          std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, " <<
-            offset/(_file_mapped_region.get_size()/100) << "% complete..." << '\n';
+            offset/(_database_size/100) << "% complete..." << '\n';
       }
       sig_ios.poll();
    }
