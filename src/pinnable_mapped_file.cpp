@@ -68,10 +68,6 @@ static bool on_tempfs_filesystem(std::filesystem::path& path) {
    return false;
 }
 
-static size_t get_available_ram() {
-   return get_avphys_pages() * sysconf(_SC_PAGESIZE);
-}
-
 pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
    _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
@@ -270,20 +266,21 @@ void pinnable_mapped_file::revert_to_private_mode() {
 
 // returns the number of pages flushed to disk
 size_t pinnable_mapped_file::check_memory_and_flush_if_needed() {
+   size_t written_pages {0};
+#if 0
    if (_non_file_mapped_mapping || _sharable || !_writable)
-      return 0;
+      return written_pages;
 
    // we are in `copy_on_write` mode.
    static time_t check_time = 0;
    constexpr int check_interval = 60; // seconds
    constexpr size_t one_gb = 1ull << 30;
 
-   size_t written_pages {0};
    const time_t current_time = time(NULL);
    if(current_time >= check_time) {
       check_time = current_time + check_interval;
 
-      size_t avail_ram_gb = get_available_ram() / one_gb;
+      size_t avail_ram_gb = (get_avphys_pages() * sysconf(_SC_PAGESIZE)) / one_gb;
       if (avail_ram_gb <= 2) {
          auto [src, sz] = get_region_to_save();
          pagemap_accessor pagemap;
@@ -296,6 +293,7 @@ size_t pinnable_mapped_file::check_memory_and_flush_if_needed() {
          }
       }
    }
+#endif
    return written_pages;
 }
 
