@@ -4,11 +4,13 @@
 #include <boost/asio/signal_set.hpp>
 #include <iostream>
 #include <fstream>
+//#include <unistd.h>
 
 #ifdef __linux__
 #include <linux/mman.h>
 #include <sys/vfs.h>
 #include <linux/magic.h>
+#include <sys/sysinfo.h>
 #endif
 
 namespace chainbase {
@@ -66,12 +68,16 @@ static bool on_tempfs_filesystem(std::filesystem::path& path) {
    return false;
 }
 
+static size_t get_available_ram() {
+   return get_avphys_pages() * sysconf(_SC_PAGESIZE);
+}
+
 pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, bool writable, uint64_t shared_file_size, bool allow_dirty, map_mode mode) :
    _data_file_path(std::filesystem::absolute(dir/"shared_memory.bin")),
    _database_name(dir.filename().string()),
    _database_size(shared_file_size),
    _writable(writable),
-   _sharable(mode == mapped_shared)
+   _sharable(mode == mapped_shared || (mode == mapped && get_available_ram() < (4ull << 30))) // require 4GB free ram for `copy_on_write`
 {
    if(shared_file_size % _db_size_multiple_requirement) {
       std::string what_str("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
@@ -263,6 +269,36 @@ void pinnable_mapped_file::revert_to_mapped_mode() {
    }
 }
 
+void pinnable_mapped_file::check_memory_usage() {
+   if (_non_file_mapped_mapping || _sharable || !_writable)
+      return;
+
+   // we are in `copy_on_write` mode.
+   static time_t last_check_time = 0;
+   constexpr int check_interval = 60; // seconds
+   constexpr size_t one_gb = 1ull << 30;
+
+   const time_t current_time = time(NULL);
+   if(current_time >= last_check_time) {
+      last_check_time = current_time + check_interval;
+
+      size_t avail_ram_gb = get_available_ram() / one_gb;
+      if (avail_ram_gb <= 2) {
+         size_t written_pages {0};
+         auto [src, sz] = get_region_to_save();
+         pagemap_accessor pagemap;
+         size_t offset = 0;
+         while(offset != sz && written_pages < (one_gb / sysconf(_SC_PAGESIZE))) {
+            size_t copy_size = std::min(_db_size_copy_increment,  sz - offset);
+            if (!pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, false, written_pages))
+               break;
+            offset += copy_size;
+         }
+         std::cerr << "CHAINBASE: flushed " << written_pages << " to disk to decrease memory pressure\n";
+      }
+   }
+}
+
 void pinnable_mapped_file::setup_non_file_mapping() {
    int common_map_opts = MAP_PRIVATE|MAP_ANONYMOUS;
 
@@ -354,13 +390,14 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    size_t offset = 0;
    time_t t = time(nullptr);
    pagemap_accessor pagemap;
+   size_t written_pages {0};
    auto [src, sz] = get_region_to_save();
    
    while(offset != sz) {
       size_t copy_size = std::min(_db_size_copy_increment,  sz - offset);
       bool mapped_writable_instance = std::find(_instance_tracker.begin(), _instance_tracker.end(), this) != _instance_tracker.end();
       if (!mapped_writable_instance ||
-          !pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush)) {
+          !pagemap.update_file_from_region({ src + offset, copy_size }, _file_mapping, offset, flush, written_pages)) {
          if (mapped_writable_instance)
             std::cerr << "CHAINBASE: ERROR: pagemap update of db file failed... using non-pagemap version" << '\n';
          if(!all_zeros(src+offset, copy_size)) {

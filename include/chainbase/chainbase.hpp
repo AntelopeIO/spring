@@ -524,6 +524,10 @@ namespace chainbase {
             _db_file.revert_to_mapped_mode();
          }
 
+         void check_memory_usage() {
+            _db_file.check_memory_usage();
+         }
+
       private:
          pinnable_mapped_file                                        _db_file;
          bool                                                        _read_only = false;

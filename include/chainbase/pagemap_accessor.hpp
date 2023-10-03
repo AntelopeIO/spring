@@ -103,7 +103,7 @@ public:
    // The specified region *must* be a multiple of the system's page size, and the specified
    // region should exist in the disk file.
    // --------------------------------------------------------------------------------------
-   bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush) const {
+   bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush, size_t& written_pages) const {
       if constexpr (!_pagemap_supported)
          return false;
       
@@ -123,6 +123,7 @@ public:
                while (j<num_pages && is_marked_dirty(pm[j]))
                   ++j;
                memcpy(dest + (i * pagesz), rgn.data() + (i * pagesz), pagesz * (j - i));
+               written_pages += (j - i);
                i += j - i - 1;
             }
          }
