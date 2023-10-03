@@ -48,7 +48,7 @@ std::string chainbase_error_category::message(int ev) const {
       case db_error_code::clear_refs_failed:
          return "Failed to clear Soft-Dirty bits";
       case tempfs_incompatible_mode:
-         return "We recommend storing the state db file on tmpfs only when database-map-mode=mapped_shared";
+         return "We recommend storing the state db file on tmpfs only when database-map-mode=mapped";
       default:
          return "Unrecognized error code";
    }
@@ -77,14 +77,14 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
    _database_name(dir.filename().string()),
    _database_size(shared_file_size),
    _writable(writable),
-   _sharable(mode == mapped_shared || (mode == mapped && get_available_ram() < (4ull << 30))) // require 4GB free ram for `copy_on_write`
+   _sharable(mode == mapped)
 {
    if(shared_file_size % _db_size_multiple_requirement) {
       std::string what_str("Database must be mulitple of " + std::to_string(_db_size_multiple_requirement) + " bytes");
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::bad_size), what_str));
    }
 #ifdef _WIN32
-   if(mode != mapped && mode != mapped_shared)
+   if(mode != mapped && mode != mapped_private)
       BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::unsupported_win32_mode)));
 #endif
    if(!_writable && !std::filesystem::exists(_data_file_path)){
@@ -166,7 +166,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       set_mapped_file_db_dirty(true);
    }
 
-   if(mode == mapped || mode == mapped_shared) {
+   if(mode == mapped || mode == mapped_private) {
       if (_writable && !_sharable) {
          // First make sure the db file is not on a ram-based tempfs, as it would be an
          // unnecessary waste of RAM to have both the db file *and* the modified pages in RAM.
@@ -248,12 +248,11 @@ void pinnable_mapped_file::setup_copy_on_write_mapping() {
    }
 }
 
-// this is called after loading a snapshot, when database-map-mode was switched from `mapped` to
-// `mapped_shared` to avoid running out of memory (because loading a snapshot causes all state
-// pages to be modified).
-// This provides an opportunity to revert back to the `mapped` mode with it friendlier disk
+// this is called after loading a snapshot, when database-map-mode was switched from `mapped_private` to
+// `mapped` to avoid running out of memory (because loading a snapshot causes all state pages to be modified).
+// This provides an opportunity to revert back to the `mapped_private` mode with it friendlier disk
 // usage characteristics.
-void pinnable_mapped_file::revert_to_mapped_mode() {
+void pinnable_mapped_file::revert_to_private_mode() {
    if (!_sharable)
       return;
 
@@ -488,8 +487,8 @@ std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runti
    in >> s;
    if (s == "mapped")
       runtime = pinnable_mapped_file::map_mode::mapped;
-   else if (s == "mapped_shared")
-      runtime = pinnable_mapped_file::map_mode::mapped_shared;
+   else if (s == "mapped_private")
+      runtime = pinnable_mapped_file::map_mode::mapped_private;
    else if (s == "heap")
       runtime = pinnable_mapped_file::map_mode::heap;
    else if (s == "locked")
@@ -502,8 +501,8 @@ std::istream& operator>>(std::istream& in, pinnable_mapped_file::map_mode& runti
 std::ostream& operator<<(std::ostream& osm, pinnable_mapped_file::map_mode m) {
    if(m == pinnable_mapped_file::map_mode::mapped)
       osm << "mapped";
-   else if(m == pinnable_mapped_file::map_mode::mapped_shared)
-      osm << "mapped_shared";
+   else if(m == pinnable_mapped_file::map_mode::mapped_private)
+      osm << "mapped_private";
    else if (m == pinnable_mapped_file::map_mode::heap)
       osm << "heap";
    else if (m == pinnable_mapped_file::map_mode::locked)

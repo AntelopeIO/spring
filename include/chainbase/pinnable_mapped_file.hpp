@@ -44,8 +44,8 @@ class pinnable_mapped_file {
       typedef typename bip::managed_mapped_file::segment_manager segment_manager;
 
       enum map_mode {
-         mapped,        // file is mmaped in MAP_PRIVATE mode, and only updated at exit
-         mapped_shared, // file is mmaped in MAP_SHARED mode. Only mode where changes can be seen by another chainbase instance
+         mapped,        // file is mmaped in MAP_SHARED mode. Only mode where changes can be seen by another chainbase instance
+         mapped_private,// file is mmaped in MAP_PRIVATE mode, and only updated at exit
          heap,          // file is copied at startup to an anonymous mapping using huge pages (if available)
          locked         // file is copied at startup to an anonymous mapping using huge pages (if available) and locked in memory
       };
@@ -58,7 +58,7 @@ class pinnable_mapped_file {
       ~pinnable_mapped_file();
 
       segment_manager* get_segment_manager() const { return _segment_manager;}
-      void             revert_to_mapped_mode();
+      void             revert_to_private_mode();
       size_t           check_memory_and_flush_if_needed();
 
 

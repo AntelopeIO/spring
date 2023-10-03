@@ -7,7 +7,7 @@ using namespace chainbase;
 
 const pinnable_mapped_file::map_mode test_modes[] = {
    pinnable_mapped_file::map_mode::mapped,
-   pinnable_mapped_file::map_mode::mapped_shared,
+   pinnable_mapped_file::map_mode::mapped_private,
    pinnable_mapped_file::map_mode::heap
 };
 

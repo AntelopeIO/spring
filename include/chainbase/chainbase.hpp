@@ -520,8 +520,8 @@ namespace chainbase {
             _read_only_mode = false;
          }
 
-         void revert_to_mapped_mode() {
-            _db_file.revert_to_mapped_mode();
+         void revert_to_private_mode() {
+            _db_file.revert_to_private_mode();
          }
 
          size_t check_memory_and_flush_if_needed() {
