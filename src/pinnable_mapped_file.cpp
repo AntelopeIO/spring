@@ -404,7 +404,6 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
             memcpy(dst, src+offset, copy_size);
 
             if (flush) {
-               std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, flushing buffers..." << '\n';
                if(dst_rgn.flush(0, 0, false) == false)
                   std::cerr << "CHAINBASE: ERROR: flushing buffers failed" << '\n';
             }
