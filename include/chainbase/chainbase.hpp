@@ -520,6 +520,14 @@ namespace chainbase {
             _read_only_mode = false;
          }
 
+         void revert_to_private_mode() {
+            _db_file.revert_to_private_mode();
+         }
+
+         size_t check_memory_and_flush_if_needed() {
+            return _db_file.check_memory_and_flush_if_needed();
+         }
+
       private:
          pinnable_mapped_file                                        _db_file;
          bool                                                        _read_only = false;
