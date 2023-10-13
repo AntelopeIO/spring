@@ -114,7 +114,8 @@ namespace chainbase {
          return n->_color;
       }
       static void set_color(node_ptr n, color c) {
-         n->_color = c;
+         if (n->_color != c)
+            n->_color = c;
       }
       static color black() { return 0; }
       static color red() { return 1; }
@@ -124,7 +125,8 @@ namespace chainbase {
          return n->_color;
       }
       static void set_balance(node_ptr n, balance c) {
-         n->_color = c;
+         if (n->_color != c)
+            n->_color = c;
       }
       static balance negative() { return -1; }
       static balance zero() { return 0; }
