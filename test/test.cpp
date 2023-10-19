@@ -127,4 +127,67 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
    BOOST_REQUIRE_EQUAL( new_book.b, copy_new_book.b );
 }
 
+struct titled_book : public chainbase::object<0, titled_book> {
+
+   template<typename Constructor, typename Allocator>
+   titled_book(  Constructor&& c, Allocator&&  a) : title(a) {
+      c(*this);
+   }
+
+   id_type id;
+   shared_string title;
+   vector<shared_string> authors;
+};
+
+typedef multi_index_container<
+  titled_book,
+  indexed_by<
+     ordered_unique< member<titled_book,titled_book::id_type,&titled_book::id> >,
+     ordered_unique< BOOST_MULTI_INDEX_MEMBER(titled_book,shared_string,title) >
+  >,
+  chainbase::node_allocator<titled_book>
+> titled_book_index;
+
+CHAINBASE_SET_INDEX_TYPE( titled_book, titled_book_index )
+
+
+BOOST_AUTO_TEST_CASE( shared_string_object ) {
+   temp_directory temp_dir;
+   const auto& temp = temp_dir.path();
+   std::cerr << temp << " \n";
+
+   chainbase::database db(temp, database::read_write, 1024*1024*8);
+   chainbase::database db2(temp, database::read_only, 0, true); /// open an already created db
+   BOOST_CHECK_THROW( db2.add_index< titled_book_index >(), std::runtime_error ); /// index does not exist in read only database
+
+   db.add_index< titled_book_index >();
+   BOOST_CHECK_THROW( db.add_index<titled_book_index>(), std::logic_error ); /// cannot add same index twice
+   shared_string::allocator_type alloc = db.get_allocator<shared_string::allocator_type>();
+
+   db2.add_index< titled_book_index >(); /// index should exist now
+
+
+   BOOST_TEST_MESSAGE( "Creating titled_book" );
+   const auto& new_titled_book = db.create<titled_book>( [alloc]( titled_book& b) {
+      b.title.assign("Moby Dick");
+      b.authors.push_back(shared_string("Herman Melville", alloc));
+   } );
+   const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
+   BOOST_REQUIRE( &new_titled_book != &copy_new_titled_book ); ///< these are mapped to different address ranges
+
+   BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
+   BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );
+
+   db.modify( new_titled_book, [&]( titled_book& b ) {
+      b.title.assign("All the President's Men");
+      b.authors.push_back(shared_string("Carl Bernstein", alloc));
+      b.authors.push_back(shared_string("Bob Woodward", alloc));
+   });
+   //BOOST_REQUIRE( new_titled_book.title == std::string_view("All the President's Men") );
+
+   BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
+   BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );
+}
+
+
 // BOOST_AUTO_TEST_SUITE_END()
