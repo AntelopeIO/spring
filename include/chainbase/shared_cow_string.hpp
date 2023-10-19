@@ -71,7 +71,7 @@ namespace chainbase {
          }
          assert(_s_alloc.has_value());
       }
-      shared_cow_string(shared_cow_string&& other) : _data(other._data) {
+      shared_cow_string(shared_cow_string&& other)  noexcept : _data(other._data) {
          other._data = nullptr;
          assert(_s_alloc.has_value());
       }
@@ -79,7 +79,7 @@ namespace chainbase {
          *this = shared_cow_string{other};
          return *this;
       }
-      shared_cow_string& operator=(shared_cow_string&& other) {
+      shared_cow_string& operator=(shared_cow_string&& other)  noexcept {
          if (this != &other) {
             dec_refcount();
             _data = other._data;
