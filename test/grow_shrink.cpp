@@ -5,7 +5,11 @@
 #include "temp_directory.hpp"
 using namespace chainbase;
 
-const pinnable_mapped_file::map_mode test_modes[] = {pinnable_mapped_file::map_mode::mapped, pinnable_mapped_file::map_mode::heap};
+const pinnable_mapped_file::map_mode test_modes[] = {
+   pinnable_mapped_file::map_mode::mapped,
+   pinnable_mapped_file::map_mode::mapped_private,
+   pinnable_mapped_file::map_mode::heap
+};
 
 BOOST_DATA_TEST_CASE(grow_shrink, boost::unit_test::data::make(test_modes), map_mode) {
    temp_directory temp_dir;

@@ -15,7 +15,7 @@
 
 ## Dependencies
 
-  - C++17
+  - C++20
   - [Boost](http://www.boost.org/)
   - CMake Build Process
   - Supports Linux, Mac OS X  (no Windows Support)
@@ -118,7 +118,10 @@ boost::multi_index_container.  This means that two or more threads may read the 
 same time, but all writes must be protected by a mutex.  
 
 Multiple processes may open the same database if care is taken to use interprocess locking on the
-database.  
+database.
+
+When using the `map_mode = mapped_private`, it is not thread-safe to construct a new chainbase instance 
+in one thread while other threads are writing to other chainbase databases.
 
 ## Persistence
 

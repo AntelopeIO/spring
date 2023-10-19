@@ -5,7 +5,7 @@
 namespace chainbase {
 
 constexpr size_t header_size = 1024;
-constexpr uint64_t header_id = 0x3242444f49534f45ULL; //"EOSIODB2" little endian
+constexpr uint64_t header_id = 0x3342444f49534f45ULL; //"EOSIODB3" little endian
 
 struct environment  {
    environment() {
