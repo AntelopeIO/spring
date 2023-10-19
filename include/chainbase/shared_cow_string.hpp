@@ -8,7 +8,9 @@
 #include <cstring>
 #include <algorithm>
 #include <string>
+#include <string_view>
 #include <optional>
+#include <compare>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -49,6 +51,9 @@ namespace chainbase {
       }
       explicit shared_cow_string(const char* ptr, std::size_t size, const allocator_type& alloc) : shared_cow_string(alloc) {
          assign(ptr, size);
+      }
+      explicit shared_cow_string(std::string_view sv, const allocator_type& alloc) : shared_cow_string(alloc) {
+         assign(sv);
       }
       explicit shared_cow_string(std::size_t size, boost::container::default_init_t, const allocator_type& alloc) : shared_cow_string(alloc) {
          impl* new_data = nullptr;
@@ -115,6 +120,9 @@ namespace chainbase {
          dec_refcount();
          _data = new_data;
       }
+      void assign(std::string_view sv) {
+         assign(sv.data(), sv.size());
+      }
       void assign(const unsigned char* ptr, std::size_t size) {
          assign((char*)ptr, size);
       }
@@ -142,6 +150,12 @@ namespace chainbase {
          else if (count < other_size) return -1;
          else if(count > other_size) return 1;
          else return 0;
+      }
+      std::strong_ordering operator<=>(const shared_cow_string& o) const {
+         int res = compare(0, size(), o.data(), o.size());
+         if (res == 0)
+            return std::strong_ordering::equal;
+         return res < 0 ? std::strong_ordering::less : std::strong_ordering::greater;
       }
       bool operator==(const shared_cow_string& rhs) const {
         return size() == rhs.size() && std::memcmp(data(), rhs.data(), size()) == 0;
