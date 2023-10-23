@@ -117,19 +117,12 @@ namespace chainbase {
          else if(count > other_size) return 1;
          else return 0;
       }
-#if defined(__cpp_lib_three_way_comparison) && __cpp_lib_three_way_comparison >= 201907
       std::strong_ordering operator<=>(const shared_cow_string& o) const {
          int res = compare(0, size(), o.data(), o.size());
          if (res == 0)
             return std::strong_ordering::equal;
          return res < 0 ? std::strong_ordering::less : std::strong_ordering::greater;
       }
-#else
-      bool operator<(const shared_cow_string& o) const {
-         int res = compare(0, size(), o.data(), o.size());
-         return res < 0;
-      }
-#endif
       bool operator==(const shared_cow_string& rhs) const {
         return size() == rhs.size() && std::memcmp(data(), rhs.data(), size()) == 0;
       }
