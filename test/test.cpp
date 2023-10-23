@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
       b.authors.push_back(shared_string("Carl Bernstein", alloc));
       b.authors.push_back(shared_string("Bob Woodward", alloc));
    });
-   //BOOST_REQUIRE( new_titled_book.title == std::string_view("All the President's Men") );
+   BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );
 
    BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
    BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );
