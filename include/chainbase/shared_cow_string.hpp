@@ -125,11 +125,11 @@ namespace chainbase {
       }
       bool operator!=(std::string_view sv) const { return !(*this == sv); }
 
-    private:
       allocator_type get_allocator() const {
          return pinnable_mapped_file::get_allocator<char>((void *)this);
       }
 
+    private:
       void dec_refcount() {
          if(_data && --_data->reference_count == 0) {
             get_allocator().deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
