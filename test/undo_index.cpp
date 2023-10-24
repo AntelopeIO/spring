@@ -56,13 +56,13 @@ namespace bip = boost::interprocess;
 namespace fs  = std::filesystem;
 
 template<typename T>
-using test_allocator_base = chainbase::chainbase_node_allocator<T, chainbase::pinnable_mapped_file::segment_manager>;
+using test_allocator_base = chainbase::chainbase_node_allocator<T, chainbase::segment_manager>;
 
 template<typename T>
 class test_allocator : public test_allocator_base<T> {
 public:
    using base = test_allocator_base<T>;
-   test_allocator(chainbase::pinnable_mapped_file::segment_manager *mgr) : base(mgr) {}
+   test_allocator(chainbase::segment_manager *mgr) : base(mgr) {}
    template<typename U>
    test_allocator(const test_allocator<U>& o) : base(o.get_segment_manager()) {}
    template<typename U>

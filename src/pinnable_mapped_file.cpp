@@ -16,7 +16,8 @@
 namespace chainbase {
 
 std::vector<pinnable_mapped_file*> pinnable_mapped_file::_instance_tracker;
-
+pinnable_mapped_file::segment_manager_map_t  pinnable_mapped_file::_segment_manager_map;
+   
 const char* chainbase_error_category::name() const noexcept {
    return "chainbase";
 }
@@ -178,7 +179,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 
          setup_copy_on_write_mapping();
       } else {
-         _segment_manager = file_mapped_segment_manager;
+         _segment_manager.reset(file_mapped_segment_manager);
       }
    }
    else {
@@ -218,8 +219,9 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
          throw;
       }
 
-      _segment_manager = reinterpret_cast<segment_manager*>((char*)_non_file_mapped_mapping+header_size);
+      _segment_manager.reset(reinterpret_cast<segment_manager*>((char*)_non_file_mapped_mapping+header_size));
    }
+   _segment_manager_map.insert(_segment_manager.get());
 }
 
 void pinnable_mapped_file::setup_copy_on_write_mapping() {
@@ -232,7 +234,7 @@ void pinnable_mapped_file::setup_copy_on_write_mapping() {
    _file_mapped_region = bip::mapped_region(_file_mapping, bip::copy_on_write);
    *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty; // set dirty bit in our memory mapping
 
-   _segment_manager = reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size);
+   _segment_manager.reset(reinterpret_cast<segment_manager*>((char*)_file_mapped_region.get_address()+header_size));
 
    // then clear the Soft-Dirty bits
    // ------------------------------
@@ -426,7 +428,7 @@ pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o)  noexcept :
    _database_name(std::move(o._database_name)),
    _file_mapped_region(std::move(o._file_mapped_region))
 {
-   _segment_manager = o._segment_manager;
+   _segment_manager = std::move(o._segment_manager);
    _writable = o._writable;
    _non_file_mapped_mapping = o._non_file_mapped_mapping;
    o._non_file_mapped_mapping = nullptr;
@@ -440,7 +442,7 @@ pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) 
    _file_mapped_region = std::move(o._file_mapped_region);
    _non_file_mapped_mapping = o._non_file_mapped_mapping;
    o._non_file_mapped_mapping = nullptr;
-   _segment_manager = o._segment_manager;
+   _segment_manager = std::move(o._segment_manager);
    _writable = o._writable;
    o._writable = false; //prevent dtor from doing anything interesting
    return *this;
@@ -468,6 +470,8 @@ pinnable_mapped_file::~pinnable_mapped_file() {
       }
       set_mapped_file_db_dirty(false);
    }
+   if (_segment_manager)
+      _segment_manager_map.erase(_segment_manager.get());
 }
 
 void pinnable_mapped_file::set_mapped_file_db_dirty(bool dirty) {

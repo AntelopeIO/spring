@@ -43,10 +43,7 @@ namespace chainbase {
    using std::vector;
 
    template<typename T>
-   using allocator = bip::allocator<T, pinnable_mapped_file::segment_manager>;
-
-   template<typename T>
-   using node_allocator = chainbase_node_allocator<T, pinnable_mapped_file::segment_manager>;
+   using node_allocator = chainbase_node_allocator<T, segment_manager>;
 
    using shared_string = shared_cow_string;
 
@@ -383,11 +380,11 @@ namespace chainbase {
             _index_list.push_back( new_index );
          }
 
-         pinnable_mapped_file::segment_manager* get_segment_manager() {
+         segment_manager* get_segment_manager() {
             return _db_file.get_segment_manager();
          }
 
-         const pinnable_mapped_file::segment_manager* get_segment_manager() const {
+         const segment_manager* get_segment_manager() const {
             return _db_file.get_segment_manager();
          }
 

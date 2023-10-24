@@ -25,16 +25,10 @@ namespace chainbase {
          char data[0];
       };
     public:
-      using allocator_type = bip::allocator<char, pinnable_mapped_file::segment_manager>;
+      using allocator_type = bip::allocator<char, segment_manager>;
       using iterator = const char*;
       using const_iterator = const char*;
-      explicit shared_cow_string(const allocator_type& alloc) : _data(nullptr) {
-         if (!_s_alloc.has_value()) {
-            _s_alloc.emplace(alloc);
-         } else {
-            assert(_s_alloc == alloc);
-         }
-      }
+      explicit shared_cow_string(const allocator_type& alloc) : _data(nullptr) {}
       template<typename Iter>
       explicit shared_cow_string(Iter begin, Iter end, const allocator_type& alloc) : shared_cow_string(alloc) {
          std::size_t size = std::distance(begin, end);
@@ -53,11 +47,9 @@ namespace chainbase {
          if(_data != nullptr) {
             ++_data->reference_count;
          }
-         assert(_s_alloc.has_value());
       }
-      shared_cow_string(shared_cow_string&& other)  noexcept : _data(other._data) {
+      shared_cow_string(shared_cow_string&& other) noexcept : _data(other._data) {
          other._data = nullptr;
-         assert(_s_alloc.has_value());
       }
       shared_cow_string& operator=(const shared_cow_string& other) {
          *this = shared_cow_string{other};
@@ -132,19 +124,22 @@ namespace chainbase {
         return size() == sv.size() && std::memcmp(data(), sv.data(), size()) == 0;
       }
       bool operator!=(std::string_view sv) const { return !(*this == sv); }
-      const allocator_type& get_allocator() const { return _s_alloc.value(); }
 
     private:
+      allocator_type get_allocator() const {
+         return pinnable_mapped_file::get_allocator<char>((void *)this);
+      }
+
       void dec_refcount() {
          if(_data && --_data->reference_count == 0) {
-            _s_alloc.value().deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
+            get_allocator().deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
          }
       }
 
       void _alloc(const char* ptr, std::size_t size) {
          impl* new_data = nullptr;
          if (size > 0) {
-            new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + size + 1);
+            new_data = (impl*)&*get_allocator().allocate(sizeof(impl) + size + 1);
             new_data->reference_count = 1;
             new_data->size = size;
             if (ptr)
@@ -155,7 +150,6 @@ namespace chainbase {
       }
       
       bip::offset_ptr<impl> _data;
-      static std::optional<allocator_type> _s_alloc;
    };
 
 }  // namepsace chainbase

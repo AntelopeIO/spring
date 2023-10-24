@@ -22,7 +22,7 @@ namespace chainbase {
       };
 
    public:
-      using allocator_type = bip::allocator<char, pinnable_mapped_file::segment_manager>;
+      using allocator_type = bip::allocator<char, segment_manager>;
       using iterator = const T*;
       using const_iterator = const T*;
       explicit shared_cow_vector(const allocator_type& alloc) : _data(nullptr) {
