@@ -130,13 +130,13 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
 struct titled_book : public chainbase::object<0, titled_book> {
 
    template<typename Constructor, typename Allocator>
-   titled_book(  Constructor&& c, Allocator&&  a) : title(a) {
+   titled_book(  Constructor&& c, Allocator&& a) : title(a), authors(a) {
       c(*this);
    }
 
    id_type id;
    shared_string title;
-   vector<shared_string> authors;
+   shared_vector<shared_string> authors;
 };
 
 typedef multi_index_container<
@@ -162,15 +162,14 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
 
    db.add_index< titled_book_index >();
    BOOST_CHECK_THROW( db.add_index<titled_book_index>(), std::logic_error ); /// cannot add same index twice
-   shared_string::allocator_type alloc = db.get_allocator<shared_string::allocator_type>();
 
    db2.add_index< titled_book_index >(); /// index should exist now
 
 
    BOOST_TEST_MESSAGE( "Creating titled_book" );
-   const auto& new_titled_book = db.create<titled_book>( [alloc]( titled_book& b) {
+   const auto& new_titled_book = db.create<titled_book>( []( titled_book& b) {
       b.title.assign("Moby Dick");
-      b.authors.push_back(shared_string("Herman Melville", alloc));
+      b.authors.emplace_back("Herman Melville", shared_string::get_allocator(&b));
    } );
    const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
    BOOST_REQUIRE( &new_titled_book != &copy_new_titled_book ); ///< these are mapped to different address ranges
@@ -180,8 +179,8 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
 
    db.modify( new_titled_book, [&]( titled_book& b ) {
       b.title.assign("All the President's Men");
-      b.authors.push_back(shared_string("Carl Bernstein", alloc));
-      b.authors.push_back(shared_string("Bob Woodward", alloc));
+      b.authors.emplace_back("Carl Bernstein", shared_string::get_allocator(&b));
+      b.authors.emplace_back("Bob Woodward", shared_string::get_allocator(&b));
    });
    BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );
 
