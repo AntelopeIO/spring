@@ -29,14 +29,21 @@ public:
    }
 };
 
+using shared_string = chainbase::shared_string;
 
 struct elem_t {
-   template<typename C, typename A> elem_t(C&& c, A&&) { c(*this); }
+   template<typename C, typename A>
+   elem_t(C&& c, A&& a) : str(a) {
+      c(*this);
+   }
    
-   friend std::ostream& operator<<(std::ostream& os, const elem_t& e) { os  << '[' << e.id << ", " << e.val << ']'; return os; }
+   friend std::ostream& operator<<(std::ostream& os, const elem_t& e) {
+      os  << '[' << e.id << ", " << e.val << ']'; return os;
+   }
       
    uint64_t id;
    uint64_t val;
+   shared_string str;
 };
 
 template<typename time_unit = std::milli>
@@ -82,7 +89,10 @@ int main()
             //std::cout << *e << '\n';
             i0.modify(*e, [old=e](elem_t& e) { e.val = old->val + 1; });
          } else {
-            auto &e = i0.emplace([](elem_t& e) { e.val = 0; });
+            auto &e = i0.emplace([](elem_t& e) {
+               e.val = 0;
+               e.str.assign("a string");
+            });
             if (e.id % 5 == 0)
                i0.remove(e);
          }
