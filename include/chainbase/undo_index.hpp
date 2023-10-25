@@ -280,7 +280,7 @@ namespace chainbase {
          using value_type = T;
          using allocator_type = Allocator;
          template<typename... A>
-            explicit node(A&&... a) : value_holder<T>{std::forward<A&&>(a)...} {}
+         explicit node(A&&... a) : value_holder<T>{std::forward<A&&>(a)...} {}
          const T& item() const { return *this; }
          uint64_t _mtime = 0; // _monotonic_revision when the node was last modified or created.
       };

@@ -97,7 +97,7 @@ namespace chainbase {
 
       void assign(const unsigned char* ptr, std::size_t size) {
          dec_refcount();
-         _alloc((char*)ptr, size);
+         _alloc((const char*)ptr, size);
       }
 
       const char * data() const {
