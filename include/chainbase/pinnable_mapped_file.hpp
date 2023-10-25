@@ -68,7 +68,7 @@ class pinnable_mapped_file {
 
       template<typename T>
       static allocator<T> get_allocator(void *object) {
-         auto it = _segment_manager_map.lower_bound(object);
+         auto it = _segment_manager_map.upper_bound(object);
          return  allocator<T>(reinterpret_cast<segment_manager *>(*(--it)));
       }
 
