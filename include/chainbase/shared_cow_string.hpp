@@ -30,7 +30,8 @@ namespace chainbase {
       using iterator = const char*;
       using const_iterator = const char*;
 
-      explicit shared_cow_string(const allocator_type& alloc) {}
+      template<typename Alloc>
+      explicit shared_cow_string(Alloc&& ) {}
 
       template<typename Iter>
       explicit shared_cow_string(Iter begin, Iter end, const allocator_type& alloc) {
