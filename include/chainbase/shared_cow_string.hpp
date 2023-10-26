@@ -27,7 +27,7 @@ namespace chainbase {
 
     public:
       using allocator_type = bip::allocator<char, segment_manager>;
-      using iterator = const char*;
+      using iterator       = const char*;
       using const_iterator = const char*;
 
       template<typename Alloc>

@@ -23,54 +23,41 @@ namespace chainbase {
 
    public:
       using allocator_type = bip::allocator<char, segment_manager>;
-      using iterator = const T*;
+      using iterator       = const T*;
       using const_iterator = const T*;
-      explicit shared_cow_vector(const allocator_type& alloc) : _data(nullptr) {
-         if (!_s_alloc.has_value()) {
-            _s_alloc.emplace(alloc);
-         } else {
-            assert(_s_alloc == alloc);
-         }
-      }
+
+      template<typename Alloc>
+      explicit shared_cow_vector(Alloc&& ) {}
+
       template<typename Iter>
-      explicit shared_cow_vector(Iter begin, Iter end, const allocator_type& alloc) : shared_cow_vector(alloc) {
+      explicit shared_cow_vector(Iter begin, Iter end, const allocator_type& alloc) {
          std::size_t size = std::distance(begin, end);
-         if (size > 0) {
-            impl* new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + (size * sizeof(T)));
-            new_data->reference_count = 1;
-            new_data->size = size;
-            std::copy(begin, end, new_data->data);
-            _data = new_data;
-         } else {
-            _data = nullptr;
-         }
+         _alloc(alloc, &*begin, size, size);
       }
-      explicit shared_cow_vector(const char* ptr, std::size_t size, const allocator_type& alloc) : shared_cow_vector(alloc) {
-         assign(ptr, size);
+
+      explicit shared_cow_vector(const T* ptr, std::size_t size, const allocator_type& alloc) {
+         _alloc(alloc, ptr, size, size);
       }
-      explicit shared_cow_vector(std::size_t size, boost::container::default_init_t, const allocator_type& alloc) : shared_cow_vector(alloc) {
-         impl* new_data = nullptr;
-         if (size > 0) {
-            new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + (size * sizeof(T)));
-            new_data->reference_count = 1;
-            new_data->size = size;
-         }
-         _data = new_data;
+
+      explicit shared_cow_vector(std::size_t size, boost::container::default_init_t, const allocator_type& alloc) {
+         _alloc(alloc, nullptr, size, 0);
       }
+
       shared_cow_vector(const shared_cow_vector& other) : _data(other._data) {
          if(_data != nullptr) {
             ++_data->reference_count;
          }
-         assert(_s_alloc.has_value());
       }
+
       shared_cow_vector(shared_cow_vector&& other) noexcept : _data(other._data) {
          other._data = nullptr;
-         assert(_s_alloc.has_value());
       }
+
       shared_cow_vector& operator=(const shared_cow_vector& other) {
          *this = shared_cow_vector{other};
          return *this;
       }
+
       shared_cow_vector& operator=(shared_cow_vector&& other) noexcept {
          if (this != &other) {
             dec_refcount();
@@ -79,6 +66,7 @@ namespace chainbase {
          }
          return *this;
       }
+
       ~shared_cow_vector() {
          dec_refcount();
       }
@@ -89,29 +77,13 @@ namespace chainbase {
       }
 
       void resize(std::size_t new_size, boost::container::default_init_t) {
-         impl* new_data = nullptr; 
-         if (new_size > 0 ) {
-            new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + (new_size * sizeof(T)));
-            new_data->reference_count = 1;
-            new_data->size = new_size;
-         }
          dec_refcount();
-         _data = new_data;
+         _alloc(nullptr, new_size, 0);
       }
 
       void resize(std::size_t new_size) {
-         impl* new_data = nullptr; 
-         if (new_size > 0 ) {
-            new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + (new_size * sizeof(T)));
-            new_data->reference_count = 1;
-            new_data->size = new_size;
-            if (_data) {
-               std::size_t copy_size = std::min<std::size_t>(new_size, _data->size);
-               std::copy(_data->data, _data->data + copy_size, new_data->data);
-            }
-         }
          dec_refcount();
-         _data = new_data;
+         _alloc(_data->data, new_size, std::min<std::size_t>(new_size, _data->size));
       }
 
       template<typename F>
@@ -127,55 +99,65 @@ namespace chainbase {
       }
 
       void assign(const T* ptr, std::size_t size) {
-         impl* new_data = nullptr;
-
-         if(size > 0) {
-            new_data = (impl*)&*_s_alloc.value().allocate(sizeof(impl) + (size * sizeof(T)));
-            new_data->reference_count = 1;
-            new_data->size = size;
-            std::copy(ptr, ptr + size, new_data->data);
-         }
-
          dec_refcount();
-         _data = new_data;
+         _alloc(ptr, size, size);
       }
-      void assign(const unsigned char* ptr, std::size_t size) {
-         assign((char*)ptr, size);
+
+      const T* data() const {
+         return _data ? _data->data : nullptr;
       }
-      const T * data() const {
-         if (_data) return _data->data;
-         else return nullptr;
-      }
+
       std::size_t size() const {
-         if (_data) return _data->size;
-         else return 0;
+         return _data ? _data->size : 0;
       }
+
       const_iterator begin() const { return data(); }
+
       const_iterator end() const {
-         if (_data) return _data->data + _data->size;
-         else return nullptr;
+         return _data ? _data->data + _data->size : nullptr;
       }
-      
-      const_iterator cbegin() const { return data(); }
-      const_iterator cend() const {
-         if (_data) return _data->data + _data->size;
-         else return nullptr;
-      }
+
+      const_iterator cbegin() const { return begin(); }
+      const_iterator cend()   const { return end(); }
 
       bool operator==(const shared_cow_vector& rhs) const {
         return size() == rhs.size() && std::memcmp(data(), rhs.data(), size() * sizeof(T)) == 0;
       }
+
       bool operator!=(const shared_cow_vector& rhs) const { return !(*this == rhs); }
 
-      const allocator_type& get_allocator() const { return _s_alloc.value(); }
+      static allocator_type get_allocator(void* obj) {
+         return pinnable_mapped_file::get_allocator<char>(obj);
+      }      
+
+      const allocator_type& get_allocator() const {
+         return get_allocator((void *)this);
+      }
+
     private:
       void dec_refcount() {
          if(_data && --_data->reference_count == 0) {
-            _s_alloc.value().deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
+            get_allocator(this).deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
          }
       }
-      bip::offset_ptr<impl> _data;
-      static inline std::optional<allocator_type> _s_alloc;
+
+      void _alloc(allocator_type alloc, const void* ptr, std::size_t size, std::size_t copy_size) {
+         impl* new_data = nullptr;
+         if (size > 0) {
+            new_data = (impl*)&*alloc.allocate(sizeof(impl) + (size * sizeof(T)));
+            new_data->reference_count = 1;
+            new_data->size = size;
+            if (ptr && copy_size)
+               std::memcpy(new_data->data, ptr, copy_size * sizeof(T));
+         }
+         _data = new_data;
+      }
+
+      void _alloc(const void* ptr, std::size_t size, std::size_t copy_size) {
+         _alloc(get_allocator(this), ptr, size, copy_size);
+      }
+      
+      bip::offset_ptr<impl> _data { nullptr };
    };
 
 }
