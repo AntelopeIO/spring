@@ -81,40 +81,42 @@ namespace chainbase {
 
       template<typename F>
       void resize_and_fill(std::size_t new_size, F&& f) {
-         dec_refcount();
-         _alloc(nullptr, new_size);
+         if (!copy_in_place(nullptr, new_size)) {
+            dec_refcount();
+            _alloc(nullptr, new_size);
+         }
          static_cast<F&&>(f)(_data->data, new_size);
       }
 
       void assign(const char* ptr, std::size_t size) {
-         dec_refcount();
-         _alloc(ptr, size);
+         if (!copy_in_place(ptr, size)) {
+            dec_refcount();
+            _alloc(ptr, size);
+         }
       }
 
       void assign(std::string_view sv) {
-         dec_refcount();
-         _alloc(sv.data(), sv.size());
+         if (!copy_in_place(sv.data(), sv.size())) {
+            dec_refcount();
+            _alloc(sv.data(), sv.size());
+         }
       }
 
       void assign(const unsigned char* ptr, std::size_t size) {
-         dec_refcount();
-         _alloc((const char*)ptr, size);
+         assign((const char*)ptr, size);
       }
 
       const char * data() const {
-         if (_data) return _data->data;
-         else return nullptr;
+         return _data ? _data->data + _data->size : nullptr;
       }
 
       std::size_t size() const {
-         if (_data) return _data->size;
-         else return 0;
+         return _data ? _data->size : 0;
       }
 
       const_iterator begin() const { return data(); }
       const_iterator end() const {
-         if (_data) return _data->data + _data->size;
-         else return nullptr;
+         return _data ? _data->data + _data->size : nullptr;
       }
 
       int compare(std::size_t start, std::size_t count, const char* other, std::size_t other_size) const {
@@ -164,6 +166,16 @@ namespace chainbase {
          if(_data && --_data->reference_count == 0) {
             get_allocator(this).deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
          }
+      }
+
+      bool copy_in_place(const char* ptr, std::size_t size) {
+         if (_data && _data->reference_count == 1 && _data->size == size) {
+            // we hold the only reference and size matches, not need to dealloc/realloc
+            if (ptr)
+               std::memcpy(_data->data, ptr, size);
+            return true;
+         }
+         return false;
       }
 
       void _alloc(allocator_type alloc, const char* ptr, std::size_t size) {
