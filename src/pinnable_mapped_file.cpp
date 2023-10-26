@@ -244,26 +244,6 @@ void pinnable_mapped_file::setup_copy_on_write_mapping() {
    }
 }
 
-// this is called after loading a snapshot, when database-map-mode was switched from `mapped_private` to
-// `mapped` to avoid running out of memory (because loading a snapshot causes all state pages to be modified).
-// This provides an opportunity to revert back to the `mapped_private` mode with it friendlier disk
-// usage characteristics.
-void pinnable_mapped_file::revert_to_private_mode() {
-   if (!_sharable)
-      return;
-
-   // do synchronous flush of all modified pages of our mapping
-   if(_file_mapped_region.flush(0, 0, false) == false)
-      std::cerr << "CHAINBASE: ERROR: syncing buffers failed" << '\n';
-   else {
-      // disk db file is up to date (with dirty bit set to true)
-      // we can kill the RW (`shared`) mapping and recreate a `copy_on_write` one.
-      _file_mapped_region = bip::mapped_region();
-      setup_copy_on_write_mapping();
-      _sharable = false;
-   }
-}
-
 // returns the number of pages flushed to disk
 size_t pinnable_mapped_file::check_memory_and_flush_if_needed() {
    size_t written_pages {0};
