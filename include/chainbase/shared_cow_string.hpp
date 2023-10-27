@@ -30,6 +30,8 @@ namespace chainbase {
       using iterator       = const char*;
       using const_iterator = const char*;
 
+      shared_cow_string() = default;
+
       template<typename Alloc>
       explicit shared_cow_string(Alloc&& ) {}
 
@@ -52,7 +54,7 @@ namespace chainbase {
       }
 
       shared_cow_string(const shared_cow_string& other) : _data(other._data) {
-         if(_data != nullptr) {
+         if (_data != nullptr) {
             ++_data->reference_count;
          }
       }
@@ -107,7 +109,7 @@ namespace chainbase {
       }
 
       const char * data() const {
-         return _data ? _data->data + _data->size : nullptr;
+         return _data ? _data->data : nullptr;
       }
 
       std::size_t size() const {
@@ -121,14 +123,14 @@ namespace chainbase {
 
       int compare(std::size_t start, std::size_t count, const char* other, std::size_t other_size) const {
          std::size_t sz = size();
-         if(start > sz) BOOST_THROW_EXCEPTION(std::out_of_range{"shared_cow_string::compare"});
+         if (start > sz) BOOST_THROW_EXCEPTION(std::out_of_range{"shared_cow_string::compare"});
          count = std::min(count, sz - start);
          std::size_t cmp_len = std::min(count, other_size);
          const char* start_ptr = data() + start;
          int result = std::char_traits<char>::compare(start_ptr, other, cmp_len);
          if (result != 0) return result;
          else if (count < other_size) return -1;
-         else if(count > other_size) return 1;
+         else if (count > other_size) return 1;
          else return 0;
       }
 
@@ -163,8 +165,9 @@ namespace chainbase {
 
     private:
       void dec_refcount() {
-         if(_data && --_data->reference_count == 0) {
+         if (_data && --_data->reference_count == 0) {
             get_allocator(this).deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
+            _data = nullptr;
          }
       }
 

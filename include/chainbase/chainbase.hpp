@@ -30,6 +30,7 @@
 
 #include <chainbase/pinnable_mapped_file.hpp>
 #include <chainbase/shared_cow_string.hpp>
+#include <chainbase/shared_cow_vector.hpp>
 #include <chainbase/chainbase_node_allocator.hpp>
 #include <chainbase/undo_index.hpp>
 
@@ -48,7 +49,8 @@ namespace chainbase {
 
    using shared_string = shared_cow_string;
    template<typename T>
-   using shared_vector = bip::vector<T, allocator<T>>;
+   //using shared_vector = bip::vector<T, allocator<T>>;
+   using shared_vector = shared_cow_vector<T>;
    
    typedef boost::interprocess::interprocess_sharable_mutex read_write_mutex;
    typedef boost::interprocess::sharable_lock< read_write_mutex > read_lock;
