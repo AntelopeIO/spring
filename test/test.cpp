@@ -168,11 +168,9 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
    BOOST_TEST_MESSAGE( "Creating titled_book" );
    const auto& new_titled_book = db.create<titled_book>( []( titled_book& b) {
       b.title.assign("Moby Dick");
-#if 1
       b.authors.resize_and_fill(1, [&](auto *data, std::size_t) {
          data[0] = shared_string("Herman Melville", shared_string::get_allocator(&b));
       });
-#endif
    } );
    const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
    BOOST_REQUIRE( &new_titled_book != &copy_new_titled_book ); ///< these are mapped to different address ranges
@@ -182,12 +180,10 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
 
    db.modify( new_titled_book, [&]( titled_book& b ) {
       b.title.assign("All the President's Men");
-#if 1
       b.authors.resize_and_fill(2, [&](auto *data, std::size_t) {
          data[0] = shared_string("Carl Bernstein", shared_string::get_allocator(&b));
          data[1] = shared_string("Bob Woodward", shared_string::get_allocator(&b));
       });
-#endif
    });
    BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );
 
