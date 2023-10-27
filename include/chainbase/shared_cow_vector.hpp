@@ -133,7 +133,7 @@ namespace chainbase {
          return pinnable_mapped_file::get_allocator<char>(obj);
       }      
 
-      const allocator_type& get_allocator() const {
+      const allocator_type get_allocator() const {
          return get_allocator((void *)this);
       }
 
