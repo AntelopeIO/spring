@@ -74,7 +74,7 @@ namespace chainbase {
 
       template<typename F>
       void clear_and_construct(std::size_t new_size, std::size_t copy_size, F&& f) {
-         assert(copy_size < new_size);
+         assert(copy_size <= new_size);
          if (_data && _data->reference_count == 1 && _data->size == new_size)
             std::destroy(_data->data + copy_size, _data->data + new_size);
          else {
