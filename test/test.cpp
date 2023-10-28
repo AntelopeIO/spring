@@ -168,8 +168,8 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
    BOOST_TEST_MESSAGE( "Creating titled_book" );
    const auto& new_titled_book = db.create<titled_book>( []( titled_book& b) {
       b.title.assign("Moby Dick");
-      b.authors.resize_and_fill(1, [&](auto *data, std::size_t) {
-         data[0] = shared_string("Herman Melville", shared_string::get_allocator(&b));
+      b.authors.clear_and_construct(1, 0, [&](void* dest, std::size_t) {
+         new (dest) shared_string("Herman Melville", shared_string::get_allocator(&b));
       });
    } );
    const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
@@ -178,14 +178,18 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
    BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
    BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );
 
+   
+   const char* authors[] = { "Carl Bernstein", "Bob Woodward" };
    db.modify( new_titled_book, [&]( titled_book& b ) {
       b.title.assign("All the President's Men");
-      b.authors.resize_and_fill(2, [&](auto *data, std::size_t) {
-         data[0] = shared_string("Carl Bernstein", shared_string::get_allocator(&b));
-         data[1] = shared_string("Bob Woodward", shared_string::get_allocator(&b));
+      
+      b.authors.clear_and_construct(2, 0, [&](void* dest, std::size_t idx) {
+         new (dest) shared_string(authors[idx], shared_string::get_allocator(&b)); 
       });
    });
    BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );
+   BOOST_REQUIRE( new_titled_book.authors[0] == authors[0] );
+   BOOST_REQUIRE( new_titled_book.authors[1] == authors[1] );
 
    BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
    BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );

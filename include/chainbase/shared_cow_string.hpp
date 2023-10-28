@@ -45,6 +45,10 @@ namespace chainbase {
          _alloc(alloc, ptr, size);
       }
 
+      explicit shared_cow_string(const char* ptr, const allocator_type& alloc) {
+         _alloc(alloc, ptr, strlen(ptr));
+      }
+
       explicit shared_cow_string(std::string_view sv, const allocator_type& alloc) {
          _alloc(alloc, sv.data(), sv.size());
       }
