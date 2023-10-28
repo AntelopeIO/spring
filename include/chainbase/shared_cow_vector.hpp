@@ -32,11 +32,11 @@ namespace chainbase {
       template<typename Iter>
       explicit shared_cow_vector(Iter begin, Iter end, const allocator_type& alloc) {
          std::size_t size = std::distance(begin, end);
-         _alloc(alloc, &*begin, size, size, true);
+         _alloc<true>(alloc, &*begin, size, size);
       }
 
       explicit shared_cow_vector(const T* ptr, std::size_t size, const allocator_type& alloc) {
-         _alloc(alloc, ptr, size, size, true);
+         _alloc<true>(alloc, ptr, size, size);
       }
 
       shared_cow_vector(const shared_cow_vector& other) : _data(other._data) {
@@ -79,7 +79,7 @@ namespace chainbase {
             std::destroy(_data->data + copy_size, _data->data + new_size);
          else {
             dec_refcount();
-            _alloc(data(), new_size, copy_size, false); // construct == false => uninitialized memory
+            _alloc<false>(data(), new_size, copy_size); // construct == false => uninitialized memory
          }
          for (std::size_t i=copy_size; i<new_size; ++i)
             static_cast<F&&>(f)(_data->data + i, i); // `f` should construct objects in place 
@@ -90,7 +90,7 @@ namespace chainbase {
             std::copy(ptr, ptr + size, data());
          else {
             dec_refcount();
-            _alloc(ptr, size, size, true);
+            _alloc<true>(ptr, size, size);
          }
       }
 
@@ -135,7 +135,7 @@ namespace chainbase {
          std::size_t copy_size = std::min<std::size_t>(new_size, size());
          if (new_size < size())
             std::destroy(_data->data + new_size, _data->data + _data->size);
-         _alloc(data(), new_size, copy_size, true);
+         _alloc<true>(data(), new_size, copy_size);
       }
 
       void dec_refcount() {
@@ -147,7 +147,8 @@ namespace chainbase {
          }
       }
 
-      void _alloc(allocator_type alloc, const T* ptr, std::size_t size, std::size_t copy_size, bool construct) {
+      template<bool construct>
+      void _alloc(allocator_type alloc, const T* ptr, std::size_t size, std::size_t copy_size) {
          impl* new_data = nullptr;
          if (size > 0) {
             new_data = (impl*)&*alloc.allocate(sizeof(impl) + (size * sizeof(T)));
@@ -155,7 +156,7 @@ namespace chainbase {
             new_data->size = size;
             if (ptr && copy_size)
                std::uninitialized_copy(ptr, ptr + copy_size, new_data->data);
-            if (construct) {
+            if constexpr (construct) {
                // construct objects that were not copied
                assert(ptr || copy_size == 0);
                for (std::size_t  i=copy_size; i<size; ++i)
@@ -164,9 +165,10 @@ namespace chainbase {
          }
          _data = new_data;
       }
-
-      void _alloc(const T* ptr, std::size_t size, std::size_t copy_size, bool construct) {
-         _alloc(get_allocator(this), ptr, size, copy_size, construct);
+      
+      template<bool construct>
+      void _alloc(const T* ptr, std::size_t size, std::size_t copy_size) {
+         _alloc<construct>(get_allocator(this), ptr, size, copy_size);
       }
       
       bip::offset_ptr<impl> _data { nullptr };
