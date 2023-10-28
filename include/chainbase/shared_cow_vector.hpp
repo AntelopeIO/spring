@@ -102,6 +102,10 @@ namespace chainbase {
          return _data ? _data->size : 0;
       }
 
+      bool empty() const {
+         return size() == 0;
+      }
+
       const_iterator begin() const { return data(); }
 
       const_iterator end() const {
