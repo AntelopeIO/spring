@@ -83,6 +83,7 @@ namespace chainbase {
 
       ~shared_cow_string() {
          dec_refcount();
+         _data = nullptr;
       }
 
       template<typename F>
@@ -167,8 +168,8 @@ namespace chainbase {
     private:
       void dec_refcount(allocator_type alloc) {
          if (_data && --_data->reference_count == 0) {
+            assert(_data->size);                                    // if size == 0, _data should be nullptr
             alloc.deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
-            _data = nullptr;
          }
       }
       

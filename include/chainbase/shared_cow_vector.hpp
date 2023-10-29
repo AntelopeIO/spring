@@ -72,6 +72,7 @@ namespace chainbase {
 
       ~shared_cow_vector() {
          dec_refcount();
+         _data = nullptr;
       }
 
       void clear() {
@@ -143,7 +144,6 @@ namespace chainbase {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
             std::destroy(_data->data, _data->data + _data->size);
             alloc.deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
-            _data = nullptr;
          }
       }
 
