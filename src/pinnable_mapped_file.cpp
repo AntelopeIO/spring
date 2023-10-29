@@ -222,6 +222,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       _segment_manager.reset(reinterpret_cast<segment_manager*>((char*)_non_file_mapped_mapping+header_size));
    }
    std::byte* start = (std::byte*)_segment_manager.get();
+   assert(_segment_manager_map.find(start) == _segment_manager_map.end());
    _segment_manager_map[start] = start + _database_size;
 }
 
