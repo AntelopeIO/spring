@@ -49,6 +49,13 @@ namespace chainbase {
          other._data = nullptr;
       }
 
+      template<class I>
+      explicit shared_cow_vector(std::initializer_list<I> init) {
+         clear_and_construct(init.size(), 0, [&](void* dest, std::size_t idx) {
+            new (dest) T(init[idx]);
+         });
+      }
+
       shared_cow_vector& operator=(const shared_cow_vector& other) {
          *this = shared_cow_vector{other};
          return *this;
@@ -131,23 +138,17 @@ namespace chainbase {
       }
 
     private:
-      void resize(std::size_t new_size) {
-         if (_data && _data->reference_count == 1 && _data->size == new_size)
-            return; // already the correct size and not shared => do nothing
-         dec_refcount();
-         std::size_t copy_size = std::min<std::size_t>(new_size, size());
-         if (new_size < size())
-            std::destroy(_data->data + new_size, _data->data + _data->size);
-         _alloc<true>(data(), new_size, copy_size);
-      }
-
-      void dec_refcount() {
+      void dec_refcount(allocator_type alloc) {
          if (_data && --_data->reference_count == 0) {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
             std::destroy(_data->data, _data->data + _data->size);
-            get_allocator(this).deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
+            alloc.deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
             _data = nullptr;
          }
+      }
+
+      void dec_refcount() {
+         dec_refcount(get_allocator(this));
       }
 
       template<bool construct>
@@ -166,7 +167,7 @@ namespace chainbase {
                   new (new_data->data + i) T();
             }
          }
-         dec_refcount(); // has to be after copy above
+         dec_refcount(alloc); // has to be after copy above
          _data = new_data;
       }
       
