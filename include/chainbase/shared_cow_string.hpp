@@ -88,7 +88,6 @@ namespace chainbase {
       template<typename F>
       void resize_and_fill(std::size_t new_size, F&& f) {
          if (!copy_in_place(nullptr, new_size)) {
-            dec_refcount();
             _alloc(nullptr, new_size);
          }
          static_cast<F&&>(f)(_data->data, new_size);
@@ -96,14 +95,12 @@ namespace chainbase {
 
       void assign(const char* ptr, std::size_t size) {
          if (!copy_in_place(ptr, size)) {
-            dec_refcount();
             _alloc(ptr, size);
          }
       }
 
       void assign(std::string_view sv) {
          if (!copy_in_place(sv.data(), sv.size())) {
-            dec_refcount();
             _alloc(sv.data(), sv.size());
          }
       }
@@ -168,11 +165,15 @@ namespace chainbase {
       }
 
     private:
-      void dec_refcount() {
+      void dec_refcount(allocator_type alloc) {
          if (_data && --_data->reference_count == 0) {
-            get_allocator(this).deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
+            alloc.deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
             _data = nullptr;
          }
+      }
+      
+      void dec_refcount() {
+         dec_refcount(get_allocator(this));
       }
 
       bool copy_in_place(const char* ptr, std::size_t size) {
@@ -195,6 +196,7 @@ namespace chainbase {
                std::memcpy(new_data->data, ptr, size);
             new_data->data[size] = '\0';
          }
+         dec_refcount(alloc);
          _data = new_data;
       }
 

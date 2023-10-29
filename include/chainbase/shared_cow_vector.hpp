@@ -158,8 +158,10 @@ namespace chainbase {
             new_data = (impl*)&*alloc.allocate(sizeof(impl) + (size * sizeof(T)));
             new_data->reference_count = 1;
             new_data->size = size;
-            if (ptr && copy_size)
+            if (ptr && copy_size) {
+               assert(copy_size <= size);
                std::uninitialized_copy(ptr, ptr + copy_size, new_data->data);
+            }
             if constexpr (construct) {
                // construct objects that were not copied
                assert(ptr || copy_size == 0);
