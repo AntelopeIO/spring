@@ -75,10 +75,10 @@ namespace chainbase {
       template<typename F>
       void clear_and_construct(std::size_t new_size, std::size_t copy_size, F&& f) {
          assert(copy_size <= new_size);
+         assert(copy_size == 0 || (_data && copy_size <= _data->size));
          if (_data && _data->reference_count == 1 && _data->size == new_size)
             std::destroy(_data->data + copy_size, _data->data + new_size);
          else {
-            dec_refcount();
             _alloc<false>(data(), new_size, copy_size); // construct == false => uninitialized memory
          }
          for (std::size_t i=copy_size; i<new_size; ++i)
@@ -89,7 +89,6 @@ namespace chainbase {
          if (_data && _data->reference_count == 1 && _data->size == size)
             std::copy(ptr, ptr + size, data());
          else {
-            dec_refcount();
             _alloc<true>(ptr, size, size);
          }
       }
@@ -163,10 +162,11 @@ namespace chainbase {
             if constexpr (construct) {
                // construct objects that were not copied
                assert(ptr || copy_size == 0);
-               for (std::size_t  i=copy_size; i<size; ++i)
+               for (std::size_t i=copy_size; i<size; ++i)
                   new (new_data->data + i) T();
             }
          }
+         dec_refcount(); // has to be after copy above
          _data = new_data;
       }
       
