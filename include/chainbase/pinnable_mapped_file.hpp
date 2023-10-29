@@ -4,7 +4,7 @@
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/asio/io_service.hpp>
-#include <boost/container/flat_set.hpp>
+#include <boost/container/flat_map.hpp>
 #include <filesystem>
 #include <vector>
 #include <memory>
@@ -69,7 +69,9 @@ class pinnable_mapped_file {
       template<typename T>
       static allocator<T> get_allocator(void *object) {
          auto it = _segment_manager_map.upper_bound(object);
-         return  allocator<T>(reinterpret_cast<segment_manager *>(*(--it)));
+         auto [seg_start, seg_end] = *(--it);
+         assert(object < seg_end);
+         return  allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
       }
 
    private:
@@ -103,7 +105,7 @@ class pinnable_mapped_file {
 
       static std::vector<pinnable_mapped_file*>     _instance_tracker;
 
-      using segment_manager_map_t = boost::container::flat_set<void*>;
+      using segment_manager_map_t = boost::container::flat_map<void*, void *>;
       static segment_manager_map_t                  _segment_manager_map;
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB

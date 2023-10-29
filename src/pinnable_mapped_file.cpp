@@ -221,7 +221,8 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 
       _segment_manager.reset(reinterpret_cast<segment_manager*>((char*)_non_file_mapped_mapping+header_size));
    }
-   _segment_manager_map.insert(_segment_manager.get());
+   std::byte* start = (std::byte*)_segment_manager.get();
+   _segment_manager_map[start] = start + _database_size;
 }
 
 void pinnable_mapped_file::setup_copy_on_write_mapping() {
