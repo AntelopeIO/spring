@@ -30,7 +30,7 @@ namespace chainbase {
       using iterator       = const char*;
       using const_iterator = const char*;
 
-      shared_cow_string() = default;
+      shared_cow_string() = delete;
 
       template<typename Alloc>
       explicit shared_cow_string(Alloc&& ) {}
@@ -155,18 +155,18 @@ namespace chainbase {
 
       bool operator!=(std::string_view sv) const { return !(*this == sv); }
 
-      static allocator_type get_allocator(void* obj) {
+      static std::optional<allocator_type> get_allocator(void* obj) {
          return pinnable_mapped_file::get_allocator<char>(obj);
       }
 
       // tdb: remove as not needed ... need to update libraries/chain/include/eosio/chain/database_utils.hpp
       // also should use `assign()` instead of `s = eosio::chain::shared_string(_s.begin(), _s.end(), ...`
-      allocator_type get_allocator() const {
+      std::optional<allocator_type> get_allocator() const {
          return get_allocator((void *)this);
       }
 
     private:
-      void dec_refcount(allocator_type alloc) {
+      void dec_refcount(allocator_type& alloc) {
          if (_data && --_data->reference_count == 0) {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
             alloc.deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
@@ -174,7 +174,9 @@ namespace chainbase {
       }
       
       void dec_refcount() {
-         dec_refcount(get_allocator(this));
+         auto alloc = get_allocator(this);
+         if (alloc)
+            dec_refcount(*alloc);
       }
 
       bool copy_in_place(const char* ptr, std::size_t size) {
@@ -187,22 +189,24 @@ namespace chainbase {
          return false;
       }
 
-      void _alloc(allocator_type alloc, const char* ptr, std::size_t size) {
+      void _alloc(const allocator_type& alloc, const char* ptr, std::size_t size) {
          impl* new_data = nullptr;
          if (size > 0) {
-            new_data = (impl*)&*alloc.allocate(sizeof(impl) + size + 1);
+            new_data = (impl*)&*const_cast<allocator_type&>(alloc).allocate(sizeof(impl) + size + 1);
             new_data->reference_count = 1;
             new_data->size = size;
             if (ptr)
                std::memcpy(new_data->data, ptr, size);
             new_data->data[size] = '\0';
          }
-         dec_refcount(alloc);
+         dec_refcount(const_cast<allocator_type&>(alloc));
          _data = new_data;
       }
 
       void _alloc(const char* ptr, std::size_t size) {
-         _alloc(get_allocator(this), ptr, size);
+         auto alloc = get_allocator(this);
+         assert(!!alloc);
+         _alloc(*alloc, ptr, size);
       }
 
       bip::offset_ptr<impl> _data { nullptr };

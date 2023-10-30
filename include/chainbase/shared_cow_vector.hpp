@@ -130,16 +130,16 @@ namespace chainbase {
 
       bool operator!=(const shared_cow_vector& rhs) const { return !(*this == rhs); }
 
-      static allocator_type get_allocator(void* obj) {
+      static std::optional<allocator_type> get_allocator(void* obj) {
          return pinnable_mapped_file::get_allocator<char>(obj);
       }      
 
-      const allocator_type get_allocator() const {
+      const std::optional<allocator_type> get_allocator() const {
          return get_allocator((void *)this);
       }
 
     private:
-      void dec_refcount(allocator_type alloc) {
+      void dec_refcount(allocator_type& alloc) {
          if (_data && --_data->reference_count == 0) {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
             std::destroy(_data->data, _data->data + _data->size);
@@ -148,14 +148,16 @@ namespace chainbase {
       }
 
       void dec_refcount() {
-         dec_refcount(get_allocator(this));
+         auto alloc = get_allocator(this);
+         if (alloc)
+            dec_refcount(*alloc);
       }
 
       template<bool construct>
-      void _alloc(allocator_type alloc, const T* ptr, std::size_t size, std::size_t copy_size) {
+      void _alloc(const allocator_type& alloc, const T* ptr, std::size_t size, std::size_t copy_size) {
          impl* new_data = nullptr;
          if (size > 0) {
-            new_data = (impl*)&*alloc.allocate(sizeof(impl) + (size * sizeof(T)));
+            new_data = (impl*)&*const_cast<allocator_type&>(alloc).allocate(sizeof(impl) + (size * sizeof(T)));
             new_data->reference_count = 1;
             new_data->size = size;
             if (ptr && copy_size) {
@@ -169,13 +171,15 @@ namespace chainbase {
                   new (new_data->data + i) T();
             }
          }
-         dec_refcount(alloc); // has to be after copy above
+         dec_refcount(const_cast<allocator_type&>(alloc)); // has to be after copy above
          _data = new_data;
       }
       
       template<bool construct>
       void _alloc(const T* ptr, std::size_t size, std::size_t copy_size) {
-         _alloc<construct>(get_allocator(this), ptr, size, copy_size);
+         auto alloc = get_allocator(this);
+         assert(!!alloc);
+         _alloc<construct>(*alloc, ptr, size, copy_size);
       }
       
       bip::offset_ptr<impl> _data { nullptr };

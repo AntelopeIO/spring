@@ -7,6 +7,7 @@
 #include <boost/container/flat_map.hpp>
 #include <filesystem>
 #include <vector>
+#include <optional>
 #include <memory>
 
 namespace chainbase {
@@ -67,11 +68,12 @@ class pinnable_mapped_file {
       size_t           check_memory_and_flush_if_needed();
 
       template<typename T>
-      static allocator<T> get_allocator(void *object) {
+      static std::optional<allocator<T>> get_allocator(void *object) {
          auto it = _segment_manager_map.upper_bound(object);
          auto [seg_start, seg_end] = *(--it);
-         assert(object < seg_end);
-         return  allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
+         if (object < seg_end)
+            return allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
+         return {};
       }
 
    private:
