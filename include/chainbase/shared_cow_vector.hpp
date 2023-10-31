@@ -26,17 +26,19 @@ namespace chainbase {
       using iterator       = const T*;
       using const_iterator = const T*;
 
+      explicit shared_cow_vector() = default;
+
       template<typename Alloc>
       explicit shared_cow_vector(Alloc&& ) {}
 
       template<typename Iter>
-      explicit shared_cow_vector(Iter begin, Iter end, const allocator_type& alloc) {
+      explicit shared_cow_vector(Iter begin, Iter end) {
          std::size_t size = std::distance(begin, end);
-         _alloc<true>(alloc, &*begin, size, size);
+         _alloc<true>(&*begin, size, size);
       }
 
-      explicit shared_cow_vector(const T* ptr, std::size_t size, const allocator_type& alloc) {
-         _alloc<true>(alloc, ptr, size, size);
+      explicit shared_cow_vector(const T* ptr, std::size_t size) {
+         _alloc<true>(ptr, size, size);
       }
 
       shared_cow_vector(const shared_cow_vector& other) : _data(other._data) {

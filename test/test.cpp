@@ -16,8 +16,8 @@ using namespace boost::multi_index;
 
 struct book : public chainbase::object<0, book> {
 
-   template<typename Constructor, typename Allocator>
-    book(  Constructor&& c, Allocator&& a ) {
+   template<typename Constructor>
+   book(  Constructor&& c, chainbase::constructor_tag ) {
        c(*this);
     }
 
@@ -129,8 +129,8 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
 
 struct titled_book : public chainbase::object<0, titled_book> {
 
-   template<typename Constructor, typename Allocator>
-   titled_book(  Constructor&& c, Allocator&& a) : title(a), authors(a) {
+   template<typename Constructor>
+   titled_book( Constructor&& c, chainbase::constructor_tag ) : title(), authors() {
       c(*this);
    }
 
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
    const auto& new_titled_book = db.create<titled_book>( []( titled_book& b) {
       b.title.assign("Moby Dick");
       b.authors.clear_and_construct(1, 0, [&](void* dest, std::size_t) {
-         new (dest) shared_string("Herman Melville", *shared_string::get_allocator(&b));
+         new (dest) shared_string("Herman Melville");
       });
    } );
    const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
@@ -184,7 +184,7 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
       b.title.assign("All the President's Men");
       
       b.authors.clear_and_construct(2, 0, [&](void* dest, std::size_t idx) {
-         new (dest) shared_string(authors[idx], *shared_string::get_allocator(&b)); 
+         new (dest) shared_string(authors[idx]); 
       });
    });
    BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );

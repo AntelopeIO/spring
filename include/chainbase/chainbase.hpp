@@ -98,8 +98,8 @@ namespace chainbase {
    namespace chainbase { template<> struct get_index_type<OBJECT_TYPE> { typedef INDEX_TYPE type; }; }
 
    #define CHAINBASE_DEFAULT_CONSTRUCTOR( OBJECT_TYPE ) \
-   template<typename Constructor, typename Allocator> \
-   OBJECT_TYPE( Constructor&& c, Allocator&&  ) { c(*this); }
+   template<typename Constructor> \
+   OBJECT_TYPE( Constructor&& c, constructor_tag ) { c(*this); }
 
    /**
     * The code we want to implement is this:

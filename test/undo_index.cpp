@@ -85,8 +85,8 @@ struct scope_fail {
 };
 
 struct basic_element_t {
-   template<typename C, typename A>
-   basic_element_t(C&& c, A&&) { c(*this); }
+   template<typename C>
+   basic_element_t(C&& c, chainbase::constructor_tag) { c(*this); }
    
    uint64_t id;
    throwing_copy dummy;
@@ -138,8 +138,8 @@ EXCEPTION_TEST_CASE(test_simple) {
 }
 
 struct test_element_t {
-   template<typename C, typename A>
-   test_element_t(C&& c, A&&) { c(*this);  }
+   template<typename C>
+   test_element_t(C&& c, chainbase::constructor_tag) { c(*this);  }
    
    uint64_t id;
    int secondary;
@@ -691,8 +691,8 @@ EXCEPTION_TEST_CASE(test_insert_non_unique) {
 }
 
 struct conflict_element_t {
-   template<typename C, typename A>
-   conflict_element_t(C&& c, A&&) { c(*this); }
+   template<typename C>
+   conflict_element_t(C&& c, chainbase::constructor_tag) { c(*this); }
    uint64_t id;
    int x0;
    int x1;

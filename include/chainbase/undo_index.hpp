@@ -19,6 +19,7 @@
 #include <sstream>
 
 namespace chainbase {
+   struct constructor_tag {};
 
    template<typename F>
    struct scope_exit {
@@ -369,7 +370,7 @@ namespace chainbase {
             v.id = new_id;
             c( v );
          };
-         alloc_traits::construct(_allocator, &*p, constructor, propagate_allocator(_allocator));
+         alloc_traits::construct(_allocator, &*p, constructor, constructor_tag());
          auto guard1 = scope_exit{[&]{ alloc_traits::destroy(_allocator, &*p); }};
          if(!insert_impl<1>(p->_item))
             BOOST_THROW_EXCEPTION( std::logic_error{ "could not insert object, most likely a uniqueness constraint was violated" } );

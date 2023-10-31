@@ -30,31 +30,31 @@ namespace chainbase {
       using iterator       = const char*;
       using const_iterator = const char*;
 
-      shared_cow_string() = delete;
+      shared_cow_string() = default;
 
       template<typename Alloc>
       explicit shared_cow_string(Alloc&& ) {}
 
       template<typename Iter>
-      explicit shared_cow_string(Iter begin, Iter end, const allocator_type& alloc) {
+      explicit shared_cow_string(Iter begin, Iter end) {
          std::size_t size = std::distance(begin, end);
-         _alloc(alloc, &*begin, size);
+         _alloc(&*begin, size);
       }
 
-      explicit shared_cow_string(const char* ptr, std::size_t size, const allocator_type& alloc) {
-         _alloc(alloc, ptr, size);
+      explicit shared_cow_string(const char* ptr, std::size_t size) {
+         _alloc(ptr, size);
       }
 
-      explicit shared_cow_string(const char* ptr, const allocator_type& alloc) {
-         _alloc(alloc, ptr, strlen(ptr));
+      explicit shared_cow_string(const char* ptr) {
+         _alloc(ptr, strlen(ptr));
       }
 
-      explicit shared_cow_string(std::string_view sv, const allocator_type& alloc) {
-         _alloc(alloc, sv.data(), sv.size());
+      explicit shared_cow_string(std::string_view sv) {
+         _alloc(sv.data(), sv.size());
       }
 
-      explicit shared_cow_string(std::size_t size, boost::container::default_init_t, const allocator_type& alloc) {
-         _alloc(alloc, nullptr, size);
+      explicit shared_cow_string(std::size_t size, boost::container::default_init_t) {
+         _alloc(nullptr, size);
       }
 
       shared_cow_string(const shared_cow_string& other) : _data(other._data) {
