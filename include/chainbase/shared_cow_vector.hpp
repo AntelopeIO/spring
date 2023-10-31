@@ -28,27 +28,33 @@ namespace chainbase {
 
       explicit shared_cow_vector() = default;
 
-      template<typename Alloc>
-      explicit shared_cow_vector(Alloc&& ) {}
-
       template<typename Iter>
       explicit shared_cow_vector(Iter begin, Iter end) {
          std::size_t size = std::distance(begin, end);
-         _alloc<true>(&*begin, size, size);
+         _alloc<false>(&*begin, size, size);
       }
 
       explicit shared_cow_vector(const T* ptr, std::size_t size) {
-         _alloc<true>(ptr, size, size);
+         _alloc<false>(ptr, size, size);
       }
 
-      shared_cow_vector(const shared_cow_vector& other) : _data(other._data) {
-         if (_data != nullptr) {
-            ++_data->reference_count;
+      shared_cow_vector(const shared_cow_vector& other) {
+         if (get_allocator(this) == other.get_allocator()) {
+            _data = other._data;
+            if (_data != nullptr)
+               ++_data->reference_count;
+         } else {
+            std::construct_at(this, other.data(),  other.size());
          }
       }
 
-      shared_cow_vector(shared_cow_vector&& other) noexcept : _data(other._data) {
-         other._data = nullptr;
+      shared_cow_vector(shared_cow_vector&& other) noexcept {
+         if (get_allocator() == other.get_allocator()) {
+            _data = other._data;
+            other._data = nullptr;
+         } else {
+            std::construct_at(this, other.data(),  other.size());
+         }
       }
 
       template<class I>
@@ -58,16 +64,37 @@ namespace chainbase {
          });
       }
 
+      explicit shared_cow_vector(const std::vector<T>& v) {
+         clear_and_construct(v.size(), 0, [&](void* dest, std::size_t idx) {
+            new (dest) T(v[idx]);
+         });
+      }
+
       shared_cow_vector& operator=(const shared_cow_vector& other) {
-         *this = shared_cow_vector{other};
+         if (this != &other) {
+            if (get_allocator() == other.get_allocator()) {
+               dec_refcount();
+               _data = other._data;
+               if (_data != nullptr) 
+                  ++_data->reference_count;
+            } else {
+               assign(other.data(), other.size());
+            }
+         }
          return *this;
       }
 
       shared_cow_vector& operator=(shared_cow_vector&& other) noexcept {
          if (this != &other) {
-            dec_refcount();
-            _data = other._data;
-            other._data = nullptr;
+            if (get_allocator() == other.get_allocator()) {
+               dec_refcount();
+               _data = other._data;
+               other._data = nullptr;
+            } else {
+               clear_and_construct(other.size(), 0, [&](void* dest, std::size_t idx) {
+                  new (dest) T(std::move(other[idx]));
+               });
+            }
          }
          return *this;
       }
@@ -86,6 +113,7 @@ namespace chainbase {
       void clear_and_construct(std::size_t new_size, std::size_t copy_size, F&& f) {
          assert(copy_size <= new_size);
          assert(copy_size == 0 || (_data && copy_size <= _data->size));
+         
          if (_data && _data->reference_count == 1 && _data->size == new_size)
             std::destroy(_data->data + copy_size, _data->data + new_size);
          else {
@@ -99,11 +127,25 @@ namespace chainbase {
          if (_data && _data->reference_count == 1 && _data->size == size)
             std::copy(ptr, ptr + size, data());
          else {
-            _alloc<true>(ptr, size, size);
+            _alloc<false>(ptr, size, size);
          }
       }
 
+      void assign(const std::vector<T>& v) {
+         assign(v.data(), v.size());
+      }
+
+      void push_back(const T& o) {
+         clear_and_construct(size() + 1, size(), [&](void* dest, std::size_t idx) {
+            new (dest) T(o);
+         });
+      }
+
       const T* data() const {
+         return _data ? _data->data : nullptr;
+      }
+
+      T* data() {
          return _data ? _data->data : nullptr;
       }
 
@@ -141,11 +183,12 @@ namespace chainbase {
       }
 
     private:
-      void dec_refcount(allocator_type& alloc) {
+      template<class Alloc>
+      void dec_refcount(Alloc&& alloc) {
          if (_data && --_data->reference_count == 0) {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
             std::destroy(_data->data, _data->data + _data->size);
-            alloc.deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
+            std::forward<Alloc>(alloc).deallocate((char*)&*_data, sizeof(impl) + (_data->size * sizeof(T)));
          }
       }
 
@@ -153,13 +196,15 @@ namespace chainbase {
          auto alloc = get_allocator(this);
          if (alloc)
             dec_refcount(*alloc);
+         else
+            dec_refcount(std::allocator<char>());
       }
 
-      template<bool construct>
-      void _alloc(const allocator_type& alloc, const T* ptr, std::size_t size, std::size_t copy_size) {
+      template<bool construct, class Alloc>
+      void _alloc(Alloc&& alloc, const T* ptr, std::size_t size, std::size_t copy_size) {
          impl* new_data = nullptr;
          if (size > 0) {
-            new_data = (impl*)&*const_cast<allocator_type&>(alloc).allocate(sizeof(impl) + (size * sizeof(T)));
+            new_data = (impl*)&*std::forward<Alloc>(alloc).allocate(sizeof(impl) + (size * sizeof(T)));
             new_data->reference_count = 1;
             new_data->size = size;
             if (ptr && copy_size) {
@@ -173,15 +218,17 @@ namespace chainbase {
                   new (new_data->data + i) T();
             }
          }
-         dec_refcount(const_cast<allocator_type&>(alloc)); // has to be after copy above
+         dec_refcount(std::forward<Alloc>(alloc)); // has to be after copy above
          _data = new_data;
       }
       
       template<bool construct>
       void _alloc(const T* ptr, std::size_t size, std::size_t copy_size) {
          auto alloc = get_allocator(this);
-         assert(!!alloc);
-         _alloc<construct>(*alloc, ptr, size, copy_size);
+         if (alloc)
+            _alloc<construct>(*alloc, ptr, size, copy_size);
+         else
+            _alloc<construct>(std::allocator<char>(), ptr, size, copy_size);
       }
       
       bip::offset_ptr<impl> _data { nullptr };

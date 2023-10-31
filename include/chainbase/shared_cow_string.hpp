@@ -32,9 +32,6 @@ namespace chainbase {
 
       shared_cow_string() = default;
 
-      template<typename Alloc>
-      explicit shared_cow_string(Alloc&& ) {}
-
       template<typename Iter>
       explicit shared_cow_string(Iter begin, Iter end) {
          std::size_t size = std::distance(begin, end);
@@ -57,26 +54,48 @@ namespace chainbase {
          _alloc(nullptr, size);
       }
 
-      shared_cow_string(const shared_cow_string& other) : _data(other._data) {
-         if (_data != nullptr) {
-            ++_data->reference_count;
+      shared_cow_string(const shared_cow_string& other) {
+         if (get_allocator(this) == other.get_allocator()) {
+            _data = other._data;
+            if (_data != nullptr)
+               ++_data->reference_count;
+         } else {
+            std::construct_at(this, other.data());
          }
       }
 
-      shared_cow_string(shared_cow_string&& other) noexcept : _data(other._data) {
-         other._data = nullptr;
+      shared_cow_string(shared_cow_string&& other) noexcept {
+         if (get_allocator() == other.get_allocator()) {
+            _data = other._data;
+            other._data = nullptr;
+         } else {
+            std::construct_at(this, other.data());
+         }
       }
 
       shared_cow_string& operator=(const shared_cow_string& other) {
-         *this = shared_cow_string{other};
+         if (this != &other) {
+            if (get_allocator() == other.get_allocator()) {
+               dec_refcount();
+               _data = other._data;
+               if (_data != nullptr) 
+                  ++_data->reference_count;
+            } else {
+               assign(other.data(), other.size());
+            }
+         }
          return *this;
       }
 
       shared_cow_string& operator=(shared_cow_string&& other)  noexcept {
          if (this != &other) {
-            dec_refcount();
-            _data = other._data;
-            other._data = nullptr;
+            if (get_allocator() == other.get_allocator()) {
+               dec_refcount();
+               _data = other._data;
+               other._data = nullptr;
+            } else {
+               assign(other.data(), other.size());
+            }
          }
          return *this;
       }
@@ -110,7 +129,7 @@ namespace chainbase {
          assign((const char*)ptr, size);
       }
 
-      const char * data() const {
+      const char* data() const {
          return _data ? _data->data : nullptr;
       }
 
@@ -166,10 +185,11 @@ namespace chainbase {
       }
 
     private:
-      void dec_refcount(allocator_type& alloc) {
+      template<class Alloc>
+      void dec_refcount(Alloc&& alloc) {
          if (_data && --_data->reference_count == 0) {
             assert(_data->size);                                    // if size == 0, _data should be nullptr
-            alloc.deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
+            std::forward<Alloc>(alloc).deallocate((char*)&*_data, sizeof(impl) + _data->size + 1);
          }
       }
       
@@ -177,6 +197,8 @@ namespace chainbase {
          auto alloc = get_allocator(this);
          if (alloc)
             dec_refcount(*alloc);
+         else
+            dec_refcount(std::allocator<char>());
       }
 
       bool copy_in_place(const char* ptr, std::size_t size) {
@@ -189,24 +211,27 @@ namespace chainbase {
          return false;
       }
 
-      void _alloc(const allocator_type& alloc, const char* ptr, std::size_t size) {
+      template<class Alloc>
+      void _alloc(Alloc&& alloc, const char* ptr, std::size_t size) {
          impl* new_data = nullptr;
          if (size > 0) {
-            new_data = (impl*)&*const_cast<allocator_type&>(alloc).allocate(sizeof(impl) + size + 1);
+            new_data = (impl*)&*std::forward<Alloc>(alloc).allocate(sizeof(impl) + size + 1);
             new_data->reference_count = 1;
             new_data->size = size;
             if (ptr)
                std::memcpy(new_data->data, ptr, size);
             new_data->data[size] = '\0';
          }
-         dec_refcount(const_cast<allocator_type&>(alloc));
+         dec_refcount(std::forward<Alloc>(alloc));
          _data = new_data;
       }
 
       void _alloc(const char* ptr, std::size_t size) {
          auto alloc = get_allocator(this);
-         assert(!!alloc);
-         _alloc(*alloc, ptr, size);
+         if (alloc)
+            _alloc(*alloc, ptr, size);
+         else
+            _alloc(std::allocator<char>(), ptr, size);
       }
 
       bip::offset_ptr<impl> _data { nullptr };
