@@ -54,47 +54,47 @@ namespace chainbase {
          _alloc(nullptr, size);
       }
 
-      shared_cow_string(const shared_cow_string& other) {
-         if (get_allocator(this) == other.get_allocator()) {
-            _data = other._data;
+      shared_cow_string(const shared_cow_string& o) {
+         if (get_allocator(this) == o.get_allocator()) {
+            _data = o._data;
             if (_data != nullptr)
                ++_data->reference_count;
          } else {
-            std::construct_at(this, other.data());
+            std::construct_at(this, o.data());
          }
       }
 
-      shared_cow_string(shared_cow_string&& other) noexcept {
-         if (get_allocator() == other.get_allocator()) {
-            _data = other._data;
-            other._data = nullptr;
+      shared_cow_string(shared_cow_string&& o) noexcept {
+         if (get_allocator() == o.get_allocator()) {
+            _data = o._data;
+            o._data = nullptr;
          } else {
-            std::construct_at(this, other.data());
+            std::construct_at(this, o.data());
          }
       }
 
-      shared_cow_string& operator=(const shared_cow_string& other) {
-         if (this != &other) {
-            if (get_allocator() == other.get_allocator()) {
+      shared_cow_string& operator=(const shared_cow_string& o) {
+         if (this != &o) {
+            if (get_allocator() == o.get_allocator()) {
                dec_refcount();
-               _data = other._data;
+               _data = o._data;
                if (_data != nullptr) 
                   ++_data->reference_count;
             } else {
-               assign(other.data(), other.size());
+               assign(o.data(), o.size());
             }
          }
          return *this;
       }
 
-      shared_cow_string& operator=(shared_cow_string&& other)  noexcept {
-         if (this != &other) {
-            if (get_allocator() == other.get_allocator()) {
+      shared_cow_string& operator=(shared_cow_string&& o)  noexcept {
+         if (this != &o) {
+            if (get_allocator() == o.get_allocator()) {
                dec_refcount();
-               _data = other._data;
-               other._data = nullptr;
+               _data = o._data;
+               o._data = nullptr;
             } else {
-               assign(other.data(), other.size());
+               assign(o.data(), o.size());
             }
          }
          return *this;

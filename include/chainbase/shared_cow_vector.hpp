@@ -38,22 +38,22 @@ namespace chainbase {
          _alloc<false>(ptr, size, size);
       }
 
-      shared_cow_vector(const shared_cow_vector& other) {
-         if (get_allocator(this) == other.get_allocator()) {
-            _data = other._data;
+      shared_cow_vector(const shared_cow_vector& o) {
+         if (get_allocator(this) == o.get_allocator()) {
+            _data = o._data;
             if (_data != nullptr)
                ++_data->reference_count;
          } else {
-            std::construct_at(this, other.data(),  other.size());
+            std::construct_at(this, o.data(),  o.size());
          }
       }
 
-      shared_cow_vector(shared_cow_vector&& other) noexcept {
-         if (get_allocator() == other.get_allocator()) {
-            _data = other._data;
-            other._data = nullptr;
+      shared_cow_vector(shared_cow_vector&& o) noexcept {
+         if (get_allocator() == o.get_allocator()) {
+            _data = o._data;
+            o._data = nullptr;
          } else {
-            std::construct_at(this, other.data(),  other.size());
+            std::construct_at(this, o.data(),  o.size());
          }
       }
 
@@ -70,29 +70,29 @@ namespace chainbase {
          });
       }
 
-      shared_cow_vector& operator=(const shared_cow_vector& other) {
-         if (this != &other) {
-            if (get_allocator() == other.get_allocator()) {
+      shared_cow_vector& operator=(const shared_cow_vector& o) {
+         if (this != &o) {
+            if (get_allocator() == o.get_allocator()) {
                dec_refcount();
-               _data = other._data;
+               _data = o._data;
                if (_data != nullptr) 
                   ++_data->reference_count;
             } else {
-               assign(other.data(), other.size());
+               assign(o.data(), o.size());
             }
          }
          return *this;
       }
 
-      shared_cow_vector& operator=(shared_cow_vector&& other) noexcept {
-         if (this != &other) {
-            if (get_allocator() == other.get_allocator()) {
+      shared_cow_vector& operator=(shared_cow_vector&& o) noexcept {
+         if (this != &o) {
+            if (get_allocator() == o.get_allocator()) {
                dec_refcount();
-               _data = other._data;
-               other._data = nullptr;
+               _data = o._data;
+               o._data = nullptr;
             } else {
-               clear_and_construct(other.size(), 0, [&](void* dest, std::size_t idx) {
-                  new (dest) T(std::move(other[idx]));
+               clear_and_construct(o.size(), 0, [&](void* dest, std::size_t idx) {
+                  new (dest) T(std::move(o[idx]));
                });
             }
          }
