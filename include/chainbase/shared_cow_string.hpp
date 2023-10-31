@@ -43,7 +43,8 @@ namespace chainbase {
       }
 
       explicit shared_cow_string(const char* ptr) {
-         _alloc(ptr, strlen(ptr));
+         if (ptr)
+            _alloc(ptr, strlen(ptr));
       }
 
       explicit shared_cow_string(std::string_view sv) {
@@ -60,7 +61,8 @@ namespace chainbase {
             if (_data != nullptr)
                ++_data->reference_count;
          } else {
-            std::construct_at(this, o.data());
+            if (o._data)
+               std::construct_at(this, o.data(), o.size());
          }
       }
 
@@ -69,7 +71,8 @@ namespace chainbase {
             _data = o._data;
             o._data = nullptr;
          } else {
-            std::construct_at(this, o.data());
+            if (o._data)
+               std::construct_at(this, o.data(), o.size());
          }
       }
 

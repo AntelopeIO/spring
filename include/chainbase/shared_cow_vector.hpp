@@ -44,7 +44,8 @@ namespace chainbase {
             if (_data != nullptr)
                ++_data->reference_count;
          } else {
-            std::construct_at(this, o.data(),  o.size());
+            if (o._data)
+               std::construct_at(this, o.data(),  o.size());
          }
       }
 
@@ -53,7 +54,8 @@ namespace chainbase {
             _data = o._data;
             o._data = nullptr;
          } else {
-            std::construct_at(this, o.data(),  o.size());
+            if (o._data)
+               std::construct_at(this, o.data(),  o.size());
          }
       }
 
