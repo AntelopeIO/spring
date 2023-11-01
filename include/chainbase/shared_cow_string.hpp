@@ -76,6 +76,11 @@ namespace chainbase {
          }
       }
 
+      ~shared_cow_string() {
+         dec_refcount();
+         _data = nullptr;
+      }
+
       shared_cow_string& operator=(const shared_cow_string& o) {
          if (this != &o) {
             if (get_allocator() == o.get_allocator()) {
@@ -103,9 +108,11 @@ namespace chainbase {
          return *this;
       }
 
-      ~shared_cow_string() {
-         dec_refcount();
-         _data = nullptr;
+      shared_cow_string&  operator=(std::string_view sv) {
+         if (!copy_in_place(sv.data(), sv.size())) {
+            _alloc(sv.data(), sv.size());
+         }
+         return *this;
       }
 
       template<typename F>
@@ -119,12 +126,6 @@ namespace chainbase {
       void assign(const char* ptr, std::size_t size) {
          if (!copy_in_place(ptr, size)) {
             _alloc(ptr, size);
-         }
-      }
-
-      void assign(std::string_view sv) {
-         if (!copy_in_place(sv.data(), sv.size())) {
-            _alloc(sv.data(), sv.size());
          }
       }
 

@@ -167,10 +167,8 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
 
    BOOST_TEST_MESSAGE( "Creating titled_book" );
    const auto& new_titled_book = db.create<titled_book>( []( titled_book& b) {
-      b.title.assign("Moby Dick");
-      b.authors.clear_and_construct(1, 0, [&](shared_string* dest, std::size_t) {
-         std::construct_at(dest, "Herman Melville");
-      });
+      b.title = "Moby Dick";
+      b.authors = { "Herman Melville" };
    } );
    const auto& copy_new_titled_book = db2.get( titled_book::id_type(0) );
    BOOST_REQUIRE( &new_titled_book != &copy_new_titled_book ); ///< these are mapped to different address ranges
@@ -179,17 +177,14 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
    BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );
 
    
-   const char* authors[] = { "Carl Bernstein", "Bob Woodward" };
+   std::vector apm_authors { "Carl Bernstein", "Bob Woodward" };
    db.modify( new_titled_book, [&]( titled_book& b ) {
-      b.title.assign("All the President's Men");
-      
-      b.authors.clear_and_construct(2, 0, [&](shared_string* dest, std::size_t idx) {
-         std::construct_at(dest, authors[idx]); 
-      });
+      b.title = "All the President's Men";
+      b.authors = apm_authors;
    });
    BOOST_REQUIRE( new_titled_book.title == "All the President's Men" );
-   BOOST_REQUIRE( new_titled_book.authors[0] == authors[0] );
-   BOOST_REQUIRE( new_titled_book.authors[1] == authors[1] );
+   BOOST_REQUIRE( new_titled_book.authors[0] == apm_authors[0] );
+   BOOST_REQUIRE( new_titled_book.authors[1] == apm_authors[1] );
 
    BOOST_REQUIRE( new_titled_book.title == copy_new_titled_book.title );
    BOOST_REQUIRE( new_titled_book.authors == copy_new_titled_book.authors );

@@ -91,7 +91,7 @@ int main()
          } else {
             auto &e = i0.emplace([](elem_t& e) {
                e.val = 0;
-               e.str.assign("a string");
+               e.str = "a string";
             });
             if (e.id % 5 == 0)
                i0.remove(e);

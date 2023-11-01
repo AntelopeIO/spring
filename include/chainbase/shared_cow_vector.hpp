@@ -46,7 +46,7 @@ namespace chainbase {
                ++_data->reference_count;
          } else {
             if (o._data)
-               std::construct_at(this, o.data(),  o.size());
+               std::construct_at(this, o.data(),  o.size()); // call other constructor
          }
       }
 
@@ -60,16 +60,24 @@ namespace chainbase {
          }
       }
 
-      template<class I>
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       explicit shared_cow_vector(std::initializer_list<I> init) {
          clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, init[idx]);
+            std::construct_at(dest, std::data(init)[idx]);
          });
       }
 
-      explicit shared_cow_vector(const std::vector<T>& v) :
-         shared_cow_vector(v.data(), v.size())
-      {}
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
+      explicit shared_cow_vector(const std::vector<I>& v) {
+         clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, v[idx]);
+         });
+      }
+
+      ~shared_cow_vector() {
+         dec_refcount();
+         _data = nullptr;
+      }
 
       shared_cow_vector& operator=(const shared_cow_vector& o) {
          if (this != &o) {
@@ -100,16 +108,20 @@ namespace chainbase {
          return *this;
       }
 
-      shared_cow_vector& operator=(const std::vector<T>& v) {
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
+      shared_cow_vector& operator=(const std::vector<I>& v) {
          clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
             std::construct_at(dest, v[idx]);
          });
          return *this;
       }
 
-      ~shared_cow_vector() {
-         dec_refcount();
-         _data = nullptr;
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
+      shared_cow_vector& operator=(std::initializer_list<I> init) {
+         clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, std::data(init)[idx]);
+         });
+         return *this;
       }
 
       void clear() {
