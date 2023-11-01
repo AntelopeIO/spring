@@ -46,7 +46,7 @@ namespace chainbase {
                ++_data->reference_count;
          } else {
             if (o._data)
-               std::construct_at(this, o.data(),  o.size());
+               std::construct_at(this, o.data(),  o.size()); // call other constructor
          }
       }
 
