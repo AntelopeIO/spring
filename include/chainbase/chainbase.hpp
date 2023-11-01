@@ -48,8 +48,8 @@ namespace chainbase {
    using node_allocator = chainbase_node_allocator<T, segment_manager>;
 
    using shared_string = shared_cow_string;
+   
    template<typename T>
-   //using shared_vector = bip::vector<T, allocator<T>>;
    using shared_vector = shared_cow_vector<T>;
    
    typedef boost::interprocess::interprocess_sharable_mutex read_write_mutex;

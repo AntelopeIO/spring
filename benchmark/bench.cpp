@@ -38,7 +38,8 @@ struct elem_t {
    }
    
    friend std::ostream& operator<<(std::ostream& os, const elem_t& e) {
-      os  << '[' << e.id << ", " << e.val << ']'; return os;
+      os  << '[' << e.id << ", " << e.val << ']';
+      return os;
    }
       
    uint64_t id;
