@@ -74,6 +74,13 @@ namespace chainbase {
          });
       }
 
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
+      explicit shared_cow_vector(std::vector<I>&& v) {
+         clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, std::move(v[idx]));
+         });
+      }
+
       ~shared_cow_vector() {
          dec_refcount();
          _data = nullptr;
