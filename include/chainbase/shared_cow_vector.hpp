@@ -5,8 +5,9 @@
 #include <cstddef>
 #include <cstring>
 #include <algorithm>
-#include <string>
+#include <memory>
 #include <optional>
+#include <string>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -61,16 +62,14 @@ namespace chainbase {
 
       template<class I>
       explicit shared_cow_vector(std::initializer_list<I> init) {
-         clear_and_construct(init.size(), 0, [&](void* dest, std::size_t idx) {
-            new (dest) T(init[idx]);
+         clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, init[idx]);
          });
       }
 
-      explicit shared_cow_vector(const std::vector<T>& v) {
-         clear_and_construct(v.size(), 0, [&](void* dest, std::size_t idx) {
-            new (dest) T(v[idx]);
-         });
-      }
+      explicit shared_cow_vector(const std::vector<T>& v) :
+         shared_cow_vector(v.data(), v.size())
+      {}
 
       shared_cow_vector& operator=(const shared_cow_vector& o) {
          if (this != &o) {
@@ -93,11 +92,18 @@ namespace chainbase {
                _data = o._data;
                o._data = nullptr;
             } else {
-               clear_and_construct(o.size(), 0, [&](void* dest, std::size_t idx) {
-                  new (dest) T(std::move(o[idx]));
+               clear_and_construct(o.size(), 0, [&](T* dest, std::size_t idx) {
+                  std::construct_at(dest, std::move(o[idx]));
                });
             }
          }
+         return *this;
+      }
+
+      shared_cow_vector& operator=(const std::vector<T>& v) {
+         clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, v[idx]);
+         });
          return *this;
       }
 
@@ -137,9 +143,10 @@ namespace chainbase {
          assign(v.data(), v.size());
       }
 
-      void push_back(const T& o) {
-         clear_and_construct(size() + 1, size(), [&](void* dest, std::size_t idx) {
-            new (dest) T(o);
+      template<class... Args>
+      void emplace_back(Args&&... args) {
+         clear_and_construct(size() + 1, size(), [&](T* dest, std::size_t idx) {
+            std::construct_at(dest, std::forward<Args>(args)...);
          });
       }
 
@@ -169,6 +176,7 @@ namespace chainbase {
       const_iterator cend()   const { return end(); }
 
       const T& operator[](std::size_t idx) const { assert(_data); return _data->data[idx]; }
+      T&       operator[](std::size_t idx)       { assert(_data); return _data->data[idx]; }
 
       bool operator==(const shared_cow_vector& rhs) const {
         return size() == rhs.size() && std::memcmp(data(), rhs.data(), size() * sizeof(T)) == 0;
@@ -217,7 +225,7 @@ namespace chainbase {
                // construct objects that were not copied
                assert(ptr || copy_size == 0);
                for (std::size_t i=copy_size; i<size; ++i)
-                  new (new_data->data + i) T();
+                  std::construct_at(new_data->data + i);
             }
          }
          dec_refcount(std::forward<Alloc>(alloc)); // has to be after copy above
