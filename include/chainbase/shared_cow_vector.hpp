@@ -46,7 +46,7 @@ namespace chainbase {
                ++_data->reference_count;
          } else {
             if (o._data)
-               std::construct_at(this, o.data(),  o.size()); // call other constructor
+               new (this) shared_cow_vector(o.data(),  o.size()); // call other constructor
          }
       }
 
@@ -56,28 +56,28 @@ namespace chainbase {
             o._data = nullptr;
          } else {
             if (o._data)
-               std::construct_at(this, o.data(),  o.size());
+               new (this) shared_cow_vector(o.data(),  o.size());
          }
       }
 
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       explicit shared_cow_vector(std::initializer_list<I> init) {
          clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, std::data(init)[idx]);
+            new (dest) T(std::data(init)[idx]);
          });
       }
 
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       explicit shared_cow_vector(const std::vector<I>& v) {
          clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, v[idx]);
+            new (dest) T(v[idx]);
          });
       }
 
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       explicit shared_cow_vector(std::vector<I>&& v) {
          clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, std::move(v[idx]));
+            new (dest) T(std::move(v[idx]));
          });
       }
 
@@ -108,7 +108,7 @@ namespace chainbase {
                o._data = nullptr;
             } else {
                clear_and_construct(o.size(), 0, [&](T* dest, std::size_t idx) {
-                  std::construct_at(dest, std::move(o[idx]));
+                  new (dest) T(std::move(o[idx]));
                });
             }
          }
@@ -118,7 +118,7 @@ namespace chainbase {
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       shared_cow_vector& operator=(const std::vector<I>& v) {
          clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, v[idx]);
+            new (dest) T(v[idx]);
          });
          return *this;
       }
@@ -126,7 +126,7 @@ namespace chainbase {
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       shared_cow_vector& operator=(std::initializer_list<I> init) {
          clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, std::data(init)[idx]);
+            new (dest) T(std::data(init)[idx]);
          });
          return *this;
       }
@@ -165,7 +165,7 @@ namespace chainbase {
       template<class... Args>
       void emplace_back(Args&&... args) {
          clear_and_construct(size() + 1, size(), [&](T* dest, std::size_t idx) {
-            std::construct_at(dest, std::forward<Args>(args)...);
+            new (dest) T(std::forward<Args>(args)...);
          });
       }
 
@@ -241,10 +241,10 @@ namespace chainbase {
                std::uninitialized_copy(ptr, ptr + copy_size, new_data->data);
             }
             if constexpr (construct) {
-               // construct objects that were not copied
+               // default construct objects that were not copied
                assert(ptr || copy_size == 0);
                for (std::size_t i=copy_size; i<size; ++i)
-                  std::construct_at(new_data->data + i);
+                  new (new_data->data + i) T();
             }
          }
          dec_refcount(std::forward<Alloc>(alloc)); // has to be after copy above
