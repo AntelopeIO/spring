@@ -198,7 +198,7 @@ namespace chainbase {
       T&       operator[](std::size_t idx)       { assert(_data); return _data->data[idx]; }
 
       bool operator==(const shared_cow_vector& rhs) const {
-        return size() == rhs.size() && std::memcmp(data(), rhs.data(), size() * sizeof(T)) == 0;
+         return size() == rhs.size() && std::equal(cbegin(), cend(), rhs.cbegin()) == 0;
       }
 
       bool operator!=(const shared_cow_vector& rhs) const { return !(*this == rhs); }
