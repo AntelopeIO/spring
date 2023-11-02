@@ -39,6 +39,7 @@ namespace chainbase {
       }
 
       explicit shared_cow_string(const char* ptr, std::size_t size) {
+         assert(ptr);
          _alloc(ptr, size);
       }
 
