@@ -124,6 +124,14 @@ namespace chainbase {
       }
 
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
+      shared_cow_vector& operator=(std::vector<I>&& v) {
+         clear_and_construct(v.size(), 0, [&](T* dest, std::size_t idx) {
+            new (dest) T(std::move(v[idx]));
+         });
+         return *this;
+      }
+
+      template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
       shared_cow_vector& operator=(std::initializer_list<I> init) {
          clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
             new (dest) T(std::data(init)[idx]);
