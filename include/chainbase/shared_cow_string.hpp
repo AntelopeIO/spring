@@ -189,8 +189,6 @@ namespace chainbase {
          return pinnable_mapped_file::get_allocator<char>(obj);
       }
 
-      // tdb: remove as not needed ... need to update libraries/chain/include/eosio/chain/database_utils.hpp
-      // also should use `assign()` instead of `s = eosio::chain::shared_string(_s.begin(), _s.end(), ...`
       std::optional<allocator_type> get_allocator() const {
          return get_allocator((void *)this);
       }
