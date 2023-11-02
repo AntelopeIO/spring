@@ -138,6 +138,10 @@ namespace chainbase {
          return _data ? _data->data : nullptr;
       }
 
+      char* data() {
+         return _data ? _data->data : nullptr;
+      }
+
       std::size_t size() const {
          return _data ? _data->size : 0;
       }
