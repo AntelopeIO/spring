@@ -61,7 +61,7 @@ namespace chainbase {
       }
 
       template<class I, std::enable_if_t<std::is_constructible_v<T, I>, int> = 0 >
-      explicit shared_cow_vector(std::initializer_list<I> init) {
+      shared_cow_vector(std::initializer_list<I> init) {
          clear_and_construct(init.size(), 0, [&](T* dest, std::size_t idx) {
             new (dest) T(std::data(init)[idx]);
          });
