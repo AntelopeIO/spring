@@ -138,7 +138,7 @@ namespace chainbase {
          return _data ? _data->data : nullptr;
       }
 
-      char* data() {
+      char* mutable_data() {
          return _data ? _data->data : nullptr;
       }
 
