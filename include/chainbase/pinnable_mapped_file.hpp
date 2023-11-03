@@ -64,7 +64,6 @@ class pinnable_mapped_file {
       ~pinnable_mapped_file();
 
       segment_manager* get_segment_manager() const { return _segment_manager.get();}
-      void             revert_to_private_mode();
       size_t           check_memory_and_flush_if_needed();
 
       template<typename T>
