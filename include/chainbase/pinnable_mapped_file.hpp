@@ -68,14 +68,16 @@ class pinnable_mapped_file {
 
       template<typename T>
       static std::optional<allocator<T>> get_allocator(void *object) {
-         auto it = _segment_manager_map.upper_bound(object);
-         auto [seg_start, seg_end] = *(--it);
-         // important: we need to check whether the pointer is really within the segment, as shared objects'
-         // can also be created on the stack (in which case the data is actually allocated on the heap using
-         // std::allocator). This happens for example when `shared_cow_string`s are inserted into a bip::multimap,
-         // and temporary pairs are created on the stack by the bip::multimap code.
-         if (object < seg_end)
-            return allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
+         if (!_segment_manager_map.empty()) {
+            auto it = _segment_manager_map.upper_bound(object);
+            auto [seg_start, seg_end] = *(--it);
+            // important: we need to check whether the pointer is really within the segment, as shared objects'
+            // can also be created on the stack (in which case the data is actually allocated on the heap using
+            // std::allocator). This happens for example when `shared_cow_string`s are inserted into a bip::multimap,
+            // and temporary pairs are created on the stack by the bip::multimap code.
+            if (object < seg_end)
+               return allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
+         }
          return {};
       }
 
