@@ -161,7 +161,7 @@ namespace chainbase {
 
       void assign(const T* ptr, std::size_t size) {
          if (_data && _data->reference_count == 1 && _data->size == size)
-            std::copy(ptr, ptr + size, data());
+            std::copy(ptr, ptr + size, _data->data);
          else {
             _alloc<false>(ptr, size, size);
          }
@@ -179,10 +179,6 @@ namespace chainbase {
       }
 
       const T* data() const {
-         return _data ? _data->data : nullptr;
-      }
-
-      T* data() {
          return _data ? _data->data : nullptr;
       }
 
