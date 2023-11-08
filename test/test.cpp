@@ -127,6 +127,97 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
    BOOST_REQUIRE_EQUAL( new_book.b, copy_new_book.b );
 }
 
+
+// -----------------------------------------------------------------------------
+//            Allow boost to print `shared_vector`
+// -----------------------------------------------------------------------------
+namespace std {
+   template <typename T>
+   std::ostream& operator<<(std::ostream& os, const shared_vector<T>& v)
+   {
+      os << "[";
+      for (int i = 0; i < v.size(); ++i) {
+         os << v[i];
+         if (i != v.size() - 1)
+            os << ", ";
+      }
+      os << "]\n";
+      return os;
+   }
+}
+
+// -----------------------------------------------------------------------------
+//            Check `shared_vector` APIs
+// -----------------------------------------------------------------------------
+template<class SV, class VecOfVec, std::enable_if_t<std::is_constructible_v<typename SV::value_type, int>, int> = 0 >
+void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
+{
+   // check constructors
+   // ------------------
+   const std::array int_array { 0, 1, 2, 3, 4, 5 };
+      
+   {
+      // check constructor `shared_cow_vector(Iter begin, Iter end)`
+      // -----------------------------------------------------------
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      const auto& v = vec_of_vec.back();
+      BOOST_REQUIRE_EQUAL(v.size(), int_array.size());
+      for (size_t i=0; i<int_array.size(); ++i)
+         BOOST_REQUIRE_EQUAL(v[i], int_array[i]);
+   }
+      
+   {
+      // check constructor `shared_cow_vector(const T* ptr, std::size_t size)` 
+      // ---------------------------------------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(&int_array[0], int_array.size());
+      const auto& v = vec_of_vec.back();
+      BOOST_REQUIRE_EQUAL(v.size(), int_array.size());
+      for (size_t i=0; i<int_array.size(); ++i)
+         BOOST_REQUIRE_EQUAL(v[i], int_array[i]);
+   }
+
+   {
+      // check copy constructor. Verify copy-on-write
+      // --------------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back(vec_of_vec[0]);
+      auto& v0 = vec_of_vec[0];
+      auto& v1 = vec_of_vec[1];
+      BOOST_REQUIRE_EQUAL(v0, v1);               // check that copy construction worked
+      BOOST_REQUIRE_EQUAL(v0.data(), v1.data()); // check copy_on_write (cow)
+
+      // now change vector and verify copy happened
+      //v0.data()[0] = 1;
+      //BOOST_REQUIRE_NE(v0.data(), v1.data()); // check copy_on_write (cow)
+      
+      
+   }
+   
+   {
+      // check emplace_back(), clear(), size()
+      // -------------------------------------
+      auto sz = v.size();
+      v.emplace_back(1);
+      v.emplace_back(2);
+      BOOST_REQUIRE_EQUAL(v.size(), sz + 2);
+
+      v.clear();
+      BOOST_REQUIRE_EQUAL(v.size(), 0);
+   }
+}
+
+BOOST_AUTO_TEST_CASE(shared_vector_apis) {
+   using sv = shared_vector<int>;
+   sv v;
+   std::vector<sv, std::allocator<sv>> vec_of_vec;
+   check_shared_vector_apis(v, vec_of_vec);
+}
+
+// -----------------------------------------------------------------------------
+//      Check chainbase operations on items containing `shared` types
+// -----------------------------------------------------------------------------
 struct titled_book : public chainbase::object<0, titled_book> {
 
    template<typename Constructor>

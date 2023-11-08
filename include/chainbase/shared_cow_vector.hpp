@@ -26,6 +26,7 @@ namespace chainbase {
       using allocator_type = bip::allocator<char, segment_manager>;
       using iterator       = const T*;
       using const_iterator = const T*;
+      using value_type     = T;
 
       explicit shared_cow_vector() = default;
 
