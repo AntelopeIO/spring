@@ -145,6 +145,11 @@ namespace std {
       os << "]\n";
       return os;
    }
+
+   std::ostream& operator<<(std::ostream& os, const shared_string& ms) {
+      os << std::string_view(ms.data(), ms.size());
+      return os;
+   }
 }
 
 // -----------------------------------------------------------------------------
@@ -487,6 +492,104 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
    // make sure we didn't leak memory
    // -------------------------------
    BOOST_REQUIRE_EQUAL(free_memory, pmf.get_segment_manager()->get_free_memory());
+}
+
+// -----------------------------------------------------------------------------
+//   Test `shared_cow_string` APIs - in addition to what's already tested above
+// -----------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(shared_cow_string_apis) {
+   const std::string test_string { "this is just a random text string" };
+
+   {
+      // test constructors
+      // -----------------
+      shared_cow_string s0 { test_string.cbegin(), test_string.cend() };
+      BOOST_REQUIRE_EQUAL(s0, test_string);
+      BOOST_REQUIRE_EQUAL(s0.size(), test_string.size());
+
+      shared_cow_string s1 { test_string.c_str(), test_string.size() };
+      BOOST_REQUIRE_EQUAL(s1, test_string);
+
+      shared_cow_string s2 { test_string.c_str() };
+      BOOST_REQUIRE_EQUAL(s2, test_string);
+
+      shared_cow_string s3 { std::string_view(test_string) };
+      BOOST_REQUIRE_EQUAL(s3, test_string);
+
+      shared_cow_string s4 { test_string.size(), boost::container::default_init_t() };
+      BOOST_REQUIRE_EQUAL(s4.data()[test_string.size()], 0); // null terminator should be added by constructor
+      std::memcpy(s4.mutable_data(), test_string.c_str(), test_string.size());
+      BOOST_REQUIRE_EQUAL(s4, test_string);
+
+      shared_cow_string s5(s4);
+      BOOST_REQUIRE_EQUAL(s5, test_string);
+      BOOST_REQUIRE_EQUAL((void *)s5.data(), (void *)s4.data()); // check copy-on-write
+
+      shared_cow_string s6(std::move(s4));
+      BOOST_REQUIRE_EQUAL(s6, test_string);
+      BOOST_REQUIRE_EQUAL((void *)s6.data(), (void *)s5.data()); // copy-on-write should remain between s6 and s5
+      
+      BOOST_REQUIRE_EQUAL(s4.size(), 0);         // s4 moved from... should now be empty
+      BOOST_REQUIRE_EQUAL(s4.data(), nullptr);
+      BOOST_REQUIRE_EQUAL(s4.mutable_data(), nullptr);
+   }
+
+   {
+      // test operator=()
+      // ----------------
+      shared_cow_string s0 { test_string };
+      BOOST_REQUIRE_EQUAL(s0, test_string);
+
+      shared_cow_string s1;
+      BOOST_REQUIRE_EQUAL(s1.size(), 0);
+      BOOST_REQUIRE_EQUAL(s1.data(), nullptr);
+      
+      s1 = s0;                                   // copy assignment
+      BOOST_REQUIRE_EQUAL(s1, test_string);
+      BOOST_REQUIRE_EQUAL((void *)s1.data(), (void *)s0.data()); // check copy-on-write
+
+      s1 = std::move(s0);                        // move assignment
+      BOOST_REQUIRE_EQUAL(s1, test_string);
+      BOOST_REQUIRE_NE(s1.data(), s0.data());    // check copy-on-write broken
+      BOOST_REQUIRE_EQUAL(s0.size(), 0);         // s0 moved from... should now be empty
+      BOOST_REQUIRE_EQUAL(s0.data(), nullptr);
+   }
+
+   {
+      // test begin()/end()
+      // ------------------
+      shared_cow_string s0 { test_string.cbegin(), test_string.cend() };
+      shared_cow_string s1 { s0.begin(), s0.end() };
+      BOOST_REQUIRE_EQUAL(s0, s1);
+      BOOST_REQUIRE_NE((void *)s0.data(), (void *)s1.data());  
+   }
+
+   {
+      // test assign
+      // -----------
+      shared_cow_string s0;
+      s0.assign((const char *)test_string.c_str(), test_string.size());
+      BOOST_REQUIRE_EQUAL(s0, test_string);
+      BOOST_REQUIRE_EQUAL(s0.size(), test_string.size());
+      
+      shared_cow_string s1;
+      s1.assign((const unsigned char *)test_string.c_str(), test_string.size());
+      BOOST_REQUIRE_EQUAL(s1, test_string);
+      BOOST_REQUIRE_EQUAL(s1.size(), test_string.size());
+   }
+
+   {
+      // test comparison operator
+      // ------------------------
+      shared_cow_string s0("abc");
+      shared_cow_string s1("");
+      shared_cow_string s2;
+      shared_cow_string s3("xaaa");
+
+      BOOST_REQUIRE_LT(s0, s3);
+      BOOST_REQUIRE_LT(s1, s3);
+      BOOST_REQUIRE_LT(s2, s3);
+   }
 }
 
 

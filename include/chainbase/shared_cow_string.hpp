@@ -139,6 +139,7 @@ namespace chainbase {
       }
 
       char* mutable_data() {
+         assert (!_data || _data->reference_count == 1);
          return _data ? _data->data : nullptr;
       }
 
