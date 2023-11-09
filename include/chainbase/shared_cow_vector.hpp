@@ -24,7 +24,7 @@ namespace chainbase {
 
    public:
       using allocator_type = bip::allocator<char, segment_manager>;
-      using iterator       = const T*;
+      using iterator       = const T*;      // const because of copy-on-write
       using const_iterator = const T*;
       using value_type     = T;
 
@@ -167,9 +167,13 @@ namespace chainbase {
          });
       }
 
+      // const data access. Do *not* define the non-const version as it breaks copy-on-write
       const T* data() const {
          return _data ? _data->data : nullptr;
       }
+
+      // const data access. Do *not* define the non-const version as it breaks copy-on-write
+      const T& operator[](std::size_t idx) const { assert(_data); return _data->data[idx]; }
 
       std::size_t size() const {
          return _data ? _data->size : 0;
@@ -179,16 +183,14 @@ namespace chainbase {
          return size() == 0;
       }
 
-      const_iterator begin() const { return data(); }
-
-      const_iterator end() const {
+      // Because of copy-on-write, these should be const and return `const *T`
+      iterator begin() const { return data(); }
+      iterator end() const {
          return _data ? _data->data + _data->size : nullptr;
       }
 
       const_iterator cbegin() const { return begin(); }
       const_iterator cend()   const { return end(); }
-
-      const T& operator[](std::size_t idx) const { assert(_data); return _data->data[idx]; }
 
       bool operator==(const shared_cow_vector& rhs) const {
          return _data == rhs._data ||
