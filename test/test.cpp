@@ -154,7 +154,8 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
 {
    // check constructors
    // ------------------
-   const std::array int_array { 0, 1, 2, 3, 4, 5 };
+   const std::array int_array  { 0, 1, 2, 3, 4, 5 };
+   const std::array int_array2 { 6, 7 };
       
    {
       // check constructor `shared_cow_vector(Iter begin, Iter end)`
@@ -178,8 +179,8 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
    }
 
    {
-      // check copy constructor. Verify copy-on-write
-      // --------------------------------------------
+      // check copy constructor. Verify copy-on-write after assign
+      // ---------------------------------------------------------
       vec_of_vec.clear();
       vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
       vec_of_vec.emplace_back(vec_of_vec[0]);
@@ -189,12 +190,128 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
       BOOST_REQUIRE_EQUAL(v0.data(), v1.data()); // check copy_on_write (cow)
 
       // now change vector and verify copy happened
-      //v0.data()[0] = 1;
-      //BOOST_REQUIRE_NE(v0.data(), v1.data()); // check copy_on_write (cow)
+      v0 = std::vector<int>(int_array.cbegin(), int_array.cend());
+      BOOST_REQUIRE_EQUAL(v0, v1);               // still holding same values
+      BOOST_REQUIRE_NE(v0.data(), v1.data());    // but copy happened after v0 modified with `assign`
+   }
+
+   {
+      // check move constructor.
+      // -----------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      auto& v0 = vec_of_vec[0];
+      vec_of_vec.emplace_back(std::move(v0));
+      auto& v1 = vec_of_vec[1];
+      BOOST_REQUIRE_EQUAL(v0.size(), 0); 
+      BOOST_REQUIRE_EQUAL(v0.data(), nullptr); 
+      for (size_t i=0; i<int_array.size(); ++i)
+         BOOST_REQUIRE_EQUAL(v1[i], int_array[i]);
+   }
+
+   {
+      // check `initializer_list` and `std::vector` constructors.
+      // ---------------------------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(std::initializer_list<int> { 0, 1, 2, 3, 4, 5 });
+      vec_of_vec.emplace_back(std::vector<int>{int_array.cbegin(), int_array.cend()});
       
+      auto& v0 = vec_of_vec[0];
+      auto& v1 = vec_of_vec[1];
+      BOOST_REQUIRE_EQUAL(v0, v1);               // same values
+      BOOST_REQUIRE_NE(v0.data(), v1.data());    // different pointers
+   }
+
+   {
+      // check assignment operator. Verify copy-on-write after assign
+      // ------------------------------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back(vec_of_vec[0]);
+      {
+         auto& v0 = vec_of_vec[0];
+         auto& v1 = vec_of_vec[1];
+         BOOST_REQUIRE_EQUAL(v0, v1);               // check that copy construction worked
+         BOOST_REQUIRE_EQUAL(v0.data(), v1.data()); // check copy_on_write (cow)
+
+         // assignment should not break cow if they are already the same
+         v0 = v1;
+         BOOST_REQUIRE_EQUAL(v0.data(), v1.data()); 
+      }
+
+      // add a third one and assign it to v0
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      {
+         auto& v0 = vec_of_vec[0];
+         auto& v1 = vec_of_vec[1];
+         auto& v2 = vec_of_vec[2];
+
+         v0 = v2;
+         BOOST_REQUIRE_NE(v0.data(), v1.data()); 
+         BOOST_REQUIRE_EQUAL(v0.data(), v2.data()); // check copy_on_write (cow)
+         BOOST_REQUIRE_EQUAL(v0, v1); 
+         BOOST_REQUIRE_EQUAL(v0, v2); 
+         BOOST_REQUIRE_EQUAL(v1, v2); 
+      }
       
    }
-   
+
+   {
+      // check move assignment operator.
+      // -------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back(int_array2.cbegin(), int_array2.cend());
+      {
+         auto& v0 = vec_of_vec[0];
+         auto& v1 = vec_of_vec[1];
+         
+         BOOST_REQUIRE_NE(v0.data(), v1.data()); 
+         BOOST_REQUIRE_NE(v0, v1);
+         BOOST_REQUIRE_EQUAL(v0.size(), int_array.size());
+         BOOST_REQUIRE_EQUAL(v1.size(), int_array2.size());
+
+         v0 = std::move(v1);
+         BOOST_REQUIRE_EQUAL(v0.size(), int_array2.size());
+         BOOST_REQUIRE_EQUAL(v1.size(), 0);
+         BOOST_REQUIRE(v1.empty());
+
+         v1 = std::move(v0);
+         BOOST_REQUIRE_EQUAL(v1.size(), int_array2.size());
+         BOOST_REQUIRE_EQUAL(v0.size(), 0);
+      }
+   }
+
+   { 
+      // check assignment from std::vector.
+      // ----------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back();
+      
+      auto& v0 = vec_of_vec[0];
+      auto& v1 = vec_of_vec[1];
+      auto v = std::vector(int_array.cbegin(), int_array.cend());
+      v1 = v;
+      BOOST_REQUIRE_EQUAL(v0, v1);
+      BOOST_REQUIRE_NE(v0.data(), v1.data()); 
+   }
+
+   { 
+      // check move assignment from std::vector.
+      // ---------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back();
+      
+      auto& v0 = vec_of_vec[0];
+      auto& v1 = vec_of_vec[1];
+
+      v1 = std::vector(int_array.cbegin(), int_array.cend());
+      BOOST_REQUIRE_EQUAL(v0, v1);
+      BOOST_REQUIRE_NE(v0.data(), v1.data()); 
+   }
+
    {
       // check emplace_back(), clear(), size()
       // -------------------------------------
@@ -206,13 +323,67 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
       v.clear();
       BOOST_REQUIRE_EQUAL(v.size(), 0);
    }
+
+   { 
+      // check clear_and_construct()
+      // ---------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      vec_of_vec.emplace_back(int_array2.cbegin(), int_array2.cend());
+      
+      auto& v0 = vec_of_vec[0];
+      auto& v1 = vec_of_vec[1];
+      BOOST_REQUIRE_NE(v0, v1);
+      BOOST_REQUIRE_NE(v0.data(), v1.data());
+
+      v1.clear_and_construct(v0.size(), 0, [&](auto* dest, std::size_t idx) {
+         std::construct_at(dest, v0[idx]);
+      });
+      
+      BOOST_REQUIRE_EQUAL(v0, v1);
+      BOOST_REQUIRE_NE(v0.data(), v1.data());
+   }
 }
 
+// `check_shared_vector_apis` requires a type that can be constructed from integers, and
+// has an operator=(int). Let's create a type with a non-trivial constructor which fulfills
+// that contract.
+// Also let's count the instances of my_string so we can make sure they are all destroyed
+// correctly
+// ----------------------------------------------------------------------------------------
+struct my_string {
+   static inline constexpr const char* trailer = "_00000000000000000000000000000000000"; // bypasss short string optim
+   my_string() = default;
+   my_string(int i) : _s(std::to_string(i) + trailer) {}
+
+   bool operator==(const my_string& o) const = default;
+   bool operator==(int i) const { return _s == std::to_string(i) + trailer; }
+
+   friend std::ostream& operator<<(std::ostream& os, const my_string& ms) {
+      os << ms._s;
+      return os;
+   }
+
+   std::string _s;
+};
+      
 BOOST_AUTO_TEST_CASE(shared_vector_apis) {
-   using sv = shared_vector<int>;
-   sv v;
-   std::vector<sv, std::allocator<sv>> vec_of_vec;
-   check_shared_vector_apis(v, vec_of_vec);
+   {
+      // do the test with `shared_vector<int>` (trivial destructor)
+      using sv = shared_vector<int>;
+      sv v;
+      std::vector<sv, std::allocator<sv>> vec_of_vec;
+      check_shared_vector_apis(v, vec_of_vec);
+   }
+
+   {
+      // do the test with `shared_vector<my_string>` (non-trivial destructor)
+      using sv = shared_vector<my_string>;
+      sv v;
+      std::vector<sv, std::allocator<sv>> vec_of_vec;
+      check_shared_vector_apis(v, vec_of_vec);
+   }
+   
 }
 
 // -----------------------------------------------------------------------------
