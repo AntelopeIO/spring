@@ -356,6 +356,7 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
    }
 }
 
+// -------------------------------------------------------------------------------
 // crtp counter to check thee `shared_cow_vector` constructs and destroys correctly
 // -------------------------------------------------------------------------------
 template <class T>
@@ -378,6 +379,7 @@ private:
   static inline uint32_t _count = 0;
 };
 
+// ----------------------------------------------------------------------------------------
 // `check_shared_vector_apis` requires a type that can be constructed from integers, and
 // has an operator=(int). Let's create a type with a non-trivial constructor which fulfills
 // that contract.
@@ -401,7 +403,10 @@ struct my_string : public instance_counter<my_string> {
 
    shared_string _s;
 };
-      
+
+// -----------------------------------------------------------------------------
+//   Test `shared_cow_vector` APIs when using std::allocator.
+// -----------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(shared_vector_apis_stdalloc) {
    std::optional<chainbase::allocator<char>> expected_alloc;
    
@@ -434,6 +439,9 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_stdalloc) {
    }
 }
 
+// -------------------------------------------------------------------------------------------
+//   Test `shared_cow_vector` APIs when the vectors are allocated in the shared memory segment
+// -------------------------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
    
    temp_directory temp_dir;
@@ -441,6 +449,8 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
 
    pinnable_mapped_file pmf(temp, true, 1024 * 1024, false, pinnable_mapped_file::map_mode::mapped);
    std::optional<chainbase::allocator<char>> expected_alloc = chainbase::allocator<char>(pmf.get_segment_manager());
+
+   size_t free_memory = pmf.get_segment_manager()->get_free_memory();
    
    {
       // do the test with `shared_vector<int>` (trivial destructor)
@@ -473,8 +483,11 @@ BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
       vec_of_vec.clear();
       BOOST_REQUIRE_EQUAL(my_string::num_instances(), 0);
    }
-}
 
+   // make sure we didn't leak memory
+   // -------------------------------
+   BOOST_REQUIRE_EQUAL(free_memory, pmf.get_segment_manager()->get_free_memory());
+}
 
 
 // -----------------------------------------------------------------------------
