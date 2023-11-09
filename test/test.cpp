@@ -12,6 +12,7 @@
 using namespace chainbase;
 using namespace boost::multi_index;
 
+namespace bip = boost::interprocess;
 //BOOST_TEST_SUITE( serialization_tests, clean_database_fixture )
 
 struct book : public chainbase::object<0, book> {
@@ -149,8 +150,8 @@ namespace std {
 // -----------------------------------------------------------------------------
 //            Check `shared_vector` APIs
 // -----------------------------------------------------------------------------
-template<class SV, class VecOfVec, std::enable_if_t<std::is_constructible_v<typename SV::value_type, int>, int> = 0 >
-void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
+template<class SV, class VecOfVec, class Alloc, std::enable_if_t<std::is_constructible_v<typename SV::value_type, int>, int> = 0 >
+void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
 {
    // check constructors
    // ------------------
@@ -160,11 +161,18 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
    {
       // check constructor `shared_cow_vector(Iter begin, Iter end)`
       // -----------------------------------------------------------
+      vec_of_vec.clear();
       vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
       const auto& v = vec_of_vec.back();
       BOOST_REQUIRE_EQUAL(v.size(), int_array.size());
       for (size_t i=0; i<int_array.size(); ++i)
          BOOST_REQUIRE_EQUAL(v[i], int_array[i]);
+
+      // check that objects are allocated where we expect (i.e. using the same allocator as `vec_of_vec`)
+      // ------------------------------------------------------------------------------------------------
+      BOOST_REQUIRE(v.get_allocator() == expected_alloc);
+      if constexpr(!std::is_same_v<typename SV::value_type, int>)
+         BOOST_REQUIRE(v[0].get_allocator() == expected_alloc);
    }
       
    {
@@ -190,7 +198,7 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
       BOOST_REQUIRE_EQUAL(v0.data(), v1.data()); // check copy_on_write (cow)
 
       // now change vector and verify copy happened
-      v0 = std::vector<int>(int_array.cbegin(), int_array.cend());
+      v0 = SV(int_array.cbegin(), int_array.cend());
       BOOST_REQUIRE_EQUAL(v0, v1);               // still holding same values
       BOOST_REQUIRE_NE(v0.data(), v1.data());    // but copy happened after v0 modified with `assign`
    }
@@ -291,7 +299,7 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
       
       auto& v0 = vec_of_vec[0];
       auto& v1 = vec_of_vec[1];
-      auto v = std::vector(int_array.cbegin(), int_array.cend());
+      auto v = SV(int_array.cbegin(), int_array.cend());
       v1 = v;
       BOOST_REQUIRE_EQUAL(v0, v1);
       BOOST_REQUIRE_NE(v0.data(), v1.data()); 
@@ -307,7 +315,7 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
       auto& v0 = vec_of_vec[0];
       auto& v1 = vec_of_vec[1];
 
-      v1 = std::vector(int_array.cbegin(), int_array.cend());
+      v1 = SV(int_array.cbegin(), int_array.cend());
       BOOST_REQUIRE_EQUAL(v0, v1);
       BOOST_REQUIRE_NE(v0.data(), v1.data()); 
    }
@@ -315,6 +323,9 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
    {
       // check emplace_back(), clear(), size()
       // -------------------------------------
+      vec_of_vec.clear();
+      vec_of_vec.emplace_back(int_array.cbegin(), int_array.cend());
+      auto& v = vec_of_vec.back();
       auto sz = v.size();
       v.emplace_back(1);
       v.emplace_back(2);
@@ -345,14 +356,36 @@ void check_shared_vector_apis(SV &v, VecOfVec& vec_of_vec)
    }
 }
 
+// crtp counter to check thee `shared_cow_vector` constructs and destroys correctly
+// -------------------------------------------------------------------------------
+template <class T>
+class instance_counter {
+public:
+   instance_counter() { ++_count; }
+   instance_counter(const instance_counter&) { ++_count; }
+   instance_counter(instance_counter&&) = default;
+
+   bool operator==(const instance_counter&) const { return true; }
+   
+   instance_counter& operator=(const instance_counter&) = default;
+   instance_counter& operator=(instance_counter&&) = default;
+   
+  ~instance_counter() { --_count; }
+
+  static int num_instances() { return _count; }
+
+private:
+  static inline uint32_t _count = 0;
+};
+
 // `check_shared_vector_apis` requires a type that can be constructed from integers, and
 // has an operator=(int). Let's create a type with a non-trivial constructor which fulfills
 // that contract.
 // Also let's count the instances of my_string so we can make sure they are all destroyed
 // correctly
 // ----------------------------------------------------------------------------------------
-struct my_string {
-   static inline constexpr const char* trailer = "_00000000000000000000000000000000000"; // bypasss short string optim
+struct my_string : public instance_counter<my_string> {
+   static inline constexpr const char* trailer = "_00000000000000000000000000000000000"; // bypasss short string optimization
    my_string() = default;
    my_string(int i) : _s(std::to_string(i) + trailer) {}
 
@@ -360,31 +393,89 @@ struct my_string {
    bool operator==(int i) const { return _s == std::to_string(i) + trailer; }
 
    friend std::ostream& operator<<(std::ostream& os, const my_string& ms) {
-      os << ms._s;
+      os << std::string_view(ms._s.data(), ms._s.size());
       return os;
    }
 
-   std::string _s;
+   auto get_allocator() const { return _s.get_allocator(); }
+
+   shared_string _s;
 };
       
-BOOST_AUTO_TEST_CASE(shared_vector_apis) {
+BOOST_AUTO_TEST_CASE(shared_vector_apis_stdalloc) {
+   std::optional<chainbase::allocator<char>> expected_alloc;
+   
    {
       // do the test with `shared_vector<int>` (trivial destructor)
+      // ----------------------------------------------------------
       using sv = shared_vector<int>;
       sv v;
       std::vector<sv, std::allocator<sv>> vec_of_vec;
-      check_shared_vector_apis(v, vec_of_vec);
+      
+      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
    }
 
    {
       // do the test with `shared_vector<my_string>` (non-trivial destructor)
+      // --------------------------------------------------------------------
       using sv = shared_vector<my_string>;
       sv v;
       std::vector<sv, std::allocator<sv>> vec_of_vec;
-      check_shared_vector_apis(v, vec_of_vec);
+      
+      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
+
+      // clear both vectors. If our implementation of `shared_cow_vector` is correct, we should have an exact
+      // match of the number of constructed and destroyed `my_string` objects, and therefore after clearing the vectors
+      // the count should be zero.
+      // -------------------------------------------------------------------------------------------------------------
+      v.clear();
+      vec_of_vec.clear();
+      BOOST_REQUIRE_EQUAL(my_string::num_instances(), 0);
    }
-   
 }
+
+BOOST_AUTO_TEST_CASE(shared_vector_apis_segment_alloc) {
+   
+   temp_directory temp_dir;
+   const auto& temp = temp_dir.path();
+
+   pinnable_mapped_file pmf(temp, true, 1024 * 1024, false, pinnable_mapped_file::map_mode::mapped);
+   std::optional<chainbase::allocator<char>> expected_alloc = chainbase::allocator<char>(pmf.get_segment_manager());
+   
+   {
+      // do the test with `shared_vector<int>` (trivial destructor)
+      // ----------------------------------------------------------
+      using sv = shared_vector<int>;
+      chainbase::allocator<sv> sv_alloc(pmf.get_segment_manager());
+      sv v;
+
+      bip::vector<sv, chainbase::allocator<sv>> vec_of_vec(sv_alloc);
+      
+      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
+   }
+
+   {
+      // do the test with `shared_vector<my_string>` (non-trivial destructor)
+      // --------------------------------------------------------------------
+      using sv = shared_vector<my_string>;
+      chainbase::allocator<sv> sv_alloc(pmf.get_segment_manager());
+      sv v;
+      
+      bip::vector<sv, chainbase::allocator<sv>> vec_of_vec(sv_alloc);
+      
+      check_shared_vector_apis<sv, decltype(vec_of_vec)>(vec_of_vec, expected_alloc);
+
+      // clear both vectors. If our implementation of `shared_cow_vector` is correct, we should have an exact
+      // match of the number of constructed and destroyed `my_string` objects, and therefore after clearing the vectors
+      // the count should be zero.
+      // -------------------------------------------------------------------------------------------------------------
+      v.clear();
+      vec_of_vec.clear();
+      BOOST_REQUIRE_EQUAL(my_string::num_instances(), 0);
+   }
+}
+
+
 
 // -----------------------------------------------------------------------------
 //      Check chainbase operations on items containing `shared` types
@@ -416,7 +507,6 @@ CHAINBASE_SET_INDEX_TYPE( titled_book, titled_book_index )
 BOOST_AUTO_TEST_CASE( shared_string_object ) {
    temp_directory temp_dir;
    const auto& temp = temp_dir.path();
-   std::cerr << temp << " \n";
 
    chainbase::database db(temp, database::read_write, 1024*1024*8);
    chainbase::database db2(temp, database::read_only, 0, true); /// open an already created db
