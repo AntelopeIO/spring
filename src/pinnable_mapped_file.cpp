@@ -227,8 +227,11 @@ void pinnable_mapped_file::setup_copy_on_write_mapping() {
    // before we clear the Soft-Dirty bits for the whole process, make sure all writable,
    // non-sharable chainbase dbs using mapped mode are flushed to disk
    // ----------------------------------------------------------------------------------
-   for (auto pmm : _instance_tracker)
-      pmm->save_database_file(true);
+   for (auto pmm : _instance_tracker) {
+      // we only populate _instance_tracker if pagemap *is* supported
+      assert(pagemap_accessor::pagemap_supported());
+      pmm->save_database_file(true); 
+   }
 
    _file_mapped_region = bip::mapped_region(_file_mapping, bip::copy_on_write);
    *((char*)_file_mapped_region.get_address()+header_dirty_bit_offset) = dirty; // set dirty bit in our memory mapping
@@ -238,9 +241,7 @@ void pinnable_mapped_file::setup_copy_on_write_mapping() {
    // then clear the Soft-Dirty bits
    // ------------------------------
    pagemap_accessor pagemap;
-   if (pagemap.pagemap_supported()) {
-      if (!pagemap.clear_refs())
-         BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::clear_refs_failed)));
+   if (pagemap.check_pagemap_support_and_clear_refs()) {
       _instance_tracker.push_back(this); // so we can save dirty pages before another instance calls `clear_refs()`
    }
 }
