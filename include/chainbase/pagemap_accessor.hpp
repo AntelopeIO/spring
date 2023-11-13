@@ -216,7 +216,6 @@ private:
 
    bool _close() const {
       if (_pagemap_fd >= 0) {
-         assert(_pagemap_supported);
          ::close(_pagemap_fd);
          _pagemap_fd = -1;
       }
