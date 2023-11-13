@@ -14,21 +14,6 @@
 namespace chainbase {
 
 namespace bip = boost::interprocess;
-namespace fs = std::filesystem;
-
-template<typename CB>
-class scoped_exit {
-public:
-   scoped_exit(CB&& cb): _cb(std::forward<CB>(cb)) {}
-   
-   ~scoped_exit() { try { _cb(); } catch(...) {} }
-   
-   scoped_exit(scoped_exit&& mv) noexcept            = delete;
-   scoped_exit( const scoped_exit& )                 = delete;
-   scoped_exit& operator=( const scoped_exit& )      = delete;
-private:
-   CB _cb;
-};
 
 class pagemap_accessor {
 public:
@@ -53,27 +38,17 @@ public:
          _pagemap_support_checked = true;
 
 #if defined(__linux__) && defined(__x86_64__)
-         fs::path path = fs::temp_directory_path() / "nodeos_pagemap_check";
-         if (!fs::exists(path)) {
-            std::ofstream ofs(path.generic_string(), std::ofstream::trunc);
-            ofs.close();
-         }
-         auto remove_file = scoped_exit([&path]() { fs::remove(path); });
-         
-         fs::resize_file(path, pagesz);
-         bip::file_mapping  mapping = bip::file_mapping(path.generic_string().c_str(), bip::read_write);
-         bip::mapped_region region  = bip::mapped_region(mapping, bip::read_write);
-         char* p = (char *)region.get_address();
-         
+         std::unique_ptr<char> p { (char *)std::aligned_alloc(pagesz, pagesz) };
+
          if (_clear_refs()) {
-            if (!_page_dirty((uintptr_t)p)) {
+            if (!_page_dirty((uintptr_t)p.get())) {
                *p = 1;
-               if (_page_dirty((uintptr_t)p))
+               if (_page_dirty((uintptr_t)p.get()))
                   _pagemap_supported = true;
             }
          }
 #endif
-         std::cerr << "CHAINBASE: Detect pagemap support: " <<  (_pagemap_supported ? "OK" : "Not supported") << '\n';
+         std::cerr << "CHAINBASE: Detect Soft-Dirty pagemap support: " <<  (_pagemap_supported ? "OK" : "Not supported") << '\n';
       }
       return _pagemap_supported;
    }
