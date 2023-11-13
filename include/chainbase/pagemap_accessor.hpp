@@ -49,10 +49,10 @@ public:
 
    // returns true if pagemap *is* supported and we successfully performed `clear_refs`
    bool check_pagemap_support_and_clear_refs() {
-#if defined(__linux__) && defined(__x86_64__)
       if (!_pagemap_support_checked) {
          _pagemap_support_checked = true;
 
+#if defined(__linux__) && defined(__x86_64__)
          fs::path path = fs::temp_directory_path() / "nodeos_pagemap_check";
          if (!fs::exists(path)) {
             std::ofstream ofs(path.generic_string(), std::ofstream::trunc);
@@ -72,8 +72,9 @@ public:
                   _pagemap_supported = true;
             }
          }
-      }
 #endif
+         std::cerr << "CHAINBASE: Detect pagemap support: " <<  (_pagemap_supported ? "OK" : "Not supported") << '\n';
+      }
       return _pagemap_supported;
    }
    
