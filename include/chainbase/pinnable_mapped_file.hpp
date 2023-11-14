@@ -63,7 +63,7 @@ class pinnable_mapped_file {
       pinnable_mapped_file& operator=(const pinnable_mapped_file&) = delete;
       ~pinnable_mapped_file();
 
-      segment_manager* get_segment_manager() const { return _segment_manager.get();}
+      segment_manager* get_segment_manager() const { return _segment_manager;}
       size_t           check_memory_and_flush_if_needed();
 
       template<typename T>
@@ -108,7 +108,7 @@ class pinnable_mapped_file {
       bip::permissions                              _db_permissions{S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH};
 #endif
 
-      std::unique_ptr<segment_manager, decltype([](auto) noexcept {})> _segment_manager;
+      segment_manager*                              _segment_manager = nullptr;
 
       static std::vector<pinnable_mapped_file*>     _instance_tracker;
 
