@@ -22,26 +22,34 @@ public:
    }
 
    bool clear_refs() const {
-      if constexpr (!_pagemap_supported)
+      if (!_pagemap_supported)
          return false;
-      
-      int fd = ::open("/proc/self/clear_refs", O_WRONLY);
-      if (fd < 0)
-         return false;
-      
-      // Clear soft-dirty bits from the task's PTEs.
-      // This is done by writing "4" into the /proc/PID/clear_refs file of the task in question.
-      // 
-      // After this, when the task tries to modify a page at some virtual address, the #PF occurs
-      // and the kernel sets the soft-dirty bit on the respective PTE.
-      // ----------------------------------------------------------------------------------------
-      const char *v = "4";
-      bool res = write(fd, v, 1) == 1;
-      ::close(fd);
-      return res;
+      return _clear_refs();
    }
    
-   static constexpr bool pagemap_supported() {
+   static bool pagemap_supported() {
+      assert(_pagemap_support_checked);
+      return _pagemap_supported;
+   }
+
+   // returns true if pagemap *is* supported and we successfully performed `clear_refs`
+   bool check_pagemap_support_and_clear_refs() {
+      if (!_pagemap_support_checked) {
+         _pagemap_support_checked = true;
+
+#if defined(__linux__) && defined(__x86_64__)
+         std::unique_ptr<char> p { (char *)std::aligned_alloc(pagesz, pagesz) };
+
+         if (_clear_refs()) {
+            if (!_page_dirty((uintptr_t)p.get())) {
+               *p = 1;
+               if (_page_dirty((uintptr_t)p.get()))
+                  _pagemap_supported = true;
+            }
+         }
+#endif
+         std::cerr << "CHAINBASE: Detect Soft-Dirty pagemap support: " <<  (_pagemap_supported ? "OK" : "Not supported") << '\n';
+      }
       return _pagemap_supported;
    }
    
@@ -51,13 +59,6 @@ public:
 
    static size_t page_size() {
       return pagesz;
-   }
-
-   bool page_dirty(uintptr_t vaddr) const {
-      uint64_t data;
-      if (!read(vaddr, { &data, 1 }))
-         return true;
-      return this->is_marked_dirty(data);
    }
 
    // /proc/pid/pagemap. This file lets a userspace process find out which physical frame each virtual page
@@ -78,24 +79,9 @@ public:
    // Here we are just checking bit #55 (the soft-dirty bit).
    // ----------------------------------------------------------------------------------------------------
    bool read(uintptr_t vaddr, std::span<uint64_t> dest_uint64) const {
-      if constexpr (!_pagemap_supported)
+      if (!_pagemap_supported)
          return false;
-      
-      if (!_open()) // make sure file is open
-         return false;
-      assert(_pagemap_fd >= 0);
-      auto dest = std::as_writable_bytes(dest_uint64);
-      std::byte* cur = dest.data();
-      size_t bytes_remaining = dest.size();
-      uintptr_t offset = (vaddr / pagesz) * sizeof(uint64_t);
-      while (bytes_remaining != 0) {
-         ssize_t ret = pread(_pagemap_fd, cur, bytes_remaining, offset + (cur - dest.data()));
-         if (ret < 0)
-            return false;
-         bytes_remaining -= (size_t)ret;
-         cur += ret;
-      }
-      return true;
+      return _read(vaddr, dest_uint64);
    }
 
    // copies the modified pages with the virtual address space specified by `rgn` to an
@@ -104,7 +90,7 @@ public:
    // region should exist in the disk file.
    // --------------------------------------------------------------------------------------
    bool update_file_from_region(std::span<std::byte> rgn, bip::file_mapping& mapping, size_t offset, bool flush, size_t& written_pages) const {
-      if constexpr (!_pagemap_supported)
+      if (!_pagemap_supported)
          return false;
       
       assert(rgn.size() % pagesz == 0);
@@ -135,8 +121,49 @@ public:
    }
 
 private:
+   bool _clear_refs() const {
+      int fd = ::open("/proc/self/clear_refs", O_WRONLY);
+      if (fd < 0)
+         return false;
+      
+      // Clear soft-dirty bits from the task's PTEs.
+      // This is done by writing "4" into the /proc/PID/clear_refs file of the task in question.
+      // 
+      // After this, when the task tries to modify a page at some virtual address, the #PF occurs
+      // and the kernel sets the soft-dirty bit on the respective PTE.
+      // ----------------------------------------------------------------------------------------
+      const char *v = "4";
+      bool res = write(fd, v, 1) == 1;
+      ::close(fd);
+      return res;
+   }
+
+   bool _read(uintptr_t vaddr, std::span<uint64_t> dest_uint64) const {
+      if (!_open()) // make sure file is open
+         return false;
+      assert(_pagemap_fd >= 0);
+      auto dest = std::as_writable_bytes(dest_uint64);
+      std::byte* cur = dest.data();
+      size_t bytes_remaining = dest.size();
+      uintptr_t offset = (vaddr / pagesz) * sizeof(uint64_t);
+      while (bytes_remaining != 0) {
+         ssize_t ret = pread(_pagemap_fd, cur, bytes_remaining, offset + (cur - dest.data()));
+         if (ret < 0)
+            return false;
+         bytes_remaining -= (size_t)ret;
+         cur += ret;
+      }
+      return true;
+   }   
+   
+   bool _page_dirty(uintptr_t vaddr) const {
+      uint64_t data;
+      if (!_read(vaddr, { &data, 1 }))
+         return true;
+      return this->is_marked_dirty(data);
+   }
+
    bool _open() const {
-      assert(_pagemap_supported);
       if (_pagemap_fd < 0) {
          _pagemap_fd = ::open("/proc/self/pagemap", O_RDONLY);
          if (_pagemap_fd < 0) 
@@ -147,7 +174,6 @@ private:
 
    bool _close() const {
       if (_pagemap_fd >= 0) {
-         assert(_pagemap_supported);
          ::close(_pagemap_fd);
          _pagemap_fd = -1;
       }
@@ -155,13 +181,8 @@ private:
    }
    
    static inline size_t pagesz = sysconf(_SC_PAGE_SIZE);
-   
-#if defined(__linux__) && defined(__x86_64__)
-   static constexpr bool _pagemap_supported = true;
-#else
-   static constexpr bool _pagemap_supported = false;
-#endif
-   
+   static inline bool _pagemap_supported = false;
+   static inline bool _pagemap_support_checked = false; 
    mutable int _pagemap_fd = -1;
 };
 
