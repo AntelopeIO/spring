@@ -4,8 +4,11 @@
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/asio/io_service.hpp>
+#include <boost/container/flat_map.hpp>
 #include <filesystem>
 #include <vector>
+#include <optional>
+#include <memory>
 
 namespace chainbase {
 
@@ -39,10 +42,13 @@ public:
    std::string message(int ev) const override;
 };
 
+using segment_manager = bip::managed_mapped_file::segment_manager;
+
+template<typename T>
+using allocator = bip::allocator<T, segment_manager>;
+
 class pinnable_mapped_file {
    public:
-      typedef typename bip::managed_mapped_file::segment_manager segment_manager;
-
       enum map_mode {
          mapped,        // file is mmaped in MAP_SHARED mode. Only mode where changes can be seen by another chainbase instance
          mapped_private,// file is mmaped in MAP_PRIVATE mode, and only updated at exit
@@ -60,6 +66,20 @@ class pinnable_mapped_file {
       segment_manager* get_segment_manager() const { return _segment_manager;}
       size_t           check_memory_and_flush_if_needed();
 
+      template<typename T>
+      static std::optional<allocator<T>> get_allocator(void *object) {
+         if (!_segment_manager_map.empty()) {
+            auto it = _segment_manager_map.upper_bound(object);
+            auto [seg_start, seg_end] = *(--it);
+            // important: we need to check whether the pointer is really within the segment, as shared objects'
+            // can also be created on the stack (in which case the data is actually allocated on the heap using
+            // std::allocator). This happens for example when `shared_cow_string`s are inserted into a bip::multimap,
+            // and temporary pairs are created on the stack by the bip::multimap code.
+            if (object < seg_end)
+               return allocator<T>(reinterpret_cast<segment_manager *>(seg_start));
+         }
+         return {};
+      }
 
    private:
       void                                          set_mapped_file_db_dirty(bool);
@@ -91,6 +111,9 @@ class pinnable_mapped_file {
       segment_manager*                              _segment_manager = nullptr;
 
       static std::vector<pinnable_mapped_file*>     _instance_tracker;
+
+      using segment_manager_map_t = boost::container::flat_map<void*, void *>;
+      static segment_manager_map_t                  _segment_manager_map;
 
       constexpr static unsigned                     _db_size_multiple_requirement = 1024*1024; //1MB
       constexpr static size_t                       _db_size_copy_increment       = 1024*1024*1024; //1GB

@@ -14,7 +14,6 @@ namespace chainbase {
     public:
       using value_type = T;
       using pointer = bip::offset_ptr<T>;
-      using segment_manager = pinnable_mapped_file::segment_manager;
       chainbase_node_allocator(segment_manager* manager) : _manager{manager} {}
       chainbase_node_allocator(const chainbase_node_allocator& other) : _manager(other._manager) {}
       template<typename U>
@@ -58,7 +57,7 @@ namespace chainbase {
          new(result) list_item{nullptr};
       }
       struct list_item { bip::offset_ptr<list_item> _next; };
-      bip::offset_ptr<pinnable_mapped_file::segment_manager> _manager;
+      bip::offset_ptr<segment_manager> _manager;
       bip::offset_ptr<list_item> _freelist{};
    };
 

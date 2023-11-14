@@ -15,13 +15,13 @@ namespace fs  = std::filesystem;
 namespace bmi = boost::multi_index;
 
 template<typename T>
-using test_allocator_base = chainbase::chainbase_node_allocator<T, chainbase::pinnable_mapped_file::segment_manager>;
+using test_allocator_base = chainbase::chainbase_node_allocator<T, chainbase::segment_manager>;
 
 template<typename T>
 class test_allocator : public test_allocator_base<T> {
 public:
    using base = test_allocator_base<T>;
-   test_allocator(chainbase::pinnable_mapped_file::segment_manager *mgr) : base(mgr) {}
+   test_allocator(chainbase::segment_manager *mgr) : base(mgr) {}
    template<typename U>   test_allocator(const test_allocator<U>& o) : base(o.get_segment_manager()) {}
    template<typename U>   struct rebind { using other = test_allocator<U>; };
    typename base::pointer allocate(std::size_t count) {
@@ -29,14 +29,22 @@ public:
    }
 };
 
+using shared_string = chainbase::shared_string;
 
 struct elem_t {
-   template<typename C, typename A> elem_t(C&& c, A&&) { c(*this); }
+   template<typename C, typename A>
+   elem_t(C&& c, A&& a) : str(a) {
+      c(*this);
+   }
    
-   friend std::ostream& operator<<(std::ostream& os, const elem_t& e) { os  << '[' << e.id << ", " << e.val << ']'; return os; }
+   friend std::ostream& operator<<(std::ostream& os, const elem_t& e) {
+      os  << '[' << e.id << ", " << e.val << ']';
+      return os;
+   }
       
    uint64_t id;
    uint64_t val;
+   shared_string str;
 };
 
 template<typename time_unit = std::milli>
@@ -82,7 +90,10 @@ int main()
             //std::cout << *e << '\n';
             i0.modify(*e, [old=e](elem_t& e) { e.val = old->val + 1; });
          } else {
-            auto &e = i0.emplace([](elem_t& e) { e.val = 0; });
+            auto &e = i0.emplace([](elem_t& e) {
+               e.val = 0;
+               e.str = "a string";
+            });
             if (e.id % 5 == 0)
                i0.remove(e);
          }
