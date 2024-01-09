@@ -70,6 +70,8 @@ class pinnable_mapped_file {
       static std::optional<allocator<T>> get_allocator(void *object) {
          if (!_segment_manager_map.empty()) {
             auto it = _segment_manager_map.upper_bound(object);
+            if(it == _segment_manager_map.begin())
+               return {};
             auto [seg_start, seg_end] = *(--it);
             // important: we need to check whether the pointer is really within the segment, as shared objects'
             // can also be created on the stack (in which case the data is actually allocated on the heap using
