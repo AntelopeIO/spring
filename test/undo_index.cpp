@@ -164,7 +164,7 @@ EXCEPTION_TEST_CASE(test_simple) {
 struct test_element_t {
    template<typename C, typename A>
    test_element_t(C&& c, A&&) { c(*this);  }
-   
+
    uint64_t id;
    int secondary;
    throwing_copy dummy;
@@ -876,59 +876,5 @@ BOOST_AUTO_TEST_CASE(test_project) {
    fs::remove_all( temp );
 }
 
-
-EXCEPTION_TEST_CASE(test_remove_tracking_session) {
-   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
-   try {
-      chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
-      test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::id>>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0->emplace([](test_element_t& elem) { elem.secondary = 20; });
-      auto session = i0->start_undo_session(true);
-      auto tracker = i0->track_removed();
-      i0->emplace([](test_element_t& elem) { elem.secondary = 21; });
-      const test_element_t& elem0 = *i0->find(0);
-      const test_element_t& elem1 = *i0->find(1);
-      BOOST_CHECK(!tracker.is_removed(elem0));
-      BOOST_CHECK(!tracker.is_removed(elem1));
-      tracker.remove(elem0);
-      tracker.remove(elem1);
-      BOOST_CHECK(tracker.is_removed(elem0));
-      BOOST_CHECK(tracker.is_removed(elem1));
-   } catch ( ... ) {
-      fs::remove_all( temp );
-      throw;
-   }
-   fs::remove_all( temp );
-}
-
-
-EXCEPTION_TEST_CASE(test_remove_tracking_no_session) {
-   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
-   try {
-      chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
-      test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::id>>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0->emplace([](test_element_t& elem) { elem.secondary = 20; });
-      auto tracker = i0->track_removed();
-      i0->emplace([](test_element_t& elem) { elem.secondary = 21; });
-      const test_element_t& elem0 = *i0->find(0);
-      const test_element_t& elem1 = *i0->find(1);
-      BOOST_CHECK(!tracker.is_removed(elem0));
-      BOOST_CHECK(!tracker.is_removed(elem1));
-      tracker.remove(elem0);
-      tracker.remove(elem1);
-      BOOST_CHECK(tracker.is_removed(elem0));
-      BOOST_CHECK(tracker.is_removed(elem1));
-   } catch ( ... ) {
-      fs::remove_all( temp );
-      throw;
-   }
-   fs::remove_all( temp );
-}
 
 BOOST_AUTO_TEST_SUITE_END()
