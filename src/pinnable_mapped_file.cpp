@@ -164,7 +164,11 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       set_mapped_file_db_dirty(true);
    }
 
-   auto reset_dirty_on_ctor_fail = scope_fail([&]() {
+   auto reset_on_ctor_fail = scope_fail([&]() {
+      _file_mapped_region = bip::mapped_region();
+      if(_non_file_mapped_mapping && _non_file_mapped_mapping != MAP_FAILED)
+         munmap(_non_file_mapped_mapping, _non_file_mapped_mapping_size);
+
       if(_writable)
          set_mapped_file_db_dirty(false);
       std::erase(_instance_tracker, this);
