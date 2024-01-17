@@ -216,7 +216,7 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
       auto& v0 = vec_of_vec[0];
       vec_of_vec.emplace_back(std::move(v0));
       auto& v1 = vec_of_vec[1];
-      BOOST_REQUIRE_EQUAL(v0.size(), 0); 
+      BOOST_REQUIRE_EQUAL(v0.size(), 0u);
       BOOST_REQUIRE_EQUAL(v0.data(), nullptr); 
       for (size_t i=0; i<int_array.size(); ++i)
          BOOST_REQUIRE_EQUAL(v1[i], int_array[i]);
@@ -286,12 +286,12 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
 
          v0 = std::move(v1);
          BOOST_REQUIRE_EQUAL(v0.size(), int_array2.size());
-         BOOST_REQUIRE_EQUAL(v1.size(), 0);
+         BOOST_REQUIRE_EQUAL(v1.size(), 0u);
          BOOST_REQUIRE(v1.empty());
 
          v1 = std::move(v0);
          BOOST_REQUIRE_EQUAL(v1.size(), int_array2.size());
-         BOOST_REQUIRE_EQUAL(v0.size(), 0);
+         BOOST_REQUIRE_EQUAL(v0.size(), 0u);
       }
    }
 
@@ -337,7 +337,7 @@ void check_shared_vector_apis(VecOfVec& vec_of_vec, const Alloc& expected_alloc)
       BOOST_REQUIRE_EQUAL(v.size(), sz + 2);
 
       v.clear();
-      BOOST_REQUIRE_EQUAL(v.size(), 0);
+      BOOST_REQUIRE_EQUAL(v.size(), 0u);
    }
 
    { 
@@ -529,7 +529,7 @@ BOOST_AUTO_TEST_CASE(shared_cow_string_apis) {
       BOOST_REQUIRE_EQUAL(s6, test_string);
       BOOST_REQUIRE_EQUAL((void *)s6.data(), (void *)s5.data()); // copy-on-write should remain between s6 and s5
       
-      BOOST_REQUIRE_EQUAL(s4.size(), 0);         // s4 moved from... should now be empty
+      BOOST_REQUIRE_EQUAL(s4.size(), 0u);         // s4 moved from... should now be empty
       BOOST_REQUIRE_EQUAL(s4.data(), nullptr);
       BOOST_REQUIRE_EQUAL(s4.mutable_data(), nullptr);
    }
@@ -541,7 +541,7 @@ BOOST_AUTO_TEST_CASE(shared_cow_string_apis) {
       BOOST_REQUIRE_EQUAL(s0, test_string);
 
       shared_cow_string s1;
-      BOOST_REQUIRE_EQUAL(s1.size(), 0);
+      BOOST_REQUIRE_EQUAL(s1.size(), 0u);
       BOOST_REQUIRE_EQUAL(s1.data(), nullptr);
       
       s1 = s0;                                   // copy assignment
@@ -551,7 +551,7 @@ BOOST_AUTO_TEST_CASE(shared_cow_string_apis) {
       s1 = std::move(s0);                        // move assignment
       BOOST_REQUIRE_EQUAL(s1, test_string);
       BOOST_REQUIRE_NE(s1.data(), s0.data());    // check copy-on-write broken
-      BOOST_REQUIRE_EQUAL(s0.size(), 0);         // s0 moved from... should now be empty
+      BOOST_REQUIRE_EQUAL(s0.size(), 0u);        // s0 moved from... should now be empty
       BOOST_REQUIRE_EQUAL(s0.data(), nullptr);
    }
 
