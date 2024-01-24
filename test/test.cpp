@@ -659,4 +659,21 @@ BOOST_AUTO_TEST_CASE( shared_string_object ) {
 }
 
 
+BOOST_AUTO_TEST_CASE( mapped_big_boy ) {
+   temp_directory temp_dir;
+   const auto& temp = temp_dir.path();
+
+   BOOST_REQUIRE_THROW(chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*4, false, pinnable_mapped_file::map_mode::mapped_private), boost::interprocess::interprocess_exception);
+   chainbase::database(temp, database::read_write, 0, false);
+}
+
+BOOST_AUTO_TEST_CASE( mapped_big_boy_extra ) {
+   temp_directory temp_dir;
+   const auto& temp = temp_dir.path();
+
+   chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*4, false);
+   BOOST_REQUIRE_THROW(chainbase::database(temp, database::read_write, 0, false, pinnable_mapped_file::map_mode::mapped_private), boost::interprocess::interprocess_exception);
+   chainbase::database(temp, database::read_write, 0, false);
+}
+
 // BOOST_AUTO_TEST_SUITE_END()
