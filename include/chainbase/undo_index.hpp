@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chainbase/scope_exit.hpp>
 #include <boost/multi_index_container_fwd.hpp>
 #include <boost/intrusive/set.hpp>
 #include <boost/intrusive/avltree.hpp>
@@ -20,19 +21,6 @@
 
 namespace chainbase {
    struct constructor_tag {};
-
-   template<typename F>
-   struct scope_exit {
-    public:
-      [[nodiscard]] scope_exit(F&& f) : _f(std::move(f)) {}
-      scope_exit(const scope_exit&) = delete;
-      scope_exit& operator=(const scope_exit&) = delete;
-      ~scope_exit() { if(!_canceled) _f(); }
-      void cancel() { _canceled = true; }
-    private:
-      F _f;
-      bool _canceled = false;
-   };
 
    // Adapts multi_index's idea of keys to intrusive
    template<typename KeyExtractor, typename T>
