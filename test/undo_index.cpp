@@ -72,17 +72,9 @@ public:
       return base::allocate(count);
    }
 };
-   
 
-template<typename F>
-struct scope_fail {
-   scope_fail(F&& f) : _f{static_cast<F&&>(f)}, _exception_count{std::uncaught_exceptions()} {}
-   ~scope_fail() {
-      if(_exception_count != std::uncaught_exceptions()) _f();
-   }
-   F _f;
-   int _exception_count;
-};
+
+using chainbase::scope_fail;
 
 struct basic_element_t {
    template<typename C, typename A>
