@@ -9,13 +9,6 @@
 #include <boost/test/data/monomorphic.hpp>
 #include <boost/test/data/test_case.hpp>
 
-// gcc-11 adds new dynamic memory warnings that return false positives for many of the stack allocated instantiations of
-// chainbase::undo_index<>. For example, see test_insert_modify. Evaluation of the actual behavior using ASAN with gcc-11 and
-// clang-11 indicates these are false positives. The warning is disabled for gcc-11 and above.
-#if defined(__GNUC__) && (__GNUC__ >= 11) && !defined(__clang__)
-#  pragma GCC diagnostic ignored "-Wfree-nonheap-object"
-#endif
-
 namespace {
 int exception_counter = 0;
 int throw_at = -1;
@@ -95,6 +88,37 @@ using key = typename key_impl<decltype(Fn)>::template fn<Fn>;
 
 }
 
+template <typename... T>
+struct undo_index_in_segment {
+   using undo_index_t = chainbase::undo_index<T...>;
+
+   template <typename A>
+   undo_index_in_segment(A& alloc) : segment_manager(*alloc.get_segment_manager()) {
+      p = segment_manager.construct<undo_index_t>("")(alloc);
+   }
+
+   ~undo_index_in_segment() {
+      if(p)
+         segment_manager.destroy_ptr(p);
+   }
+
+   undo_index_t* const operator->() {
+      return p;
+   }
+
+   undo_index_t& operator*() {
+      return *p;
+   }
+
+   chainbase::pinnable_mapped_file::segment_manager& segment_manager;
+   undo_index_t* p = nullptr;
+
+   undo_index_in_segment(const undo_index_in_segment&) = delete;
+   undo_index_in_segment(undo_index_in_segment&&) = delete;
+   undo_index_in_segment& operator=(const undo_index_in_segment&) = delete;
+   undo_index_in_segment& operator=(undo_index_in_segment&&) = delete;
+};
+
 BOOST_AUTO_TEST_SUITE(undo_index_tests)
 
 #define EXCEPTION_TEST_CASE(name)                               \
@@ -107,20 +131,20 @@ EXCEPTION_TEST_CASE(test_simple) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<basic_element_t, test_allocator<basic_element_t>,
+      undo_index_in_segment<basic_element_t, test_allocator<basic_element_t>,
                             boost::multi_index::ordered_unique<key<&basic_element_t::id>>> i0(alloc);
-      i0.emplace([](basic_element_t& elem) {});
-      const basic_element_t* element = i0.find(0);
+      i0->emplace([](basic_element_t& elem) {});
+      const basic_element_t* element = i0->find(0);
       BOOST_TEST((element != nullptr && element->id == 0));
-      const basic_element_t* e1 = i0.find(1);
+      const basic_element_t* e1 = i0->find(1);
       BOOST_TEST(e1 == nullptr);
-      i0.emplace([](basic_element_t& elem) {});
-      const basic_element_t* e2 = i0.find(1);
+      i0->emplace([](basic_element_t& elem) {});
+      const basic_element_t* e2 = i0->find(1);
       BOOST_TEST((e2 != nullptr && e2->id == 1));
 
-      i0.modify(*element, [](basic_element_t& elem) {});
-      i0.remove(*element);
-      element = i0.find(0);
+      i0->modify(*element, [](basic_element_t& elem) {});
+      i0->remove(*element);
+      element = i0->find(0);
       BOOST_TEST(element == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
@@ -132,7 +156,7 @@ EXCEPTION_TEST_CASE(test_simple) {
 struct test_element_t {
    template<typename C, typename A>
    test_element_t(C&& c, A&&) { c(*this);  }
-   
+
    uint64_t id;
    int secondary;
    throwing_copy dummy;
@@ -165,19 +189,19 @@ EXCEPTION_TEST_CASE(test_insert_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary> > > i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -190,22 +214,22 @@ EXCEPTION_TEST_CASE(test_insert_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary> > > i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session0 = i0.start_undo_session(true);
-         auto session1 = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
+         auto undo_checker = capture_state(*i0);
+         auto session0 = i0->start_undo_session(true);
+         auto session1 = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
          session1.squash();
-         BOOST_TEST(i0.find(1)->secondary == 12);
+         BOOST_TEST(i0->find(1)->secondary == 12);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -217,22 +241,22 @@ EXCEPTION_TEST_CASE(test_insert_push) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary> > > i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
          session.push();
-         i0.commit(i0.revision());
+         i0->commit(i0->revision());
       }
-      BOOST_TEST(!i0.has_undo_session());
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1)->secondary == 12);
+      BOOST_TEST(!i0->has_undo_session());
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1)->secondary == 12);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -245,18 +269,18 @@ EXCEPTION_TEST_CASE(test_modify_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -269,21 +293,21 @@ EXCEPTION_TEST_CASE(test_modify_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session0 = i0.start_undo_session(true);
-         auto session1 = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
+         auto undo_checker = capture_state(*i0);
+         auto session0 = i0->start_undo_session(true);
+         auto session1 = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
          session1.squash();
-         BOOST_TEST(i0.find(0)->secondary == 18);
+         BOOST_TEST(i0->find(0)->secondary == 18);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -296,21 +320,21 @@ EXCEPTION_TEST_CASE(test_modify_push) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
          session.push();
-         i0.commit(i0.revision());
+         i0->commit(i0->revision());
       }
-      BOOST_TEST(!i0.has_undo_session());
-      BOOST_TEST(i0.find(0)->secondary == 18);
+      BOOST_TEST(!i0->has_undo_session());
+      BOOST_TEST(i0->find(0)->secondary == 18);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -323,18 +347,18 @@ EXCEPTION_TEST_CASE(test_remove_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -347,21 +371,21 @@ EXCEPTION_TEST_CASE(test_remove_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session0 = i0.start_undo_session(true);
-         auto session1 = i0.start_undo_session(true);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session0 = i0->start_undo_session(true);
+         auto session1 = i0->start_undo_session(true);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
          session1.squash();
-         BOOST_TEST(i0.find(0) == nullptr);
+         BOOST_TEST(i0->find(0) == nullptr);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -374,21 +398,21 @@ EXCEPTION_TEST_CASE(test_remove_push) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
          session.push();
-         i0.commit(i0.revision());
+         i0->commit(i0->revision());
       }
-      BOOST_TEST(!i0.has_undo_session());
-      BOOST_TEST(i0.find(0) == nullptr);
+      BOOST_TEST(!i0->has_undo_session());
+      BOOST_TEST(i0->find(0) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -401,15 +425,15 @@ EXCEPTION_TEST_CASE(test_insert_modify) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-      BOOST_TEST(i0.find(1)->secondary == 12);
-      i0.modify(*i0.find(1), [](test_element_t& elem) { elem.secondary = 24; });
-      BOOST_TEST(i0.find(1)->secondary == 24);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+      BOOST_TEST(i0->find(1)->secondary == 12);
+      i0->modify(*i0->find(1), [](test_element_t& elem) { elem.secondary = 24; });
+      BOOST_TEST(i0->find(1)->secondary == 24);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -422,21 +446,21 @@ EXCEPTION_TEST_CASE(test_insert_modify_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
-         i0.modify(*i0.find(1), [](test_element_t& elem) { elem.secondary = 24; });
-         BOOST_TEST(i0.find(1)->secondary == 24);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
+         i0->modify(*i0->find(1), [](test_element_t& elem) { elem.secondary = 24; });
+         BOOST_TEST(i0->find(1)->secondary == 24);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -450,23 +474,23 @@ EXCEPTION_TEST_CASE(test_insert_modify_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session1 = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
-         auto session2 = i0.start_undo_session(true);
-         i0.modify(*i0.find(1), [](test_element_t& elem) { elem.secondary = 24; });
-         BOOST_TEST(i0.find(1)->secondary == 24);
+         auto undo_checker = capture_state(*i0);
+         auto session1 = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
+         auto session2 = i0->start_undo_session(true);
+         i0->modify(*i0->find(1), [](test_element_t& elem) { elem.secondary = 24; });
+         BOOST_TEST(i0->find(1)->secondary == 24);
          session2.squash();
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -479,21 +503,21 @@ EXCEPTION_TEST_CASE(test_insert_remove_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
-         i0.remove(*i0.find(1));
-         BOOST_TEST(i0.find(1) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
+         i0->remove(*i0->find(1));
+         BOOST_TEST(i0->find(1) == nullptr);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -506,23 +530,23 @@ EXCEPTION_TEST_CASE(test_insert_remove_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session1 = i0.start_undo_session(true);
-         i0.emplace([](test_element_t& elem) { elem.secondary = 12; });
-         BOOST_TEST(i0.find(1)->secondary == 12);
-         auto session2 = i0.start_undo_session(true);
-         i0.remove(*i0.find(1));
-         BOOST_TEST(i0.find(1) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session1 = i0->start_undo_session(true);
+         i0->emplace([](test_element_t& elem) { elem.secondary = 12; });
+         BOOST_TEST(i0->find(1)->secondary == 12);
+         auto session2 = i0->start_undo_session(true);
+         i0->remove(*i0->find(1));
+         BOOST_TEST(i0->find(1) == nullptr);
          session2.squash();
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_TEST(i0.find(1) == nullptr);
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_TEST(i0->find(1) == nullptr);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -535,20 +559,20 @@ EXCEPTION_TEST_CASE(test_modify_modify_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 24; });
-         BOOST_TEST(i0.find(0)->secondary == 24);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 24; });
+         BOOST_TEST(i0->find(0)->secondary == 24);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -561,22 +585,22 @@ EXCEPTION_TEST_CASE(test_modify_modify_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session1 = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
-         auto session2 = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 24; });
-         BOOST_TEST(i0.find(0)->secondary == 24);
+         auto undo_checker = capture_state(*i0);
+         auto session1 = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
+         auto session2 = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 24; });
+         BOOST_TEST(i0->find(0)->secondary == 24);
          session2.squash();
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -589,20 +613,20 @@ EXCEPTION_TEST_CASE(test_modify_remove_undo) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -615,22 +639,22 @@ EXCEPTION_TEST_CASE(test_modify_remove_squash) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         auto undo_checker = capture_state(i0);
-         auto session1 = i0.start_undo_session(true);
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
-         auto session2 = i0.start_undo_session(true);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         auto undo_checker = capture_state(*i0);
+         auto session1 = i0->start_undo_session(true);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
+         auto session2 = i0->start_undo_session(true);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
          session2.squash();
       }
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -643,17 +667,17 @@ EXCEPTION_TEST_CASE(test_squash_one) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
       {
-         i0.modify(*i0.find(0), [](test_element_t& elem) { elem.secondary = 18; });
-         BOOST_TEST(i0.find(0)->secondary == 18);
-         auto session2 = i0.start_undo_session(true);
-         i0.remove(*i0.find(0));
-         BOOST_TEST(i0.find(0) == nullptr);
+         i0->modify(*i0->find(0), [](test_element_t& elem) { elem.secondary = 18; });
+         BOOST_TEST(i0->find(0)->secondary == 18);
+         auto session2 = i0->start_undo_session(true);
+         i0->remove(*i0->find(0));
+         BOOST_TEST(i0->find(0) == nullptr);
          session2.squash();
       }
    } catch ( ... ) {
@@ -668,13 +692,13 @@ EXCEPTION_TEST_CASE(test_insert_non_unique) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.find(0)->secondary == 42);
-      BOOST_CHECK_THROW(i0.emplace([](test_element_t& elem) { elem.secondary = 42; }),  std::exception);
-      BOOST_TEST(i0.find(0)->secondary == 42);
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->find(0)->secondary == 42);
+      BOOST_CHECK_THROW(i0->emplace([](test_element_t& elem) { elem.secondary = 42; }),  std::exception);
+      BOOST_TEST(i0->find(0)->secondary == 42);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -697,39 +721,39 @@ EXCEPTION_TEST_CASE(test_modify_conflict) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
+      undo_index_in_segment<conflict_element_t, test_allocator<conflict_element_t>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x0>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x1>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x2>>> i0(alloc);
       // insert 3 elements
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 0; elem.x1 = 10; elem.x2 = 10; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 1; elem.x2 = 11; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 2; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 0; elem.x1 = 10; elem.x2 = 10; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 1; elem.x2 = 11; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 2; });
       {
-         auto session = i0.start_undo_session(true);
+         auto session = i0->start_undo_session(true);
          // set them to a different value
-         i0.modify(*i0.find(0), [](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
-         i0.modify(*i0.find(1), [](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
-         i0.modify(*i0.find(2), [](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
+         i0->modify(*i0->find(0), [](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
+         i0->modify(*i0->find(1), [](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
+         i0->modify(*i0->find(2), [](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
          // create a circular conflict with the original values
-         i0.modify(*i0.find(0), [](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 1; elem.x2 = 10; });
-         i0.modify(*i0.find(1), [](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 2; });
-         i0.modify(*i0.find(2), [](conflict_element_t& elem) { elem.x0 = 0; elem.x1 = 12; elem.x2 = 12; });
+         i0->modify(*i0->find(0), [](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 1; elem.x2 = 10; });
+         i0->modify(*i0->find(1), [](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 2; });
+         i0->modify(*i0->find(2), [](conflict_element_t& elem) { elem.x0 = 0; elem.x1 = 12; elem.x2 = 12; });
       }
-      BOOST_TEST(i0.find(0)->x0 == 0);
-      BOOST_TEST(i0.find(1)->x1 == 1);
-      BOOST_TEST(i0.find(2)->x2 == 2);
+      BOOST_TEST(i0->find(0)->x0 == 0);
+      BOOST_TEST(i0->find(1)->x1 == 1);
+      BOOST_TEST(i0->find(2)->x2 == 2);
       // Check lookup in the other indices
-      BOOST_TEST(i0.get<1>().find(0)->x0 == 0);
-      BOOST_TEST(i0.get<1>().find(11)->x0 == 11);
-      BOOST_TEST(i0.get<1>().find(12)->x0 == 12);
-      BOOST_TEST(i0.get<2>().find(10)->x1 == 10);
-      BOOST_TEST(i0.get<2>().find(1)->x1 == 1);
-      BOOST_TEST(i0.get<2>().find(12)->x1 == 12);
-      BOOST_TEST(i0.get<3>().find(10)->x2 == 10);
-      BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
-      BOOST_TEST(i0.get<3>().find(2)->x2 == 2);
+      BOOST_TEST(i0->get<1>().find(0)->x0 == 0);
+      BOOST_TEST(i0->get<1>().find(11)->x0 == 11);
+      BOOST_TEST(i0->get<1>().find(12)->x0 == 12);
+      BOOST_TEST(i0->get<2>().find(10)->x1 == 10);
+      BOOST_TEST(i0->get<2>().find(1)->x1 == 1);
+      BOOST_TEST(i0->get<2>().find(12)->x1 == 12);
+      BOOST_TEST(i0->get<3>().find(10)->x2 == 10);
+      BOOST_TEST(i0->get<3>().find(11)->x2 == 11);
+      BOOST_TEST(i0->get<3>().find(2)->x2 == 2);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -742,33 +766,35 @@ BOOST_DATA_TEST_CASE(test_insert_fail, boost::unit_test::data::make({true, false
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
-                            boost::multi_index::ordered_unique<key<&conflict_element_t::id>>,
-                            boost::multi_index::ordered_unique<key<&conflict_element_t::x0>>,
-                            boost::multi_index::ordered_unique<key<&conflict_element_t::x1>>,
-                            boost::multi_index::ordered_unique<key<&conflict_element_t::x2>>> i0(alloc);
+
+      undo_index_in_segment<conflict_element_t, test_allocator<conflict_element_t>,
+                                                boost::multi_index::ordered_unique<key<&conflict_element_t::id>>,
+                                                boost::multi_index::ordered_unique<key<&conflict_element_t::x0>>,
+                                                boost::multi_index::ordered_unique<key<&conflict_element_t::x1>>,
+                                                boost::multi_index::ordered_unique<key<&conflict_element_t::x2>>> i0(alloc);
+
       // insert 3 elements
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
       {
-         auto session = i0.start_undo_session(true);
+         auto session = i0->start_undo_session(true);
          // Insert a value with a duplicate
-         BOOST_CHECK_THROW(i0.emplace([](conflict_element_t& elem) { elem.x0 = 81; elem.x1 = 11; elem.x2 = 91; }), std::logic_error);
+         BOOST_CHECK_THROW(i0->emplace([](conflict_element_t& elem) { elem.x0 = 81; elem.x1 = 11; elem.x2 = 91; }), std::logic_error);
       }
-      BOOST_TEST(i0.find(0)->x0 == 10);
-      BOOST_TEST(i0.find(1)->x1 == 11);
-      BOOST_TEST(i0.find(2)->x2 == 12);
+      BOOST_TEST(i0->find(0)->x0 == 10);
+      BOOST_TEST(i0->find(1)->x1 == 11);
+      BOOST_TEST(i0->find(2)->x2 == 12);
       // Check lookup in the other indices
-      BOOST_TEST(i0.get<1>().find(10)->x0 == 10);
-      BOOST_TEST(i0.get<1>().find(11)->x0 == 11);
-      BOOST_TEST(i0.get<1>().find(12)->x0 == 12);
-      BOOST_TEST(i0.get<2>().find(10)->x1 == 10);
-      BOOST_TEST(i0.get<2>().find(11)->x1 == 11);
-      BOOST_TEST(i0.get<2>().find(12)->x1 == 12);
-      BOOST_TEST(i0.get<3>().find(10)->x2 == 10);
-      BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
-      BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
+      BOOST_TEST(i0->get<1>().find(10)->x0 == 10);
+      BOOST_TEST(i0->get<1>().find(11)->x0 == 11);
+      BOOST_TEST(i0->get<1>().find(12)->x0 == 12);
+      BOOST_TEST(i0->get<2>().find(10)->x1 == 10);
+      BOOST_TEST(i0->get<2>().find(11)->x1 == 11);
+      BOOST_TEST(i0->get<2>().find(12)->x1 == 12);
+      BOOST_TEST(i0->get<3>().find(10)->x2 == 10);
+      BOOST_TEST(i0->get<3>().find(11)->x2 == 11);
+      BOOST_TEST(i0->get<3>().find(12)->x2 == 12);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -781,38 +807,38 @@ EXCEPTION_TEST_CASE(test_modify_fail) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<conflict_element_t, test_allocator<conflict_element_t>,
+      undo_index_in_segment<conflict_element_t, test_allocator<conflict_element_t>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::id>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x0>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x1>>,
                             boost::multi_index::ordered_unique<key<&conflict_element_t::x2>>> i0(alloc);
       // insert 3 elements
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
-      i0.emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 10; elem.x1 = 10; elem.x2 = 10; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 11; elem.x1 = 11; elem.x2 = 11; });
+      i0->emplace([](conflict_element_t& elem) { elem.x0 = 12; elem.x1 = 12; elem.x2 = 12; });
       {
-         auto session = i0.start_undo_session(true);
+         auto session = i0->start_undo_session(true);
          // Insert a value with a duplicate
-         i0.emplace([](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 81; elem.x2 = 91; });
-         BOOST_CHECK_THROW(i0.modify(i0.get(3), [](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 10; elem.x2 = 91; }), std::logic_error);
+         i0->emplace([](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 81; elem.x2 = 91; });
+         BOOST_CHECK_THROW(i0->modify(i0->get(3), [](conflict_element_t& elem) { elem.x0 = 71; elem.x1 = 10; elem.x2 = 91; }), std::logic_error);
       }
-      BOOST_TEST(i0.get<0>().size() == 3u);
-      BOOST_TEST(i0.get<1>().size() == 3u);
-      BOOST_TEST(i0.get<2>().size() == 3u);
-      BOOST_TEST(i0.get<3>().size() == 3u);
-      BOOST_TEST(i0.find(0)->x0 == 10);
-      BOOST_TEST(i0.find(1)->x1 == 11);
-      BOOST_TEST(i0.find(2)->x2 == 12);
+      BOOST_TEST(i0->get<0>().size() == 3u);
+      BOOST_TEST(i0->get<1>().size() == 3u);
+      BOOST_TEST(i0->get<2>().size() == 3u);
+      BOOST_TEST(i0->get<3>().size() == 3u);
+      BOOST_TEST(i0->find(0)->x0 == 10);
+      BOOST_TEST(i0->find(1)->x1 == 11);
+      BOOST_TEST(i0->find(2)->x2 == 12);
       // Check lookup in the other indices
-      BOOST_TEST(i0.get<1>().find(10)->x0 == 10);
-      BOOST_TEST(i0.get<1>().find(11)->x0 == 11);
-      BOOST_TEST(i0.get<1>().find(12)->x0 == 12);
-      BOOST_TEST(i0.get<2>().find(10)->x1 == 10);
-      BOOST_TEST(i0.get<2>().find(11)->x1 == 11);
-      BOOST_TEST(i0.get<2>().find(12)->x1 == 12);
-      BOOST_TEST(i0.get<3>().find(10)->x2 == 10);
-      BOOST_TEST(i0.get<3>().find(11)->x2 == 11);
-      BOOST_TEST(i0.get<3>().find(12)->x2 == 12);
+      BOOST_TEST(i0->get<1>().find(10)->x0 == 10);
+      BOOST_TEST(i0->get<1>().find(11)->x0 == 11);
+      BOOST_TEST(i0->get<1>().find(12)->x0 == 12);
+      BOOST_TEST(i0->get<2>().find(10)->x1 == 10);
+      BOOST_TEST(i0->get<2>().find(11)->x1 == 11);
+      BOOST_TEST(i0->get<2>().find(12)->x1 == 12);
+      BOOST_TEST(i0->get<3>().find(10)->x2 == 10);
+      BOOST_TEST(i0->get<3>().find(11)->x2 == 11);
+      BOOST_TEST(i0->get<3>().find(12)->x2 == 12);
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -827,14 +853,14 @@ BOOST_AUTO_TEST_CASE(test_project) {
    try {
       chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
       test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
+      undo_index_in_segment<test_element_t, test_allocator<test_element_t>,
                             boost::multi_index::ordered_unique<key<&test_element_t::id>>,
                             boost::multi_index::ordered_unique<boost::multi_index::tag<by_secondary>, key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 42; });
-      BOOST_TEST(i0.project<by_secondary>(i0.begin()) == i0.get<by_secondary>().begin());
-      BOOST_TEST(i0.project<by_secondary>(i0.end()) == i0.get<by_secondary>().end());
-      BOOST_TEST(i0.project<1>(i0.begin()) == i0.get<by_secondary>().begin());
-      BOOST_TEST(i0.project<1>(i0.end()) == i0.get<by_secondary>().end());
+      i0->emplace([](test_element_t& elem) { elem.secondary = 42; });
+      BOOST_TEST(i0->project<by_secondary>(i0->begin()) == i0->get<by_secondary>().begin());
+      BOOST_TEST(i0->project<by_secondary>(i0->end()) == i0->get<by_secondary>().end());
+      BOOST_TEST(i0->project<1>(i0->begin()) == i0->get<by_secondary>().begin());
+      BOOST_TEST(i0->project<1>(i0->end()) == i0->get<by_secondary>().end());
    } catch ( ... ) {
       fs::remove_all( temp );
       throw;
@@ -842,59 +868,5 @@ BOOST_AUTO_TEST_CASE(test_project) {
    fs::remove_all( temp );
 }
 
-
-EXCEPTION_TEST_CASE(test_remove_tracking_session) {
-   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
-   try {
-      chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
-      test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::id>>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 20; });
-      auto session = i0.start_undo_session(true);
-      auto tracker = i0.track_removed();
-      i0.emplace([](test_element_t& elem) { elem.secondary = 21; });
-      const test_element_t& elem0 = *i0.find(0);
-      const test_element_t& elem1 = *i0.find(1);
-      BOOST_CHECK(!tracker.is_removed(elem0));
-      BOOST_CHECK(!tracker.is_removed(elem1));
-      tracker.remove(elem0);
-      tracker.remove(elem1);
-      BOOST_CHECK(tracker.is_removed(elem0));
-      BOOST_CHECK(tracker.is_removed(elem1));
-   } catch ( ... ) {
-      fs::remove_all( temp );
-      throw;
-   }
-   fs::remove_all( temp );
-}
-
-
-EXCEPTION_TEST_CASE(test_remove_tracking_no_session) {
-   fs::path temp = fs::temp_directory_path() / "pinnable_mapped_file";
-   try {
-      chainbase::pinnable_mapped_file db(temp, true, 1024 * 1024, false, chainbase::pinnable_mapped_file::map_mode::mapped);
-      test_allocator<basic_element_t> alloc(db.get_segment_manager());
-      chainbase::undo_index<test_element_t, test_allocator<test_element_t>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::id>>,
-                            boost::multi_index::ordered_unique<key<&test_element_t::secondary>>> i0(alloc);
-      i0.emplace([](test_element_t& elem) { elem.secondary = 20; });
-      auto tracker = i0.track_removed();
-      i0.emplace([](test_element_t& elem) { elem.secondary = 21; });
-      const test_element_t& elem0 = *i0.find(0);
-      const test_element_t& elem1 = *i0.find(1);
-      BOOST_CHECK(!tracker.is_removed(elem0));
-      BOOST_CHECK(!tracker.is_removed(elem1));
-      tracker.remove(elem0);
-      tracker.remove(elem1);
-      BOOST_CHECK(tracker.is_removed(elem0));
-      BOOST_CHECK(tracker.is_removed(elem1));
-   } catch ( ... ) {
-      fs::remove_all( temp );
-      throw;
-   }
-   fs::remove_all( temp );
-}
 
 BOOST_AUTO_TEST_SUITE_END()
