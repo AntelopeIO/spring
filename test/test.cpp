@@ -127,11 +127,27 @@ BOOST_AUTO_TEST_CASE( open_and_create ) {
    BOOST_REQUIRE_EQUAL( new_book.b, copy_new_book.b );
 }
 
+// behavior of these tests are dependent on linux's overcommit behavior, they are also dependent on the system not having
+// enough memory+swap to balk at 6TB request
+#if defined(__linux__)
+
+static bool overcommit_protection_enabled() {
+   std::ifstream ocmem_file("/proc/sys/vm/overcommit_memory");
+   BOOST_REQUIRE(ocmem_file.good());
+   std::string ocmem_contents((std::istreambuf_iterator<char>(ocmem_file)), std::istreambuf_iterator<char>());
+
+   return ocmem_contents.at(0) == '0' || ocmem_contents.at(0) == '2';
+}
+
 BOOST_AUTO_TEST_CASE( mapped_big_boy ) {
    temp_directory temp_dir;
    const auto& temp = temp_dir.path();
 
-   BOOST_REQUIRE_THROW(chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*4, false, pinnable_mapped_file::map_mode::mapped_private), boost::interprocess::interprocess_exception);
+   //silently pass test if system not configured for overcommit protection
+   if(!overcommit_protection_enabled())
+      return;
+
+   BOOST_REQUIRE_THROW(chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*6, false, pinnable_mapped_file::map_mode::mapped_private), boost::interprocess::interprocess_exception);
    chainbase::database(temp, database::read_write, 0, false);
 }
 
@@ -139,9 +155,15 @@ BOOST_AUTO_TEST_CASE( mapped_big_boy_extra ) {
    temp_directory temp_dir;
    const auto& temp = temp_dir.path();
 
-   chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*4, false);
+   //silently pass test if system not configured for overcommit protection
+   if(!overcommit_protection_enabled())
+      return;
+
+   chainbase::database(temp, database::read_write, 1024ull*1024*1024*1024*6, false);
    BOOST_REQUIRE_THROW(chainbase::database(temp, database::read_write, 0, false, pinnable_mapped_file::map_mode::mapped_private), boost::interprocess::interprocess_exception);
    chainbase::database(temp, database::read_write, 0, false);
 }
+
+#endif
 
 // BOOST_AUTO_TEST_SUITE_END()
