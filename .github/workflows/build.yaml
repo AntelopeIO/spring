@@ -40,3 +40,7 @@ jobs:
         run: cmake -B build ${{matrix.cfg.cmake}} && cmake --build build -- -j
       - name: Test
         run: cd build && ctest --output-on-failure
+      # some tests are ignored unless overcommit_memory is allowed
+      - name: Check Linux overcommit_memory settings
+        if: matrix.cfg.runson == 'ubuntu-latest'
+        run: grep -q 0 /proc/sys/vm/overcommit_memory
