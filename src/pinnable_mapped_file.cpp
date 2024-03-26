@@ -14,6 +14,10 @@
 #include <sys/sysinfo.h>
 #endif
 
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+
 namespace chainbase {
 
 std::vector<pinnable_mapped_file*> pinnable_mapped_file::_instance_tracker;
@@ -216,7 +220,13 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 
 #ifndef _WIN32
       if(mode == locked) {
+#if __has_feature(address_sanitizer) && defined(__linux__)
+         //as of llvm's compilerrt 18, mlock() continues to be intercepted as a noop thus breaking tests the expect memory locking
+         // to fail. mlock2() isn't intercepted though, so use it when ASAN is enabled on Linux
+         if(mlock2(_non_file_mapped_mapping, _non_file_mapped_mapping_size, 0)) {
+#else
          if(mlock(_non_file_mapped_mapping, _non_file_mapped_mapping_size)) {
+#endif
             std::string what_str("Failed to mlock database \"" + _database_name + "\"");
             BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock), what_str));
          }
