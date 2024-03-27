@@ -14,6 +14,13 @@
 #include <sys/sysinfo.h>
 #endif
 
+// use mlock2() on Linux to avoid a noop intercept of mlock() when ASAN is enabled (still present in compiler-rt 18.1)
+#ifdef __linux__
+#define MLOCK(a, b) mlock2(a, b, 0)
+#else
+#define MLOCK(a, b) mlock(a, b)
+#endif
+
 namespace chainbase {
 
 std::vector<pinnable_mapped_file*> pinnable_mapped_file::_instance_tracker;
@@ -216,7 +223,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 
 #ifndef _WIN32
       if(mode == locked) {
-         if(mlock(_non_file_mapped_mapping, _non_file_mapped_mapping_size)) {
+         if(MLOCK(_non_file_mapped_mapping, _non_file_mapped_mapping_size)) {
             std::string what_str("Failed to mlock database \"" + _database_name + "\"");
             BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock), what_str));
          }
