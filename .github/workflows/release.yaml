@@ -13,29 +13,29 @@ jobs:
       packages: write
       actions: read
     steps:
-      - name: Get ubuntu20 leap-dev.deb
+      - name: Get ubuntu20 spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'leap-dev.*amd64.deb'
+          file: 'spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: leap-dev-ubuntu20-amd64
+          artifact-name: spring-dev-ubuntu20-amd64
           wait-for-exact-target: true
-      - name: Get ubuntu22 leap-dev.deb
+      - name: Get ubuntu22 spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'leap-dev.*amd64.deb'
+          file: 'spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: leap-dev-ubuntu22-amd64
+          artifact-name: spring-dev-ubuntu22-amd64
           wait-for-exact-target: true
       - name: Create Dockerfile
         run: |
           cat <<EOF > Dockerfile
           FROM scratch
-          LABEL org.opencontainers.image.description="A collection of experimental Leap binary packages"
+          LABEL org.opencontainers.image.description="A collection of experimental Leap and Spring binary packages"
           COPY *.deb /
           EOF
       - name: Login to ghcr

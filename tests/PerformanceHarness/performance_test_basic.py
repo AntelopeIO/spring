@@ -151,7 +151,6 @@ class PerformanceTestBasic:
             if self.apiNodeCount > 0:
                 configureApiNodes()
 
-            assert "v1" not in self.nodeosVers and "v0" not in self.nodeosVers, f"nodeos version {Utils.getNodeosVersion()} is unsupported by performance test"
             if "v2" in self.nodeosVers:
                 self.writeTrx = lambda trxDataFile, blockNum, trx: [trxDataFile.write(f"{trx['trx']['id']},{blockNum},{trx['cpu_usage_us']},{trx['net_usage_words']}\n")]
                 self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['block_num'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["confirmed"], _timestamp=block["payload"]["timestamp"])
