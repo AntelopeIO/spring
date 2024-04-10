@@ -502,8 +502,7 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
    cluster.node1_corrupt_vote_proposal_id();
 
    // process the corrupted vote
-   cluster.process_node1_vote(0);
-   BOOST_REQUIRE(cluster.process_node1_vote(0) == eosio::chain::vote_status::unknown_block);
+   BOOST_REQUIRE_THROW(cluster.process_node1_vote(0), fc::exception); // throws because it times out waiting on vote
    cluster.produce_and_push_block();
    BOOST_REQUIRE(cluster.node2_lib_advancing());
 

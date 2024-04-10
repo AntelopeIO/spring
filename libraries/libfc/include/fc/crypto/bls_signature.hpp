@@ -44,6 +44,13 @@ namespace fc::crypto::blslib {
          return _jacobian_montgomery_le.equal(sig._jacobian_montgomery_le);
       }
 
+      auto operator<=>(const bls_signature& rhs) const {
+         return _affine_non_montgomery_le <=> rhs._affine_non_montgomery_le;
+      }
+      auto operator==(const bls_signature& rhs) const {
+         return _affine_non_montgomery_le == rhs._affine_non_montgomery_le;
+      }
+
       template<typename T>
       friend T& operator<<(T& ds, const bls_signature& sig) {
          // Serialization as variable length array when it is stored as a fixed length array. This makes for easier deserialization by external tools

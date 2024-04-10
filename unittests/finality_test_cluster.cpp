@@ -10,13 +10,20 @@ finality_test_cluster::finality_test_cluster() {
 
    produce_and_push_block(); // make setfinalizer irreversible
 
+   // node0's votes
+   node0.node.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      last_vote_status = std::get<1>(v);
+      last_connection_vote = std::get<0>(v);
+   });
    // collect node1's votes
-   node1.node.control->voted_block().connect( [&]( const eosio::chain::vote_message& vote ) {
-      node1.votes.emplace_back(vote);
+   node1.node.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      std::lock_guard g(node1.votes_mtx);
+      node1.votes.emplace_back(std::get<2>(v));
    });
    // collect node2's votes
-   node2.node.control->voted_block().connect( [&]( const eosio::chain::vote_message& vote ) {
-      node2.votes.emplace_back(vote);
+   node2.node.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      std::lock_guard g(node2.votes_mtx);
+      node2.votes.emplace_back(std::get<2>(v));
    });
 
    // form a 3-chain to make LIB advacing on node0
@@ -35,9 +42,22 @@ finality_test_cluster::finality_test_cluster() {
 
    // clean up processed votes
    for (auto& n : nodes) {
+      std::lock_guard g(n.votes_mtx);
       n.votes.clear();
       n.prev_lib_num = n.node.control->if_irreversible_block_num();
    }
+}
+
+eosio::chain::vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id) {
+   // wait for this node's vote to be processed
+   size_t retrys = 200;
+   while ( (last_connection_vote != connection_id) && --retrys) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+   }
+   if (last_connection_vote != connection_id) {
+      FC_ASSERT(false, "Never received vote");
+   }
+   return last_vote_status;
 }
 
 // node0 produces a block and pushes it to node1 and node2
@@ -87,8 +107,11 @@ bool finality_test_cluster::node2_lib_advancing() {
 // node1_votes and node2_votes when starting.
 bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    // start from fresh
-   node1.votes.clear();
-   node2.votes.clear();
+   {
+      std::scoped_lock g(node1.votes_mtx, node2.votes_mtx);
+      node1.votes.clear();
+      node2.votes.clear();
+   }
 
    for (auto i = 0; i < 3; ++i) {
       produce_and_push_block();
@@ -103,6 +126,7 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
 }
 
 void finality_test_cluster::node1_corrupt_vote_proposal_id() {
+   std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];
 
    if( node1.votes[0].block_id.data()[0] == 'a' ) {
@@ -113,6 +137,7 @@ void finality_test_cluster::node1_corrupt_vote_proposal_id() {
 }
 
 void finality_test_cluster::node1_corrupt_vote_finalizer_key() {
+   std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];
 
    // corrupt the finalizer_key (manipulate so it is different)
@@ -123,6 +148,7 @@ void finality_test_cluster::node1_corrupt_vote_finalizer_key() {
 }
 
 void finality_test_cluster::node1_corrupt_vote_signature() {
+   std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];
 
    // corrupt the signature
@@ -133,6 +159,7 @@ void finality_test_cluster::node1_corrupt_vote_signature() {
 }
 
 void finality_test_cluster::node1_restore_to_original_vote() {
+   std::lock_guard g(node1.votes_mtx);
    node1.votes[0] = node1_orig_vote;
 }
 
@@ -177,6 +204,7 @@ void finality_test_cluster::setup_node(node_info& node, eosio::chain::account_na
 
 // send a vote to node0
 eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, size_t vote_index, vote_mode mode) {
+   std::unique_lock g(node.votes_mtx);
    FC_ASSERT( vote_index < node.votes.size(), "out of bound index in process_vote" );
    auto& vote = node.votes[vote_index];
    if( mode == vote_mode::strong ) {
@@ -189,8 +217,13 @@ eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, s
       // convert the strong digest to weak and sign it
       vote.sig = node.priv_key.sign(eosio::chain::create_weak_digest(strong_digest));
    }
+   g.unlock();
 
-   return node0.node.control->process_vote_message( vote );
+   static uint32_t connection_id = 0;
+   node0.node.control->process_vote_message( ++connection_id, vote );
+   if (eosio::chain::block_header::num_from_id(vote.block_id) > node0.node.control->last_irreversible_block_num())
+      return wait_on_vote(connection_id);
+   return eosio::chain::vote_status::unknown_block;
 }
 
 eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, vote_mode mode) {

@@ -78,9 +78,13 @@ private:
    struct node_info {
       eosio::testing::tester                  node;
       uint32_t                                prev_lib_num{0};
+      std::mutex                              votes_mtx;
       std::vector<eosio::chain::vote_message> votes;
       fc::crypto::blslib::bls_private_key     priv_key;
    };
+
+   std::atomic<uint32_t>                      last_connection_vote{0};
+   std::atomic<eosio::chain::vote_status>     last_vote_status{};
 
    std::array<node_info, 3> nodes;
    node_info& node0 = nodes[0];
@@ -100,4 +104,6 @@ private:
 
    // send the latest vote on "node_index" node to node0
    eosio::chain::vote_status process_vote(node_info& node, vote_mode mode);
+
+   eosio::chain::vote_status wait_on_vote(uint32_t connection_id);
 };

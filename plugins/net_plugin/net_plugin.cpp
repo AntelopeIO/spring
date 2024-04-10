@@ -305,7 +305,7 @@ namespace eosio {
       bool have_txn( const transaction_id_type& tid ) const;
       void expire_txns();
 
-      void bcast_vote_msg( const std::optional<uint32_t>& exclude_peer, send_buffer_type msg );
+      void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
 
       void add_unlinkable_block( signed_block_ptr b, const block_id_type& id ) {
          std::optional<block_id_type> rm_blk_id = unlinkable_block_cache.add_unlinkable_block(std::move(b), id);
@@ -529,12 +529,12 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block();
-      void on_voted_block ( const vote_message& vote );
+      void on_voted_block ( uint32_t connection_id, vote_status stauts, const vote_message& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
-      void bcast_vote_message( const std::optional<uint32_t>& exclude_peer, const chain::vote_message& msg );
+      void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message& msg );
       void warn_message( uint32_t sender_peer, const chain::hs_message_warning& code );
 
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
@@ -2666,10 +2666,10 @@ namespace eosio {
       } );
    }
 
-   void dispatch_manager::bcast_vote_msg( const std::optional<uint32_t>& exclude_peer, send_buffer_type msg ) {
+   void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
-         if( exclude_peer.has_value() && cp->connection_id == exclude_peer.value() ) return true;
+         if( cp->connection_id == exclude_peer ) return true;
          cp->strand.post( [cp, msg]() {
             if (cp->protocol_version >= proto_instant_finality) {
                peer_dlog(cp, "sending vote msg");
@@ -3713,24 +3713,7 @@ namespace eosio {
                 ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
                 ("v", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
       controller& cc = my_impl->chain_plug->chain();
-
-      switch( cc.process_vote_message(msg) ) {
-         case vote_status::success:
-            my_impl->bcast_vote_message(connection_id, msg);
-            break;
-         case vote_status::unknown_public_key:
-         case vote_status::invalid_signature: // close peer immediately
-            close( false ); // do not reconnect after closing
-            break;
-         case vote_status::unknown_block: // track the failure
-            peer_dlog(this, "vote unknown block #${bn}:${id}..", ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16)));
-            block_status_monitor_.rejected();
-            break;
-         case vote_status::duplicate: // do nothing
-            break;
-         default:
-            assert(false); // should never happen
-      }
+      cc.process_vote_message(connection_id, msg);
    }
 
    size_t calc_trx_size( const packed_transaction_ptr& trx ) {
@@ -3996,14 +3979,41 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::on_voted_block(const vote_message& msg) {
-      fc_dlog(logger, "on voted signal: block #${bn} ${id}.., ${t}, key ${k}..",
-                ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
+   void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message& msg) {
+      fc_dlog(logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
+                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
                 ("t", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
-      bcast_vote_message(std::nullopt, msg);
+
+      switch( status ) {
+      case vote_status::success:
+         bcast_vote_message(connection_id, msg);
+         break;
+      case vote_status::unknown_public_key:
+      case vote_status::invalid_signature:
+      case vote_status::max_exceeded:  // close peer immediately
+         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+            if (c->connection_id == connection_id) {
+               c->close( false );
+            }
+         });
+         break;
+      case vote_status::unknown_block: // track the failure
+         fc_dlog(logger, "connection - ${c} vote unknown block #${bn}:${id}..",
+                 ("c", connection_id)("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16)));
+         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+            if (c->connection_id == connection_id) {
+               c->block_status_monitor_.rejected();
+            }
+         });
+         break;
+      case vote_status::duplicate: // do nothing
+         break;
+      default:
+         assert(false); // should never happen
+      }
    }
 
-   void net_plugin_impl::bcast_vote_message( const std::optional<uint32_t>& exclude_peer, const chain::vote_message& msg ) {
+   void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message& msg ) {
       buffer_factory buff_factory;
       auto send_buffer = buff_factory.get_send_buffer( msg );
 
@@ -4420,8 +4430,8 @@ namespace eosio {
             my->on_irreversible_block( id, block->block_num() );
          } );
 
-         cc.voted_block().connect( [my = shared_from_this()]( const vote_message& vote ) {
-            my->on_voted_block(vote);
+         cc.voted_block().connect( [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
+            my->on_voted_block(std::get<0>(vote_signal), std::get<1>(vote_signal), std::get<2>(vote_signal));
          } );
       }
 

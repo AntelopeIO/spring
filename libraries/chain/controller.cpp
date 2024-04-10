@@ -31,6 +31,7 @@
 #include <eosio/chain/hotstuff/finalizer.hpp>
 #include <eosio/chain/hotstuff/finalizer_policy.hpp>
 #include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/vote_processor.hpp>
 
 #include <chainbase/chainbase.hpp>
 #include <eosio/vm/allocator.hpp>
@@ -946,7 +947,9 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   signal<void(const vote_message&)>         voted_block;
+   signal<void(const vote_signal_params&)>   voted_block;
+
+   vote_processor_t                          vote_processor{fork_db, voted_block};
 
    int64_t set_proposed_producers( vector<producer_authority> producers );
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
@@ -1195,6 +1198,7 @@ struct controller_impl {
          elog( "Exception in chain thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
+      vote_processor.start(4);
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -1214,6 +1218,7 @@ struct controller_impl {
       irreversible_block.connect([this](const block_signal_params& t) {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
+         vote_processor.notify_lib(block->block_num());
       });
 
 
@@ -3552,19 +3557,8 @@ struct controller_impl {
 
 
    // called from net threads and controller's thread pool
-   vote_status process_vote_message( const vote_message& vote ) {
-      // only aggregate votes on proper if blocks
-      auto aggregate_vote = [&vote](auto& forkdb) -> vote_status {
-          auto bsp = forkdb.get_block(vote.block_id);
-          if (bsp && bsp->block->is_proper_svnn_block()) {
-             return bsp->aggregate_vote(vote);
-          }
-          return vote_status::unknown_block;
-      };
-      auto aggregate_vote_legacy = [](auto&) -> vote_status {
-         return vote_status::unknown_block;
-      };
-      return fork_db.apply<vote_status>(aggregate_vote_legacy, aggregate_vote);
+   void process_vote_message( uint32_t connection_id, const vote_message& vote ) {
+      vote_processor.process_vote_message(connection_id, vote);
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {
@@ -3593,11 +3587,10 @@ struct controller_impl {
       my_finalizers.maybe_vote(
           *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, vote);
+              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)});
 
               // also aggregate our own vote into the pending_qc for this block.
-              boost::asio::post(thread_pool.get_executor(),
-                                [control = this, vote]() { control->process_vote_message(vote); });
+              process_vote_message(0, vote);
           });
    }
 
@@ -5254,8 +5247,8 @@ void controller::set_proposed_finalizers( finalizer_policy&& fin_pol ) {
 }
 
 // called from net threads
-vote_status controller::process_vote_message( const vote_message& vote ) {
-   return my->process_vote_message( vote );
+void controller::process_vote_message( uint32_t connection_id, const vote_message& vote ) {
+   my->process_vote_message( connection_id, vote );
 };
 
 bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
@@ -5538,7 +5531,7 @@ signal<void(const block_signal_params&)>&  controller::accepted_block_header() {
 signal<void(const block_signal_params&)>&  controller::accepted_block() { return my->accepted_block; }
 signal<void(const block_signal_params&)>&  controller::irreversible_block() { return my->irreversible_block; }
 signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& controller::applied_transaction() { return my->applied_transaction; }
-signal<void(const vote_message&)>&         controller::voted_block() { return my->voted_block; }
+signal<void(const vote_signal_params&)>&   controller::voted_block() { return my->voted_block; }
 
 chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    chain_snapshot_header header;

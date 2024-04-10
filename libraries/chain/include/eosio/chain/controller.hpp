@@ -58,6 +58,7 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
+   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message&>;
 
    enum class db_read_mode {
       HEAD,
@@ -326,7 +327,7 @@ namespace eosio::chain {
          // called by host function set_finalizers
          void set_proposed_finalizers( finalizer_policy&& fin_pol );
          // called from net threads
-         vote_status process_vote_message( const vote_message& msg );
+         void process_vote_message( uint32_t connection_id, const vote_message& msg );
          // thread safe, for testing
          bool node_has_voted_if_finalizer(const block_id_type& id) const;
 
@@ -373,9 +374,8 @@ namespace eosio::chain {
          signal<void(const block_signal_params&)>&  accepted_block();
          signal<void(const block_signal_params&)>&  irreversible_block();
          signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& applied_transaction();
-
-         // Unlike other signals, voted_block can be signaled from other threads than the main thread.
-         signal<void(const vote_message&)>&         voted_block();
+         // Unlike other signals, voted_block is signaled from other threads than the main thread.
+         signal<void(const vote_signal_params&)>&   voted_block();
 
          const apply_handler* find_apply_handler( account_name contract, scope_name scope, action_name act )const;
          wasm_interface& get_wasm_interface();
