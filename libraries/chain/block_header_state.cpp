@@ -39,6 +39,7 @@ digest_type block_header_state::compute_base_digest() const {
    fc::raw::pack( enc, *active_proposer_policy );
 
    for (const auto& pp_pair : proposer_policies) {
+      fc::raw::pack( enc, pp_pair.first );
       assert(pp_pair.second);
       fc::raw::pack( enc, *pp_pair.second );
    }
