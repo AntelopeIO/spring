@@ -117,7 +117,7 @@ namespace eosio::chain::snapshot_detail {
       finalizer_policy_ptr                                active_finalizer_policy;
       proposer_policy_ptr                                 active_proposer_policy;
       flat_map<block_timestamp_type, proposer_policy_ptr> proposer_policies;
-      flat_map<uint32_t, finalizer_policy_ptr>            finalizer_policies;
+      flat_map<uint32_t, finalizer_policy_tracker>        finalizer_policies;
 
       // from block_state
       std::optional<valid_t>                              valid;

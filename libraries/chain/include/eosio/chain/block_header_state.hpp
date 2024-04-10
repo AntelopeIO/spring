@@ -20,6 +20,12 @@ namespace detail { struct schedule_info; };
 constexpr uint32_t light_header_protocol_version_major = 1;
 constexpr uint32_t light_header_protocol_version_minor = 0;
 
+struct finalizer_policy_tracker {
+   enum class state_t { proposed = 0, pending };
+   state_t               state;
+   finalizer_policy_ptr  policy;
+};
+
 struct building_block_input {
    block_id_type                     parent_id;
    block_timestamp_type              parent_timestamp;
@@ -50,7 +56,7 @@ struct block_header_state {
 
    // block time when proposer_policy will become active
    flat_map<block_timestamp_type, proposer_policy_ptr>  proposer_policies;
-   flat_map<uint32_t, finalizer_policy_ptr> finalizer_policies;
+   flat_map<uint32_t, finalizer_policy_tracker>         finalizer_policies;
 
 
    // ------ data members caching information available elsewhere ----------------------
@@ -92,6 +98,10 @@ struct block_header_state {
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 }
+
+FC_REFLECT_ENUM( eosio::chain::finalizer_policy_tracker::state_t, (proposed)(pending))
+
+FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
 
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
