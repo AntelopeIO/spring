@@ -5,7 +5,6 @@
 #include <eosio/testing/tester.hpp>
 #include <fc/bitutil.hpp>
 #include <boost/signals2/signal.hpp>
-#include <latch>
 
 namespace std {
 std::ostream& operator<<(std::ostream& os, const eosio::chain::vote_message& v) {
@@ -130,7 +129,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    vote_status received_vote_status = vote_status::unknown_block;
    vote_message received_vote_message{};
 
-   std::unique_ptr<std::latch> signaled;
+   std::atomic<size_t> signaled = 0;
    std::mutex                               forkdb_mtx;
    std::map<block_id_type, block_state_ptr> forkdb;
    auto add_to_forkdb = [&](const block_state_ptr& bsp) {
@@ -142,7 +141,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       received_connection_id = std::get<0>(vote_signal);
       received_vote_status = std::get<1>(vote_signal);
       received_vote_message = std::get<2>(vote_signal);
-      signaled->count_down();
+      ++signaled;
    } );
 
    vote_processor_t vp{voted_block, [&](const block_id_type& id) -> block_state_ptr {
@@ -156,10 +155,9 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
 
    { // empty fork db, block never found, never signaled
       vote_message vm1 = make_empty_message(make_block_id(1));
-      signaled = std::make_unique<std::latch>(1);
+      signaled = 0;
       vp.process_vote_message(1, vm1);
-      for (size_t i = 0; i < 5; ++i) {
-         BOOST_CHECK(!signaled->try_wait()); // not signaled because no block
+      for (size_t i = 0; i < 5 && vp.size() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(vp.size() == 1);
@@ -172,7 +170,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK(vp.size() == 0);
    }
    { // process a valid vote
-      signaled = std::make_unique<std::latch>(1);
+      signaled = 0;
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       BOOST_CHECK_EQUAL(bsp->block_num(), 3);
@@ -181,13 +179,16 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       vp.process_vote_message(1, m1);
       // duplicate ignored
       vp.process_vote_message(1, m1);
-      signaled->wait();
+      for (size_t i = 0; i < 5 && signaled.load() < 1; ++i) {
+         std::this_thread::sleep_for(std::chrono::milliseconds{5});
+      }
+      BOOST_CHECK(signaled.load() == 1);
       BOOST_CHECK(1 == received_connection_id);
       BOOST_CHECK(vote_status::success == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message);
    }
    { // process an invalid signature vote
-      signaled = std::make_unique<std::latch>(1);
+      signaled = 0;
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       BOOST_CHECK_EQUAL(bsp->block_num(), 3);
@@ -195,13 +196,16 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       m1.strong = false; // signed with strong_digest
       add_to_forkdb(bsp);
       vp.process_vote_message(1, m1);
-      signaled->wait();
+      for (size_t i = 0; i < 5 && signaled.load() < 1; ++i) {
+         std::this_thread::sleep_for(std::chrono::milliseconds{5});
+      }
+      BOOST_CHECK(signaled.load() == 1);
       BOOST_CHECK(1 == received_connection_id);
       BOOST_CHECK(vote_status::invalid_signature == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message);
    }
    { // process two diff block votes
-      signaled = std::make_unique<std::latch>(2);
+      signaled = 0;
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       auto bsp2 = create_test_block_state(bsp);
@@ -216,7 +220,10 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK(vp.size() == 2);
       add_to_forkdb(bsp);
       add_to_forkdb(bsp2);
-      signaled->wait();
+      for (size_t i = 0; i < 5 && signaled.load() < 2; ++i) {
+         std::this_thread::sleep_for(std::chrono::milliseconds{5});
+      }
+      BOOST_CHECK(signaled.load() == 2);
       BOOST_CHECK(2 == received_connection_id);
       BOOST_CHECK(vote_status::success == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message || m2 == received_vote_message);
