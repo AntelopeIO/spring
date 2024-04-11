@@ -180,6 +180,8 @@ public:
                   }
                   if (should_break)
                      break;
+                  g.lock();
+                  i = idx.begin();
                } else {
                   not_in_forkdb_id = vt->id();
                   if (skip_all_for_block(idx, i, (*i)->id()))
