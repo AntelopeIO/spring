@@ -1,6 +1,31 @@
-AntelopeIO/leap
-Copyright (c) 2021-2022 EOS Network Foundation (ENF) and its contributors.  All rights reserved. 
-This ENF software is based upon:
+SPRING 1.0 BETA SOFTWARE LICENSE
+
+Issued by EOS NETWORK FOUNDATION ("ENF")
+
+The SPRING 1.0  Beta Software (the "Software") is pre-release MIT based
+software in part. The feedback you provide on quality and usability helps us
+identify issues, fix them and work towards final version of the Software.
+
+This is not a commercial release of the Software.  No compensation will be paid
+to those participating in this Beta Software release.
+
+Terms of Use:
+
+Non-exclusive, limited term of 3 months, royalty free and all recommendations
+for improvements and code amendments are owned by ENF.
+
+Copyright 2024, EOS Network Foundation.  All rights reserved.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+This software contains code from EOSIO/eos. That inclusion is under the
+following license:
 
 EOSIO/eos
 Copyright (c) 2017-2021 block.one and its contributors.  All rights reserved.
