@@ -122,11 +122,9 @@ public:
       cv.notify_one();
    }
 
-   void start(size_t num_threads) {
+   void start(size_t num_threads, decltype(thread_pool)::on_except_t&& on_except) {
       assert(num_threads > 1); // need at least two as one is used for coordinatation
-      thread_pool.start( num_threads, []( const fc::exception& e ) {
-         elog( "Exception in vote processor thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-      } );
+      thread_pool.start( num_threads, std::move(on_except));
 
       // one coordinator thread
       boost::asio::post(thread_pool.get_executor(), [&]() {

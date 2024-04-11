@@ -1199,7 +1199,10 @@ struct controller_impl {
          if( shutdown ) shutdown();
       } );
       if (cfg.vote_thread_pool_size > 0) {
-         vote_processor.start(cfg.vote_thread_pool_size);
+         vote_processor.start(cfg.vote_thread_pool_size, [this]( const fc::exception& e ) {
+            elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+            if( shutdown ) shutdown();
+         } );
       }
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
