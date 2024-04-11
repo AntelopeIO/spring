@@ -1194,11 +1194,13 @@ struct controller_impl {
     my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
-      thread_pool.start( cfg.thread_pool_size, [this]( const fc::exception& e ) {
+      thread_pool.start( cfg.chain_thread_pool_size, [this]( const fc::exception& e ) {
          elog( "Exception in chain thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
-      vote_processor.start(4);
+      if (cfg.vote_thread_pool_size > 0) {
+         vote_processor.start(cfg.vote_thread_pool_size);
+      }
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -3558,7 +3560,9 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message& vote ) {
-      vote_processor.process_vote_message(connection_id, vote);
+      if (conf.vote_thread_pool_size > 0) {
+         vote_processor.process_vote_message(connection_id, vote);
+      }
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {

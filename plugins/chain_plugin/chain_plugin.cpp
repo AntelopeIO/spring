@@ -291,6 +291,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "Percentage of actual signature recovery cpu to bill. Whole number percentages, e.g. 50 for 50%")
          ("chain-threads", bpo::value<uint16_t>()->default_value(config::default_controller_thread_pool_size),
           "Number of worker threads in controller thread pool")
+         ("vote-threads", bpo::value<uint16_t>()->default_value(config::default_vote_thread_pool_size),
+          "Number of worker threads in vote processor thread pool. Voting disabled if set to 0 (votes are not propagatged on P2P network).")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
          ("deep-mind", bpo::bool_switch()->default_value(false),
@@ -632,9 +634,17 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
 
       if( options.count( "chain-threads" )) {
-         chain_config->thread_pool_size = options.at( "chain-threads" ).as<uint16_t>();
-         EOS_ASSERT( chain_config->thread_pool_size > 0, plugin_config_exception,
-                     "chain-threads ${num} must be greater than 0", ("num", chain_config->thread_pool_size) );
+         chain_config->chain_thread_pool_size = options.at( "chain-threads" ).as<uint16_t>();
+         EOS_ASSERT( chain_config->chain_thread_pool_size > 0, plugin_config_exception,
+                     "chain-threads ${num} must be greater than 0", ("num", chain_config->chain_thread_pool_size) );
+      }
+
+      if( options.count( "vote-threads" )) {
+         chain_config->vote_thread_pool_size = options.at( "vote-threads" ).as<uint16_t>();
+         EOS_ASSERT( chain_config->vote_thread_pool_size > 1 || chain_config->vote_thread_pool_size == 0, plugin_config_exception,
+                     "vote-threads ${num} must be greater than 1 or 0. "
+                     "Voting disabled if set to 0 (votes are not propagatged on P2P network).",
+                     ("num", chain_config->vote_thread_pool_size) );
       }
 
       chain_config->sig_cpu_bill_pct = options.at("signature-cpu-billable-pct").as<uint32_t>();
