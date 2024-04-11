@@ -182,7 +182,9 @@ public:
                   for (auto& vptr : to_process) {
                      boost::asio::post(thread_pool.get_executor(), [this, bsp, vptr=std::move(vptr)]() {
                         vote_status s = bsp->aggregate_vote(vptr->msg);
-                        emit(vptr->connection_id, s, vptr->msg);
+                        if (s != vote_status::duplicate) { // don't bother emitting duplicates
+                           emit(vptr->connection_id, s, vptr->msg);
+                        }
                      });
                   }
                   if (should_break)
