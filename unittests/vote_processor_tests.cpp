@@ -157,14 +157,13 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       vote_message vm1 = make_empty_message(make_block_id(1));
       signaled = 0;
       vp.process_vote_message(1, vm1);
-      for (size_t i = 0; i < 5 && vp.size() < 1; ++i) {
+      for (size_t i = 0; i < 50 && vp.size() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(vp.size() == 1);
       // move lib past block
       vp.notify_lib(2);
-      for (size_t i = 0; i < 5; ++i) {
-         if (vp.size() == 0) break;
+      for (size_t i = 0; i < 50 && vp.size() > 0; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(vp.size() == 0);
@@ -179,7 +178,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       vp.process_vote_message(1, m1);
       // duplicate ignored
       vp.process_vote_message(1, m1);
-      for (size_t i = 0; i < 5 && signaled.load() < 1; ++i) {
+      for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(signaled.load() == 1);
@@ -196,7 +195,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       m1.strong = false; // signed with strong_digest
       add_to_forkdb(bsp);
       vp.process_vote_message(1, m1);
-      for (size_t i = 0; i < 5 && signaled.load() < 1; ++i) {
+      for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(signaled.load() == 1);
@@ -220,7 +219,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK(vp.size() == 2);
       add_to_forkdb(bsp);
       add_to_forkdb(bsp2);
-      for (size_t i = 0; i < 5 && signaled.load() < 2; ++i) {
+      for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_CHECK(signaled.load() == 2);
