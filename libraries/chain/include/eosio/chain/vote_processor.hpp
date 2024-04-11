@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/block_state.hpp>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/composite_key.hpp>
@@ -32,7 +33,7 @@ class vote_processor_t {
    using vote_ptr = std::shared_ptr<vote>;
    using vote_signal_type = decltype(controller({},chain_id_type::empty_chain_id()).voted_block());
 
-   typedef multi_index_container< vote_ptr,
+   using vote_index_type = boost::multi_index_container< vote_ptr,
       indexed_by<
          ordered_non_unique<tag<by_block_num>,
             composite_key<vote,
@@ -43,17 +44,21 @@ class vote_processor_t {
          ordered_non_unique< tag<by_connection>, member<vote, uint32_t, &vote::connection_id> >,
          ordered_unique< tag<by_vote>, member<vote, vote_message, &vote::msg> >
       >
-   > vote_index_type;
+   >;
 
-   fork_database&               fork_db;
+   using fetch_block_func_t = std::function<block_state_ptr(const block_id_type&)>;
+
+   vote_signal_type&            vote_signal;
+   fetch_block_func_t           fetch_block_func;
+
    std::mutex                   mtx;
    std::condition_variable      cv;
    vote_index_type              index;
    //     connection, count of messages
    std::map<uint32_t, uint16_t> num_messages;
+
    std::atomic<block_num_type>  lib{0};
    std::atomic<bool>            stopped{false};
-   vote_signal_type&            vote_signal;
    named_thread_pool<vote>      thread_pool;
 
 private:
@@ -112,14 +117,20 @@ private:
    }
 
 public:
-   explicit vote_processor_t(fork_database& forkdb, vote_signal_type& vote_signal)
-      : fork_db(forkdb)
-      , vote_signal(vote_signal) {}
+   explicit vote_processor_t(vote_signal_type& vote_signal, fetch_block_func_t&& get_block)
+      : vote_signal(vote_signal)
+      , fetch_block_func(get_block)
+   {}
 
    ~vote_processor_t() {
       stopped = true;
       std::lock_guard g(mtx);
       cv.notify_one();
+   }
+
+   size_t size() {
+      std::lock_guard g(mtx);
+      return index.size();
    }
 
    void start(size_t num_threads, decltype(thread_pool)::on_except_t&& on_except) {
@@ -151,9 +162,7 @@ public:
             }
             for (auto i = idx.begin(); i != idx.end();) {
                auto& vt = *i;
-               block_state_ptr bsp = fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
-                  return forkdb.get_block(vt->id());
-               });
+               block_state_ptr bsp = fetch_block_func(vt->id());
                if (bsp) {
                   if (!bsp->is_proper_svnn_block()) {
                      if (remove_all_for_block(idx, i, bsp->id()))

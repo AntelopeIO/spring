@@ -949,7 +949,12 @@ struct controller_impl {
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
    signal<void(const vote_signal_params&)>   voted_block;
 
-   vote_processor_t                          vote_processor{fork_db, voted_block};
+   vote_processor_t              vote_processor{voted_block,
+                                                [this](const block_id_type& id) -> block_state_ptr {
+                                                   return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
+                                                      return forkdb.get_block(id);
+                                                   });
+                                                }};
 
    int64_t set_proposed_producers( vector<producer_authority> producers );
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
