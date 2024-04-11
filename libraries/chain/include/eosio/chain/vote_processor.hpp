@@ -103,7 +103,9 @@ private:
 
    bool remove_all_for_block(auto& idx, auto& it, const block_id_type& id) {
       while (it != idx.end() && (*it)->id() == id) {
-         --num_messages[(*it)->connection_id];
+         if (auto& num = num_messages[(*it)->connection_id]; num != 0)
+            --num;
+
          it = idx.erase(it);
       }
       return it == idx.end();
