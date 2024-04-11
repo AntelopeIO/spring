@@ -93,10 +93,12 @@ private:
    void remove_before_lib() {
       auto& idx = index.get<by_block_num>();
       idx.erase(idx.lower_bound(lib.load()), idx.end()); // descending
+      // don't decrement num_messages as too many before lib should be considered an error
    }
 
    bool remove_all_for_block(auto& idx, auto& it, const block_id_type& id) {
       while (it != idx.end() && (*it)->id() == id) {
+         --num_messages[(*it)->connection_id];
          it = idx.erase(it);
       }
       return it == idx.end();
@@ -139,8 +141,10 @@ public:
             if (stopped)
                break;
             remove_before_lib();
-            if (index.empty())
+            if (index.empty()) {
+               num_messages.clear();
                continue;
+            }
             auto& idx = index.get<by_block_num>();
             if (auto i = idx.begin(); i != idx.end() && not_in_forkdb_id == (*i)->id()) { // same block as last while loop
                g.unlock();
@@ -196,7 +200,8 @@ public:
       boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
          std::unique_lock g(mtx);
          if (++num_messages[connection_id] > max_votes_per_connection) {
-            // consider the connection invalid, remove all votes
+            // consider the connection invalid, remove all votes of connection
+            // don't clear num_messages[connection_id] so we keep reporting max_exceeded until index is drained
             remove_connection(connection_id);
             g.unlock();
 
