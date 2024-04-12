@@ -3567,7 +3567,7 @@ struct controller_impl {
 
 
    // called from net threads and controller's thread pool
-   void process_vote_message( uint32_t connection_id, const vote_message& vote ) {
+   void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
       if (conf.vote_thread_pool_size > 0) {
          vote_processor.process_vote_message(connection_id, vote);
       }
@@ -3597,7 +3597,7 @@ struct controller_impl {
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
       my_finalizers.maybe_vote(
-          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message& vote) {
+          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)});
 
@@ -5259,7 +5259,7 @@ void controller::set_proposed_finalizers( finalizer_policy&& fin_pol ) {
 }
 
 // called from net threads
-void controller::process_vote_message( uint32_t connection_id, const vote_message& vote ) {
+void controller::process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
    my->process_vote_message( connection_id, vote );
 };
 

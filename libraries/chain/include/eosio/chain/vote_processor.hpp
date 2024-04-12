@@ -23,17 +23,16 @@ class vote_processor_t {
    struct by_vote;
 
    struct vote {
-      uint32_t        connection_id;
-      vote_message    msg;
+      uint32_t            connection_id;
+      vote_message_ptr    msg;
 
-      const block_id_type& id() const { return msg.block_id; }
-      block_num_type block_num() const { return block_header::num_from_id(msg.block_id); }
+      const block_id_type& id() const { return msg->block_id; }
+      block_num_type block_num() const { return block_header::num_from_id(msg->block_id); }
    };
 
-   using vote_ptr = std::shared_ptr<vote>;
    using vote_signal_type = decltype(controller({},chain_id_type::empty_chain_id()).voted_block());
 
-   using vote_index_type = boost::multi_index_container< vote_ptr,
+   using vote_index_type = boost::multi_index_container< vote,
       indexed_by<
          ordered_non_unique<tag<by_block_num>,
             composite_key<vote,
@@ -41,8 +40,7 @@ class vote_processor_t {
                const_mem_fun<vote, const block_id_type&, &vote::id>
             >, composite_key_compare< std::greater<>, sha256_less > // greater for block_num
          >,
-         ordered_non_unique< tag<by_connection>, member<vote, uint32_t, &vote::connection_id> >,
-         ordered_unique< tag<by_vote>, member<vote, vote_message, &vote::msg> >
+         ordered_non_unique< tag<by_connection>, member<vote, uint32_t, &vote::connection_id> >
       >
    >;
 
@@ -84,7 +82,7 @@ private:
       }
    }
 
-   void emit(uint32_t connection_id, vote_status status, const vote_message& msg) {
+   void emit(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
       if (connection_id != 0) { // this nodes vote was already signaled
          emit( vote_signal, std::tuple{connection_id, status, std::cref(msg)} );
       }
@@ -102,8 +100,8 @@ private:
    }
 
    bool remove_all_for_block(auto& idx, auto& it, const block_id_type& id) {
-      while (it != idx.end() && (*it)->id() == id) {
-         if (auto& num = num_messages[(*it)->connection_id]; num != 0)
+      while (it != idx.end() && it->id() == id) {
+         if (auto& num = num_messages[it->connection_id]; num != 0)
             --num;
 
          it = idx.erase(it);
@@ -112,7 +110,7 @@ private:
    }
 
    bool skip_all_for_block(auto& idx, auto& it, const block_id_type& id) {
-      while (it != idx.end() && (*it)->id() == id) {
+      while (it != idx.end() && it->id() == id) {
          ++it;
       }
       return it == idx.end();
@@ -157,14 +155,14 @@ public:
                continue;
             }
             auto& idx = index.get<by_block_num>();
-            if (auto i = idx.begin(); i != idx.end() && not_in_forkdb_id == (*i)->id()) { // same block as last while loop
+            if (auto i = idx.begin(); i != idx.end() && not_in_forkdb_id == i->id()) { // same block as last while loop
                g.unlock();
                std::this_thread::sleep_for(block_wait_time);
                g.lock();
             }
             for (auto i = idx.begin(); i != idx.end();) {
                auto& vt = *i;
-               block_state_ptr bsp = fetch_block_func(vt->id());
+               block_state_ptr bsp = fetch_block_func(vt.id());
                if (bsp) {
                   if (!bsp->is_proper_svnn_block()) {
                      if (remove_all_for_block(idx, i, bsp->id()))
@@ -172,20 +170,20 @@ public:
                      continue;
                   }
                   auto iter_of_bsp = i;
-                  std::vector<vote_ptr> to_process;
+                  std::vector<vote> to_process;
                   to_process.reserve(std::min<size_t>(21u, idx.size())); // increase if we increase # of finalizers from 21
-                  for(; i != idx.end() && bsp->id() == (*i)->id(); ++i) {
+                  for(; i != idx.end() && bsp->id() == i->id(); ++i) {
                      // although it is the highest contention on block state pending mutex posting all of the same bsp,
                      // the highest priority is processing votes for this block state.
                      to_process.push_back(*i);
                   }
                   bool should_break = remove_all_for_block(idx, iter_of_bsp, bsp->id());
                   g.unlock(); // do not hold lock when posting
-                  for (auto& vptr : to_process) {
-                     boost::asio::post(thread_pool.get_executor(), [this, bsp, vptr=std::move(vptr)]() {
-                        vote_status s = bsp->aggregate_vote(vptr->msg);
+                  for (auto& v : to_process) {
+                     boost::asio::post(thread_pool.get_executor(), [this, bsp, v=std::move(v)]() {
+                        vote_status s = bsp->aggregate_vote(*v.msg);
                         if (s != vote_status::duplicate) { // don't bother emitting duplicates
-                           emit(vptr->connection_id, s, vptr->msg);
+                           emit(v.connection_id, s, v.msg);
                         }
                      });
                   }
@@ -194,8 +192,8 @@ public:
                   g.lock();
                   i = idx.begin();
                } else {
-                  not_in_forkdb_id = vt->id();
-                  if (skip_all_for_block(idx, i, (*i)->id()))
+                  not_in_forkdb_id = vt.id();
+                  if (skip_all_for_block(idx, i, i->id()))
                      break;
                }
             }
@@ -208,8 +206,7 @@ public:
       lib = block_num;
    }
 
-   void process_vote_message(uint32_t connection_id, const vote_message& msg) {
-      vote_ptr vptr = std::make_shared<vote>(vote{.connection_id = connection_id, .msg = msg});
+   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg) {
       boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
          std::unique_lock g(mtx);
          if (++num_messages[connection_id] > max_votes_per_connection) {
@@ -220,10 +217,10 @@ public:
 
             elog("Exceeded max votes per connection for ${c}", ("c", connection_id));
             emit(connection_id, vote_status::max_exceeded, msg);
-         } else if (block_header::num_from_id(msg.block_id) < lib.load(std::memory_order_relaxed)) {
+         } else if (block_header::num_from_id(msg->block_id) < lib.load(std::memory_order_relaxed)) {
             // ignore
          } else {
-            index.insert(std::make_shared<vote>(vote{.connection_id = connection_id, .msg = msg}));
+            index.insert(vote{.connection_id = connection_id, .msg = msg});
             cv.notify_one();
          }
       });

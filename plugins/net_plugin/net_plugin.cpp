@@ -339,6 +339,7 @@ namespace eosio {
 
    constexpr uint32_t signed_block_which           = fc::get_index<net_message, signed_block>();         // see protocol net_message
    constexpr uint32_t packed_transaction_which     = fc::get_index<net_message, packed_transaction>();   // see protocol net_message
+   constexpr uint32_t vote_message_which           = fc::get_index<net_message, vote_message>();         // see protocol net_message
 
    class connections_manager {
    public:
@@ -476,6 +477,7 @@ namespace eosio {
 
       uint32_t                              max_nodes_per_host = 1;
       bool                                  p2p_accept_transactions = true;
+      bool                                  p2p_accept_votes = true;
       fc::microseconds                      p2p_dedup_cache_expire_time_us{};
 
       chain_id_type                         chain_id;
@@ -529,12 +531,12 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block();
-      void on_voted_block ( uint32_t connection_id, vote_status stauts, const vote_message& vote );
+      void on_voted_block ( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
-      void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message& msg );
+      void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
       void warn_message( uint32_t sender_peer, const chain::hs_message_warning& code );
 
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
@@ -1005,6 +1007,7 @@ namespace eosio {
 
       bool process_next_block_message(uint32_t message_length);
       bool process_next_trx_message(uint32_t message_length);
+      bool process_next_vote_message(uint32_t message_length);
       void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
    public:
 
@@ -1105,8 +1108,9 @@ namespace eosio {
       void handle_message( const signed_block& msg ) = delete; // signed_block_ptr overload used instead
       void handle_message( const block_id_type& id, signed_block_ptr ptr );
       void handle_message( const packed_transaction& msg ) = delete; // packed_transaction_ptr overload used instead
-      void handle_message( packed_transaction_ptr trx );
-      void handle_message( const vote_message& msg );
+      void handle_message( const packed_transaction_ptr& trx );
+      void handle_message( const vote_message_ptr& msg );
+      void handle_message( const vote_message& msg ) = delete; // vote_message_ptr overload used instead
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -1185,12 +1189,6 @@ namespace eosio {
       void operator()( const sync_request_message& msg ) const {
          // continue call to handle_message on connection strand
          peer_dlog( c, "handle sync_request_message" );
-         c->handle_message( msg );
-      }
-
-      void operator()( const chain::vote_message& msg ) const {
-         // continue call to handle_message on connection strand
-         peer_dlog( c, "handle vote_message" );
          c->handle_message( msg );
       }
    };
@@ -3077,6 +3075,8 @@ namespace eosio {
             return process_next_block_message( message_length );
          } else if( which == packed_transaction_which ) {
             return process_next_trx_message( message_length );
+         } else if( which == vote_message_which ) {
+            return process_next_vote_message( message_length );
          } else {
             auto ds = pending_message_buffer.create_datastream();
             net_message msg;
@@ -3189,7 +3189,7 @@ namespace eosio {
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
-      shared_ptr<packed_transaction> ptr = std::make_shared<packed_transaction>();
+      packed_transaction_ptr ptr = std::make_shared<packed_transaction>();
       fc::raw::unpack( ds, *ptr );
       if( trx_in_progress_sz > def_max_trx_in_progress_size) {
          char reason[72];
@@ -3212,7 +3212,26 @@ namespace eosio {
          return true;
       }
 
-      handle_message( std::move( ptr ) );
+      handle_message( ptr );
+      return true;
+   }
+
+   // called from connection strand
+   bool connection::process_next_vote_message(uint32_t message_length) {
+      if( !my_impl->p2p_accept_votes ) {
+         peer_dlog( this, "p2p_accept_votes=false - dropping vote" );
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+
+      auto ds = pending_message_buffer.create_datastream();
+      unsigned_int which{};
+      fc::raw::unpack( ds, which );
+      assert(which == vote_message_which);
+      vote_message_ptr ptr = std::make_shared<vote_message>();
+      fc::raw::unpack( ds, *ptr );
+
+      handle_message( ptr );
       return true;
    }
 
@@ -3708,10 +3727,10 @@ namespace eosio {
       }
    }
 
-   void connection::handle_message( const vote_message& msg ) {
+   void connection::handle_message( const vote_message_ptr& msg ) {
       peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
-                ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("v", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
+                ("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
       controller& cc = my_impl->chain_plug->chain();
       cc.process_vote_message(connection_id, msg);
    }
@@ -3721,7 +3740,7 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::handle_message( packed_transaction_ptr trx ) {
+   void connection::handle_message( const packed_transaction_ptr& trx ) {
       const auto& tid = trx->id();
 
       peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
@@ -3979,10 +3998,10 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message& msg) {
+   void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
       fc_dlog(logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
-                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("t", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
+                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
 
       switch( status ) {
       case vote_status::success:
@@ -3999,7 +4018,7 @@ namespace eosio {
          break;
       case vote_status::unknown_block: // track the failure
          fc_dlog(logger, "connection - ${c} vote unknown block #${bn}:${id}..",
-                 ("c", connection_id)("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16)));
+                 ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
          my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                c->block_status_monitor_.rejected();
@@ -4013,13 +4032,13 @@ namespace eosio {
       }
    }
 
-   void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message& msg ) {
+   void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg ) {
       buffer_factory buff_factory;
-      auto send_buffer = buff_factory.get_send_buffer( msg );
+      auto send_buffer = buff_factory.get_send_buffer( *msg );
 
       fc_dlog(logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
-                ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("v", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8,16)));
+                ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
       dispatcher.strand.post( [this, exclude_peer, msg{std::move(send_buffer)}]() mutable {
          dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
@@ -4244,6 +4263,7 @@ namespace eosio {
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
+         p2p_accept_votes = options.at("vote-threads").as<uint16_t>() != 0;
 
          use_socket_read_watermark = options.at( "use-socket-read-watermark" ).as<bool>();
          keepalive_interval = std::chrono::milliseconds( options.at( "p2p-keepalive-interval-ms" ).as<int>() );

@@ -129,10 +129,10 @@ void finality_test_cluster::node1_corrupt_vote_proposal_id() {
    std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];
 
-   if( node1.votes[0].block_id.data()[0] == 'a' ) {
-      node1.votes[0].block_id.data()[0] = 'b';
+   if( node1.votes[0]->block_id.data()[0] == 'a' ) {
+      node1.votes[0]->block_id.data()[0] = 'b';
    } else {
-      node1.votes[0].block_id.data()[0] = 'a';
+      node1.votes[0]->block_id.data()[0] = 'a';
    }
 }
 
@@ -141,10 +141,10 @@ void finality_test_cluster::node1_corrupt_vote_finalizer_key() {
    node1_orig_vote = node1.votes[0];
 
    // corrupt the finalizer_key (manipulate so it is different)
-   auto g1 = node1.votes[0].finalizer_key.jacobian_montgomery_le();
+   auto g1 = node1.votes[0]->finalizer_key.jacobian_montgomery_le();
    g1 = bls12_381::aggregate_public_keys(std::array{g1, g1});
    auto affine = g1.toAffineBytesLE(bls12_381::from_mont::yes);
-   node1.votes[0].finalizer_key = fc::crypto::blslib::bls_public_key(affine);
+   node1.votes[0]->finalizer_key = fc::crypto::blslib::bls_public_key(affine);
 }
 
 void finality_test_cluster::node1_corrupt_vote_signature() {
@@ -152,10 +152,10 @@ void finality_test_cluster::node1_corrupt_vote_signature() {
    node1_orig_vote = node1.votes[0];
 
    // corrupt the signature
-   auto g2 = node1.votes[0].sig.jacobian_montgomery_le();
+   auto g2 = node1.votes[0]->sig.jacobian_montgomery_le();
    g2 = bls12_381::aggregate_signatures(std::array{g2, g2});
    auto affine = g2.toAffineBytesLE(bls12_381::from_mont::yes);
-   node1.votes[0].sig = fc::crypto::blslib::bls_signature(affine);
+   node1.votes[0]->sig = fc::crypto::blslib::bls_signature(affine);
 }
 
 void finality_test_cluster::node1_restore_to_original_vote() {
@@ -208,20 +208,20 @@ eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, s
    FC_ASSERT( vote_index < node.votes.size(), "out of bound index in process_vote" );
    auto& vote = node.votes[vote_index];
    if( mode == vote_mode::strong ) {
-      vote.strong = true;
+      vote->strong = true;
    } else {
-      vote.strong = false;
+      vote->strong = false;
 
       // fetch the strong digest
-      auto strong_digest = node.node.control->get_strong_digest_by_id(vote.block_id);
+      auto strong_digest = node.node.control->get_strong_digest_by_id(vote->block_id);
       // convert the strong digest to weak and sign it
-      vote.sig = node.priv_key.sign(eosio::chain::create_weak_digest(strong_digest));
+      vote->sig = node.priv_key.sign(eosio::chain::create_weak_digest(strong_digest));
    }
    g.unlock();
 
    static uint32_t connection_id = 0;
    node0.node.control->process_vote_message( ++connection_id, vote );
-   if (eosio::chain::block_header::num_from_id(vote.block_id) > node0.node.control->last_irreversible_block_num())
+   if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.node.control->last_irreversible_block_num())
       return wait_on_vote(connection_id);
    return eosio::chain::vote_status::unknown_block;
 }

@@ -79,7 +79,7 @@ private:
       eosio::testing::tester                  node;
       uint32_t                                prev_lib_num{0};
       std::mutex                              votes_mtx;
-      std::vector<eosio::chain::vote_message> votes;
+      std::vector<eosio::chain::vote_message_ptr> votes;
       fc::crypto::blslib::bls_private_key     priv_key;
    };
 
@@ -91,7 +91,7 @@ private:
    node_info& node1 = nodes[1];
    node_info& node2 = nodes[2];
 
-   eosio::chain::vote_message node1_orig_vote;
+   eosio::chain::vote_message_ptr node1_orig_vote;
 
    // sets up "node_index" node
    void setup_node(node_info& node, eosio::chain::account_name local_finalizer);

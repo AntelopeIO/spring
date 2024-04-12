@@ -86,9 +86,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 }
 
 // ----------------------------------------------------------------------------------------
-std::optional<vote_message> finalizer::maybe_vote(const bls_public_key& pub_key,
-                                                  const block_state_ptr& bsp,
-                                                  const digest_type& digest) {
+vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
+                                       const block_state_ptr& bsp,
+                                       const digest_type& digest) {
    finalizer::vote_decision decision = decide_vote(bsp).decision;
    if (decision == vote_decision::strong_vote || decision == vote_decision::weak_vote) {
       bls_signature sig;
@@ -99,7 +99,7 @@ std::optional<vote_message> finalizer::maybe_vote(const bls_public_key& pub_key,
       } else {
          sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
       }
-      return std::optional{vote_message{ bsp->id(), decision == vote_decision::strong_vote, pub_key, sig }};
+      return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
    }
    return {};
 }

@@ -58,7 +58,7 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
-   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message&>;
+   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
 
    enum class db_read_mode {
       HEAD,
@@ -328,7 +328,7 @@ namespace eosio::chain {
          // called by host function set_finalizers
          void set_proposed_finalizers( finalizer_policy&& fin_pol );
          // called from net threads
-         void process_vote_message( uint32_t connection_id, const vote_message& msg );
+         void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
          bool node_has_voted_if_finalizer(const block_id_type& id) const;
 

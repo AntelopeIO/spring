@@ -30,6 +30,8 @@ namespace eosio::chain {
       bool operator==(const vote_message&) const = default;
    };
 
+   using vote_message_ptr = std::shared_ptr<vote_message>;
+
    enum class vote_status {
       success,
       duplicate,             // duplicate vote, expected as votes arrive on multiple connections
