@@ -48,16 +48,19 @@ finality_test_cluster::finality_test_cluster() {
    }
 }
 
-eosio::chain::vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id) {
+eosio::chain::vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool duplicate) {
    // wait for this node's vote to be processed
+   // duplicates are not signaled
    size_t retrys = 200;
    while ( (last_connection_vote != connection_id) && --retrys) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
    }
-   if (last_connection_vote != connection_id) {
+   if (!duplicate && last_connection_vote != connection_id) {
       FC_ASSERT(false, "Never received vote");
+   } else if (duplicate && last_connection_vote == connection_id) {
+      FC_ASSERT(false, "Duplicate should not have been signaled");
    }
-   return last_vote_status;
+   return duplicate ? eosio::chain::vote_status::duplicate : last_vote_status.load();
 }
 
 // node0 produces a block and pushes it to node1 and node2
@@ -68,8 +71,8 @@ void finality_test_cluster::produce_and_push_block() {
 }
 
 // send node1's vote identified by "vote_index" in the collected votes
-eosio::chain::vote_status finality_test_cluster::process_node1_vote(uint32_t vote_index, vote_mode mode) {
-   return process_vote( node1, vote_index, mode );
+eosio::chain::vote_status finality_test_cluster::process_node1_vote(uint32_t vote_index, vote_mode mode, bool duplicate) {
+   return process_vote( node1, vote_index, mode, duplicate );
 }
 
 // send node1's latest vote
@@ -203,7 +206,7 @@ void finality_test_cluster::setup_node(node_info& node, eosio::chain::account_na
 }
 
 // send a vote to node0
-eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, size_t vote_index, vote_mode mode) {
+eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, size_t vote_index, vote_mode mode, bool duplicate) {
    std::unique_lock g(node.votes_mtx);
    FC_ASSERT( vote_index < node.votes.size(), "out of bound index in process_vote" );
    auto& vote = node.votes[vote_index];
@@ -222,7 +225,7 @@ eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, s
    static uint32_t connection_id = 0;
    node0.node.control->process_vote_message( ++connection_id, vote );
    if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.node.control->last_irreversible_block_num())
-      return wait_on_vote(connection_id);
+      return wait_on_vote(connection_id, duplicate);
    return eosio::chain::vote_status::unknown_block;
 }
 

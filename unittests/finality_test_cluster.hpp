@@ -36,7 +36,7 @@ public:
    void produce_and_push_block();
 
    // send node1's vote identified by "index" in the collected votes
-   eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong);
+   eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong, bool duplicate = false);
 
    // send node1's latest vote
    eosio::chain::vote_status process_node1_vote(vote_mode mode = vote_mode::strong);
@@ -100,10 +100,10 @@ private:
    bool lib_advancing(node_info& node);
 
    // send "vote_index" vote on node to node0
-   eosio::chain::vote_status process_vote(node_info& node, size_t vote_index, vote_mode mode);
+   eosio::chain::vote_status process_vote(node_info& node, size_t vote_index, vote_mode mode, bool duplicate = false);
 
    // send the latest vote on "node_index" node to node0
    eosio::chain::vote_status process_vote(node_info& node, vote_mode mode);
 
-   eosio::chain::vote_status wait_on_vote(uint32_t connection_id);
+   eosio::chain::vote_status wait_on_vote(uint32_t connection_id, bool duplicate);
 };
