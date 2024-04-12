@@ -3860,7 +3860,7 @@ BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
 } FC_LOG_AND_RETHROW() }
 
 // test set_finalizer host function serialization and tester set_finalizers
-BOOST_AUTO_TEST_CASE(set_finalizer_test) { try {
+BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    validating_tester t;
 
    uint32_t lib = 0;
@@ -3918,6 +3918,84 @@ BOOST_AUTO_TEST_CASE(set_finalizer_test) { try {
    t.produce_blocks(3);
    BOOST_CHECK_GT(lib, lib_after_transition);
 } FC_LOG_AND_RETHROW() }
+
+// verify that finalizers changes via set_finalizer take 2 3-cchain to take effect
+// and that multiple ones can be in flight at the same time.
+// -------------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
+   validating_tester t;
+
+   auto set_finalizers = [&](std::span<const account_name> names) {
+      base_tester::finalizer_policy_input input;
+      for (auto n : names) input.finalizers.emplace_back(n, 1);
+      input.threshold = names.size()  * 2 / 3 + 1;
+      t.set_finalizers(input);
+   };
+
+   uint32_t lib = 0;
+   signed_block_ptr lib_block;
+   t.control->irreversible_block().connect([&](const block_signal_params& t) {
+      const auto& [ block, id ] = t;
+      lib = block->block_num();
+      lib_block = block;
+   });
+
+   t.produce_block();
+
+   // Create finalizer accounts
+   vector<account_name> finalizers;
+   finalizers.reserve(50);
+   for (size_t i=0; i<50; ++i)
+      finalizers.emplace_back(std::string("init") + (char)('a' + i/26) + (char)('a' + i%26));
+
+   t.create_accounts(finalizers);
+   t.produce_block();
+
+   // activate savanna'
+   t.set_node_finalizers({&finalizers[0], finalizers.size()});
+
+   constexpr size_t finset_size = 21;
+   set_finalizers({&finalizers[0], finset_size});
+
+   // `genesis_block` is the first block where set_finalizers() was executed.
+   // It is the genesis block.
+   // It will include the first header extension for the instant finality.
+   // -----------------------------------------------------------------------
+   auto genesis_block = t.produce_block();
+
+   // wait till the genesis_block becomes irreversible.
+   // The critical block is the block that makes the genesis_block irreversible
+   // -------------------------------------------------------------------------
+   signed_block_ptr critical_block = nullptr;
+   while(genesis_block->block_num() > lib)
+      critical_block = t.produce_block();
+
+   // Blocks after the critical block are proper IF blocks.
+   // -----------------------------------------------------
+   auto first_proper_block = t.produce_block();
+   BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
+
+   // wait till the first proper block becomes irreversible. Transition will be done then
+   // -----------------------------------------------------------------------------------
+   signed_block_ptr pt_block  = nullptr;
+   while(first_proper_block->block_num() > lib) {
+      pt_block = t.produce_block();
+      BOOST_REQUIRE(pt_block->is_proper_svnn_block());
+   }
+
+   // lib must advance after 3 blocks
+   // -------------------------------
+   t.produce_blocks(3);
+   BOOST_CHECK_EQUAL(lib, pt_block->block_num());
+
+   // run set_finalizers(), verify it becomes active after exactly two 3-chains
+   // -------------------------------------------------------------------------
+   set_finalizers({&finalizers[1], finset_size});
+   auto sf1_block = t.produce_block();
+
+} FC_LOG_AND_RETHROW() }
+
+
 
 void test_finality_transition(const vector<account_name>& accounts, const base_tester::finalizer_policy_input& input, bool lib_advancing_expected) {
    validating_tester t;

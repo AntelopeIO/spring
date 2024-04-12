@@ -3575,6 +3575,10 @@ struct controller_impl {
          auto bsp = forkdb.get_block(id);
          if (bsp) {
             return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
+               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
+               assert(fp);
+               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
+                  return true; // we only care about keys from the active finalizer_policy
                return bsp->has_voted(k);
             });
          }
