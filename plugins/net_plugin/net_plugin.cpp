@@ -2201,7 +2201,7 @@ namespace eosio {
    // static, thread safe
    void sync_manager::send_handshakes() {
       my_impl->connections.for_each_connection( []( const connection_ptr& ci ) {
-         if( ci->current() ) {
+         if( ci->connected() ) {
             ci->send_handshake();
          }
       } );
@@ -2227,6 +2227,7 @@ namespace eosio {
       if( !is_sync_required( chain_info.head_num ) || target <= chain_info.lib_num ) {
          peer_dlog( c, "We are already caught up, my irr = ${b}, head = ${h}, target = ${t}",
                   ("b", chain_info.lib_num)( "h", chain_info.head_num )( "t", target ) );
+         c->send_handshake(); // let peer know it is not syncing from us
          return;
       }
 
@@ -2316,8 +2317,8 @@ namespace eosio {
                note.known_blocks.ids.push_back(make_block_id(cc.earliest_available_block_num()));
             }
             c->enqueue( note );
+            c->peer_syncing_from_us = true;
          }
-         c->peer_syncing_from_us = true;
          return;
       }
 
@@ -2359,6 +2360,7 @@ namespace eosio {
          }
          return;
       } else {
+         c->peer_syncing_from_us = false;
          peer_dlog( c, "Block discrepancy is within network latency range.");
       }
    }
