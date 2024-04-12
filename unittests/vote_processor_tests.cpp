@@ -104,19 +104,19 @@ auto create_test_block_state(const block_state_ptr& prev) {
    return bsp;
 }
 
-vote_message make_empty_message(const block_id_type& id) {
-   vote_message vm;
-   vm.block_id = id;
+vote_message_ptr make_empty_message(const block_id_type& id) {
+   vote_message_ptr vm = std::make_shared<vote_message>();
+   vm->block_id = id;
    return vm;
 }
 
-vote_message make_vote_message(const block_state_ptr& bsp) {
-   vote_message vm;
-   vm.block_id = bsp->id();
-   vm.strong = true;
+vote_message_ptr make_vote_message(const block_state_ptr& bsp) {
+   vote_message_ptr vm = std::make_shared<vote_message>();
+   vm->block_id = bsp->id();
+   vm->strong = true;
    size_t i = bsp->block_num() % bls_priv_keys.size();
-   vm.finalizer_key = bls_priv_keys.at(i).get_public_key();
-   vm.sig = bls_priv_keys.at(i).sign({(uint8_t*)bsp->strong_digest.data(), (uint8_t*)bsp->strong_digest.data() + bsp->strong_digest.data_size()});
+   vm->finalizer_key = bls_priv_keys.at(i).get_public_key();
+   vm->sig = bls_priv_keys.at(i).sign({(uint8_t*)bsp->strong_digest.data(), (uint8_t*)bsp->strong_digest.data() + bsp->strong_digest.data_size()});
    return vm;
 }
 
@@ -127,7 +127,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
 
    uint32_t received_connection_id = 0;
    vote_status received_vote_status = vote_status::unknown_block;
-   vote_message received_vote_message{};
+   vote_message_ptr received_vote_message{};
 
    std::atomic<size_t> signaled = 0;
    std::mutex                               forkdb_mtx;
@@ -154,7 +154,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    });
 
    { // empty fork db, block never found, never signaled
-      vote_message vm1 = make_empty_message(make_block_id(1));
+      vote_message_ptr vm1 = make_empty_message(make_block_id(1));
       signaled = 0;
       vp.process_vote_message(1, vm1);
       for (size_t i = 0; i < 50 && vp.size() < 1; ++i) {
@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       BOOST_CHECK_EQUAL(bsp->block_num(), 3);
-      vote_message m1 = make_vote_message(bsp);
+      vote_message_ptr m1 = make_vote_message(bsp);
       add_to_forkdb(bsp);
       vp.process_vote_message(1, m1);
       // duplicate ignored
@@ -191,8 +191,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       BOOST_CHECK_EQUAL(bsp->block_num(), 3);
-      vote_message m1 = make_vote_message(bsp);
-      m1.strong = false; // signed with strong_digest
+      vote_message_ptr m1 = make_vote_message(bsp);
+      m1->strong = false; // signed with strong_digest
       add_to_forkdb(bsp);
       vp.process_vote_message(1, m1);
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
@@ -208,8 +208,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
       auto bsp2 = create_test_block_state(bsp);
-      vote_message m1 = make_vote_message(bsp);
-      vote_message m2 = make_vote_message(bsp2);
+      vote_message_ptr m1 = make_vote_message(bsp);
+      vote_message_ptr m2 = make_vote_message(bsp2);
       vp.process_vote_message(2, m1);
       vp.process_vote_message(2, m2);
       for (size_t i = 0; i < 5; ++i) {
