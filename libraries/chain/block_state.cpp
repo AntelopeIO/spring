@@ -141,8 +141,8 @@ void block_state::set_trxs_metas( deque<transaction_metadata_ptr>&& trxs_metas, 
    cached_trxs = std::move( trxs_metas );
 }
 
-// Called from net threads
-vote_status block_state::aggregate_vote(const vote_message& vote) {
+// Called from vote threads
+vote_status block_state::aggregate_vote(uint32_t connection_id, const vote_message& vote) {
    const auto& finalizers = active_finalizer_policy->finalizers;
    auto it = std::find_if(finalizers.begin(),
                           finalizers.end(),
@@ -151,7 +151,8 @@ vote_status block_state::aggregate_vote(const vote_message& vote) {
    if (it != finalizers.end()) {
       auto index = std::distance(finalizers.begin(), it);
       auto digest = vote.strong ? strong_digest.to_uint8_span() : std::span<const uint8_t>(weak_digest);
-      return pending_qc.add_vote(block_num(),
+      return pending_qc.add_vote(connection_id,
+                                 block_num(),
                                  vote.strong,
                                  digest,
                                  index,

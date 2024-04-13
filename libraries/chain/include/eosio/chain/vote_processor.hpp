@@ -181,7 +181,7 @@ public:
                   g.unlock(); // do not hold lock when posting
                   for (auto& v : to_process) {
                      boost::asio::post(thread_pool.get_executor(), [this, bsp, v=std::move(v)]() {
-                        vote_status s = bsp->aggregate_vote(*v.msg);
+                        vote_status s = bsp->aggregate_vote(v.connection_id, *v.msg);
                         if (s != vote_status::duplicate) { // don't bother emitting duplicates
                            emit(v.connection_id, s, v.msg);
                         }
