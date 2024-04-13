@@ -30,10 +30,10 @@ namespace fc
          logger( const std::string& name, const logger& parent = nullptr );
          logger( std::nullptr_t );
          logger( const logger& c );
-         logger( logger&& c );
+         logger( logger&& c ) noexcept;
          ~logger();
          logger& operator=(const logger&);
-         logger& operator=(logger&&);
+         logger& operator=(logger&&) noexcept;
          friend bool operator==( const logger&, nullptr_t );
          friend bool operator!=( const logger&, nullptr_t );
 
@@ -133,12 +133,8 @@ namespace fc
   FC_MULTILINE_MACRO_END
 
 #include <boost/preprocessor/seq/for_each.hpp>
-#include <boost/preprocessor/seq/enum.hpp>
-#include <boost/preprocessor/seq/size.hpp>
-#include <boost/preprocessor/seq/seq.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <boost/preprocessor/punctuation/paren.hpp>
-
 
 #define FC_FORMAT_ARG(r, unused, base) \
   BOOST_PP_STRINGIZE(base) ": ${" BOOST_PP_STRINGIZE( base ) "} "
