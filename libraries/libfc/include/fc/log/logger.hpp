@@ -3,9 +3,7 @@
 #include <fc/log/log_message.hpp>
 #include <string>
 
-#ifndef DEFAULT_LOGGER
-#define DEFAULT_LOGGER "default"
-#endif
+inline std::string DEFAULT_LOGGER = "default";
 
 namespace fc
 {
@@ -106,43 +104,32 @@ namespace fc
 
 #define tlog( FORMAT, ... ) \
   FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get(DEFAULT_LOGGER)).is_enabled( fc::log_level::all ) ) \
-      (fc::logger::get(DEFAULT_LOGGER)).log( FC_LOG_MESSAGE( all, FORMAT, __VA_ARGS__ ) ); \
+   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::all ) ) \
+      lL.log( FC_LOG_MESSAGE( all, FORMAT, __VA_ARGS__ ) ); \
   FC_MULTILINE_MACRO_END
 
 #define dlog( FORMAT, ... ) \
   FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get(DEFAULT_LOGGER)).is_enabled( fc::log_level::debug ) ) \
-      (fc::logger::get(DEFAULT_LOGGER)).log( FC_LOG_MESSAGE( debug, FORMAT, __VA_ARGS__ ) ); \
+   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::debug ) ) \
+      lL.log( FC_LOG_MESSAGE( debug, FORMAT, __VA_ARGS__ ) ); \
   FC_MULTILINE_MACRO_END
-
-/**
- * Sends the log message to a special 'user' log stream designed for messages that
- * the end user may like to see.
- */
-#define ulog( FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get("user")).is_enabled( fc::log_level::debug ) ) \
-      (fc::logger::get("user")).log( FC_LOG_MESSAGE( debug, FORMAT, __VA_ARGS__ ) ); \
-  FC_MULTILINE_MACRO_END
-
 
 #define ilog( FORMAT, ... ) \
   FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get(DEFAULT_LOGGER)).is_enabled( fc::log_level::info ) ) \
-      (fc::logger::get(DEFAULT_LOGGER)).log( FC_LOG_MESSAGE( info, FORMAT, __VA_ARGS__ ) ); \
+   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::info ) ) \
+      lL.log( FC_LOG_MESSAGE( info, FORMAT, __VA_ARGS__ ) ); \
   FC_MULTILINE_MACRO_END
 
 #define wlog( FORMAT, ... ) \
   FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get(DEFAULT_LOGGER)).is_enabled( fc::log_level::warn ) ) \
-      (fc::logger::get(DEFAULT_LOGGER)).log( FC_LOG_MESSAGE( warn, FORMAT, __VA_ARGS__ ) ); \
+   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::warn ) ) \
+      lL.log( FC_LOG_MESSAGE( warn, FORMAT, __VA_ARGS__ ) ); \
   FC_MULTILINE_MACRO_END
 
 #define elog( FORMAT, ... ) \
   FC_MULTILINE_MACRO_BEGIN \
-   if( (fc::logger::get(DEFAULT_LOGGER)).is_enabled( fc::log_level::error ) ) \
-      (fc::logger::get(DEFAULT_LOGGER)).log( FC_LOG_MESSAGE( error, FORMAT, __VA_ARGS__ ) ); \
+   if( auto lL = (fc::logger::get(DEFAULT_LOGGER)); lL.is_enabled( fc::log_level::error ) ) \
+      lL.log( FC_LOG_MESSAGE( error, FORMAT, __VA_ARGS__ ) ); \
   FC_MULTILINE_MACRO_END
 
 #include <boost/preprocessor/seq/for_each.hpp>
