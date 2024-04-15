@@ -3196,7 +3196,12 @@ struct controller_impl {
                if (auto* dm_logger = get_deep_mind_logger(false)) {
                   auto fd = head_finality_data();
                   if constexpr (std::is_same_v<block_state_legacy_ptr, typename std::decay_t<decltype(head)>>) {
-                     dm_logger->on_accepted_block(head);
+                     if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                        assert(fd);
+                        dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                     } else {
+                        dm_logger->on_accepted_block(head);
+                     }
                   } else {
                      assert(fd);
                      dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
