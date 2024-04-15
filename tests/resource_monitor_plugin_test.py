@@ -77,7 +77,7 @@ def prepareDirectories():
 def runNodeos(extraNodeosArgs, myTimeout):
     """Startup nodeos, wait for timeout (before forced shutdown) and collect output."""
     if debug: Print("Launching nodeos process.")
-    cmd="programs/nodeos/nodeos --config-dir rsmStaging/etc -e -p eosio --plugin eosio::chain_api_plugin --data-dir " + dataDir + " "
+    cmd="programs/nodeos/nodeos --config-dir rsmStaging/etc -e -p eosio --vote-threads 2 --plugin eosio::chain_api_plugin --data-dir " + dataDir + " "
 
     cmd=cmd + extraNodeosArgs
     if debug: Print("cmd: %s" % (cmd))

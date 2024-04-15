@@ -22,6 +22,7 @@ The example below shows a typical usage of `nodeos` when starting a block produc
 ```sh
 nodeos \
   -e -p eosio \
+  --vote-threads 3 \
   --data-dir /users/mydir/eosio/data     \
   --config-dir /users/mydir/eosio/config \
   --plugin eosio::producer_plugin      \
