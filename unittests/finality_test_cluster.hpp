@@ -61,8 +61,8 @@ public:
    // node1_votes and node2_votes when starting.
    bool produce_blocks_and_verify_lib_advancing();
 
-   // Intentionally corrupt node1's vote's proposal_id and save the original vote
-   void node1_corrupt_vote_proposal_id();
+   // Intentionally corrupt node1's vote's block_id and save the original vote
+   void node1_corrupt_vote_block_id();
 
    // Intentionally corrupt node1's vote's finalizer_key and save the original vote
    void node1_corrupt_vote_finalizer_key();

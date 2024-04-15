@@ -138,14 +138,14 @@ vote_status pending_quorum_certificate::add_weak_vote(size_t index, const bls_si
 
 // thread safe
 vote_status pending_quorum_certificate::add_vote(uint32_t connection_id, block_num_type block_num,
-                                                 bool strong, std::span<const uint8_t> proposal_digest, size_t index,
+                                                 bool strong, std::span<const uint8_t> finalizer_digest, size_t index,
                                                  const bls_public_key& pubkey, const bls_signature& sig, uint64_t weight) {
    if (has_voted_no_lock(strong, index)) {
       fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
       return vote_status::duplicate;
    }
 
-   if (!fc::crypto::blslib::verify(pubkey, proposal_digest, sig)) {
+   if (!fc::crypto::blslib::verify(pubkey, finalizer_digest, sig)) {
       fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified", ("k", pubkey.to_string().substr(8,16)));
       return vote_status::invalid_signature;
    }
