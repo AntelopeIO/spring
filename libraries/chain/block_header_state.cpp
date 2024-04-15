@@ -180,7 +180,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
    // finality extension
    // ------------------
    instant_finality_extension new_if_ext {input.most_recent_ancestor_with_qc,
-                                          std::move(input.new_finalizer_policy),
+                                          input.new_finalizer_policy,
                                           input.new_proposer_policy};
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();

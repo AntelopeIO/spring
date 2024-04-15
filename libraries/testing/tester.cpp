@@ -21,6 +21,7 @@ eosio::chain::asset core_from_string(const std::string& s) {
 }
 
 using bls_private_key = fc::crypto::blslib::bls_private_key;
+using bls_public_key = fc::crypto::blslib::bls_public_key;
 
 namespace eosio::testing {
 
@@ -1250,6 +1251,19 @@ namespace eosio::testing {
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
       }
       control->set_node_finalizer_keys(local_finalizer_keys);
+   }
+
+   std::vector<bls_public_key> base_tester::set_active_finalizers(std::span<const account_name> names) {
+      std::vector<bls_public_key> pubkeys;
+      finalizer_policy_input input;
+      for (auto name : names) {
+         auto [privkey, pubkey, pop] = get_bls_key(name);
+         pubkeys.push_back(pubkey);
+         input.finalizers.emplace_back(name, 1);
+      }
+      input.threshold = names.size()  * 2 / 3 + 1;
+      set_finalizers(input);
+      return pubkeys;
    }
 
    const table_id_object* base_tester::find_table( name code, name scope, name table ) {

@@ -3588,6 +3588,15 @@ struct controller_impl {
       return !voted || *voted;
    }
 
+   std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
+      return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
+         auto bsp = forkdb.get_block(id);
+         if (bsp)
+            return *bsp->active_finalizer_policy;
+         return {};
+      });
+   }
+
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
       if (!bsp->block->is_proper_svnn_block())
@@ -5264,6 +5273,10 @@ vote_status controller::process_vote_message( const vote_message& vote ) {
 
 bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
    return my->node_has_voted_if_finalizer(id);
+}
+
+std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
+   return my->active_finalizer_policy(id);
 }
 
 const producer_authority_schedule& controller::active_producers()const {

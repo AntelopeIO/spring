@@ -265,6 +265,8 @@ namespace eosio { namespace testing {
 
          void set_node_finalizers(std::span<const account_name> finalizer_names);
 
+         std::vector<fc::crypto::blslib::bls_public_key> set_active_finalizers(std::span<const account_name> finalizer_names);
+
          // Finalizer policy input to set up a test: weights, threshold and local finalizers
          // which participate voting.
          struct finalizer_policy_input {
@@ -278,6 +280,10 @@ namespace eosio { namespace testing {
             std::vector<account_name>   local_finalizers;
          };
          std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>> set_finalizers(const finalizer_policy_input& input);
+
+         std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
+            return control->active_finalizer_policy(id);
+         }
 
          void link_authority( account_name account, account_name code,  permission_name req, action_name type = {} );
          void unlink_authority( account_name account, account_name code, action_name type = {} );

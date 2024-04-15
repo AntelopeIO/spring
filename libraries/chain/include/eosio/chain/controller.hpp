@@ -330,6 +330,9 @@ namespace eosio::chain {
          // thread safe, for testing
          bool node_has_voted_if_finalizer(const block_id_type& id) const;
 
+         // thread safe, for testing
+         std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const;
+
          bool light_validation_allowed() const;
          bool skip_auth_check()const;
          bool skip_trx_checks()const;

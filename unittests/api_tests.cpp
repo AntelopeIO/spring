@@ -3923,13 +3923,26 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 // and that multiple ones can be in flight at the same time.
 // -------------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
+   using bls_public_key = fc::crypto::blslib::bls_public_key;
    validating_tester t;
 
-   auto set_finalizers = [&](std::span<const account_name> names) {
-      base_tester::finalizer_policy_input input;
-      for (auto n : names) input.finalizers.emplace_back(n, 1);
-      input.threshold = names.size()  * 2 / 3 + 1;
-      t.set_finalizers(input);
+   auto check_finalizer_policy = [&](const signed_block_ptr& block,
+                                     uint32_t generation,
+                                     std::span<const bls_public_key> keys_span) {
+      auto finpol = t.active_finalizer_policy(block->calculate_id());
+      BOOST_REQUIRE(!!finpol);
+      BOOST_CHECK_EQUAL(finpol->generation, generation); // new policy should not be active
+                                                         // until after two 3-chains
+      BOOST_CHECK_EQUAL(keys_span.size(), finpol->finalizers.size());
+      std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
+      std::sort(keys.begin(), keys.end());
+
+      std::vector<bls_public_key> active_keys;
+      for (const auto& auth : finpol->finalizers)
+         active_keys.push_back(auth.public_key);
+      std::sort(active_keys.begin(), active_keys.end());
+      for (size_t i=0; i<keys.size(); ++i)
+         BOOST_CHECK_EQUAL(keys[i], active_keys[i]);
    };
 
    uint32_t lib = 0;
@@ -3955,7 +3968,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
    t.set_node_finalizers({&finalizers[0], finalizers.size()});
 
    constexpr size_t finset_size = 21;
-   set_finalizers({&finalizers[0], finset_size});
+   auto pubkeys0 = t.set_active_finalizers({&finalizers[0], finset_size});
 
    // `genesis_block` is the first block where set_finalizers() was executed.
    // It is the genesis block.
@@ -3990,8 +4003,20 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
 
    // run set_finalizers(), verify it becomes active after exactly two 3-chains
    // -------------------------------------------------------------------------
-   set_finalizers({&finalizers[1], finset_size});
-   auto sf1_block = t.produce_block();
+   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
+   auto b0 = t.produce_block();
+   check_finalizer_policy(b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
+
+   t.produce_blocks(2);
+   auto b3 = t.produce_block();
+   check_finalizer_policy(b3, 1, pubkeys0); // one 3-chain - new policy still should not be active
+
+   t.produce_blocks(1);
+   auto b5 = t.produce_block();
+   check_finalizer_policy(b5, 1, pubkeys0); // one 3-chain + 2 blocks - new policy still should not be active
+
+   auto b6 = t.produce_block();
+   check_finalizer_policy(b6, 2, pubkeys1); // two 3-chain - new policy *should* be active
 
 } FC_LOG_AND_RETHROW() }
 

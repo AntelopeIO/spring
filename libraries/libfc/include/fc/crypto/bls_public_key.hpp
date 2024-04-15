@@ -61,6 +61,14 @@ namespace fc::crypto::blslib {
          return ds;
       }
 
+      friend std::ostream& operator<<(std::ostream& os, const fc::crypto::blslib::bls_public_key& k) {
+         os << "bls_public_key(" << std::hex;
+         for (auto c : k.affine_non_montgomery_le())
+            os << std::setfill('0') << std::setw(2) << c;
+         os << std::dec << ")";
+         return os;
+      }
+
       template<typename T>
       friend T& operator>>(T& ds, bls_public_key& sig) {
          // Serialization as variable length array when it is stored as a fixed length array. This makes for easier deserialization by external tools
