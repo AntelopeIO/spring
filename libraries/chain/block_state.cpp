@@ -25,6 +25,14 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    }
 }
 
+block_state::block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
+                         const validator_t& validator, bool skip_validate_signee,
+                         const digest_type& action_mroot_savanna)
+   : block_state(prev, b, pfs, validator, skip_validate_signee)
+{
+   action_mroot = action_mroot_savanna;
+}
+
 block_state::block_state(const block_header_state&                bhs,
                          deque<transaction_metadata_ptr>&&        trx_metas,
                          deque<transaction_receipt>&&             trx_receipts,
@@ -250,6 +258,8 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
+   assert(action_mroot != digest_type() );
+   assert(strong_digest != digest_type() );
 
    // Copy parent's validation_tree and validation_mroots.
    auto start = next_bhs.core.last_final_block_num() - core.last_final_block_num();

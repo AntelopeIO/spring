@@ -1348,12 +1348,14 @@ struct controller_impl {
          block_state_ptr prev = forkdb.root();
          assert(prev);
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
+            assert((*bitr)->action_mroot_savanna.has_value());
             const bool skip_validate_signee = true; // validated already
             auto new_bsp = std::make_shared<block_state>(
                   *prev,
                   (*bitr)->block,
                   protocol_features.get_protocol_feature_set(),
-                  validator_t{}, skip_validate_signee);
+                  validator_t{}, skip_validate_signee,
+                  *((*bitr)->action_mroot_savanna));
             transition_add_to_savanna_fork_db(forkdb, *bitr, new_bsp, prev);
             prev = new_bsp;
          }
@@ -1529,11 +1531,13 @@ struct controller_impl {
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
                            const auto& bspl = legacy_branch[i];
+                           assert(bspl->action_mroot_savanna.has_value());
                            auto new_bsp = std::make_shared<block_state>(
                                  *prev,
                                  bspl->block,
                                  protocol_features.get_protocol_feature_set(),
-                                 validator_t{}, skip_validate_signee);
+                                 validator_t{}, skip_validate_signee,
+                                 *(bspl->action_mroot_savanna));
                            // legacy_branch is from head, all should be validated
                            assert(bspl->action_mroot_savanna);
                            // Create the valid structure for producing
@@ -4439,17 +4443,12 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
+         assert((*bitr)->action_mroot_savanna.has_value());
          auto new_bsp = std::make_shared<block_state>(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee);
-
-         // We only need action_mroot of the last block for finality_data
-         if ((bitr + 1) == legacy_branch.rend()) {
-            assert((*bitr)->action_mroot_savanna);
-            new_bsp->action_mroot = *((*bitr)->action_mroot_savanna);
-         }
+               validator_t{}, skip_validate_signee, *((*bitr)->action_mroot_savanna));
 
          prev = new_bsp;
       }
