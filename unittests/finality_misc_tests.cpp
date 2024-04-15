@@ -1,5 +1,3 @@
-#define BOOST_TEST_MODULE hotstuff
-
 #include <eosio/chain/hotstuff/hotstuff.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/block_header.hpp>
@@ -8,7 +6,7 @@
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
-#include <boost/test/included/unit_test.hpp>
+#include <boost/test/unit_test.hpp>
 
 // -----------------------------------------------------------------------------
 //            Allow boost to print `pending_quorum_certificate::state_t`
@@ -27,6 +25,8 @@ namespace std {
       return os;
    }
 }
+
+BOOST_AUTO_TEST_SUITE(finality_misc_tests)
 
 BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    using namespace eosio::chain;
@@ -236,3 +236,5 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    }
 
 } FC_LOG_AND_RETHROW();
+
+BOOST_AUTO_TEST_SUITE_END()
