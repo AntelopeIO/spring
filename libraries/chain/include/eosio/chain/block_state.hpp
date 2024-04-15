@@ -55,7 +55,7 @@ struct valid_t {
    std::vector<digest_type> validation_mroots;
 };
 
-// This is mostly used by SHiP to stream finality_data
+// This is mostly used by SHiP & deep-mind to stream finality_data
 struct finality_data_t {
    uint32_t     major_version{light_header_protocol_version_major};
    uint32_t     minor_version{light_header_protocol_version_minor};

@@ -3167,16 +3167,6 @@ struct controller_impl {
          chain_head = block_handle{cb.bsp};
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()) );
 
-         apply<void>(chain_head, [&](const auto& head) {
-#warning todo: support deep_mind_logger even when in IF mode
-            if constexpr (std::is_same_v<block_state_legacy_ptr, typename std::decay_t<decltype(head)>>) {
-               // at block level, no transaction specific logging is possible
-               if (auto* dm_logger = get_deep_mind_logger(false)) {
-                  dm_logger->on_accepted_block(head);
-               }
-            }
-         });
-
          if( s == controller::block_status::incomplete ) {
             fork_db.apply_s<void>([&](auto& forkdb) {
                assert(std::holds_alternative<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal()));
@@ -3202,6 +3192,17 @@ struct controller_impl {
             apply_s<void>(chain_head, [&](const auto& head) { create_and_send_vote_msg(head); });
          }
 
+         apply<void>(chain_head, [&](const auto& head) {
+               if (auto* dm_logger = get_deep_mind_logger(false)) {
+                  auto fd = head_finality_data();
+                  if constexpr (std::is_same_v<block_state_legacy_ptr, typename std::decay_t<decltype(head)>>) {
+                     dm_logger->on_accepted_block(head);
+                  } else {
+                     assert(fd);
+                     dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                  }
+               }
+         });
 
          if (s == controller::block_status::incomplete) {
             const auto& id = chain_head.id();
