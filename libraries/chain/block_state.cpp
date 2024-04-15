@@ -160,7 +160,8 @@ vote_status block_state::aggregate_vote(uint32_t connection_id, const vote_messa
                                  vote.sig,
                                  finalizers[index].weight);
    } else {
-      fc_wlog(vote_logger, "finalizer_key (${k}) in vote is not in finalizer policy", ("k", vote.finalizer_key));
+      fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policy",
+              ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
       return vote_status::unknown_public_key;
    }
 }
