@@ -124,7 +124,7 @@ public:
    // Returns finality_data of the current block
    finality_data_t get_finality_data();
 
-   // vote_status
+   // connection_id only for logging
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
    bool has_voted(const bls_public_key& key) const;
    void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
