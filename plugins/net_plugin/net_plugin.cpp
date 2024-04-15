@@ -234,6 +234,9 @@ namespace eosio {
       alignas(hardware_destructive_interference_size)
       std::atomic<stages> sync_state{in_sync};
       std::atomic<uint32_t> sync_ordinal{0};
+      // indicate that we have received blocks to catch us up to head, delay sending out handshakes until we have
+      // applied the blocks and our controller head is updated
+      std::atomic<bool> send_handshakes_when_synced{false};
 
       // Instant finality makes it likely peers think their lib and head are
       // not in sync but in reality they are only within small difference.
@@ -262,7 +265,8 @@ namespace eosio {
       void sync_reset_lib_num( const connection_ptr& conn, bool closing );
       void sync_reassign_fetch( const connection_ptr& c, go_away_reason reason );
       void rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode );
-      void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied );
+      void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied,
+                            const fc::microseconds& blk_latency );
       void recv_handshake( const connection_ptr& c, const handshake_message& msg, uint32_t nblk_combined_latency );
       void sync_recv_notice( const connection_ptr& c, const notice_message& msg );
    };
@@ -2468,8 +2472,11 @@ namespace eosio {
    }
 
    // called from c's connection strand
-   void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied) {
-      peer_dlog( c, "${d} block ${bn}", ("d", blk_applied ? "applied" : "got")("bn", blk_num) );
+   void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
+                                      bool blk_applied, const fc::microseconds& blk_latency) {
+      peer_dlog(c, "${d} block ${bn}:${id}.. latency ${l}ms",
+                ("d", blk_applied ? "applied" : "got")("bn", blk_num)("id", blk_id.str().substr(8,16))
+                ("l", blk_latency == fc::microseconds::maximum() ? 0 : blk_latency.count()/1000) );
       if( app().is_quiting() ) {
          c->close( false, true );
          return;
@@ -2509,14 +2516,14 @@ namespace eosio {
             }
          } else {
             set_state( in_sync );
-            peer_dlog( c, "Switching to in_sync, sending handshakes" );
-            send_handshakes();
+            peer_dlog( c, "Switching to in_sync, will send handshakes when caught up" );
+            send_handshakes_when_synced = true;
          }
       } else if( state == lib_catchup ) {
          fc::unique_lock g_sync( sync_mtx );
          if( blk_applied && blk_num >= sync_known_lib_num ) {
             peer_dlog( c, "All caught up with last known last irreversible block resending handshake" );
-            set_state( in_sync );
+            set_state( head_catchup );
             g_sync.unlock();
             send_handshakes();
          } else {
@@ -2550,6 +2557,9 @@ namespace eosio {
             }
 
          }
+      } else if ( blk_latency.count() < config::block_interval_us && send_handshakes_when_synced ) {
+         send_handshakes();
+         send_handshakes_when_synced = false;
       }
    }
 
@@ -3108,7 +3118,7 @@ namespace eosio {
       if( my_impl->dispatcher.have_block( blk_id ) ) {
          peer_dlog( this, "canceling wait, already received block ${num}, id ${id}...",
                     ("num", blk_num)("id", blk_id.str().substr(8,16)) );
-         my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, true );
+         my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, true, fc::microseconds::maximum() );
          cancel_wait();
 
          pending_message_buffer.advance_read_ptr( message_length );
@@ -3143,7 +3153,7 @@ namespace eosio {
             pending_message_buffer.advance_read_ptr( message_length );
             return true;
          }
-         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false);
+         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, fc::microseconds::maximum());
       }
 
       auto ds = pending_message_buffer.create_datastream();
@@ -3778,7 +3788,7 @@ namespace eosio {
          if( my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
             my_impl->dispatcher.add_peer_block( id, c->connection_id );
             c->strand.post( [c, id]() {
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), false );
+               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), false, fc::microseconds::maximum() );
             });
             return;
          }
@@ -3842,12 +3852,13 @@ namespace eosio {
       connection_ptr c = shared_from_this();
 
       uint32_t lib = cc.last_irreversible_block_num();
+      fc::microseconds age(fc::time_point::now() - block->timestamp);
       try {
          if( blk_num <= lib || cc.validated_block_exists(blk_id) ) {
             c->strand.post( [sync_master = my_impl->sync_master.get(),
-                             &dispatcher = my_impl->dispatcher, c, blk_id, blk_num]() {
+                             &dispatcher = my_impl->dispatcher, c, blk_id, blk_num, latency = age]() {
                dispatcher.add_peer_block( blk_id, c->connection_id );
-               sync_master->sync_recv_block( c, blk_id, blk_num, true );
+               sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
             });
             return;
          }
@@ -3858,7 +3869,6 @@ namespace eosio {
          fc_elog( logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}", ("id", blk_id)("c", connection_id) );
       }
 
-      fc::microseconds age( fc::time_point::now() - block->timestamp);
       fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, ${v}, lib #${lib}",
                ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("v", obt ? "header validated" : "header validation pending")("lib", lib) );
 
@@ -3907,9 +3917,11 @@ namespace eosio {
                });
             }
          });
-         c->strand.post( [sync_master = my_impl->sync_master.get(), &dispatcher = my_impl->dispatcher, c, blk_id, blk_num]() {
+         c->strand.post( [sync_master = my_impl->sync_master.get(),
+                          &dispatcher = my_impl->dispatcher,
+                          c, blk_id, blk_num, latency = age]() {
             dispatcher.recv_block( c, blk_id, blk_num );
-            sync_master->sync_recv_block( c, blk_id, blk_num, true );
+            sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
          });
       } else {
          c->strand.post( [sync_master = my_impl->sync_master.get(), &dispatcher = my_impl->dispatcher, c,
