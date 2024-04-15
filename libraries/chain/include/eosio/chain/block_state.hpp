@@ -9,6 +9,8 @@
 
 namespace eosio::chain {
 
+struct vote_message;
+
 using signer_callback_type = std::function<std::vector<signature_type>(const digest_type&)>;
 
 constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };

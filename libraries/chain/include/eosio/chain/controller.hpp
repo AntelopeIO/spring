@@ -8,7 +8,7 @@
 #include <eosio/chain/snapshot.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
-#include <eosio/chain/finality/hotstuff.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 

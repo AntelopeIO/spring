@@ -1,4 +1,5 @@
-#include <eosio/chain/finality/hotstuff.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
 namespace eosio::chain {

@@ -82,7 +82,7 @@ set(CHAIN_WEBASSEMBLY_SOURCES
 set(CHAIN_HOTSTUFF_SOURCES
         finality/finalizer.cpp
         finality/instant_finality_extension.cpp
-        finality/hotstuff.cpp
+        finality/quorum_certificate.cpp
 )
 
 add_library(eosio_rapidjson INTERFACE)

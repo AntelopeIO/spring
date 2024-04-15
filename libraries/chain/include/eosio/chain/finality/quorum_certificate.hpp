@@ -12,8 +12,6 @@
 
 namespace eosio::chain {
 
-   inline fc::logger vote_logger{"vote"};
-
    using bls_public_key          = fc::crypto::blslib::bls_public_key;
    using bls_signature           = fc::crypto::blslib::bls_signature;
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
@@ -21,18 +19,6 @@ namespace eosio::chain {
 
    using hs_bitset     = boost::dynamic_bitset<uint32_t>;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
-
-   struct vote_message {
-      block_id_type                       block_id;
-      bool                                strong{false};
-      bls_public_key                      finalizer_key;
-      bls_signature                       sig;
-
-      auto operator<=>(const vote_message&) const = default;
-      bool operator==(const vote_message&) const = default;
-   };
-
-   using vote_message_ptr = std::shared_ptr<vote_message>;
 
    enum class vote_status {
       success,
@@ -42,10 +28,6 @@ namespace eosio::chain {
       unknown_block,         // block not available, possibly less than LIB, or too far in the future
       max_exceeded           // received too many votes for a connection
    };
-
-   using bls_public_key  = fc::crypto::blslib::bls_public_key;
-   using bls_signature   = fc::crypto::blslib::bls_signature;
-   using bls_private_key = fc::crypto::blslib::bls_private_key;
 
    // valid_quorum_certificate
    struct valid_quorum_certificate {
@@ -167,7 +149,6 @@ namespace eosio::chain {
 } //eosio::chain
 
 
-FC_REFLECT(eosio::chain::vote_message, (block_id)(strong)(finalizer_key)(sig));
 FC_REFLECT_ENUM(eosio::chain::vote_status, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
 FC_REFLECT(eosio::chain::valid_quorum_certificate, (_strong_votes)(_weak_votes)(_sig));
 FC_REFLECT(eosio::chain::pending_quorum_certificate, (_valid_qc)(_quorum)(_max_weak_sum_before_weak_final)(_state)(_strong_sum)(_weak_sum)(_weak_votes)(_strong_votes));

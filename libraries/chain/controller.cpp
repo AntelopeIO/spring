@@ -30,7 +30,8 @@
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
-#include <eosio/chain/finality/hotstuff.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
 
 #include <chainbase/chainbase.hpp>
