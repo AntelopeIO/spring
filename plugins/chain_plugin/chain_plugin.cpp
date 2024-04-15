@@ -158,6 +158,7 @@ public:
    std::filesystem::path             state_dir;
    bool                              readonly = false;
    flat_map<uint32_t, block_id_type> loaded_checkpoints;
+   bool                              accept_votes = false;
    bool                              accept_transactions     = false;
    bool                              api_accept_transactions = true;
    bool                              account_queries_enabled = false;
@@ -291,7 +292,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "Percentage of actual signature recovery cpu to bill. Whole number percentages, e.g. 50 for 50%")
          ("chain-threads", bpo::value<uint16_t>()->default_value(config::default_controller_thread_pool_size),
           "Number of worker threads in controller thread pool")
-         ("vote-threads", bpo::value<uint16_t>()->default_value(config::default_vote_thread_pool_size),
+         ("vote-threads", bpo::value<uint16_t>()->default_value(0),
           "Number of worker threads in vote processor thread pool. Voting disabled if set to 0 (votes are not propagatged on P2P network).")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
@@ -645,6 +646,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                      "vote-threads ${num} must be greater than 1 or 0. "
                      "Voting disabled if set to 0 (votes are not propagatged on P2P network).",
                      ("num", chain_config->vote_thread_pool_size) );
+         accept_votes = chain_config->vote_thread_pool_size > 0;
       }
 
       chain_config->sig_cpu_bill_pct = options.at("signature-cpu-billable-pct").as<uint32_t>();
@@ -1230,6 +1232,10 @@ void chain_plugin_impl::enable_accept_transactions() {
 
 void chain_plugin::enable_accept_transactions() {
    my->enable_accept_transactions();
+}
+
+bool chain_plugin::accept_votes() const {
+   return my->accept_votes;
 }
 
 

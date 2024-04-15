@@ -89,7 +89,7 @@ namespace eosio::chain {
             uint64_t                 state_guard_size       =  chain::config::default_state_guard_size;
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
-            uint16_t                 vote_thread_pool_size  =  chain::config::default_vote_thread_pool_size;
+            uint16_t                 vote_thread_pool_size  =  0;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
