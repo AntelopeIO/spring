@@ -1,4 +1,4 @@
-#include <eosio/chain/hotstuff/finalizer.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <fc/log/logger_config.hpp>
 

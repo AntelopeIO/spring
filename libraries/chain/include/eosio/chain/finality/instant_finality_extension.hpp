@@ -1,7 +1,7 @@
 #pragma   once
 
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/proposer_policy.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/proposer_policy.hpp>
 #include <eosio/chain/finality_core.hpp>
 
 namespace eosio::chain {

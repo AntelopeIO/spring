@@ -24,7 +24,7 @@
 #include <eosio/chain/generated_transaction_object.hpp>
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
-#include <eosio/chain/hotstuff/finalizer_authority.hpp>
+#include <eosio/chain/finality/finalizer_authority.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>

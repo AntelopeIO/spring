@@ -28,9 +28,9 @@
 #include <eosio/chain/platform_timer.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/deep_mind.hpp>
-#include <eosio/chain/hotstuff/finalizer.hpp>
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/hotstuff.hpp>
 #include <eosio/chain/vote_processor.hpp>
 
 #include <chainbase/chainbase.hpp>

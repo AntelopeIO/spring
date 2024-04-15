@@ -1,4 +1,4 @@
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/hotstuff.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/block_header.hpp>
 

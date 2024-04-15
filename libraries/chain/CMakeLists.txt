@@ -3,7 +3,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/genesis_state_root_key.cpp.in ${CMAKE
 
 file(GLOB HEADERS "include/eosio/chain/*.hpp"
                   "include/eosio/chain/webassembly/*.hpp"
-                  "include/eosio/chain/hotstuff/*.hpp"
+                  "include/eosio/chain/finality/*.hpp"
                   "${CMAKE_CURRENT_BINARY_DIR}/include/eosio/chain/core_symbol.hpp" )
 
 if((APPLE AND UNIX) OR (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD"))
@@ -80,9 +80,9 @@ set(CHAIN_WEBASSEMBLY_SOURCES
 )
 
 set(CHAIN_HOTSTUFF_SOURCES
-   hotstuff/finalizer.cpp
-   hotstuff/instant_finality_extension.cpp
-   hotstuff/hotstuff.cpp
+        finality/finalizer.cpp
+        finality/instant_finality_extension.cpp
+        finality/hotstuff.cpp
 )
 
 add_library(eosio_rapidjson INTERFACE)

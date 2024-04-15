@@ -1,4 +1,4 @@
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/hotstuff.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
 namespace eosio::chain {

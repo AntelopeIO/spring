@@ -2,9 +2,9 @@
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
+#include <eosio/chain/finality/hotstuff.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
 #include <future>
 
