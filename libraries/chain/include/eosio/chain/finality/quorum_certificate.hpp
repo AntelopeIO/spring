@@ -17,7 +17,7 @@ namespace eosio::chain {
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
    using bls_private_key         = fc::crypto::blslib::bls_private_key;
 
-   using hs_bitset     = boost::dynamic_bitset<uint32_t>;
+   using vote_bitset   = boost::dynamic_bitset<uint32_t>;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
 
    enum class vote_status {
@@ -34,9 +34,9 @@ namespace eosio::chain {
       bool is_weak()   const { return !!_weak_votes; }
       bool is_strong() const { return !_weak_votes; }
 
-      std::optional<hs_bitset> _strong_votes;
-      std::optional<hs_bitset> _weak_votes;
-      bls_aggregate_signature  _sig;
+      std::optional<vote_bitset> _strong_votes;
+      std::optional<vote_bitset> _weak_votes;
+      bls_aggregate_signature    _sig;
    };
 
    // quorum_certificate
@@ -75,8 +75,8 @@ namespace eosio::chain {
          friend struct fc::has_reflector_init<votes_t>;
          friend class pending_quorum_certificate;
 
-         hs_bitset               _bitset;
-         bls_aggregate_signature _sig;
+         vote_bitset                    _bitset;
+         bls_aggregate_signature        _sig;
          std::vector<std::atomic<bool>> _processed; // avoid locking mutex for _bitset duplicate check
 
          void reflector_init();

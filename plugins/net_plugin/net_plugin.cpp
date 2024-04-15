@@ -537,7 +537,6 @@ namespace eosio {
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
       void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
-      void warn_message( uint32_t sender_peer, const chain::hs_message_warning& code );
 
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
@@ -4050,10 +4049,6 @@ namespace eosio {
       dispatcher.strand.post( [this, exclude_peer, msg{std::move(send_buffer)}]() mutable {
          dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
       });
-   }
-
-   void net_plugin_impl::warn_message( uint32_t sender_peer, const chain::hs_message_warning& code ) {
-      // potentially react to (repeated) receipt of invalid, irrelevant, duplicate, etc. hotstuff messages from sender_peer (connection ID) here
    }
 
    // called from application thread

@@ -4,17 +4,17 @@
 
 namespace eosio::chain {
 
-inline std::string bitset_to_string(const hs_bitset& bs) {
+inline std::string bitset_to_string(const vote_bitset& bs) {
    std::string r;
    boost::to_string(bs, r);
    return r;
 }
 
-inline hs_bitset vector_to_bitset(const std::vector<uint32_t>& v) {
+inline vote_bitset vector_to_bitset(const std::vector<uint32_t>& v) {
    return {v.cbegin(), v.cend()};
 }
 
-inline std::vector<uint32_t> bitset_to_vector(const hs_bitset& bs) {
+inline std::vector<uint32_t> bitset_to_vector(const vote_bitset& bs) {
    std::vector<uint32_t> r;
    r.resize(bs.num_blocks());
    boost::to_block_range(bs, r.begin());
