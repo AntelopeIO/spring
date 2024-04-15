@@ -3919,10 +3919,11 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_CHECK_GT(lib, lib_after_transition);
 } FC_LOG_AND_RETHROW() }
 
-// verify that finalizers changes via set_finalizer take 2 3-cchain to take effect
-// and that multiple ones can be in flight at the same time.
-// -------------------------------------------------------------------------------
-BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
+// ---------------------------------------------------------------------
+// verify that finalizer policy change via set_finalizer take 2 3-chains
+// to take effect.
+// ---------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    using bls_public_key = fc::crypto::blslib::bls_public_key;
    validating_tester t;
 
@@ -3979,7 +3980,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
    // wait till the genesis_block becomes irreversible.
    // The critical block is the block that makes the genesis_block irreversible
    // -------------------------------------------------------------------------
-   signed_block_ptr critical_block = nullptr;
+   signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
    while(genesis_block->block_num() > lib)
       critical_block = t.produce_block();
 
@@ -3990,7 +3991,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
 
    // wait till the first proper block becomes irreversible. Transition will be done then
    // -----------------------------------------------------------------------------------
-   signed_block_ptr pt_block  = nullptr;
+   signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
    while(first_proper_block->block_num() > lib) {
       pt_block = t.produce_block();
       BOOST_REQUIRE(pt_block->is_proper_svnn_block());
@@ -4020,7 +4021,120 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_test) { try {
 
 } FC_LOG_AND_RETHROW() }
 
+// ---------------------------------------------------------------------------
+// Test correct behavior when multiple finalizer policy changes are in-flight
+// at the same time.
+// ---------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
+   using bls_public_key = fc::crypto::blslib::bls_public_key;
+   validating_tester t;
 
+   auto check_finalizer_policy = [&](const signed_block_ptr& block,
+                                     uint32_t generation,
+                                     std::span<const bls_public_key> keys_span) {
+      auto finpol = t.active_finalizer_policy(block->calculate_id());
+      BOOST_REQUIRE(!!finpol);
+      BOOST_CHECK_EQUAL(finpol->generation, generation); // new policy should not be active
+                                                         // until after two 3-chains
+      BOOST_CHECK_EQUAL(keys_span.size(), finpol->finalizers.size());
+      std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
+      std::sort(keys.begin(), keys.end());
+
+      std::vector<bls_public_key> active_keys;
+      for (const auto& auth : finpol->finalizers)
+         active_keys.push_back(auth.public_key);
+      std::sort(active_keys.begin(), active_keys.end());
+      for (size_t i=0; i<keys.size(); ++i)
+         BOOST_CHECK_EQUAL(keys[i], active_keys[i]);
+   };
+
+   uint32_t lib = 0;
+   signed_block_ptr lib_block;
+   t.control->irreversible_block().connect([&](const block_signal_params& t) {
+      const auto& [ block, id ] = t;
+      lib = block->block_num();
+      lib_block = block;
+   });
+
+   t.produce_block();
+
+   // Create finalizer accounts
+   vector<account_name> finalizers;
+   finalizers.reserve(50);
+   for (size_t i=0; i<50; ++i)
+      finalizers.emplace_back(std::string("init") + (char)('a' + i/26) + (char)('a' + i%26));
+
+   t.create_accounts(finalizers);
+   t.produce_block();
+
+   // activate savanna'
+   t.set_node_finalizers({&finalizers[0], finalizers.size()});
+
+   constexpr size_t finset_size = 21;
+   auto pubkeys0 = t.set_active_finalizers({&finalizers[0], finset_size});
+
+   // `genesis_block` is the first block where set_finalizers() was executed.
+   // It is the genesis block.
+   // It will include the first header extension for the instant finality.
+   // -----------------------------------------------------------------------
+   auto genesis_block = t.produce_block();
+
+   // wait till the genesis_block becomes irreversible.
+   // The critical block is the block that makes the genesis_block irreversible
+   // -------------------------------------------------------------------------
+   signed_block_ptr critical_block = nullptr; // last value of this var is the critical block
+   while(genesis_block->block_num() > lib)
+      critical_block = t.produce_block();
+
+   // Blocks after the critical block are proper IF blocks.
+   // -----------------------------------------------------
+   auto first_proper_block = t.produce_block();
+   BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
+
+   // wait till the first proper block becomes irreversible. Transition will be done then
+   // -----------------------------------------------------------------------------------
+   signed_block_ptr pt_block  = nullptr; // last value of this var is the first post-transition block
+   while(first_proper_block->block_num() > lib) {
+      pt_block = t.produce_block();
+      BOOST_REQUIRE(pt_block->is_proper_svnn_block());
+   }
+
+   // lib must advance after 3 blocks
+   // -------------------------------
+   t.produce_blocks(3);
+   BOOST_CHECK_EQUAL(lib, pt_block->block_num());
+
+   // run set_finalizers() twice in same block, verify only latest one becomes active
+   // -------------------------------------------------------------------------------
+   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
+   auto pubkeys2 = t.set_active_finalizers({&finalizers[2], finset_size});
+   auto b0 = t.produce_block();
+   check_finalizer_policy(b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
+   t.produce_blocks(4);
+   auto b5 = t.produce_block();
+   check_finalizer_policy(b5, 1, pubkeys0); // new policy should only be active until after two 3-chains
+   auto b6 = t.produce_block();
+   check_finalizer_policy(b6, 2, pubkeys2); // two 3-chain - new policy pubkeys2 *should* be active
+
+#if 0
+   // run set_finalizers(), verify it becomes active after exactly two 3-chains
+   // -------------------------------------------------------------------------
+   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
+   auto b0 = t.produce_block();
+   check_finalizer_policy(b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
+
+   t.produce_blocks(2);
+   auto b3 = t.produce_block();
+   check_finalizer_policy(b3, 1, pubkeys0); // one 3-chain - new policy still should not be active
+
+   t.produce_blocks(1);
+   auto b5 = t.produce_block();
+   check_finalizer_policy(b5, 1, pubkeys0); // one 3-chain + 2 blocks - new policy still should not be active
+
+   auto b6 = t.produce_block();
+   check_finalizer_policy(b6, 2, pubkeys1); // two 3-chain - new policy *should* be active
+#endif
+} FC_LOG_AND_RETHROW() }
 
 void test_finality_transition(const vector<account_name>& accounts, const base_tester::finalizer_policy_input& input, bool lib_advancing_expected) {
    validating_tester t;
