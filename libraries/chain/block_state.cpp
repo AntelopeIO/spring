@@ -46,7 +46,7 @@ block_state::block_state(const block_header_state&                bhs,
    block->transactions = std::move(trx_receipts);
 
    if( qc ) {
-      dlog("integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
+      fc_dlog(vote_logger, "integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
       emplace_extension(block->block_extensions, quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
    }
 
@@ -160,7 +160,7 @@ vote_status block_state::aggregate_vote(uint32_t connection_id, const vote_messa
                                  vote.sig,
                                  finalizers[index].weight);
    } else {
-      wlog( "finalizer_key (${k}) in vote is not in finalizer policy", ("k", vote.finalizer_key) );
+      fc_wlog(vote_logger, "finalizer_key (${k}) in vote is not in finalizer policy", ("k", vote.finalizer_key));
       return vote_status::unknown_public_key;
    }
 }

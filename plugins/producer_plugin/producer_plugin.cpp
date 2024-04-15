@@ -78,9 +78,6 @@ fc::logger        _transient_trx_successful_trace_log;
 const std::string transient_trx_failed_trace_logger_name("transient_trx_failure_tracing");
 fc::logger        _transient_trx_failed_trace_log;
 
-const std::string hotstuff_logger_name("hotstuff");
-fc::logger hotstuff_logger;
-
 namespace eosio {
 
 static auto _producer_plugin = application::register_plugin<producer_plugin>();
@@ -1437,7 +1434,6 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(trx_logger_name, _trx_log);
    fc::logger::update(transient_trx_successful_trace_logger_name, _transient_trx_successful_trace_log);
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
-   fc::logger::update( hotstuff_logger_name, hotstuff_logger );
 }
 
 void producer_plugin::pause() {

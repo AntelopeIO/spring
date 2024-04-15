@@ -215,7 +215,6 @@ public:
             remove_connection(connection_id);
             g.unlock();
 
-            elog("Exceeded max votes per connection for ${c}", ("c", connection_id));
             emit(connection_id, vote_status::max_exceeded, msg);
          } else if (block_header::num_from_id(msg->block_id) < lib.load(std::memory_order_relaxed)) {
             // ignore

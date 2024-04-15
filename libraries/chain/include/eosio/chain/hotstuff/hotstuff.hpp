@@ -12,6 +12,8 @@
 
 namespace eosio::chain {
 
+   inline fc::logger vote_logger{"vote"};
+
    using bls_public_key          = fc::crypto::blslib::bls_public_key;
    using bls_signature           = fc::crypto::blslib::bls_signature;
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;

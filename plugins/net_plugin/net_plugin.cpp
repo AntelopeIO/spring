@@ -2672,7 +2672,8 @@ namespace eosio {
          if( cp->connection_id == exclude_peer ) return true;
          cp->strand.post( [cp, msg]() {
             if (cp->protocol_version >= proto_instant_finality) {
-               peer_dlog(cp, "sending vote msg");
+               if (vote_logger.is_enabled(fc::log_level::debug))
+                  peer_dlog(cp, "sending vote msg");
                cp->enqueue_buffer( msg, no_reason );
             }
          });
@@ -3731,9 +3732,11 @@ namespace eosio {
    }
 
    void connection::handle_message( const vote_message_ptr& msg ) {
-      peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
-                ("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
-                ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
+      if (vote_logger.is_enabled(fc::log_level::debug)) {
+         peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
+                   ("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                   ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
+      }
       controller& cc = my_impl->chain_plug->chain();
       cc.process_vote_message(connection_id, msg);
    }
@@ -4002,7 +4005,7 @@ namespace eosio {
 
    // called from other threads including net threads
    void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
-      fc_dlog(logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
+      fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
                 ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
 
@@ -4013,6 +4016,7 @@ namespace eosio {
       case vote_status::unknown_public_key:
       case vote_status::invalid_signature:
       case vote_status::max_exceeded:  // close peer immediately
+         fc_elog(vote_logger, "Exceeded max votes per connection for ${c}", ("c", connection_id));
          my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                c->close( false );
@@ -4020,7 +4024,7 @@ namespace eosio {
          });
          break;
       case vote_status::unknown_block: // track the failure
-         fc_dlog(logger, "connection - ${c} vote unknown block #${bn}:${id}..",
+         fc_dlog(vote_logger, "connection - ${c} vote unknown block #${bn}:${id}..",
                  ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
          my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
@@ -4039,7 +4043,7 @@ namespace eosio {
       buffer_factory buff_factory;
       auto send_buffer = buff_factory.get_send_buffer( *msg );
 
-      fc_dlog(logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
+      fc_dlog(vote_logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
                 ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
