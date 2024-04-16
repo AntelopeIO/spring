@@ -25,7 +25,6 @@ namespace eosio { namespace chain {
    // Use instead of std::atomic when std::atomic does not support type
    template <typename T>
    class large_atomic {
-      alignas(hardware_destructive_interference_size)
       mutable std::mutex mtx;
       T value{};
    public:
