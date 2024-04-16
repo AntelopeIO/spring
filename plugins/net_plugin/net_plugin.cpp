@@ -4278,7 +4278,6 @@ namespace eosio {
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
-         p2p_accept_votes = options.at("vote-threads").as<uint16_t>() != 0;
 
          use_socket_read_watermark = options.at( "use-socket-read-watermark" ).as<bool>();
          keepalive_interval = std::chrono::milliseconds( options.at( "p2p-keepalive-interval-ms" ).as<int>() );
@@ -4426,6 +4425,8 @@ namespace eosio {
                "*    Transactions not forwarded   *\n"
                "***********************************\n" );
       }
+
+      p2p_accept_votes = chain_plug->accept_votes();
 
       std::vector<string> listen_addresses = p2p_addresses;
 
