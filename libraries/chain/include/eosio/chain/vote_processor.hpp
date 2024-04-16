@@ -2,6 +2,7 @@
 
 #include <eosio/chain/hotstuff/hotstuff.hpp>
 #include <eosio/chain/block_state.hpp>
+#include <eosio/chain/controller.hpp>
 
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/composite_key.hpp>
@@ -9,7 +10,7 @@
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
 /**
  * Process votes in a dedicated thread pool.
@@ -32,8 +33,6 @@ class vote_processor_t {
       block_num_type block_num() const { return block_header::num_from_id(msg->block_id); }
    };
 
-   using vote_signal_type = decltype(controller({},chain_id_type::empty_chain_id()).voted_block());
-
    using vote_index_type = boost::multi_index_container< vote,
       indexed_by<
          ordered_non_unique<tag<by_block_num>,
@@ -48,7 +47,7 @@ class vote_processor_t {
 
    using fetch_block_func_t = std::function<block_state_ptr(const block_id_type&)>;
 
-   vote_signal_type&            vote_signal;
+   vote_signal_t&               vote_signal;
    fetch_block_func_t           fetch_block_func;
 
    std::mutex                   mtx;
@@ -119,7 +118,7 @@ private:
    }
 
 public:
-   explicit vote_processor_t(vote_signal_type& vote_signal, fetch_block_func_t&& get_block)
+   explicit vote_processor_t(vote_signal_t& vote_signal, fetch_block_func_t&& get_block)
       : vote_signal(vote_signal)
       , fetch_block_func(get_block)
    {}
@@ -148,9 +147,7 @@ public:
          while (!stopped) {
             std::unique_lock g(mtx);
             cv.wait(g, [&]() {
-               if (!index.empty() || stopped)
-                  return true;
-               return false;
+               return !index.empty() || stopped;
             });
             if (stopped)
                break;
@@ -240,4 +237,4 @@ public:
 
 };
 
-} } //eosio::chain
+} // namespace eosio::chain

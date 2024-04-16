@@ -947,14 +947,14 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   signal<void(const vote_signal_params&)>   voted_block;
+   vote_signal_t                             voted_block;
 
-   vote_processor_t              vote_processor{voted_block,
-                                                [this](const block_id_type& id) -> block_state_ptr {
-                                                   return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
-                                                      return forkdb.get_block(id);
-                                                   });
-                                                }};
+   vote_processor_t vote_processor{voted_block,
+                                   [this](const block_id_type& id) -> block_state_ptr {
+                                      return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
+                                         return forkdb.get_block(id);
+                                      });
+                                   }};
 
    int64_t set_proposed_producers( vector<producer_authority> producers );
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
@@ -5548,7 +5548,7 @@ signal<void(const block_signal_params&)>&  controller::accepted_block_header() {
 signal<void(const block_signal_params&)>&  controller::accepted_block() { return my->accepted_block; }
 signal<void(const block_signal_params&)>&  controller::irreversible_block() { return my->irreversible_block; }
 signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& controller::applied_transaction() { return my->applied_transaction; }
-signal<void(const vote_signal_params&)>&   controller::voted_block() { return my->voted_block; }
+vote_signal_t&                             controller::voted_block() { return my->voted_block; }
 
 chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    chain_snapshot_header header;

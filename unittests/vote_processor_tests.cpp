@@ -123,7 +123,7 @@ vote_message_ptr make_vote_message(const block_state_ptr& bsp) {
 BOOST_AUTO_TEST_SUITE(vote_processor_tests)
 
 BOOST_AUTO_TEST_CASE( vote_processor_test ) {
-   boost::signals2::signal<void(const vote_signal_params&)> voted_block;
+   vote_signal_t voted_block;
 
    uint32_t received_connection_id = 0;
    vote_status received_vote_status = vote_status::unknown_block;

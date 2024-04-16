@@ -60,6 +60,7 @@ namespace eosio::chain {
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
    //                                connection_id, vote result status, vote_message processed
    using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
+   using vote_signal_t       = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
       HEAD,
@@ -377,7 +378,7 @@ namespace eosio::chain {
          signal<void(const block_signal_params&)>&  irreversible_block();
          signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& applied_transaction();
          // Unlike other signals, voted_block is signaled from other threads than the main thread.
-         signal<void(const vote_signal_params&)>&   voted_block();
+         vote_signal_t&                             voted_block();
 
          const apply_handler* find_apply_handler( account_name contract, scope_name scope, action_name act )const;
          wasm_interface& get_wasm_interface();
