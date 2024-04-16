@@ -3192,22 +3192,21 @@ struct controller_impl {
             apply_s<void>(chain_head, [&](const auto& head) { create_and_send_vote_msg(head); });
          }
 
-         apply<void>(chain_head, [&](const auto& head) {
-               if (auto* dm_logger = get_deep_mind_logger(false)) {
-                  auto fd = head_finality_data();
-                  if constexpr (std::is_same_v<block_state_legacy_ptr, typename std::decay_t<decltype(head)>>) {
-                     if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
-                        assert(fd);
-                        dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
-                     } else {
-                        dm_logger->on_accepted_block(head);
-                     }
-                  } else {
-                     assert(fd);
-                     dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
-                  }
+         if (auto* dm_logger = get_deep_mind_logger(false)) {
+            auto fd = head_finality_data();
+            apply_l<void>(chain_head, [&](const auto& head) {
+               if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                  assert(fd);
+                  dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+               } else {
+                  dm_logger->on_accepted_block(head);
                }
-         });
+            });
+            apply_s<void>(chain_head, [&](const auto& head) {
+               assert(fd);
+               dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+            });
+         }
 
          if (s == controller::block_status::incomplete) {
             const auto& id = chain_head.id();
