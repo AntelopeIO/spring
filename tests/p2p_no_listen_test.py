@@ -33,8 +33,6 @@ try:
         '-e',
         '-p',
         'eosio',
-        '--vote-threads',
-        '3',
         '--p2p-listen-endpoint',
         '',
         '--plugin',

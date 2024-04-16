@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE(state_dir) {
              "--data-dir",   temp_dir_str.c_str(),
              "--state-dir",  custom_state_dir_str.c_str(),
              "--config-dir", temp_dir_str.c_str(),
-             "-p", "eosio", "--vote-threads", "3", "-e" };
+             "-p", "eosio", "-e" };
          app->initialize<chain_plugin, producer_plugin>( argv.size(), (char**) &argv[0] );
          app->startup();
          plugin_promise.set_value( {app->find_plugin<producer_plugin>(), app->find_plugin<chain_plugin>()} );

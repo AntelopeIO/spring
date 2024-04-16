@@ -108,7 +108,7 @@ void test_trxs_common(std::vector<const char*>& specific_args, bool test_disable
                fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
                std::vector<const char*> argv = {
                   "test",  // dummy executible name
-                  "-p", "eosio", "--vote-threads", "3", "-e", // actual arguments follow
+                  "-p", "eosio", "-e", // actual arguments follow
                   "--data-dir", temp_dir_str.c_str(),
                   "--config-dir", temp_dir_str.c_str(),
                   "--max-transaction-time=100",

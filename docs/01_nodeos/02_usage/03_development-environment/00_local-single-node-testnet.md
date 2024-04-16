@@ -32,7 +32,7 @@ Open one "terminal" window and perform the following steps:
 Start your own single-node blockchain with this single command:
 
 ```sh
-nodeos -e -p eosio --vote-threads 3 --plugin eosio::chain_api_plugin --plugin eosio::history_api_plugin
+nodeos -e -p eosio --plugin eosio::chain_api_plugin --plugin eosio::history_api_plugin
 ```
 
 [[info | Nodeos Minimal Options]]

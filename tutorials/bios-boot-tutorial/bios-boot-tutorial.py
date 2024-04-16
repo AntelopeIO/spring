@@ -118,7 +118,6 @@ def startNode(nodeIndex, account):
         '    --p2p-max-nodes-per-host ' + str(maxClients) +
         '    --enable-stale-production'
         '    --producer-name ' + account['name'] +
-        '    --vote-threads 3'
         '    --signature-provider ' + account['pub'] + '=KEY:' + account['pvt'] +
         '    --plugin eosio::http_plugin'
         '    --plugin eosio::chain_api_plugin'

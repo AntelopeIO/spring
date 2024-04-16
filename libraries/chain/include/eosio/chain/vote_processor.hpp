@@ -58,7 +58,7 @@ class vote_processor_t {
    std::map<uint32_t, uint16_t> num_messages;
 
    std::atomic<block_num_type>  lib{0};
-   std::atomic<bool>            stopped{false};
+   std::atomic<bool>            stopped{true};
    named_thread_pool<vote>      thread_pool;
 
 private:
@@ -136,7 +136,10 @@ public:
    }
 
    void start(size_t num_threads, decltype(thread_pool)::on_except_t&& on_except) {
-      assert(num_threads > 1); // need at least two as one is used for coordinatation
+      if (num_threads == 0)
+         return;
+
+      stopped = false;
       thread_pool.start( num_threads, std::move(on_except));
 
       // one coordinator thread
@@ -210,7 +213,11 @@ public:
       lib = block_num;
    }
 
+   /// called from net threads and controller's thread pool
+   /// msg is ignored vote_processor not start()ed
    void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg) {
+      if (stopped)
+         return;
       assert(msg);
       boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
          std::unique_lock g(mtx);

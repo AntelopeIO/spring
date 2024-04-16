@@ -143,6 +143,7 @@ namespace eosio { namespace chain {
       }
 
       /// destroy work guard, stop io_context, join thread_pool
+      /// not thread safe, expected to only be called from thread that called start()
       void stop() {
          if (_thread_pool.size() > 0) {
             _ioc_work.reset();

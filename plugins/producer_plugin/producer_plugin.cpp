@@ -1338,9 +1338,6 @@ void producer_plugin_impl::plugin_startup() {
          EOS_ASSERT(_producers.empty() || chain_plug->accept_transactions(), plugin_config_exception,
                     "node cannot have any producer-name configured because no block production is possible with no [api|p2p]-accepted-transactions");
 
-         EOS_ASSERT(_producers.empty() || chain_plug->accept_votes(), plugin_config_exception,
-                    "node cannot have any producer-name configured because --vote-threads is defaulted to 0. Enable vote processing for block production.");
-
          chain.set_node_finalizer_keys(_finalizer_keys);
 
          _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {

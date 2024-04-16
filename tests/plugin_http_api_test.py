@@ -97,7 +97,7 @@ class PluginHttpTest(unittest.TestCase):
                         "--p2p-peer-address localhost:9011 --resource-monitor-not-shutdown-on-threshold-exceeded ") % (self.data_dir, self.config_dir, self.data_dir, "\'*\'", "false")
         nodeos_flags += category_config.nodeosArgs()
 
-        start_nodeos_cmd = ("%s -e -p eosio --vote-threads 2 %s %s ") % (Utils.EosServerPath, nodeos_plugins, nodeos_flags)
+        start_nodeos_cmd = ("%s -e -p eosio %s %s ") % (Utils.EosServerPath, nodeos_plugins, nodeos_flags)
         self.nodeos = Node(TestHelper.LOCAL_HOST, TestHelper.DEFAULT_PORT, self.node_id, self.data_dir, self.config_dir, shlex.split(start_nodeos_cmd), walletMgr=self.keosd)
         time.sleep(self.sleep_s*2)
         self.nodeos.waitForBlock(1, timeout=30)
