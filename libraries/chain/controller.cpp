@@ -1199,16 +1199,15 @@ struct controller_impl {
     my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
+      assert(cfg.chain_thread_pool_size > 0);
       thread_pool.start( cfg.chain_thread_pool_size, [this]( const fc::exception& e ) {
          elog( "Exception in chain thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
-      if (cfg.vote_thread_pool_size > 0) {
-         vote_processor.start(cfg.vote_thread_pool_size, [this]( const fc::exception& e ) {
-            elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-            if( shutdown ) shutdown();
-         } );
-      }
+      vote_processor.start(cfg.vote_thread_pool_size, [this]( const fc::exception& e ) {
+         elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+         if( shutdown ) shutdown();
+      } );
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
