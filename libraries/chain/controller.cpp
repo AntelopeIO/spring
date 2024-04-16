@@ -1350,7 +1350,7 @@ struct controller_impl {
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
             assert((*bitr)->action_mroot_savanna.has_value());
             const bool skip_validate_signee = true; // validated already
-            auto new_bsp = std::make_shared<block_state>(
+            auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
                   protocol_features.get_protocol_feature_set(),
@@ -1532,7 +1532,7 @@ struct controller_impl {
                         } else {
                            const auto& bspl = legacy_branch[i];
                            assert(bspl->action_mroot_savanna.has_value());
-                           auto new_bsp = std::make_shared<block_state>(
+                           auto new_bsp = block_state::create_transition_block(
                                  *prev,
                                  bspl->block,
                                  protocol_features.get_protocol_feature_set(),
@@ -4444,7 +4444,7 @@ struct controller_impl {
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
          assert((*bitr)->action_mroot_savanna.has_value());
-         auto new_bsp = std::make_shared<block_state>(
+         auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),

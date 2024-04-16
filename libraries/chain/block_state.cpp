@@ -25,14 +25,6 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    }
 }
 
-block_state::block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
-                         const validator_t& validator, bool skip_validate_signee,
-                         const digest_type& action_mroot_savanna)
-   : block_state(prev, b, pfs, validator, skip_validate_signee)
-{
-   action_mroot = action_mroot_savanna;
-}
-
 block_state::block_state(const block_header_state&                bhs,
                          deque<transaction_metadata_ptr>&&        trx_metas,
                          deque<transaction_receipt>&&             trx_receipts,
@@ -114,6 +106,18 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.action_mroot = *bsp.action_mroot_savanna;
    result.base_digest = {}; // calculated on demand in get_finality_data()
 
+   return result_ptr;
+}
+
+block_state_ptr block_state::create_transition_block(
+                   const block_header_state&         prev,
+                   signed_block_ptr                  b,
+                   const protocol_feature_set&       pfs,
+                   const validator_t&                validator,
+                   bool                              skip_validate_signee,
+                   const std::optional<digest_type>& action_mroot_savanna) {
+   auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+   result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
    return result_ptr;
 }
 
