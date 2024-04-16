@@ -99,8 +99,6 @@ chain::transaction_trace_ptr make_transaction_trace( const packed_transaction_pt
 }
 
 auto make_block( uint32_t block_num ) {
-   static uint64_t unique_num = 0;
-   ++unique_num;
    name producer = "brianj"_n;
    chain::signed_block_ptr block = std::make_shared<chain::signed_block>();
    block->producer = producer;
