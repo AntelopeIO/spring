@@ -22,6 +22,12 @@ namespace eosio { namespace chain {
    [[maybe_unused]] constexpr std::size_t hardware_destructive_interference_size  = 64;
 #endif
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wunknown-warning-option"
+#pragma GCC diagnostic ignored "-Winterference-size"
+#endif
    // Use instead of std::atomic when std::atomic does not support type
    template <typename T>
    class large_atomic {
@@ -49,6 +55,9 @@ namespace eosio { namespace chain {
 
       auto make_accessor() { return accessor{mtx, value}; }
    };
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
 
    template <typename T>
    class copyable_atomic {
