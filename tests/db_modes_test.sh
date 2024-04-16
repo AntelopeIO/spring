@@ -32,7 +32,7 @@ EOSIO_STUFF_DIR=$(mktemp -d)
 trap "rm -rf $EOSIO_STUFF_DIR" EXIT
 NODEOS_LAUNCH_PARAMS="./programs/nodeos/nodeos --resource-monitor-not-shutdown-on-threshold-exceeded -d $EOSIO_STUFF_DIR --config-dir $EOSIO_STUFF_DIR \
 --chain-state-db-size-mb 8 --chain-state-db-guard-size-mb 0 \
--e -peosio"
+-e -peosio --vote-threads 3"
 
 run_nodeos() {
    if (( $VERBOSE == 0 )); then
