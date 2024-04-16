@@ -58,6 +58,7 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
+   //                                connection_id, vote result status, vote_message processed
    using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
 
    enum class db_read_mode {

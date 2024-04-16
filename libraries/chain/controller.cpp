@@ -1393,8 +1393,8 @@ struct controller_impl {
 
    block_num_type latest_known_lib_num() const {
       block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      block_num_type if_lib_num = block_header::num_from_id(irreversible_block_id);
-      return if_lib_num > 0 ? if_lib_num : fork_db_head_irreversible_blocknum();
+      block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
+      return savanna_lib_num > 0 ? savanna_lib_num : fork_db_head_irreversible_blocknum();
    }
 
    void log_irreversible() {
@@ -3606,7 +3606,7 @@ struct controller_impl {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)});
 
-              // also aggregate our own vote into the pending_qc for this block.
+              // also aggregate our own vote into the pending_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }

@@ -293,7 +293,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
          ("chain-threads", bpo::value<uint16_t>()->default_value(config::default_controller_thread_pool_size),
           "Number of worker threads in controller thread pool")
          ("vote-threads", bpo::value<uint16_t>()->default_value(0),
-          "Number of worker threads in vote processor thread pool. Voting disabled if set to 0 (votes are not propagatged on P2P network).")
+          "Number of worker threads in vote processor thread pool. If set to 0, voting disabled, votes are not propagatged on P2P network.")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
          ("deep-mind", bpo::bool_switch()->default_value(false),
@@ -643,7 +643,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       if( options.count( "vote-threads" )) {
          chain_config->vote_thread_pool_size = options.at( "vote-threads" ).as<uint16_t>();
          EOS_ASSERT( chain_config->vote_thread_pool_size > 1 || chain_config->vote_thread_pool_size == 0, plugin_config_exception,
-                     "vote-threads ${num} must be greater than 1 or 0. "
+                     "vote-threads ${num} must be greater than 1, or equal to 0 to disable. "
                      "Voting disabled if set to 0 (votes are not propagatged on P2P network).",
                      ("num", chain_config->vote_thread_pool_size) );
          accept_votes = chain_config->vote_thread_pool_size > 0;

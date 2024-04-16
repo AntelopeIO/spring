@@ -15,7 +15,9 @@ namespace eosio { namespace chain {
  * Process votes in a dedicated thread pool.
  */
 class vote_processor_t {
-   static constexpr size_t max_votes_per_connection = 2500; // 3000 is less than 1MB per connection
+   // Even 3000 vote structs are less than 1MB per connection.
+   // 2500 is should never be reached unless a specific connection is sending garbage.
+   static constexpr size_t max_votes_per_connection = 2500;
    static constexpr std::chrono::milliseconds block_wait_time{10};
 
    struct by_block_num;
@@ -209,6 +211,7 @@ public:
    }
 
    void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg) {
+      assert(msg);
       boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
          std::unique_lock g(mtx);
          if (++num_messages[connection_id] > max_votes_per_connection) {
