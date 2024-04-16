@@ -79,10 +79,11 @@ set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/transaction.cpp
 )
 
-set(CHAIN_HOTSTUFF_SOURCES
+set(CHAIN_FINALITY_SOURCES
         finality/finalizer.cpp
         finality/instant_finality_extension.cpp
         finality/quorum_certificate.cpp
+        finality/finality_core.cpp
 )
 
 add_library(eosio_rapidjson INTERFACE)
@@ -98,7 +99,6 @@ add_library( eosio_chain
              block_state.cpp
              block_header_state_legacy.cpp
              block_state_legacy.cpp
-             finality_core.cpp
              fork_database.cpp
              controller.cpp
              authorization_manager.cpp
@@ -128,7 +128,7 @@ add_library( eosio_chain
              ${CHAIN_EOSVMOC_SOURCES}
              ${CHAIN_EOSVM_SOURCES}
              ${CHAIN_WEBASSEMBLY_SOURCES}
-             ${CHAIN_HOTSTUFF_SOURCES}
+             ${CHAIN_FINALITY_SOURCES}
 
              authority.cpp
              trace.cpp

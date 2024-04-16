@@ -181,7 +181,7 @@ void finality_test_cluster::setup_node(node_info& node, eosio::chain::account_na
    node.node.produce_block();
    node.node.produce_block();
 
-   // activate hotstuff
+   // activate savanna
    eosio::testing::base_tester::finalizer_policy_input policy_input = {
       .finalizers       = { {.name = "node0"_n, .weight = 1},
                             {.name = "node1"_n, .weight = 1},

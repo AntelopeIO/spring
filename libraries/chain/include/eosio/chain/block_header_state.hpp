@@ -1,6 +1,6 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
-#include <eosio/chain/finality_core.hpp>
+#include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/finality/quorum_certificate.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
