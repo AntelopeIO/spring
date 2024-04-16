@@ -142,7 +142,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          ("from_block_num", 1)
          ("policy", mvo() 
             ("generation", 1)
-            ("fthreshold", 2)
+            ("threshold", 2)
             ("last_block_num", 0)
             ("finalizers", fc::variants({
                mvo() 

@@ -89,11 +89,6 @@
             ]
         },
         {
-            "name": "clear",
-            "base": "",
-            "fields": []
-        },
-        {
             "name": "dynamic_data_v0",
             "base": "",
             "fields": [
@@ -152,7 +147,7 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "fthreshold",
+                    "name": "threshold",
                     "type": "uint64"
                 },
                 {
@@ -253,7 +248,7 @@
             "fields": [
                 {
                     "name": "finalizers",
-                    "type": "uint64[]"
+                    "type": "uint32[]"
                 },
                 {
                     "name": "signature",
@@ -320,20 +315,6 @@
                     "type": "time_point"
                 }
             ]
-        },
-        {
-            "name": "test",
-            "base": "",
-            "fields": [
-                {
-                    "name": "pk",
-                    "type": "bytes"
-                },
-                {
-                    "name": "sig",
-                    "type": "bytes"
-                }
-            ]
         }
     ],
     "actions": [
@@ -343,18 +324,8 @@
             "ricardian_contract": ""
         },
         {
-            "name": "clear",
-            "type": "clear",
-            "ricardian_contract": ""
-        },
-        {
             "name": "setfpolicy",
             "type": "setfpolicy",
-            "ricardian_contract": ""
-        },
-        {
-            "name": "test",
-            "type": "test",
             "ricardian_contract": ""
         }
     ],

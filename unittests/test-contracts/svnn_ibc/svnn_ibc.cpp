@@ -26,7 +26,7 @@ void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t
         }
         svnn_ibc::storedpolicy spolicy;
         spolicy.generation = policy.generation;
-        spolicy.fthreshold = policy.fthreshold;
+        spolicy.threshold = policy.threshold;
         spolicy.finalizers = policy.finalizers;
 
         //policy is in force until a newer policy is proven
@@ -99,7 +99,7 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     auto fa_itr = target_policy.finalizers.begin();
     auto fa_end_itr = target_policy.finalizers.end();
     size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
-    std::vector<uint64_t> bitset_data(qc.finalizers);
+    std::vector<uint32_t> bitset_data(qc.finalizers);
     bitset b(finalizer_count, bitset_data);
 
     bool first = true;
@@ -124,7 +124,7 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     }
 
     //verify that we have enough vote weight to meet the quorum threshold of the target policy
-    check(weight>=target_policy.fthreshold, "insufficient signatures to reach quorum");
+    check(weight>=target_policy.threshold, "insufficient signatures to reach quorum");
     std::array<uint8_t, 32> data = finality_digest.extract_as_byte_array();
     std::vector<const char> v_data(data.begin(), data.end());
     //verify signature validity

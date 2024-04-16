@@ -72,7 +72,7 @@ CONTRACT svnn_ibc : public contract {
       }
 
       struct quorum_certificate {
-          std::vector<uint64_t> finalizers;
+          std::vector<uint32_t> finalizers;
           bls_signature signature;
       };
 
@@ -85,7 +85,7 @@ CONTRACT svnn_ibc : public contract {
       struct fpolicy {
 
          uint32_t                         generation = 0; ///< sequentially incrementing version number
-         uint64_t                         fthreshold = 0;  ///< vote weight threshold to finalize blocks
+         uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
          std::vector<finalizer_authority> finalizers; ///< Instant Finality voter set
 
          checksum256 digest() const {
@@ -105,7 +105,7 @@ CONTRACT svnn_ibc : public contract {
          uint64_t primary_key() const {return generation;}
          uint64_t by_cache_expiry()const { return cache_expiry.sec_since_epoch(); }
 
-         EOSLIB_SERIALIZE( storedpolicy, (generation)(fthreshold)(finalizers)(last_block_num)(cache_expiry))
+         EOSLIB_SERIALIZE( storedpolicy, (generation)(threshold)(finalizers)(last_block_num)(cache_expiry))
 
       };
 
