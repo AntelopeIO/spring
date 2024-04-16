@@ -2,6 +2,8 @@
 
 #include <eosio/chain/exceptions.hpp>
 
+#include <boost/numeric/conversion/cast.hpp>
+
 #include <string>
 #include <sstream>
 #include <regex>
