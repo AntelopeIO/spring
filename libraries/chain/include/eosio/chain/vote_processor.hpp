@@ -161,6 +161,8 @@ public:
                g.lock();
             }
             for (auto i = idx.begin(); i != idx.end();) {
+               if (stopped)
+                  break;
                auto& vt = *i;
                block_state_ptr bsp = fetch_block_func(vt.id());
                if (bsp) {
