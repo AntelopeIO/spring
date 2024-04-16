@@ -109,6 +109,18 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    return result_ptr;
 }
 
+block_state_ptr block_state::create_transition_block(
+                   const block_header_state&         prev,
+                   signed_block_ptr                  b,
+                   const protocol_feature_set&       pfs,
+                   const validator_t&                validator,
+                   bool                              skip_validate_signee,
+                   const std::optional<digest_type>& action_mroot_savanna) {
+   auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+   result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
+   return result_ptr;
+}
+
 block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
    : block_header_state {
          .block_id                    = sbs.block_id,
@@ -250,6 +262,8 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
+   assert(!action_mroot.empty());
+   assert(!strong_digest.empty());
 
    // Copy parent's validation_tree and validation_mroots.
    auto start = next_bhs.core.last_final_block_num() - core.last_final_block_num();
