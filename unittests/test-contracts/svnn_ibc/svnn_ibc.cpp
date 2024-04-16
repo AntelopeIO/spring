@@ -116,7 +116,7 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
                 agg_pub_key = fa_itr->public_key;
             }
             else agg_pub_key = _g1add(agg_pub_key, fa_itr->public_key);
-            weight+=fa_itr->fweight;
+            weight+=fa_itr->weight;
 
         }
         index++;
@@ -154,9 +154,9 @@ void svnn_ibc::_check_target_block_proof_of_inclusion(const proof_of_inclusion& 
 }
 
 void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const proof_of_inclusion& target_block_proof_of_inclusion){
-    //temporarilly disabled : skip qc verification
+
     //if QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
-    //_check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
+    _check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
@@ -191,19 +191,4 @@ ACTION svnn_ibc::checkproof(const proof& proof){
         //if we only have a proof of inclusion of the target block, we execute the "light" code path
         _check_target_block_proof_of_inclusion(proof.target_block_proof_of_inclusion, std::nullopt);
     }
-}
-
-//temporary : reset the state
-ACTION svnn_ibc::clear(){
-   require_auth(get_self());
-   proofs_table _proofs_table(get_self(), get_self().value);
-   policies_table _policies_table(get_self(), get_self().value);
-   auto fp_itr = _proofs_table.begin();
-   while (fp_itr!= _proofs_table.end()){
-       fp_itr = _proofs_table.erase(fp_itr);
-   }
-   auto p_itr = _policies_table.begin();
-   while (p_itr!= _policies_table.end()){
-       p_itr = _policies_table.erase(p_itr);
-   }
 }

@@ -134,7 +134,7 @@
                     "type": "string"
                 },
                 {
-                    "name": "fweight",
+                    "name": "weight",
                     "type": "uint64"
                 },
                 {
@@ -320,6 +320,20 @@
                     "type": "time_point"
                 }
             ]
+        },
+        {
+            "name": "test",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "bytes"
+                },
+                {
+                    "name": "sig",
+                    "type": "bytes"
+                }
+            ]
         }
     ],
     "actions": [
@@ -336,6 +350,11 @@
         {
             "name": "setfpolicy",
             "type": "setfpolicy",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "test",
+            "type": "test",
             "ricardian_contract": ""
         }
     ],

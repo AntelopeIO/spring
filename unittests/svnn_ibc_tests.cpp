@@ -1,8 +1,5 @@
 #include <eosio/chain/abi_serializer.hpp>
-#include <eosio/chain/abi_serializer.hpp>
 #include <eosio/testing/tester.hpp>
-
-#include <eosio/chain/fork_database.hpp>
 
 #include <fc/variant_object.hpp>
 
@@ -10,127 +7,259 @@
 
 #include <contracts.hpp>
 #include <test_contracts.hpp>
-
 #include "fork_test_utilities.hpp"
+
+#include <eosio/chain/exceptions.hpp>
+
+#include "svnn_ibc_test_cluster.hpp"
 
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-#include <eosio/chain/exceptions.hpp>
 using mvo = mutable_variant_object;
-
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
-// Extending the default chain tester
-// ( libraries/testing/include/eosio/testing/tester.hpp )
-class ibc_tester : public tester {
-public:
-   const account_name   _bridge = "bridge"_n;
+   qc_data_t extract_qc_data(const signed_block_ptr& b) {
+      std::optional<qc_data_t> qc_data;
+      auto hexts = b->validate_and_extract_header_extensions();
+      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
+         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
 
-   // This is mostly for creating accounts and loading contracts.
-   void setup(){
-      // load bridge contract
-      create_account( _bridge );
-      set_code( _bridge, eosio::testing::test_contracts::svnn_ibc_wasm());
-      set_abi( _bridge, eosio::testing::test_contracts::svnn_ibc_abi());
+         // get the matching qc extension if present
+         auto exts = b->validate_and_extract_extensions();
+         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+            auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
+            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+         }
+         return qc_data_t{ {}, if_ext.qc_claim };
+      }
+      return {};
    }
 
-   //set a finalizer policy
-   void set_policy(){
-      auto cr = push_action( _bridge, "setfpolicy"_n, _bridge, mutable_variant_object()
+   struct merkle_branch_t {
+      bool direction;
+      digest_type hash;
+   };
+
+   //generate a proof of inclusion for a node at index from a list of leaves
+   std::vector<merkle_branch_t> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
+
+      auto _leaves = leaves;
+      auto _index = index;
+
+      std::vector<merkle_branch_t> proof;
+
+      while (_leaves.size()>1){
+         std::vector<digest_type> new_level;
+         for (size_t i = 0 ; i < _leaves.size() ; i+=2){
+            digest_type left = _leaves[i];
+
+            if (i + 1 < _leaves.size() && (i + 1 != _leaves.size() - 1 || _leaves.size() % 2 == 0)){
+               // Normal case: both children exist and are not at the end or are even
+               digest_type right = _leaves[i+1];
+
+               new_level.push_back(fc::sha256::hash(std::pair<digest_type, digest_type>(left, right)));
+               if (_index == i || _index == i + 1) {
+                 proof.push_back(_index == i ? merkle_branch_t{false, right} : merkle_branch_t{true, left});
+                 _index = i / 2; // Update index for next level
+
+               }
+            }
+            else {
+               // Odd number of leaves at this level, and we're at the end
+               new_level.push_back(left); // Promote the left (which is also the right in this case)
+               if (_index == i) _index = i / 2; // Update index for next level, no sibling to add
+
+            }
+         }
+         _leaves = new_level;
+      }
+      return proof;
+   }
+
+   BOOST_AUTO_TEST_CASE(ibc_test) { try {
+
+       // cluster is set up with the head about to produce IF Genesis      
+      svnn_ibc_test_cluster cluster;
+
+      // produce IF Genesis block
+      auto genesis_block = cluster.produce_and_push_block();
+
+      BOOST_CHECK(genesis_block->block_num() == 6);
+
+      // check if IF Genesis block contains an IF extension
+      std::optional<eosio::chain::block_header_extension> genesis_if_ext = genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      BOOST_CHECK(genesis_if_ext.has_value());
+      
+      // and that it has the expected initial finalizer_policy
+      std::optional<eosio::chain::finalizer_policy> active_finalizer_policy = std::get<eosio::chain::instant_finality_extension>(*genesis_if_ext).new_finalizer_policy;
+      BOOST_CHECK(!!active_finalizer_policy);
+      BOOST_CHECK(active_finalizer_policy->finalizers.size() == 3);
+      BOOST_CHECK(active_finalizer_policy->generation == 1);
+
+      // compute the digest of the finalizer policy
+      auto active_finalizer_policy_digest = fc::sha256::hash(*active_finalizer_policy);
+      
+      auto genesis_block_fd = cluster.node0.node.control->head_finality_data();
+
+      // verify we have finality data for the IF genesis block
+      BOOST_CHECK(genesis_block_fd.has_value());
+
+      // compute IF finality leaf
+      auto genesis_base_digest = genesis_block_fd.value().base_digest;
+      auto genesis_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, genesis_base_digest));
+      
+      auto genesis_block_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
+         .active_finalizer_policy_generation      = active_finalizer_policy->generation,
+         .finality_tree_digest                    = digest_type(), //nothing to finalize yet
+         .active_finalizer_policy_and_base_digest = genesis_afp_base_digest
+      });
+
+      auto genesis_block_action_mroot = genesis_block_fd.value().action_mroot;
+      
+      auto genesis_block_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = genesis_block->block_num(),
+         .finality_digest = genesis_block_finality_digest,
+         .action_mroot = genesis_block_action_mroot
+      });
+
+      // create the ibc account and deploy the ibc contract to it 
+      cluster.node0.node.create_account( "ibc"_n );
+      cluster.node0.node.set_code( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_wasm());
+      cluster.node0.node.set_abi( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_abi());
+
+      // represent the public keys as std::vector<char> to be passed to smart contract
+      std::array<uint8_t, 96> pub_key_0 = cluster.node0.priv_key.get_public_key().affine_non_montgomery_le();
+      std::array<uint8_t, 96> pub_key_1 = cluster.node1.priv_key.get_public_key().affine_non_montgomery_le();
+      std::array<uint8_t, 96> pub_key_2 = cluster.node2.priv_key.get_public_key().affine_non_montgomery_le();
+      std::vector<char> vc_pub_key0(reinterpret_cast<char*>(pub_key_0.data()), reinterpret_cast<char*>(pub_key_0.data() + pub_key_0.size()));
+      std::vector<char> vc_pub_key1(reinterpret_cast<char*>(pub_key_1.data()), reinterpret_cast<char*>(pub_key_1.data() + pub_key_1.size()));
+      std::vector<char> vc_pub_key2(reinterpret_cast<char*>(pub_key_2.data()), reinterpret_cast<char*>(pub_key_2.data() + pub_key_2.size()));
+
+      // configure ibc contract with the finalizer policy
+      cluster.node0.node.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
-         ("policy", mutable_variant_object() 
+         ("policy", mvo() 
             ("generation", 1)
-            ("fthreshold", 3)
+            ("fthreshold", 2)
             ("last_block_num", 0)
             ("finalizers", fc::variants({
-               mutable_variant_object() 
-                  ("description","finalizer1")
-                  ("fweight", 1)
-                  ("public_key", "b12eba13063c6cdc7bbe40e7de62a1c0f861a9ad55e924cdd5049be9b58e205053968179cede5be79afdcbbb90322406aefb7a5ce64edc2a4482d8656daed1eeacfb4286f661c0f9117dcd83fad451d301b2310946e5cd58808f7b441b280a02")
+               mvo() 
+                  ("description","node0")
+                  ("weight", 1)
+                  ("public_key", vc_pub_key0)
                ,
-               mutable_variant_object() 
-                  ("description","finalizer2")
-                  ("fweight", 1)
-                  ("public_key", "0728121cffe7b8ddac41817c3a6faca76ae9de762d9c26602f936ac3e283da756002d3671a2858f54c355f67b31b430b23b957dba426d757eb422db617be4cc13daf41691aa059b0f198fa290014d3c3e4fa1def2abc6a3328adfa7705c75508")
+               mvo() 
+                  ("description","node1")
+                  ("weight", 1)
+                  ("public_key", vc_pub_key1)
                ,
-               mutable_variant_object() 
-                  ("description","finalizer3")
-                  ("fweight", 1)
-                  ("public_key", "e06c31c83f70b4fe9507877563bfff49235774d94c98dbf9673d61d082ef589f7dd4865281f37d60d1bb433514d4ef0b787424fb5e53472b1d45d28d90614fad29a4e5e0fe70ea387f7845e22c843f6061f9be20a7af21d8b72d02f4ca494a0a")
-               ,
-               mutable_variant_object() 
-                  ("description","finalizer4")
-                  ("fweight", 1)
-                  ("public_key", "08c9bd408bac02747e493d918e4b3e6bd1a2ffaf9bfca4f2e79dd22e12556bf46e911f25613c24d9f6403996c5246c19ef94aff48094868425eda1e46bcd059c59f3b060521be797f5cc2e6debe2180efa12c0814618a38836a64c3d7440740f")
+               mvo() 
+                  ("description","node2")
+                  ("weight", 1)
+                  ("public_key", vc_pub_key2)
+         
             }))
          )
       );
-   }
 
-   //verify a proof
-   void check_proof(){
-      auto cr = push_action( _bridge, "checkproof"_n, _bridge, mutable_variant_object()
-         ("proof", mutable_variant_object() 
-            ("finality_proof", mutable_variant_object() 
-               ("qc_block", mutable_variant_object()
+      // Transition block. Finalizers are not expected to vote on this block. 
+      auto block_1 = cluster.produce_and_push_block();
+      auto block_1_fd = cluster.node0.node.control->head_finality_data();
+      auto block_1_action_mroot = block_1_fd.value().action_mroot;
+      auto block_1_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_1->calculate_id());
+      auto block_1_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_1->block_num(),
+         .finality_digest = block_1_finality_digest,
+         .action_mroot = block_1_action_mroot
+      });
+      
+      // Proper IF Block. From now on, finalizers must vote. Moving forward, the header action_mroot field is reconverted to provide the finality_mroot. The action_mroot is instead provided via the finality data 
+      auto block_2 = cluster.produce_and_push_block();
+      cluster.process_node1_vote(); //enough to reach quorum threshold
+      auto block_2_fd = cluster.node0.node.control->head_finality_data();
+      auto block_2_action_mroot = block_2_fd.value().action_mroot;
+      auto block_2_base_digest = block_2_fd.value().base_digest;
+      auto block_2_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_2->calculate_id());
+      auto block_2_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_2_base_digest));
+      auto block_2_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_2->block_num(),
+         .finality_digest = block_2_finality_digest,
+         .action_mroot = block_2_action_mroot
+      });
+      auto block_2_finality_root = block_2->action_mroot;
+
+      // First expected QC on this block
+      auto block_3 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+
+      // Verify the QC of this block
+      auto block_4 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+      auto block_4_fd = cluster.node0.node.control->head_finality_data();
+      auto block_4_base_digest = block_4_fd.value().base_digest;
+      auto block_4_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_4_base_digest));
+
+      auto block_4_finality_root = block_4->action_mroot; 
+
+      // Block containing the QC over the 4th block
+      auto block_5 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+
+      // Obtain QC over block 4 from block 5
+      qc_data_t qc_b_5 = extract_qc_data(block_5);
+
+      BOOST_TEST(qc_b_5.qc.has_value());
+      
+      // proof of inclusion
+      auto proof = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
+
+      // represent the signature as std::vector<char>
+      std::array<uint8_t, 192> a_sig = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
+      std::vector<char> vc_sig(reinterpret_cast<char*>(a_sig.data()), reinterpret_cast<char*>(a_sig.data() + a_sig.size()));
+
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo() 
+               ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
-                  ("witness_hash", "888ceeb757ea240d1c1ae2f4f717e67b73dcd592b2ba097f63b4c3e3ca4350e1")
-                  ("finality_mroot", "1d2ab7379301370d3fa1b27a9f4ac077f6ea445a1aa3dbf7e18e9cc2c25b140c")
+                  ("witness_hash", block_4_afp_base_digest)
+                  ("finality_mroot", block_4_finality_root)
                )
-               ("qc", mutable_variant_object()
-                  ("signature", "")
-                  ("finalizers", fc::variants({}))
+               ("qc", mvo()
+                  ("signature", vc_sig)
+                  ("finalizers", fc::variants({3})) //node0 and node1 signed
                )
             )
-            ("target_block_proof_of_inclusion", mutable_variant_object() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
-               ("target", fc::variants({"block_data", mutable_variant_object() 
-                  ("finality_data", mutable_variant_object() 
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 2)
+               ("target", fc::variants({"block_data", mvo() 
+                  ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
-                     ("witness_hash", "dff620c1c4d31cade95ed609269a86d4ecb2357f9302d17675c0665c75786508")
-                     ("finality_mroot", "1397eb7c86719f160188fa740fc3610ccb5a6681ad56807dc99a17fe73a7b7fd")
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
                   )
-                  ("dynamic_data", mutable_variant_object() 
-                     ("block_num", 28)
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
                      ("action_proofs", fc::variants())
-                     ("action_mroot", "4e890ef0e014f93bd1b31fabf1041ecc9fb1c44e957c2f7b1682333ee426677a")
+                     ("action_mroot", block_2_action_mroot)
                   )
                }))
                ("merkle_branches", fc::variants({
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "4e17da018040c80339f2714828d1927d5b616f9af7aa4768c1876df6f05e5602")
-                  ,
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "7ee0e16f1941fb5a98d80d20ca92e0c689e9284285d5f90ecd4f8f1ea2ffb53c")
-                  ,
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "401526ba03ec4a955c83cda131dacd3e89becaad2cf04107170e436dd90a553f")
+                  mvo() 
+                     ("direction", proof[0].direction)
+                     ("hash", proof[0].hash)
                }))
             )
          )
       );
-   }
-};
 
-BOOST_AUTO_TEST_CASE( first_test ) try {
-   
-   ibc_tester chain_a;
-
-   chain_a.setup();
-
-   chain_a.set_policy();
-   chain_a.check_proof();
-
-} FC_LOG_AND_RETHROW()
+   } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

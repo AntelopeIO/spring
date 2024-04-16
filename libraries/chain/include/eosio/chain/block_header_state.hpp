@@ -20,6 +20,15 @@ namespace detail { struct schedule_info; };
 constexpr uint32_t light_header_protocol_version_major = 1;
 constexpr uint32_t light_header_protocol_version_minor = 0;
 
+// data for finality_digest
+struct finality_digest_data_v1 {
+   uint32_t    major_version{light_header_protocol_version_major};
+   uint32_t    minor_version{light_header_protocol_version_minor};
+   uint32_t    active_finalizer_policy_generation {0};
+   digest_type finality_tree_digest;
+   digest_type active_finalizer_policy_and_base_digest;
+};
+
 struct building_block_input {
    block_id_type                     parent_id;
    block_timestamp_type              parent_timestamp;
@@ -96,3 +105,5 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(proposer_policies)(finalizer_policies)(header_exts))
+
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(active_finalizer_policy_and_base_digest) )

@@ -50,38 +50,10 @@ CONTRACT svnn_ibc : public contract {
          return tp;
       }
 
-      /*
-
-      //discuss : compute merkle branch direction vs providing them as part of the proof
-
-      static std::vector<uint8_t> _get_directions(const uint64_t index, const uint64_t last_node_index){
-
-          std::vector<uint8_t> proof;
-
-          uint64_t c_index = index;
-          uint64_t layers_depth = calculate_max_depth(last_node_index) -1;
-          uint64_t c_last_node_index = last_node_index;
-
-          for (uint64_t i = 0; i < layers_depth; i++) {
-              if (c_last_node_index % 2) c_last_node_index+=1;
-              bool isLeft = c_index % 2 == 0 ? 0 : 1;
-              uint64_t pairIndex = isLeft ? c_index - 1 :
-                          c_index == last_node_index - 1 && i < layers_depth - 1 ? c_index :
-                          c_index + 1;
-              c_last_node_index/=2;
-              if (pairIndex < last_node_index) proof.push_back(isLeft);
-              c_index = c_index / 2;
-          }
-          return proof;
-      }
-
-      */
-
       struct merkle_branch {
          uint8_t direction;
          checksum256 hash;
       };
-
 
       //compute the merkle root of target node and vector of merkle branches
       static checksum256 _compute_root(const std::vector<merkle_branch> proof_nodes, const checksum256& target){
@@ -106,14 +78,14 @@ CONTRACT svnn_ibc : public contract {
 
       struct finalizer_authority {
          std::string     description;
-         uint64_t        fweight = 0;
+         uint64_t        weight = 0;
          bls_public_key  public_key;
       };
 
       struct fpolicy {
 
          uint32_t                         generation = 0; ///< sequentially incrementing version number
-         uint64_t                         fthreshold = 0;  ///< vote fweight threshold to finalize blocks
+         uint64_t                         fthreshold = 0;  ///< vote weight threshold to finalize blocks
          std::vector<finalizer_authority> finalizers; ///< Instant Finality voter set
 
          checksum256 digest() const {
@@ -407,8 +379,5 @@ CONTRACT svnn_ibc : public contract {
 
       ACTION setfpolicy(const fpolicy& policy, const uint32_t from_block_num); //set finality policy
       ACTION checkproof(const proof& proof);
-
-      //clearing function, to be removed for production version
-      ACTION clear();
 
 };
