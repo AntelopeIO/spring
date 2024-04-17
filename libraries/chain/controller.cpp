@@ -1348,14 +1348,14 @@ struct controller_impl {
          block_state_ptr prev = forkdb.root();
          assert(prev);
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
-            assert((*bitr)->action_mroot_savanna.has_value());
+            assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
             const bool skip_validate_signee = true; // validated already
-            auto new_bsp = std::make_shared<block_state>(
+            auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
                   protocol_features.get_protocol_feature_set(),
                   validator_t{}, skip_validate_signee,
-                  *((*bitr)->action_mroot_savanna));
+                  (*bitr)->action_mroot_savanna);
             transition_add_to_savanna_fork_db(forkdb, *bitr, new_bsp, prev);
             prev = new_bsp;
          }
@@ -1532,12 +1532,13 @@ struct controller_impl {
                         } else {
                            const auto& bspl = legacy_branch[i];
                            assert(bspl->action_mroot_savanna.has_value());
-                           auto new_bsp = std::make_shared<block_state>(
+                           assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
+                           auto new_bsp = block_state::create_transition_block(
                                  *prev,
                                  bspl->block,
                                  protocol_features.get_protocol_feature_set(),
                                  validator_t{}, skip_validate_signee,
-                                 *(bspl->action_mroot_savanna));
+                                 bspl->action_mroot_savanna);
                            // legacy_branch is from head, all should be validated
                            assert(bspl->action_mroot_savanna);
                            // Create the valid structure for producing
@@ -4444,11 +4445,12 @@ struct controller_impl {
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
          assert((*bitr)->action_mroot_savanna.has_value());
-         auto new_bsp = std::make_shared<block_state>(
+         assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+         auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee, *((*bitr)->action_mroot_savanna));
+               validator_t{}, skip_validate_signee, (*bitr)->action_mroot_savanna);
 
          prev = new_bsp;
       }
