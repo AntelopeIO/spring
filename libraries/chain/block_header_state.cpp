@@ -136,7 +136,7 @@ void finish_next(const block_header_state& prev,
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
-               next_header_state.active_finalizer_policy = tracker.policy;
+               next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
                next_header_state.active_finalizer_policy->generation = prev.active_finalizer_policy->generation + 1;
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
