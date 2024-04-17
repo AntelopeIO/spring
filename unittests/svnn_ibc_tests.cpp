@@ -86,6 +86,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
 
+      // ensure out of scope setup and wiring is consistent  
       BOOST_CHECK(genesis_block->block_num() == 6);
 
       // check if IF Genesis block contains an IF extension
@@ -190,11 +191,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       });
       auto block_2_finality_root = block_2->action_mroot;
 
-      // First expected QC on this block
+      // block_3 contains a QC over block_2
       auto block_3 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
 
-      // Verify the QC of this block
+      // block_4 contains a QC over block_3
       auto block_4 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
       auto block_4_fd = cluster.node0.node.control->head_finality_data();
@@ -203,22 +204,25 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       auto block_4_finality_root = block_4->action_mroot; 
 
-      // Block containing the QC over the 4th block
+      //  block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
       auto block_5 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
 
-      // Obtain QC over block 4 from block 5
+      // retrieve the QC over block_4 that is contained in block_5
       qc_data_t qc_b_5 = extract_qc_data(block_5);
 
       BOOST_TEST(qc_b_5.qc.has_value());
       
-      // proof of inclusion
+      // generate proof of inclusion for block_2 in the merkle tree
       auto proof = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
 
-      // represent the signature as std::vector<char>
+      // represent the QC signature as std::vector<char>
       std::array<uint8_t, 192> a_sig = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
       std::vector<char> vc_sig(reinterpret_cast<char*>(a_sig.data()), reinterpret_cast<char*>(a_sig.data() + a_sig.size()));
 
+      std::vector<uint32_t> raw_biset = {3};
+      
+      // check proof
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
          ("proof", mvo() 
             ("finality_proof", mvo() 
@@ -231,7 +235,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", vc_sig)
-                  ("finalizers", fc::variants({3})) //node0 and node1 signed
+                  ("finalizers", raw_biset) //node0 and node1 signed
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -253,7 +257,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                }))
                ("merkle_branches", fc::variants({
                   mvo() 
-                     ("direction", proof[0].direction)
+                     ("direction", proof[0].direction) // can be hardcoded since this test enforces block numbers
                      ("hash", proof[0].hash)
                }))
             )

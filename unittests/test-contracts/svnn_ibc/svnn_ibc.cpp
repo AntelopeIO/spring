@@ -99,8 +99,8 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     auto fa_itr = target_policy.finalizers.begin();
     auto fa_end_itr = target_policy.finalizers.end();
     size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
-    std::vector<uint32_t> bitset_data(qc.finalizers);
-    bitset b(finalizer_count, bitset_data);
+    //std::vector<uint32_t> bitset_data(qc.finalizers);
+    bitset b(finalizer_count, qc.finalizers);
 
     bool first = true;
 
