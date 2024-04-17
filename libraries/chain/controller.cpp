@@ -525,8 +525,8 @@ struct building_block {
                                  bb.new_finalizer_policy = std::move(fin_pol);
                              },
                              [&](building_block_if& bb)     {
-                                 fin_pol.generation = bb.parent.active_finalizer_policy->generation + 1;
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                bb.new_finalizer_policy = std::move(fin_pol);
+                                // generation will be updated when activated
                               } },
                   v);
    }
