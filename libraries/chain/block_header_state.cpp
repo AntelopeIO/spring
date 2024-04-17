@@ -153,9 +153,10 @@ void finish_next(const block_header_state& prev,
    }
 
    if (new_finalizer_policy) {
-      next_header_state.finalizer_policies[next_header_state.block_num()] =
+      next_header_state.finalizer_policies.emplace(
+         next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(*new_finalizer_policy)) };
+                                  std::make_shared<finalizer_policy>(std::move(*new_finalizer_policy))});
    }
 
    // Finally update block id from header

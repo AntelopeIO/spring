@@ -56,7 +56,7 @@ struct block_header_state {
 
    // block time when proposer_policy will become active
    flat_map<block_timestamp_type, proposer_policy_ptr>  proposer_policies;
-   flat_map<uint32_t, finalizer_policy_tracker>         finalizer_policies;
+   flat_multimap<uint32_t, finalizer_policy_tracker>    finalizer_policies;
 
 
    // ------ data members caching information available elsewhere ----------------------
