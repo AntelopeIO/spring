@@ -644,11 +644,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          chain_config->vote_thread_pool_size = options.count("vote-threads") ? options.at("vote-threads").as<uint16_t>() : 0;
          if (chain_config->vote_thread_pool_size == 0 && options.count("producer-name")) {
             chain_config->vote_thread_pool_size = config::default_vote_thread_pool_size;
+            ilog("Setting vote-threads to ${n} on producing node", ("n", chain_config->vote_thread_pool_size));
          }
-         EOS_ASSERT( chain_config->vote_thread_pool_size > 1 || chain_config->vote_thread_pool_size == 0, plugin_config_exception,
-                     "vote-threads ${num} must be greater than 1, or equal to 0 to disable. "
-                     "Voting disabled if set to 0 (votes are not propagatged on P2P network).",
-                     ("num", chain_config->vote_thread_pool_size) );
          accept_votes = chain_config->vote_thread_pool_size > 0;
       }
 

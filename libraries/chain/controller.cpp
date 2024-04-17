@@ -3765,6 +3765,8 @@ struct controller_impl {
 
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
+         if constexpr (savanna_mode)
+            vote_processor.notify_new_block();
       }
 
       return block_handle{bsp};
