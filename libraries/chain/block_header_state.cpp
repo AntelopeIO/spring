@@ -147,8 +147,11 @@ void finish_next(const block_header_state& prev,
             }
             ++it;
          }
-         next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
-                                                     it, prev.finalizer_policies.end());
+         if (it != prev.finalizer_policies.end()) {
+            // copy remainder of pending finalizer_policy changes
+            next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
+                                                        it, prev.finalizer_policies.end());
+         }
       }
    }
 
