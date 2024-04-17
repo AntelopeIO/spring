@@ -16,6 +16,7 @@
 #include <eosio/chain/permission_link_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/chainbase_environment.hpp>
+#include <eosio/chain/block_header_state_utils.hpp>
 
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
@@ -2013,6 +2014,35 @@ fc::variant read_only::get_block_info(const read_only::get_block_info_params& pa
          ("schedule_version", block->schedule_version)
          ("producer_signature", block->producer_signature)
          ("ref_block_prefix", ref_block_prefix);
+}
+
+fc::variant read_only::get_block_header_state(const get_block_header_state_params& params, const fc::time_point&) const {
+   signed_block_ptr sbp;
+   std::optional<uint64_t> block_num;
+
+   try {
+      block_num = fc::to_uint64(params.block_num_or_id);
+   } catch( ... ) {}
+
+   if( block_num ) {
+      sbp = db.fetch_block_by_number(*block_num);
+   } else {
+      try {
+         sbp = db.fetch_block_by_id(block_id_type(params.block_num_or_id));
+      } EOS_RETHROW_EXCEPTIONS(chain::block_id_type_exception, "Invalid block ID: ${block_num_or_id}", ("block_num_or_id", params.block_num_or_id))
+   }
+
+   EOS_ASSERT( sbp, unknown_block_exception, "Could not find block: ${block}", ("block", params.block_num_or_id));
+
+   block_header_state_legacy ret;
+   ret.block_num = sbp->block_num();
+   ret.id = sbp->calculate_id();
+   ret.header = *sbp;
+   ret.additional_signatures = detail::extract_additional_signatures(sbp);
+
+   fc::variant vo;
+   fc::to_variant( ret, vo );
+   return vo;
 }
 
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {
