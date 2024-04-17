@@ -61,10 +61,10 @@ namespace fc::crypto::blslib {
          return ds;
       }
 
-      friend std::ostream& operator<<(std::ostream& os, const fc::crypto::blslib::bls_public_key& k) {
-         os << "bls_public_key(" << std::hex;
+      friend std::ostream& operator<<(std::ostream& os, const bls_public_key& k) {
+         os << "bls_public_key(0x" << std::hex;
          for (auto c : k.affine_non_montgomery_le())
-            os << std::setfill('0') << std::setw(2) << c;
+            os << std::setfill('0') << std::setw(2) << (int)c;
          os << std::dec << ")";
          return os;
       }
