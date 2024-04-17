@@ -3932,9 +3932,9 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
                                      std::span<const bls_public_key> keys_span) {
       auto finpol = t.active_finalizer_policy(block->calculate_id());
       BOOST_REQUIRE(!!finpol);
-      BOOST_CHECK_EQUAL(finpol->generation, generation); // new policy should not be active
-                                                         // until after two 3-chains
-      BOOST_CHECK_EQUAL(keys_span.size(), finpol->finalizers.size());
+      BOOST_REQUIRE_EQUAL(finpol->generation, generation); // new policy should not be active
+                                                           // until after two 3-chains
+      BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
       std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
       std::sort(keys.begin(), keys.end());
 
@@ -3943,7 +3943,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
          active_keys.push_back(auth.public_key);
       std::sort(active_keys.begin(), active_keys.end());
       for (size_t i=0; i<keys.size(); ++i)
-         BOOST_CHECK_EQUAL(keys[i], active_keys[i]);
+         BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
    };
 
    uint32_t lib = 0;
@@ -4000,7 +4000,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    // lib must advance after 3 blocks
    // -------------------------------
    t.produce_blocks(3);
-   BOOST_CHECK_EQUAL(lib, pt_block->block_num());
+   BOOST_REQUIRE_EQUAL(lib, pt_block->block_num());
 
    // run set_finalizers(), verify it becomes active after exactly two 3-chains
    // -------------------------------------------------------------------------
@@ -4034,9 +4034,9 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
                                      std::span<const bls_public_key> keys_span) {
       auto finpol = t.active_finalizer_policy(block->calculate_id());
       BOOST_REQUIRE(!!finpol);
-      BOOST_CHECK_EQUAL(finpol->generation, generation); // new policy should not be active
-                                                         // until after two 3-chains
-      BOOST_CHECK_EQUAL(keys_span.size(), finpol->finalizers.size());
+      BOOST_REQUIRE_EQUAL(finpol->generation, generation); // new policy should not be active
+                                                           // until after two 3-chains
+      BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
       std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
       std::sort(keys.begin(), keys.end());
 
@@ -4045,7 +4045,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
          active_keys.push_back(auth.public_key);
       std::sort(active_keys.begin(), active_keys.end());
       for (size_t i=0; i<keys.size(); ++i)
-         BOOST_CHECK_EQUAL(keys[i], active_keys[i]);
+         BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
    };
 
    uint32_t lib = 0;
@@ -4102,7 +4102,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    // lib must advance after 3 blocks
    // -------------------------------
    t.produce_blocks(3);
-   BOOST_CHECK_EQUAL(lib, pt_block->block_num());
+   BOOST_REQUIRE_EQUAL(lib, pt_block->block_num());
 
    // run set_finalizers() twice in same block, verify only latest one becomes active
    // -------------------------------------------------------------------------------
@@ -4116,24 +4116,27 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    auto b6 = t.produce_block();
    check_finalizer_policy(b6, 2, pubkeys2); // two 3-chain - new policy pubkeys2 *should* be active
 
-#if 0
-   // run set_finalizers(), verify it becomes active after exactly two 3-chains
-   // -------------------------------------------------------------------------
-   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
-   auto b0 = t.produce_block();
-   check_finalizer_policy(b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
-
+   // run a test with multiple set_finlizers in-flight during the two 3-chains they
+   // take to become active
+   // -----------------------------------------------------------------------------
+   auto pubkeys3 = t.set_active_finalizers({&finalizers[3], finset_size});
+   b0 = t.produce_block();
+   auto pubkeys4 = t.set_active_finalizers({&finalizers[4], finset_size});
+   auto b1 = t.produce_block();
+   auto b2 = t.produce_block();
+   auto pubkeys5 = t.set_active_finalizers({&finalizers[5], finset_size});
    t.produce_blocks(2);
-   auto b3 = t.produce_block();
-   check_finalizer_policy(b3, 1, pubkeys0); // one 3-chain - new policy still should not be active
+   b5 = t.produce_block();
+   check_finalizer_policy(b5, 2, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
+   b6 = t.produce_block();
+   check_finalizer_policy(b6, 3, pubkeys3); // 6 blocks after pubkeys3 (b6 - b0), pubkeys3 should be active
+   auto b7 = t.produce_block();
+   check_finalizer_policy(b7, 4, pubkeys4); // 6 blocks after pubkeys4 (b7 - b1), pubkeys4 should be active
 
-   t.produce_blocks(1);
-   auto b5 = t.produce_block();
-   check_finalizer_policy(b5, 1, pubkeys0); // one 3-chain + 2 blocks - new policy still should not be active
-
-   auto b6 = t.produce_block();
-   check_finalizer_policy(b6, 2, pubkeys1); // two 3-chain - new policy *should* be active
-#endif
+   auto b8 = t.produce_block();
+   check_finalizer_policy(b8, 4, pubkeys4); // 7 blocks after pubkeys4, pubkeys4 should still be active
+   auto b9 = t.produce_block();
+   check_finalizer_policy(b9, 5, pubkeys5); // 6 blocks after pubkeys5 (b9 - b3), pubkeys5 should be active
 } FC_LOG_AND_RETHROW() }
 
 void test_finality_transition(const vector<account_name>& accounts, const base_tester::finalizer_policy_input& input, bool lib_advancing_expected) {
