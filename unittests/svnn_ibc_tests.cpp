@@ -20,6 +20,7 @@ using mvo = mutable_variant_object;
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
+   //extract instant finality data from block header extension, as well as qc data from block extension
    qc_data_t extract_qc_data(const signed_block_ptr& b) {
       std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
@@ -117,8 +118,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          .active_finalizer_policy_and_base_digest = genesis_afp_base_digest
       });
 
+      //action_mroot computed using the post-IF activation merkle tree rules
       auto genesis_block_action_mroot = genesis_block_fd.value().action_mroot;
       
+      //initial finality leaf
       auto genesis_block_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
          .block_num = genesis_block->block_num(),
          .finality_digest = genesis_block_finality_digest,
@@ -222,7 +225,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       std::vector<uint32_t> raw_biset = {3};
       
-      // check proof
+      // verify proof
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
          ("proof", mvo() 
             ("finality_proof", mvo() 
@@ -263,6 +266,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          )
       );
+
+      //test passed
 
    } FC_LOG_AND_RETHROW() }
 
