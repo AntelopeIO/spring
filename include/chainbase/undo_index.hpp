@@ -11,6 +11,7 @@
 #include <boost/mp11/list.hpp>
 #include <boost/mp11/algorithm.hpp>
 #include <boost/iterator/transform_iterator.hpp>
+#include <boost/range/iterator_range.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/core/demangle.hpp>
 #include <boost/interprocess/interprocess_fwd.hpp>
