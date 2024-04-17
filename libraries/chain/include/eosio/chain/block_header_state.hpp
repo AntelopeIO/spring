@@ -56,6 +56,10 @@ struct block_header_state {
 
    // block time when proposer_policy will become active
    flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
+
+   // track in-flight finalizer policies. This is a `multimap` because the same block number
+   // can hold a `proposed` and a `pending` finalizer_policy. When that block becomes final, the
+   // `pending` becomes active, and the `proposed` becomes `pending` (for a different block number).
    flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
 
 
