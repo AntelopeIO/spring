@@ -55,8 +55,8 @@ struct block_header_state {
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
    // block time when proposer_policy will become active
-   flat_map<block_timestamp_type, proposer_policy_ptr>  proposer_policies;
-   flat_multimap<uint32_t, finalizer_policy_tracker>    finalizer_policies;
+   flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
+   flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
 
 
    // ------ data members caching information available elsewhere ----------------------
