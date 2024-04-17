@@ -132,7 +132,7 @@ void finish_next(const block_header_state& prev,
       if (it->first > lib) {
          next_header_state.finalizer_policies = prev.finalizer_policies;
       } else {
-         while (it->first <= lib && it != prev.finalizer_policies.end()) {
+         while (it != prev.finalizer_policies.end() && it->first <= lib) {
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
