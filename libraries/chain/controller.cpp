@@ -2014,16 +2014,50 @@ struct controller_impl {
    {
        return apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
-             if (fork_db.version_in_use() == fork_database::in_use_t::both) {
-                return fork_db.apply_s<block_state_pair>([&](const auto& forkdb) -> block_state_pair {
-                   return { head, forkdb.head() };
-                });
+             if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+                // During transition to Savana, we need to build Savanna Transition block
+                // from Savanna Genesis block
+                return { head, get_transition_block_bsp(head) };
              }
              return block_state_pair{ head, {} };
           },
           [](const block_state_ptr& head) {
              return block_state_pair{ {}, head };
           }});
+   }
+
+   // Returns corresponding Savanna Transition block for a given Legacy block.
+   block_state_ptr get_transition_block_bsp(const block_state_legacy_ptr& head) const {
+      fork_database_legacy_t::branch_t legacy_branch;
+      block_state_legacy_ptr legacy_root;
+      fork_db.apply_l<void>([&](const auto& forkdb) {
+         legacy_root = forkdb.root();
+         legacy_branch = forkdb.fetch_branch(head->id());
+      });
+
+      assert(!!legacy_root);
+      assert(legacy_root->header.contains_header_extension(instant_finality_extension::extension_id()));
+
+      block_state_ptr prev = block_state::create_if_genesis_block(*legacy_root);
+      assert(prev);
+      block_state_ptr new_bsp = prev;
+
+      const bool skip_validate_signee = true; // validated already
+      for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
+         assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+         new_bsp = block_state::create_transition_block(
+            *prev,
+            (*bitr)->block,
+            protocol_features.get_protocol_feature_set(),
+            validator_t{},
+            skip_validate_signee,
+            (*bitr)->action_mroot_savanna);
+         new_bsp->valid = prev->new_valid(*new_bsp, *((*bitr)->action_mroot_savanna), new_bsp->strong_digest);
+
+         prev = new_bsp;
+      }
+
+      return new_bsp;
    }
 
    void add_to_snapshot( const snapshot_writer_ptr& snapshot ) {
