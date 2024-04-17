@@ -52,13 +52,6 @@ testSuccessful=False
 WalletdName=Utils.EosWalletName
 shipTempDir=None
 
-def getLatestSnapshot(nodeId):
-    snapshotDir = os.path.join(Utils.getNodeDataDir(nodeId), "snapshots")
-    snapshotDirContents = os.listdir(snapshotDir)
-    assert len(snapshotDirContents) > 0
-    snapshotDirContents.sort()
-    return os.path.join(snapshotDir, snapshotDirContents[-1])
-
 try:
     TestHelper.printSystemInfo("BEGIN")
 
@@ -230,7 +223,7 @@ try:
 
     Print("Test starting ship from snapshot")
     Utils.rmNodeDataDir(shipNodeNum)
-    isRelaunchSuccess = shipNode.relaunch(chainArg=" --snapshot {}".format(getLatestSnapshot(shipNodeNum)))
+    isRelaunchSuccess = shipNode.relaunch(chainArg=" --snapshot {}".format(shipNode.getLatestSnapshot()))
     assert isRelaunchSuccess, "relaunch from snapshot failed"
 
     afterSnapshotBlockNum = shipNode.getBlockNum()
