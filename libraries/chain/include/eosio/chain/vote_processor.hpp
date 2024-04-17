@@ -135,7 +135,7 @@ private:
             return;
          vote v = *i;
          idx.erase(i);
-         auto bsp = get_block(i->msg->block_id, g);
+         auto bsp = get_block(v.msg->block_id, g);
          // g is unlocked
          if (bsp) {
             vote_status s = bsp->aggregate_vote(*v.msg);
