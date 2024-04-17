@@ -375,6 +375,11 @@ class PluginHttpTest(unittest.TestCase):
         ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
         self.assertEqual(ret_json["code"], 400)
         self.assertEqual(ret_json["error"]["code"], 3100002)
+        #invalid num and invalid sha256
+        payload = {"block_num_or_id":"spoon was here"}
+        ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 500)
+        self.assertEqual(ret_json["error"]["code"], 3010008)
 
         # get_account with empty parameter
         command = "get_account"

@@ -2028,7 +2028,7 @@ fc::variant read_only::get_block_header_state(const get_block_header_state_param
       sbp = db.fetch_block_by_number(*block_num);
    } else {
       try {
-         sbp = db.fetch_block_by_id(fc::variant(params.block_num_or_id).as<block_id_type>());
+         sbp = db.fetch_block_by_id(block_id_type(params.block_num_or_id));
       } EOS_RETHROW_EXCEPTIONS(chain::block_id_type_exception, "Invalid block ID: ${block_num_or_id}", ("block_num_or_id", params.block_num_or_id))
    }
 
