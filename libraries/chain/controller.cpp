@@ -3573,9 +3573,7 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
-      if (conf.vote_thread_pool_size > 0) {
-         vote_processor.process_vote_message(connection_id, vote);
-      }
+      vote_processor.process_vote_message(connection_id, vote);
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {
