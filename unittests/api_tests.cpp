@@ -3919,7 +3919,9 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_CHECK_GT(lib, lib_after_transition);
 } FC_LOG_AND_RETHROW() }
 
-void test_finality_transition(const vector<account_name>& accounts, const base_tester::finalizer_policy_input& input, bool lib_advancing_expected) {
+void test_finality_transition(const vector<account_name>& accounts,
+                              const base_tester::finalizer_policy_input& input,
+                              bool lib_advancing_expected) {
    validating_tester t;
 
    uint32_t lib = 0;

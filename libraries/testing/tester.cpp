@@ -1192,7 +1192,8 @@ namespace eosio::testing {
 
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
+   base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
       auto num_finalizers = finalizer_names.size();
       std::vector<finalizer_policy_input::finalizer_info> finalizers_info;
       finalizers_info.reserve(num_finalizers);
@@ -1209,7 +1210,8 @@ namespace eosio::testing {
       return set_finalizers(policy_input);
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(const finalizer_policy_input& input) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
+   base_tester::set_finalizers(const finalizer_policy_input& input) {
       chain::bls_pub_priv_key_map_t local_finalizer_keys;
       fc::variants finalizer_auths;
       std::vector<bls_private_key> priv_keys;
