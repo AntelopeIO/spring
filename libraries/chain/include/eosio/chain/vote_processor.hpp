@@ -39,7 +39,7 @@ class vote_processor_t {
 
    using vote_index_type = boost::multi_index_container< vote,
       indexed_by<
-         ordered_non_unique< tag<by_block_num>, const_mem_fun<vote, block_num_type, &vote::block_num>, std::greater<> >, // decending
+         ordered_non_unique< tag<by_block_num>, const_mem_fun<vote, block_num_type, &vote::block_num>, std::greater<> >, // descending
          ordered_non_unique< tag<by_connection>, member<vote, uint32_t, &vote::connection_id> >,
          ordered_non_unique< tag<by_last_received>, member<vote, fc::time_point, &vote::received> >
       >
