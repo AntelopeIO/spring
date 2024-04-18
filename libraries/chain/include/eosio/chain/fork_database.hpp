@@ -97,9 +97,11 @@ namespace eosio::chain {
       block_branch_t fetch_block_branch( const block_id_type& h, uint32_t trim_after_block_num = std::numeric_limits<uint32_t>::max() ) const;
 
       /**
-       * Similar to fetch_branch but only returns up to head or empty if b not on head branch.
+       * Returns the sequence of block states resulting from trimming the branch from the
+       * root block (exclusive) to the block with an id of `h` (inclusive) by removing any
+       * block states that are after block `b`. Returns empty if `b` not found on `h` branch.
        */
-      branch_t fetch_head_branch( const block_id_type& b, uint32_t trim_after_block_num = std::numeric_limits<uint32_t>::max() ) const;
+      branch_t fetch_head_branch( const block_id_type& h, const block_id_type& b ) const;
 
       /**
        *  Returns full branch of block_header_state pointers including the root.
