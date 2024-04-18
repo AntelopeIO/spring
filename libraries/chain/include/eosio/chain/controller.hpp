@@ -409,6 +409,37 @@ namespace eosio::chain {
          chainbase::database& mutable_db()const;
 
          std::unique_ptr<controller_impl> my;
-   };
+   }; // controller
+
+   /**
+    *  Plugins / observers listening to signals emited might trigger
+    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+    *  cause a node to fork.
+    *
+    *  If it is ever desirable to let a signal handler bubble an exception out of this method
+    *  a full audit of its uses needs to be undertaken.
+    *
+    */
+   template<typename Signal, typename Arg>
+   void emit( const Signal& s, Arg&& a, const char* location = "" ) {
+      try {
+         s( std::forward<Arg>( a ));
+      } catch (std::bad_alloc& e) {
+         wlog( "${l}std::bad_alloc: ${w}", ("l", location)("w", e.what()) );
+         throw e;
+      } catch (boost::interprocess::bad_alloc& e) {
+         wlog( "${l}boost::interprocess::bad alloc: ${w}", ("l", location)("w", e.what()) );
+         throw e;
+      } catch ( controller_emit_signal_exception& e ) {
+         wlog( "${l}controller_emit_signal_exception: ${details}", ("l", location)("details", e.to_detail_string()) );
+         throw e;
+      } catch ( fc::exception& e ) {
+         wlog( "${l}fc::exception: ${details}", ("l", location)("details", e.to_detail_string()) );
+      } catch ( std::exception& e ) {
+         wlog( "std::exception: ${details}", ("l", location)("details", e.what()) );
+      } catch ( ... ) {
+         wlog( "${l}signal handler threw exception", ("l", location) );
+      }
+   }
 
 }  /// eosio::chain

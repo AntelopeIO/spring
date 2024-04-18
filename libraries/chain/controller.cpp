@@ -1253,37 +1253,6 @@ struct controller_impl {
       });
    }
 
-   /**
-    *  Plugins / observers listening to signals emited might trigger
-    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
-    *  cause a node to fork.
-    *
-    *  If it is ever desirable to let a signal handler bubble an exception out of this method
-    *  a full audit of its uses needs to be undertaken.
-    *
-    */
-   template<typename Signal, typename Arg>
-   void emit( const Signal& s, Arg&& a ) {
-      try {
-         s( std::forward<Arg>( a ));
-      } catch (std::bad_alloc& e) {
-         wlog( "std::bad_alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch (boost::interprocess::bad_alloc& e) {
-         wlog( "boost::interprocess::bad alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch ( controller_emit_signal_exception& e ) {
-         wlog( "controller_emit_signal_exception: ${details}", ("details", e.to_detail_string()) );
-         throw e;
-      } catch ( fc::exception& e ) {
-         wlog( "fc::exception: ${details}", ("details", e.to_detail_string()) );
-      } catch ( std::exception& e ) {
-         wlog( "std::exception: ${details}", ("details", e.what()) );
-      } catch ( ... ) {
-         wlog( "signal handler threw exception" );
-      }
-   }
-
    void dmlog_applied_transaction(const transaction_trace_ptr& t, const signed_transaction* trx = nullptr) {
       // dmlog_applied_transaction is called by push_scheduled_transaction
       // where transient transactions are not possible, and by push_transaction

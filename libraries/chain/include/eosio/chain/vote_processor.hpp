@@ -61,33 +61,11 @@ class vote_processor_t {
    named_thread_pool<vote>      thread_pool;
 
 private:
-   template<typename Signal, typename Arg>
-   void emit( const Signal& s, Arg&& a ) {
-      try {
-         s(std::forward<Arg>(a));
-      } catch (std::bad_alloc& e) {
-         wlog( "std::bad_alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch (boost::interprocess::bad_alloc& e) {
-         wlog( "boost::interprocess::bad alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch ( controller_emit_signal_exception& e ) {
-         wlog( "controller_emit_signal_exception: ${details}", ("details", e.to_detail_string()) );
-         throw e;
-      } catch ( fc::exception& e ) {
-         wlog( "fc::exception: ${details}", ("details", e.to_detail_string()) );
-      } catch ( std::exception& e ) {
-         wlog( "std::exception: ${details}", ("details", e.what()) );
-      } catch ( ... ) {
-         wlog( "signal handler threw exception" );
-      }
-   }
-
    // called with unlocked mtx
    void emit(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
       if (connection_id != 0) { // this nodes vote was already signaled
          if (status != vote_status::duplicate) { // don't bother emitting duplicates
-            emit( vote_signal, std::tuple{connection_id, status, std::cref(msg)} );
+            chain::emit( vote_signal, std::tuple{connection_id, status, std::cref(msg)}, "vote " );
          }
       }
    }
