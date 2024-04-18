@@ -39,7 +39,7 @@ set( Boost_USE_MULTITHREADED      ON )
 set( Boost_USE_STATIC_LIBS ON CACHE STRING "ON or OFF" )
 set( BOOST_EXCLUDE_LIBRARIES "mysql" )
 
-add_subdirectory( @CMAKE_INSTALL_FULL_DATAROOTDIR@/leap_boost ${PROJECT_BINARY_DIR}/libraries/boost EXCLUDE_FROM_ALL)
+add_subdirectory( @CMAKE_INSTALL_FULL_DATAROOTDIR@/spring_boost ${PROJECT_BINARY_DIR}/libraries/boost EXCLUDE_FROM_ALL)
 
 find_library(libtester eosio_testing @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
 find_library(libchain eosio_chain @CMAKE_INSTALL_FULL_LIBDIR@ NO_DEFAULT_PATH)
@@ -112,7 +112,7 @@ target_include_directories(EosioChain INTERFACE
                               @CMAKE_INSTALL_PREFIX@
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/wasm-jit
-                              @CMAKE_INSTALL_FULL_INCLUDEDIR@/leapboringssl
+                              @CMAKE_INSTALL_FULL_INCLUDEDIR@/springboringssl
                               @CMAKE_INSTALL_FULL_INCLUDEDIR@/softfloat )
 
 #adds -ltr. Ubuntu eosio.contracts build breaks without this

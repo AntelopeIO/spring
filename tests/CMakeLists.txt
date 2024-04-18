@@ -85,8 +85,8 @@ else()
   set(UNSHARE "")
 endif()
 
-option(LEAP_ENABLE_RELEASE_BUILD_TEST "Enables a test that verifies nodeos was compiled with compiler options typical for a release build" On)
-if(LEAP_ENABLE_RELEASE_BUILD_TEST)
+option(SPRING_ENABLE_RELEASE_BUILD_TEST "Enables a test that verifies nodeos was compiled with compiler options typical for a release build" On)
+if(SPRING_ENABLE_RELEASE_BUILD_TEST)
   add_test(NAME release-build-test COMMAND tests/release-build.sh WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 endif()
 

@@ -21,7 +21,7 @@ errorExit=Utils.errorExit
 def verifyBlockLog(expected_block_num, trimmedBlockLog):
     firstBlockNum = expected_block_num
     for block in trimmedBlockLog:
-        assert 'block_num' in block, print("ERROR: leap-util didn't return block output")
+        assert 'block_num' in block, print("ERROR: spring-util didn't return block output")
         block_num = block['block_num']
         assert block_num == expected_block_num
         expected_block_num += 1
