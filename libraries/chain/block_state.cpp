@@ -110,14 +110,21 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 }
 
 block_state_ptr block_state::create_transition_block(
-                   const block_header_state&         prev,
+                   const block_state&                prev,
                    signed_block_ptr                  b,
                    const protocol_feature_set&       pfs,
                    const validator_t&                validator,
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
    auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
+   // action_mroot_savanna can be empty in IRREVERSIBLE mode. Do not create valid structure
+   // if action_mroot is empty.
+   if( !result_ptr->action_mroot.empty() ) {
+     result_ptr->valid = prev.new_valid(*result_ptr, result_ptr->action_mroot, result_ptr->strong_digest);
+   }
+
    return result_ptr;
 }
 

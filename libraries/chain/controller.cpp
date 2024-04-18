@@ -1322,7 +1322,7 @@ struct controller_impl {
       // legacy_branch is from head, all will be validated unless irreversible_mode(),
       // IRREVERSIBLE applies (validates) blocks when irreversible, new_valid will be done after apply in log_irreversible
       assert(read_mode == db_read_mode::IRREVERSIBLE || legacy->action_mroot_savanna);
-      if (legacy->action_mroot_savanna) {
+      if (legacy->action_mroot_savanna && !new_bsp->valid) {
          // Create the valid structure for producing
          new_bsp->valid = prev->new_valid(*new_bsp, *legacy->action_mroot_savanna, new_bsp->strong_digest);
       }
@@ -1539,10 +1539,7 @@ struct controller_impl {
                                  protocol_features.get_protocol_feature_set(),
                                  validator_t{}, skip_validate_signee,
                                  bspl->action_mroot_savanna);
-                           // legacy_branch is from head, all should be validated
-                           assert(bspl->action_mroot_savanna);
-                           // Create the valid structure for producing
-                           new_bsp->valid = prev->new_valid(*new_bsp, *bspl->action_mroot_savanna, new_bsp->strong_digest);
+                           // The valid structure was created in create_transition_block()
                            prev = new_bsp;
                         }
                      }
@@ -2052,7 +2049,6 @@ struct controller_impl {
             validator_t{},
             skip_validate_signee,
             (*bitr)->action_mroot_savanna);
-         new_bsp->valid = prev->new_valid(*new_bsp, *((*bitr)->action_mroot_savanna), new_bsp->strong_digest);
 
          prev = new_bsp;
       }
