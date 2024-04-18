@@ -1398,17 +1398,18 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      uint32_t if_lib_num = block_header::num_from_id(irreversible_block_id);
-      const uint32_t new_lib_num = if_lib_num > 0 ? if_lib_num : fork_db_head_irreversible_blocknum();
+      const block_id_type irreversible_block_id = if_irreversible_block_id.load();
+      const uint32_t savanna_lib_num = block_header::num_from_id(irreversible_block_id);
+      const bool savanna = savanna_lib_num > 0;
+      const uint32_t new_lib_num = savanna ? savanna_lib_num : fork_db_head_irreversible_blocknum();
 
       if( new_lib_num <= lib_num )
          return;
 
       bool savanna_transistion_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
-         auto branch = (if_lib_num > 0) ? forkdb.fetch_branch( irreversible_block_id, new_lib_num)
-                                        : forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), new_lib_num );
+         auto branch = savanna ? forkdb.fetch_head_branch( irreversible_block_id, new_lib_num)
+                               : forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), new_lib_num );
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head

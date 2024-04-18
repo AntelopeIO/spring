@@ -135,6 +135,7 @@ namespace eosio::chain {
       void             remove_impl( const block_id_type& id );
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
+      branch_t         fetch_head_branch_impl( const block_id_type& b, uint32_t trim_after_block_num ) const;
       full_branch_t    fetch_full_branch_impl(const block_id_type& h) const;
       bsp_t            search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const;
       bsp_t            search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const;
@@ -439,6 +440,30 @@ namespace eosio::chain {
    }
 
    template <class BSP>
+   fork_database_t<BSP>::branch_t
+   fork_database_t<BSP>::fetch_head_branch(const block_id_type& b, uint32_t trim_after_block_num) const {
+      std::lock_guard g(my->mtx);
+      return my->fetch_head_branch_impl(b, trim_after_block_num);
+   }
+
+   template <class BSP>
+   fork_database_t<BSP>::branch_t
+   fork_database_impl<BSP>::fetch_head_branch_impl(const block_id_type& b, uint32_t trim_after_block_num) const {
+      branch_t result;
+      if (!head)
+         return result;
+      result.reserve(index.size());
+      bool found_branch = false;
+      for (auto i = index.find(head->id()); i != index.end(); i = index.find((*i)->previous())) {
+         if ((*i)->id() == b)
+            found_branch = true;
+         if (found_branch && (*i)->block_num() <= trim_after_block_num)
+            result.push_back(*i);
+      }
+      return result;
+   }
+
+   template <class BSP>
    block_branch_t
    fork_database_t<BSP>::fetch_block_branch(const block_id_type& h, uint32_t trim_after_block_num) const {
       std::lock_guard g(my->mtx);
@@ -594,7 +619,7 @@ namespace eosio::chain {
 
       for( uint32_t i = 0; i < remove_queue.size(); ++i ) {
          EOS_ASSERT( remove_queue[i] != head_id, fork_database_exception,
-                     "removing the block and its descendants would remove the current head block" );
+                     "removing the block and its descendants would remove the current head block ${id}", ("id", head_id) );
 
          auto previtr = previdx.lower_bound( remove_queue[i] );
          while( previtr != previdx.end() && (*previtr)->previous() == remove_queue[i] ) {
