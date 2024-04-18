@@ -117,13 +117,13 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
    BOOST_TEST(branch[1] == bsp12bb);
    BOOST_TEST(branch[2] == bsp11b);
 
-   // test fetch head branch
+   // test fetch branch providing head and lib
    BOOST_TEST(forkdb.head()->id() == root->id());
    forkdb.mark_valid(bsp13a);
    BOOST_TEST(forkdb.head()->id() == bsp13a->id());
-   branch = forkdb.fetch_head_branch(forkdb.head()->id(), bsp11c->id());
+   branch = forkdb.fetch_branch(forkdb.head()->id(), bsp11c->id());
    BOOST_TEST(branch.empty()); // bsp11c not on bsp13a branch
-   branch = forkdb.fetch_head_branch(forkdb.head()->id(), bsp12a->id());
+   branch = forkdb.fetch_branch(forkdb.head()->id(), bsp12a->id());
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12a);
    BOOST_TEST(branch[1] == bsp11a);

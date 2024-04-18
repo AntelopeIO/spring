@@ -101,7 +101,7 @@ namespace eosio::chain {
        * root block (exclusive) to the block with an id of `h` (inclusive) by removing any
        * block states that are after block `b`. Returns empty if `b` not found on `h` branch.
        */
-      branch_t fetch_head_branch( const block_id_type& h, const block_id_type& b ) const;
+      branch_t fetch_branch( const block_id_type& h, const block_id_type& b ) const;
 
       /**
        *  Returns full branch of block_header_state pointers including the root.

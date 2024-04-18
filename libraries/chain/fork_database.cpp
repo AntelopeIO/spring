@@ -135,7 +135,7 @@ namespace eosio::chain {
       void             remove_impl( const block_id_type& id );
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
-      branch_t         fetch_head_branch_impl( const block_id_type& h, const block_id_type& b ) const;
+      branch_t         fetch_branch_impl( const block_id_type& h, const block_id_type& b ) const;
       full_branch_t    fetch_full_branch_impl(const block_id_type& h) const;
       bsp_t            search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const;
       bsp_t            search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const;
@@ -441,14 +441,14 @@ namespace eosio::chain {
 
    template <class BSP>
    fork_database_t<BSP>::branch_t
-   fork_database_t<BSP>::fetch_head_branch(const block_id_type& h, const block_id_type& b) const {
+   fork_database_t<BSP>::fetch_branch(const block_id_type& h, const block_id_type& b) const {
       std::lock_guard g(my->mtx);
-      return my->fetch_head_branch_impl(h, b);
+      return my->fetch_branch_impl(h, b);
    }
 
    template <class BSP>
    fork_database_t<BSP>::branch_t
-   fork_database_impl<BSP>::fetch_head_branch_impl(const block_id_type& h, const block_id_type& b) const {
+   fork_database_impl<BSP>::fetch_branch_impl(const block_id_type& h, const block_id_type& b) const {
       branch_t result;
       result.reserve(index.size());
       bool found_branch = false;

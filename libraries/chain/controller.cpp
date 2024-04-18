@@ -1408,7 +1408,7 @@ struct controller_impl {
 
       bool savanna_transistion_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
-         auto branch = savanna ? forkdb.fetch_head_branch( fork_db_head_or_pending(forkdb)->id(), irreversible_block_id)
+         auto branch = savanna ? forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), irreversible_block_id)
                                : forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), new_lib_num );
          try {
             auto should_process = [&](auto& bsp) {
