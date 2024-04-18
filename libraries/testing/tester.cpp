@@ -1255,7 +1255,9 @@ namespace eosio::testing {
 
    std::vector<bls_public_key> base_tester::set_active_finalizers(std::span<const account_name> names) {
       std::vector<bls_public_key> pubkeys;
+      pubkeys.reserve(names.size());
       finalizer_policy_input input;
+      input.finalizers.reserve(names.size());
       for (auto name : names) {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          pubkeys.push_back(pubkey);
