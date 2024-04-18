@@ -525,8 +525,8 @@ struct building_block {
                                  bb.new_finalizer_policy = std::move(fin_pol);
                              },
                              [&](building_block_if& bb)     {
-                                 fin_pol.generation = bb.parent.active_finalizer_policy->generation + 1;
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                bb.new_finalizer_policy = std::move(fin_pol);
+                                // generation will be updated when activated
                               } },
                   v);
    }
@@ -3580,6 +3580,10 @@ struct controller_impl {
          auto bsp = forkdb.get_block(id);
          if (bsp) {
             return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
+               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
+               assert(fp);
+               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
+                  return true; // we only care about keys from the active finalizer_policy
                return bsp->has_voted(k);
             });
          }
@@ -3587,6 +3591,15 @@ struct controller_impl {
       });
       // empty optional means legacy forkdb
       return !voted || *voted;
+   }
+
+   std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
+      return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
+         auto bsp = forkdb.get_block(id);
+         if (bsp)
+            return *bsp->active_finalizer_policy;
+         return {};
+      });
    }
 
    // thread safe
@@ -5261,6 +5274,10 @@ vote_status controller::process_vote_message( const vote_message& vote ) {
 
 bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
    return my->node_has_voted_if_finalizer(id);
+}
+
+std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
+   return my->active_finalizer_policy(id);
 }
 
 const producer_authority_schedule& controller::active_producers()const {
