@@ -128,7 +128,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    vector<producer_authority> prev_sch = {
                                  producer_authority{"eosio"_n, block_signing_authority_v0{1, {{get_public_key("eosio"_n, "active"), 1}}}}};
    BOOST_CHECK_EQUAL( true, compare_schedules( prev_sch, control->active_producers() ) );
-   BOOST_CHECK_EQUAL( 0, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 0u, control->active_producers().version );
 
    // set a new proposer policy sch1
    set_producers( {"alice"_n} );
@@ -140,7 +140,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    produce_blocks(config::producer_repetitions);
 
    // sch1 cannot become active before one round of production
-   BOOST_CHECK_EQUAL( 0, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 0u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( prev_sch, control->active_producers() ) );
 
    // set another ploicy to have multiple pending different active time policies

@@ -151,6 +151,15 @@ public:
 
    static std::shared_ptr<block_state> create_if_genesis_block(const block_state_legacy& bsp);
 
+   // Constructs a Transition Savanna block state from a Legacy block state.
+   static std::shared_ptr<block_state> create_transition_block(
+         const block_header_state&         prev,
+         signed_block_ptr                  b,
+         const protocol_feature_set&       pfs,
+         const validator_t&                validator,
+         bool                              skip_validate_signee,
+         const std::optional<digest_type>& action_mroot_savanna);
+
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);

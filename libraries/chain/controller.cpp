@@ -525,8 +525,8 @@ struct building_block {
                                  bb.new_finalizer_policy = std::move(fin_pol);
                              },
                              [&](building_block_if& bb)     {
-                                 fin_pol.generation = bb.parent.active_finalizer_policy->generation + 1;
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                bb.new_finalizer_policy = std::move(fin_pol);
+                                // generation will be updated when activated
                               } },
                   v);
    }
@@ -1348,12 +1348,14 @@ struct controller_impl {
          block_state_ptr prev = forkdb.root();
          assert(prev);
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
+            assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
             const bool skip_validate_signee = true; // validated already
-            auto new_bsp = std::make_shared<block_state>(
+            auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
                   protocol_features.get_protocol_feature_set(),
-                  validator_t{}, skip_validate_signee);
+                  validator_t{}, skip_validate_signee,
+                  (*bitr)->action_mroot_savanna);
             transition_add_to_savanna_fork_db(forkdb, *bitr, new_bsp, prev);
             prev = new_bsp;
          }
@@ -1529,11 +1531,14 @@ struct controller_impl {
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
                            const auto& bspl = legacy_branch[i];
-                           auto new_bsp = std::make_shared<block_state>(
+                           assert(bspl->action_mroot_savanna.has_value());
+                           assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
+                           auto new_bsp = block_state::create_transition_block(
                                  *prev,
                                  bspl->block,
                                  protocol_features.get_protocol_feature_set(),
-                                 validator_t{}, skip_validate_signee);
+                                 validator_t{}, skip_validate_signee,
+                                 bspl->action_mroot_savanna);
                            // legacy_branch is from head, all should be validated
                            assert(bspl->action_mroot_savanna);
                            // Create the valid structure for producing
@@ -3580,6 +3585,10 @@ struct controller_impl {
          auto bsp = forkdb.get_block(id);
          if (bsp) {
             return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
+               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
+               assert(fp);
+               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
+                  return true; // we only care about keys from the active finalizer_policy
                return bsp->has_voted(k);
             });
          }
@@ -3587,6 +3596,15 @@ struct controller_impl {
       });
       // empty optional means legacy forkdb
       return !voted || *voted;
+   }
+
+   std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
+      return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
+         auto bsp = forkdb.get_block(id);
+         if (bsp)
+            return *bsp->active_finalizer_policy;
+         return {};
+      });
    }
 
    // thread safe
@@ -4444,17 +4462,13 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
-         auto new_bsp = std::make_shared<block_state>(
+         assert((*bitr)->action_mroot_savanna.has_value());
+         assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+         auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee);
-
-         // We only need action_mroot of the last block for finality_data
-         if ((bitr + 1) == legacy_branch.rend()) {
-            assert((*bitr)->action_mroot_savanna);
-            new_bsp->action_mroot = *((*bitr)->action_mroot_savanna);
-         }
+               validator_t{}, skip_validate_signee, (*bitr)->action_mroot_savanna);
 
          prev = new_bsp;
       }
@@ -5265,6 +5279,10 @@ vote_status controller::process_vote_message( const vote_message& vote ) {
 
 bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
    return my->node_has_voted_if_finalizer(id);
+}
+
+std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
+   return my->active_finalizer_policy(id);
 }
 
 const producer_authority_schedule& controller::active_producers()const {
