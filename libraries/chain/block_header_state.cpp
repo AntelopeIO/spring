@@ -130,6 +130,9 @@ void finish_next(const block_header_state& prev,
       auto lib = next_header_state.core.last_final_block_num();
       auto it = prev.finalizer_policies.begin();
       if (it->first > lib) {
+         // we have at least one `finalizer_policy` in our map, but none of these is
+         // due to become active of this block because lib has not advanced enough, so
+         // we just copy the multimap and keep using the same `active_finalizer_policy`
          next_header_state.finalizer_policies = prev.finalizer_policies;
       } else {
          while (it != prev.finalizer_policies.end() && it->first <= lib) {

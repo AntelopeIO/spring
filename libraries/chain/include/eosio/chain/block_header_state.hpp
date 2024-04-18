@@ -20,6 +20,20 @@ namespace detail { struct schedule_info; };
 constexpr uint32_t light_header_protocol_version_major = 1;
 constexpr uint32_t light_header_protocol_version_minor = 0;
 
+// ------------------------------------------------------------------------------------------
+// this is used for tracking in-flight `finalizer_policy` changes, which have been requested,
+// but are not activated yet. This struct is associated to a block_number in the
+// `finalizer_policies` flat_multimap: `block_num => state, finalizer_policy`
+//
+// When state == proposed, the block_num identifies the block in which the new policy was
+// proposed via set_finalizers.
+//
+// When that block becomes final, according to the block_header_state's finality_core,
+// 1. the policy becomes pending
+// 2. its key `block_num,` in the proposer_policies multimap, is the current block
+//
+// When this current block itself becomes final, the policy becomes active.
+// ------------------------------------------------------------------------------------------
 struct finalizer_policy_tracker {
    enum class state_t { proposed = 0, pending };
    state_t               state;
