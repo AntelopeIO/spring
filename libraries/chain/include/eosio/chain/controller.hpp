@@ -421,24 +421,24 @@ namespace eosio::chain {
     *
     */
    template<typename Signal, typename Arg>
-   void emit( const Signal& s, Arg&& a, const char* location = "" ) {
+   void emit( const Signal& s, Arg&& a, const char* file, uint32_t line ) {
       try {
          s( std::forward<Arg>( a ));
       } catch (std::bad_alloc& e) {
-         wlog( "${l}std::bad_alloc: ${w}", ("l", location)("w", e.what()) );
+         wlog( "${f}:${l} std::bad_alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
          throw e;
       } catch (boost::interprocess::bad_alloc& e) {
-         wlog( "${l}boost::interprocess::bad alloc: ${w}", ("l", location)("w", e.what()) );
+         wlog( "${f}:${l} boost::interprocess::bad alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
          throw e;
       } catch ( controller_emit_signal_exception& e ) {
-         wlog( "${l}controller_emit_signal_exception: ${details}", ("l", location)("details", e.to_detail_string()) );
+         wlog( "${f}:${l} controller_emit_signal_exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
          throw e;
       } catch ( fc::exception& e ) {
-         wlog( "${l}fc::exception: ${details}", ("l", location)("details", e.to_detail_string()) );
+         wlog( "${f}:${l} fc::exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
       } catch ( std::exception& e ) {
-         wlog( "std::exception: ${details}", ("l", location)("details", e.what()) );
+         wlog( "std::exception: ${details}", ("f", file)("l", line)("details", e.what()) );
       } catch ( ... ) {
-         wlog( "${l}signal handler threw exception", ("l", location) );
+         wlog( "${f}:${l} signal handler threw exception", ("f", file)("l", line) );
       }
    }
 

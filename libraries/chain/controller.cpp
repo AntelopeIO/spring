@@ -1417,7 +1417,7 @@ struct controller_impl {
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
                apply_irreversible_block(forkdb, *bitr);
 
-               emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()) );
+               emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
 
                // blog.append could fail due to failures like running out of space.
                // Do it before commit so that in case it throws, DB can be rolled back.
@@ -2537,7 +2537,7 @@ struct controller_impl {
          pending->_block_report.total_elapsed_time += trace->elapsed;
          pending->_block_report.total_time += trace->elapsed;
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
          undo_session.squash();
          return trace;
       }
@@ -2602,7 +2602,7 @@ struct controller_impl {
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
 
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
          trx_context.squash();
          undo_session.squash();
@@ -2646,7 +2646,7 @@ struct controller_impl {
             trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
             trace->elapsed = fc::time_point::now() - start;
             dmlog_applied_transaction(trace);
-            emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+            emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
             undo_session.squash();
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
@@ -2690,12 +2690,12 @@ struct controller_impl {
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
 
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
          undo_session.squash();
       } else {
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
       }
 
       pending->_block_report.total_net_usage += trace->net_usage;
@@ -2834,7 +2834,7 @@ struct controller_impl {
                   }
 
                   dmlog_applied_transaction(trace, &trn);
-                  emit(applied_transaction, std::tie(trace, trx->packed_trx()));
+                  emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
                }
             }
 
@@ -2878,7 +2878,7 @@ struct controller_impl {
 
          if (!trx->is_transient()) {
             dmlog_applied_transaction(trace);
-            emit(applied_transaction, std::tie(trace, trx->packed_trx()));
+            emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
@@ -2899,7 +2899,7 @@ struct controller_impl {
    {
       EOS_ASSERT( !pending, block_validate_exception, "pending block already exists" );
 
-      emit( block_start, chain_head.block_num() + 1 );
+      emit( block_start, chain_head.block_num() + 1, __FILE__, __LINE__ );
 
       // at block level, no transaction specific logging is possible
       if (auto dm_logger = get_deep_mind_logger(false)) {
@@ -3144,7 +3144,7 @@ struct controller_impl {
                const auto& bsp = std::get<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal());
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
-                  emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+                  emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3154,7 +3154,7 @@ struct controller_impl {
          }
 
          chain_head = block_handle{cb.bsp};
-         emit( accepted_block, std::tie(chain_head.block(), chain_head.id()) );
+         emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
          apply<void>(chain_head, [&](const auto& head) {
 #warning todo: support deep_mind_logger even when in IF mode
@@ -3571,7 +3571,7 @@ struct controller_impl {
       my_finalizers.maybe_vote(
           *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)});
+              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
               // also aggregate our own vote into the pending_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
@@ -3862,7 +3862,7 @@ struct controller_impl {
          if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
             forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
 
-         emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+         emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
       };
 
       fork_db.apply<void>(do_accept_block);
@@ -3900,7 +3900,7 @@ struct controller_impl {
                trusted_producer_light_validation = true;
             };
 
-            emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+            emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
@@ -3949,7 +3949,7 @@ struct controller_impl {
                   });
                }
 
-               emit(accepted_block_header, std::tie(bsp->block, bsp->id()));
+               emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
                controller::block_report br;
                if (s == controller::block_status::irreversible) {
@@ -3957,7 +3957,7 @@ struct controller_impl {
 
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
                   // So emit it explicitly here.
-                  emit(irreversible_block, std::tie(bsp->block, bsp->id()));
+                  emit( irreversible_block, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
                   if (!skip_db_sessions(s)) {
                      db.commit(bsp->block_num());
