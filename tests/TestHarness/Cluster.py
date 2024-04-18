@@ -257,7 +257,7 @@ class Cluster(object):
             argsArr.append("--nogen")
         nodeosArgs=""
         if "--vote-threads" not in extraNodeosArgs:
-            nodeosArgs += " --vote-threads 3"
+            nodeosArgs += " --vote-threads 4"
         if "--max-transaction-time" not in extraNodeosArgs:
             nodeosArgs += " --max-transaction-time -1"
         if "--abi-serializer-max-time-ms" not in extraNodeosArgs:
