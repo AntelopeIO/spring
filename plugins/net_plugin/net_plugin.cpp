@@ -535,7 +535,7 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block();
-      void on_voted_block ( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
+      void on_voted_block( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );

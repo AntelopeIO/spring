@@ -10,6 +10,8 @@
 #include <boost/multi_index/mem_fun.hpp>
 #include <boost/multi_index/ordered_index.hpp>
 
+#include <unordered_map>
+
 namespace eosio::chain {
 
 /**
@@ -17,7 +19,7 @@ namespace eosio::chain {
  */
 class vote_processor_t {
    // Even 3000 vote structs are less than 1MB per connection.
-   // 2500 is should never be reached unless a specific connection is sending garbage.
+   // 2500 should never be reached unless a specific connection is sending garbage.
    static constexpr size_t max_votes_per_connection = 2500;
    // If we have not processed a vote in this amount of time, give up on it.
    static constexpr fc::microseconds too_old = fc::seconds(5);
@@ -51,8 +53,8 @@ class vote_processor_t {
    std::mutex                   mtx;
    vote_index_type              index;
    block_state_ptr              last_bsp;
-   //     connection, count of messages
-   std::map<uint32_t, uint16_t> num_messages;
+   //               connection, count of messages
+   std::unordered_map<uint32_t, uint16_t> num_messages;
 
    std::atomic<block_num_type>  lib{0};
    std::atomic<block_num_type>  largest_known_block_num{0};
@@ -99,7 +101,7 @@ private:
       index.insert(vote{.connection_id = connection_id, .received = now, .msg = msg});
    }
 
-   // called with locked mtx
+   // called with locked mtx, returns with a locked mutex
    void process_any_queued_for_later(std::unique_lock<std::mutex>& g) {
       if (index.empty())
          return;
@@ -107,11 +109,10 @@ private:
       remove_before_lib();
       auto& idx = index.get<by_last_received>();
       std::vector<vote> unprocessed;
-      unprocessed.reserve(std::min<size_t>(21u, idx.size())); // maybe increase if we increase # of finalizers from 21
       for (auto i = idx.begin(); i != idx.end();) {
          if (stopped)
             return;
-         vote v = *i;
+         vote v = std::move(*i);
          idx.erase(i);
          auto bsp = get_block(v.msg->block_id, g);
          // g is unlocked
