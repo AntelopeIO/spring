@@ -131,6 +131,18 @@ R apply(const block_handle& bh, F&& f) {
                            }, bh.internal());
 }
 
+template <class R, class F, class S>
+R apply(const block_handle& bh, F&& f, S&& s) {
+   if constexpr (std::is_same_v<void, R>)
+      std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
+                                  [&](const block_state_ptr& head) { std::forward<S>(s)(head); }
+                       }, bh.internal());
+   else
+      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
+                                      [&](const block_state_ptr& head) -> R { return std::forward<S>(s)(head); }
+                           }, bh.internal());
+}
+
 // apply savanna block_state
 template <class R, class F>
 R apply_s(const block_handle& bh, F&& f) {
@@ -3199,18 +3211,19 @@ struct controller_impl {
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
             auto fd = head_finality_data();
-            apply_l<void>(chain_head, [&](const auto& head) {
-               if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
-                  assert(fd);
-                  dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
-               } else {
-                  dm_logger->on_accepted_block(head);
-               }
-            });
-            apply_s<void>(chain_head, [&](const auto& head) {
-               assert(fd);
-               dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
-            });
+            apply<void>(chain_head,
+                        [&](const block_state_legacy_ptr& head) {
+                           if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                              assert(fd);
+                              dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                           } else {
+                              dm_logger->on_accepted_block(head);
+                           }
+                        },
+                        [&](const block_state_ptr& head) {
+                           assert(fd);
+                           dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                        });
          }
 
          if (s == controller::block_status::incomplete) {
