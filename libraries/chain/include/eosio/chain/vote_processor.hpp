@@ -39,7 +39,7 @@ class vote_processor_t {
 
    using vote_index_type = boost::multi_index_container< vote,
       indexed_by<
-         ordered_non_unique< tag<by_block_num>, const_mem_fun<vote, block_num_type, &vote::block_num>, std::greater<> >,
+         ordered_non_unique< tag<by_block_num>, const_mem_fun<vote, block_num_type, &vote::block_num>, std::greater<> >, // decending
          ordered_non_unique< tag<by_connection>, member<vote, uint32_t, &vote::connection_id> >,
          ordered_non_unique< tag<by_last_received>, member<vote, fc::time_point, &vote::received> >
       >
@@ -213,13 +213,14 @@ public:
          std::unique_lock g(mtx);
          if (reset_num_messages)
             num_messages.clear();
-         if (++num_messages[connection_id] > max_votes_per_connection) {
+         if (auto& num_msgs = ++num_messages[connection_id]; num_msgs > max_votes_per_connection) {
             remove_connection(connection_id);
             g.unlock();
             // drop, too many from this connection to process, consider connection invalid
             // don't clear num_messages[connection_id] so we keep reporting max_exceeded until index is drained
 
-            elog("Exceeded max votes per connection for ${c}", ("c", connection_id));
+            ilog("Exceeded max votes per connection ${n} > ${max} for ${c}",
+                 ("n", num_msgs)("max", max_votes_per_connection)("c", connection_id));
             emit(connection_id, vote_status::max_exceeded, msg);
          } else {
             block_state_ptr bsp = get_block(msg->block_id, g);
