@@ -36,9 +36,9 @@ Please notice that the time of `bt 7` minus `.5` equals the time of `bt 6.5` the
 
 A block is produced and sent when either it reaches `m` or `u` or `p`. 
 
-Starting in Leap 4.0, blocks are propagated after block header validation. This means instead of `BP-A Peer` & `BP-B Peer` taking `m` time to validate and forward a block it only takes a small number of milliseconds to verify the block header and then forward the block.
+Starting in Leap 4.0 (a predecessor of Spring 1.0), blocks are propagated after block header validation. This means instead of `BP-A Peer` & `BP-B Peer` taking `m` time to validate and forward a block it only takes a small number of milliseconds to verify the block header and then forward the block.
 
-Starting in Leap 5.0, blocks in a round are started immediately after the completion of the previous block. Before 5.0, blocks were always started on `w` intervals and a node would "sleep" between blocks if needed. In 5.0, the "sleeps" are all moved to the end of the block production round. 
+Starting in Leap 5.0 (a predecessor of Spring 1.0), blocks in a round are started immediately after the completion of the previous block. Before 5.0, blocks were always started on `w` intervals and a node would "sleep" between blocks if needed. In 5.0, the "sleeps" are all moved to the end of the block production round. 
 
 ## Example 1: block arrives 110ms early
 * Assuming zero network latency between all nodes.

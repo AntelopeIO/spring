@@ -12,12 +12,12 @@ on:
       override-test-params:
         description: 'Override perf harness params'
         type: string
-      override-leap:
-        description: Override leap target
+      override-spring:
+        description: Override spring target
         type: string
-      override-leap-prerelease:
+      override-spring-prerelease:
         type: choice
-        description: Override leap prelease
+        description: Override spring prelease
         options:
         - default
         - true
@@ -38,24 +38,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       test-params: ${{steps.overrides.outputs.test-params}}
-      leap-target: ${{steps.overrides.outputs.leap-target}}
-      leap-prerelease: ${{steps.overrides.outputs.leap-prerelease}}
+      spring-target: ${{steps.overrides.outputs.spring-target}}
+      spring-prerelease: ${{steps.overrides.outputs.spring-prerelease}}
     steps:
       - name: Setup Input Params
         id: overrides
         run: |
           echo test-params=findMax testBpOpMode >> $GITHUB_OUTPUT
-          echo leap-target="DEFAULT" >> $GITHUB_OUTPUT
-          echo leap-prerelease="false" >> $GITHUB_OUTPUT
+          echo spring-target="DEFAULT" >> $GITHUB_OUTPUT
+          echo spring-prerelease="false" >> $GITHUB_OUTPUT
 
           if [[ "${{inputs.override-test-params}}" != "" ]]; then
             echo test-params=${{inputs.override-test-params}} >> $GITHUB_OUTPUT
           fi
-          if [[ "${{inputs.override-leap}}" != "" ]]; then
-            echo leap-target=${{inputs.override-leap}} >> $GITHUB_OUTPUT
+          if [[ "${{inputs.override-spring}}" != "" ]]; then
+            echo spring-target=${{inputs.override-spring}} >> $GITHUB_OUTPUT
           fi
-          if [[ "${{inputs.override-leap-prerelease}}" == +(true|false) ]]; then
-            echo leap-prerelease=${{inputs.override-leap-prerelease}} >> $GITHUB_OUTPUT
+          if [[ "${{inputs.override-spring-prerelease}}" == +(true|false) ]]; then
+            echo spring-prerelease=${{inputs.override-spring-prerelease}} >> $GITHUB_OUTPUT
           fi
 
   platform-cache:
@@ -69,7 +69,7 @@ jobs:
       platform-files: .cicd/platforms
 
   reuse-build:
-    name: Reuse leap build
+    name: Reuse spring build
     needs: [v]
     runs-on: ubuntu-latest
     outputs:
@@ -80,7 +80,7 @@ jobs:
           uses: AntelopeIO/asset-artifact-download-action@v3
           with:
             owner: AntelopeIO
-            repo: leap
+            repo: spring
             file: build.tar.zst
             target: ${{github.sha}}
             artifact-name: ${{github.event.inputs.platform-choice}}-build
@@ -117,20 +117,20 @@ jobs:
       - name: Extract Build Directory
         run: |
           zstdcat build.tar.zst | tar x
-      - if: ${{ needs.v.outputs.leap-target != 'DEFAULT' }}
-        name: Download Prev Leap Version
+      - if: ${{ needs.v.outputs.spring-target != 'DEFAULT' }}
+        name: Download Prev Spring Version
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: AntelopeIO
-          repo: leap
-          target: '${{needs.v.outputs.leap-target}}'
-          prereleases: ${{fromJSON(needs.v.outputs.leap-prerelease)}}
-          file: 'leap.*${{github.event.inputs.platform-choice}}.*(x86_64|amd64).deb'
-      - if: ${{ needs.v.outputs.leap-target != 'DEFAULT' }}
-        name: Install leap & replace binaries for PH use
+          repo: spring
+          target: '${{needs.v.outputs.spring-target}}'
+          prereleases: ${{fromJSON(needs.v.outputs.spring-prerelease)}}
+          file: 'spring.*${{github.event.inputs.platform-choice}}.*(x86_64|amd64).deb'
+      - if: ${{ needs.v.outputs.spring-target != 'DEFAULT' }}
+        name: Install spring & replace binaries for PH use
         run: |
           apt-get update
-          apt-get install -y ./leap*.deb
+          apt-get install -y ./spring*.deb
           rm build/bin/nodeos
           rm build/bin/cleos
           cp /usr/bin/nodeos build/bin
