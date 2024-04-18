@@ -4,16 +4,53 @@
 #pragma GCC diagnostic pop
 
 #include <eosio/testing/tester.hpp>
+#include <eosio/testing/bls_utils.hpp>
 
 using namespace eosio::chain::literals;
 using namespace eosio::testing;
 using namespace eosio::chain;
 
+struct finalizer_keys {
+   finalizer_keys(validating_tester& t, size_t num_keys = 50, size_t fin_policy_size = 21) :
+      t(t),
+      num_keys(num_keys),
+      fin_policy_size(fin_policy_size)
+   {
+      // Create finalizer accounts
+      finalizer_accounts.reserve(num_keys);
+      for (size_t i=0; i<num_keys; ++i)
+         finalizer_accounts.emplace_back(std::string("finalizer") + (char)('a' + i/26) + (char)('a' + i%26));
+
+      t.create_accounts(finalizer_accounts);
+      t.produce_block();
+
+      for (auto name : finalizer_accounts) {
+         auto [privkey, pubkey, pop] = get_bls_key(name);
+         finalizer_pubkeys.push_back(pubkey);
+      }
+   }
+
+   void set_node_finalizers(size_t first_key, size_t num_keys) {
+      t.set_node_finalizers({&finalizer_accounts[first_key], num_keys});
+   }
+
+   std::span<const bls_public_key> set_active_finalizers(size_t first_key) {
+      t.set_active_finalizers({&finalizer_accounts[first_key], fin_policy_size});
+      return { &finalizer_pubkeys[first_key], fin_policy_size };
+   }
+
+   validating_tester&     t;
+   vector<account_name>   finalizer_accounts;
+   vector<bls_public_key> finalizer_pubkeys;
+   size_t                 num_keys;
+   size_t                 fin_policy_size;
+};
+
 // ---------------------------------------------------------------------
 // Given a newly created `validating_tester`, trigger the transition to
 // Savanna, and produce blocks until the transition is completed.
 // ---------------------------------------------------------------------
-static std::pair<std::vector<account_name>, std::vector<bls_public_key>>
+static std::pair<finalizer_keys, std::vector<bls_public_key>>
 transition_to_Savanna(validating_tester& t, size_t num_local_finalizers, size_t finset_size) {
    uint32_t lib = 0;
    signed_block_ptr lib_block;
@@ -26,19 +63,13 @@ transition_to_Savanna(validating_tester& t, size_t num_local_finalizers, size_t 
    t.produce_block();
 
    // Create finalizer accounts
-   vector<account_name> finalizers;
-   finalizers.reserve(num_local_finalizers);
-   for (size_t i=0; i<num_local_finalizers; ++i)
-      finalizers.emplace_back(std::string("init") + (char)('a' + i/26) + (char)('a' + i%26));
+   finalizer_keys finkeys(t, num_local_finalizers, finset_size);
 
-   t.create_accounts(finalizers);
-   t.produce_block();
-
-   // activate savanna'
-   t.set_node_finalizers({&finalizers[0], finalizers.size()});
+   // set local
+   finkeys.set_node_finalizers(0, num_local_finalizers);
 
    // activate savanna by running the `set_finalizers` host function
-   auto pubkeys0 = t.set_active_finalizers({&finalizers[0], finset_size});
+   auto pubkeys = finkeys.set_active_finalizers(0);
 
    // `genesis_block` is the first block where set_finalizers() was executed.
    // It is the genesis block.
@@ -72,7 +103,7 @@ transition_to_Savanna(validating_tester& t, size_t num_local_finalizers, size_t 
    BOOST_REQUIRE_EQUAL(lib, pt_block->block_num());
 
    c.disconnect();
-   return { finalizers, pubkeys0 };
+   return { finkeys, std::vector<bls_public_key>{pubkeys.begin(), pubkeys.end()} };
 }
 
 /*
@@ -124,12 +155,12 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    size_t num_local_finalizers = 50;
    size_t finset_size          = 21;
 
-   auto [finalizers, pubkeys0] = transition_to_Savanna(t, num_local_finalizers, finset_size);
-   assert(finalizers.size() == num_local_finalizers && pubkeys0.size() == finset_size);
+   auto [fin_keys, pubkeys0] = transition_to_Savanna(t, num_local_finalizers, finset_size);
+   assert(pubkeys0.size() == finset_size);
 
    // run set_finalizers(), verify it becomes active after exactly two 3-chains
    // -------------------------------------------------------------------------
-   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
+   auto pubkeys1 = fin_keys.set_active_finalizers(1);
    auto b0 = t.produce_block();
    check_finalizer_policy(t, b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
 
@@ -155,12 +186,12 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    size_t num_local_finalizers = 50;
    size_t finset_size          = 21;
 
-   auto [finalizers, pubkeys0] = transition_to_Savanna(t, num_local_finalizers, finset_size);
+   auto [fin_keys, pubkeys0] = transition_to_Savanna(t, num_local_finalizers, finset_size);
 
    // run set_finalizers() twice in same block, verify only latest one becomes active
    // -------------------------------------------------------------------------------
-   auto pubkeys1 = t.set_active_finalizers({&finalizers[1], finset_size});
-   auto pubkeys2 = t.set_active_finalizers({&finalizers[2], finset_size});
+   auto pubkeys1 = fin_keys.set_active_finalizers(1);
+   auto pubkeys2 = fin_keys.set_active_finalizers(2);
    auto b0 = t.produce_block();
    check_finalizer_policy(t, b0, 1, pubkeys0); // new policy should only be active until after two 3-chains
    t.produce_blocks(4);
@@ -172,12 +203,12 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    // run a test with multiple set_finlizers in-flight during the two 3-chains they
    // take to become active
    // -----------------------------------------------------------------------------
-   auto pubkeys3 = t.set_active_finalizers({&finalizers[3], finset_size});
+   auto pubkeys3 = fin_keys.set_active_finalizers(3);
    b0 = t.produce_block();
-   auto pubkeys4 = t.set_active_finalizers({&finalizers[4], finset_size});
+   auto pubkeys4 = fin_keys.set_active_finalizers(4);
    auto b1 = t.produce_block();
    auto b2 = t.produce_block();
-   auto pubkeys5 = t.set_active_finalizers({&finalizers[5], finset_size});
+   auto pubkeys5 = fin_keys.set_active_finalizers(5);
    t.produce_blocks(2);
    b5 = t.produce_block();
    check_finalizer_policy(t, b5, 2, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
