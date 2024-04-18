@@ -207,11 +207,10 @@ public:
          if (stopped)
             return;
          auto num_queued_votes = --queued_votes;
-         bool reset_num_messages = num_queued_votes == 0; // caught up, so clear num_messages
          if (block_header::num_from_id(msg->block_id) <= lib.load(std::memory_order_relaxed))
             return; // ignore any votes lower than lib
          std::unique_lock g(mtx);
-         if (reset_num_messages)
+         if (num_queued_votes == 0 && index.empty()) // caught up, clear num_messages
             num_messages.clear();
          if (auto& num_msgs = ++num_messages[connection_id]; num_msgs > max_votes_per_connection) {
             remove_connection(connection_id);
