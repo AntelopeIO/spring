@@ -54,7 +54,7 @@ class Cluster(object):
     __BiosHost="localhost"
     __BiosPort=8788
     __LauncherCmdArr=[]
-    __bootlog="leap-ignition-wd/bootlog.txt"
+    __bootlog="spring-ignition-wd/bootlog.txt"
 
     # pylint: disable=too-many-arguments
     def __init__(self, localCluster=True, host="localhost", port=8888, walletHost="localhost", walletPort=9899
