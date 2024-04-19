@@ -3860,7 +3860,7 @@ BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
 } FC_LOG_AND_RETHROW() }
 
 // test set_finalizer host function serialization and tester set_finalizers
-BOOST_AUTO_TEST_CASE(set_finalizer_test) { try {
+BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    validating_tester t;
 
    uint32_t lib = 0;

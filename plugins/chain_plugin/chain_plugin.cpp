@@ -16,6 +16,7 @@
 #include <eosio/chain/permission_link_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/chainbase_environment.hpp>
+#include <eosio/chain/block_header_state_utils.hpp>
 
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
@@ -158,6 +159,7 @@ public:
    std::filesystem::path             state_dir;
    bool                              readonly = false;
    flat_map<uint32_t, block_id_type> loaded_checkpoints;
+   bool                              accept_votes = false;
    bool                              accept_transactions     = false;
    bool                              api_accept_transactions = true;
    bool                              account_queries_enabled = false;
@@ -291,8 +293,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "Percentage of actual signature recovery cpu to bill. Whole number percentages, e.g. 50 for 50%")
          ("chain-threads", bpo::value<uint16_t>()->default_value(config::default_controller_thread_pool_size),
           "Number of worker threads in controller thread pool")
-         ("vote-threads", bpo::value<uint16_t>()->default_value(config::default_vote_thread_pool_size),
-          "Number of worker threads in vote processor thread pool. Voting disabled if set to 0 (votes are not propagatged on P2P network).")
+         ("vote-threads", bpo::value<uint16_t>(),
+          "Number of worker threads in vote processor thread pool. If set to 0, voting disabled, votes are not propagatged on P2P network. Defaults to 4 on producer nodes.")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
          ("deep-mind", bpo::bool_switch()->default_value(false),
@@ -639,12 +641,13 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                      "chain-threads ${num} must be greater than 0", ("num", chain_config->chain_thread_pool_size) );
       }
 
-      if( options.count( "vote-threads" )) {
-         chain_config->vote_thread_pool_size = options.at( "vote-threads" ).as<uint16_t>();
-         EOS_ASSERT( chain_config->vote_thread_pool_size > 1 || chain_config->vote_thread_pool_size == 0, plugin_config_exception,
-                     "vote-threads ${num} must be greater than 1 or 0. "
-                     "Voting disabled if set to 0 (votes are not propagatged on P2P network).",
-                     ("num", chain_config->vote_thread_pool_size) );
+      if (options.count("producer-name") || options.count("vote-threads")) {
+         chain_config->vote_thread_pool_size = options.count("vote-threads") ? options.at("vote-threads").as<uint16_t>() : 0;
+         if (chain_config->vote_thread_pool_size == 0 && options.count("producer-name")) {
+            chain_config->vote_thread_pool_size = config::default_vote_thread_pool_size;
+            ilog("Setting vote-threads to ${n} on producing node", ("n", chain_config->vote_thread_pool_size));
+         }
+         accept_votes = chain_config->vote_thread_pool_size > 0;
       }
 
       chain_config->sig_cpu_bill_pct = options.at("signature-cpu-billable-pct").as<uint32_t>();
@@ -1231,6 +1234,10 @@ void chain_plugin_impl::enable_accept_transactions() {
 
 void chain_plugin::enable_accept_transactions() {
    my->enable_accept_transactions();
+}
+
+bool chain_plugin::accept_votes() const {
+   return my->accept_votes;
 }
 
 
@@ -2024,6 +2031,35 @@ fc::variant read_only::get_block_info(const read_only::get_block_info_params& pa
          ("schedule_version", block->schedule_version)
          ("producer_signature", block->producer_signature)
          ("ref_block_prefix", ref_block_prefix);
+}
+
+fc::variant read_only::get_block_header_state(const get_block_header_state_params& params, const fc::time_point&) const {
+   signed_block_ptr sbp;
+   std::optional<uint64_t> block_num;
+
+   try {
+      block_num = fc::to_uint64(params.block_num_or_id);
+   } catch( ... ) {}
+
+   if( block_num ) {
+      sbp = db.fetch_block_by_number(*block_num);
+   } else {
+      try {
+         sbp = db.fetch_block_by_id(block_id_type(params.block_num_or_id));
+      } EOS_RETHROW_EXCEPTIONS(chain::block_id_type_exception, "Invalid block ID: ${block_num_or_id}", ("block_num_or_id", params.block_num_or_id))
+   }
+
+   EOS_ASSERT( sbp, unknown_block_exception, "Could not find block: ${block}", ("block", params.block_num_or_id));
+
+   block_header_state_legacy ret;
+   ret.block_num = sbp->block_num();
+   ret.id = sbp->calculate_id();
+   ret.header = *sbp;
+   ret.additional_signatures = detail::extract_additional_signatures(sbp);
+
+   fc::variant vo;
+   fc::to_variant( ret, vo );
+   return vo;
 }
 
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {

@@ -336,6 +336,51 @@ class PluginHttpTest(unittest.TestCase):
         ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
         self.assertEqual(ret_json["payload"]["block_num"], 1)
 
+        # get_block_header_state with empty parameter
+        command = "get_block_header_state"
+        ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 400)
+        self.assertEqual(ret_json["error"]["code"], 3200006)
+        # get_block_header_state with empty content parameter
+        ret_json = self.nodeos.processUrllibRequest(resource, command, self.empty_content_dict, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 400)
+        self.assertEqual(ret_json["error"]["code"], 3200006)
+        # get_block_header_state with invalid parameter
+        ret_json = self.nodeos.processUrllibRequest(resource, command, self.http_post_invalid_param, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 400)
+        self.assertEqual(ret_json["error"]["code"], 3200006)
+        self.nodeos.waitForNextBlock()
+        # get_block_header_state with reversible block
+        head_block_num = self.nodeos.getHeadBlockNum()
+        payload = {"block_num_or_id":head_block_num}
+        ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
+        self.assertEqual(ret_json["payload"]["block_num"], head_block_num)
+        self.assertEqual(ret_json["payload"]["header"]["producer"], "eosio")
+        # and by id
+        ret_json = self.nodeos.processUrllibRequest(resource, command, {"block_num_or_id":ret_json["payload"]["id"]}, endpoint=endpoint)
+        self.assertEqual(ret_json["payload"]["block_num"], head_block_num)
+        self.assertEqual(ret_json["payload"]["header"]["producer"], "eosio")
+        # get_block_header_state with irreversible block
+        lib_block_num = self.nodeos.getIrreversibleBlockNum()
+        payload = {"block_num_or_id":lib_block_num}
+        ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
+        self.assertEqual(ret_json["payload"]["block_num"], lib_block_num)
+        self.assertEqual(ret_json["payload"]["header"]["producer"], "eosio")
+        # and by id
+        ret_json = self.nodeos.processUrllibRequest(resource, command, {"block_num_or_id":ret_json["payload"]["id"]}, endpoint=endpoint)
+        self.assertEqual(ret_json["payload"]["block_num"], lib_block_num)
+        self.assertEqual(ret_json["payload"]["header"]["producer"], "eosio")
+        # get_block_header_state with block far in future
+        payload = {"block_num_or_id":head_block_num+2000000}
+        ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 400)
+        self.assertEqual(ret_json["error"]["code"], 3100002)
+        #invalid num and invalid sha256
+        payload = {"block_num_or_id":"spoon was here"}
+        ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 500)
+        self.assertEqual(ret_json["error"]["code"], 3010008)
+
         # get_account with empty parameter
         command = "get_account"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)

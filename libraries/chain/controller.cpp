@@ -132,6 +132,18 @@ R apply(const block_handle& bh, F&& f) {
                            }, bh.internal());
 }
 
+template <class R, class F, class S>
+R apply(const block_handle& bh, F&& f, S&& s) {
+   if constexpr (std::is_same_v<void, R>)
+      std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
+                                  [&](const block_state_ptr& head) { std::forward<S>(s)(head); }
+                       }, bh.internal());
+   else
+      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
+                                      [&](const block_state_ptr& head) -> R { return std::forward<S>(s)(head); }
+                           }, bh.internal());
+}
+
 // apply savanna block_state
 template <class R, class F>
 R apply_s(const block_handle& bh, F&& f) {
@@ -526,8 +538,8 @@ struct building_block {
                                  bb.new_finalizer_policy = std::move(fin_pol);
                              },
                              [&](building_block_if& bb)     {
-                                 fin_pol.generation = bb.parent.active_finalizer_policy->generation + 1;
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                bb.new_finalizer_policy = std::move(fin_pol);
+                                // generation will be updated when activated
                               } },
                   v);
    }
@@ -947,14 +959,14 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   signal<void(const vote_signal_params&)>   voted_block;
+   vote_signal_t                             voted_block;
 
-   vote_processor_t              vote_processor{voted_block,
-                                                [this](const block_id_type& id) -> block_state_ptr {
-                                                   return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
-                                                      return forkdb.get_block(id);
-                                                   });
-                                                }};
+   vote_processor_t vote_processor{voted_block,
+                                   [this](const block_id_type& id) -> block_state_ptr {
+                                      return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
+                                         return forkdb.get_block(id);
+                                      });
+                                   }};
 
    int64_t set_proposed_producers( vector<producer_authority> producers );
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
@@ -1199,16 +1211,15 @@ struct controller_impl {
     my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
+      assert(cfg.chain_thread_pool_size > 0);
       thread_pool.start( cfg.chain_thread_pool_size, [this]( const fc::exception& e ) {
          elog( "Exception in chain thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
-      if (cfg.vote_thread_pool_size > 0) {
-         vote_processor.start(cfg.vote_thread_pool_size, [this]( const fc::exception& e ) {
-            elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-            if( shutdown ) shutdown();
-         } );
-      }
+      vote_processor.start(cfg.vote_thread_pool_size, [this]( const fc::exception& e ) {
+         elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+         if( shutdown ) shutdown();
+      } );
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -1252,37 +1263,6 @@ struct controller_impl {
                           const vector<digest_type>& new_features) {
          check_protocol_features(timestamp, cur_features, new_features);
       });
-   }
-
-   /**
-    *  Plugins / observers listening to signals emited might trigger
-    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
-    *  cause a node to fork.
-    *
-    *  If it is ever desirable to let a signal handler bubble an exception out of this method
-    *  a full audit of its uses needs to be undertaken.
-    *
-    */
-   template<typename Signal, typename Arg>
-   void emit( const Signal& s, Arg&& a ) {
-      try {
-         s( std::forward<Arg>( a ));
-      } catch (std::bad_alloc& e) {
-         wlog( "std::bad_alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch (boost::interprocess::bad_alloc& e) {
-         wlog( "boost::interprocess::bad alloc: ${w}", ("w", e.what()) );
-         throw e;
-      } catch ( controller_emit_signal_exception& e ) {
-         wlog( "controller_emit_signal_exception: ${details}", ("details", e.to_detail_string()) );
-         throw e;
-      } catch ( fc::exception& e ) {
-         wlog( "fc::exception: ${details}", ("details", e.to_detail_string()) );
-      } catch ( std::exception& e ) {
-         wlog( "std::exception: ${details}", ("details", e.what()) );
-      } catch ( ... ) {
-         wlog( "signal handler threw exception" );
-      }
    }
 
    void dmlog_applied_transaction(const transaction_trace_ptr& t, const signed_transaction* trx = nullptr) {
@@ -1363,12 +1343,14 @@ struct controller_impl {
          block_state_ptr prev = forkdb.root();
          assert(prev);
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
+            assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
             const bool skip_validate_signee = true; // validated already
-            auto new_bsp = std::make_shared<block_state>(
+            auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
                   protocol_features.get_protocol_feature_set(),
-                  validator_t{}, skip_validate_signee);
+                  validator_t{}, skip_validate_signee,
+                  (*bitr)->action_mroot_savanna);
             transition_add_to_savanna_fork_db(forkdb, *bitr, new_bsp, prev);
             prev = new_bsp;
          }
@@ -1394,8 +1376,8 @@ struct controller_impl {
 
    block_num_type latest_known_lib_num() const {
       block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      block_num_type if_lib_num = block_header::num_from_id(irreversible_block_id);
-      return if_lib_num > 0 ? if_lib_num : fork_db_head_irreversible_blocknum();
+      block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
+      return savanna_lib_num > 0 ? savanna_lib_num : fork_db_head_irreversible_blocknum();
    }
 
    void log_irreversible() {
@@ -1417,17 +1399,18 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      uint32_t if_lib_num = block_header::num_from_id(irreversible_block_id);
-      const uint32_t new_lib_num = if_lib_num > 0 ? if_lib_num : fork_db_head_irreversible_blocknum();
+      const block_id_type irreversible_block_id = if_irreversible_block_id.load();
+      const uint32_t savanna_lib_num = block_header::num_from_id(irreversible_block_id);
+      const bool savanna = savanna_lib_num > 0;
+      const uint32_t new_lib_num = savanna ? savanna_lib_num : fork_db_head_irreversible_blocknum();
 
       if( new_lib_num <= lib_num )
          return;
 
       bool savanna_transistion_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
-         auto branch = (if_lib_num > 0) ? forkdb.fetch_branch( irreversible_block_id, new_lib_num)
-                                        : forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), new_lib_num );
+         auto branch = savanna ? forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), irreversible_block_id)
+                               : forkdb.fetch_branch( fork_db_head_or_pending(forkdb)->id(), new_lib_num );
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
@@ -1449,7 +1432,7 @@ struct controller_impl {
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
                apply_irreversible_block(forkdb, *bitr);
 
-               emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()) );
+               emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
 
                // blog.append could fail due to failures like running out of space.
                // Do it before commit so that in case it throws, DB can be rolled back.
@@ -1550,11 +1533,14 @@ struct controller_impl {
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
                            const auto& bspl = legacy_branch[i];
-                           auto new_bsp = std::make_shared<block_state>(
+                           assert(bspl->action_mroot_savanna.has_value());
+                           assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
+                           auto new_bsp = block_state::create_transition_block(
                                  *prev,
                                  bspl->block,
                                  protocol_features.get_protocol_feature_set(),
-                                 validator_t{}, skip_validate_signee);
+                                 validator_t{}, skip_validate_signee,
+                                 bspl->action_mroot_savanna);
                            // legacy_branch is from head, all should be validated
                            assert(bspl->action_mroot_savanna);
                            // Create the valid structure for producing
@@ -2569,7 +2555,7 @@ struct controller_impl {
          pending->_block_report.total_elapsed_time += trace->elapsed;
          pending->_block_report.total_time += trace->elapsed;
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
          undo_session.squash();
          return trace;
       }
@@ -2634,7 +2620,7 @@ struct controller_impl {
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
 
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
          trx_context.squash();
          undo_session.squash();
@@ -2678,7 +2664,7 @@ struct controller_impl {
             trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
             trace->elapsed = fc::time_point::now() - start;
             dmlog_applied_transaction(trace);
-            emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+            emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
             undo_session.squash();
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
@@ -2722,12 +2708,12 @@ struct controller_impl {
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
 
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
          undo_session.squash();
       } else {
          dmlog_applied_transaction(trace);
-         emit( applied_transaction, std::tie(trace, trx->packed_trx()) );
+         emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
       }
 
       pending->_block_report.total_net_usage += trace->net_usage;
@@ -2866,7 +2852,7 @@ struct controller_impl {
                   }
 
                   dmlog_applied_transaction(trace, &trn);
-                  emit(applied_transaction, std::tie(trace, trx->packed_trx()));
+                  emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
                }
             }
 
@@ -2910,7 +2896,7 @@ struct controller_impl {
 
          if (!trx->is_transient()) {
             dmlog_applied_transaction(trace);
-            emit(applied_transaction, std::tie(trace, trx->packed_trx()));
+            emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
 
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
@@ -2931,7 +2917,7 @@ struct controller_impl {
    {
       EOS_ASSERT( !pending, block_validate_exception, "pending block already exists" );
 
-      emit( block_start, chain_head.block_num() + 1 );
+      emit( block_start, chain_head.block_num() + 1, __FILE__, __LINE__ );
 
       // at block level, no transaction specific logging is possible
       if (auto dm_logger = get_deep_mind_logger(false)) {
@@ -3176,7 +3162,7 @@ struct controller_impl {
                const auto& bsp = std::get<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal());
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
-                  emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+                  emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3186,17 +3172,7 @@ struct controller_impl {
          }
 
          chain_head = block_handle{cb.bsp};
-         emit( accepted_block, std::tie(chain_head.block(), chain_head.id()) );
-
-         apply<void>(chain_head, [&](const auto& head) {
-#warning todo: support deep_mind_logger even when in IF mode
-            if constexpr (std::is_same_v<block_state_legacy_ptr, typename std::decay_t<decltype(head)>>) {
-               // at block level, no transaction specific logging is possible
-               if (auto* dm_logger = get_deep_mind_logger(false)) {
-                  dm_logger->on_accepted_block(head);
-               }
-            }
-         });
+         emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
          if( s == controller::block_status::incomplete ) {
             fork_db.apply_s<void>([&](auto& forkdb) {
@@ -3223,6 +3199,22 @@ struct controller_impl {
             apply_s<void>(chain_head, [&](const auto& head) { create_and_send_vote_msg(head); });
          }
 
+         if (auto* dm_logger = get_deep_mind_logger(false)) {
+            auto fd = head_finality_data();
+            apply<void>(chain_head,
+                        [&](const block_state_legacy_ptr& head) {
+                           if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                              assert(fd);
+                              dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                           } else {
+                              dm_logger->on_accepted_block(head);
+                           }
+                        },
+                        [&](const block_state_ptr& head) {
+                           assert(fd);
+                           dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                        });
+         }
 
          if (s == controller::block_status::incomplete) {
             const auto& id = chain_head.id();
@@ -3574,9 +3566,7 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
-      if (conf.vote_thread_pool_size > 0) {
-         vote_processor.process_vote_message(connection_id, vote);
-      }
+      vote_processor.process_vote_message(connection_id, vote);
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {
@@ -3587,6 +3577,10 @@ struct controller_impl {
          auto bsp = forkdb.get_block(id);
          if (bsp) {
             return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
+               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
+               assert(fp);
+               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
+                  return true; // we only care about keys from the active finalizer_policy
                return bsp->has_voted(k);
             });
          }
@@ -3594,6 +3588,15 @@ struct controller_impl {
       });
       // empty optional means legacy forkdb
       return !voted || *voted;
+   }
+
+   std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
+      return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
+         auto bsp = forkdb.get_block(id);
+         if (bsp)
+            return *bsp->active_finalizer_policy;
+         return {};
+      });
    }
 
    // thread safe
@@ -3605,9 +3608,9 @@ struct controller_impl {
       my_finalizers.maybe_vote(
           *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)});
+              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
-              // also aggregate our own vote into the pending_qc for this block.
+              // also aggregate our own vote into the pending_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }
@@ -3766,6 +3769,8 @@ struct controller_impl {
 
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
+         if constexpr (savanna_mode)
+            vote_processor.notify_new_block();
       }
 
       return block_handle{bsp};
@@ -3894,7 +3899,7 @@ struct controller_impl {
          if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
             forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
 
-         emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+         emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
       };
 
       fork_db.apply<void>(do_accept_block);
@@ -3932,7 +3937,7 @@ struct controller_impl {
                trusted_producer_light_validation = true;
             };
 
-            emit( accepted_block_header, std::tie(bsp->block, bsp->id()) );
+            emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
@@ -3981,7 +3986,7 @@ struct controller_impl {
                   });
                }
 
-               emit(accepted_block_header, std::tie(bsp->block, bsp->id()));
+               emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
                controller::block_report br;
                if (s == controller::block_status::irreversible) {
@@ -3989,7 +3994,7 @@ struct controller_impl {
 
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
                   // So emit it explicitly here.
-                  emit(irreversible_block, std::tie(bsp->block, bsp->id()));
+                  emit( irreversible_block, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
                   if (!skip_db_sessions(s)) {
                      db.commit(bsp->block_num());
@@ -4450,17 +4455,13 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
-         auto new_bsp = std::make_shared<block_state>(
+         assert((*bitr)->action_mroot_savanna.has_value());
+         assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+         auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee);
-
-         // We only need action_mroot of the last block for finality_data
-         if ((bitr + 1) == legacy_branch.rend()) {
-            assert((*bitr)->action_mroot_savanna);
-            new_bsp->action_mroot = *((*bitr)->action_mroot_savanna);
-         }
+               validator_t{}, skip_validate_signee, (*bitr)->action_mroot_savanna);
 
          prev = new_bsp;
       }
@@ -5273,6 +5274,10 @@ bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
    return my->node_has_voted_if_finalizer(id);
 }
 
+std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
+   return my->active_finalizer_policy(id);
+}
+
 const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
 }
@@ -5549,7 +5554,7 @@ signal<void(const block_signal_params&)>&  controller::accepted_block_header() {
 signal<void(const block_signal_params&)>&  controller::accepted_block() { return my->accepted_block; }
 signal<void(const block_signal_params&)>&  controller::irreversible_block() { return my->irreversible_block; }
 signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& controller::applied_transaction() { return my->applied_transaction; }
-signal<void(const vote_signal_params&)>&   controller::voted_block() { return my->voted_block; }
+vote_signal_t&                             controller::voted_block() { return my->voted_block; }
 
 chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    chain_snapshot_header header;

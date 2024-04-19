@@ -3,6 +3,7 @@
 #include <fc/log/logger.hpp>
 
 #include <eosio/chain/types.hpp>
+#include <eosio/chain/block.hpp>
 
 namespace eosio::chain {
 
@@ -17,6 +18,7 @@ struct signed_transaction;
 struct packed_transaction;
 struct transaction_trace;
 struct ram_trace;
+struct finality_data_t;
 namespace resource_limits {
    class resource_limits_config_object;
    class resource_limits_state_object;
@@ -57,6 +59,7 @@ public:
    void on_startup(chainbase::database& db, uint32_t head_block_num);
    void on_start_block(uint32_t block_num);
    void on_accepted_block(const std::shared_ptr<block_state_legacy>& bsp);
+   void on_accepted_block_v2(block_num_type lib, const signed_block_ptr& b, const finality_data_t& fd);
    void on_switch_forks(const block_id_type& old_head, const block_id_type& new_head);
    void on_onerror(const signed_transaction& etrx);
    void on_onblock(const signed_transaction& trx);
