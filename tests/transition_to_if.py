@@ -60,7 +60,8 @@ try:
     status = cluster.waitForTrxGeneratorsSpinup(nodeId=cluster.getNode(0).nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
-    assert cluster.activateInstantFinality(biosFinalizer=False), "Activate instant finality failed"
+    success, transId = cluster.activateInstantFinality(biosFinalizer=False)
+    assert success, "Activate instant finality failed"
 
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"

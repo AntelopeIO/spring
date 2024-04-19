@@ -995,7 +995,7 @@ class Cluster(object):
         Utils.Print(f'Found {len(producerKeys)} producer keys')
         return producerKeys
 
-    def activateInstantFinality(self, biosFinalizer=True):
+    def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True):
         # call setfinalizer
         numFins = 0
         for n in (self.nodes + [self.biosNode]):
@@ -1039,13 +1039,14 @@ class Cluster(object):
         trans = self.biosNode.pushMessage("eosio", "setfinalizer", setFinStr, opts)
         if trans is None or not trans[0]:
             Utils.Print("ERROR: Failed to set finalizers")
-            return None
+            return None, 0
         Node.validateTransaction(trans[1])
         transId = Node.getTransId(trans[1])
-        if not self.biosNode.waitForTransFinalization(transId, timeout=21*12*3):
-            Utils.Print("ERROR: Failed to validate transaction %s got rolled into a LIB block on server port %d." % (transId, biosNode.port))
-            return None
-        return True
+        if waitForFinalization:
+            if not self.biosNode.waitForTransFinalization(transId, timeout=21*12*3):
+                Utils.Print("ERROR: Failed to validate transaction %s got rolled into a LIB block on server port %d." % (transId, biosNode.port))
+                return None, transId
+        return True, transId
 
     def bootstrap(self, launcher,  biosNode, totalNodes, prodCount, totalProducers, pfSetupPolicy, onlyBios=False, onlySetProds=False, loadSystemContract=True, activateIF=False, biosFinalizer=True):
         """Create 'prodCount' init accounts and deposits 10000000000 SYS in each. If prodCount is -1 will initialize all possible producers.
@@ -1111,7 +1112,8 @@ class Cluster(object):
             return None
 
         if activateIF:
-            if not self.activateInstantFinality(biosFinalizer=biosFinalizer):
+            success, transId = self.activateInstantFinality(biosFinalizer=biosFinalizer)
+            if not success:
                 Utils.Print("ERROR: Activate instant finality failed")
                 return None
 
