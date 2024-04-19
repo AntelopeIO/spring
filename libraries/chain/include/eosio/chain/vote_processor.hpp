@@ -117,7 +117,7 @@ private:
          auto bsp = get_block(v.msg->block_id, g);
          // g is unlocked
          if (bsp) {
-            vote_status s = bsp->aggregate_vote(*v.msg);
+            vote_status s = bsp->aggregate_vote(v.connection_id, *v.msg);
             emit(v.connection_id, s, v.msg);
 
             g.lock();
@@ -230,7 +230,7 @@ public:
                g.lock();
                queue_for_later(connection_id, msg);
             } else {
-               vote_status s = bsp->aggregate_vote(*msg);
+               vote_status s = bsp->aggregate_vote(connection_id, *msg);
                emit(connection_id, s, msg);
 
                g.lock();

@@ -137,29 +137,28 @@ vote_status pending_quorum_certificate::add_weak_vote(size_t index, const bls_si
 }
 
 // thread safe
-vote_status pending_quorum_certificate::add_vote(block_num_type block_num, bool strong, std::span<const uint8_t> proposal_digest, size_t index,
+vote_status pending_quorum_certificate::add_vote(uint32_t connection_id, block_num_type block_num,
+                                                 bool strong, std::span<const uint8_t> proposal_digest, size_t index,
                                                  const bls_public_key& pubkey, const bls_signature& sig, uint64_t weight) {
-   vote_status s = vote_status::success;
-
    if (has_voted_no_lock(strong, index)) {
-      dlog("block_num: ${bn}, vote strong: ${sv}, duplicate", ("bn", block_num)("sv", strong));
+      fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
       return vote_status::duplicate;
    }
 
    if (!fc::crypto::blslib::verify(pubkey, proposal_digest, sig)) {
-      wlog( "signature from finalizer ${i} cannot be verified", ("i", index) );
+      fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified", ("k", pubkey.to_string().substr(8,16)));
       return vote_status::invalid_signature;
    }
 
    std::unique_lock g(*_mtx);
    state_t pre_state = _state;
-   s = strong ? add_strong_vote(index, sig, weight)
-              : add_weak_vote(index, sig, weight);
+   vote_status s = strong ? add_strong_vote(index, sig, weight)
+                          : add_weak_vote(index, sig, weight);
    state_t post_state = _state;
    g.unlock();
 
-   dlog("block_num: ${bn}, vote strong: ${sv}, status: ${s}, pre-state: ${pre}, post-state: ${state}, quorum_met: ${q}",
-        ("bn", block_num)("sv", strong)("s", s)("pre", pre_state)("state", post_state)("q", is_quorum_met(post_state)));
+   fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, vote strong: ${sv}, status: ${s}, pre-state: ${pre}, post-state: ${state}, quorum_met: ${q}",
+        ("c", connection_id)("bn", block_num)("sv", strong)("s", s)("pre", pre_state)("state", post_state)("q", is_quorum_met(post_state)));
    return s;
 }
 

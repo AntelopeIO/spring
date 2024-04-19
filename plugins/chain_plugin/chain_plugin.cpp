@@ -1171,6 +1171,7 @@ void chain_plugin::plugin_shutdown() {
 
 void chain_plugin::handle_sighup() {
    _deep_mind_log.update_logger( deep_mind_logger_name );
+   fc::logger::update(vote_logger.get_name(), vote_logger);
 }
 
 chain_apis::read_write::read_write(controller& db,

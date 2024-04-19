@@ -12,6 +12,8 @@
 
 namespace eosio::chain {
 
+   inline fc::logger vote_logger{"vote"};
+
    using bls_public_key          = fc::crypto::blslib::bls_public_key;
    using bls_signature           = fc::crypto::blslib::bls_signature;
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
@@ -118,7 +120,8 @@ namespace eosio::chain {
       }
 
       // thread safe
-      vote_status add_vote(block_num_type block_num,
+      vote_status add_vote(uint32_t connection_id,
+                           block_num_type block_num,
                            bool strong,
                            std::span<const uint8_t> proposal_digest,
                            size_t index,
