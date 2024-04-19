@@ -569,28 +569,24 @@ namespace fc {
     inline void pack( Stream& s, const boost::dynamic_bitset<T>& value ) {
       const auto num_blocks = value.num_blocks();
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
-      fc::raw::pack( s, unsigned_int((uint32_t)num_blocks) );
+      fc::raw::pack( s, unsigned_int(value.size()) );
 
       // convert bitset to a vector of blocks
       std::vector<T> blocks;
       blocks.resize(num_blocks);
       boost::to_block_range(value, blocks.begin());
 
-      // pack the blocks
-      for (const auto& b: blocks) {
-        fc::raw::pack( s, b );
-      }
+      fc::raw::pack(s, blocks);
     }
 
     template<typename Stream, typename T>
     inline void unpack( Stream& s, boost::dynamic_bitset<T>& value ) {
       unsigned_int size; fc::raw::unpack( s, size );
       FC_ASSERT( size.value <= MAX_NUM_ARRAY_ELEMENTS );
-      std::vector<T> blocks((size_t)size.value);
-      for( uint64_t i = 0; i < size.value; ++i ) {
-        fc::raw::unpack( s, blocks[i] );
-      }
+      std::vector<T> blocks;
+      fc::raw::unpack(s, blocks);
       value = { blocks.cbegin(), blocks.cend() };
+      value.resize(size.value);
     }
 
     template<typename Stream, typename T>
