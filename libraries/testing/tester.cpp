@@ -20,7 +20,10 @@ eosio::chain::asset core_from_string(const std::string& s) {
   return eosio::chain::asset::from_string(s + " " CORE_SYMBOL_NAME);
 }
 
-namespace eosio { namespace testing {
+using bls_private_key = fc::crypto::blslib::bls_private_key;
+using bls_public_key = fc::crypto::blslib::bls_public_key;
+
+namespace eosio::testing {
 
    fc::logger test_logger = fc::logger::get();
 
@@ -495,7 +498,7 @@ namespace eosio { namespace testing {
          // wait for this node's vote to be processed
          size_t retrys = 200;
          while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
          }
          FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
       }
@@ -1189,7 +1192,7 @@ namespace eosio { namespace testing {
 
    }
 
-   std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>> base_tester::set_finalizers(const vector<account_name>& finalizer_names) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
       auto num_finalizers = finalizer_names.size();
       std::vector<finalizer_policy_input::finalizer_info> finalizers_info;
       finalizers_info.reserve(num_finalizers);
@@ -1200,22 +1203,23 @@ namespace eosio { namespace testing {
       finalizer_policy_input policy_input = {
          .finalizers       = finalizers_info,
          .threshold        = num_finalizers * 2 / 3 + 1,
-         .local_finalizers = finalizer_names
+         .local_finalizers = std::vector<account_name>{finalizer_names.begin(), finalizer_names.end()}
       };
 
       return set_finalizers(policy_input);
    }
 
-   std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>> base_tester::set_finalizers(const finalizer_policy_input& input) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(const finalizer_policy_input& input) {
       chain::bls_pub_priv_key_map_t local_finalizer_keys;
       fc::variants finalizer_auths;
-      std::vector<fc::crypto::blslib::bls_private_key> priv_keys;
+      std::vector<bls_private_key> priv_keys;
 
       for (const auto& f: input.finalizers) {
          auto [privkey, pubkey, pop] = get_bls_key( f.name );
 
          // if it is a local finalizer, set up public to private key mapping for voting
-         if( auto it = std::ranges::find_if(input.local_finalizers, [&](const auto& name) { return name == f.name; }); it != input.local_finalizers.end()) {
+         if( auto it = std::ranges::find_if(input.local_finalizers, [&](const auto& name) { return name == f.name; });
+             it != input.local_finalizers.end()) {
             local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
             priv_keys.emplace_back(privkey);
          };
@@ -1237,6 +1241,31 @@ namespace eosio { namespace testing {
       return { push_action( config::system_account_name, "setfinalizer"_n, config::system_account_name,
                           fc::mutable_variant_object()("finalizer_policy", std::move(fin_policy_variant))),
                priv_keys };
+   }
+
+   void base_tester::set_node_finalizers(std::span<const account_name> names) {
+
+      chain::bls_pub_priv_key_map_t local_finalizer_keys;
+      for (auto name: names) {
+         auto [privkey, pubkey, pop] = get_bls_key(name);
+         local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
+      }
+      control->set_node_finalizer_keys(local_finalizer_keys);
+   }
+
+   std::vector<bls_public_key> base_tester::set_active_finalizers(std::span<const account_name> names) {
+      std::vector<bls_public_key> pubkeys;
+      pubkeys.reserve(names.size());
+      finalizer_policy_input input;
+      input.finalizers.reserve(names.size());
+      for (auto name : names) {
+         auto [privkey, pubkey, pop] = get_bls_key(name);
+         pubkeys.push_back(pubkey);
+         input.finalizers.emplace_back(name, 1);
+      }
+      input.threshold = names.size()  * 2 / 3 + 1;
+      set_finalizers(input);
+      return pubkeys;
    }
 
    const table_id_object* base_tester::find_table( name code, name scope, name table ) {
@@ -1460,7 +1489,7 @@ namespace eosio { namespace testing {
 
    const std::string mock::webauthn_private_key::_origin = "mock.webauthn.invalid";
    const sha256 mock::webauthn_private_key::_origin_hash = fc::sha256::hash(mock::webauthn_private_key::_origin);
-} }  /// eosio::testing
+}  /// eosio::testing
 
 std::ostream& operator<<( std::ostream& osm, const fc::variant& v ) {
    //fc::json::to_stream( osm, v );

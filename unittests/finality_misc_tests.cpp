@@ -1,6 +1,4 @@
-#define BOOST_TEST_MODULE hotstuff
-
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/block_header.hpp>
 
@@ -8,7 +6,7 @@
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
-#include <boost/test/included/unit_test.hpp>
+#include <boost/test/unit_test.hpp>
 
 // -----------------------------------------------------------------------------
 //            Allow boost to print `pending_quorum_certificate::state_t`
@@ -27,6 +25,8 @@ namespace std {
       return os;
    }
 }
+
+BOOST_AUTO_TEST_SUITE(finality_misc_tests)
 
 BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    using namespace eosio::chain;
@@ -51,11 +51,11 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
       pubkey.push_back(k.get_public_key());
 
    auto weak_vote = [&](pending_quorum_certificate& qc, const std::vector<uint8_t>& digest, size_t index, uint64_t weight) {
-      return qc.add_vote(0, false, digest, index, pubkey[index], sk[index].sign(digest), weight);
+      return qc.add_vote(0, 0, false, digest, index, pubkey[index], sk[index].sign(digest), weight);
    };
 
    auto strong_vote = [&](pending_quorum_certificate& qc, const std::vector<uint8_t>& digest, size_t index, uint64_t weight) {
-      return qc.add_vote(0, true, digest, index, pubkey[index], sk[index].sign(digest), weight);
+      return qc.add_vote(0, 0, true, digest, index, pubkey[index], sk[index].sign(digest), weight);
    };
 
    constexpr uint64_t weight = 1;
@@ -236,3 +236,5 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    }
 
 } FC_LOG_AND_RETHROW();
+
+BOOST_AUTO_TEST_SUITE_END()

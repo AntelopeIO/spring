@@ -113,6 +113,8 @@ try:
         for conn in connections["payload"]:
             peer_addr = conn["peer"]
             if len(peer_addr) == 0:
+                if len(conn["last_handshake"]["p2p_address"]) == 0:
+                    continue
                 peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
             if peer_names[peer_addr] != "bios":
                 peers.append(peer_names[peer_addr])

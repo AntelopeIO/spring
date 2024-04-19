@@ -1,1 +1,1 @@
-[Producer API Reference](https://docs.eosnetwork.com/leap-plugins/latest/producer.api/)
+[Producer API Reference](https://docs.eosnetwork.com/spring-plugins/latest/producer.api/)

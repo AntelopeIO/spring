@@ -1,7 +1,7 @@
 #include <eosio/chain/block_state.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/block_state_legacy.hpp>
-#include <eosio/chain/hotstuff/finalizer.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/exceptions.hpp>
 
@@ -15,7 +15,9 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , pending_qc(prev.active_finalizer_policy->finalizers.size(), prev.active_finalizer_policy->threshold, prev.active_finalizer_policy->max_weak_sum_before_weak_final())
+   , pending_qc(active_finalizer_policy->finalizers.size(),
+                active_finalizer_policy->threshold,
+                active_finalizer_policy->max_weak_sum_before_weak_final())
 {
    // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
    if( !skip_validate_signee ) {
@@ -37,7 +39,9 @@ block_state::block_state(const block_header_state&                bhs,
    , block(std::make_shared<signed_block>(signed_block_header{bhs.header}))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , pending_qc(bhs.active_finalizer_policy->finalizers.size(), bhs.active_finalizer_policy->threshold, bhs.active_finalizer_policy->max_weak_sum_before_weak_final())
+   , pending_qc(active_finalizer_policy->finalizers.size(),
+                active_finalizer_policy->threshold,
+                active_finalizer_policy->max_weak_sum_before_weak_final())
    , valid(valid)
    , pub_keys_recovered(true) // called by produce_block so signature recovery of trxs must have been done
    , cached_trxs(std::move(trx_metas))
@@ -46,7 +50,7 @@ block_state::block_state(const block_header_state&                bhs,
    block->transactions = std::move(trx_receipts);
 
    if( qc ) {
-      dlog("integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
+      fc_dlog(vote_logger, "integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
       emplace_extension(block->block_extensions, quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
    }
 
@@ -84,7 +88,9 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 
    // TODO: https://github.com/AntelopeIO/leap/issues/2057
    // TODO: Do not aggregate votes on blocks created from block_state_legacy. This can be removed when #2057 complete.
-   result.pending_qc = pending_quorum_certificate{result.active_finalizer_policy->finalizers.size(), result.active_finalizer_policy->threshold, result.active_finalizer_policy->max_weak_sum_before_weak_final()};
+   result.pending_qc = pending_quorum_certificate{result.active_finalizer_policy->finalizers.size(),
+                                                  result.active_finalizer_policy->threshold,
+                                                  result.active_finalizer_policy->max_weak_sum_before_weak_final()};
 
    // build leaf_node and validation_tree
    valid_t::finality_leaf_node_t leaf_node {
@@ -160,8 +166,8 @@ void block_state::set_trxs_metas( deque<transaction_metadata_ptr>&& trxs_metas, 
    cached_trxs = std::move( trxs_metas );
 }
 
-// Called from net threads
-vote_status block_state::aggregate_vote(const vote_message& vote) {
+// Called from vote threads
+vote_status block_state::aggregate_vote(uint32_t connection_id, const vote_message& vote) {
    const auto& finalizers = active_finalizer_policy->finalizers;
    auto it = std::find_if(finalizers.begin(),
                           finalizers.end(),
@@ -170,7 +176,8 @@ vote_status block_state::aggregate_vote(const vote_message& vote) {
    if (it != finalizers.end()) {
       auto index = std::distance(finalizers.begin(), it);
       auto digest = vote.strong ? strong_digest.to_uint8_span() : std::span<const uint8_t>(weak_digest);
-      return pending_qc.add_vote(block_num(),
+      return pending_qc.add_vote(connection_id,
+                                 block_num(),
                                  vote.strong,
                                  digest,
                                  index,
@@ -178,7 +185,8 @@ vote_status block_state::aggregate_vote(const vote_message& vote) {
                                  vote.sig,
                                  finalizers[index].weight);
    } else {
-      wlog( "finalizer_key (${k}) in vote is not in finalizer policy", ("k", vote.finalizer_key) );
+      fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policy",
+              ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
       return vote_status::unknown_public_key;
    }
 }
@@ -202,7 +210,7 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    auto num_finalizers = finalizers.size();
 
    // utility to accumulate voted weights
-   auto weights = [&] ( const hs_bitset& votes_bitset ) -> uint64_t {
+   auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
       uint64_t sum = 0;
       auto n = std::min(num_finalizers, votes_bitset.size());
       for (auto i = 0u; i < n; ++i) {

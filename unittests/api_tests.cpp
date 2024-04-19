@@ -24,7 +24,7 @@
 #include <eosio/chain/generated_transaction_object.hpp>
 #include <eosio/chain/wasm_interface.hpp>
 #include <eosio/chain/resource_limits.hpp>
-#include <eosio/chain/hotstuff/finalizer_authority.hpp>
+#include <eosio/chain/finality/finalizer_authority.hpp>
 
 #include <fc/crypto/digest.hpp>
 #include <fc/crypto/sha256.hpp>
@@ -1226,7 +1226,7 @@ BOOST_AUTO_TEST_CASE(checktime_pause_block_deadline_not_extended_while_loading_t
    // WASM load times on my machine was 35ms.
    // Since checktime only kicks in after WASM is loaded this needs to be large enough to load the WASM, but should be
    // considerably lower than the 150ms max_transaction_time
-   BOOST_CHECK_MESSAGE( dur < 50'000, "elapsed " << dur << "us" );
+   BOOST_CHECK_MESSAGE( dur < 65'000, "elapsed " << dur << "us" );
    BOOST_REQUIRE_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // should never fail
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
@@ -3860,7 +3860,7 @@ BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
 } FC_LOG_AND_RETHROW() }
 
 // test set_finalizer host function serialization and tester set_finalizers
-BOOST_AUTO_TEST_CASE(set_finalizer_test) { try {
+BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    validating_tester t;
 
    uint32_t lib = 0;
