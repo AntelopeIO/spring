@@ -58,6 +58,9 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
+   //                                connection_id, vote result status, vote_message processed
+   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
+   using vote_signal_t       = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
       HEAD,
@@ -87,7 +90,8 @@ namespace eosio::chain {
             uint64_t                 state_size             =  chain::config::default_state_size;
             uint64_t                 state_guard_size       =  chain::config::default_state_guard_size;
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
-            uint16_t                 thread_pool_size       =  chain::config::default_controller_thread_pool_size;
+            uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
+            uint16_t                 vote_thread_pool_size  =  0;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -326,7 +330,7 @@ namespace eosio::chain {
          // called by host function set_finalizers
          void set_proposed_finalizers( finalizer_policy&& fin_pol );
          // called from net threads
-         vote_status process_vote_message( const vote_message& msg );
+         void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
          bool node_has_voted_if_finalizer(const block_id_type& id) const;
 
@@ -376,9 +380,8 @@ namespace eosio::chain {
          signal<void(const block_signal_params&)>&  accepted_block();
          signal<void(const block_signal_params&)>&  irreversible_block();
          signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& applied_transaction();
-
-         // Unlike other signals, voted_block can be signaled from other threads than the main thread.
-         signal<void(const vote_message&)>&         voted_block();
+         // Unlike other signals, voted_block is signaled from other threads than the main thread.
+         vote_signal_t&                             voted_block();
 
          const apply_handler* find_apply_handler( account_name contract, scope_name scope, action_name act )const;
          wasm_interface& get_wasm_interface();
@@ -409,6 +412,37 @@ namespace eosio::chain {
          chainbase::database& mutable_db()const;
 
          std::unique_ptr<controller_impl> my;
-   };
+   }; // controller
+
+   /**
+    *  Plugins / observers listening to signals emited might trigger
+    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+    *  cause a node to fork.
+    *
+    *  If it is ever desirable to let a signal handler bubble an exception out of this method
+    *  a full audit of its uses needs to be undertaken.
+    *
+    */
+   template<typename Signal, typename Arg>
+   void emit( const Signal& s, Arg&& a, const char* file, uint32_t line ) {
+      try {
+         s( std::forward<Arg>( a ));
+      } catch (std::bad_alloc& e) {
+         wlog( "${f}:${l} std::bad_alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch (boost::interprocess::bad_alloc& e) {
+         wlog( "${f}:${l} boost::interprocess::bad alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch ( controller_emit_signal_exception& e ) {
+         wlog( "${f}:${l} controller_emit_signal_exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+         throw e;
+      } catch ( fc::exception& e ) {
+         wlog( "${f}:${l} fc::exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+      } catch ( std::exception& e ) {
+         wlog( "std::exception: ${details}", ("f", file)("l", line)("details", e.what()) );
+      } catch ( ... ) {
+         wlog( "${f}:${l} signal handler threw exception", ("f", file)("l", line) );
+      }
+   }
 
 }  /// eosio::chain

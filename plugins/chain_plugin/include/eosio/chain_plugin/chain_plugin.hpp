@@ -993,6 +993,8 @@ public:
    // set true by other plugins if any plugin allows transactions
    bool accept_transactions() const;
    void enable_accept_transactions();
+   // true if vote processing is enabled
+   bool accept_votes() const;
 
    static void handle_guard_exception(const chain::guard_exception& e);
 

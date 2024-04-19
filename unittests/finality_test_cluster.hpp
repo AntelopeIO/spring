@@ -36,7 +36,7 @@ public:
    void produce_and_push_block();
 
    // send node1's vote identified by "index" in the collected votes
-   eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong);
+   eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong, bool duplicate = false);
 
    // send node1's latest vote
    eosio::chain::vote_status process_node1_vote(vote_mode mode = vote_mode::strong);
@@ -78,16 +78,20 @@ private:
    struct node_info {
       eosio::testing::tester                  node;
       uint32_t                                prev_lib_num{0};
-      std::vector<eosio::chain::vote_message> votes;
+      std::mutex                              votes_mtx;
+      std::vector<eosio::chain::vote_message_ptr> votes;
       fc::crypto::blslib::bls_private_key     priv_key;
    };
+
+   std::atomic<uint32_t>                      last_connection_vote{0};
+   std::atomic<eosio::chain::vote_status>     last_vote_status{};
 
    std::array<node_info, 3> nodes;
    node_info& node0 = nodes[0];
    node_info& node1 = nodes[1];
    node_info& node2 = nodes[2];
 
-   eosio::chain::vote_message node1_orig_vote;
+   eosio::chain::vote_message_ptr node1_orig_vote;
 
    // sets up "node_index" node
    void setup_node(node_info& node, eosio::chain::account_name local_finalizer);
@@ -96,8 +100,10 @@ private:
    bool lib_advancing(node_info& node);
 
    // send "vote_index" vote on node to node0
-   eosio::chain::vote_status process_vote(node_info& node, size_t vote_index, vote_mode mode);
+   eosio::chain::vote_status process_vote(node_info& node, size_t vote_index, vote_mode mode, bool duplicate = false);
 
    // send the latest vote on "node_index" node to node0
    eosio::chain::vote_status process_vote(node_info& node, vote_mode mode);
+
+   eosio::chain::vote_status wait_on_vote(uint32_t connection_id, bool duplicate);
 };

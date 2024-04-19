@@ -440,6 +440,7 @@ namespace eosio { namespace testing {
             cfg.state_guard_size = 0;
             cfg.contracts_console = true;
             cfg.eosvmoc_config.cache_size = 1024*1024*8;
+            cfg.vote_thread_pool_size = 3;
 
             // don't enforce OC compilation subject limits for tests,
             // particularly EOS EVM tests may run over those limits

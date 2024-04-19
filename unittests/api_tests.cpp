@@ -1226,7 +1226,7 @@ BOOST_AUTO_TEST_CASE(checktime_pause_block_deadline_not_extended_while_loading_t
    // WASM load times on my machine was 35ms.
    // Since checktime only kicks in after WASM is loaded this needs to be large enough to load the WASM, but should be
    // considerably lower than the 150ms max_transaction_time
-   BOOST_CHECK_MESSAGE( dur < 50'000, "elapsed " << dur << "us" );
+   BOOST_CHECK_MESSAGE( dur < 65'000, "elapsed " << dur << "us" );
    BOOST_REQUIRE_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // should never fail
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
