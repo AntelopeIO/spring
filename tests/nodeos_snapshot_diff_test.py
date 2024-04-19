@@ -58,20 +58,6 @@ trxGenLauncher=None
 
 snapshotScheduleDB = "snapshot-schedule.json"
 
-def getLatestSnapshot(nodeId):
-    snapshotDir = os.path.join(Utils.getNodeDataDir(nodeId), "snapshots")
-    snapshotDirContents = os.listdir(snapshotDir)
-    assert len(snapshotDirContents) > 0
-    # disregard snapshot schedule config in same folder
-    if snapshotScheduleDB in snapshotDirContents: snapshotDirContents.remove(snapshotScheduleDB)
-    snapshotDirContents.sort()
-    return os.path.join(snapshotDir, snapshotDirContents[-1])
-
-def removeState(nodeId):
-    dataDir = Utils.getNodeDataDir(nodeId)
-    state = os.path.join(dataDir, "state")
-    shutil.rmtree(state, ignore_errors=True)
-
 try:
     TestHelper.printSystemInfo("BEGIN")
     cluster.setWalletMgr(walletMgr)
@@ -165,14 +151,14 @@ try:
     nodeSnap.kill(signal.SIGTERM)
 
     Print("Convert snapshot to JSON")
-    snapshotFile = getLatestSnapshot(snapshotNodeId)
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(snapshotFile), "snapshot to-json", silentErrors=False)
+    snapshotFile = nodeSnap.getLatestSnapshot()
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(snapshotFile), "snapshot to-json", silentErrors=False)
     snapshotFile = snapshotFile + ".json"
 
     Print("Trim programmable blocklog to snapshot head block num and relaunch programmable node")
     nodeProg.kill(signal.SIGTERM)
     output=cluster.getBlockLog(progNodeId, blockLogAction=BlockLogAction.trim, first=0, last=ret_head_block_num, throwException=True)
-    removeState(progNodeId)
+    nodeProg.removeState()
     nodeProg.rmFromCmd('--p2p-peer-address')
     isRelaunchSuccess = nodeProg.relaunch(chainArg="--replay", addSwapFlags={}, timeout=relaunchTimeout)
     assert isRelaunchSuccess, "Failed to relaunch programmable node"
@@ -188,8 +174,8 @@ try:
     nodeProg.kill(signal.SIGTERM)
 
     Print("Convert snapshot to JSON")
-    progSnapshotFile = getLatestSnapshot(progNodeId)
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(progSnapshotFile), "snapshot to-json", silentErrors=False)
+    progSnapshotFile = nodeProg.getLatestSnapshot()
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(progSnapshotFile), "snapshot to-json", silentErrors=False)
     progSnapshotFile = progSnapshotFile + ".json"
 
     Print("Trim irreversible blocklog to snapshot head block num")
@@ -197,7 +183,7 @@ try:
     output=cluster.getBlockLog(irrNodeId, blockLogAction=BlockLogAction.trim, first=0, last=ret_head_block_num, throwException=True)
 
     Print("Relaunch irreversible node in irreversible mode")
-    removeState(irrNodeId)
+    nodeIrr.removeState()
     nodeIrr.rmFromCmd('--p2p-peer-address')
     swapFlags = {"--read-mode":"irreversible", "--p2p-max-nodes-per-host":"0", "--max-clients":"0", "--allowed-connection":"none"}
     isRelaunchSuccess = nodeIrr.relaunch(chainArg="--replay", addSwapFlags=swapFlags, timeout=relaunchTimeout)
@@ -214,8 +200,8 @@ try:
     nodeIrr.kill(signal.SIGTERM)
 
     Print("Convert snapshot to JSON")
-    irrSnapshotFile = getLatestSnapshot(irrNodeId)
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(irrSnapshotFile), "snapshot to-json", silentErrors=False)
+    irrSnapshotFile = nodeIrr.getLatestSnapshot()
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(irrSnapshotFile), "snapshot to-json", silentErrors=False)
     irrSnapshotFile = irrSnapshotFile + ".json"
 
     assert Utils.compareFiles(snapshotFile, irrSnapshotFile), f"Snapshot files differ {snapshotFile} != {irrSnapshotFile}"

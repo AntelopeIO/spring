@@ -1,1 +1,1 @@
-[Net API Reference](https://docs.eosnetwork.com/leap-plugins/latest/net.api/)
+[Net API Reference](https://docs.eosnetwork.com/spring-plugins/latest/net.api/)

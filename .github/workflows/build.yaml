@@ -101,12 +101,12 @@ jobs:
           zstdcat build.tar.zst | tar x
           cd build
           cpack
-          ../tools/tweak-deb.sh leap_*.deb
+          ../tools/tweak-deb.sh spring_*.deb
       - name: Install dev package
         if: matrix.platform != 'reproducible'
         run: |
           apt-get update && apt-get upgrade -y
-          apt-get install -y ./build/leap_*.deb ./build/leap-dev*.deb
+          apt-get install -y ./build/spring_*.deb ./build/spring-dev*.deb
       - name: Test using TestHarness
         if: matrix.platform != 'reproducible'
         run: |
@@ -115,15 +115,15 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.platform != 'reproducible'
         with:
-          name: leap-dev-${{matrix.platform}}-amd64
-          path: build/leap-dev*.deb
+          name: spring-dev-${{matrix.platform}}-amd64
+          path: build/spring-dev*.deb
           compression-level: 0
-      - name: Upload leap package
+      - name: Upload spring package
         uses: actions/upload-artifact@v4
         if: matrix.platform == 'reproducible'
         with:
-          name: leap-deb-amd64
-          path: build/leap_*.deb
+          name: spring-deb-amd64
+          path: build/spring_*.deb
           compression-level: 0
 
   tests:
@@ -192,7 +192,7 @@ jobs:
         uses: ./.github/actions/parallel-ctest-containers
         with:
           container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
-          error-log-paths: '["build/etc", "build/var", "build/leap-ignition-wd", "build/TestLogs"]'
+          error-log-paths: '["build/etc", "build/var", "build/spring-ignition-wd", "build/TestLogs"]'
           log-tarball-prefix: ${{matrix.cfg.name}}
           tests-label: nonparallelizable_tests
           test-timeout: 420
@@ -233,7 +233,7 @@ jobs:
         uses: ./.github/actions/parallel-ctest-containers
         with:
           container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
-          error-log-paths: '["build/etc", "build/var", "build/leap-ignition-wd", "build/TestLogs"]'
+          error-log-paths: '["build/etc", "build/var", "build/spring-ignition-wd", "build/TestLogs"]'
           log-tarball-prefix: ${{matrix.cfg.name}}
           tests-label: long_running_tests
           test-timeout: 2700
@@ -269,19 +269,19 @@ jobs:
           apt-get update
           apt-get upgrade -y
 
-      # LEAP
+      # spring
       - if: ${{ matrix.test != 'deb-install' }}
-        name: Clone leap
+        name: Clone spring
         uses: actions/checkout@v4
         with:
           submodules: recursive
       - if: ${{ matrix.test != 'deb-install' }}
-        name: Download leap builddir
+        name: Download spring builddir
         uses: actions/download-artifact@v4
         with:
           name: ${{matrix.platform}}-build
       - if: ${{ matrix.test != 'deb-install' }}
-        name: Extract leap build
+        name: Extract spring build
         run: |
           zstdcat build.tar.zst | tar x
       - if: ${{ matrix.test == 'build-tree' }}
@@ -289,21 +289,21 @@ jobs:
         run: |
           echo "leap_DIR=$PWD/build/lib/cmake/leap" >> "$GITHUB_ENV"
       - if: ${{ matrix.test == 'make-dev-install' }}
-        name: leap dev-install
+        name: spring dev-install
         run: |
           cmake --install build
           cmake --install build --component dev
       - if: ${{ matrix.test == 'make-dev-install' }}
-        name: Delete leap artifacts
+        name: Delete spring artifacts
         run: |
           rm -r *
       - if: ${{ matrix.test == 'deb-install' }}
-        name: Download leap-dev
+        name: Download spring-dev
         uses: actions/download-artifact@v4
         with:
-          name: leap-dev-${{matrix.platform}}-amd64
+          name: spring-dev-${{matrix.platform}}-amd64
       - if: ${{ matrix.test == 'deb-install' }}
-        name: Install leap-dev Package
+        name: Install spring-dev Package
         run: |
           apt-get install -y ./*.deb
           rm ./*.deb

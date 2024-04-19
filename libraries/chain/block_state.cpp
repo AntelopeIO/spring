@@ -15,7 +15,9 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , pending_qc(prev.active_finalizer_policy->finalizers.size(), prev.active_finalizer_policy->threshold, prev.active_finalizer_policy->max_weak_sum_before_weak_final())
+   , pending_qc(active_finalizer_policy->finalizers.size(),
+                active_finalizer_policy->threshold,
+                active_finalizer_policy->max_weak_sum_before_weak_final())
 {
    // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
    if( !skip_validate_signee ) {
@@ -37,7 +39,9 @@ block_state::block_state(const block_header_state&                bhs,
    , block(std::make_shared<signed_block>(signed_block_header{bhs.header}))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , pending_qc(bhs.active_finalizer_policy->finalizers.size(), bhs.active_finalizer_policy->threshold, bhs.active_finalizer_policy->max_weak_sum_before_weak_final())
+   , pending_qc(active_finalizer_policy->finalizers.size(),
+                active_finalizer_policy->threshold,
+                active_finalizer_policy->max_weak_sum_before_weak_final())
    , valid(valid)
    , pub_keys_recovered(true) // called by produce_block so signature recovery of trxs must have been done
    , cached_trxs(std::move(trx_metas))
@@ -84,7 +88,9 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 
    // TODO: https://github.com/AntelopeIO/leap/issues/2057
    // TODO: Do not aggregate votes on blocks created from block_state_legacy. This can be removed when #2057 complete.
-   result.pending_qc = pending_quorum_certificate{result.active_finalizer_policy->finalizers.size(), result.active_finalizer_policy->threshold, result.active_finalizer_policy->max_weak_sum_before_weak_final()};
+   result.pending_qc = pending_quorum_certificate{result.active_finalizer_policy->finalizers.size(),
+                                                  result.active_finalizer_policy->threshold,
+                                                  result.active_finalizer_policy->max_weak_sum_before_weak_final()};
 
    // build leaf_node and validation_tree
    valid_t::finality_leaf_node_t leaf_node {
@@ -106,6 +112,18 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.action_mroot = *bsp.action_mroot_savanna;
    result.base_digest = {}; // calculated on demand in get_finality_data()
 
+   return result_ptr;
+}
+
+block_state_ptr block_state::create_transition_block(
+                   const block_header_state&         prev,
+                   signed_block_ptr                  b,
+                   const protocol_feature_set&       pfs,
+                   const validator_t&                validator,
+                   bool                              skip_validate_signee,
+                   const std::optional<digest_type>& action_mroot_savanna) {
+   auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+   result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
    return result_ptr;
 }
 
@@ -252,6 +270,8 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
+   assert(!action_mroot.empty());
+   assert(!strong_digest.empty());
 
    // Copy parent's validation_tree and validation_mroots.
    auto start = next_bhs.core.last_final_block_num() - core.last_final_block_num();

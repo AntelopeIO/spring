@@ -29,14 +29,17 @@ digest_type block_header_state::compute_base_digest() const {
 
    for (const auto& fp_pair : finalizer_policies) {
       fc::raw::pack( enc, fp_pair.first );
-      assert(fp_pair.second);
-      fc::raw::pack( enc, *fp_pair.second );
+      const finalizer_policy_tracker& tracker = fp_pair.second;
+      fc::raw::pack( enc, tracker.state );
+      assert(tracker.policy);
+      fc::raw::pack( enc, *tracker.policy );
    }
 
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
    for (const auto& pp_pair : proposer_policies) {
+      fc::raw::pack( enc, pp_pair.first );
       assert(pp_pair.second);
       fc::raw::pack( enc, *pp_pair.second );
    }
@@ -79,6 +82,7 @@ void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
                  std::shared_ptr<proposer_policy> new_proposer_policy,
+                 std::optional<finalizer_policy> new_finalizer_policy,
                  qc_claim_t qc_claim) {
 
    // activated protocol features
@@ -110,10 +114,6 @@ void finish_next(const block_header_state& prev,
       next_header_state.proposer_policies[new_proposer_policy->active_time] = std::move(new_proposer_policy);
    }
 
-   // finalizer policy
-   // ----------------
-   next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
-
    // finality_core
    // -------------
    block_ref parent_block {
@@ -121,6 +121,49 @@ void finish_next(const block_header_state& prev,
       .timestamp = prev.timestamp()
    };
    next_header_state.core = prev.core.next(parent_block, qc_claim);
+
+   // finalizer policy
+   // ----------------
+   next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
+
+   if(!prev.finalizer_policies.empty()) {
+      auto lib = next_header_state.core.last_final_block_num();
+      auto it = prev.finalizer_policies.begin();
+      if (it->first > lib) {
+         // we have at least one `finalizer_policy` in our map, but none of these is
+         // due to become active of this block because lib has not advanced enough, so
+         // we just copy the multimap and keep using the same `active_finalizer_policy`
+         next_header_state.finalizer_policies = prev.finalizer_policies;
+      } else {
+         while (it != prev.finalizer_policies.end() && it->first <= lib) {
+            const finalizer_policy_tracker& tracker = it->second;
+            if (tracker.state == finalizer_policy_tracker::state_t::pending) {
+               // new finalizer_policy becones active
+               next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
+               next_header_state.active_finalizer_policy->generation = prev.active_finalizer_policy->generation + 1;
+            } else {
+               assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
+               // block where finalizer_policy was proposed became final. The finalizer policy will
+               // become active when next block becomes final.
+               finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
+               next_header_state.finalizer_policies.emplace(next_header_state.block_num(), std::move(t));
+            }
+            ++it;
+         }
+         if (it != prev.finalizer_policies.end()) {
+            // copy remainder of pending finalizer_policy changes
+            next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
+                                                        it, prev.finalizer_policies.end());
+         }
+      }
+   }
+
+   if (new_finalizer_policy) {
+      next_header_state.finalizer_policies.emplace(
+         next_header_state.block_num(),
+         finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
+                                  std::make_shared<finalizer_policy>(std::move(*new_finalizer_policy))});
+   }
 
    // Finally update block id from header
    // -----------------------------------
@@ -145,7 +188,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
    // finality extension
    // ------------------
    instant_finality_extension new_if_ext {input.most_recent_ancestor_with_qc,
-                                          std::move(input.new_finalizer_policy),
+                                          input.new_finalizer_policy,
                                           input.new_proposer_policy};
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();
@@ -162,7 +205,9 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(input.new_proposer_policy), input.most_recent_ancestor_with_qc);
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations),
+               std::move(input.new_proposer_policy), std::move(input.new_finalizer_policy),
+               input.most_recent_ancestor_with_qc);
 
    return next_header_state;
 }
@@ -176,14 +221,16 @@ block_header_state block_header_state::next(block_header_state_input& input) con
 block_header_state block_header_state::next(const signed_block_header& h, validator_t& validator) const {
    auto producer = detail::get_scheduled_producer(active_proposer_policy->proposer_schedule.producers, h.timestamp).producer_name;
    
-   EOS_ASSERT( h.previous == block_id, unlinkable_block_exception, "previous mismatch ${p} != ${id}", ("p", h.previous)("id", block_id) );
+   EOS_ASSERT( h.previous == block_id, unlinkable_block_exception,
+               "previous mismatch ${p} != ${id}", ("p", h.previous)("id", block_id) );
    EOS_ASSERT( h.producer == producer, wrong_producer, "wrong producer specified" );
-   EOS_ASSERT( !h.new_producers, producer_schedule_exception, "Block header contains legacy producer schedule outdated by activation of WTMsig Block Signatures" );
+   EOS_ASSERT( !h.new_producers, producer_schedule_exception,
+               "Block header contains legacy producer schedule outdated by activation of WTMsig Block Signatures" );
 
    block_header_state next_header_state;
    next_header_state.header = static_cast<const block_header&>(h);
    next_header_state.header_exts = h.validate_and_extract_header_extensions();
-   auto& exts = next_header_state.header_exts;
+   const auto& exts = next_header_state.header_exts;
 
    // retrieve protocol_feature_activation from incoming block header extension
    // -------------------------------------------------------------------------
@@ -199,8 +246,8 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    // --------------------------------------------------------------------
    EOS_ASSERT(exts.count(instant_finality_extension::extension_id()) > 0, invalid_block_header_extension,
               "Instant Finality Extension is expected to be present in all block headers after switch to IF");
-   auto  if_entry = exts.lower_bound(instant_finality_extension::extension_id());
-   auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
+   auto  if_entry     = exts.lower_bound(instant_finality_extension::extension_id());
+   const auto& if_ext = std::get<instant_finality_extension>(if_entry->second);
 
    if (h.is_proper_svnn_block()) {
       // if there is no Finality Tree Root associated with the block,
@@ -211,14 +258,18 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
       EOS_ASSERT(no_finality_tree_associated == h.action_mroot.empty(), block_validate_exception,
                  "No Finality Tree Root associated with the block, does not match with empty action_mroot: "
                  "(${n}), action_mroot empty (${e}), final_on_strong_qc_block_num (${f})",
-                 ("n", no_finality_tree_associated)("e", h.action_mroot.empty())("f", next_core_metadata.final_on_strong_qc_block_num));
+                 ("n", no_finality_tree_associated)("e", h.action_mroot.empty())
+                 ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext.new_proposer_policy, if_ext.qc_claim);
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext.new_proposer_policy,
+               if_ext.new_finalizer_policy, if_ext.qc_claim);
 
    return next_header_state;
 }
 
 } // namespace eosio::chain
 
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(active_finalizer_policy_and_base_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1,
+            (major_version)(minor_version)(active_finalizer_policy_generation)
+            (finality_tree_digest)(active_finalizer_policy_and_base_digest) )

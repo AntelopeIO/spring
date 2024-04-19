@@ -57,7 +57,7 @@ struct valid_t {
    std::vector<digest_type> validation_mroots;
 };
 
-// This is mostly used by SHiP to stream finality_data
+// This is mostly used by SHiP & deep-mind to stream finality_data
 struct finality_data_t {
    uint32_t     major_version{light_header_protocol_version_major};
    uint32_t     minor_version{light_header_protocol_version_minor};
@@ -152,6 +152,15 @@ public:
                const digest_type&                       action_mroot);
 
    static std::shared_ptr<block_state> create_if_genesis_block(const block_state_legacy& bsp);
+
+   // Constructs a Transition Savanna block state from a Legacy block state.
+   static std::shared_ptr<block_state> create_transition_block(
+         const block_header_state&         prev,
+         signed_block_ptr                  b,
+         const protocol_feature_set&       pfs,
+         const validator_t&                validator,
+         bool                              skip_validate_signee,
+         const std::optional<digest_type>& action_mroot_savanna);
 
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 
