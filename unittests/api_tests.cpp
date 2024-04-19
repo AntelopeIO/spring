@@ -3871,20 +3871,14 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
       lib_block = block;
    });
 
-   t.produce_block();
-
-   // Create finalizer accounts
-   vector<account_name> finalizers = {
-      "inita"_n, "initb"_n, "initc"_n, "initd"_n, "inite"_n, "initf"_n, "initg"_n,
-      "inith"_n, "initi"_n, "initj"_n, "initk"_n, "initl"_n, "initm"_n, "initn"_n,
-      "inito"_n, "initp"_n, "initq"_n, "initr"_n, "inits"_n, "initt"_n, "initu"_n
-   };
-
-   t.create_accounts(finalizers);
-   t.produce_block();
+   // Create finalizer keys
+   constexpr size_t num_finalizers = 21;
+   finalizer_keys fin_keys(t, num_finalizers, num_finalizers);
 
    // activate savanna
-   t.set_finalizers(finalizers);
+   fin_keys.set_node_finalizers(0, num_finalizers);
+   fin_keys.set_finalizer_policy(0);
+
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
    auto block = t.produce_block();
 
@@ -3892,9 +3886,9 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_TEST(!!ext);
    std::optional<finalizer_policy> fin_policy = std::get<instant_finality_extension>(*ext).new_finalizer_policy;
    BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == finalizers.size());
+   BOOST_TEST(fin_policy->finalizers.size() == num_finalizers);
    BOOST_TEST(fin_policy->generation == 1);
-   BOOST_TEST(fin_policy->threshold == finalizers.size() / 3 * 2 + 1);
+   BOOST_TEST(fin_policy->threshold == num_finalizers / 3 * 2 + 1);
    block_id_type if_genesis_block_id = block->calculate_id();
 
    for (block_num_type active_block_num = block->block_num(); active_block_num > lib; t.produce_block()) {

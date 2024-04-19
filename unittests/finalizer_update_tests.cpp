@@ -84,14 +84,14 @@ static void ensure_next_block_finalizer_policy(validating_tester& t,
 // ---------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    validating_tester t;
-   size_t num_local_finalizers = 22;
-   size_t finset_size          = 21;
+   size_t num_keys    = 22;
+   size_t finset_size = 21;
 
-   // Create finalizer accounts & keys
-   finalizer_keys fin_keys(t, num_local_finalizers, finset_size);
+   // Create finalizer keys
+   finalizer_keys fin_keys(t, num_keys, finset_size);
 
    // set finalizers on current node
-   fin_keys.set_node_finalizers(0, num_local_finalizers);
+   fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
    auto pubkeys0 = transition_to_Savanna(t, fin_keys);
@@ -119,14 +119,14 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
 // ---------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    validating_tester t;
-   size_t num_local_finalizers = 50;
-   size_t finset_size          = 21;
+   size_t num_keys    = 50;
+   size_t finset_size = 21;
 
-   // Create finalizer accounts & keys
-   finalizer_keys fin_keys(t, num_local_finalizers, finset_size);
+   // Create finalizer keys
+   finalizer_keys fin_keys(t, num_keys, finset_size);
 
    // set finalizers on current node
-   fin_keys.set_node_finalizers(0, num_local_finalizers);
+   fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
    auto pubkeys0 = transition_to_Savanna(t, fin_keys);
