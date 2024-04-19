@@ -9,6 +9,8 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple_io.hpp>
 
+#include <eosio/testing/bls_utils.hpp>
+
 #include <iosfwd>
 #include <optional>
 
@@ -57,7 +59,7 @@ namespace boost { namespace test_tools { namespace tt_detail {
 
 } } }
 
-namespace eosio { namespace testing {
+namespace eosio::testing {
    enum class setup_policy {
       none,
       old_bios_only,
@@ -181,7 +183,7 @@ namespace eosio { namespace testing {
          virtual signed_block_ptr finish_block() = 0;
          // produce one block and return traces for all applied transactions, both failed and executed
          signed_block_ptr     produce_block( std::vector<transaction_trace_ptr>& traces );
-         void                 produce_blocks( uint32_t n = 1, bool empty = false );
+         signed_block_ptr     produce_blocks( uint32_t n = 1, bool empty = false );
          void                 produce_blocks_until_end_of_round();
          void                 produce_blocks_for_n_rounds(const uint32_t num_of_rounds = 1);
          // Produce minimal number of blocks as possible to spend the given time without having any producer become inactive
@@ -618,8 +620,7 @@ namespace eosio { namespace testing {
 
          if (use_genesis) {
             init(def_conf.first, def_conf.second);
-         }
-         else {
+         } else {
             init(def_conf.first);
          }
       }
@@ -634,8 +635,7 @@ namespace eosio { namespace testing {
 
          if (use_genesis) {
             init(def_conf.first, def_conf.second);
-         }
-         else {
+         }  else {
             init(def_conf.first);
          }
       }
@@ -669,8 +669,6 @@ namespace eosio { namespace testing {
       }
 
       bool validate() {
-
-
         const auto& hbh = control->head_block_header();
         const auto& vn_hbh = validating_node->head_block_header();
         bool ok = control->head_block_id() == validating_node->head_block_id() &&
@@ -688,6 +686,27 @@ namespace eosio { namespace testing {
         return ok;
       }
 
+      // checks that the active `finalizer_policy` for `block` matches the
+      // passed `generation` and `keys_span`.
+      // -----------------------------------------------------------------
+      void check_active_finalizer_policy(const signed_block_ptr& block,
+                                         uint32_t generation,
+                                         std::span<const bls_public_key> keys_span) {
+         auto finpol = active_finalizer_policy(block->calculate_id());
+         BOOST_REQUIRE(!!finpol);
+         BOOST_REQUIRE_EQUAL(finpol->generation, generation);
+         BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
+         std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
+         std::sort(keys.begin(), keys.end());
+
+         std::vector<bls_public_key> active_keys;
+         for (const auto& auth : finpol->finalizers)
+            active_keys.push_back(auth.public_key);
+         std::sort(active_keys.begin(), active_keys.end());
+         for (size_t i=0; i<keys.size(); ++i)
+            BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
+      }
+
       unique_ptr<controller>   validating_node;
       uint32_t                 num_blocks_to_producer_before_shutdown = 0;
       bool                     skip_validate = false;
@@ -698,6 +717,46 @@ namespace eosio { namespace testing {
       validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_except_do_not_disable_deferred_trx) {
       }
    };
+
+   // creates and manages a set of `bls_public_key` used for finalizers voting and policies
+   // -------------------------------------------------------------------------------------
+   struct finalizer_keys {
+      finalizer_keys(validating_tester& t, size_t num_keys = 50, size_t fin_policy_size = 21) :
+         t(t),
+         fin_policy_size(fin_policy_size)
+      {
+         key_names.reserve(num_keys);
+         pubkeys.reserve(num_keys);
+         for (size_t i=0; i<num_keys; ++i) {
+            account_name name { std::string("finalizer") + (char)('a' + i/26) + (char)('a' + i%26) };
+            key_names.push_back(name);
+
+            auto [privkey, pubkey, pop] = get_bls_key(name);
+            pubkeys.push_back(pubkey);
+         }
+      }
+
+      // configures local node finalizers - should be done only once.
+      // different nodes should use different keys
+      // OK to configure keys not used in a finalizer_policy
+      // -------------------------------------------------------------
+      void set_node_finalizers(size_t first_key, size_t num_keys) {
+         t.set_node_finalizers({&key_names[first_key], num_keys});
+      }
+
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
+      // ----------------------------------------------------------------------------------
+      std::span<const bls_public_key> set_finalizer_policy(size_t first_key) {
+         t.set_active_finalizers({&key_names[first_key], fin_policy_size});
+         return { &pubkeys[first_key], fin_policy_size };
+      }
+
+      validating_tester&     t;
+      vector<account_name>   key_names;
+      vector<bls_public_key> pubkeys;
+      size_t                 fin_policy_size;
+   };
+
 
    /**
     * Utility predicate to check whether an fc::exception message is equivalent to a given string
@@ -801,4 +860,4 @@ namespace eosio { namespace testing {
      string expected;
   };
 
-} } /// eosio::testing
+} /// eosio::testing

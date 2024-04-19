@@ -508,14 +508,16 @@ namespace eosio::testing {
       return _produce_block( fc::milliseconds(config::block_interval_ms), false, true, traces );
    }
 
-   void base_tester::produce_blocks( uint32_t n, bool empty ) {
+   signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
+      signed_block_ptr res;
       if( empty ) {
          for( uint32_t i = 0; i < n; ++i )
-            produce_empty_block();
+            res = produce_empty_block();
       } else {
          for( uint32_t i = 0; i < n; ++i )
-            produce_block();
+            res = produce_block();
       }
+      return res;
    }
 
    vector<transaction_id_type> base_tester::get_scheduled_transactions() const {
@@ -563,14 +565,14 @@ namespace eosio::testing {
    }
 
 
-  void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
-     trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
-     trx.set_reference_block( control->head_block_id() );
+   void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
+      trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
+      trx.set_reference_block( control->head_block_id() );
 
-     trx.max_net_usage_words = 0; // No limit
-     trx.max_cpu_usage_ms = 0; // No limit
-     trx.delay_sec = delay_sec;
-  }
+      trx.max_net_usage_words = 0; // No limit
+      trx.max_cpu_usage_ms = 0; // No limit
+      trx.delay_sec = delay_sec;
+   }
 
 
    transaction_trace_ptr base_tester::create_account( account_name a, account_name creator, bool multisig, bool include_code ) {
