@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.16 )
 
-project( leap )
+project( spring )
 include(CTest) # suppresses DartConfiguration.tcl error
 enable_testing()
 
@@ -13,8 +13,8 @@ set( CMAKE_CXX_STANDARD 20 )
 set( CMAKE_CXX_EXTENSIONS ON )
 set( CXX_STANDARD_REQUIRED ON)
 
-set(VERSION_MAJOR 5)
-set(VERSION_MINOR 1)
+set(VERSION_MAJOR 1)
+set(VERSION_MINOR 0)
 set(VERSION_PATCH 0)
 set(VERSION_SUFFIX dev)
 
@@ -33,7 +33,7 @@ option(ENABLE_WEXTRA "Enable `-Wextra` compilation flag." Off)
 set( CLI_CLIENT_EXECUTABLE_NAME cleos )
 set( NODE_EXECUTABLE_NAME nodeos )
 set( KEY_STORE_EXECUTABLE_NAME keosd )
-set( LEAP_UTIL_EXECUTABLE_NAME leap-util )
+set( SPRING_UTIL_EXECUTABLE_NAME spring-util )
 
 # http://stackoverflow.com/a/18369825
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -66,7 +66,7 @@ if(ENABLE_OC AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32)
       # can be created with the exact version found
       find_package(LLVM REQUIRED CONFIG)
       if(LLVM_VERSION_MAJOR VERSION_LESS 7 OR LLVM_VERSION_MAJOR VERSION_GREATER_EQUAL 12)
-	      message(FATAL_ERROR "Leap requires an LLVM version 7 through 11")
+	      message(FATAL_ERROR "Spring requires an LLVM version 7 through 11")
       endif()
    endif()
 endif()
@@ -94,12 +94,12 @@ endif()
 
 if( APPLE AND UNIX )
 # Apple Specific Options Here
-    message( STATUS "Configuring Leap on macOS" )
+    message( STATUS "Configuring Spring on macOS" )
     set( CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -Wall -Wno-deprecated-declarations" )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-deprecated-declarations" )
 else()
     # Linux Specific Options Here
-    message( STATUS "Configuring Leap on Linux" )
+    message( STATUS "Configuring Spring on Linux" )
     set( CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -Wall" )
     set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall" )
     if ( FULL_STATIC_BUILD )
@@ -123,13 +123,13 @@ if(ENABLE_WEXTRA)
 endif()
 
 
-option(EOSIO_ENABLE_DEVELOPER_OPTIONS "enable developer options for Leap" OFF)
+option(EOSIO_ENABLE_DEVELOPER_OPTIONS "enable developer options for Spring" OFF)
 
 # based on http://www.delorie.com/gnu/docs/gdb/gdb_70.html
 # uncomment this line to tell GDB about macros (slows compile times)
 # set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -gdwarf-2 -g3" )
 
-set(ENABLE_COVERAGE_TESTING FALSE CACHE BOOL "Build Leap for code coverage analysis")
+set(ENABLE_COVERAGE_TESTING FALSE CACHE BOOL "Build Spring for code coverage analysis")
 
 if(ENABLE_COVERAGE_TESTING)
   SET(CMAKE_C_FLAGS   "--coverage ${CMAKE_C_FLAGS}")
@@ -162,7 +162,7 @@ message( STATUS "Using '${EOSIO_ROOT_KEY}' as public key for 'eosio' account" )
 option(ENABLE_TCMALLOC "use tcmalloc (requires gperftools)" OFF)
 if( ENABLE_TCMALLOC )
     find_package( Gperftools REQUIRED )
-    message( STATUS "Compiling Leap with TCMalloc")
+    message( STATUS "Compiling Spring with TCMalloc")
     #if doing this by the book, simply link_libraries( ${GPERFTOOLS_TCMALLOC} ) here. That will
     #give the performance benefits of tcmalloc but since it won't be linked last
     #the heap profiler & checker may not be accurate. This here is rather undocumented behavior
@@ -171,7 +171,7 @@ if( ENABLE_TCMALLOC )
     set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${GPERFTOOLS_TCMALLOC}")
 endif()
 
-# leap includes a bundled BoringSSL which conflicts with OpenSSL. Make sure any other bundled libraries (such as boost)
+# spring includes a bundled BoringSSL which conflicts with OpenSSL. Make sure any other bundled libraries (such as boost)
 # do not attempt to use an external OpenSSL in any manner
 set(CMAKE_DISABLE_FIND_PACKAGE_OpenSSL On)
 
@@ -198,10 +198,14 @@ set(EOS_ROOT_DIR "${CMAKE_BINARY_DIR}/lib")
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/eosio-config.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/eosio/eosio-config.cmake @ONLY)
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioTesterBuild.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/eosio/EosioTester.cmake @ONLY)
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake ${CMAKE_BINARY_DIR}/lib/cmake/eosio/EosioCheckVersion.cmake COPYONLY)
-# new leap CMake files
+# legacy leap CMake files
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/leap-config.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/leap/leap-config.cmake @ONLY)
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioTesterBuild.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/leap/EosioTester.cmake @ONLY)
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake ${CMAKE_BINARY_DIR}/lib/cmake/leap/EosioCheckVersion.cmake COPYONLY)
+# spring CMake files
+configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/spring-config.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/spring/spring-config.cmake @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioTesterBuild.cmake.in ${CMAKE_BINARY_DIR}/lib/cmake/spring/EosioTester.cmake @ONLY)
+configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake ${CMAKE_BINARY_DIR}/lib/cmake/spring/EosioCheckVersion.cmake COPYONLY)
 
 set(EOS_ROOT_DIR "${CMAKE_INSTALL_FULL_LIBDIR}")
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/EosioTester.cmake.in ${CMAKE_BINARY_DIR}/modules/EosioTester.cmake @ONLY)
@@ -210,34 +214,39 @@ configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/eosio-config.cmake.in ${CMAKE_BI
 install(FILES ${CMAKE_BINARY_DIR}/modules/eosio-config.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/eosio COMPONENT dev EXCLUDE_FROM_ALL)
 install(FILES ${CMAKE_BINARY_DIR}/modules/EosioTester.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/eosio COMPONENT dev EXCLUDE_FROM_ALL)
 install(FILES ${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/eosio COMPONENT dev EXCLUDE_FROM_ALL)
-# new leap CMake files
+# legacy leap CMake files
 configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/leap-config.cmake.in ${CMAKE_BINARY_DIR}/modules/leap-config.cmake @ONLY)
 install(FILES ${CMAKE_BINARY_DIR}/modules/leap-config.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/leap COMPONENT dev EXCLUDE_FROM_ALL)
 install(FILES ${CMAKE_BINARY_DIR}/modules/EosioTester.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/leap COMPONENT dev EXCLUDE_FROM_ALL)
 install(FILES ${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/leap COMPONENT dev EXCLUDE_FROM_ALL)
+# spring CMake files
+configure_file(${CMAKE_SOURCE_DIR}/CMakeModules/spring-config.cmake.in ${CMAKE_BINARY_DIR}/modules/spring-config.cmake @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/modules/spring-config.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/spring COMPONENT dev EXCLUDE_FROM_ALL)
+install(FILES ${CMAKE_BINARY_DIR}/modules/EosioTester.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/spring COMPONENT dev EXCLUDE_FROM_ALL)
+install(FILES ${CMAKE_SOURCE_DIR}/CMakeModules/EosioCheckVersion.cmake DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/cmake/spring COMPONENT dev EXCLUDE_FROM_ALL)
 
-configure_file(LICENSE                                                     licenses/leap/LICENSE           COPYONLY)
-configure_file(libraries/softfloat/COPYING.txt                             licenses/leap/LICENSE.softfloat COPYONLY)
-configure_file(libraries/wasm-jit/LICENSE                                  licenses/leap/LICENSE.wavm      COPYONLY)
-configure_file(libraries/libfc/secp256k1/secp256k1/COPYING                 licenses/leap/LICENSE.secp256k1 COPYONLY)
-configure_file(libraries/libfc/include/fc/crypto/webauthn_json/license.txt licenses/leap/LICENSE.rapidjson COPYONLY)
-configure_file(libraries/eos-vm/LICENSE                                    licenses/leap/LICENSE.eos-vm    COPYONLY)
-configure_file(libraries/prometheus/prometheus-cpp/LICENSE                 licenses/leap/LICENSE.prom      COPYONLY)
-configure_file(programs/cleos/LICENSE.CLI11                                licenses/leap/LICENSE.CLI11     COPYONLY)
-configure_file(libraries/libfc/libraries/bls12-381/LICENSE                 licenses/leap/LICENSE.bls12-381 COPYONLY)
-configure_file(libraries/libfc/libraries/boringssl/boringssl/src/LICENSE   licenses/leap/LICENSE.boringssl COPYONLY)
+configure_file(LICENSE                                                     licenses/spring/LICENSE           COPYONLY)
+configure_file(libraries/softfloat/COPYING.txt                             licenses/spring/LICENSE.softfloat COPYONLY)
+configure_file(libraries/wasm-jit/LICENSE                                  licenses/spring/LICENSE.wavm      COPYONLY)
+configure_file(libraries/libfc/secp256k1/secp256k1/COPYING                 licenses/spring/LICENSE.secp256k1 COPYONLY)
+configure_file(libraries/libfc/include/fc/crypto/webauthn_json/license.txt licenses/spring/LICENSE.rapidjson COPYONLY)
+configure_file(libraries/eos-vm/LICENSE                                    licenses/spring/LICENSE.eos-vm    COPYONLY)
+configure_file(libraries/prometheus/prometheus-cpp/LICENSE                 licenses/spring/LICENSE.prom      COPYONLY)
+configure_file(programs/cleos/LICENSE.CLI11                                licenses/spring/LICENSE.CLI11     COPYONLY)
+configure_file(libraries/libfc/libraries/bls12-381/LICENSE                 licenses/spring/LICENSE.bls12-381 COPYONLY)
+configure_file(libraries/libfc/libraries/boringssl/boringssl/src/LICENSE   licenses/spring/LICENSE.boringssl COPYONLY)
 
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/licenses/leap" DESTINATION "${CMAKE_INSTALL_FULL_DATAROOTDIR}/licenses/" COMPONENT base)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/licenses/spring" DESTINATION "${CMAKE_INSTALL_FULL_DATAROOTDIR}/licenses/" COMPONENT base)
 
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libraries/testing/contracts DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/leap_testing/libraries/testing COMPONENT dev EXCLUDE_FROM_ALL
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libraries/testing/contracts DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing/libraries/testing COMPONENT dev EXCLUDE_FROM_ALL
         PATTERN "CMakeFiles" EXCLUDE
         PATTERN "*.cmake" EXCLUDE
         PATTERN "Makefile" EXCLUDE)
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/unittests/contracts DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/leap_testing/unittests COMPONENT dev EXCLUDE_FROM_ALL
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/unittests/contracts DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing/unittests COMPONENT dev EXCLUDE_FROM_ALL
         PATTERN "CMakeFiles" EXCLUDE
         PATTERN "*.cmake" EXCLUDE
         PATTERN "Makefile" EXCLUDE)
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/TestHarness DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/leap_testing/tests COMPONENT dev EXCLUDE_FROM_ALL
+install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/tests/TestHarness DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing/tests COMPONENT dev EXCLUDE_FROM_ALL
         FILES_MATCHING
         PATTERN "*.py"
         PATTERN "*.json"
@@ -252,12 +261,12 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
 
    add_custom_target(link_target ALL
       COMMAND ${CMAKE_COMMAND} -E make_directory lib/python3/dist-packages
-      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../../share/leap_testing/tests/TestHarness lib/python3/dist-packages/TestHarness
-      COMMAND ${CMAKE_COMMAND} -E make_directory share/leap_testing
-      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../bin share/leap_testing/bin)
+      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../../share/spring_testing/tests/TestHarness lib/python3/dist-packages/TestHarness
+      COMMAND ${CMAKE_COMMAND} -E make_directory share/spring_testing
+      COMMAND ${CMAKE_COMMAND} -E create_symlink ../../bin share/spring_testing/bin)
 
    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib/python3/dist-packages/TestHarness DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR}/python3/dist-packages COMPONENT dev EXCLUDE_FROM_ALL)
-   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/leap_testing/bin DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/leap_testing COMPONENT dev EXCLUDE_FROM_ALL)
+   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/share/spring_testing/bin DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_testing COMPONENT dev EXCLUDE_FROM_ALL)
 else()
    # The following install(SCRIPT ...) steps are necessary for `make dev-install` to work on cmake versions < 3.21.
    install(SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/scripts/install_testharness_symlinks.cmake COMPONENT dev EXCLUDE_FROM_ALL)
@@ -265,17 +274,17 @@ else()
    # The `make package` installation of symlinks happens via the `postinst` script installed in cmake.package via the line below
 endif()
 
-configure_file(${CMAKE_SOURCE_DIR}/libraries/cli11/bash-completion/completions/leap-util
-               ${CMAKE_BINARY_DIR}/programs/leap-util/bash-completion/completions/leap-util COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/libraries/cli11/bash-completion/completions/spring-util
+               ${CMAKE_BINARY_DIR}/programs/spring-util/bash-completion/completions/spring-util COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/libraries/cli11/bash-completion/completions/cleos
                ${CMAKE_BINARY_DIR}/programs/cleos/bash-completion/completions/cleos COPYONLY)
 
-install(FILES libraries/cli11/bash-completion/completions/leap-util DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/bash-completion/completions COMPONENT base)
+install(FILES libraries/cli11/bash-completion/completions/spring-util DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/bash-completion/completions COMPONENT base)
 install(FILES libraries/cli11/bash-completion/completions/cleos DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/bash-completion/completions COMPONENT base)
 
 # Add the boost submodule we used to build to our install package, so headers can be found for libtester
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/libraries/boost/"
-        DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/leap_boost
+        DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/spring_boost
         COMPONENT dev EXCLUDE_FROM_ALL
         PATTERN ".git/*" EXCLUDE
         PATTERN "example/*" EXCLUDE
@@ -294,7 +303,7 @@ add_custom_target(dev-install
 
 include(doxygen)
 
-option(ENABLE_LEAP_DEV_DEB "Enable building the leap-dev .deb package" OFF)
+option(ENABLE_SPRING_DEV_DEB "Enable building the spring-dev .deb package" OFF)
 
 include(package.cmake)
 include(CPack)

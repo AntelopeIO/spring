@@ -4,7 +4,7 @@
 # Project related configuration options
 #---------------------------------------------------------------------------
 DOXYFILE_ENCODING      = UTF-8
-PROJECT_NAME           = "LEAP"
+PROJECT_NAME           = "SPRING"
 PROJECT_NUMBER         = "${DOXY_EOS_VERSION}"
 PROJECT_BRIEF          =
 PROJECT_LOGO           = eos-logo.png

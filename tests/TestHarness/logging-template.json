@@ -138,8 +138,8 @@
          "stderr"
         ]
     },{
-       "name": "hotstuff",
-       "level": "all",
+       "name": "vote",
+       "level": "debug",
        "enabled": true,
        "additivity": false,
        "appenders": [

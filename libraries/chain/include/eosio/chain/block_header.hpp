@@ -2,7 +2,7 @@
 #include <eosio/chain/block_timestamp.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 #include <eosio/chain/protocol_feature_activation.hpp>
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
 
 #include <optional>
 #include <type_traits>
@@ -90,7 +90,7 @@ namespace eosio::chain {
       // When block header is validated in block_header_state's next(),
       // it is already validate if schedule_version == proper_svnn_schedule_version,
       // finality extension must exist.
-      bool is_proper_svnn_block() const { return ( schedule_version ==  proper_svnn_schedule_version ); }
+      bool is_proper_svnn_block() const { return ( schedule_version == proper_svnn_schedule_version ); }
 
       header_extension_multimap validate_and_extract_header_extensions()const;
       std::optional<block_header_extension> extract_header_extension(uint16_t extension_id)const;

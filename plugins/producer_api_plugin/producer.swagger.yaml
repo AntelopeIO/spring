@@ -10,7 +10,7 @@ info:
     url: https://antelope.io
 tags:
   - name: Protocol Version 4.0
-    description: The release tag for Leap binaries is also the protocol version
+    description: The release tag for Spring binaries is also the protocol version
 servers:
   - url: "{protocol}://{host}:{port}/v1"
     variables:

@@ -1,10 +1,10 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
-#include <eosio/chain/finality_core.hpp>
+#include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
 #include <future>
 
@@ -102,7 +102,7 @@ struct block_header_state {
    digest_type compute_finality_digest() const;
 
    // Returns true if the block is a Proper Savanna Block
-   bool is_proper_svnn_block() const;
+   bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
    // block descending from this need the provided qc in the block extension
    bool is_needed(const qc_claim_t& qc_claim) const {

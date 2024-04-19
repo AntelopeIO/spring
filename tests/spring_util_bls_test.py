@@ -6,9 +6,9 @@ import re
 from TestHarness import Utils
 
 ###############################################################
-# leap_util_bls_test
+# spring_util_bls_test
 #
-#  Test leap-util's BLS commands.
+#  Test spring-util's BLS commands.
 #  - Create a key pair
 #  - Create a POP (Proof of Possession)
 #  - Error handlings
@@ -19,12 +19,12 @@ Print=Utils.Print
 testSuccessful=False
 
 def test_create_key_to_console():
-    rslts = Utils.processLeapUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
+    rslts = Utils.processSpringUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
     check_create_key_results(rslts)
 
 def test_create_key_to_file():
     tmp_file = "tmp_key_file_dlkdx1x56pjy"
-    Utils.processLeapUtilCmd("bls create key --file {}".format(tmp_file), "create key to file", silentErrors=False)
+    Utils.processSpringUtilCmd("bls create key --file {}".format(tmp_file), "create key to file", silentErrors=False)
 
     with open(tmp_file, 'r') as file:
         rslts = file.read()
@@ -34,7 +34,7 @@ def test_create_key_to_file():
 
 def test_create_pop_from_command_line():
     # Create a pair of keys
-    rslts = Utils.processLeapUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
+    rslts = Utils.processSpringUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
     results = get_results(rslts)
 
     # save results
@@ -43,7 +43,7 @@ def test_create_pop_from_command_line():
     pop = results["Proof of Possession"]
 
     # use the private key to create POP
-    rslts = Utils.processLeapUtilCmd("bls create pop --private-key {}".format(private_key), "create pop from command line", silentErrors=False)
+    rslts = Utils.processSpringUtilCmd("bls create pop --private-key {}".format(private_key), "create pop from command line", silentErrors=False)
     results = get_results(rslts)
 
     # check pop and public key are the same as those generated before
@@ -52,7 +52,7 @@ def test_create_pop_from_command_line():
 
 def test_create_pop_from_file():
     # Create a pair of keys
-    rslts = Utils.processLeapUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
+    rslts = Utils.processSpringUtilCmd("bls create key --to-console", "create key to console", silentErrors=False)
     results = get_results(rslts)
 
     # save results
@@ -66,7 +66,7 @@ def test_create_pop_from_file():
         file.write(private_key)
 
     # use the private key file to create POP
-    rslts = Utils.processLeapUtilCmd("bls create pop --file {}".format(private_key_file), "create pop from command line", silentErrors=False)
+    rslts = Utils.processSpringUtilCmd("bls create pop --file {}".format(private_key_file), "create pop from command line", silentErrors=False)
     os.remove(private_key_file)
     results = get_results(rslts)
 
@@ -75,24 +75,24 @@ def test_create_pop_from_file():
     assert results["Proof of Possession"] == pop
 
 def test_create_key_error_handling():
-    # should fail with missing arguments (processLeapUtilCmd returning None)
-    assert Utils.processLeapUtilCmd("bls create key", "missing arguments") == None
+    # should fail with missing arguments (processSpringUtilCmd returning None)
+    assert Utils.processSpringUtilCmd("bls create key", "missing arguments") == None
 
     # should fail when both arguments are present
-    assert Utils.processLeapUtilCmd("bls create key --file out_file --to-console", "conflicting arguments") == None
+    assert Utils.processSpringUtilCmd("bls create key --file out_file --to-console", "conflicting arguments") == None
 
 def test_create_pop_error_handling():
-    # should fail with missing arguments (processLeapUtilCmd returning None)
-    assert Utils.processLeapUtilCmd("bls create pop", "missing arguments") == None
+    # should fail with missing arguments (processSpringUtilCmd returning None)
+    assert Utils.processSpringUtilCmd("bls create pop", "missing arguments") == None
 
     # should fail when both arguments are present
-    assert Utils.processLeapUtilCmd("bls create pop --file private_key_file --private-key", "conflicting arguments") == None
+    assert Utils.processSpringUtilCmd("bls create pop --file private_key_file --private-key", "conflicting arguments") == None
 
     # should fail when private key file does not exist
     temp_file = "aRandomFileT6bej2pjsaz"
     if os.path.exists(temp_file):
         os.remove(temp_file)
-    assert Utils.processLeapUtilCmd("bls create pop --file {}".format(temp_file), "private file not existing") == None
+    assert Utils.processSpringUtilCmd("bls create pop --file {}".format(temp_file), "private file not existing") == None
 
 def check_create_key_results(rslts): 
     results = get_results(rslts)

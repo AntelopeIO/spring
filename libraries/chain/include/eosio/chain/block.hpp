@@ -1,7 +1,7 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/transaction.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
 
 namespace eosio { namespace chain {
 

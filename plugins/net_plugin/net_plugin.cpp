@@ -309,7 +309,7 @@ namespace eosio {
       bool have_txn( const transaction_id_type& tid ) const;
       void expire_txns();
 
-      void bcast_vote_msg( const std::optional<uint32_t>& exclude_peer, send_buffer_type msg );
+      void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
 
       void add_unlinkable_block( signed_block_ptr b, const block_id_type& id ) {
          std::optional<block_id_type> rm_blk_id = unlinkable_block_cache.add_unlinkable_block(std::move(b), id);
@@ -343,6 +343,7 @@ namespace eosio {
 
    constexpr uint32_t signed_block_which           = fc::get_index<net_message, signed_block>();         // see protocol net_message
    constexpr uint32_t packed_transaction_which     = fc::get_index<net_message, packed_transaction>();   // see protocol net_message
+   constexpr uint32_t vote_message_which           = fc::get_index<net_message, vote_message>();         // see protocol net_message
 
    class connections_manager {
    public:
@@ -480,6 +481,7 @@ namespace eosio {
 
       uint32_t                              max_nodes_per_host = 1;
       bool                                  p2p_accept_transactions = true;
+      bool                                  p2p_accept_votes = true;
       fc::microseconds                      p2p_dedup_cache_expire_time_us{};
 
       chain_id_type                         chain_id;
@@ -533,13 +535,12 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block();
-      void on_voted_block ( const vote_message& vote );
+      void on_voted_block( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
-      void bcast_vote_message( const std::optional<uint32_t>& exclude_peer, const chain::vote_message& msg );
-      void warn_message( uint32_t sender_peer, const chain::hs_message_warning& code );
+      void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
 
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
@@ -1009,6 +1010,7 @@ namespace eosio {
 
       bool process_next_block_message(uint32_t message_length);
       bool process_next_trx_message(uint32_t message_length);
+      bool process_next_vote_message(uint32_t message_length);
       void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
    public:
 
@@ -1109,8 +1111,9 @@ namespace eosio {
       void handle_message( const signed_block& msg ) = delete; // signed_block_ptr overload used instead
       void handle_message( const block_id_type& id, signed_block_ptr ptr );
       void handle_message( const packed_transaction& msg ) = delete; // packed_transaction_ptr overload used instead
-      void handle_message( packed_transaction_ptr trx );
-      void handle_message( const vote_message& msg );
+      void handle_message( const packed_transaction_ptr& trx );
+      void handle_message( const vote_message_ptr& msg );
+      void handle_message( const vote_message& msg ) = delete; // vote_message_ptr overload used instead
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -1189,12 +1192,6 @@ namespace eosio {
       void operator()( const sync_request_message& msg ) const {
          // continue call to handle_message on connection strand
          peer_dlog( c, "handle sync_request_message" );
-         c->handle_message( msg );
-      }
-
-      void operator()( const chain::vote_message& msg ) const {
-         // continue call to handle_message on connection strand
-         peer_dlog( c, "handle vote_message" );
          c->handle_message( msg );
       }
    };
@@ -2678,13 +2675,14 @@ namespace eosio {
       } );
    }
 
-   void dispatch_manager::bcast_vote_msg( const std::optional<uint32_t>& exclude_peer, send_buffer_type msg ) {
+   void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
-         if( exclude_peer.has_value() && cp->connection_id == exclude_peer.value() ) return true;
+         if( cp->connection_id == exclude_peer ) return true;
          cp->strand.post( [cp, msg]() {
             if (cp->protocol_version >= proto_instant_finality) {
-               peer_dlog(cp, "sending vote msg");
+               if (vote_logger.is_enabled(fc::log_level::debug))
+                  peer_dlog(cp, "sending vote msg");
                cp->enqueue_buffer( msg, no_reason );
             }
          });
@@ -3089,6 +3087,8 @@ namespace eosio {
             return process_next_block_message( message_length );
          } else if( which == packed_transaction_which ) {
             return process_next_trx_message( message_length );
+         } else if( which == vote_message_which ) {
+            return process_next_vote_message( message_length );
          } else {
             auto ds = pending_message_buffer.create_datastream();
             net_message msg;
@@ -3201,7 +3201,8 @@ namespace eosio {
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
-      shared_ptr<packed_transaction> ptr = std::make_shared<packed_transaction>();
+      // shared_ptr<packed_transaction> needed here because packed_transaction_ptr is shared_ptr<const packed_transaction>
+      std::shared_ptr<packed_transaction> ptr = std::make_shared<packed_transaction>();
       fc::raw::unpack( ds, *ptr );
       if( trx_in_progress_sz > def_max_trx_in_progress_size) {
          char reason[72];
@@ -3224,7 +3225,26 @@ namespace eosio {
          return true;
       }
 
-      handle_message( std::move( ptr ) );
+      handle_message( ptr );
+      return true;
+   }
+
+   // called from connection strand
+   bool connection::process_next_vote_message(uint32_t message_length) {
+      if( !my_impl->p2p_accept_votes ) {
+         peer_dlog( this, "p2p_accept_votes=false - dropping vote" );
+         pending_message_buffer.advance_read_ptr( message_length );
+         return true;
+      }
+
+      auto ds = pending_message_buffer.create_datastream();
+      unsigned_int which{};
+      fc::raw::unpack( ds, which );
+      assert(which == vote_message_which);
+      vote_message_ptr ptr = std::make_shared<vote_message>();
+      fc::raw::unpack( ds, *ptr );
+
+      handle_message( ptr );
       return true;
    }
 
@@ -3720,29 +3740,14 @@ namespace eosio {
       }
    }
 
-   void connection::handle_message( const vote_message& msg ) {
-      peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
-                ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("v", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
-      controller& cc = my_impl->chain_plug->chain();
-
-      switch( cc.process_vote_message(msg) ) {
-         case vote_status::success:
-            my_impl->bcast_vote_message(connection_id, msg);
-            break;
-         case vote_status::unknown_public_key:
-         case vote_status::invalid_signature: // close peer immediately
-            close( false ); // do not reconnect after closing
-            break;
-         case vote_status::unknown_block: // track the failure
-            peer_dlog(this, "vote unknown block #${bn}:${id}..", ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16)));
-            block_status_monitor_.rejected();
-            break;
-         case vote_status::duplicate: // do nothing
-            break;
-         default:
-            assert(false); // should never happen
+   void connection::handle_message( const vote_message_ptr& msg ) {
+      if (vote_logger.is_enabled(fc::log_level::debug)) {
+         peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
+                   ("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                   ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
       }
+      controller& cc = my_impl->chain_plug->chain();
+      cc.process_vote_message(connection_id, msg);
    }
 
    size_t calc_trx_size( const packed_transaction_ptr& trx ) {
@@ -3750,7 +3755,7 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::handle_message( packed_transaction_ptr trx ) {
+   void connection::handle_message( const packed_transaction_ptr& trx ) {
       const auto& tid = trx->id();
 
       peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
@@ -4010,28 +4015,52 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::on_voted_block(const vote_message& msg) {
-      fc_dlog(logger, "on voted signal: block #${bn} ${id}.., ${t}, key ${k}..",
-                ("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("t", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8, 16)));
-      bcast_vote_message(std::nullopt, msg);
+   void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
+      fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
+                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
+
+      switch( status ) {
+      case vote_status::success:
+         bcast_vote_message(connection_id, msg);
+         break;
+      case vote_status::unknown_public_key:
+      case vote_status::invalid_signature:
+      case vote_status::max_exceeded:  // close peer immediately
+         fc_elog(vote_logger, "Exceeded max votes per connection for ${c}", ("c", connection_id));
+         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+            if (c->connection_id == connection_id) {
+               c->close( false );
+            }
+         });
+         break;
+      case vote_status::unknown_block: // track the failure
+         fc_dlog(vote_logger, "connection - ${c} vote unknown block #${bn}:${id}..",
+                 ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
+         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+            if (c->connection_id == connection_id) {
+               c->block_status_monitor_.rejected();
+            }
+         });
+         break;
+      case vote_status::duplicate: // do nothing
+         break;
+      default:
+         assert(false); // should never happen
+      }
    }
 
-   void net_plugin_impl::bcast_vote_message( const std::optional<uint32_t>& exclude_peer, const chain::vote_message& msg ) {
+   void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg ) {
       buffer_factory buff_factory;
-      auto send_buffer = buff_factory.get_send_buffer( msg );
+      auto send_buffer = buff_factory.get_send_buffer( *msg );
 
-      fc_dlog(logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
-                ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg.block_id))("id", msg.block_id.str().substr(8,16))
-                ("v", msg.strong ? "strong" : "weak")("k", msg.finalizer_key.to_string().substr(8,16)));
+      fc_dlog(vote_logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
+                ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
+                ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
       dispatcher.strand.post( [this, exclude_peer, msg{std::move(send_buffer)}]() mutable {
          dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
       });
-   }
-
-   void net_plugin_impl::warn_message( uint32_t sender_peer, const chain::hs_message_warning& code ) {
-      // potentially react to (repeated) receipt of invalid, irrelevant, duplicate, etc. hotstuff messages from sender_peer (connection ID) here
    }
 
    // called from application thread
@@ -4396,6 +4425,8 @@ namespace eosio {
                "***********************************\n" );
       }
 
+      p2p_accept_votes = chain_plug->accept_votes();
+
       std::vector<string> listen_addresses = p2p_addresses;
 
       EOS_ASSERT( p2p_addresses.size() == p2p_server_addresses.size(), chain::plugin_config_exception, "" );
@@ -4434,8 +4465,8 @@ namespace eosio {
             my->on_irreversible_block( id, block->block_num() );
          } );
 
-         cc.voted_block().connect( [my = shared_from_this()]( const vote_message& vote ) {
-            my->on_voted_block(vote);
+         cc.voted_block().connect( [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
+            my->on_voted_block(std::get<0>(vote_signal), std::get<1>(vote_signal), std::get<2>(vote_signal));
          } );
       }
 

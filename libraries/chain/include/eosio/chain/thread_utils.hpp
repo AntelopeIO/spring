@@ -107,7 +107,7 @@ namespace eosio { namespace chain {
       /// Blocks until all threads are created and completed their init function, or an exception is thrown
       ///  during thread startup or an init function. Exceptions thrown during these stages are rethrown from start()
       ///  but some threads might still have been started. Calling stop() after such a failure is safe.
-      /// @param num_threads is number of threads spawned
+      /// @param num_threads is number of threads spawned, if 0 then no threads are spawned and stop() is a no-op.
       /// @param on_except is the function to call if io_context throws an exception, is called from thread pool thread.
       ///                  if an empty function then logs and rethrows exception on thread which will terminate. Not called
       ///                  for exceptions during the init function (such exceptions are rethrown from start())
@@ -115,6 +115,8 @@ namespace eosio { namespace chain {
       /// @throw assert_exception if already started and not stopped.
       void start( size_t num_threads, on_except_t on_except, init_t init = {} ) {
          FC_ASSERT( !_ioc_work, "Thread pool already started" );
+         if (num_threads == 0)
+            return;
          _ioc_work.emplace( boost::asio::make_work_guard( _ioc ) );
          _ioc.restart();
          _thread_pool.reserve( num_threads );
@@ -140,13 +142,16 @@ namespace eosio { namespace chain {
       }
 
       /// destroy work guard, stop io_context, join thread_pool
+      /// not thread safe, expected to only be called from thread that called start()
       void stop() {
-         _ioc_work.reset();
-         _ioc.stop();
-         for( auto& t : _thread_pool ) {
-            t.join();
+         if (_thread_pool.size() > 0) {
+            _ioc_work.reset();
+            _ioc.stop();
+            for( auto& t : _thread_pool ) {
+               t.join();
+            }
+            _thread_pool.clear();
          }
-         _thread_pool.clear();
       }
 
    private:

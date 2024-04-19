@@ -670,10 +670,10 @@ namespace eosio { namespace chain {
                ilog("Log has ${n} blocks", ("n", number_of_blocks));
 
                EOS_ASSERT(index_size || number_of_blocks == 0, block_log_exception,
-                          "${index_file} file is empty, please use leap-util to fix the problem.",
+                          "${index_file} file is empty, please use spring-util to fix the problem.",
                           ("index_file", index_file.get_file_path().string()));
                EOS_ASSERT(index_size % sizeof(uint64_t) == 0, block_log_exception,
-                          "${index_file} file is invalid, please use leap-util to reconstruct the index.",
+                          "${index_file} file is invalid, please use spring-util to reconstruct the index.",
                           ("index_file", index_file.get_file_path().string()));
 
                if (index_size) {
@@ -684,7 +684,7 @@ namespace eosio { namespace chain {
                   EOS_ASSERT(last_block_pos == last_index_pos, block_log_exception,
                              "The last block position from ${block_file} is at ${block_pos} "
                              "which does not match the last block postion ${index_pos} from ${index_file}, please use "
-                             "leap-util to fix the inconsistency.",
+                             "spring-util to fix the inconsistency.",
                              ("block_pos", last_block_pos)("index_pos", last_index_pos)
                              ("block_file", block_file.get_file_path().string())
                              ("index_file", index_file.get_file_path().string()));
