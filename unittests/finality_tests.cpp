@@ -498,8 +498,8 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
 
    // node0 produces a block and pushes to node1
    cluster.produce_and_push_block();
-   // intentionally corrupt proposal_id in node1's vote
-   cluster.node1_corrupt_vote_proposal_id();
+   // intentionally corrupt block_id in node1's vote
+   cluster.node1_corrupt_vote_block_id();
 
    // process the corrupted vote
    BOOST_REQUIRE_THROW(cluster.process_node1_vote(0), fc::exception); // throws because it times out waiting on vote

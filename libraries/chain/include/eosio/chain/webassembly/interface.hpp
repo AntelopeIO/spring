@@ -174,7 +174,7 @@ namespace webassembly {
          int64_t set_proposed_producers_ex(uint64_t packed_producer_format, legacy_span<const char> packed_producer_schedule);
 
          /**
-          * Submits a finalizer set change to Hotstuff.
+          * Submits a finalizer set change.
           *
           *  // format for packed finalizer_policy
           *  struct abi_finalizer_authority {

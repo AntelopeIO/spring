@@ -1,7 +1,7 @@
 #include <eosio/chain/block_header_state.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
-#include <eosio/chain/hotstuff/proposer_policy.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
+#include <eosio/chain/finality/proposer_policy.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <limits>
 

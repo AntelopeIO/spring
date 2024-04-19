@@ -128,7 +128,7 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    return true;
 }
 
-void finality_test_cluster::node1_corrupt_vote_proposal_id() {
+void finality_test_cluster::node1_corrupt_vote_block_id() {
    std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];
 
@@ -181,7 +181,7 @@ void finality_test_cluster::setup_node(node_info& node, eosio::chain::account_na
    node.node.produce_block();
    node.node.produce_block();
 
-   // activate hotstuff
+   // activate savanna
    eosio::testing::base_tester::finalizer_policy_input policy_input = {
       .finalizers       = { {.name = "node0"_n, .weight = 1},
                             {.name = "node1"_n, .weight = 1},

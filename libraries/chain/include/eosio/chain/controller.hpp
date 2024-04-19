@@ -8,7 +8,7 @@
 #include <eosio/chain/snapshot.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -26,9 +26,6 @@ namespace eosio::vm { class wasm_allocator; }
 
 namespace eosio::chain {
 
-   struct hs_message;
-   struct finalizer_state;
-   enum class hs_message_warning;
    using bls_pub_priv_key_map_t = std::map<std::string, std::string>;
    struct finalizer_policy;
 

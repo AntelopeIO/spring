@@ -15,7 +15,7 @@ namespace snapshot_detail {
 namespace detail {
    struct schedule_info {
       // schedule_lib_num is compared with dpos lib, but the value is actually current block at time of pending
-      // After hotstuff is activated, schedule_lib_num is compared to next().next() round for determination of
+      // After Savanna is activated, schedule_lib_num is compared to next().next() round for determination of
       // changing from pending to active.
       uint32_t                          schedule_lib_num = 0; /// block_num of pending
       digest_type                       schedule_hash;

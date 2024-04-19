@@ -1,7 +1,7 @@
 #include <eosio/chain/block_state.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/block_state_legacy.hpp>
-#include <eosio/chain/hotstuff/finalizer.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/exceptions.hpp>
 
@@ -203,7 +203,7 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    auto num_finalizers = finalizers.size();
 
    // utility to accumulate voted weights
-   auto weights = [&] ( const hs_bitset& votes_bitset ) -> uint64_t {
+   auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
       uint64_t sum = 0;
       auto n = std::min(num_finalizers, votes_bitset.size());
       for (auto i = 0u; i < n; ++i) {

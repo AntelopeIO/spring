@@ -1,4 +1,4 @@
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
 #include <eosio/chain/exceptions.hpp>
 
 namespace eosio::chain {

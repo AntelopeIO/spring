@@ -1,19 +1,20 @@
-#include <eosio/chain/hotstuff/hotstuff.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
 namespace eosio::chain {
 
-inline std::string bitset_to_string(const hs_bitset& bs) {
+inline std::string bitset_to_string(const vote_bitset& bs) {
    std::string r;
    boost::to_string(bs, r);
    return r;
 }
 
-inline hs_bitset vector_to_bitset(const std::vector<uint32_t>& v) {
+inline vote_bitset vector_to_bitset(const std::vector<uint32_t>& v) {
    return {v.cbegin(), v.cend()};
 }
 
-inline std::vector<uint32_t> bitset_to_vector(const hs_bitset& bs) {
+inline std::vector<uint32_t> bitset_to_vector(const vote_bitset& bs) {
    std::vector<uint32_t> r;
    r.resize(bs.num_blocks());
    boost::to_block_range(bs, r.begin());
@@ -138,14 +139,14 @@ vote_status pending_quorum_certificate::add_weak_vote(size_t index, const bls_si
 
 // thread safe
 vote_status pending_quorum_certificate::add_vote(uint32_t connection_id, block_num_type block_num,
-                                                 bool strong, std::span<const uint8_t> proposal_digest, size_t index,
+                                                 bool strong, std::span<const uint8_t> finalizer_digest, size_t index,
                                                  const bls_public_key& pubkey, const bls_signature& sig, uint64_t weight) {
    if (has_voted_no_lock(strong, index)) {
       fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
       return vote_status::duplicate;
    }
 
-   if (!fc::crypto::blslib::verify(pubkey, proposal_digest, sig)) {
+   if (!fc::crypto::blslib::verify(pubkey, finalizer_digest, sig)) {
       fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified", ("k", pubkey.to_string().substr(8,16)));
       return vote_status::invalid_signature;
    }
