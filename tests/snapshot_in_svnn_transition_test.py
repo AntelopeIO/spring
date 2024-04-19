@@ -23,7 +23,7 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs = AppArgs()
-args=TestHelper.parse_args({"-p","-d","-s","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
+args=TestHelper.parse_args({"-d","-s","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
                             applicationSpecificArgs=appArgs)
 pnodes=5 # Use 5 such that test does not take too long while has enough transition time
 delay=args.d
@@ -71,17 +71,19 @@ try:
     snapshotNodeId = 0
     nodeSnap=cluster.getNode(snapshotNodeId)
 
-    assert cluster.activateInstantFinality(biosFinalizer=False), "Activate instant finality failed"
+    # Active Savanna without waiting for activatation is finished so that we can take a
+    # snapshot during transition
+    success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
+    assert success, "Activate instant finality failed"
     
+    # Schedule snapshot at transition
     info = cluster.biosNode.getInfo(exitOnError=True)
-    Print(f'head_block_num after setfinalizer: {info["head_block_num"]}')
+    snapshot_block_num = info["head_block_num"] + 1
+    Print(f'Schedule snapshot on snapshot node at block {snapshot_block_num}')
+    ret = nodeSnap.scheduleSnapshotAt(snapshot_block_num)
+    assert ret is not None, "Snapshot scheduling failed"
 
-    Print("Create snapshot on snapshot node ")
-    ret = nodeSnap.createSnapshot()
-    assert ret is not None, "Snapshot creation failed"
-    ret_head_block_num = ret["payload"]["head_block_num"]
-    Print(f"Snapshot head block number {ret_head_block_num}")
-
+    assert cluster.biosNode.waitForTransFinalization(transId, timeout=21*12*3), f'Failed to validate transaction {transId} got rolled into a LIB block on server port {cluster.biosNode.port}'
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"
     assert cluster.biosNode.waitForHeadToAdvance(blocksToAdvance=13), "Head did not advance 13 blocks to next producer"
