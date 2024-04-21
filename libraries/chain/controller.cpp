@@ -1529,18 +1529,21 @@ struct controller_impl {
                      const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
                      // transition to savanna
-                     block_state_ptr prev = chain_head_trans_svnn_block;
-                     assert(prev);
+                     block_state_ptr prev = chain_head_trans_svnn_block; // If chain_head_trans_svnn_block should not null, it indicates replay from snapshot.
                      for (size_t i = 0; i < legacy_branch.size(); ++i) {
-                        const auto& bspl = legacy_branch[i];
-                        assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
-                        auto new_bsp = block_state::create_transition_block(
-                              *prev,
-                              bspl->block,
-                              protocol_features.get_protocol_feature_set(),
-                              validator_t{}, skip_validate_signee,
-                              bspl->action_mroot_savanna);
-                        prev = new_bsp;
+                        if (i == 0 && !prev) { // if prev is null, it indicates replay without snapshot; need to create Genesis block
+                           prev = block_state::create_if_genesis_block(*legacy_branch[0]);
+                        } else {
+                           const auto& bspl = legacy_branch[i];
+                           assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
+                           auto new_bsp = block_state::create_transition_block(
+                                 *prev,
+                                 bspl->block,
+                                 protocol_features.get_protocol_feature_set(),
+                                 validator_t{}, skip_validate_signee,
+                                 bspl->action_mroot_savanna);
+                           prev = new_bsp;
+                        }
                      }
                      chain_head = block_handle{ prev }; // apply_l will not execute again after this
                      {
