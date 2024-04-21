@@ -561,6 +561,7 @@ namespace eosio::testing {
       }
 
       bool validate() { return true; }
+
    };
 
    class tester_no_disable_deferred_trx : public tester {
@@ -572,6 +573,8 @@ namespace eosio::testing {
    class validating_tester : public base_tester {
    public:
       virtual ~validating_tester() {
+         lib_connection.disconnect();
+
          if( !validating_node ) {
             elog( "~validating_tester() called with empty validating_node; likely in the middle of failure" );
             return;
@@ -598,6 +601,11 @@ namespace eosio::testing {
 
          init(def_conf.first, def_conf.second);
          execute_setup_policy(p);
+         lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
+            const auto& [ block, id ] = t;
+            lib    = block;
+            lib_id = id;
+         });
       }
 
       static void config_validator(controller::config& vcfg) {
@@ -708,9 +716,19 @@ namespace eosio::testing {
             BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
       }
 
-      unique_ptr<controller>   validating_node;
-      uint32_t                 num_blocks_to_producer_before_shutdown = 0;
-      bool                     skip_validate = false;
+      struct lib_tracker_t {
+         uint32_t                    block_num = 0;
+         block_id_type               id;
+         signed_block_ptr            block;
+         boost::signals2::connection conn;
+      };
+
+      boost::signals2::connection lib_connection;
+      signed_block_ptr            lib;
+      block_id_type               lib_id;
+      unique_ptr<controller>      validating_node;
+      uint32_t                    num_blocks_to_producer_before_shutdown = 0;
+      bool                        skip_validate = false;
    };
 
    class validating_tester_no_disable_deferred_trx : public validating_tester {

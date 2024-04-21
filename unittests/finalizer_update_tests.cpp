@@ -16,14 +16,6 @@ using namespace eosio::chain;
 // and produce blocks until the transition is completed.
 // ----------------------------------------------------------------
 std::vector<bls_public_key> transition_to_Savanna(validating_tester& t, finalizer_keys& finkeys) {
-   uint32_t lib = 0;
-   signed_block_ptr lib_block;
-   auto c = t.control->irreversible_block().connect([&](const block_signal_params& t) {
-      const auto& [ block, id ] = t;
-      lib = block->block_num();
-      lib_block = block;
-   });
-
    // activate savanna by running the `set_finalizers` host function
    auto pubkeys = finkeys.set_finalizer_policy(0);
 
@@ -37,7 +29,7 @@ std::vector<bls_public_key> transition_to_Savanna(validating_tester& t, finalize
    // The critical block is the block that makes the genesis_block irreversible
    // -------------------------------------------------------------------------
    signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-   while(genesis_block->block_num() > lib)
+   while(genesis_block->block_num() > t.lib->block_num())
       critical_block = t.produce_block();
 
    // Blocks after the critical block are proper IF blocks.
@@ -48,7 +40,7 @@ std::vector<bls_public_key> transition_to_Savanna(validating_tester& t, finalize
    // wait till the first proper block becomes irreversible. Transition will be done then
    // -----------------------------------------------------------------------------------
    signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
-   while(first_proper_block->block_num() > lib) {
+   while(first_proper_block->block_num() > t.lib->block_num()) {
       pt_block = t.produce_block();
       BOOST_REQUIRE(pt_block->is_proper_svnn_block());
    }
@@ -56,9 +48,8 @@ std::vector<bls_public_key> transition_to_Savanna(validating_tester& t, finalize
    // lib must advance after 3 blocks
    // -------------------------------
    t.produce_blocks(3);
-   BOOST_REQUIRE_EQUAL(lib, pt_block->block_num());
+   BOOST_REQUIRE_EQUAL(t.lib->block_num(), pt_block->block_num());
 
-   c.disconnect();
    return std::vector<bls_public_key>{pubkeys.begin(), pubkeys.end()};
 }
 

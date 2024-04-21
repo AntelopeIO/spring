@@ -1080,12 +1080,6 @@ BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) 
    c.set_bios_contract();
    c.produce_block();
 
-   uint32_t lib = 0;
-   c.control->irreversible_block().connect([&](const block_signal_params& t) {
-      const auto& [ block, id ] = t;
-      lib = block->block_num();
-   });
-
    c.produce_block();
 
    vector<account_name> accounts = {
@@ -1121,10 +1115,10 @@ BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) 
    ext = fb->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_REQUIRE(ext);
 
-   auto lib_after_transition = lib;
+   auto lib_after_transition = c.lib->block_num();
 
    c.produce_blocks(4);
-   BOOST_CHECK_GT(lib, lib_after_transition);
+   BOOST_CHECK_GT(c.lib->block_num(), lib_after_transition);
 
    // verify protocol feature activation works under savanna
 
