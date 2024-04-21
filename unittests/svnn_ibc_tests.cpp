@@ -11,7 +11,7 @@
 
 #include <eosio/chain/exceptions.hpp>
 
-#include "svnn_ibc_test_cluster.hpp"
+#include "finality_test_cluster.hpp"
 
 using namespace eosio::chain;
 using namespace eosio::testing;
@@ -82,12 +82,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
        // cluster is set up with the head about to produce IF Genesis      
-      svnn_ibc_test_cluster cluster;
+      finality_test_cluster cluster;
 
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
 
-      // ensure out of scope setup and wiring is consistent  
+      // ensure out of scope setup and initial cluster wiring is consistent  
       BOOST_CHECK(genesis_block->block_num() == 6);
 
       // check if IF Genesis block contains an IF extension
@@ -223,8 +223,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       std::array<uint8_t, 192> a_sig = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
       std::vector<char> vc_sig(reinterpret_cast<char*>(a_sig.data()), reinterpret_cast<char*>(a_sig.data() + a_sig.size()));
 
-      std::vector<uint32_t> raw_biset = {3};
-      
+      std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
+
       // verify proof
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
          ("proof", mvo() 
@@ -238,7 +238,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", vc_sig)
-                  ("finalizers", raw_biset) //node0 and node1 signed
+                  ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 

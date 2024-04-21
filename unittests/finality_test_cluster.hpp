@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eosio/chain/block.hpp>
 #include <eosio/chain/hotstuff/finalizer_authority.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
@@ -29,11 +30,21 @@ public:
       weak,
    };
 
+   struct node_info {
+      eosio::testing::tester                  node;
+      uint32_t                                prev_lib_num{0};
+      std::vector<eosio::chain::vote_message> votes;
+      fc::crypto::blslib::bls_private_key     priv_key;
+   };
+
    // Construct a test network and activate IF.
    finality_test_cluster();
 
    // node0 produces a block and pushes it to node1 and node2
-   void produce_and_push_block();
+   eosio::chain::signed_block_ptr produce_and_push_block();
+
+   // make setfinalizer final and test finality
+   void initial_tests();
 
    // send node1's vote identified by "index" in the collected votes
    eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong);
@@ -73,19 +84,12 @@ public:
    // Restore node1's original vote
    void node1_restore_to_original_vote();
 
-private:
-
-   struct node_info {
-      eosio::testing::tester                  node;
-      uint32_t                                prev_lib_num{0};
-      std::vector<eosio::chain::vote_message> votes;
-      fc::crypto::blslib::bls_private_key     priv_key;
-   };
-
    std::array<node_info, 3> nodes;
    node_info& node0 = nodes[0];
    node_info& node1 = nodes[1];
    node_info& node2 = nodes[2];
+
+private:
 
    eosio::chain::vote_message node1_orig_vote;
 
