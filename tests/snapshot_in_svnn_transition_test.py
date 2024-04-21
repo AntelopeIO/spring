@@ -31,8 +31,10 @@ topo=args.s
 debug=args.v
 prod_count = 1 # per node prod count
 total_nodes=pnodes+1
-irreversibleNodeId=pnodes
 dumpErrorDetails=args.dump_error_details
+
+snapshotNodeId = 0
+irrNodeId=pnodes
 
 Utils.Debug=debug
 testSuccessful=False
@@ -50,9 +52,9 @@ try:
     numTrxGenerators=2
     Print("Stand up cluster")
     # For now do not load system contract as it does not support setfinalizer
-    specificExtraNodeosArgs = { irreversibleNodeId: "--read-mode irreversible"}
+    specificExtraNodeosArgs = { irrNodeId: "--read-mode irreversible"}
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, prodCount=prod_count, maximumP2pPerHost=total_nodes+numTrxGenerators, topo=topo, delay=delay, loadSystemContract=False,
-                      activateIF=False) is False:
+                      activateIF=False, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         errorExit("Failed to stand up eos cluster.")
 
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] != "eosio", "launch should have waited for production to change"
@@ -68,19 +70,21 @@ try:
     status = cluster.waitForTrxGeneratorsSpinup(nodeId=cluster.getNode(0).nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
-    snapshotNodeId = 0
     nodeSnap=cluster.getNode(snapshotNodeId)
+    nodeIrr=cluster.getNode(irrNodeId)
 
     # Active Savanna without waiting for activatation is finished so that we can take a
     # snapshot during transition
     success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
     
-    # Schedule snapshot at transition
     info = cluster.biosNode.getInfo(exitOnError=True)
     snapshot_block_num = info["head_block_num"] + 1
+
     Print(f'Schedule snapshot on snapshot node at block {snapshot_block_num}')
     ret = nodeSnap.scheduleSnapshotAt(snapshot_block_num)
+    assert ret is not None, "Snapshot scheduling failed"
+    ret = nodeIrr.scheduleSnapshotAt(snapshot_block_num + 1) # intentionally different from nodeSnap
     assert ret is not None, "Snapshot scheduling failed"
 
     assert cluster.biosNode.waitForTransFinalization(transId, timeout=21*12*3), f'Failed to validate transaction {transId} got rolled into a LIB block on server port {cluster.biosNode.port}'
@@ -88,19 +92,26 @@ try:
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"
     assert cluster.biosNode.waitForHeadToAdvance(blocksToAdvance=13), "Head did not advance 13 blocks to next producer"
     assert cluster.biosNode.waitForLibToAdvance(), "Lib stopped advancing on biosNode"
-    assert cluster.getNode(snapshotNodeId).waitForLibToAdvance(), "Lib stopped advancing on Node 0"
+    assert cluster.getNode(snapshotNodeId).waitForLibToAdvance(), "Lib stopped advancing on snapshotNode"
+    assert cluster.getNode(irrNodeId).waitForLibToAdvance(), "Lib stopped advancing on irrNode"
 
     info = cluster.biosNode.getInfo(exitOnError=True)
     assert (info["head_block_num"] - info["last_irreversible_block_num"]) < 9, "Instant finality enabled LIB diff should be small"
 
-    Print("Shut down snapshot node")
-    nodeSnap.kill(signal.SIGTERM)
+    def restartWithSnapshot(node):
+       Print("Shut down node")
+       node.kill(signal.SIGTERM)
+       Print("Restart node with snapshot")
+       node.removeState()
+       node.rmFromCmd('--p2p-peer-address')
+       isRelaunchSuccess = node.relaunch(chainArg=f"--snapshot {node.getLatestSnapshot()}")
+       assert isRelaunchSuccess, "Failed to relaunch node with snapshot"
 
     Print("Restart snapshot node with snapshot")
-    nodeSnap.removeState()
-    nodeSnap.rmFromCmd('--p2p-peer-address')
-    isRelaunchSuccess = nodeSnap.relaunch(chainArg=f"--snapshot {nodeSnap.getLatestSnapshot()}")
-    assert isRelaunchSuccess, "Failed to relaunch snapshot node"
+    restartWithSnapshot(nodeSnap)
+
+    Print("Restart Irreversible node with snapshot")
+    restartWithSnapshot(nodeIrr)
 
     testSuccessful=True
 finally:
