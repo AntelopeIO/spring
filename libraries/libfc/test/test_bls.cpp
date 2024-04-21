@@ -73,8 +73,8 @@ BOOST_AUTO_TEST_CASE(bls_sig_verif_digest) try {
 } FC_LOG_AND_RETHROW();
 
 
-//test a single key signature + verification of hotstuff tuple
-BOOST_AUTO_TEST_CASE(bls_sig_verif_hotstuff_types) try {
+//test a single key signature + verification of finality tuple
+BOOST_AUTO_TEST_CASE(bls_sig_verif_finality_types) try {
 
   bls_private_key sk = bls_private_key(seed_1);
   bls_public_key pk = sk.get_public_key();

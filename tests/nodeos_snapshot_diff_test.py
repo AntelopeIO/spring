@@ -152,7 +152,7 @@ try:
 
     Print("Convert snapshot to JSON")
     snapshotFile = nodeSnap.getLatestSnapshot()
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(snapshotFile), "snapshot to-json", silentErrors=False)
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(snapshotFile), "snapshot to-json", silentErrors=False)
     snapshotFile = snapshotFile + ".json"
 
     Print("Trim programmable blocklog to snapshot head block num and relaunch programmable node")
@@ -175,7 +175,7 @@ try:
 
     Print("Convert snapshot to JSON")
     progSnapshotFile = nodeProg.getLatestSnapshot()
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(progSnapshotFile), "snapshot to-json", silentErrors=False)
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(progSnapshotFile), "snapshot to-json", silentErrors=False)
     progSnapshotFile = progSnapshotFile + ".json"
 
     Print("Trim irreversible blocklog to snapshot head block num")
@@ -201,7 +201,7 @@ try:
 
     Print("Convert snapshot to JSON")
     irrSnapshotFile = nodeIrr.getLatestSnapshot()
-    Utils.processLeapUtilCmd("snapshot to-json --input-file {}".format(irrSnapshotFile), "snapshot to-json", silentErrors=False)
+    Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(irrSnapshotFile), "snapshot to-json", silentErrors=False)
     irrSnapshotFile = irrSnapshotFile + ".json"
 
     assert Utils.compareFiles(snapshotFile, irrSnapshotFile), f"Snapshot files differ {snapshotFile} != {irrSnapshotFile}"

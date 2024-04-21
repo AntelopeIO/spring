@@ -12,7 +12,7 @@ The `bios-boot-tutorial.py` script simulates the bios boot sequence.
 
 ## Steps
 
-1. Install the latest [Leap binaries](https://github.com/AntelopeIO/leap/releases) by following the steps provided in the README.
+1. Install the latest [Spring binaries](https://github.com/AntelopeIO/spring/releases) by following the steps provided in the README.
 
 2. Install the latest [CDT binaries](https://github.com/AntelopeIO/cdt/releases) by following the steps provided in the README.
 
@@ -39,7 +39,7 @@ The last command in the previous step printed the contracts directory. Make note
 ```bash
 $ pip install numpy
 $ cd ~
-$ git clone -b release/*latest* https://github.com/AntelopeIO/leap
-$ cd ./leap/tutorials/bios-boot-tutorial/
+$ git clone -b release/*latest* https://github.com/AntelopeIO/spring
+$ cd ./spring/tutorials/bios-boot-tutorial/
 $ python3 bios-boot-tutorial.py --cleos=cleos --nodeos=nodeos --keosd=keosd --contracts-dir="${CONTRACTS_DIRECTORY}" -w -a
 ```

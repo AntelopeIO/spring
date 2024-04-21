@@ -159,7 +159,7 @@
       "net"
       ]
     },{
-    "name": "hotstuff",
+    "name": "vote",
     "level": "debug",
     "enabled": true,
     "additivity": false,

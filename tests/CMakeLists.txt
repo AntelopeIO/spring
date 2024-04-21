@@ -19,7 +19,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/block_log_retain_blocks_test.py ${CMA
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bridge_for_fork_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/bridge_for_fork_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cluster_launcher.py ${CMAKE_CURRENT_BINARY_DIR}/cluster_launcher.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/distributed-transactions-test.py ${CMAKE_CURRENT_BINARY_DIR}/distributed-transactions-test.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/leap_util_bls_test.py ${CMAKE_CURRENT_BINARY_DIR}/leap_util_bls_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/spring_util_bls_test.py ${CMAKE_CURRENT_BINARY_DIR}/spring_util_bls_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/sample-cluster-map.json ${CMAKE_CURRENT_BINARY_DIR}/sample-cluster-map.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/restart-scenarios-test.py ${CMAKE_CURRENT_BINARY_DIR}/restart-scenarios-test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/terminate-scenarios-test.py ${CMAKE_CURRENT_BINARY_DIR}/terminate-scenarios-test.py COPYONLY)
@@ -85,8 +85,8 @@ else()
   set(UNSHARE "")
 endif()
 
-option(LEAP_ENABLE_RELEASE_BUILD_TEST "Enables a test that verifies nodeos was compiled with compiler options typical for a release build" On)
-if(LEAP_ENABLE_RELEASE_BUILD_TEST)
+option(SPRING_ENABLE_RELEASE_BUILD_TEST "Enables a test that verifies nodeos was compiled with compiler options typical for a release build" On)
+if(SPRING_ENABLE_RELEASE_BUILD_TEST)
   add_test(NAME release-build-test COMMAND tests/release-build.sh WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 endif()
 
@@ -343,7 +343,7 @@ set_property(TEST lib_advance_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME lib_advance_if_test COMMAND tests/lib_advance_test.py --activate-if -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST lib_advance_if_test PROPERTY LABELS nonparallelizable_tests)
 
-add_test(NAME leap_util_bls_test COMMAND tests/leap_util_bls_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME spring_util_bls_test COMMAND tests/spring_util_bls_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 
 add_test(NAME http_plugin_test COMMAND tests/http_plugin_test.py ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(http_plugin_test PROPERTIES TIMEOUT 100)

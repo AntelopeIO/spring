@@ -246,9 +246,7 @@ namespace fc {
 
     template<typename Stream, typename T> inline void unpack( Stream& s, const T& vi )
     {
-       T tmp;
-       fc::raw::unpack( s, tmp );
-       FC_ASSERT( vi == tmp );
+       static_assert(not std::is_same_v<const T, const T>, "can't unpack const type");
     }
 
     template<typename Stream> inline void pack( Stream& s, const char* v ) {

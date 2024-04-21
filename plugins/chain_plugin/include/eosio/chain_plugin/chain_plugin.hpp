@@ -17,7 +17,6 @@
 #include <eosio/chain/plugin_interface.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/fixed_bytes.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
 
 #include <boost/container/flat_set.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
@@ -993,6 +992,8 @@ public:
    // set true by other plugins if any plugin allows transactions
    bool accept_transactions() const;
    void enable_accept_transactions();
+   // true if vote processing is enabled
+   bool accept_votes() const;
 
    static void handle_guard_exception(const chain::guard_exception& e);
 

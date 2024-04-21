@@ -5,18 +5,11 @@
  */
 BOOST_AUTO_TEST_SUITE(finality_tests)
 
-// since initial tests produce deterministic results, we can test them explicitly once here, and avoid testing them every time we create a new cluster
-BOOST_AUTO_TEST_CASE(initial_tests) { try {
-   finality_test_cluster cluster;
-
-   cluster.initial_tests();
-   
-} FC_LOG_AND_RETHROW() }
-
 // verify LIB advances with 2 finalizers voting.
 BOOST_AUTO_TEST_CASE(two_votes) { try {
    finality_test_cluster cluster;
-
+   cluster.initial_tests();
+   
    for (auto i = 0; i < 3; ++i) {
       // node0 produces a block and pushes to node1 and node2
       cluster.produce_and_push_block();
@@ -34,6 +27,7 @@ BOOST_AUTO_TEST_CASE(two_votes) { try {
 // verify LIB does not advances with finalizers not voting.
 BOOST_AUTO_TEST_CASE(no_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    cluster.produce_and_push_block();
    cluster.node0_lib_advancing(); // reset
@@ -55,6 +49,7 @@ BOOST_AUTO_TEST_CASE(no_votes) { try {
 // verify LIB advances with all of the three finalizers voting
 BOOST_AUTO_TEST_CASE(all_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    cluster.produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
@@ -74,6 +69,7 @@ BOOST_AUTO_TEST_CASE(all_votes) { try {
 // verify LIB advances when votes conflict (strong first and followed by weak)
 BOOST_AUTO_TEST_CASE(conflicting_votes_strong_first) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    cluster.produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
@@ -90,6 +86,7 @@ BOOST_AUTO_TEST_CASE(conflicting_votes_strong_first) { try {
 // verify LIB advances when votes conflict (weak first and followed by strong)
 BOOST_AUTO_TEST_CASE(conflicting_votes_weak_first) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    cluster.produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
@@ -106,6 +103,7 @@ BOOST_AUTO_TEST_CASE(conflicting_votes_weak_first) { try {
 // Verify a delayed vote works
 BOOST_AUTO_TEST_CASE(one_delayed_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    // hold the vote for the first block to simulate delay
    cluster.produce_and_push_block();
@@ -139,6 +137,7 @@ BOOST_AUTO_TEST_CASE(one_delayed_votes) { try {
 // Verify 3 consecutive delayed votes work
 BOOST_AUTO_TEST_CASE(three_delayed_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    // produce 4 blocks and hold the votes for the first 3 to simulate delayed votes
    // The 4 blocks have the same QC claim as no QCs are created because missing one vote
@@ -179,6 +178,7 @@ BOOST_AUTO_TEST_CASE(three_delayed_votes) { try {
 
 BOOST_AUTO_TEST_CASE(out_of_order_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // produce 3 blocks and hold the votes to simulate delayed votes
    // The 3 blocks have the same QC claim as no QCs are created because missing votes
@@ -219,6 +219,7 @@ BOOST_AUTO_TEST_CASE(out_of_order_votes) { try {
 // Verify a vote which was delayed by a large number of blocks does not cause any issues
 BOOST_AUTO_TEST_CASE(long_delayed_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // Produce and push a block, vote on it after a long delay.
    constexpr uint32_t delayed_vote_index = 0;
@@ -252,6 +253,7 @@ BOOST_AUTO_TEST_CASE(long_delayed_votes) { try {
 
 BOOST_AUTO_TEST_CASE(lost_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // Produce and push a block, never vote on it to simulate lost.
    // The block contains a strong QC extension for prior block
@@ -278,6 +280,7 @@ BOOST_AUTO_TEST_CASE(lost_votes) { try {
 
 BOOST_AUTO_TEST_CASE(one_weak_vote) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // Produce and push a block
    cluster.produce_and_push_block();
@@ -311,6 +314,7 @@ BOOST_AUTO_TEST_CASE(one_weak_vote) { try {
 
 BOOST_AUTO_TEST_CASE(two_weak_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    // Produce and push a block
    cluster.produce_and_push_block();
@@ -348,6 +352,7 @@ BOOST_AUTO_TEST_CASE(two_weak_votes) { try {
 
 BOOST_AUTO_TEST_CASE(intertwined_weak_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    cluster.produce_and_push_block();
    BOOST_REQUIRE(cluster.node2_lib_advancing());
@@ -393,6 +398,7 @@ BOOST_AUTO_TEST_CASE(intertwined_weak_votes) { try {
 // Verify a combination of weak, delayed, lost votes still work
 BOOST_AUTO_TEST_CASE(weak_delayed_lost_vote) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    cluster.produce_and_push_block();
    BOOST_REQUIRE(cluster.node2_lib_advancing());
@@ -439,6 +445,7 @@ BOOST_AUTO_TEST_CASE(weak_delayed_lost_vote) { try {
 // Verify a combination of delayed, weak, lost votes still work
 BOOST_AUTO_TEST_CASE(delayed_strong_weak_lost_vote) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // A delayed vote (index 0)
    constexpr uint32_t delayed_index = 0; 
@@ -470,7 +477,7 @@ BOOST_AUTO_TEST_CASE(delayed_strong_weak_lost_vote) { try {
    BOOST_REQUIRE(!cluster.node1_lib_advancing());
 
    // The delayed vote arrives
-   cluster.process_node1_vote(delayed_index);
+   cluster.process_node1_vote(delayed_index, finality_test_cluster::vote_mode::strong, true);
    cluster.produce_and_push_block();
    BOOST_REQUIRE(!cluster.node2_lib_advancing());
    BOOST_REQUIRE(!cluster.node1_lib_advancing());
@@ -486,12 +493,13 @@ BOOST_AUTO_TEST_CASE(delayed_strong_weak_lost_vote) { try {
 // verify duplicate votes do not affect LIB advancing
 BOOST_AUTO_TEST_CASE(duplicate_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    cluster.produce_and_push_block();
    for (auto i = 0; i < 5; ++i) {
-      cluster.process_node1_vote(i);
+      cluster.process_node1_vote(i, finality_test_cluster::vote_mode::strong);
       // vote again to make it duplicate
-      BOOST_REQUIRE(cluster.process_node1_vote(i) == eosio::chain::vote_status::duplicate);
+      BOOST_REQUIRE(cluster.process_node1_vote(i, finality_test_cluster::vote_mode::strong, true) == eosio::chain::vote_status::duplicate);
       cluster.produce_and_push_block();
 
       // verify duplicate votes do not affect LIB advancing
@@ -503,15 +511,15 @@ BOOST_AUTO_TEST_CASE(duplicate_votes) { try {
 // verify unknown_proposal votes are handled properly
 BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    // node0 produces a block and pushes to node1
    cluster.produce_and_push_block();
-   // intentionally corrupt proposal_id in node1's vote
-   cluster.node1_corrupt_vote_proposal_id();
+   // intentionally corrupt block_id in node1's vote
+   cluster.node1_corrupt_vote_block_id();
 
    // process the corrupted vote
-   cluster.process_node1_vote(0);
-   BOOST_REQUIRE(cluster.process_node1_vote(0) == eosio::chain::vote_status::unknown_block);
+   BOOST_REQUIRE_THROW(cluster.process_node1_vote(0), fc::exception); // throws because it times out waiting on vote
    cluster.produce_and_push_block();
    BOOST_REQUIRE(cluster.node2_lib_advancing());
 
@@ -520,7 +528,7 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
 
    // process the original vote. LIB should advance
    cluster.produce_and_push_block();
-   cluster.process_node1_vote(0);
+   cluster.process_node1_vote(0, finality_test_cluster::vote_mode::strong, true);
 
    BOOST_REQUIRE(cluster.produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -528,6 +536,7 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
 // verify unknown finalizer_key votes are handled properly
 BOOST_AUTO_TEST_CASE(unknown_finalizer_key_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
 
    // node0 produces a block and pushes to node1
    cluster.produce_and_push_block();
@@ -551,6 +560,7 @@ BOOST_AUTO_TEST_CASE(unknown_finalizer_key_votes) { try {
 // verify corrupted signature votes are handled properly
 BOOST_AUTO_TEST_CASE(corrupted_signature_votes) { try {
    finality_test_cluster cluster;
+   cluster.initial_tests();
    
    // node0 produces a block and pushes to node1
    cluster.produce_and_push_block();

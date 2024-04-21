@@ -1,5 +1,5 @@
 #include <eosio/chain/fork_database.hpp>
-#include <eosio/chain/hotstuff/finalizer.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 
 #include <boost/test/unit_test.hpp>
 #include <eosio/testing/tester.hpp>

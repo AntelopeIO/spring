@@ -144,7 +144,7 @@ try:
     while nonProdNode.verifyAlive() and count > 0:
         # wait on prodNode 0 since it will continue to advance, since defproducera and defproducerb are its producers
         Print("Wait for next block")
-        assert prodAB.waitForNextBlock(timeout=6), "Production node AB should continue to advance, even after bridge node is killed"
+        assert prodAB.waitForNextBlock(timeout=10), "Production node AB should continue to advance, even after bridge node is killed"
         count -= 1
    
     # schedule a snapshot that should get finalized
