@@ -12,9 +12,7 @@ public:
     
    bitset(word_t size, const std::vector<word_t> raw_bitset)
        : num_bits(size), data(raw_bitset) {
-           //check(raw_bitset.size() == (size + 31) / num_bits, "invalid raw bitset size");
            check(raw_bitset.size() == round_up(size), "invalid raw bitset size");
-
        }
 
     // Set a bit to 1
