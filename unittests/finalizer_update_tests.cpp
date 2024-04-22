@@ -10,49 +10,6 @@ using namespace eosio::testing;
 using namespace eosio::chain;
 
 
-// ----------------------------------------------------------------
-// Given a `validating_tester` and a set of finalizer keys, trigger
-// the transition to Savanna by setting the first finalizer_policy,
-// and produce blocks until the transition is completed.
-// ----------------------------------------------------------------
-std::vector<bls_public_key> transition_to_Savanna(validating_tester& t, finalizer_keys& finkeys) {
-   // activate savanna by running the `set_finalizers` host function
-   auto pubkeys = finkeys.set_finalizer_policy(0);
-
-   // `genesis_block` is the first block where set_finalizers() was executed.
-   // It is the genesis block.
-   // It will include the first header extension for the instant finality.
-   // -----------------------------------------------------------------------
-   auto genesis_block = t.produce_block();
-
-   // wait till the genesis_block becomes irreversible.
-   // The critical block is the block that makes the genesis_block irreversible
-   // -------------------------------------------------------------------------
-   signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-   while(genesis_block->block_num() > t.lib->block_num())
-      critical_block = t.produce_block();
-
-   // Blocks after the critical block are proper IF blocks.
-   // -----------------------------------------------------
-   auto first_proper_block = t.produce_block();
-   BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
-
-   // wait till the first proper block becomes irreversible. Transition will be done then
-   // -----------------------------------------------------------------------------------
-   signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
-   while(first_proper_block->block_num() > t.lib->block_num()) {
-      pt_block = t.produce_block();
-      BOOST_REQUIRE(pt_block->is_proper_svnn_block());
-   }
-
-   // lib must advance after 3 blocks
-   // -------------------------------
-   t.produce_blocks(3);
-   BOOST_REQUIRE_EQUAL(t.lib->block_num(), pt_block->block_num());
-
-   return std::vector<bls_public_key>{pubkeys.begin(), pubkeys.end()};
-}
-
 /*
  * register test suite `finalizer_update_tests`
  */
