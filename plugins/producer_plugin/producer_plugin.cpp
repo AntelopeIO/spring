@@ -78,9 +78,6 @@ fc::logger        _transient_trx_successful_trace_log;
 const std::string transient_trx_failed_trace_logger_name("transient_trx_failure_tracing");
 fc::logger        _transient_trx_failed_trace_log;
 
-const std::string hotstuff_logger_name("hotstuff");
-fc::logger hotstuff_logger;
-
 namespace eosio {
 
 static auto _producer_plugin = application::register_plugin<producer_plugin>();
@@ -639,9 +636,11 @@ public:
       }
    }
 
-   void on_block_header(chain::account_name producer, uint32_t block_num, chain::block_timestamp_type timestamp) {
-      if (_producers.contains(producer))
-         _producer_watermarks.consider_new_watermark(producer, block_num, timestamp);
+   void on_block_header(const signed_block_ptr& block) {
+      if (!block->is_proper_svnn_block()) {
+         if (_producers.contains(block->producer))
+            _producer_watermarks.consider_new_watermark(block->producer, block->block_num(), block->timestamp);
+      }
    }
 
    void on_irreversible_block(const signed_block_ptr& lib) {
@@ -1341,15 +1340,15 @@ void producer_plugin_impl::plugin_startup() {
          chain.set_node_finalizer_keys(_finalizer_keys);
 
          _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, id ] = t;
+            const auto& [ block, _ ] = t;
             on_block(block);
           }));
          _accepted_block_header_connection.emplace(chain.accepted_block_header().connect([this](const block_signal_params& t) {
-            const auto& [ block, id ] = t;
-            on_block_header(block->producer, block->block_num(), block->timestamp);
+            const auto& [ block, _ ] = t;
+            on_block_header(block);
          }));
          _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, id ] = t;
+            const auto& [ block, _ ] = t;
             on_irreversible_block(block);
          }));
 
@@ -1437,7 +1436,6 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(trx_logger_name, _trx_log);
    fc::logger::update(transient_trx_successful_trace_logger_name, _transient_trx_successful_trace_log);
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
-   fc::logger::update( hotstuff_logger_name, hotstuff_logger );
 }
 
 void producer_plugin::pause() {
@@ -1795,8 +1793,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    // copy as reference is invalidated by abort_block() below
    const producer_authority scheduled_producer = chain.active_producers().get_scheduled_producer(block_time);
 
-   const auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name);
-
    size_t num_relevant_signatures = 0;
    scheduled_producer.for_each_key([&](const public_key_type& key) {
       const auto& iter = _signature_providers.find(key);
@@ -1827,7 +1823,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    if (in_producing_mode()) {
       // determine if our watermark excludes us from producing at this point
-      if (current_watermark) {
+      if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
          const block_timestamp_type block_timestamp{block_time};
          if (current_watermark->first > head_block_num) {
             elog("Not producing block because \"${producer}\" signed a block at a higher block number (${watermark}) than the current "
@@ -1881,25 +1877,26 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    fc_dlog(_log, "Starting block #${n} at ${time} producer ${p}", ("n", pending_block_num)("time", now)("p", scheduled_producer.producer_name));
 
    try {
+
       uint16_t blocks_to_confirm = 0;
-
-      auto block_state = chain.head_block_state_legacy(); // null means savanna is active
-      if (in_producing_mode() && block_state) { // only if savanna not enabled
-         // determine how many blocks this producer can confirm
-         // 1) if it is not a producer from this node, assume no confirmations (we will discard this block anyway)
-         // 2) if it is a producer on this node that has never produced, the conservative approach is to assume no
-         //    confirmations to make sure we don't double sign after a crash
-         // 3) if it is a producer on this node where this node knows the last block it produced, safely set it -UNLESS-
-         // 4) the producer on this node's last watermark is higher (meaning on a different fork)
-         if (current_watermark) {
-            uint32_t watermark_bn = current_watermark->first;
-            if (watermark_bn < head_block_num) {
-               blocks_to_confirm = (uint16_t)(std::min<uint32_t>(std::numeric_limits<uint16_t>::max(), (head_block_num - watermark_bn)));
+      if (in_producing_mode()) {
+         if (auto block_state = chain.head_block_state_legacy()) {  // only if savanna not enabled
+            // determine how many blocks this producer can confirm
+            // 1) if it is not a producer from this node, assume no confirmations (we will discard this block anyway)
+            // 2) if it is a producer on this node that has never produced, the conservative approach is to assume no
+            //    confirmations to make sure we don't double sign after a crash
+            // 3) if it is a producer on this node where this node knows the last block it produced, safely set it -UNLESS-
+            // 4) the producer on this node's last watermark is higher (meaning on a different fork)
+            if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
+               uint32_t watermark_bn = current_watermark->first;
+               if (watermark_bn < head_block_num) {
+                  blocks_to_confirm = (uint16_t)(std::min<uint32_t>(std::numeric_limits<uint16_t>::max(), (head_block_num - watermark_bn)));
+               }
             }
-         }
 
-         // can not confirm irreversible blocks
-         blocks_to_confirm = (uint16_t)(std::min<uint32_t>(blocks_to_confirm, (head_block_num - block_state->dpos_irreversible_blocknum)));
+            // can not confirm irreversible blocks
+            blocks_to_confirm = (uint16_t)(std::min<uint32_t>(blocks_to_confirm, (head_block_num - block_state->dpos_irreversible_blocknum)));
+         }
       }
 
       auto features_to_activate = chain.get_preactivated_protocol_features();

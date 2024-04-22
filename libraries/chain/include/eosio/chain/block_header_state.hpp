@@ -1,10 +1,10 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
-#include <eosio/chain/finality_core.hpp>
+#include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/instant_finality_extension.hpp>
+#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/instant_finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
 #include <future>
 
@@ -19,6 +19,26 @@ namespace detail { struct schedule_info; };
 // Light header protocol version, separate from protocol feature version
 constexpr uint32_t light_header_protocol_version_major = 1;
 constexpr uint32_t light_header_protocol_version_minor = 0;
+
+// ------------------------------------------------------------------------------------------
+// this is used for tracking in-flight `finalizer_policy` changes, which have been requested,
+// but are not activated yet. This struct is associated to a block_number in the
+// `finalizer_policies` flat_multimap: `block_num => state, finalizer_policy`
+//
+// When state == proposed, the block_num identifies the block in which the new policy was
+// proposed via set_finalizers.
+//
+// When that block becomes final, according to the block_header_state's finality_core,
+// 1. the policy becomes pending
+// 2. its key `block_num,` in the proposer_policies multimap, is the current block
+//
+// When this current block itself becomes final, the policy becomes active.
+// ------------------------------------------------------------------------------------------
+struct finalizer_policy_tracker {
+   enum class state_t { proposed = 0, pending };
+   state_t               state;
+   finalizer_policy_ptr  policy;
+};
 
 struct building_block_input {
    block_id_type                     parent_id;
@@ -49,8 +69,12 @@ struct block_header_state {
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
    // block time when proposer_policy will become active
-   flat_map<block_timestamp_type, proposer_policy_ptr>  proposer_policies;
-   flat_map<uint32_t, finalizer_policy_ptr> finalizer_policies;
+   flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
+
+   // track in-flight finalizer policies. This is a `multimap` because the same block number
+   // can hold a `proposed` and a `pending` finalizer_policy. When that block becomes final, the
+   // `pending` becomes active, and the `proposed` becomes `pending` (for a different block number).
+   flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
 
 
    // ------ data members caching information available elsewhere ----------------------
@@ -78,7 +102,7 @@ struct block_header_state {
    digest_type compute_finality_digest() const;
 
    // Returns true if the block is a Proper Savanna Block
-   bool is_proper_svnn_block() const;
+   bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
    // block descending from this need the provided qc in the block extension
    bool is_needed(const qc_claim_t& qc_claim) const {
@@ -92,6 +116,10 @@ struct block_header_state {
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 }
+
+FC_REFLECT_ENUM( eosio::chain::finalizer_policy_tracker::state_t, (proposed)(pending))
+
+FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
 
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)

@@ -9,6 +9,8 @@
 
 namespace eosio::chain {
 
+struct vote_message;
+
 using signer_callback_type = std::function<std::vector<signature_type>(const digest_type&)>;
 
 constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
@@ -55,7 +57,7 @@ struct valid_t {
    std::vector<digest_type> validation_mroots;
 };
 
-// This is mostly used by SHiP to stream finality_data
+// This is mostly used by SHiP & deep-mind to stream finality_data
 struct finality_data_t {
    uint32_t     major_version{light_header_protocol_version_major};
    uint32_t     minor_version{light_header_protocol_version_minor};
@@ -124,8 +126,8 @@ public:
    // Returns finality_data of the current block
    finality_data_t get_finality_data();
 
-   // vote_status
-   vote_status aggregate_vote(const vote_message& vote); // aggregate vote into pending_qc
+   // connection_id only for logging
+   vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
    bool has_voted(const bls_public_key& key) const;
    void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
 
@@ -150,6 +152,15 @@ public:
                const digest_type&                       action_mroot);
 
    static std::shared_ptr<block_state> create_if_genesis_block(const block_state_legacy& bsp);
+
+   // Constructs a Transition Savanna block state from a Legacy block state.
+   static std::shared_ptr<block_state> create_transition_block(
+         const block_header_state&         prev,
+         signed_block_ptr                  b,
+         const protocol_feature_set&       pfs,
+         const validator_t&                validator,
+         bool                              skip_validate_signee,
+         const std::optional<digest_type>& action_mroot_savanna);
 
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 

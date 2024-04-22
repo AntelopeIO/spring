@@ -434,7 +434,7 @@ class state_history_log {
          {
             bio::filtering_ostreambuf buf;
             buf.push(boost::ref(cnt));
-            buf.push(bio::zlib_compressor());
+            buf.push(bio::zlib_compressor(boost::iostreams::zlib::no_compression));
             buf.push(bio::file_descriptor_sink(stream.fileno(), bio::never_close_handle));
             pack_to(buf);
          }

@@ -5,8 +5,8 @@
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/apply_context.hpp>
-#include <eosio/chain/hotstuff/finalizer_policy.hpp>
-#include <eosio/chain/hotstuff/finalizer_authority.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/finalizer_authority.hpp>
 
 #include <fc/io/datastream.hpp>
 

@@ -8,6 +8,7 @@ import json
 import shlex
 import signal
 import sys
+import shutil
 from pathlib import Path
 from typing import List
 from dataclasses import InitVar, dataclass, field, is_dataclass, asdict
@@ -536,6 +537,21 @@ class Node(Transactions):
     def scheduleSnapshotAt(self, sbn):
         param = { "start_block_num": sbn, "end_block_num": sbn }
         return self.processUrllibRequest("producer", "schedule_snapshot", param)
+
+    def getLatestSnapshot(self):
+       snapshotDir = os.path.join(Utils.getNodeDataDir(self.nodeId), "snapshots")
+       snapshotDirContents = os.listdir(snapshotDir)
+       assert len(snapshotDirContents) > 0
+       # disregard snapshot schedule config in same folder
+       snapshotScheduleDB = "snapshot-schedule.json"
+       if snapshotScheduleDB in snapshotDirContents: snapshotDirContents.remove(snapshotScheduleDB)
+       snapshotDirContents.sort()
+       return os.path.join(snapshotDir, snapshotDirContents[-1])
+
+    def removeState(self):
+       dataDir = Utils.getNodeDataDir(self.nodeId)
+       state = os.path.join(dataDir, "state")
+       shutil.rmtree(state, ignore_errors=True)
 
     @staticmethod
     def findStderrFiles(path):

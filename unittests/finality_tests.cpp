@@ -462,7 +462,7 @@ BOOST_AUTO_TEST_CASE(delayed_strong_weak_lost_vote) { try {
    BOOST_REQUIRE(!cluster.node1_lib_advancing());
 
    // The delayed vote arrives
-   cluster.process_node1_vote(delayed_index);
+   cluster.process_node1_vote(delayed_index, finality_test_cluster::vote_mode::strong, true);
    cluster.produce_and_push_block();
    BOOST_REQUIRE(!cluster.node2_lib_advancing());
    BOOST_REQUIRE(!cluster.node1_lib_advancing());
@@ -481,9 +481,9 @@ BOOST_AUTO_TEST_CASE(duplicate_votes) { try {
 
    cluster.produce_and_push_block();
    for (auto i = 0; i < 5; ++i) {
-      cluster.process_node1_vote(i);
+      cluster.process_node1_vote(i, finality_test_cluster::vote_mode::strong);
       // vote again to make it duplicate
-      BOOST_REQUIRE(cluster.process_node1_vote(i) == eosio::chain::vote_status::duplicate);
+      BOOST_REQUIRE(cluster.process_node1_vote(i, finality_test_cluster::vote_mode::strong, true) == eosio::chain::vote_status::duplicate);
       cluster.produce_and_push_block();
 
       // verify duplicate votes do not affect LIB advancing
@@ -498,12 +498,11 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
 
    // node0 produces a block and pushes to node1
    cluster.produce_and_push_block();
-   // intentionally corrupt proposal_id in node1's vote
-   cluster.node1_corrupt_vote_proposal_id();
+   // intentionally corrupt block_id in node1's vote
+   cluster.node1_corrupt_vote_block_id();
 
    // process the corrupted vote
-   cluster.process_node1_vote(0);
-   BOOST_REQUIRE(cluster.process_node1_vote(0) == eosio::chain::vote_status::unknown_block);
+   BOOST_REQUIRE_THROW(cluster.process_node1_vote(0), fc::exception); // throws because it times out waiting on vote
    cluster.produce_and_push_block();
    BOOST_REQUIRE(cluster.node2_lib_advancing());
 
@@ -512,7 +511,7 @@ BOOST_AUTO_TEST_CASE(unknown_proposal_votes) { try {
 
    // process the original vote. LIB should advance
    cluster.produce_and_push_block();
-   cluster.process_node1_vote(0);
+   cluster.process_node1_vote(0, finality_test_cluster::vote_mode::strong, true);
 
    BOOST_REQUIRE(cluster.produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }

@@ -1,4 +1,4 @@
-#include <eosio/chain/hotstuff/finalizer.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <fc/log/logger_config.hpp>
 
@@ -86,9 +86,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 }
 
 // ----------------------------------------------------------------------------------------
-std::optional<vote_message> finalizer::maybe_vote(const bls_public_key& pub_key,
-                                                  const block_state_ptr& bsp,
-                                                  const digest_type& digest) {
+vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
+                                       const block_state_ptr& bsp,
+                                       const digest_type& digest) {
    finalizer::vote_decision decision = decide_vote(bsp).decision;
    if (decision == vote_decision::strong_vote || decision == vote_decision::weak_vote) {
       bls_signature sig;
@@ -99,7 +99,7 @@ std::optional<vote_message> finalizer::maybe_vote(const bls_public_key& pub_key,
       } else {
          sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
       }
-      return std::optional{vote_message{ bsp->id(), decision == vote_decision::strong_vote, pub_key, sig }};
+      return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
    }
    return {};
 }
@@ -201,10 +201,10 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
 // ----------------------------------------------------------------------------------------
 void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys) {
-   assert(finalizers.empty()); // set_keys should be called only once at startup
    if (finalizer_keys.empty())
       return;
 
+   assert(finalizers.empty()); // set_keys should be called only once at startup
    fsi_map safety_info = load_finalizer_safety_info();
    for (const auto& [pub_key_str, priv_key_str] : finalizer_keys) {
       auto public_key {bls_public_key{pub_key_str}};

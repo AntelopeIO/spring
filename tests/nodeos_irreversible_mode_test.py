@@ -50,23 +50,10 @@ def recoverBackedupBlksDir(nodeId):
    shutil.rmtree(existingBlocksDir, ignore_errors=True)
    shutil.copytree(backedupBlocksDir, existingBlocksDir)
 
-def getLatestSnapshot(nodeId):
-   snapshotDir = os.path.join(Utils.getNodeDataDir(nodeId), "snapshots")
-   snapshotDirContents = os.listdir(snapshotDir)
-   assert len(snapshotDirContents) > 0
-   snapshotDirContents.sort()
-   return os.path.join(snapshotDir, snapshotDirContents[-1])
-
-
 def removeReversibleBlks(nodeId):
    dataDir = Utils.getNodeDataDir(nodeId)
    reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
    shutil.rmtree(reversibleBlks, ignore_errors=True)
-
-def removeState(nodeId):
-   dataDir = Utils.getNodeDataDir(nodeId)
-   state = os.path.join(dataDir, "state")
-   shutil.rmtree(state, ignore_errors=True)
 
 def getHeadLibAndForkDbHead(node: Node):
    info = node.getInfo()
@@ -375,9 +362,9 @@ try:
          nodeToTest.kill(signal.SIGTERM)
 
          # Start from clean data dir, recover back up blocks, and then relaunch with irreversible snapshot
-         removeState(nodeIdOfNodeToTest)
+         nodeToTest.removeState()
          recoverBackedupBlksDir(nodeIdOfNodeToTest) # this function will delete the existing blocks dir first
-         relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(getLatestSnapshot(nodeIdOfNodeToTest)), addSwapFlags={"--read-mode": speculativeReadMode})
+         relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(nodeToTest.getLatestSnapshot()), addSwapFlags={"--read-mode": speculativeReadMode})
          confirmHeadLibAndForkDbHeadOfSpecMode(nodeToTest)
          # Ensure it automatically replays "reversible blocks", i.e. head lib and fork db should be the same
          headLibAndForkDbHeadAfterRelaunch = getHeadLibAndForkDbHead(nodeToTest)
@@ -395,7 +382,7 @@ try:
 
          # Relaunch the node again (using the same snapshot)
          # This time ensure it automatically replays both "irreversible blocks" and "reversible blocks", i.e. the end result should be the same as before shutdown
-         removeState(nodeIdOfNodeToTest)
+         nodeToTest.removeState()
          relaunchNode(nodeToTest)
          headLibAndForkDbHeadAfterRelaunch = getHeadLibAndForkDbHead(nodeToTest)
          assert headLibAndForkDbHeadBeforeShutdown == headLibAndForkDbHeadAfterRelaunch, \
@@ -419,8 +406,8 @@ try:
          nodeToTest.kill(signal.SIGTERM)
 
          # Start from clean data dir and then relaunch with irreversible snapshot, no block log means that fork_db will be reset
-         removeState(nodeIdOfNodeToTest)
-         relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(getLatestSnapshot(nodeIdOfNodeToTest)), addSwapFlags={"--read-mode": speculativeReadMode, "--block-log-retain-blocks":"0"})
+         nodeToTest.removeState()
+         relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(nodeToTest.getLatestSnapshot()), addSwapFlags={"--read-mode": speculativeReadMode, "--block-log-retain-blocks":"0"})
          confirmHeadLibAndForkDbHeadOfSpecMode(nodeToTest)
          # Ensure it does not replay "reversible blocks", i.e. head and lib should be different
          headLibAndForkDbHeadAfterRelaunch = getHeadLibAndForkDbHead(nodeToTest)
@@ -438,7 +425,7 @@ try:
 
          # Relaunch the node again (using the same snapshot)
          # The end result should be the same as before shutdown
-         removeState(nodeIdOfNodeToTest)
+         nodeToTest.removeState()
          relaunchNode(nodeToTest)
          headLibAndForkDbHeadAfterRelaunch2 = getHeadLibAndForkDbHead(nodeToTest)
          assert headLibAndForkDbHeadAfterRelaunch == headLibAndForkDbHeadAfterRelaunch2, \

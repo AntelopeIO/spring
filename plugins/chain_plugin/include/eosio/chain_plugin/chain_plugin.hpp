@@ -17,7 +17,6 @@
 #include <eosio/chain/plugin_interface.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/fixed_bytes.hpp>
-#include <eosio/chain/hotstuff/hotstuff.hpp>
 
 #include <boost/container/flat_set.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
@@ -408,6 +407,12 @@ public:
    };
 
    fc::variant get_block_info(const get_block_info_params& params, const fc::time_point& deadline) const;
+
+   struct get_block_header_state_params {
+      string block_num_or_id;
+   };
+
+   fc::variant get_block_header_state(const get_block_header_state_params& params, const fc::time_point& deadline) const;
 
    struct get_table_rows_params {
       bool                 json = false;
@@ -987,6 +992,8 @@ public:
    // set true by other plugins if any plugin allows transactions
    bool accept_transactions() const;
    void enable_accept_transactions();
+   // true if vote processing is enabled
+   bool accept_votes() const;
 
    static void handle_guard_exception(const chain::guard_exception& e);
 
@@ -1022,6 +1029,7 @@ FC_REFLECT(eosio::chain_apis::read_only::get_activated_protocol_features_params,
 FC_REFLECT(eosio::chain_apis::read_only::get_activated_protocol_features_results, (activated_protocol_features)(more) )
 FC_REFLECT(eosio::chain_apis::read_only::get_raw_block_params, (block_num_or_id))
 FC_REFLECT(eosio::chain_apis::read_only::get_block_info_params, (block_num))
+FC_REFLECT(eosio::chain_apis::read_only::get_block_header_state_params, (block_num_or_id))
 FC_REFLECT(eosio::chain_apis::read_only::get_block_header_params, (block_num_or_id)(include_extensions))
 FC_REFLECT(eosio::chain_apis::read_only::get_block_header_result, (id)(signed_block_header)(block_extensions))
 

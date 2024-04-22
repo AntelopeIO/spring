@@ -1,5 +1,6 @@
 #pragma once
 #include <eosio/chain/block_state.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
 #include <compare>
@@ -61,8 +62,7 @@ namespace eosio::chain {
       finalizer_safety_information  fsi;
 
       vote_result  decide_vote(const block_state_ptr& bsp);
-      std::optional<vote_message> maybe_vote(const bls_public_key& pub_key, const block_state_ptr& bsp,
-                                             const digest_type& digest);
+      vote_message_ptr maybe_vote(const bls_public_key& pub_key, const block_state_ptr& bsp, const digest_type& digest);
    };
 
    // ----------------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ namespace eosio::chain {
          if (finalizers.empty())
             return;
 
-         std::vector<vote_message> votes;
+         std::vector<vote_message_ptr> votes;
          votes.reserve(finalizers.size());
 
          // Possible improvement in the future, look at locking only individual finalizers and releasing the lock for writing the file.
@@ -105,9 +105,9 @@ namespace eosio::chain {
          // first accumulate all the votes
          for (const auto& f : fin_pol.finalizers) {
             if (auto it = finalizers.find(f.public_key); it != finalizers.end()) {
-               std::optional<vote_message> vote_msg = it->second.maybe_vote(it->first, bsp, digest);
+               vote_message_ptr vote_msg = it->second.maybe_vote(it->first, bsp, digest);
                if (vote_msg)
-                  votes.push_back(std::move(*vote_msg));
+                  votes.push_back(std::move(vote_msg));
             }
          }
          // then save the safety info and, if successful, gossip the votes
