@@ -571,12 +571,8 @@ namespace fc {
       const auto num_blocks = value.num_blocks();
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
       fc::raw::pack( s, unsigned_int(value.size()) );
-      // 8 bits per byte
-      auto add_extra = [&]() {
-         bool extra_needed = (value.size() % (sizeof(T) * CHAR_BIT)) != 0;
-         return static_cast<size_t>(extra_needed); // bool => 0,1
-      };
-      assert(num_blocks == value.size() / (sizeof(T) * CHAR_BIT) + add_extra());
+      constexpr size_t word_size = sizeof(T) * CHAR_BIT;
+      assert(num_blocks == (value.size() + word_size - 1) / word_size);
       // convert bitset to a vector of blocks
       std::vector<T> blocks;
       blocks.resize(num_blocks);
@@ -591,11 +587,8 @@ namespace fc {
     inline void unpack( Stream& s, boost::dynamic_bitset<T>& value ) {
       // the packed size is the number of bits in the set, not the number of blocks
       unsigned_int size; fc::raw::unpack( s, size );
-      auto add_extra = [&]() {
-         bool extra_needed = (size % (sizeof(T) * CHAR_BIT)) != 0;
-         return static_cast<size_t>(extra_needed); // bool => 0,1
-      };
-      size_t num_blocks = size / (sizeof(T) * CHAR_BIT) + add_extra();
+      constexpr size_t word_size = sizeof(T) * CHAR_BIT;
+      size_t num_blocks = (size + word_size - 1) / word_size;
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
       std::vector<T> blocks(num_blocks);
       for( size_t i = 0; i < num_blocks; ++i ) {
