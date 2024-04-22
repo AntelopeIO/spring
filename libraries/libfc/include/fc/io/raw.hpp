@@ -582,7 +582,6 @@ namespace fc {
     template<typename Stream, typename T>
     inline void unpack( Stream& s, boost::dynamic_bitset<T>& value ) {
       unsigned_int size; fc::raw::unpack( s, size );
-      FC_ASSERT( size.value <= MAX_NUM_ARRAY_ELEMENTS );
       std::vector<T> blocks;
       fc::raw::unpack(s, blocks);
       value = { blocks.cbegin(), blocks.cend() };
