@@ -1530,9 +1530,9 @@ struct controller_impl {
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
                      // transition to savanna
                      block_state_ptr prev = chain_head_trans_svnn_block;
-                     bool replay_from_snapshot = chain_head_trans_svnn_block;
+                     bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
                      for (size_t i = 0; i < legacy_branch.size(); ++i) {
-                        if (i == 0 && !replay_from_snapshot) {
+                        if (i == 0 && replay_not_from_snapshot) {
                            assert(!prev);
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
