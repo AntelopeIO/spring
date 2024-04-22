@@ -52,7 +52,25 @@ BOOST_AUTO_TEST_CASE(dynamic_bitset_large_test)
    BOOST_TEST(unpacked.at(12000));
    unpacked.flip(42);
    unpacked.flip(23);
-   unpacked.flip(1200);
+   unpacked.flip(12000);
+   BOOST_TEST(unpacked.none());
+}
+
+BOOST_AUTO_TEST_CASE(dynamic_bitset_small_test)
+{
+   boost::dynamic_bitset<uint32_t> bs1;
+   bs1.resize(21);
+
+   bs1.set(2);
+   bs1.set(7);
+
+   auto packed = fc::raw::pack(bs1);
+   auto unpacked = fc::raw::unpack<boost::dynamic_bitset<uint32_t>>(packed);
+
+   BOOST_TEST(unpacked.at(2));
+   BOOST_TEST(unpacked.at(7));
+   unpacked.flip(2);
+   unpacked.flip(7);
    BOOST_TEST(unpacked.none());
 }
 
