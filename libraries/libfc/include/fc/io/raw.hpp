@@ -567,24 +567,35 @@ namespace fc {
 
     template<typename Stream, typename T>
     inline void pack( Stream& s, const boost::dynamic_bitset<T>& value ) {
+      // pack the size of the bitset, not the number of blocks
       const auto num_blocks = value.num_blocks();
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
       fc::raw::pack( s, unsigned_int(value.size()) );
-
+      // 8 bits per byte
+      assert(num_blocks == value.size() / (sizeof(T) * CHAR_BIT) + (value.size() % (sizeof(T) * CHAR_BIT)));
       // convert bitset to a vector of blocks
       std::vector<T> blocks;
       blocks.resize(num_blocks);
       boost::to_block_range(value, blocks.begin());
-
-      fc::raw::pack(s, blocks);
+      // pack the blocks
+      for (const auto& b: blocks) {
+         fc::raw::pack( s, b );
+      }
     }
 
     template<typename Stream, typename T>
     inline void unpack( Stream& s, boost::dynamic_bitset<T>& value ) {
+      // the packed size is the number of bits in the set, not the number of blocks
       unsigned_int size; fc::raw::unpack( s, size );
-      FC_ASSERT( size.value <= MAX_NUM_ARRAY_ELEMENTS );
+      size_t num_blocks = size / (sizeof(T) * CHAR_BIT) + (value.size() % (sizeof(T) * CHAR_BIT));
+      FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
       std::vector<T> blocks;
-      fc::raw::unpack(s, blocks);
+      blocks.reserve(num_blocks);
+      for( size_t i = 0; i < size.value; ++i ) {
+         T tmp;
+         fc::raw::unpack( s, tmp );
+         blocks.emplace_back( std::move(tmp) );
+      }
       value = { blocks.cbegin(), blocks.cend() };
       value.resize(size.value);
     }
