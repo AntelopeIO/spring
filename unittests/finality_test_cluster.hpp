@@ -49,6 +49,9 @@ public:
       std::vector<vote_message_ptr>           votes;
       fc::crypto::blslib::bls_private_key     priv_key;
       eosio::chain::vote_message_ptr          orig_vote;
+      //eosio::testing::finalizer_keys          finkeys;
+
+      //node_t() : finkeys(*this, 50, 3) {}
 
       size_t last_vote_index() const { return votes.size() - 1; }
 

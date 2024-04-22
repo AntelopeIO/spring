@@ -342,6 +342,12 @@ namespace eosio::testing {
               }
           }
       });
+
+      lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
+         const auto& [ block, id ] = t;
+         lib    = block;
+         lib_id = id;
+      });
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot ) {

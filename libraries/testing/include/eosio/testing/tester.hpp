@@ -157,7 +157,9 @@ namespace eosio::testing {
          static const uint32_t DEFAULT_BILLED_CPU_TIME_US = 2000;
          static const fc::microseconds abi_serializer_max_time;
 
-         virtual ~base_tester() {};
+         virtual ~base_tester() {
+            lib_connection.disconnect();
+         };
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
@@ -493,9 +495,12 @@ namespace eosio::testing {
 
       public:
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
+         signed_block_ptr                              lib;    // updated via irreversible_block signal
+         block_id_type                                 lib_id; // updated via irreversible_block signal
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
+         boost::signals2::connection             lib_connection;
    };
 
    class tester : public base_tester {
@@ -573,8 +578,6 @@ namespace eosio::testing {
    class validating_tester : public base_tester {
    public:
       virtual ~validating_tester() {
-         lib_connection.disconnect();
-
          if( !validating_node ) {
             elog( "~validating_tester() called with empty validating_node; likely in the middle of failure" );
             return;
@@ -601,11 +604,6 @@ namespace eosio::testing {
 
          init(def_conf.first, def_conf.second);
          execute_setup_policy(p);
-         lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
-            const auto& [ block, id ] = t;
-            lib    = block;
-            lib_id = id;
-         });
       }
 
       static void config_validator(controller::config& vcfg) {
@@ -716,16 +714,6 @@ namespace eosio::testing {
             BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
       }
 
-      struct lib_tracker_t {
-         uint32_t                    block_num = 0;
-         block_id_type               id;
-         signed_block_ptr            block;
-         boost::signals2::connection conn;
-      };
-
-      boost::signals2::connection lib_connection;
-      signed_block_ptr            lib;
-      block_id_type               lib_id;
       unique_ptr<controller>      validating_node;
       uint32_t                    num_blocks_to_producer_before_shutdown = 0;
       bool                        skip_validate = false;
@@ -741,19 +729,21 @@ namespace eosio::testing {
    // creates and manages a set of `bls_public_key` used for finalizers voting and policies
    // Supports initial transition to Savanna.
    // -------------------------------------------------------------------------------------
+   template <class Tester>
    struct finalizer_keys {
-      finalizer_keys(validating_tester& t, size_t num_keys = 50, size_t fin_policy_size = 21) :
+      finalizer_keys(Tester& t, size_t num_keys = 50, size_t fin_policy_size = 21) :
          t(t),
-         fin_policy_size(fin_policy_size)
-      {
+         fin_policy_size(fin_policy_size) {
          key_names.reserve(num_keys);
          pubkeys.reserve(num_keys);
+         privkeys.reserve(num_keys);
          for (size_t i=0; i<num_keys; ++i) {
             account_name name { std::string("finalizer") + (char)('a' + i/26) + (char)('a' + i%26) };
             key_names.push_back(name);
 
             auto [privkey, pubkey, pop] = get_bls_key(name);
             pubkeys.push_back(pubkey);
+            privkeys.push_back(privkey);
          }
       }
 
@@ -814,10 +804,11 @@ namespace eosio::testing {
          return { &pubkeys[first_key], fin_policy_size };
       }
 
-      validating_tester&     t;
-      vector<account_name>   key_names;
-      vector<bls_public_key> pubkeys;
-      size_t                 fin_policy_size;
+      Tester&                 t;
+      vector<account_name>    key_names;
+      vector<bls_public_key>  pubkeys;
+      vector<bls_private_key> privkeys;
+      size_t                  fin_policy_size;
    };
 
 
