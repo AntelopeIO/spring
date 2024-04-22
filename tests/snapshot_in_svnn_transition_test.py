@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
 
+import signal
+
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.TestHelper import AppArgs
 
 ###############################################################
-# transition_to_if
+# snapshot_in_svnn_transition_test
 #
-# Transition to instant-finality with multiple producers (at least 4).
+#  Tests snapshot during Savanna transition
+#  - Configures 5 producing nodes such that the test does not take too long while has enough
+#    transition time
+#  - Configures trx_generator to pump transactions into the test node
+#  - Take a snapshot right after setfinalizer is called
+#  - Wait until LIB advances
+#  - Kill the test node
+#  - Restart from the snapshot
 #
 ###############################################################
-
 
 Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs = AppArgs()
-args=TestHelper.parse_args({"-p","-d","-s","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
+args=TestHelper.parse_args({"-d","-s","--keep-logs","--dump-error-details","-v","--leave-running","--unshared"},
                             applicationSpecificArgs=appArgs)
-pnodes=args.p if args.p > 4 else 4
+pnodes=5 # Use 5 such that test does not take too long while has enough transition time
 delay=args.d
 topo=args.s
 debug=args.v
 prod_count = 1 # per node prod count
 total_nodes=pnodes+1
-irreversibleNodeId=pnodes
 dumpErrorDetails=args.dump_error_details
+
+snapshotNodeId = 0
+irrNodeId=pnodes
 
 Utils.Debug=debug
 testSuccessful=False
@@ -42,7 +52,7 @@ try:
     numTrxGenerators=2
     Print("Stand up cluster")
     # For now do not load system contract as it does not support setfinalizer
-    specificExtraNodeosArgs = { irreversibleNodeId: "--read-mode irreversible"}
+    specificExtraNodeosArgs = { irrNodeId: "--read-mode irreversible"}
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, prodCount=prod_count, maximumP2pPerHost=total_nodes+numTrxGenerators, topo=topo, delay=delay, loadSystemContract=False,
                       activateIF=False, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         errorExit("Failed to stand up eos cluster.")
@@ -60,30 +70,48 @@ try:
     status = cluster.waitForTrxGeneratorsSpinup(nodeId=cluster.getNode(0).nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
-    success, transId = cluster.activateInstantFinality(biosFinalizer=False)
-    assert success, "Activate instant finality failed"
+    nodeSnap=cluster.getNode(snapshotNodeId)
+    nodeIrr=cluster.getNode(irrNodeId)
 
+    # Active Savanna without waiting for activatation is finished so that we can take a
+    # snapshot during transition
+    success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
+    assert success, "Activate instant finality failed"
+    
+    info = cluster.biosNode.getInfo(exitOnError=True)
+    snapshot_block_num = info["head_block_num"] + 1
+
+    Print(f'Schedule snapshot on snapshot node at block {snapshot_block_num}')
+    ret = nodeSnap.scheduleSnapshotAt(snapshot_block_num)
+    assert ret is not None, "Snapshot scheduling failed"
+    ret = nodeIrr.scheduleSnapshotAt(snapshot_block_num + 1) # intentionally different from nodeSnap
+    assert ret is not None, "Snapshot scheduling failed"
+
+    assert cluster.biosNode.waitForTransFinalization(transId, timeout=21*12*3), f'Failed to validate transaction {transId} got rolled into a LIB block on server port {cluster.biosNode.port}'
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"
     assert cluster.biosNode.waitForHeadToAdvance(blocksToAdvance=13), "Head did not advance 13 blocks to next producer"
     assert cluster.biosNode.waitForLibToAdvance(), "Lib stopped advancing on biosNode"
-    assert cluster.getNode(1).waitForLibToAdvance(), "Lib stopped advancing on Node 1"
-    assert cluster.getNode(irreversibleNodeId).waitForLibToAdvance(), f"Lib stopped advancing on Node {irreversibleNodeId}, irreversible node"
+    assert cluster.getNode(snapshotNodeId).waitForLibToAdvance(), "Lib stopped advancing on snapshotNode"
+    assert cluster.getNode(irrNodeId).waitForLibToAdvance(), "Lib stopped advancing on irrNode"
 
     info = cluster.biosNode.getInfo(exitOnError=True)
     assert (info["head_block_num"] - info["last_irreversible_block_num"]) < 9, "Instant finality enabled LIB diff should be small"
 
-    # launch setup node_00 (defproducera - defproducerf), node_01 (defproducerg - defproducerk),
-    #              node_02 (defproducerl - defproducerp), node_03 (defproducerq - defproduceru)
-    # with setprods of (defproducera, defproducerg, defproducerl, defproducerq)
-    assert cluster.biosNode.waitForProducer("defproducerq"), "defproducerq did not produce"
+    def restartWithSnapshot(node):
+       Print("Shut down node")
+       node.kill(signal.SIGTERM)
+       Print("Restart node with snapshot")
+       node.removeState()
+       node.rmFromCmd('--p2p-peer-address')
+       isRelaunchSuccess = node.relaunch(chainArg=f"--snapshot {node.getLatestSnapshot()}")
+       assert isRelaunchSuccess, "Failed to relaunch node with snapshot"
 
-    # should take effect in first block of defproducerg slot (so defproducerh)
-    assert cluster.setProds(["defproducerb", "defproducerh", "defproducerm", "defproducerr"]), "setprods failed"
-    setProdsBlockNum = cluster.biosNode.getBlockNum()
-    assert cluster.biosNode.waitForBlock(setProdsBlockNum+12+12+1), "Block of new producers not reached"
-    assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] == "defproducerh", "setprods should have taken effect"
-    assert cluster.getNode(4).waitForBlock(setProdsBlockNum + 12 + 12 + 1), "Block of new producers not reached on irreversible node"
+    Print("Restart snapshot node with snapshot")
+    restartWithSnapshot(nodeSnap)
+
+    Print("Restart Irreversible node with snapshot")
+    restartWithSnapshot(nodeIrr)
 
     testSuccessful=True
 finally:
