@@ -628,40 +628,42 @@ public:
                                ((_produce_block_cpu_effort.count() / 1000) * config::producer_repetitions) );
    }
 
-   void log_missing_votes(block_num_type block_num, const block_id_type& id,
+   void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
                           const finalizer_policy_ptr& active_finalizer_policy,
-                          const valid_quorum_certificate& qc ) {
+                          const valid_quorum_certificate& qc) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
-         std::vector<std::string> not_voted;
+         if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
+            std::vector<std::string> not_voted;
 
-         auto check_weak = [](const auto& weak_votes, size_t i) {
-            return weak_votes && (*weak_votes)[i];
-         };
+            auto check_weak = [](const auto& weak_votes, size_t i) {
+               return weak_votes && (*weak_votes)[i];
+            };
 
-         if (qc._strong_votes) {
-            const auto& votes = *qc._strong_votes;
-            auto& finalizers = active_finalizer_policy->finalizers;
-            assert(votes.size() == finalizers.size());
-            for (size_t i = 0; i < votes.size(); ++i) {
-               if (!votes[i] && !check_weak(qc._weak_votes, i)) {
-                  not_voted.push_back(finalizers[i].description);
-                  if (_finalizers.contains(finalizers[i].public_key)) {
-                     fc_wlog(vote_logger, "Block ${n}:${id} has no votes from our finalizer: ${v}",
-                             ("n", block_num)("id", id.str().substr(8,16))("v", finalizers[i].description));
+            if (qc._strong_votes) {
+               const auto& votes      = *qc._strong_votes;
+               auto&       finalizers = active_finalizer_policy->finalizers;
+               assert(votes.size() == finalizers.size());
+               for (size_t i = 0; i < votes.size(); ++i) {
+                  if (!votes[i] && !check_weak(qc._weak_votes, i)) {
+                     not_voted.push_back(finalizers[i].description);
+                     if (_finalizers.contains(finalizers[i].public_key)) {
+                        fc_wlog(vote_logger, "Block ${n}:${id} has no votes from our finalizer: ${v}",
+                                ("n", block->block_num())("id", id.str().substr(8,16))("v", finalizers[i].description));
+                     }
                   }
                }
             }
-         }
-         if (!not_voted.empty()) {
-            fc_ilog(vote_logger, "Block ${n}:${id} has no votes for: ${v}",
-                    ("n", block_num)("id", id.str().substr(8,16))("v", not_voted));
+            if (!not_voted.empty()) {
+               fc_ilog(vote_logger, "Block ${n}:${id} has no votes for: ${v}",
+                       ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
+            }
          }
       }
    }
 
    void update_vote_block_metrics(block_num_type block_num,
                                   const finalizer_policy_ptr& active_finalizer_policy,
-                                  const valid_quorum_certificate& qc ) {
+                                  const valid_quorum_certificate& qc) {
       if (_update_vote_block_metrics) {
          producer_plugin::vote_block_metrics m;
          m.block_num = block_num;
@@ -708,7 +710,7 @@ public:
             if (const auto& active_finalizers = chain.head_active_finalizer_policy()) {
                const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
                const auto& qc = qc_ext.qc.qc;
-               log_missing_votes(block->block_num(), id, active_finalizers, qc);
+               log_missing_votes(block, id, active_finalizers, qc);
                update_vote_block_metrics(block->block_num(), active_finalizers, qc);
             }
          }
