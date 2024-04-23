@@ -1,31 +1,30 @@
 #pragma once
 
 #include <fc/variant.hpp>
-#include <boost/dynamic_bitset.hpp>
+#include <fc/bitutil.hpp>
+
+#include "variant_object.hpp"
 
 namespace fc
 {
-   template<typename T> void to_variant( const boost::dynamic_bitset<T>& bs, fc::variant& v ) {
+   inline void to_variant( const fc::dynamic_bitset& bs, fc::variant& v ) {
       auto num_blocks = bs.num_blocks();
-      if ( num_blocks > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "number of blocks of dynamic_bitset cannot be greather than MAX_NUM_ARRAY_ELEMENTS" );
+      if ( num_blocks > MAX_NUM_ARRAY_ELEMENTS )
+         throw std::range_error( "number of blocks of dynamic_bitset cannot be greather than MAX_NUM_ARRAY_ELEMENTS" );
 
-      std::vector<T> blocks(num_blocks);
+      std::vector<fc::dynamic_bitset::block_type> blocks(num_blocks);
       boost::to_block_range(bs, blocks.begin());
-
-      v = fc::variant(blocks);
+      v = fc::mutable_variant_object("size", bs.size())
+                                    ("bits", blocks);
    }
 
-   template<typename T> void from_variant( const fc::variant& v, boost::dynamic_bitset<T>& bs ) {
-      const std::vector<fc::variant>& vars = v.get_array();
-      auto num_vars = vars.size();
-      if( num_vars > MAX_NUM_ARRAY_ELEMENTS ) throw std::range_error( "number of variants for dynamic_bitset cannot be greather than MAX_NUM_ARRAY_ELEMENTS" );
+   inline void from_variant( const fc::variant& v, fc::dynamic_bitset& bs ) {
+      fc::dynamic_bitset::size_type size;
+      std::vector<fc::dynamic_bitset::block_type> blocks;
 
-      std::vector<T> blocks;
-      blocks.reserve(num_vars);
-      for( const auto& var: vars ) {
-         blocks.push_back( var.as<T>() );
-      }
-
+      from_variant(v["size"], size);
+      from_variant(v["bits"], blocks);
       bs = { blocks.cbegin(), blocks.cend() };
+      bs.resize(size);
    }
 } // namespace fc
