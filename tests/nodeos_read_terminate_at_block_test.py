@@ -111,7 +111,8 @@ def checkStatus(testNode, testNodeArgs):
     match = re.search(r"--terminate-at-block (\d+)", testNodeArgs)
     termAtBlock = int(match.group(1))
 
-    assert head == termAtBlock, f"head {head} termAtBlock {termAtBlock}"
+    # Terminate after termAtBlock is reached, can be equal or greater than
+    assert head >= termAtBlock, f"head {head} termAtBlock {termAtBlock}"
 
 
 def checkReplay(testNode, testNodeArgs):
