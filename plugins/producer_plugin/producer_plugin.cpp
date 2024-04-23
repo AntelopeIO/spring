@@ -667,31 +667,31 @@ public:
       if (_update_vote_block_metrics) {
          producer_plugin::vote_block_metrics m;
          m.block_num = block_num;
-         auto add_votes = [&](const auto& votes, std::vector<string>& desc, std::set<size_t>& not_voted) {
+         auto add_votes = [&](const auto& votes, std::vector<string>& desc) {
             assert(votes.size() == active_finalizer_policy->finalizers.size());
             for (size_t i = 0; i < votes.size(); ++i) {
                if (votes[i]) {
                   desc.push_back(active_finalizer_policy->finalizers[i].description);
-               } else {
-                  not_voted.insert(i);
                }
             }
          };
-         std::set<size_t> not_voted;
          if (qc._strong_votes) {
-            add_votes(*qc._strong_votes, m.strong_votes, not_voted);
+            add_votes(*qc._strong_votes, m.strong_votes);
          }
          if (qc._weak_votes) {
-            std::set<size_t> not_voted_weak;
-            add_votes(*qc._weak_votes, m.weak_votes, not_voted_weak);
-            std::set<size_t> no_votes;
-            std::ranges::set_intersection(not_voted, not_voted_weak, std::inserter(no_votes, no_votes.end()));
-            not_voted.swap(no_votes);
+            add_votes(*qc._weak_votes, m.weak_votes);
          }
-         if (!not_voted.empty()) {
-            for (auto i : not_voted) {
-               m.no_votes.push_back(active_finalizer_policy->finalizers.at(i).description);
+         if (m.strong_votes.size() + m.weak_votes.size() != active_finalizer_policy->finalizers.size()) {
+            fc::dynamic_bitset not_voted(active_finalizer_policy->finalizers.size());
+            if (qc._strong_votes) {
+               not_voted = *qc._strong_votes;
             }
+            if (qc._weak_votes) {
+               assert(not_voted.size() == qc._weak_votes->size());
+               not_voted |= *qc._weak_votes;
+            }
+            not_voted.flip();
+            add_votes(not_voted, m.no_votes);
          }
          _update_vote_block_metrics(std::move(m));
       }
