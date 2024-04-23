@@ -30,7 +30,7 @@ Utils.Debug=debug
 testSuccessful=False
 
 cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs=args.keep_logs)
-walletMgr=WalletMgr(True)
+walletMgr=WalletMgr(True, keepRunning=args.leave_running, keepLogs=args.keep_logs)
 
 try:
     TestHelper.printSystemInfo("BEGIN")
@@ -60,8 +60,18 @@ try:
     status = cluster.waitForTrxGeneratorsSpinup(nodeId=cluster.getNode(0).nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
-    success, transId = cluster.activateInstantFinality(biosFinalizer=False)
+    Print("Start transition to Savanna")
+    success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
+
+    cluster.biosNode.waitForHeadToAdvance()
+
+    Print("Verify calling setfinalizers again does no harm")
+    success, ignoredId = cluster.activateInstantFinality(biosFinalizer=True, waitForFinalization=False)
+
+    Print("Wait for LIB of setfinalizers")
+    if not cluster.biosNode.waitForTransFinalization(transId, timeout=21 * 12 * 3):
+        Utils.Print("ERROR: Failed to validate setfinalizer transaction %s got rolled into a LIB block" % (transId))
 
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"
