@@ -65,6 +65,7 @@ namespace eosio::chain {
       return results;
    }
 
+   // Does not validate ordering, assumes validate_and_extract_extensions() has been called in verify_qc_claim()
    std::optional<block_extension> signed_block::extract_extension(uint16_t extension_id)const {
       using decompose_t = block_extension_types::decompose_t;
 
@@ -72,6 +73,8 @@ namespace eosio::chain {
          const auto& e = block_extensions[i];
          auto id = e.first;
 
+         if (id > extension_id)
+            break;
          if (id != extension_id)
             continue;
 

@@ -65,6 +65,7 @@ namespace eosio { namespace chain {
       return results;
    }
 
+   // Does not validate ordering, assumes validate_and_extract_header_extensions() has been called in block_state creation
    std::optional<block_header_extension> block_header::extract_header_extension(uint16_t extension_id)const {
       using decompose_t = block_header_extension_types::decompose_t;
 
@@ -72,6 +73,8 @@ namespace eosio { namespace chain {
          const auto& e = header_extensions[i];
          auto id = e.first;
 
+         if (id > extension_id)
+            break;
          if (id != extension_id)
             continue;
 
