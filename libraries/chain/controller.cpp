@@ -535,8 +535,10 @@ struct building_block {
    void set_proposed_finalizer_policy(finalizer_policy&& fin_pol)
    {
       std::visit(overloaded{ [&](building_block_legacy& bb) {
-                                 fin_pol.generation = 1;  // only allowed to be set once in legacy mode
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                 if (!bb.pending_block_header_state.qc_claim) { // not in transition
+                                    fin_pol.generation = 1;  // only allowed to be set once in legacy mode
+                                    bb.new_finalizer_policy = std::move(fin_pol);
+                                 }
                              },
                              [&](building_block_if& bb)     {
                                 bb.new_finalizer_policy = std::move(fin_pol);
