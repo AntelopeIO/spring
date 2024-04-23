@@ -88,14 +88,9 @@ try:
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "Node0 did not shutdown"
 
-    node0.removeReversibleBlks()
-    node1.removeReversibleBlks()
-    node2.removeReversibleBlks()
-    node3.removeReversibleBlks()
-    node0.removeState()
-    node1.removeState()
-    node2.removeState()
-    node3.removeState()
+    for node in [node0, node1, node2, node3]:
+        node.removeReversibleBlks()
+        node.removeState()
 
     isRelaunchSuccess = node0.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
     assert isRelaunchSuccess, "node 0 relaunch from snapshot failed"
