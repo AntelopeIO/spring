@@ -38,25 +38,8 @@ dumpErrorDetails=args.dump_error_details
 Utils.Debug=debug
 testSuccessful=False
 
-def removeReversibleBlks(nodeId):
-   dataDir = Utils.getNodeDataDir(nodeId)
-   reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
-   shutil.rmtree(reversibleBlks, ignore_errors=True)
-
-def removeState(nodeId):
-   dataDir = Utils.getNodeDataDir(nodeId)
-   state = os.path.join(dataDir, "state")
-   shutil.rmtree(state, ignore_errors=True)
-
-def getLatestSnapshot(nodeId):
-    snapshotDir = os.path.join(Utils.getNodeDataDir(nodeId), "snapshots")
-    snapshotDirContents = os.listdir(snapshotDir)
-    assert len(snapshotDirContents) > 0
-    snapshotDirContents.sort()
-    return os.path.join(snapshotDir, snapshotDirContents[-1])
-
 cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs=args.keep_logs)
-walletMgr=WalletMgr(True)
+walletMgr=WalletMgr(True, keepRunning=args.leave_running, keepLogs=args.keep_logs)
 
 try:
     TestHelper.printSystemInfo("BEGIN")
@@ -67,7 +50,7 @@ try:
 
     Print("Stand up cluster")
     # For now do not load system contract as it does not support setfinalizer
-    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, prodCount=prod_count, delay=delay, loadSystemContract=False,
+    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, delay=delay, loadSystemContract=False,
                       activateIF=True) is False:
         errorExit("Failed to stand up eos cluster.")
 
@@ -75,10 +58,10 @@ try:
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    node0 = cluster.getNode(0)
-    node1 = cluster.getNode(1)
-    node2 = cluster.getNode(2)
-    node3 = cluster.getNode(3)
+    node0 = cluster.getNode(0) # A
+    node1 = cluster.getNode(1) # B
+    node2 = cluster.getNode(2) # C
+    node3 = cluster.getNode(3) # D
 
     Print("Create snapshot (node 0)")
     ret = node0.createSnapshot()
@@ -99,26 +82,28 @@ try:
     assert not node2.verifyAlive(), "Node2 did not shutdown"
     assert not node3.verifyAlive(), "Node3 did not shutdown"
 
+    # node0 will have higher lib than 1,2,3 since it can incorporate QCs in blocks
+    Print("Wait for node 0 head to advance")
     node0.waitForHeadToAdvance()
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "Node0 did not shutdown"
 
-    removeReversibleBlks(0)
-    removeReversibleBlks(1)
-    removeReversibleBlks(2)
-    removeReversibleBlks(3)
-    removeState(0)
-    removeState(1)
-    removeState(2)
-    removeState(3)
+    node0.removeReversibleBlks()
+    node1.removeReversibleBlks()
+    node2.removeReversibleBlks()
+    node3.removeReversibleBlks()
+    node0.removeState()
+    node1.removeState()
+    node2.removeState()
+    node3.removeState()
 
-    isRelaunchSuccess = node0.relaunch(chainArg=" --snapshot {}".format(getLatestSnapshot(0)))
+    isRelaunchSuccess = node0.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
     assert isRelaunchSuccess, "node 0 relaunch from snapshot failed"
-    isRelaunchSuccess = node1.relaunch(chainArg=" --snapshot {}".format(getLatestSnapshot(0)))
+    isRelaunchSuccess = node1.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
     assert isRelaunchSuccess, "node 1 relaunch from snapshot failed"
-    isRelaunchSuccess = node2.relaunch(chainArg=" --snapshot {}".format(getLatestSnapshot(0)))
+    isRelaunchSuccess = node2.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
     assert isRelaunchSuccess, "node 2 relaunch from snapshot failed"
-    isRelaunchSuccess = node3.relaunch(chainArg=" --snapshot {}".format(getLatestSnapshot(0)))
+    isRelaunchSuccess = node3.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
     assert isRelaunchSuccess, "node 3 relaunch from snapshot failed"
 
     node0.waitForLibToAdvance()
