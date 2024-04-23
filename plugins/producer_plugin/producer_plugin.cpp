@@ -647,14 +647,14 @@ public:
                   if (!votes[i] && !check_weak(qc._weak_votes, i)) {
                      not_voted.push_back(finalizers[i].description);
                      if (_finalizers.contains(finalizers[i].public_key)) {
-                        fc_wlog(vote_logger, "Block ${n}:${id} has no votes from our finalizer: ${v}",
-                                ("n", block->block_num())("id", id.str().substr(8,16))("v", finalizers[i].description));
+                        fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n}:${id}",
+                                ("f", finalizers[i].description)("n", block->block_num())("id", id.str().substr(8,16)));
                      }
                   }
                }
             }
             if (!not_voted.empty()) {
-               fc_ilog(vote_logger, "Block ${n}:${id} has no votes for: ${v}",
+               fc_ilog(vote_logger, "Block ${n}:${id} has no votes from finalizers: ${v}",
                        ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
             }
          }
