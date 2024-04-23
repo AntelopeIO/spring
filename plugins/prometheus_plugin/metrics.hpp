@@ -148,7 +148,7 @@ struct catalog_type {
          }
        , block_votes{
             .block_num{build<Gauge>("nodeos_block_num", "current block number")}
-          , .voted{family<Gauge>("nodeos_block_votes", "votes incorporated into a block, -1 weak, 1 strong")}
+          , .voted{family<Gauge>("nodeos_block_votes", "votes incorporated into a block, -1 weak, 1 strong, 0 no vote")}
        }
        , cpu_usage_us(family<Counter>("nodeos_cpu_usage_us_total", "total cpu usage in microseconds for blocks"))
        , net_usage_us(family<Counter>("nodeos_net_usage_us_total", "total net usage in microseconds for blocks"))
