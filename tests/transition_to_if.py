@@ -60,12 +60,16 @@ try:
     status = cluster.waitForTrxGeneratorsSpinup(nodeId=cluster.getNode(0).nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
+    Print("Start transition to Savanna")
     success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
 
     cluster.biosNode.waitForHeadToAdvance()
-    success, ignoredId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
 
+    Print("Verify calling setfinalizers again does no harm")
+    success, ignoredId = cluster.activateInstantFinality(biosFinalizer=True, waitForFinalization=False)
+
+    Print("Wait for LIB of setfinalizers")
     if not cluster.biosNode.waitForTransFinalization(transId, timeout=21 * 12 * 3):
         Utils.Print("ERROR: Failed to validate setfinalizer transaction %s got rolled into a LIB block" % (transId))
 
