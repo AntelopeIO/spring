@@ -74,13 +74,11 @@ try:
     node0.waitForLibToAdvance()
     node1.waitForLibToAdvance()
 
-    node1.kill(signal.SIGTERM)
-    node2.kill(signal.SIGTERM)
-    node3.kill(signal.SIGTERM)
+    for node in [node1, node2, node3]:
+        node.kill(signal.SIGTERM)
 
-    assert not node1.verifyAlive(), "Node1 did not shutdown"
-    assert not node2.verifyAlive(), "Node2 did not shutdown"
-    assert not node3.verifyAlive(), "Node3 did not shutdown"
+    for node in [node1, node2, node3]:
+        assert not node.verifyAlive(), "Node did not shutdown"
 
     # node0 will have higher lib than 1,2,3 since it can incorporate QCs in blocks
     Print("Wait for node 0 head to advance")
@@ -92,19 +90,12 @@ try:
         node.removeReversibleBlks()
         node.removeState()
 
-    isRelaunchSuccess = node0.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
-    assert isRelaunchSuccess, "node 0 relaunch from snapshot failed"
-    isRelaunchSuccess = node1.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
-    assert isRelaunchSuccess, "node 1 relaunch from snapshot failed"
-    isRelaunchSuccess = node2.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
-    assert isRelaunchSuccess, "node 2 relaunch from snapshot failed"
-    isRelaunchSuccess = node3.relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
-    assert isRelaunchSuccess, "node 3 relaunch from snapshot failed"
+    for i in range(4):
+        isRelaunchSuccess = cluster.getNode(i).relaunch(chainArg=" --snapshot {}".format(node0.getLatestSnapshot()))
+        assert isRelaunchSuccess, f"node {i} relaunch from snapshot failed"
 
-    node0.waitForLibToAdvance()
-    node1.waitForLibToAdvance()
-    node2.waitForLibToAdvance()
-    node3.waitForLibToAdvance()
+    for node in [node0, node1, node2, node3]:
+        node.waitForLibToAdvance()
 
     testSuccessful=True
 finally:
