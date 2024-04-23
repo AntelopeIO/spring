@@ -155,7 +155,7 @@ public:
 
    // Constructs a Transition Savanna block state from a Legacy block state.
    static std::shared_ptr<block_state> create_transition_block(
-         const block_header_state&         prev,
+         const block_state&                prev,
          signed_block_ptr                  b,
          const protocol_feature_set&       pfs,
          const validator_t&                validator,
