@@ -17,7 +17,7 @@ namespace eosio::chain {
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
    using bls_private_key         = fc::crypto::blslib::bls_private_key;
 
-   using vote_bitset   = boost::dynamic_bitset<uint32_t>;
+   using vote_bitset   = fc::dynamic_bitset;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
 
    enum class vote_status {

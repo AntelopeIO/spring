@@ -1046,7 +1046,7 @@ class Cluster(object):
         transId = Node.getTransId(trans[1])
         if waitForFinalization:
             if not self.biosNode.waitForTransFinalization(transId, timeout=21*12*3):
-                Utils.Print("ERROR: Failed to validate transaction %s got rolled into a LIB block on server port %d." % (transId, biosNode.port))
+                Utils.Print("ERROR: Failed to validate setfinalizer transaction %s got rolled into a LIB block on server port %d." % (transId, biosNode.port))
                 return None, transId
         return True, transId
 

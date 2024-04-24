@@ -145,6 +145,13 @@ public:
 
    static void set_test_mode(bool m) { test_mode_ = m; }
 
+   struct vote_block_metrics {
+      uint32_t block_num = 0;
+      std::vector<std::string> strong_votes;
+      std::vector<std::string> weak_votes;
+      std::vector<std::string> no_votes;
+   };
+
    struct speculative_block_metrics {
       account_name block_producer{};
       uint32_t     block_num             = 0;
@@ -188,6 +195,7 @@ public:
    void register_update_produced_block_metrics(std::function<void(produced_block_metrics)>&&);
    void register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&&);
    void register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&&);
+   void register_update_vote_block_metrics(std::function<void(vote_block_metrics&&)>&&);
 
    inline static bool test_mode_{false}; // to be moved into appbase (application_base)
 

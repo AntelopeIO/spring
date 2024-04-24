@@ -78,14 +78,17 @@ try:
     success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
     
-    info = cluster.biosNode.getInfo(exitOnError=True)
-    snapshot_block_num = info["head_block_num"] + 1
+    # Take snapshots
+    def takeSnapshot(node):
+       ret = node.createSnapshot()
+       assert ret is not None, "snapshot creation failed"
+       ret_snaphot_head_block_num = ret["payload"]["head_block_num"]
+       Print(f"snapshot head block number {ret_snaphot_head_block_num}")
 
-    Print(f'Schedule snapshot on snapshot node at block {snapshot_block_num}')
-    ret = nodeSnap.scheduleSnapshotAt(snapshot_block_num)
-    assert ret is not None, "Snapshot scheduling failed"
-    ret = nodeIrr.scheduleSnapshotAt(snapshot_block_num + 1) # intentionally different from nodeSnap
-    assert ret is not None, "Snapshot scheduling failed"
+    Print("Take snapshot on nodeSnap")
+    takeSnapshot(nodeSnap)
+    Print("Take snapshot on nodeIrr")
+    takeSnapshot(nodeIrr)
 
     assert cluster.biosNode.waitForTransFinalization(transId, timeout=21*12*3), f'Failed to validate transaction {transId} got rolled into a LIB block on server port {cluster.biosNode.port}'
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
