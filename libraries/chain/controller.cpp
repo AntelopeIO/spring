@@ -4054,7 +4054,7 @@ struct controller_impl {
             if( switch_fork ) {
                auto head_fork_comp_str = apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
                ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                    ("chid", chain_head.id())("chn}", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+                    ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
                     ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
 
                // not possible to log transaction specific info when switching forks
@@ -5311,6 +5311,12 @@ const producer_authority_schedule* controller::next_producers()const {
       return my->next_producers();
 
    return my->pending->next_producers();
+}
+
+finalizer_policy_ptr controller::head_active_finalizer_policy()const {
+   return apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+      return head->active_finalizer_policy;
+   });
 }
 
 bool controller::light_validation_allowed() const {

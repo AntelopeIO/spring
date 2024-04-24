@@ -494,6 +494,7 @@ public:
    using signature_provider_type = signature_provider_plugin::signature_provider_type;
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
+   std::set<bls_public_key>                          _finalizers;
    std::set<chain::account_name>                     _producers;
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
@@ -550,6 +551,7 @@ public:
    std::function<void(producer_plugin::produced_block_metrics)> _update_produced_block_metrics;
    std::function<void(producer_plugin::speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(producer_plugin::incoming_block_metrics)> _update_incoming_block_metrics;
+   std::function<void(producer_plugin::vote_block_metrics&&)> _update_vote_block_metrics;
 
    // ro for read-only
    struct ro_trx_t {
@@ -626,13 +628,92 @@ public:
                                ((_produce_block_cpu_effort.count() / 1000) * config::producer_repetitions) );
    }
 
-   void on_block(const signed_block_ptr& block) {
+   void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
+                          const finalizer_policy_ptr& active_finalizer_policy,
+                          const valid_quorum_certificate& qc) {
+      if (vote_logger.is_enabled(fc::log_level::info)) {
+         if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
+            std::vector<std::string> not_voted;
+
+            auto check_weak = [](const auto& weak_votes, size_t i) {
+               return weak_votes && (*weak_votes)[i];
+            };
+
+            if (qc._strong_votes) {
+               const auto& votes      = *qc._strong_votes;
+               auto&       finalizers = active_finalizer_policy->finalizers;
+               assert(votes.size() == finalizers.size());
+               for (size_t i = 0; i < votes.size(); ++i) {
+                  if (!votes[i] && !check_weak(qc._weak_votes, i)) {
+                     not_voted.push_back(finalizers[i].description);
+                     if (_finalizers.contains(finalizers[i].public_key)) {
+                        fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n}:${id}",
+                                ("f", finalizers[i].description)("n", block->block_num())("id", id.str().substr(8,16)));
+                     }
+                  }
+               }
+            }
+            if (!not_voted.empty()) {
+               fc_ilog(vote_logger, "Block ${n}:${id} has no votes from finalizers: ${v}",
+                       ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
+            }
+         }
+      }
+   }
+
+   void update_vote_block_metrics(block_num_type block_num,
+                                  const finalizer_policy_ptr& active_finalizer_policy,
+                                  const valid_quorum_certificate& qc) {
+      if (_update_vote_block_metrics) {
+         producer_plugin::vote_block_metrics m;
+         m.block_num = block_num;
+         auto add_votes = [&](const auto& votes, std::vector<string>& desc) {
+            assert(votes.size() == active_finalizer_policy->finalizers.size());
+            for (size_t i = 0; i < votes.size(); ++i) {
+               if (votes[i]) {
+                  desc.push_back(active_finalizer_policy->finalizers[i].description);
+               }
+            }
+         };
+         if (qc._strong_votes) {
+            add_votes(*qc._strong_votes, m.strong_votes);
+         }
+         if (qc._weak_votes) {
+            add_votes(*qc._weak_votes, m.weak_votes);
+         }
+         if (m.strong_votes.size() + m.weak_votes.size() != active_finalizer_policy->finalizers.size()) {
+            fc::dynamic_bitset not_voted(active_finalizer_policy->finalizers.size());
+            if (qc._strong_votes) {
+               not_voted = *qc._strong_votes;
+            }
+            if (qc._weak_votes) {
+               assert(not_voted.size() == qc._weak_votes->size());
+               not_voted |= *qc._weak_votes;
+            }
+            not_voted.flip();
+            add_votes(not_voted, m.no_votes);
+         }
+         _update_vote_block_metrics(std::move(m));
+      }
+   }
+
+   void on_block(const signed_block_ptr& block, const block_id_type& id) {
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
       chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
+      }
+      if (vote_logger.is_enabled(fc::log_level::info) || _update_vote_block_metrics) {
+         if (block->contains_extension(quorum_certificate_extension::extension_id())) {
+            if (const auto& active_finalizers = chain.head_active_finalizer_policy()) {
+               const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
+               const auto& qc = qc_ext.qc.qc;
+               log_missing_votes(block, id, active_finalizers, qc);
+               update_vote_block_metrics(block->block_num(), active_finalizers, qc);
+            }
+         }
       }
    }
 
@@ -1128,6 +1209,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
             if (bls) {
                const auto& [pubkey, privkey] = *bls;
                _finalizer_keys[pubkey.to_string()] = privkey.to_string();
+               _finalizers.insert(pubkey);
             }
          } catch(secure_enclave_exception& e) {
             elog("Error with Secure Enclave signature provider: ${e}; ignoring ${val}", ("e", e.top_message())("val", key_spec_pair));
@@ -1340,8 +1422,8 @@ void producer_plugin_impl::plugin_startup() {
          chain.set_node_finalizer_keys(_finalizer_keys);
 
          _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, _ ] = t;
-            on_block(block);
+            const auto& [ block, id ] = t;
+            on_block(block, id);
           }));
          _accepted_block_header_connection.emplace(chain.accepted_block_header().connect([this](const block_signal_params& t) {
             const auto& [ block, _ ] = t;
@@ -2904,6 +2986,10 @@ void producer_plugin::register_update_speculative_block_metrics(std::function<vo
 
 void producer_plugin::register_update_incoming_block_metrics(std::function<void(producer_plugin::incoming_block_metrics)>&& fun) {
    my->_update_incoming_block_metrics = std::move(fun);
+}
+
+void producer_plugin::register_update_vote_block_metrics(std::function<void(producer_plugin::vote_block_metrics&&)>&& fun) {
+   my->_update_vote_block_metrics = std::move(fun);
 }
 
 } // namespace eosio
