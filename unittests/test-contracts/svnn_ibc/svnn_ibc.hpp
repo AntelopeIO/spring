@@ -11,6 +11,18 @@
 
 using namespace eosio;
 
+/*
+
+todo :
+
+calculate directions instead of providing it
+
+use template for proof of inclusion instead of variant
+
+bug with storing the wrong block number when storing last proof
+
+*/
+
 CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;

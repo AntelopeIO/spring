@@ -164,7 +164,8 @@ void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const
     block_data target_block = std::get<svnn_ibc::block_data>(target_block_proof_of_inclusion.target);
 
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
-    _maybe_add_proven_root(target_block.dynamic_data.block_num, finality_proof.qc_block.finality_mroot);
+    uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
+    _maybe_add_proven_root(target_block.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
 }
 
 ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num){

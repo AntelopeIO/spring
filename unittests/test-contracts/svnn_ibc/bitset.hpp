@@ -8,10 +8,10 @@ class bitset {
 
 public:
     bitset(word_t size) 
-        : num_bits(size), data(round_up(size), 0) {}
+        : data(round_up(size), 0) {}
     
    bitset(word_t size, const std::vector<word_t> raw_bitset)
-       : num_bits(size), data(raw_bitset) {
+       : data(raw_bitset) {
            check(raw_bitset.size() == round_up(size), "invalid raw bitset size");
        }
 
@@ -39,7 +39,6 @@ public:
     }
 
 private:
-    word_t num_bits;
     std::vector<word_t> data;
 
     // Check if the index is within bounds
