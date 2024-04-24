@@ -60,7 +60,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
    set_finalizers(producers);
    auto setfin_block = produce_block(); // this block contains the header extension of the finalizer set
 
-   for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib->block_num(); produce_block()) {
+   for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib_block->block_num(); produce_block()) {
       set_producers({"initc"_n, "inite"_n}); // should be ignored since in transition
       (void)active_block_num; // avoid warning
    };

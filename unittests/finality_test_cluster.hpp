@@ -34,7 +34,7 @@ public:
    };
 
    // Construct a test network and activate IF.
-   finality_test_cluster(size_t num_keys = 50, size_t fin_policy_size = 3);
+   finality_test_cluster(size_t num_keys = 60, size_t fin_policy_size = 3);
 
    // node0 produces a block and pushes it to node1 and node2
    void produce_and_push_block();
@@ -61,7 +61,7 @@ public:
       // returns true if LIB advances on "node_index" node
       bool lib_advancing();
 
-      uint32_t lib_num() const { return lib->block_num(); }
+      uint32_t lib_num() const { return lib_block->block_num(); }
 
       // Intentionally corrupt node's vote's block_id and save the original vote
       void corrupt_vote_block_id();

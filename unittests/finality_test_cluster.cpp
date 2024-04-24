@@ -13,10 +13,21 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
 {
    using namespace eosio::testing;
    size_t num_finalizers = nodes.size();
+
+   // -----------------------------------------------------------------------------------
+   // each node gets an equal range of keys to be used as local finalizer.
+   // for example, the default parameters  are `num_keys = 60` and `fin_policy_size = 3`,
+   // which means that for 3 nodes, we'll make each node capable on voting with 20
+   // different keys (node0 will use keys 0 .. 19, node1 will use keys 20 .. 39, etc...
+   // (see set_node_finalizers() call).
+   //
+   // The first finalizer_policy (see set_finalizer_policy below) will activate
+   // keys 0, 20 and 40
+   // -----------------------------------------------------------------------------------
    size_t split = num_keys / num_finalizers;
 
    for (size_t i=0; i<nodes.size(); ++i) {
-      nodes[i].finkeys.init(num_keys, fin_policy_size);
+      nodes[i].finkeys.init_keys(num_keys, fin_policy_size);
       nodes[i].setup(i * split, split);
    }
 
@@ -34,38 +45,7 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
       node2.push_block(b);
       node1.process_vote(*this);
    });
-#if 0
-   auto block = node0.produce_block();
 
-   // this block contains the header extension for the instant finality
-   std::optional<eosio::chain::block_header_extension> ext =
-      block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
-   BOOST_TEST(!!ext);
-   std::optional<eosio::chain::finalizer_policy> fin_policy =
-      std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == 3);
-   BOOST_TEST(fin_policy->generation == 1);
-
-   node1.push_block(block);
-   node2.push_block(block);
-
-   produce_and_push_block(); // make setfinalizer irreversible
-
-   // form a 3-chain to make LIB advacing on node0
-   // node0's vote (internal voting) and node1's vote make the quorum
-   for (auto i = 0; i < 3; ++i) {
-      produce_and_push_block();
-      node1.process_vote(*this);
-   }
-   FC_ASSERT(node0.lib_advancing(), "LIB has not advanced on node0");
-
-   // QC extension in the block sent to node1 and node2 makes them LIB advancing
-   produce_and_push_block();
-   node1.process_vote(*this);
-   FC_ASSERT(node1.lib_advancing(), "LIB has not advanced on node1");
-   FC_ASSERT(node2.lib_advancing(), "LIB has not advanced on node2");
-#endif
    for (auto& n : nodes) {
       std::lock_guard g(n.votes_mtx);
       n.votes.clear();
@@ -157,10 +137,10 @@ void finality_test_cluster::node_t::restore_to_original_vote() {
 }
 
 bool finality_test_cluster::node_t::lib_advancing() {
-   auto curr_lib_num = lib_num(); //control->if_irreversible_block_num();
+   auto curr_lib_num = lib_num();
    auto advancing = curr_lib_num > prev_lib_num;
    // update pre_lib_num for next time check
-   std::cout << "curr_lib_num = " << curr_lib_num << ", prev_lib_num = " << prev_lib_num << '\n';
+   //std::cout << "curr_lib_num = " << curr_lib_num << ", prev_lib_num = " << prev_lib_num << '\n';
    prev_lib_num = curr_lib_num;
    return advancing;
 }
@@ -176,21 +156,6 @@ void finality_test_cluster::node_t::setup(size_t first_node_key, size_t num_node
       std::lock_guard g(votes_mtx);
       votes.emplace_back(std::get<2>(v));
    });
-#if 0
-   produce_block();
-   produce_block();
-   auto block = produce_block();
-
-   // this block contains the header extension for the instant finality
-   std::optional<eosio::chain::block_header_extension> ext =
-      block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
-   BOOST_TEST(!!ext);
-   std::optional<eosio::chain::finalizer_policy> fin_policy =
-      std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == 3);
-   BOOST_TEST(fin_policy->generation == 1);
-#endif
 }
 
 // Update "vote_index" vote on node according to `mode` parameter

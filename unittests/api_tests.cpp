@@ -3883,7 +3883,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_TEST(fin_policy->threshold == (num_finalizers * 2 + 2) / 3);
    block_id_type if_genesis_block_id = block->calculate_id();
 
-   for (block_num_type active_block_num = block->block_num(); active_block_num > t.lib->block_num(); t.produce_block()) {
+   for (block_num_type active_block_num = block->block_num(); active_block_num > t.lib_block->block_num(); t.produce_block()) {
       (void)active_block_num; // avoid warning
    };
 
@@ -3896,13 +3896,13 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 
-   auto lib_after_transition = t.lib->block_num();
+   auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
    // lib must advance after 3 blocks
    t.produce_blocks(3);
-   BOOST_CHECK_GT(t.lib->block_num(), lib_after_transition);
+   BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
 } FC_LOG_AND_RETHROW() }
 
 void test_finality_transition(const vector<account_name>& accounts,
@@ -3930,7 +3930,7 @@ void test_finality_transition(const vector<account_name>& accounts,
    block_id_type if_genesis_block_id = block->calculate_id();
 
    block_num_type active_block_num = block->block_num();
-   while (active_block_num > t.lib->block_num()) {
+   while (active_block_num > t.lib_block->block_num()) {
       block = t.produce_block();
    }
    // lib_block is IF Genesis Block
@@ -3942,15 +3942,15 @@ void test_finality_transition(const vector<account_name>& accounts,
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 
-   auto lib_after_transition = t.lib->block_num();
+   auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
    t.produce_blocks(4);
    if( lib_advancing_expected ) {
-      BOOST_CHECK_GT(t.lib->block_num(), lib_after_transition);
+      BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
    } else {
-      BOOST_CHECK_EQUAL(t.lib->block_num(), lib_after_transition);
+      BOOST_CHECK_EQUAL(t.lib_block->block_num(), lib_after_transition);
    }
 }
 

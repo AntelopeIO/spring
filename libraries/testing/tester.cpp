@@ -345,8 +345,8 @@ namespace eosio::testing {
 
       lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
-         lib    = block;
-         lib_id = id;
+         lib_block = block;
+         lib_id    = id;
       });
    }
 

@@ -471,6 +471,27 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         // checks that the active `finalizer_policy` for `block` matches the
+         // passed `generation` and `keys_span`.
+         // -----------------------------------------------------------------
+         void check_active_finalizer_policy(const signed_block_ptr& block,
+                                            uint32_t generation,
+                                            std::span<const bls_public_key> keys_span) {
+            auto finpol = active_finalizer_policy(block->calculate_id());
+            BOOST_REQUIRE(!!finpol);
+            BOOST_REQUIRE_EQUAL(finpol->generation, generation);
+            BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
+            std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
+            std::sort(keys.begin(), keys.end());
+
+            std::vector<bls_public_key> active_keys;
+            for (const auto& auth : finpol->finalizers)
+               active_keys.push_back(auth.public_key);
+            std::sort(active_keys.begin(), active_keys.end());
+            for (size_t i=0; i<keys.size(); ++i)
+               BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
+         }
+
       protected:
          signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs,
@@ -495,8 +516,8 @@ namespace eosio::testing {
 
       public:
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
-         signed_block_ptr                              lib;    // updated via irreversible_block signal
-         block_id_type                                 lib_id; // updated via irreversible_block signal
+         signed_block_ptr                              lib_block; // updated via irreversible_block signal
+         block_id_type                                 lib_id;    // updated via irreversible_block signal
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
@@ -693,27 +714,6 @@ namespace eosio::testing {
         return ok;
       }
 
-      // checks that the active `finalizer_policy` for `block` matches the
-      // passed `generation` and `keys_span`.
-      // -----------------------------------------------------------------
-      void check_active_finalizer_policy(const signed_block_ptr& block,
-                                         uint32_t generation,
-                                         std::span<const bls_public_key> keys_span) {
-         auto finpol = active_finalizer_policy(block->calculate_id());
-         BOOST_REQUIRE(!!finpol);
-         BOOST_REQUIRE_EQUAL(finpol->generation, generation);
-         BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
-         std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
-         std::sort(keys.begin(), keys.end());
-
-         std::vector<bls_public_key> active_keys;
-         for (const auto& auth : finpol->finalizers)
-            active_keys.push_back(auth.public_key);
-         std::sort(active_keys.begin(), active_keys.end());
-         for (size_t i=0; i<keys.size(); ++i)
-            BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
-      }
-
       unique_ptr<controller>      validating_node;
       uint32_t                    num_blocks_to_producer_before_shutdown = 0;
       bool                        skip_validate = false;
@@ -733,10 +733,10 @@ namespace eosio::testing {
    struct finalizer_keys {
       finalizer_keys(Tester& t, size_t num_keys = 0, size_t finalizer_policy_size = 0) : t(t) {
          if (num_keys)
-            init(num_keys, finalizer_policy_size);
+            init_keys(num_keys, finalizer_policy_size);
       }
 
-      void init( size_t num_keys = 50, size_t finalizer_policy_size = 21) {
+      void init_keys( size_t num_keys = 50, size_t finalizer_policy_size = 21) {
          fin_policy_size = finalizer_policy_size;
          key_names.clear(); pubkeys.clear(); privkeys.clear();
          key_names.reserve(num_keys);
@@ -789,11 +789,19 @@ namespace eosio::testing {
          if (block_callback)
             block_callback(genesis_block);
 
+         // Do some sanity checks on the genesis block
+         // ------------------------------------------
+         const auto& ext = genesis_block->template extract_header_extension<instant_finality_extension>();
+         const auto& fin_policy = ext.new_finalizer_policy;
+         BOOST_TEST(!!fin_policy);
+         BOOST_TEST(fin_policy->finalizers.size() == fin_policy_size);
+         BOOST_TEST(fin_policy->generation == 1);
+
          // wait till the genesis_block becomes irreversible.
          // The critical block is the block that makes the genesis_block irreversible
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-         while(genesis_block->block_num() > t.lib->block_num()) {
+         while(genesis_block->block_num() > t.lib_block->block_num()) {
             critical_block = t.produce_block();
             if (block_callback)
                block_callback(critical_block);
@@ -809,7 +817,7 @@ namespace eosio::testing {
          // wait till the first proper block becomes irreversible. Transition will be done then
          // -----------------------------------------------------------------------------------
          signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
-         while(first_proper_block->block_num() > t.lib->block_num()) {
+         while(first_proper_block->block_num() > t.lib_block->block_num()) {
             pt_block = t.produce_block();
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
             if (block_callback)
@@ -823,7 +831,7 @@ namespace eosio::testing {
             if (block_callback)
                block_callback(b);
          }
-         BOOST_REQUIRE_EQUAL(t.lib->block_num(), pt_block->block_num());
+         BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
       }
 
       Tester&                 t;
