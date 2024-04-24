@@ -535,8 +535,10 @@ struct building_block {
    void set_proposed_finalizer_policy(finalizer_policy&& fin_pol)
    {
       std::visit(overloaded{ [&](building_block_legacy& bb) {
-                                 fin_pol.generation = 1;  // only allowed to be set once in legacy mode
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                 if (!bb.pending_block_header_state.is_if_transition_block()) {
+                                    fin_pol.generation = 1;  // only allowed to be set once in legacy mode
+                                    bb.new_finalizer_policy = std::move(fin_pol);
+                                 }
                              },
                              [&](building_block_if& bb)     {
                                 bb.new_finalizer_policy = std::move(fin_pol);
@@ -922,6 +924,7 @@ struct controller_impl {
    block_log                       blog;
    std::optional<pending_state>    pending;
    block_handle                    chain_head;
+   block_state_ptr                 chain_head_trans_svnn_block; // chain_head's Savanna representation during transition
    fork_database                   fork_db;
    large_atomic<block_id_type>     if_irreversible_block_id;
    resource_limits_manager         resource_limits;
@@ -1318,7 +1321,7 @@ struct controller_impl {
       // legacy_branch is from head, all will be validated unless irreversible_mode(),
       // IRREVERSIBLE applies (validates) blocks when irreversible, new_valid will be done after apply in log_irreversible
       assert(read_mode == db_read_mode::IRREVERSIBLE || legacy->action_mroot_savanna);
-      if (legacy->action_mroot_savanna) {
+      if (legacy->action_mroot_savanna && !new_bsp->valid) {
          // Create the valid structure for producing
          new_bsp->valid = prev->new_valid(*new_bsp, *legacy->action_mroot_savanna, new_bsp->strong_digest);
       }
@@ -1534,13 +1537,14 @@ struct controller_impl {
                      const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
                      // transition to savanna
-                     block_state_ptr prev;
+                     block_state_ptr prev = chain_head_trans_svnn_block;
+                     bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
                      for (size_t i = 0; i < legacy_branch.size(); ++i) {
-                        if (i == 0) {
+                        if (i == 0 && replay_not_from_snapshot) {
+                           assert(!prev);
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
                            const auto& bspl = legacy_branch[i];
-                           assert(bspl->action_mroot_savanna.has_value());
                            assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
                            auto new_bsp = block_state::create_transition_block(
                                  *prev,
@@ -1548,10 +1552,6 @@ struct controller_impl {
                                  protocol_features.get_protocol_feature_set(),
                                  validator_t{}, skip_validate_signee,
                                  bspl->action_mroot_savanna);
-                           // legacy_branch is from head, all should be validated
-                           assert(bspl->action_mroot_savanna);
-                           // Create the valid structure for producing
-                           new_bsp->valid = prev->new_valid(*new_bsp, *bspl->action_mroot_savanna, new_bsp->strong_digest);
                            prev = new_bsp;
                         }
                      }
@@ -2023,10 +2023,10 @@ struct controller_impl {
    {
        return apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
-             if (fork_db.version_in_use() == fork_database::in_use_t::both) {
-                return fork_db.apply_s<block_state_pair>([&](const auto& forkdb) -> block_state_pair {
-                   return { head, forkdb.head() };
-                });
+             if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+                // During transition to Savanna, we need to build Transition Savanna block
+                // from Savanna Genesis block
+                return { head, get_transition_savanna_block(head) };
              }
              return block_state_pair{ head, {} };
           },
@@ -2113,6 +2113,11 @@ struct controller_impl {
                   auto legacy_ptr = std::make_shared<block_state_legacy>(std::move(*block_state_data.bs_l));
                   chain_head = block_handle{legacy_ptr};
                   result.first = std::move(legacy_ptr);
+
+                  // If we have both bs_l and bs, we are during Savanna transition
+                  if (block_state_data.bs) {
+                     chain_head_trans_svnn_block = std::make_shared<block_state>(std::move(*block_state_data.bs));
+                  }
                } else {
                   auto bs_ptr = std::make_shared<block_state>(std::move(*block_state_data.bs));
                   chain_head = block_handle{bs_ptr};
@@ -4412,10 +4417,8 @@ struct controller_impl {
       }
    }
 
-   // This is only used during Savanna transition, which is a one-time occurrence,
-   // and it is only used by SHiP..
-   // It is OK to calculate from Savanna Genesis block for each Transition block.
-   std::optional<finality_data_t> get_transition_block_finality_data(const block_state_legacy_ptr& head) const {
+   // Returns corresponding Transition Savanna block for a given Legacy block.
+   block_state_ptr get_transition_savanna_block(const block_state_legacy_ptr& head) const {
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
@@ -4426,14 +4429,13 @@ struct controller_impl {
       block_state_ptr prev;
       auto bitr = legacy_branch.rbegin();
 
-      // get_transition_block_finality_data is called by SHiP as a result
-      // of receiving accepted_block signal. That is before
-      // the call to log_irreversible where root() is updated.
+      // This function can be called before log_irreversible is executed
+      // (where root() is updated), like in SHiP case where it is called
+      // as a result receiving accepted_block signal.
       // Search both root and legacy_branch for the first block having
       // instant_finality_extension -- the Savanna Genesis Block.
       // Then start from the Savanna Genesis Block to create corresponding
       // Savanna blocks.
-      // genesis_block already contains all information for finality_data.
       if (legacy_root->header.contains_header_extension(instant_finality_extension::extension_id())) {
          prev = block_state::create_if_genesis_block(*legacy_root);
       } else {
@@ -4450,19 +4452,24 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
-         assert((*bitr)->action_mroot_savanna.has_value());
          assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
          auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee, (*bitr)->action_mroot_savanna);
+               validator_t{},
+               skip_validate_signee,
+               (*bitr)->action_mroot_savanna);
 
          prev = new_bsp;
       }
 
       assert(prev);
-      return prev->get_finality_data();
+      return prev;
+   }
+
+   std::optional<finality_data_t> get_transition_block_finality_data(const block_state_legacy_ptr& head) const {
+      return get_transition_savanna_block(head)->get_finality_data();
    }
 
    std::optional<finality_data_t> head_finality_data() const {
