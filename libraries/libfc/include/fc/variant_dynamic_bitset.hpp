@@ -3,8 +3,6 @@
 #include <fc/variant.hpp>
 #include <fc/bitutil.hpp>
 
-#include "variant_object.hpp"
-
 namespace fc
 {
    inline void to_variant( const fc::dynamic_bitset& bs, fc::variant& v ) {
