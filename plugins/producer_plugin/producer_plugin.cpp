@@ -639,12 +639,12 @@ public:
                return weak_votes && (*weak_votes)[i];
             };
 
-            if (qc._strong_votes) {
-               const auto& votes      = *qc._strong_votes;
+            if (qc.strong_votes) {
+               const auto& votes      = *qc.strong_votes;
                auto&       finalizers = active_finalizer_policy->finalizers;
                assert(votes.size() == finalizers.size());
                for (size_t i = 0; i < votes.size(); ++i) {
-                  if (!votes[i] && !check_weak(qc._weak_votes, i)) {
+                  if (!votes[i] && !check_weak(qc.weak_votes, i)) {
                      not_voted.push_back(finalizers[i].description);
                      if (_finalizers.contains(finalizers[i].public_key)) {
                         fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n}:${id}",
@@ -675,20 +675,20 @@ public:
                }
             }
          };
-         if (qc._strong_votes) {
-            add_votes(*qc._strong_votes, m.strong_votes);
+         if (qc.strong_votes) {
+            add_votes(*qc.strong_votes, m.strong_votes);
          }
-         if (qc._weak_votes) {
-            add_votes(*qc._weak_votes, m.weak_votes);
+         if (qc.weak_votes) {
+            add_votes(*qc.weak_votes, m.weak_votes);
          }
          if (m.strong_votes.size() + m.weak_votes.size() != active_finalizer_policy->finalizers.size()) {
             fc::dynamic_bitset not_voted(active_finalizer_policy->finalizers.size());
-            if (qc._strong_votes) {
-               not_voted = *qc._strong_votes;
+            if (qc.strong_votes) {
+               not_voted = *qc.strong_votes;
             }
-            if (qc._weak_votes) {
-               assert(not_voted.size() == qc._weak_votes->size());
-               not_voted |= *qc._weak_votes;
+            if (qc.weak_votes) {
+               assert(not_voted.size() == qc.weak_votes->size());
+               not_voted |= *qc.weak_votes;
             }
             not_voted.flip();
             add_votes(not_voted, m.no_votes);
@@ -709,7 +709,7 @@ public:
          if (block->contains_extension(quorum_certificate_extension::extension_id())) {
             if (const auto& active_finalizers = chain.head_active_finalizer_policy()) {
                const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
-               const auto& qc = qc_ext.qc.qc;
+               const auto& qc = qc_ext.qc.data;
                log_missing_votes(block, id, active_finalizers, qc);
                update_vote_block_metrics(block->block_num(), active_finalizers, qc);
             }
