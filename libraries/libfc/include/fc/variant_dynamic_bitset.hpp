@@ -17,7 +17,7 @@ namespace fc
       // From boost::dynamic_bitset docs:
       //   A character in the string is '1' if the corresponding bit is set, and '0' if it is not. Character
       //   position i in the string corresponds to bit position b.size() - 1 - i.
-      // reverse so the ith string charactor corresponds to the ith dynamic_bitset entry
+      // reverse so the ith string character corresponds to the ith dynamic_bitset entry
       std::ranges::reverse(s);
       v = std::move(s);
    }
