@@ -42,7 +42,8 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
-   auto pubkeys0 = fin_keys.transition_to_Savanna();
+   auto pubkeys0 = fin_keys.set_finalizer_policy(0);
+   fin_keys.transition_to_Savanna();
 
    // run set_finalizers(), verify it becomes active after exactly two 3-chains
    // -------------------------------------------------------------------------
@@ -77,7 +78,8 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
-   auto pubkeys0 = fin_keys.transition_to_Savanna();
+   auto pubkeys0 = fin_keys.set_finalizer_policy(0);
+   fin_keys.transition_to_Savanna();
 
    // run set_finalizers() twice in same block, verify only latest one becomes active
    // -------------------------------------------------------------------------------

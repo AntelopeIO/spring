@@ -25,7 +25,8 @@
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
-   using vote_status = eosio::chain::vote_status;
+   using vote_status      = eosio::chain::vote_status;
+   using tester           = eosio::testing::tester;
 
    enum class vote_mode {
       strong,
@@ -33,7 +34,7 @@ public:
    };
 
    // Construct a test network and activate IF.
-   finality_test_cluster();
+   finality_test_cluster(size_t num_keys = 50, size_t fin_policy_size = 3);
 
    // node0 produces a block and pushes it to node1 and node2
    void produce_and_push_block();
@@ -43,24 +44,24 @@ public:
    // node1_votes and node2_votes when starting.
    bool produce_blocks_and_verify_lib_advancing();
 
-   struct node_t : public eosio::testing::tester {
+   struct node_t : public tester {
       uint32_t                                prev_lib_num{0};
       std::mutex                              votes_mtx;
       std::vector<vote_message_ptr>           votes;
-      fc::crypto::blslib::bls_private_key     priv_key;
       eosio::chain::vote_message_ptr          orig_vote;
-      //eosio::testing::finalizer_keys          finkeys;
+      eosio::testing::finalizer_keys<tester>  finkeys;
+      size_t                                  cur_key; // index of key used in current policy
 
-      //node_t() : finkeys(*this, 50, 3) {}
+      node_t() : finkeys(*this) {}
 
       size_t last_vote_index() const { return votes.size() - 1; }
 
-      void setup(eosio::chain::account_name local_finalizer);
+      void setup(size_t first_node_key, size_t num_node_keys);
 
       // returns true if LIB advances on "node_index" node
       bool lib_advancing();
 
-      uint32_t lib() const { return control->last_irreversible_block_num(); }
+      uint32_t lib_num() const { return lib->block_num(); }
 
       // Intentionally corrupt node's vote's block_id and save the original vote
       void corrupt_vote_block_id();
@@ -91,6 +92,9 @@ public:
    node_t& node0 = nodes[0];
    node_t& node1 = nodes[1];
    node_t& node2 = nodes[2];
+
+   size_t num_keys;
+   size_t fin_policy_size;
 
 private:
    // sets up "node_index" node

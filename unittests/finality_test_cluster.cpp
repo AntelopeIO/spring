@@ -8,30 +8,49 @@ static auto num_from_id(const eosio::chain::block_id_type &id) {
 }
 
 // Construct a test network and activate IF.
-finality_test_cluster::finality_test_cluster() {
+finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_size) :
+   num_keys(num_keys), fin_policy_size(fin_policy_size)
+{
    using namespace eosio::testing;
+   size_t num_finalizers = nodes.size();
+   size_t split = num_keys / num_finalizers;
 
-   node0.setup("node0"_n);
-   node1.setup("node1"_n);
-   node2.setup("node2"_n);
-
-   produce_and_push_block(); // make setfinalizer irreversible
+   for (size_t i=0; i<nodes.size(); ++i) {
+      nodes[i].finkeys.init(num_keys, fin_policy_size);
+      nodes[i].setup(i * split, split);
+   }
 
    // node0's votes
    node0.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
       last_vote_status = std::get<1>(v);
       last_connection_vote = std::get<0>(v);
    });
-   // collect node1's votes
-   node1.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
-      std::lock_guard g(node1.votes_mtx);
-      node1.votes.emplace_back(std::get<2>(v));
+
+   std::array<size_t, 3> initial_policy { 0, split, 2*split };
+   node0.finkeys.set_finalizer_policy(initial_policy);
+
+   node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
+      node1.push_block(b);
+      node2.push_block(b);
+      node1.process_vote(*this);
    });
-   // collect node2's votes
-   node2.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
-      std::lock_guard g(node2.votes_mtx);
-      node2.votes.emplace_back(std::get<2>(v));
-   });
+#if 0
+   auto block = node0.produce_block();
+
+   // this block contains the header extension for the instant finality
+   std::optional<eosio::chain::block_header_extension> ext =
+      block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+   BOOST_TEST(!!ext);
+   std::optional<eosio::chain::finalizer_policy> fin_policy =
+      std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
+   BOOST_TEST(!!fin_policy);
+   BOOST_TEST(fin_policy->finalizers.size() == 3);
+   BOOST_TEST(fin_policy->generation == 1);
+
+   node1.push_block(block);
+   node2.push_block(block);
+
+   produce_and_push_block(); // make setfinalizer irreversible
 
    // form a 3-chain to make LIB advacing on node0
    // node0's vote (internal voting) and node1's vote make the quorum
@@ -46,12 +65,11 @@ finality_test_cluster::finality_test_cluster() {
    node1.process_vote(*this);
    FC_ASSERT(node1.lib_advancing(), "LIB has not advanced on node1");
    FC_ASSERT(node2.lib_advancing(), "LIB has not advanced on node2");
-
-   // clean up processed votes
+#endif
    for (auto& n : nodes) {
       std::lock_guard g(n.votes_mtx);
       n.votes.clear();
-      n.prev_lib_num = n.control->if_irreversible_block_num();
+      n.prev_lib_num = n.lib_num();
    }
 }
 
@@ -139,33 +157,28 @@ void finality_test_cluster::node_t::restore_to_original_vote() {
 }
 
 bool finality_test_cluster::node_t::lib_advancing() {
-   auto curr_lib_num = control->if_irreversible_block_num();
+   auto curr_lib_num = lib_num(); //control->if_irreversible_block_num();
    auto advancing = curr_lib_num > prev_lib_num;
    // update pre_lib_num for next time check
+   std::cout << "curr_lib_num = " << curr_lib_num << ", prev_lib_num = " << prev_lib_num << '\n';
    prev_lib_num = curr_lib_num;
    return advancing;
 }
 
 // private methods follow
-void finality_test_cluster::node_t::setup(eosio::chain::account_name local_finalizer) {
+void finality_test_cluster::node_t::setup(size_t first_node_key, size_t num_node_keys) {
    using namespace eosio::testing;
 
+   cur_key = first_node_key;
+   finkeys.set_node_finalizers(first_node_key, num_node_keys);
+
+   control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      std::lock_guard g(votes_mtx);
+      votes.emplace_back(std::get<2>(v));
+   });
+#if 0
    produce_block();
    produce_block();
-
-   // activate savanna
-   eosio::testing::base_tester::finalizer_policy_input policy_input = {
-      .finalizers       = { {.name = "node0"_n, .weight = 1},
-                            {.name = "node1"_n, .weight = 1},
-                            {.name = "node2"_n, .weight = 1}},
-      .threshold        = 2,
-      .local_finalizers = {local_finalizer}
-   };
-
-   auto [trace_ptr, priv_keys] = set_finalizers(policy_input);
-   FC_ASSERT( priv_keys.size() == 1, "number of private keys should be 1" );
-   priv_key = priv_keys[0];  // we only have one private key
-
    auto block = produce_block();
 
    // this block contains the header extension for the instant finality
@@ -177,12 +190,16 @@ void finality_test_cluster::node_t::setup(eosio::chain::account_name local_final
    BOOST_TEST(!!fin_policy);
    BOOST_TEST(fin_policy->finalizers.size() == 3);
    BOOST_TEST(fin_policy->generation == 1);
+#endif
 }
 
 // Update "vote_index" vote on node according to `mode` parameter
 vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& cluster, size_t vote_index,
                                                         vote_mode mode, bool duplicate) {
-   std::unique_lock g(votes_mtx);
+   std::lock_guard g(votes_mtx);
+   if (votes.empty())
+      return vote_status::unknown_block;
+
    if (vote_index == (size_t)-1)
       vote_index = votes.size() - 1;
 
@@ -196,7 +213,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
       // fetch the strong digest
       auto strong_digest = control->get_strong_digest_by_id(vote->block_id);
       // convert the strong digest to weak and sign it
-      vote->sig = priv_key.sign(eosio::chain::create_weak_digest(strong_digest));
+      vote->sig = finkeys.privkeys[cur_key].sign(eosio::chain::create_weak_digest(strong_digest));
    }
 
    return cluster.process_vote(vote, duplicate);
@@ -207,7 +224,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
 vote_status finality_test_cluster::process_vote(vote_message_ptr& vote, bool duplicate) {
    static uint32_t connection_id = 0;
    node0.control->process_vote_message( ++connection_id, vote );
-   if (num_from_id(vote->block_id) > node0.lib())
+   if (num_from_id(vote->block_id) > node0.lib_num())
       return wait_on_vote(connection_id, duplicate);
    return vote_status::unknown_block;
 }

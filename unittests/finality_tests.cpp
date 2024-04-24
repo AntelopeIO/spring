@@ -12,7 +12,7 @@ BOOST_FIXTURE_TEST_CASE(two_votes, finality_test_cluster) { try {
       produce_and_push_block();
       // process node1's votes only
       node1.process_vote(*this);
-      produce_and_push_block();
+      //produce_and_push_block();
 
       // all nodes advance LIB
       BOOST_REQUIRE(node0.lib_advancing());

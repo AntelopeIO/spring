@@ -731,9 +731,14 @@ namespace eosio::testing {
    // -------------------------------------------------------------------------------------
    template <class Tester>
    struct finalizer_keys {
-      finalizer_keys(Tester& t, size_t num_keys = 50, size_t fin_policy_size = 21) :
-         t(t),
-         fin_policy_size(fin_policy_size) {
+      finalizer_keys(Tester& t, size_t num_keys = 0, size_t finalizer_policy_size = 0) : t(t) {
+         if (num_keys)
+            init(num_keys, finalizer_policy_size);
+      }
+
+      void init( size_t num_keys = 50, size_t finalizer_policy_size = 21) {
+         fin_policy_size = finalizer_policy_size;
+         key_names.clear(); pubkeys.clear(); privkeys.clear();
          key_names.reserve(num_keys);
          pubkeys.reserve(num_keys);
          privkeys.reserve(num_keys);
@@ -755,30 +760,50 @@ namespace eosio::testing {
          t.set_node_finalizers({&key_names[first_key], num_keys});
       }
 
-      // Trigger the transition to Savanna by setting the first finalizer_policy,
-      // and produce blocks until the transition is completed.
-      // This should be done only once.
-      // ----------------------------------------------------------------
-      std::vector<bls_public_key> transition_to_Savanna() {
-         // activate savanna by running the `set_finalizers` host function
-         auto pubkeys = set_finalizer_policy(0);
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
+      // ----------------------------------------------------------------------------------
+      std::span<const bls_public_key> set_finalizer_policy(size_t first_key) {
+         t.set_active_finalizers({&key_names[first_key], fin_policy_size});
+         return { &pubkeys[first_key], fin_policy_size };
+      }
 
+      void set_finalizer_policy(std::span<size_t> indices) {
+         assert(indices.size() == fin_policy_size);
+         vector<account_name> names;
+         names.reserve(fin_policy_size);
+         for (auto idx : indices)
+            names.push_back(key_names[idx]);
+         t.set_active_finalizers({names.begin(), fin_policy_size});
+      }
+
+      // Produce blocks until the transition to Savanna is completed.
+      // This assumes `set_finalizer_policy` was called immediately
+      // before this. Also this should be done only once.
+      // -----------------------------------------------------------
+      void transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
          // `genesis_block` is the first block where set_finalizers() was executed.
          // It is the genesis block.
          // It will include the first header extension for the instant finality.
          // -----------------------------------------------------------------------
          auto genesis_block = t.produce_block();
+         if (block_callback)
+            block_callback(genesis_block);
 
          // wait till the genesis_block becomes irreversible.
          // The critical block is the block that makes the genesis_block irreversible
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-         while(genesis_block->block_num() > t.lib->block_num())
+         while(genesis_block->block_num() > t.lib->block_num()) {
             critical_block = t.produce_block();
+            if (block_callback)
+               block_callback(critical_block);
+         }
 
          // Blocks after the critical block are proper IF blocks.
          // -----------------------------------------------------
          auto first_proper_block = t.produce_block();
+         if (block_callback)
+            block_callback(first_proper_block);
          BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
 
          // wait till the first proper block becomes irreversible. Transition will be done then
@@ -787,21 +812,18 @@ namespace eosio::testing {
          while(first_proper_block->block_num() > t.lib->block_num()) {
             pt_block = t.produce_block();
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
+            if (block_callback)
+               block_callback(pt_block);
          }
 
          // lib must advance after 3 blocks
          // -------------------------------
-         t.produce_blocks(3);
+         for (size_t i=0; i<3; ++i) {
+            auto b = t.produce_block();
+            if (block_callback)
+               block_callback(b);
+         }
          BOOST_REQUIRE_EQUAL(t.lib->block_num(), pt_block->block_num());
-
-         return std::vector<bls_public_key>{pubkeys.begin(), pubkeys.end()};
-      }
-
-      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
-      // ----------------------------------------------------------------------------------
-      std::span<const bls_public_key> set_finalizer_policy(size_t first_key) {
-         t.set_active_finalizers({&key_names[first_key], fin_policy_size});
-         return { &pubkeys[first_key], fin_policy_size };
       }
 
       Tester&                 t;
