@@ -79,7 +79,8 @@ namespace eosio { namespace chain {
    }
 
    using block_extension_types = detail::block_extension_types<
-         additional_block_signatures_extension, quorum_certificate_extension
+         additional_block_signatures_extension,
+         quorum_certificate_extension
    >;
 
    using block_extension = block_extension_types::block_extension_t;

@@ -69,6 +69,8 @@ namespace eosio { namespace chain {
    std::optional<block_header_extension> block_header::extract_header_extension(uint16_t extension_id)const {
       using decompose_t = block_header_extension_types::decompose_t;
 
+      assert(std::ranges::is_sorted(header_extensions)); // currently all extensions are unique so default compare works
+
       for( size_t i = 0; i < header_extensions.size(); ++i ) {
          const auto& e = header_extensions[i];
          auto id = e.first;
