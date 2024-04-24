@@ -3880,7 +3880,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_TEST(!!fin_policy);
    BOOST_TEST(fin_policy->finalizers.size() == num_finalizers);
    BOOST_TEST(fin_policy->generation == 1);
-   BOOST_TEST(fin_policy->threshold == num_finalizers / 3 * 2 + 1);
+   BOOST_TEST(fin_policy->threshold == (num_finalizers * 2 + 2) / 3);
    block_id_type if_genesis_block_id = block->calculate_id();
 
    for (block_num_type active_block_num = block->block_num(); active_block_num > t.lib->block_num(); t.produce_block()) {
