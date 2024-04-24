@@ -1273,7 +1273,7 @@ namespace eosio::testing {
          pubkeys.push_back(pubkey);
          input.finalizers.emplace_back(name, 1);
       }
-      input.threshold = names.size()  * 2 / 3 + 1;
+      input.threshold = (names.size() * 2 + 2) / 3;
       set_finalizers(input);
       return pubkeys;
    }
