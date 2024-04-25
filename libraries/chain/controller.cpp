@@ -3721,10 +3721,10 @@ struct controller_impl {
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.qc.is_strong() == new_qc_claim.is_strong_qc,
+      EOS_ASSERT( qc_proof.data.is_strong() == new_qc_claim.is_strong_qc,
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
-                  ("s1", qc_proof.qc.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+                  ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
       auto bsp = fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
@@ -3734,7 +3734,7 @@ struct controller_impl {
                   ("q", new_qc_claim.block_num)("b", block_num) );
 
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof.qc);
+      bsp->verify_qc(qc_proof.data);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -3843,7 +3843,7 @@ struct controller_impl {
          return;
       }
       const auto& qc_ext = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
-      const auto& received_qc = qc_ext.qc.qc;
+      const auto& received_qc = qc_ext.qc.data;
 
       const auto claimed = fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed ) {
