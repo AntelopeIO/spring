@@ -121,9 +121,6 @@ public:
    std::array<node_t, num_nodes>      nodes;
 
    node_t& node0 = nodes[0];
-   node_t& node1 = nodes[1];
-   node_t& node2 = nodes[2];
-   node_t& node3 = nodes[3];
 
 private:
    // sets up "node_index" node
