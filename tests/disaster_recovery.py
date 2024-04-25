@@ -7,7 +7,7 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.Node import BlockType
 
 ###############################################################
-# disaster_recovery
+# disaster_recovery - Scenario 1
 #
 # Integration test with 4 finalizers (A, B, C, and D).
 #
@@ -15,10 +15,11 @@ from TestHarness.Node import BlockType
 #   - A has LIB N. A has a finalizer safety information file that locks on a block after N.
 #   - B, C, and D have LIB less than N. They have finalizer safety information files that lock on N.
 #
-#   All nodes lose their reversible blocks and restart from an earlier snapshot.
+#   Nodes B, C, and D lose their reversible blocks. All nodes restart from an earlier snapshot.
 #
-#   A is restarted and replays up to block N after restarting from snapshot. Block N is sent to the other
-#   nodes B, C, and D after they are also started up again.
+#   A is restarted and replays up to its last reversible block (which is a block number greater than N) after
+#   restarting from snapshot. Blocks N and later is sent to the other nodes B, C, and D after they are also
+#   started up again.
 #
 #   Verify that LIB advances and that A, B, C, and D are eventually voting strong on new blocks.
 #
