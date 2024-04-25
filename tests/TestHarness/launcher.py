@@ -523,6 +523,9 @@ class cluster_generator:
             eosdcmd.extend(producer_names)
         else:
             a(a(eosdcmd, '--transaction-retry-max-storage-size-gb'), '100')
+            finalizer_keys = list(sum([('--signature-provider', f'{key.blspubkey}=KEY:{key.blsprivkey}') for key in instance.keys if key.blspubkey is not None], ()))
+            if finalizer_keys:
+                eosdcmd.extend(finalizer_keys)
         a(a(eosdcmd, '--plugin'), 'eosio::net_plugin')
         a(a(eosdcmd, '--plugin'), 'eosio::chain_api_plugin')
 

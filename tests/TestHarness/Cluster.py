@@ -997,13 +997,13 @@ class Cluster(object):
         Utils.Print(f'Found {len(producerKeys)} producer keys')
         return producerKeys
 
-    def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True):
+    def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True, finalizerMustBeProducer=True):
         # call setfinalizer
         numFins = 0
         for n in (self.nodes + [self.biosNode]):
             if not n or not n.keys or not n.keys[0].blspubkey:
                 continue
-            if not n.isProducer:
+            if finalizerMustBeProducer and not n.isProducer:
                 continue
             if n.nodeId == 'bios' and not biosFinalizer:
                 continue
@@ -1021,7 +1021,7 @@ class Cluster(object):
         for n in (self.nodes + [self.biosNode]):
             if not n or not n.keys or not n.keys[0].blspubkey:
                 continue
-            if not n.isProducer:
+            if finalizerMustBeProducer and not n.isProducer:
                 continue
             if n.nodeId == 'bios' and not biosFinalizer:
                 continue
