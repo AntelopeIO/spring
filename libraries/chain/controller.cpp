@@ -492,24 +492,27 @@ struct building_block {
       uint32_t get_block_num() const { return block_num; }
 
       // returns the next proposer schedule version and true if different
-      //         if producers is not different then returns the current schedule version (or next schedule version)
-      // uses current building_block timestamp
+      // if producers is not different then returns the current schedule version (or next schedule version)
       std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
+            // if there are any policies already proposed but not active yet then they are what needs to be compared
             if (!parent.proposer_policies.empty()) {
                block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
                if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
-                  // would replace so compare to prev
+                  // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
                   if (itr != parent.proposer_policies.begin()) {
                      return (--itr)->second->proposer_schedule;
                   }
+                  // no previous to what will be replaced, use active
                   return active_proposer_policy->proposer_schedule;
                }
-               return (--parent.proposer_policies.end())->second->proposer_schedule;
+               // will not replace any proposed policies, use next to become active
+               return parent.proposer_policies.begin()->second->proposer_schedule;
             }
 
+            // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
          };
 
