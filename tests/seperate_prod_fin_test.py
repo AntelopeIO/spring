@@ -4,9 +4,9 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.TestHelper import AppArgs
 
 ###############################################################
-# seperate_prod_fin_test
+# separate_prod_fin_test
 #
-# Test producer nodes and finalizer nodes are seperate. Configure 2 producer nodes and
+# Test producer nodes and finalizer nodes which are separate. Configure 2 producer nodes and
 # 3 non-producer nodes; each of them has a finalizer key. Since threshold is 4,
 # if LIB advances, it implies at least 2 non-producer finalizer participates in
 # the finalization process.
@@ -41,10 +41,10 @@ try:
 
     Print("Stand up cluster")
     # For now do not load system contract as it does not support setfinalizer
-    # seperate_prod_fin_test_shape.json defines 2 producer nodes each has 1
+    # separate_prod_fin_test_shape.json defines 2 producer nodes each has 1
     # producer and 3 non-producer nodes
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes,
-                      topo="./tests/seperate_prod_fin_test_shape.json", delay=delay,
+                      topo="./tests/separate_prod_fin_test_shape.json", delay=delay,
                       activateIF=True, signatureProviderForNonProducer=True) is False:
         errorExit("Failed to stand up eos cluster.")
 
