@@ -61,14 +61,10 @@ try:
     # For now do not load system contract as it does not support setfinalizer
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, specificExtraNodeosArgs=specificExtraNodeosArgs,
                       topo="./tests/disaster_recovery_2_test_shape.json", delay=delay, loadSystemContract=False,
-                      activateIF=False) is False:
+                      activateIF=True, signatureProviderForNonProducer=True) is False:
         errorExit("Failed to stand up eos cluster.")
 
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] != "eosio", "launch should have waited for production to change"
-
-    Print("Start transition to Savanna")
-    success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=True, finalizerMustBeProducer=False)
-    assert success, "Activate instant finality failed"
 
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
