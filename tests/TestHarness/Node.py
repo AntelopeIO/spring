@@ -553,6 +553,11 @@ class Node(Transactions):
        state = os.path.join(dataDir, "state")
        shutil.rmtree(state, ignore_errors=True)
 
+    def removeReversibleBlks(self):
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
+        shutil.rmtree(reversibleBlks, ignore_errors=True)
+
     @staticmethod
     def findStderrFiles(path):
         files=[]
