@@ -796,6 +796,7 @@ namespace eosio::testing {
          BOOST_TEST(!!fin_policy);
          BOOST_TEST(fin_policy->finalizers.size() == fin_policy_size);
          BOOST_TEST(fin_policy->generation == 1);
+         BOOST_TEST(fin_policy->threshold == (fin_policy_size * 2) / 3 + 1);
 
          // wait till the genesis_block becomes irreversible.
          // The critical block is the block that makes the genesis_block irreversible

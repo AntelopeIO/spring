@@ -10,23 +10,30 @@
 
 #include <eosio/testing/tester.hpp>
 
-
-
-// Set up a test network which consists of 3 nodes:
-//   * node0 produces blocks and pushes them to node1 and node2;
-//     node0 votes the blocks it produces internally.
-//   * node1 votes on the proposal sent by node0
-//   * node2 votes on the proposal sent by node0
-// Each node has one finalizer: node0 -- "node0"_n, node1 -- "node1"_n, node2 -- "node2"_n.
-// Quorum is set to 2.
-// After starup up, IF are activated on both nodes.
+// ----------------------------------------------------------------------------
+// Set up a test network which consists of 4 nodes (one producer, 4 finalizers)
 //
-// APIs are provided to modify/delay/reoder/remove votes from node1 and node2 to node0.
+//   * node0 produces blocks and pushes them to [node1, node2, node3];
+//     node0 votes on the blocks it produces internally.
+//
+//   * [node1, node2, node3] vote on proposals sent by node0, votes are sent
+//     to node0 when `process_vote` is called
+//
+// Each node has one finalizer, quorum is computed to 3
+// After starup up, IF is activated on node0.
+//
+// APIs are provided to modify/delay/alter/re-order/remove votes
+// from [node1, node2, node3] to node0.
+// ----------------------------------------------------------------------------
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
    using vote_status      = eosio::chain::vote_status;
    using tester           = eosio::testing::tester;
+   static constexpr size_t num_nodes = 4;
+
+   // actual quorum - 1 since node0 processes its own votes
+   static constexpr size_t num_needed_for_quorum = (num_nodes * 2) / 3;
 
    enum class vote_mode {
       strong,
@@ -34,7 +41,7 @@ public:
    };
 
    // Construct a test network and activate IF.
-   finality_test_cluster(size_t num_keys = 60, size_t fin_policy_size = 3);
+   finality_test_cluster(size_t num_keys = 80, size_t fin_policy_size = num_nodes);
 
    // node0 produces a block and pushes it to node1 and node2
    void produce_and_push_block();
@@ -43,6 +50,20 @@ public:
    // This function can be only used at the end of a test as it clears
    // node1_votes and node2_votes when starting.
    bool produce_blocks_and_verify_lib_advancing();
+
+   // returns true if lib advanced on all nodes since we last checked
+   size_t lib_advancing();
+
+   void process_votes(size_t num_voting_nodes = num_needed_for_quorum) {
+      assert(num_voting_nodes > 0 && num_voting_nodes <= num_nodes - 1);
+      for (size_t i=0; i<num_voting_nodes; ++i)
+         nodes[i+1].process_vote(*this);
+   }
+
+   void clear_votes_and_reset_lib() {
+      for (auto& n : nodes)
+         n.clear_votes_and_reset_lib();
+   }
 
    struct node_t : public tester {
       uint32_t                                prev_lib_num{0};
@@ -58,7 +79,7 @@ public:
 
       void setup(size_t first_node_key, size_t num_node_keys);
 
-      // returns true if LIB advances on "node_index" node
+      // returns true if LIB advances on this node since we last checked
       bool lib_advancing();
 
       uint32_t lib_num() const { return lib_block->block_num(); }
@@ -75,8 +96,14 @@ public:
       // Restore node's original vote
       void restore_to_original_vote();
 
-      // Update "vote_index" vote on node according to `mode` parameter, and send and process the vote
-      // on  node0 which is the producer (and Savanna leader)
+      void clear_votes_and_reset_lib() {
+         std::lock_guard g(votes_mtx);
+         votes.clear();
+         prev_lib_num = lib_num();
+      }
+
+      // Update "vote_index" vote on node according to `mode` parameter, and send and process
+      // the vote on node0 which is the producer (and Savanna leader)
       vote_status process_vote(finality_test_cluster& cluster, size_t vote_index = (size_t)-1,
                                vote_mode mode = vote_mode::strong, bool duplicate = false);
 
@@ -86,15 +113,13 @@ private:
    std::atomic<uint32_t>      last_connection_vote{0};
    std::atomic<vote_status>   last_vote_status{};
 
-   std::array<node_t, 3> nodes;
+   std::array<node_t, num_nodes>      nodes;
 
 public:
    node_t& node0 = nodes[0];
    node_t& node1 = nodes[1];
    node_t& node2 = nodes[2];
-
-   size_t num_keys;
-   size_t fin_policy_size;
+   node_t& node3 = nodes[3];
 
 private:
    // sets up "node_index" node

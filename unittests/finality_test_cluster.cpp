@@ -8,24 +8,25 @@ static auto num_from_id(const eosio::chain::block_id_type &id) {
 }
 
 // Construct a test network and activate IF.
-finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_size) :
-   num_keys(num_keys), fin_policy_size(fin_policy_size)
+finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_size)
 {
    using namespace eosio::testing;
    size_t num_finalizers = nodes.size();
 
    // -----------------------------------------------------------------------------------
    // each node gets an equal range of keys to be used as local finalizer.
-   // for example, the default parameters  are `num_keys = 60` and `fin_policy_size = 3`,
-   // which means that for 3 nodes, we'll make each node capable on voting with 20
+   // for example, the default parameters  are `num_keys = 80` and `fin_policy_size = 4`,
+   // which means that for 4 nodes, we'll make each node capable on voting with 20
    // different keys (node0 will use keys 0 .. 19, node1 will use keys 20 .. 39, etc...
    // (see set_node_finalizers() call).
    //
    // The first finalizer_policy (see set_finalizer_policy below) will activate
-   // keys 0, 20 and 40
+   // keys 0, 20, 40 and 60
    // -----------------------------------------------------------------------------------
    size_t split = num_keys / num_finalizers;
 
+   // set initial finalizer key for each node
+   // ---------------------------------------
    for (size_t i=0; i<nodes.size(); ++i) {
       nodes[i].finkeys.init_keys(num_keys, fin_policy_size);
       nodes[i].setup(i * split, split);
@@ -37,20 +38,31 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
       last_connection_vote = std::get<0>(v);
    });
 
-   std::array<size_t, 3> initial_policy { 0, split, 2*split };
+   // set initial finalizer policy
+   // ----------------------------
+   std::array<size_t, num_nodes> initial_policy;
+   for (size_t i=0; i<nodes.size(); ++i)
+      initial_policy[i] = i * split;
    node0.finkeys.set_finalizer_policy(initial_policy);
 
+   // transition to Savanna
+   // ---------------------
    node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
-      node1.push_block(b);
-      node2.push_block(b);
-      node1.process_vote(*this);
+      for (size_t i=1; i<nodes.size(); ++i) {
+         nodes[i].push_block(b);
+         nodes[i].process_vote(*this);
+      }
    });
 
-   for (auto& n : nodes) {
-      std::lock_guard g(n.votes_mtx);
-      n.votes.clear();
-      n.prev_lib_num = n.lib_num();
-   }
+   // at this point node0 has a QC to include in next block.
+   // Produce that block and push it, but don't process votes so that
+   // we don't start with an existing QC
+   // ---------------------------------------------------------------
+   produce_and_push_block();
+
+   // reset votes and saved lib, so that each test starts in a clean slate
+   // --------------------------------------------------------------------
+   clear_votes_and_reset_lib();
 }
 
 vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool duplicate) {
@@ -68,31 +80,34 @@ vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool dup
    return duplicate ? vote_status::duplicate : last_vote_status.load();
 }
 
-// node0 produces a block and pushes it to node1 and node2
+// node0 produces a block and pushes it to other nodes
 void finality_test_cluster::produce_and_push_block() {
    auto b = node0.produce_block();
-   node1.push_block(b);
-   node2.push_block(b);
+   for (size_t i=1; i<nodes.size(); ++i)
+      nodes[i].push_block(b);
+}
+
+size_t finality_test_cluster::lib_advancing() {
+   size_t num_advancing = 0;
+   for (auto& n : nodes)
+      if (n.lib_advancing())
+         ++num_advancing;
+   return num_advancing;
 }
 
 // Produces a number of blocks and returns true if LIB is advancing.
 // This function can be only used at the end of a test as it clears
-// node1_votes and node2_votes when starting.
+// votes from all nodes
 bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    // start from fresh
-   {
-      std::scoped_lock g(node1.votes_mtx, node2.votes_mtx);
-      node1.votes.clear();
-      node2.votes.clear();
-   }
+   clear_votes_and_reset_lib();
 
+   produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
+      process_votes(num_nodes - 1);
       produce_and_push_block();
-      node1.process_vote(*this);
-      produce_and_push_block();
-      if (!node0.lib_advancing() || !node1.lib_advancing() || !node2.lib_advancing()) {
+      if (lib_advancing() < num_nodes)
          return false;
-      }
    }
 
    return true;
@@ -100,49 +115,53 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
 
 void finality_test_cluster::node_t::corrupt_vote_block_id() {
    std::lock_guard g(votes_mtx);
-   orig_vote = votes[0];
+   auto& last_vote = votes.back();
+   orig_vote = last_vote;
 
-   if( votes[0]->block_id.data()[0] == 'a' ) {
-      votes[0]->block_id.data()[0] = 'b';
+   if( last_vote->block_id.data()[0] == 'a' ) {
+      last_vote->block_id.data()[0] = 'b';
    } else {
-      votes[0]->block_id.data()[0] = 'a';
+      last_vote->block_id.data()[0] = 'a';
    }
 }
 
 void finality_test_cluster::node_t::corrupt_vote_finalizer_key() {
    std::lock_guard g(votes_mtx);
-   orig_vote = votes[0];
+   auto& last_vote = votes.back();
+   orig_vote = last_vote;
 
    // corrupt the finalizer_key (manipulate so it is different)
-   auto g1 = votes[0]->finalizer_key.jacobian_montgomery_le();
+   auto g1 = last_vote->finalizer_key.jacobian_montgomery_le();
    g1 = bls12_381::aggregate_public_keys(std::array{g1, g1});
    auto affine = g1.toAffineBytesLE(bls12_381::from_mont::yes);
-   votes[0]->finalizer_key = fc::crypto::blslib::bls_public_key(affine);
+   last_vote->finalizer_key = fc::crypto::blslib::bls_public_key(affine);
 }
 
 void finality_test_cluster::node_t::corrupt_vote_signature() {
    std::lock_guard g(votes_mtx);
-   orig_vote = votes[0];
+   auto& last_vote = votes.back();
+   orig_vote = last_vote;
 
    // corrupt the signature
-   auto g2 = votes[0]->sig.jacobian_montgomery_le();
+   auto g2 = last_vote->sig.jacobian_montgomery_le();
    g2 = bls12_381::aggregate_signatures(std::array{g2, g2});
    auto affine = g2.toAffineBytesLE(bls12_381::from_mont::yes);
-   votes[0]->sig = fc::crypto::blslib::bls_signature(affine);
+   last_vote->sig = fc::crypto::blslib::bls_signature(affine);
 }
 
 void finality_test_cluster::node_t::restore_to_original_vote() {
    std::lock_guard g(votes_mtx);
-   votes[0] = orig_vote;
+   votes.back() = orig_vote;
 }
 
 bool finality_test_cluster::node_t::lib_advancing() {
-   auto curr_lib_num = lib_num();
-   auto advancing = curr_lib_num > prev_lib_num;
-   // update pre_lib_num for next time check
-   //std::cout << "curr_lib_num = " << curr_lib_num << ", prev_lib_num = " << prev_lib_num << '\n';
-   prev_lib_num = curr_lib_num;
-   return advancing;
+   //std::cout << "curr_lib_num = " << lib_num() << ", prev_lib_num = " << prev_lib_num << '\n';
+   if (lib_num() > prev_lib_num) {
+      prev_lib_num = lib_num();
+      return true;
+   }
+   assert(lib_num() == prev_lib_num);
+   return false;
 }
 
 // private methods follow

@@ -1273,7 +1273,8 @@ namespace eosio::testing {
          pubkeys.push_back(pubkey);
          input.finalizers.emplace_back(name, 1);
       }
-      input.threshold = (names.size() * 2 + 2) / 3;
+      // same as reference-contracts/.../contracts/eosio.system/src/finalizer_key.cpp#L73
+      input.threshold = (names.size() * 2) / 3 + 1;
       set_finalizers(input);
       return pubkeys;
    }
