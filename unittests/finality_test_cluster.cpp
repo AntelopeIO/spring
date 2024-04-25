@@ -54,7 +54,7 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
       }
    });
 
-   // at this point node0 has a QC to include in next block.
+   // at this point, node0 has a QC to include in next block.
    // Produce that block and push it, but don't process votes so that
    // we don't start with an existing QC
    // ---------------------------------------------------------------
@@ -104,7 +104,7 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
 
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
-      process_votes(num_nodes - 1);
+      process_votes(1, num_needed_for_quorum);
       produce_and_push_block();
       if (lib_advancing() < num_nodes)
          return false;

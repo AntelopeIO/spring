@@ -54,10 +54,14 @@ public:
    // returns true if lib advanced on all nodes since we last checked
    size_t lib_advancing();
 
-   void process_votes(size_t num_voting_nodes = num_needed_for_quorum) {
-      assert(num_voting_nodes > 0 && num_voting_nodes <= num_nodes - 1);
-      for (size_t i=0; i<num_voting_nodes; ++i)
-         nodes[i+1].process_vote(*this);
+   // returns first node to not vote
+   size_t process_votes(size_t start_idx, size_t num_voting_nodes, size_t vote_index = (size_t)-1,
+                        vote_mode mode = vote_mode::strong, bool duplicate = false) {
+      assert(num_voting_nodes > 0 && (num_voting_nodes + start_idx <= num_nodes));
+      size_t i = start_idx;
+      for (; i<num_voting_nodes+start_idx; ++i)
+         nodes[i].process_vote(*this, vote_index, mode, duplicate);
+      return i;
    }
 
    void clear_votes_and_reset_lib() {
@@ -113,9 +117,9 @@ private:
    std::atomic<uint32_t>      last_connection_vote{0};
    std::atomic<vote_status>   last_vote_status{};
 
+public:
    std::array<node_t, num_nodes>      nodes;
 
-public:
    node_t& node0 = nodes[0];
    node_t& node1 = nodes[1];
    node_t& node2 = nodes[2];
