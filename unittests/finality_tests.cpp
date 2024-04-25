@@ -187,6 +187,7 @@ BOOST_FIXTURE_TEST_CASE(out_of_order_votes, finality_test_cluster) { try {
 } FC_LOG_AND_RETHROW() }
 
 // Verify a vote which was delayed by a large number of blocks does not cause any issues
+// -------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster) { try {
    // Produce and push a block, vote on it after a long delay.
    constexpr uint32_t delayed_vote_index = 0;
@@ -207,26 +208,28 @@ BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster) { try {
 } FC_LOG_AND_RETHROW() }
 
 #if 0
+// Check that if we never vote on a block, it doesn't cause any problem
+// --------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster) { try {
    // Produce and push a block, never vote on it to simulate lost.
    // The block contains a strong QC extension for prior block
-   produce_and_push_block();
+   auto b1 = produce_and_push_block();
+   process_votes(1, num_needed_for_quorum);
+   auto b2 = produce_and_push_block(); // this block contains a strong QC for the previous block
+   const auto& ext = b2->template extract_extension<quorum_certificate_extension>();
 
    // The strong QC extension for prior block makes LIB advance on nodes
-   BOOST_REQUIRE(node1.lib_advancing());
-   BOOST_REQUIRE(node2.lib_advancing());
+   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
 
    produce_and_push_block();
    // The block is not voted, so no strong QC is created and LIB does not advance on nodes
-   BOOST_REQUIRE(!node1.lib_advancing());
-   BOOST_REQUIRE(!node2.lib_advancing());
+   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
 
    node1.process_vote(*this);
    produce_and_push_block();
 
    // vote causes lib to advance
-   BOOST_REQUIRE(node1.lib_advancing());
-   BOOST_REQUIRE(node2.lib_advancing());
+   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }

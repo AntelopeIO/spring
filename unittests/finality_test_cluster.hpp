@@ -29,6 +29,7 @@ class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
    using vote_status      = eosio::chain::vote_status;
+   using signed_block_ptr = eosio::chain::signed_block_ptr;
    using tester           = eosio::testing::tester;
    static constexpr size_t num_nodes = 4;
 
@@ -44,7 +45,7 @@ public:
    finality_test_cluster(size_t num_keys = 80, size_t fin_policy_size = num_nodes);
 
    // node0 produces a block and pushes it to node1 and node2
-   void produce_and_push_block();
+   signed_block_ptr produce_and_push_block();
 
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears

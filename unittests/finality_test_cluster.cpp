@@ -1,7 +1,6 @@
 #include "finality_test_cluster.hpp"
 
-using vote_status = eosio::chain::vote_status;
-using vote_message_ptr = eosio::chain::vote_message_ptr;
+using namespace eosio::chain;
 
 static auto num_from_id(const eosio::chain::block_id_type &id) {
    return eosio::chain::block_header::num_from_id(id);
@@ -81,10 +80,11 @@ vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool dup
 }
 
 // node0 produces a block and pushes it to other nodes
-void finality_test_cluster::produce_and_push_block() {
+signed_block_ptr finality_test_cluster::produce_and_push_block() {
    auto b = node0.produce_block();
    for (size_t i=1; i<nodes.size(); ++i)
       nodes[i].push_block(b);
+   return b;
 }
 
 size_t finality_test_cluster::lib_advancing() {
