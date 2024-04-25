@@ -44,23 +44,15 @@ try:
     # seperate_prod_fin_test_shape.json defines 2 producer nodes each has 1
     # producer and 3 non-producer nodes
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes,
-                      maximumP2pPerHost=total_nodes+numTrxGenerators, topo="./tests/seperate_prod_fin_test_shape.json", delay=delay,
-                      loadSystemContract=False, activateIF=False) is False:
+                      topo="./tests/seperate_prod_fin_test_shape.json", delay=delay,
+                      activateIF=True, signatureProviderForNonProducer=True) is False:
         errorExit("Failed to stand up eos cluster.")
 
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] != "eosio", "launch should have waited for production to change"
 
-    Print("Start transition to Savanna")
-    success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False, finalizerMustBeProducer=False)
-    assert success, "Activate instant finality failed"
-
     cluster.biosNode.waitForHeadToAdvance()
 
-    Print("Wait for LIB of setfinalizers")
-    # Wait for (number of producers + 1) rounds to be safe
-    if not cluster.biosNode.waitForTransFinalization(transId, timeout=(pnodes+1) * 12 * 3):
-        Utils.Print("ERROR: Failed to validate setfinalizer transaction %s got rolled into a LIB block" % (transId))
-
+    Print("Wait for LIB advancing")
     assert cluster.biosNode.waitForLibToAdvance(), "Lib should advance after instant finality activated"
     assert cluster.biosNode.waitForProducer("defproducera"), "Did not see defproducera"
     assert cluster.biosNode.waitForHeadToAdvance(blocksToAdvance=13), "Head did not advance 13 blocks to next producer"
