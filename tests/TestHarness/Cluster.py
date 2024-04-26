@@ -468,7 +468,7 @@ class Cluster(object):
                     argsArr.append("--is-nodeos-v2")
                     break
         if signatureProviderForNonProducer:
-            argsArr.append("--sig-prov-non-producer")
+            argsArr.append("--signature-provider")
 
         # Handle common case of specifying no block offset for older versions
         if "v2" in self.nodeosVers or "v3" in self.nodeosVers or "v4" in self.nodeosVers:
