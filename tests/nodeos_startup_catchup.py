@@ -198,7 +198,10 @@ try:
         logFile = Utils.getNodeDataDir(catchupNodeNum) + "/stderr.txt"
         f = open(logFile)
         contents = f.read()
-        if contents.count("3030001 unlinkable_block_exception: Unlinkable block") > 15: # a few are fine
+        # See https://github.com/AntelopeIO/spring/issues/81 for fix to reduce the number of expected unlinkable blocks
+        # Test verifies LIB is advancing, check to see that not too many unlinkable block exceptions are generated
+        # while syncing up to head.
+        if contents.count("3030001 unlinkable_block_exception: Unlinkable block") > 250:
             errorExit(f"Node{catchupNodeNum} has unlinkable blocks: {logFile}.")
 
     testSuccessful=True
