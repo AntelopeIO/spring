@@ -5216,6 +5216,21 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 
    assert(pending);
 
+   // see if one already proposed in this block
+   auto& gpo = db.get<global_property_object>();
+   if (gpo.proposed_schedule_block_num) {
+      if (std::equal(producers.begin(), producers.end(),
+                     gpo.proposed_schedule.producers.begin(), gpo.proposed_schedule.producers.end())) {
+         return gpo.proposed_schedule.version; // the proposed producer schedule does not change
+      }
+      // clear gpo proposed_schedule as we may determine no diff between proposed producers and next proposer schedule
+      db.modify( gpo, [&]( auto& gp ) {
+         gp.proposed_schedule_block_num.reset();
+         gp.proposed_schedule.version = 0;
+         gp.proposed_schedule.producers.clear();
+      });
+   }
+
    auto [version, diff] = pending->get_next_proposer_schedule_version(producers);
    if (!diff)
       return version;
@@ -5228,7 +5243,6 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 
    // overwrite any existing proposed_schedule set earlier in this block
    auto cur_block_num = chain_head.block_num() + 1;
-   auto& gpo = db.get<global_property_object>();
    db.modify( gpo, [&]( auto& gp ) {
       gp.proposed_schedule_block_num = cur_block_num;
       gp.proposed_schedule = sch;
