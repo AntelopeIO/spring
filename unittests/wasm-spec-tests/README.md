@@ -18,7 +18,7 @@ WebAssembly spec.
     - The imports and apply functions (and any helper functions) from the generated wasm are combined with the test function definitions from the spec test wasm.
     - Any necessary shifting of type/import/function/call/exports numbers is done.
         - This is where the generated map from above is used.
-6. The newly created merged wasms and unit test C++ files are copied into the appropriate directory in the Leap repo.
+6. The newly created merged wasms and unit test C++ files are copied into the appropriate directory in the Spring repo.
 
 
 ### How tests are split up
