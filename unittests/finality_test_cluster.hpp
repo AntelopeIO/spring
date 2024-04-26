@@ -36,6 +36,9 @@ public:
    // actual quorum - 1 since node0 processes its own votes
    static constexpr size_t num_needed_for_quorum = (num_nodes * 2) / 3;
 
+   static_assert(num_needed_for_quorum < num_nodes,
+                 "this is needed for some tests (conflicting_votes_strong_first for ex)");
+
    enum class vote_mode {
       strong,
       weak,
@@ -99,7 +102,13 @@ public:
       void corrupt_vote_signature();
 
       // Restore node's original vote
-      void restore_to_original_vote();
+      void restore_to_original_vote(size_t idx) {
+         std::lock_guard g(votes_mtx);
+         if (idx == (size_t)-1)
+            votes.back() = orig_vote;
+         else
+            votes[idx] = orig_vote;
+      }
 
       void clear_votes_and_reset_lib() {
          std::lock_guard g(votes_mtx);
@@ -122,6 +131,7 @@ public:
    std::array<node_t, num_nodes>      nodes;
 
    node_t& node0 = nodes[0];
+   node_t& node1 = nodes[1];
 
 private:
    // sets up "node_index" node

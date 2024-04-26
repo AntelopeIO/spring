@@ -149,11 +149,6 @@ void finality_test_cluster::node_t::corrupt_vote_signature() {
    last_vote->sig = fc::crypto::blslib::bls_signature(affine);
 }
 
-void finality_test_cluster::node_t::restore_to_original_vote() {
-   std::lock_guard g(votes_mtx);
-   votes.back() = orig_vote;
-}
-
 bool finality_test_cluster::node_t::lib_advancing() {
    //std::cout << "curr_lib_num = " << lib_num() << ", prev_lib_num = " << prev_lib_num << '\n';
    if (lib_num() > prev_lib_num) {
@@ -187,7 +182,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
    if (vote_index == (size_t)-1)
       vote_index = votes.size() - 1;
 
-   FC_ASSERT( vote_index < votes.size(), "out of bound index in process_vote" );
+   assert(vote_index < votes.size());
    auto& vote = votes[vote_index];
    if( mode == vote_mode::strong ) {
       vote->strong = true;
