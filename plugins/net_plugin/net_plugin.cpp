@@ -2386,9 +2386,9 @@ namespace eosio {
       if( req.req_blocks.mode == catch_up ) {
          {
             fc::lock_guard g( sync_mtx );
-            peer_ilog( c, "catch_up while in ${s}, fork head num = ${fhn} "
+            peer_ilog( c, "catch_up while in ${s}, head num = ${hn} "
                           "target LIB = ${lib} next_expected = ${ne}, id ${id}...",
-                     ("s", stage_str( sync_state ))("fhn", num)("lib", sync_known_lib_num)
+                     ("s", stage_str( sync_state ))("hn", num)("lib", sync_known_lib_num)
                      ("ne", sync_next_expected_num)("id", id.str().substr( 8, 16 )) );
          }
          auto chain_info = my_impl->get_chain_info();
@@ -2403,8 +2403,8 @@ namespace eosio {
 
          req.req_blocks.ids.emplace_back( chain_info.head_id );
       } else {
-         peer_ilog( c, "none notice while in ${s}, fork head num = ${fhn}, id ${id}...",
-                  ("s", stage_str( sync_state ))("fhn", num)("id", id.str().substr(8,16)) );
+         peer_ilog( c, "none notice while in ${s}, head num = ${hn}, id ${id}...",
+                  ("s", stage_str( sync_state ))("hn", num)("id", id.str().substr(8,16)) );
          fc::lock_guard g_conn( c->conn_mtx );
          c->fork_head = block_id_type();
          c->fork_head_num = 0;
@@ -3266,7 +3266,7 @@ namespace eosio {
          chain_info.head_id = cc.fork_db_head_block_id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
       }
-      fc_dlog( logger, "updating chain info lib ${lib}, fork ${fork}", ("lib", lib_num)("fork", head_num) );
+      fc_dlog( logger, "updating chain info lib ${lib}, head ${h}", ("lib", lib_num)("h", head_num) );
    }
 
    // call only from main application thread
@@ -3280,7 +3280,7 @@ namespace eosio {
          chain_info.head_id = cc.fork_db_head_block_id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
       }
-      fc_dlog( logger, "updating chain info lib ${lib}, fork ${fork}", ("lib", lib_num)("fork", head_num) );
+      fc_dlog( logger, "updating chain info lib ${lib}, head ${h}", ("lib", lib_num)("h", head_num) );
    }
 
 
@@ -3468,7 +3468,7 @@ namespace eosio {
          uint32_t peer_lib = msg.last_irreversible_block_num;
          uint32_t lib_num = my_impl->get_chain_lib_num();
 
-         peer_dlog( this, "handshake check for fork lib_num = ${ln}, peer_lib = ${pl}", ("ln", lib_num)("pl", peer_lib) );
+         peer_dlog( this, "handshake check lib_num = ${ln}, peer_lib = ${pl}", ("ln", lib_num)("pl", peer_lib) );
 
          if( peer_lib <= lib_num && peer_lib > 0 ) {
             bool on_fork = false;
