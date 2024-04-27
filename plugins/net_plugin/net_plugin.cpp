@@ -3060,7 +3060,7 @@ namespace eosio {
                }
 
                if( close_connection ) {
-                  peer_elog( conn, "Closing connection" );
+                  peer_ilog( conn, "Closing connection" );
                   conn->close();
                }
          }));
