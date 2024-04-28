@@ -179,20 +179,6 @@
             ]
         },
         {
-            "name": "merkle_branch",
-            "base": "",
-            "fields": [
-                {
-                    "name": "direction",
-                    "type": "uint8"
-                },
-                {
-                    "name": "hash",
-                    "type": "checksum256"
-                }
-            ]
-        },
-        {
             "name": "permission_level",
             "base": "",
             "fields": [
@@ -238,7 +224,7 @@
                 },
                 {
                     "name": "merkle_branches",
-                    "type": "merkle_branch[]"
+                    "type": "checksum256[]"
                 }
             ]
         },

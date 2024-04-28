@@ -38,18 +38,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       return {};
    }
 
-   struct merkle_branch_t {
-      bool direction;
-      digest_type hash;
-   };
-
    //generate a proof of inclusion for a node at index from a list of leaves
-   std::vector<merkle_branch_t> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
+   std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
 
       auto _leaves = leaves;
       auto _index = index;
 
-      std::vector<merkle_branch_t> proof;
+      std::vector<digest_type> merkle_branches;
 
       while (_leaves.size()>1){
          std::vector<digest_type> new_level;
@@ -62,7 +57,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
                new_level.push_back(fc::sha256::hash(std::pair<digest_type, digest_type>(left, right)));
                if (_index == i || _index == i + 1) {
-                 proof.push_back(_index == i ? merkle_branch_t{false, right} : merkle_branch_t{true, left});
+                 merkle_branches.push_back(_index == i ? right : left);
                  _index = i / 2; // Update index for next level
 
                }
@@ -76,7 +71,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          }
          _leaves = new_level;
       }
-      return proof;
+      return merkle_branches;
    }
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
@@ -217,7 +212,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(qc_b_5.qc.has_value());
       
       // generate proof of inclusion for block_2 in the merkle tree
-      auto proof = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
+      auto merkle_branches = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
 
       // represent the QC signature as std::vector<char>
       std::array<uint8_t, 192> a_sig = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
@@ -258,11 +253,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("action_mroot", block_2_action_mroot)
                   )
                }))
-               ("merkle_branches", fc::variants({
-                  mvo() 
-                     ("direction", proof[0].direction) // can be hardcoded since this test enforces block numbers
-                     ("hash", proof[0].hash)
-               }))
+               ("merkle_branches", merkle_branches)
             )
          )
       );

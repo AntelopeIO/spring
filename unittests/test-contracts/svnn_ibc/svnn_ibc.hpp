@@ -15,11 +15,27 @@ using namespace eosio;
 
 todo :
 
-calculate directions instead of providing it
+OK - bug with storing the wrong block number when storing last proof
+
+
+
+calculate direction instead of providing it
 
 use template for proof of inclusion instead of variant
 
-bug with storing the wrong block number when storing last proof
+use string format for pub key and signatures
+
+upcoming changes to bitset representation
+
+Expand test coverage to include :
+
+1) "light" proof verification
+2) verification of a proof where the the finality block is not the same than the target block
+3) proving a new finalizer policy and verifying it is used correctly for subsequent proofs
+4) proving an action
+5) verify garbage collection is working as expected
+
+As well as some counter-examples that should correctly fail
 
 */
 
@@ -34,7 +50,7 @@ CONTRACT svnn_ibc : public contract {
       const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing
 
       //Compute the maximum number of layers of a merkle tree for a given number of leaves
-      uint64_t calculate_max_depth(uint64_t node_count) {
+      static uint64_t calculate_max_depth(uint64_t node_count) {
          if(node_count <= 1)
             return node_count;
          return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1))));
@@ -62,18 +78,43 @@ CONTRACT svnn_ibc : public contract {
          return tp;
       }
 
-      struct merkle_branch {
-         uint8_t direction;
-         checksum256 hash;
-      };
+      //compute proof path
+      static std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
+
+         uint64_t leaf_index = c_leaf_index;
+         uint64_t leaf_count = c_leaf_count;
+
+         std::vector<bool> proof_path;
+
+         uint64_t layers_depth = calculate_max_depth(c_leaf_count) -1;
+
+         for (uint64_t i = 0; i < layers_depth; i++) {
+            bool isLeft = leaf_index % 2;
+            uint64_t pairIndex = isLeft ? leaf_index - 1 :
+                           leaf_index == leaf_count ? leaf_index :
+                           leaf_index + 1;
+   
+            if (pairIndex<leaf_count) proof_path.push_back(isLeft);
+   
+            leaf_count/=2;
+            leaf_index=leaf_index / 2;
+         }
+
+         return proof_path;
+
+      }
 
       //compute the merkle root of target node and vector of merkle branches
-      static checksum256 _compute_root(const std::vector<merkle_branch> proof_nodes, const checksum256& target){
+      static checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_index, const uint64_t last_node_index){
           checksum256 hash = target;
+          std::vector<bool> proof_path = _get_proof_path(target_index, last_node_index+1);
+
+          check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
           for (int i = 0 ; i < proof_nodes.size() ; i++){
-              const checksum256 node = proof_nodes[i].hash;
+
+              const checksum256 node = proof_nodes[i];
               std::array<uint8_t, 32> arr = node.extract_as_byte_array();
-              if (proof_nodes[i].direction == 0){
+              if (proof_path[i] == false){
                   hash = hash_pair(std::make_pair(hash, node));
               }
               else {
@@ -328,7 +369,6 @@ CONTRACT svnn_ibc : public contract {
 
       using target_data = std::variant<block_data, action_data>;
 
-
       struct proof_of_inclusion {
 
          uint64_t target_node_index;
@@ -336,13 +376,13 @@ CONTRACT svnn_ibc : public contract {
 
          target_data target;
 
-         std::vector<merkle_branch> merkle_branches;
+         std::vector<checksum256> merkle_branches;
 
          //returns the merkle root obtained by hashing target.digest() with merkle_branches
          checksum256 root() const {
             auto call_digest = [](const auto& var) -> checksum256 { return var.digest(); };
             checksum256 digest = std::visit(call_digest, target);
-            checksum256 root = _compute_root(merkle_branches, digest);
+            checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
             return root;
          }; 
 
