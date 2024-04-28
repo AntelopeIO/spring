@@ -9,10 +9,6 @@
         {
             "new_type_name": "bls_signature",
             "type": "bytes"
-        },
-        {
-            "new_type_name": "target_data",
-            "type": "variant_block_data_action_data"
         }
     ],
     "structs": [
@@ -31,6 +27,28 @@
                 {
                     "name": "return_value",
                     "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "action_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "last_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "action_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
                 }
             ]
         },
@@ -79,6 +97,28 @@
             ]
         },
         {
+            "name": "block_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "last_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "block_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
+                }
+            ]
+        },
+        {
             "name": "checkproof",
             "base": "",
             "fields": [
@@ -98,7 +138,7 @@
                 },
                 {
                     "name": "action_proofs",
-                    "type": "proof_of_inclusion[]"
+                    "type": "action_proof_of_inclusion[]"
                 },
                 {
                     "name": "action_mroot",
@@ -202,29 +242,7 @@
                 },
                 {
                     "name": "target_block_proof_of_inclusion",
-                    "type": "proof_of_inclusion"
-                }
-            ]
-        },
-        {
-            "name": "proof_of_inclusion",
-            "base": "",
-            "fields": [
-                {
-                    "name": "target_node_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "last_node_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "target",
-                    "type": "target_data"
-                },
-                {
-                    "name": "merkle_branches",
-                    "type": "checksum256[]"
+                    "type": "block_proof_of_inclusion"
                 }
             ]
         },
@@ -332,11 +350,6 @@
         }
     ],
     "ricardian_clauses": [],
-    "variants": [
-        {
-            "name": "variant_block_data_action_data",
-            "types": ["block_data","action_data"]
-        }
-    ],
+    "variants": [],
     "action_results": []
 }

@@ -21,7 +21,6 @@ OK - bug with storing the wrong block number when storing last proof
 
 OK - calculate direction instead of providing it
 
-use template for proof of inclusion instead of variant
 
 use string format for pub key and signatures
 
@@ -245,16 +244,55 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
-      struct proof_of_inclusion;
+      //struct proof_of_inclusion;
+
+      struct action_data {
+
+         r_action action; //antelope action
+         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
+
+         std::vector<char> return_value; //empty if no return value
+
+         //returns the action digest 
+         checksum256 action_digest() const {
+            return action.digest();
+         }; 
+
+         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
+         checksum256 digest() const {
+            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
+            return action_receipt_digest;
+         };
+
+      };
+
+      struct action_proof_of_inclusion {
+
+         uint64_t target_node_index;
+         uint64_t last_node_index;
+
+         action_data target;
+
+         std::vector<checksum256> merkle_branches;
+
+         //returns the merkle root obtained by hashing target.digest() with merkle_branches
+         checksum256 root() const {
+            checksum256 digest = target.digest();
+            checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
+            return root;
+         }; 
+
+      };
 
       struct dynamic_data_v0 {
 
          //block_num is always present
          uint32_t block_num;
 
+
          //can include any number of action_proofs and / or state_proofs pertaining to a given block
          //all action_proofs must resolve to the same action_mroot
-         std::vector<proof_of_inclusion> action_proofs;
+         std::vector<action_proof_of_inclusion> action_proofs;
 
          //can be used instead of providing action_proofs. Useful for proving finalizer policy changes
          std::optional<checksum256> action_mroot;
@@ -347,41 +385,20 @@ CONTRACT svnn_ibc : public contract {
          };
       };
 
-      struct action_data {
+      //using target_data = std::variant<block_data, action_data>;
 
-         r_action action; //antelope action
-         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
-
-         std::vector<char> return_value; //empty if no return value
-
-         //returns the action digest 
-         checksum256 action_digest() const {
-            return action.digest();
-         }; 
-
-         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
-         checksum256 digest() const {
-            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
-            return action_receipt_digest;
-         };
-
-      };
-
-      using target_data = std::variant<block_data, action_data>;
-
-      struct proof_of_inclusion {
+      struct block_proof_of_inclusion {
 
          uint64_t target_node_index;
          uint64_t last_node_index;
 
-         target_data target;
+         block_data target;
 
          std::vector<checksum256> merkle_branches;
 
          //returns the merkle root obtained by hashing target.digest() with merkle_branches
          checksum256 root() const {
-            auto call_digest = [](const auto& var) -> checksum256 { return var.digest(); };
-            checksum256 digest = std::visit(call_digest, target);
+            checksum256 digest = target.digest();
             checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
             return root;
          }; 
@@ -404,7 +421,7 @@ CONTRACT svnn_ibc : public contract {
          //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the final_on_strong_qc block represented by the finality_mroot present in header
          //2) only a proof_of_inclusion of a target block, which must be included in a merkle tree represented by a root stored in the contract's RAM
          std::optional<finality_proof> finality_proof;
-         proof_of_inclusion target_block_proof_of_inclusion;
+         block_proof_of_inclusion target_block_proof_of_inclusion;
 
       };
 
@@ -426,8 +443,8 @@ CONTRACT svnn_ibc : public contract {
       void _verify(const std::vector<char>& pk, const std::vector<char>& sig, std::vector<const char>& msg);
       void _check_qc(const quorum_certificate& qc, const checksum256& finality_mroot, const uint64_t finalizer_policy_generation);
       
-      void _check_finality_proof(const finality_proof& finality_proof, const proof_of_inclusion& target_block_proof_of_inclusion);
-      void _check_target_block_proof_of_inclusion(const proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
+      void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
+      void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
 
       ACTION setfpolicy(const fpolicy& policy, const uint32_t from_block_num); //set finality policy
       ACTION checkproof(const proof& proof);

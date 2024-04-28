@@ -130,10 +130,10 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     _verify(agg_pub_key, qc.signature, v_data);
 }
 
-void svnn_ibc::_check_target_block_proof_of_inclusion(const proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
+void svnn_ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
 
     //verify that the proof of inclusion is over a target block
-    check(std::holds_alternative<svnn_ibc::block_data>(proof.target), "must supply proof of inclusion over block data");
+    //check(std::holds_alternative<svnn_ibc::block_data>(proof.target), "must supply proof of inclusion over block data");
 
     //resolve the proof to its merkle root
     checksum256 finality_mroot = proof.root();
@@ -146,13 +146,13 @@ void svnn_ibc::_check_target_block_proof_of_inclusion(const proof_of_inclusion& 
         auto itr = merkle_index.find(finality_mroot);
         check(itr!= merkle_index.end(), "cannot link proof to proven merkle root");
     }
-    block_data target_block = std::get<svnn_ibc::block_data>(proof.target);
-    if (target_block.finality_data.active_finalizer_policy.has_value()){
-        _maybe_set_finalizer_policy(target_block.finality_data.active_finalizer_policy.value(), target_block.dynamic_data.block_num);
+    //block_data target_block = std::get<svnn_ibc::block_data>(proof.target);
+    if (proof.target.finality_data.active_finalizer_policy.has_value()){
+        _maybe_set_finalizer_policy(proof.target.finality_data.active_finalizer_policy.value(), proof.target.dynamic_data.block_num);
     }
 }
 
-void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const proof_of_inclusion& target_block_proof_of_inclusion){
+void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion){
 
     //if QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
     _check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
@@ -161,11 +161,11 @@ void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
     
     //if proof of inclusion was successful, the target block and its dynamic data have been validated as final and correct
-    block_data target_block = std::get<svnn_ibc::block_data>(target_block_proof_of_inclusion.target);
+    //block_data target_block = std::get<svnn_ibc::block_data>(target_block_proof_of_inclusion.target);
 
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
     uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
-    _maybe_add_proven_root(target_block.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
+    _maybe_add_proven_root(target_block_proof_of_inclusion.target.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
 }
 
 ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num){
