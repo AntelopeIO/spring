@@ -19,7 +19,7 @@ OK - bug with storing the wrong block number when storing last proof
 
 
 
-calculate direction instead of providing it
+OK - calculate direction instead of providing it
 
 use template for proof of inclusion instead of variant
 
@@ -29,8 +29,8 @@ upcoming changes to bitset representation
 
 Expand test coverage to include :
 
-1) "light" proof verification
-2) verification of a proof where the the finality block is not the same than the target block
+OK - 1) "light" proof verification
+OK - 2) verification of a proof where the the finality block is not the same than the target block
 3) proving a new finalizer policy and verifying it is used correctly for subsequent proofs
 4) proving an action
 5) verify garbage collection is working as expected

@@ -192,6 +192,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // block_3 contains a QC over block_2
       auto block_3 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
+      auto block_3_fd = cluster.node0.node.control->head_finality_data();
+      auto block_3_action_mroot = block_3_fd.value().action_mroot;
+      auto block_3_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_3->calculate_id());
+      auto block_3_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_3->block_num(),
+         .finality_digest = block_3_finality_digest,
+         .action_mroot = block_3_action_mroot
+      });
 
       // block_4 contains a QC over block_3
       auto block_4 = cluster.produce_and_push_block();
@@ -205,18 +213,35 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       //  block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
       auto block_5 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
+      auto block_5_fd = cluster.node0.node.control->head_finality_data();
+      auto block_5_base_digest = block_5_fd.value().base_digest;
+      auto block_5_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_5_base_digest));
+      auto block_5_finality_root = block_5->action_mroot; 
 
       // retrieve the QC over block_4 that is contained in block_5
       qc_data_t qc_b_5 = extract_qc_data(block_5);
 
       BOOST_TEST(qc_b_5.qc.has_value());
       
+      //  block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
+      auto block_6 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+
+      // retrieve the QC over block_5 that is contained in block_6
+      qc_data_t qc_b_6 = extract_qc_data(block_6);
+
+      BOOST_TEST(qc_b_6.qc.has_value());
+      
       // generate proof of inclusion for block_2 in the merkle tree
-      auto merkle_branches = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
+      auto merkle_branches_1 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
+      auto merkle_branches_2 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf, block_3_leaf}, 2); 
 
       // represent the QC signature as std::vector<char>
-      std::array<uint8_t, 192> a_sig = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
-      std::vector<char> vc_sig(reinterpret_cast<char*>(a_sig.data()), reinterpret_cast<char*>(a_sig.data() + a_sig.size()));
+      std::array<uint8_t, 192> a_sig_1 = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
+      std::vector<char> vc_sig_1(reinterpret_cast<char*>(a_sig_1.data()), reinterpret_cast<char*>(a_sig_1.data() + a_sig_1.size()));
+
+      std::array<uint8_t, 192> a_sig_2 = bls_signature(qc_b_6.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
+      std::vector<char> vc_sig_2(reinterpret_cast<char*>(a_sig_2.data()), reinterpret_cast<char*>(a_sig_2.data() + a_sig_2.size()));
 
       std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
 
@@ -232,7 +257,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_finality_root)
                )
                ("qc", mvo()
-                  ("signature", vc_sig)
+                  ("signature", vc_sig_1)
                   ("finalizers", raw_bitset) 
                )
             )
@@ -253,12 +278,73 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("action_mroot", block_2_action_mroot)
                   )
                }))
-               ("merkle_branches", merkle_branches)
+               ("merkle_branches", merkle_branches_1)
             )
          )
       );
 
-      //test passed
+      // now that we stored the proven root, we should be able to verify the same proof without the finality data
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
+         ("proof", mvo() 
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 2)
+               ("target", fc::variants({"block_data", mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_action_mroot)
+                  )
+               }))
+               ("merkle_branches", merkle_branches_1)
+            )
+         )
+      );
+
+      // verify proof
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo() 
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("witness_hash", block_5_afp_base_digest)
+                  ("finality_mroot", block_5_finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", vc_sig_2)
+                  ("finalizers", raw_bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 3)
+               ("target", fc::variants({"block_data", mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_action_mroot)
+                  )
+               }))
+               ("merkle_branches", merkle_branches_2)
+            )
+         )
+      );
 
    } FC_LOG_AND_RETHROW() }
 
