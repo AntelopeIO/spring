@@ -78,13 +78,18 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
 
 #warning Add last_proposed_finalizer_policy_generation to snapshot_block_header_state_v3, see header file TODO
 
+// -------------------------------------------------------------------------------------------------
+// `finish_next` updates the next `block_header_state` according to the contents of the
+// header extensions (either new protocol_features or instant_finality_extension) applicable to this
+// next block .
+//
+// These extensions either result from the execution of the previous block (in case this node
+// was the block producer) or were received from the network in a `signed_block`.
+// -------------------------------------------------------------------------------------------------
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 std::shared_ptr<proposer_policy> new_proposer_policy,
-                 std::optional<finalizer_policy> new_finalizer_policy,
-                 qc_claim_t qc_claim) {
-
+                 instant_finality_extension if_ext) {
    // activated protocol features
    // ---------------------------
    if (!new_protocol_feature_activations.empty()) {
@@ -98,7 +103,7 @@ void finish_next(const block_header_state& prev,
    // ---------------
    next_header_state.active_proposer_policy = prev.active_proposer_policy;
 
-   if(!prev.proposer_policies.empty()) {
+   if (!prev.proposer_policies.empty()) {
       auto it = prev.proposer_policies.begin();
       // +1 since this is called after the block is built, this will be the active schedule for the next block
       if (it->first.slot <= next_header_state.header.timestamp.slot + 1) {
@@ -109,9 +114,10 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (new_proposer_policy) {
+   if (if_ext.new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies[new_proposer_policy->active_time] = std::move(new_proposer_policy);
+      next_header_state.proposer_policies[if_ext.new_proposer_policy->active_time] =
+         std::move(if_ext.new_proposer_policy);
    }
 
    // finality_core
@@ -120,13 +126,13 @@ void finish_next(const block_header_state& prev,
       .block_id  = prev.block_id,
       .timestamp = prev.timestamp()
    };
-   next_header_state.core = prev.core.next(parent_block, qc_claim);
+   next_header_state.core = prev.core.next(parent_block, if_ext.qc_claim);
 
    // finalizer policy
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
 
-   if(!prev.finalizer_policies.empty()) {
+   if (!prev.finalizer_policies.empty()) {
       auto lib = next_header_state.core.last_final_block_num();
       auto it = prev.finalizer_policies.begin();
       if (it->first > lib) {
@@ -140,7 +146,6 @@ void finish_next(const block_header_state& prev,
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
-               next_header_state.active_finalizer_policy->generation = prev.active_finalizer_policy->generation + 1;
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
                // block where finalizer_policy was proposed became final. The finalizer policy will
@@ -158,11 +163,14 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (new_finalizer_policy) {
+   if (if_ext.new_finalizer_policy) {
+      next_header_state.finalizer_policy_generation = if_ext.new_finalizer_policy->generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(*new_finalizer_policy))});
+                                  std::make_shared<finalizer_policy>(std::move(*if_ext.new_finalizer_policy))});
+   } else {
+      next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
 
    // Finally update block id from header
@@ -187,13 +195,13 @@ block_header_state block_header_state::next(block_header_state_input& input) con
 
    // finality extension
    // ------------------
-   instant_finality_extension new_if_ext {input.most_recent_ancestor_with_qc,
-                                          input.new_finalizer_policy,
-                                          input.new_proposer_policy};
+   instant_finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
+                                           std::move(input.new_finalizer_policy),
+                                           std::move(input.new_proposer_policy) };
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();
    emplace_extension(next_header_state.header.header_extensions, if_ext_id, fc::raw::pack(new_if_ext));
-   next_header_state.header_exts.emplace(if_ext_id, std::move(new_if_ext));
+   next_header_state.header_exts.emplace(if_ext_id, new_if_ext);
 
    // add protocol_feature_activation extension
    // -----------------------------------------
@@ -205,9 +213,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations),
-               std::move(input.new_proposer_policy), std::move(input.new_finalizer_policy),
-               input.most_recent_ancestor_with_qc);
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext));
 
    return next_header_state;
 }
@@ -230,6 +236,8 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    block_header_state next_header_state;
    next_header_state.header = static_cast<const block_header&>(h);
    next_header_state.header_exts = h.validate_and_extract_header_extensions();
+   next_header_state.finalizer_policy_generation = finalizer_policy_generation;
+
    const auto& exts = next_header_state.header_exts;
 
    // retrieve protocol_feature_activation from incoming block header extension
@@ -262,8 +270,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
                  ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext.new_proposer_policy,
-               if_ext.new_finalizer_policy, if_ext.qc_claim);
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext);
 
    return next_header_state;
 }
