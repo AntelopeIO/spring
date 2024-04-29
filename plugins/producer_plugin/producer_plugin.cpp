@@ -494,6 +494,7 @@ public:
    using signature_provider_type = signature_provider_plugin::signature_provider_type;
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
+   std::set<bls_public_key>                          _finalizers;
    std::set<chain::account_name>                     _producers;
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
@@ -550,6 +551,7 @@ public:
    std::function<void(producer_plugin::produced_block_metrics)> _update_produced_block_metrics;
    std::function<void(producer_plugin::speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(producer_plugin::incoming_block_metrics)> _update_incoming_block_metrics;
+   std::function<void(producer_plugin::vote_block_metrics&&)> _update_vote_block_metrics;
 
    // ro for read-only
    struct ro_trx_t {
@@ -626,13 +628,92 @@ public:
                                ((_produce_block_cpu_effort.count() / 1000) * config::producer_repetitions) );
    }
 
-   void on_block(const signed_block_ptr& block) {
+   void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
+                          const finalizer_policy_ptr& active_finalizer_policy,
+                          const valid_quorum_certificate& qc) {
+      if (vote_logger.is_enabled(fc::log_level::info)) {
+         if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
+            std::vector<std::string> not_voted;
+
+            auto check_weak = [](const auto& weak_votes, size_t i) {
+               return weak_votes && (*weak_votes)[i];
+            };
+
+            if (qc.strong_votes) {
+               const auto& votes      = *qc.strong_votes;
+               auto&       finalizers = active_finalizer_policy->finalizers;
+               assert(votes.size() == finalizers.size());
+               for (size_t i = 0; i < votes.size(); ++i) {
+                  if (!votes[i] && !check_weak(qc.weak_votes, i)) {
+                     not_voted.push_back(finalizers[i].description);
+                     if (_finalizers.contains(finalizers[i].public_key)) {
+                        fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n}:${id}",
+                                ("f", finalizers[i].description)("n", block->block_num())("id", id.str().substr(8,16)));
+                     }
+                  }
+               }
+            }
+            if (!not_voted.empty()) {
+               fc_ilog(vote_logger, "Block ${n}:${id} has no votes from finalizers: ${v}",
+                       ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
+            }
+         }
+      }
+   }
+
+   void update_vote_block_metrics(block_num_type block_num,
+                                  const finalizer_policy_ptr& active_finalizer_policy,
+                                  const valid_quorum_certificate& qc) {
+      if (_update_vote_block_metrics) {
+         producer_plugin::vote_block_metrics m;
+         m.block_num = block_num;
+         auto add_votes = [&](const auto& votes, std::vector<string>& desc) {
+            assert(votes.size() == active_finalizer_policy->finalizers.size());
+            for (size_t i = 0; i < votes.size(); ++i) {
+               if (votes[i]) {
+                  desc.push_back(active_finalizer_policy->finalizers[i].description);
+               }
+            }
+         };
+         if (qc.strong_votes) {
+            add_votes(*qc.strong_votes, m.strong_votes);
+         }
+         if (qc.weak_votes) {
+            add_votes(*qc.weak_votes, m.weak_votes);
+         }
+         if (m.strong_votes.size() + m.weak_votes.size() != active_finalizer_policy->finalizers.size()) {
+            fc::dynamic_bitset not_voted(active_finalizer_policy->finalizers.size());
+            if (qc.strong_votes) {
+               not_voted = *qc.strong_votes;
+            }
+            if (qc.weak_votes) {
+               assert(not_voted.size() == qc.weak_votes->size());
+               not_voted |= *qc.weak_votes;
+            }
+            not_voted.flip();
+            add_votes(not_voted, m.no_votes);
+         }
+         _update_vote_block_metrics(std::move(m));
+      }
+   }
+
+   void on_block(const signed_block_ptr& block, const block_id_type& id) {
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
       chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
+      }
+      if (vote_logger.is_enabled(fc::log_level::info) || _update_vote_block_metrics) {
+         if (block->contains_extension(quorum_certificate_extension::extension_id())) {
+            if (const auto& active_finalizers = chain.head_active_finalizer_policy()) {
+               const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
+               const auto& qc = qc_ext.qc.data;
+               log_missing_votes(block, id, active_finalizers, qc);
+               update_vote_block_metrics(block->block_num(), active_finalizers, qc);
+            }
+         }
       }
    }
 
@@ -712,7 +793,7 @@ public:
 
       // push the new block
       auto handle_error = [&](const auto& e) {
-         elog("Exception on block ${bn}: ${e}", ("bn", blk_num)("e", e.to_detail_string()));
+         fc_ilog(_log, "Exception on block ${bn}: ${e}", ("bn", blk_num)("e", e.to_detail_string()));
          app().get_channel<channels::rejected_block>().publish(priority::medium, block);
          throw;
       };
@@ -733,7 +814,7 @@ public:
       } catch (boost::interprocess::bad_alloc&) {
          chain_apis::api_base::handle_db_exhaustion();
       } catch (const fork_database_exception& e) {
-         elog("Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
+         fc_elog(_log, "Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
          appbase::app().quit();
          return false;
       } catch (const fc::exception& e) {
@@ -1128,6 +1209,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
             if (bls) {
                const auto& [pubkey, privkey] = *bls;
                _finalizer_keys[pubkey.to_string()] = privkey.to_string();
+               _finalizers.insert(pubkey);
             }
          } catch(secure_enclave_exception& e) {
             elog("Error with Secure Enclave signature provider: ${e}; ignoring ${val}", ("e", e.top_message())("val", key_spec_pair));
@@ -1340,8 +1422,8 @@ void producer_plugin_impl::plugin_startup() {
          chain.set_node_finalizer_keys(_finalizer_keys);
 
          _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, _ ] = t;
-            on_block(block);
+            const auto& [ block, id ] = t;
+            on_block(block, id);
           }));
          _accepted_block_header_connection.emplace(chain.accepted_block_header().connect([this](const block_signal_params& t) {
             const auto& [ block, _ ] = t;
@@ -1809,15 +1891,15 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
-      elog("Not producing block because I don't have any private keys relevant to authority: ${authority}",
-           ("authority", scheduled_producer.authority));
+      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
+              ("authority", scheduled_producer.authority));
       _pending_block_mode = pending_block_mode::speculating;
    } else if (_pause_production) {
-      elog("Not producing block because production is explicitly paused");
+      fc_wlog(_log, "Not producing block because production is explicitly paused");
       _pending_block_mode = pending_block_mode::speculating;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
-      elog("Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
-           ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
+      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
+              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
       _pending_block_mode = pending_block_mode::speculating;
    }
 
@@ -1826,14 +1908,14 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
          const block_timestamp_type block_timestamp{block_time};
          if (current_watermark->first > head_block_num) {
-            elog("Not producing block because \"${producer}\" signed a block at a higher block number (${watermark}) than the current "
-                 "fork's head (${head_block_num})",
-                 ("producer", scheduled_producer.producer_name)("watermark", current_watermark->first)("head_block_num", head_block_num));
+            fc_elog(_log, "Not producing block because \"${producer}\" signed a block at a higher block number (${watermark}) than the current "
+                    "fork's head (${head_block_num})",
+                    ("producer", scheduled_producer.producer_name)("watermark", current_watermark->first)("head_block_num", head_block_num));
             _pending_block_mode = pending_block_mode::speculating;
          } else if (current_watermark->second >= block_timestamp) {
-            elog("Not producing block because \"${producer}\" signed a block at the next block time or later (${watermark}) than the pending "
-                 "block time (${block_timestamp})",
-                 ("producer", scheduled_producer.producer_name)("watermark", current_watermark->second)("block_timestamp", block_timestamp));
+            fc_elog(_log, "Not producing block because \"${producer}\" signed a block at the next block time or later (${watermark}) than the pending "
+                    "block time (${block_timestamp})",
+                    ("producer", scheduled_producer.producer_name)("watermark", current_watermark->second)("block_timestamp", block_timestamp));
             _pending_block_mode = pending_block_mode::speculating;
          }
       }
@@ -1950,8 +2032,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       const auto& pending_block_signing_authority = chain.pending_block_signing_authority();
 
       if (in_producing_mode() && pending_block_signing_authority != scheduled_producer.authority) {
-         elog("Unexpected block signing authority, reverting to speculative mode! [expected: \"${expected}\", actual: \"${actual}\"",
-              ("expected", scheduled_producer.authority)("actual", pending_block_signing_authority));
+         fc_elog(_log, "Unexpected block signing authority, reverting to speculative mode! [expected: \"${expected}\", actual: \"${actual}\"",
+                 ("expected", scheduled_producer.authority)("actual", pending_block_signing_authority));
          _pending_block_mode = pending_block_mode::speculating;
       }
 
@@ -2478,7 +2560,7 @@ void producer_plugin_impl::schedule_production_loop() {
    auto result = start_block();
 
    if (result == start_block_result::failed) {
-      elog("Failed to start a pending block, will try again later");
+      fc_wlog(_log, "Failed to start a pending block, will try again later");
       _timer.expires_from_now(boost::posix_time::microseconds(config::block_interval_us / 10));
 
       // we failed to start a block, so try again later?
@@ -2904,6 +2986,10 @@ void producer_plugin::register_update_speculative_block_metrics(std::function<vo
 
 void producer_plugin::register_update_incoming_block_metrics(std::function<void(producer_plugin::incoming_block_metrics)>&& fun) {
    my->_update_incoming_block_metrics = std::move(fun);
+}
+
+void producer_plugin::register_update_vote_block_metrics(std::function<void(producer_plugin::vote_block_metrics&&)>&& fun) {
+   my->_update_vote_block_metrics = std::move(fun);
 }
 
 } // namespace eosio

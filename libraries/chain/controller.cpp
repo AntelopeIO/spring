@@ -491,16 +491,38 @@ struct building_block {
 
       uint32_t get_block_num() const { return block_num; }
 
-      uint32_t get_next_proposer_schedule_version() const {
-         if (!parent.proposer_policies.empty()) {
-            block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
-            if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
-               return itr->second->proposer_schedule.version; // will replace so return same version
-            }
-            return (--parent.proposer_policies.end())->second->proposer_schedule.version + 1;
-         }
+      // returns the next proposer schedule version and true if different
+      // if producers is not different then returns the current schedule version (or next schedule version)
+      std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
-         return active_proposer_policy->proposer_schedule.version + 1;
+
+         auto get_next_sched = [&]() -> const producer_authority_schedule& {
+            // if there are any policies already proposed but not active yet then they are what needs to be compared
+            if (!parent.proposer_policies.empty()) {
+               block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
+               if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
+                  // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
+                  if (itr != parent.proposer_policies.begin()) {
+                     return (--itr)->second->proposer_schedule;
+                  }
+                  // no previous to what will be replaced, use active
+                  return active_proposer_policy->proposer_schedule;
+               }
+               // will not replace any proposed policies, use next to become active
+               return parent.proposer_policies.begin()->second->proposer_schedule;
+            }
+
+            // none currently in-flight, use active
+            return active_proposer_policy->proposer_schedule;
+         };
+
+         const producer_authority_schedule& lhs = get_next_sched();
+
+         if (std::ranges::equal(lhs.producers, producers)) {
+            return {lhs.version, false};
+         }
+
+         return {lhs.version + 1, true};
       }
 
    };
@@ -591,11 +613,13 @@ struct building_block {
                         v);
    }
 
-   int64_t get_next_proposer_schedule_version() const {
+   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
       return std::visit(
-         overloaded{[](const building_block_legacy&) -> int64_t { return -1; },
-                    [&](const building_block_if& bb) -> int64_t { return bb.get_next_proposer_schedule_version(); }
-                   },
+         overloaded{[](const building_block_legacy&) -> std::tuple<uint32_t, bool> { return {-1, false}; },
+                    [&](const building_block_if& bb) -> std::tuple<uint32_t, bool> {
+                       return bb.get_next_proposer_schedule_version(producers);
+                    }
+         },
          v);
    }
 
@@ -887,11 +911,13 @@ struct pending_state {
          _block_stage);
    }
 
-   int64_t get_next_proposer_schedule_version() const {
+   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
       return std::visit(overloaded{
-                           [](const building_block& stage) -> int64_t { return stage.get_next_proposer_schedule_version(); },
-                           [](const assembled_block&) -> int64_t { assert(false); return -1; },
-                           [](const completed_block&) -> int64_t { assert(false); return -1; }
+                           [&](const building_block& stage) -> std::tuple<uint32_t, bool> {
+                              return stage.get_next_proposer_schedule_version(producers);
+                           },
+                           [](const assembled_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; },
+                           [](const completed_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; }
                         },
                         _block_stage);
    }
@@ -3728,10 +3754,10 @@ struct controller_impl {
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.qc.is_strong() == new_qc_claim.is_strong_qc,
+      EOS_ASSERT( qc_proof.data.is_strong() == new_qc_claim.is_strong_qc,
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
-                  ("s1", qc_proof.qc.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+                  ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
       auto bsp = fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
@@ -3741,7 +3767,7 @@ struct controller_impl {
                   ("q", new_qc_claim.block_num)("b", block_num) );
 
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof.qc);
+      bsp->verify_qc(qc_proof.data);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -3850,7 +3876,7 @@ struct controller_impl {
          return;
       }
       const auto& qc_ext = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
-      const auto& received_qc = qc_ext.qc.qc;
+      const auto& received_qc = qc_ext.qc.data;
 
       const auto claimed = fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed ) {
@@ -4049,7 +4075,7 @@ struct controller_impl {
             if( switch_fork ) {
                auto head_fork_comp_str = apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
                ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                    ("chid", chain_head.id())("chn}", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+                    ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
                     ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
 
                // not possible to log transaction specific info when switching forks
@@ -5178,17 +5204,20 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
       return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
    assert(pending);
-   const auto& gpo = db.get<global_property_object>();
-   auto cur_block_num = chain_head.block_num() + 1;
+
+   auto [version, diff] = pending->get_next_proposer_schedule_version(producers);
+   if (!diff)
+      return version;
 
    producer_authority_schedule sch;
-
-   sch.version = pending->get_next_proposer_schedule_version();
+   sch.version = version;
    sch.producers = std::move(producers);
 
    ilog( "proposed producer schedule with version ${v}", ("v", sch.version) );
 
    // overwrite any existing proposed_schedule set earlier in this block
+   auto cur_block_num = chain_head.block_num() + 1;
+   auto& gpo = db.get<global_property_object>();
    db.modify( gpo, [&]( auto& gp ) {
       gp.proposed_schedule_block_num = cur_block_num;
       gp.proposed_schedule = sch;
@@ -5300,6 +5329,12 @@ const producer_authority_schedule* controller::next_producers()const {
       return my->next_producers();
 
    return my->pending->next_producers();
+}
+
+finalizer_policy_ptr controller::head_active_finalizer_policy()const {
+   return apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+      return head->active_finalizer_policy;
+   });
 }
 
 bool controller::light_validation_allowed() const {

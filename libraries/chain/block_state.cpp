@@ -222,8 +222,8 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    };
 
    // compute strong and weak accumulated weights
-   auto strong_weights = qc._strong_votes ? weights( *qc._strong_votes ) : 0;
-   auto weak_weights = qc._weak_votes ? weights( *qc._weak_votes ) : 0;
+   auto strong_weights = qc.strong_votes ? weights( *qc.strong_votes ) : 0;
+   auto weak_weights = qc.weak_votes ? weights( *qc.weak_votes ) : 0;
 
    // verfify quorum is met
    if( qc.is_strong() ) {
@@ -259,18 +259,18 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    };
 
    // aggregate public keys and digests for strong and weak votes
-   if( qc._strong_votes ) {
-      pubkeys.emplace_back(aggregate_pubkeys(*qc._strong_votes));
+   if( qc.strong_votes ) {
+      pubkeys.emplace_back(aggregate_pubkeys(*qc.strong_votes));
       digests.emplace_back(std::vector<uint8_t>{strong_digest.data(), strong_digest.data() + strong_digest.data_size()});
    }
 
-   if( qc._weak_votes ) {
-      pubkeys.emplace_back(aggregate_pubkeys(*qc._weak_votes));
+   if( qc.weak_votes ) {
+      pubkeys.emplace_back(aggregate_pubkeys(*qc.weak_votes));
       digests.emplace_back(std::vector<uint8_t>{weak_digest.begin(), weak_digest.end()});
    }
 
    // validate aggregated signature
-   EOS_ASSERT( bls12_381::aggregate_verify(pubkeys, digests, qc._sig.jacobian_montgomery_le()),
+   EOS_ASSERT( bls12_381::aggregate_verify(pubkeys, digests, qc.sig.jacobian_montgomery_le()),
                invalid_qc_claim, "signature validation failed" );
 }
 
