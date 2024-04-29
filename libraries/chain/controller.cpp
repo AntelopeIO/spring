@@ -3228,7 +3228,13 @@ struct controller_impl {
          }
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
-            apply_s<void>(chain_head, [&](const auto& head) { create_and_send_vote_msg(head); });
+            if (!my_finalizers.empty()) {
+               apply_s<void>(chain_head, [&](const auto& head) {
+                  boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                     create_and_send_vote_msg(head);
+                  });
+               });
+            }
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
@@ -3442,7 +3448,7 @@ struct controller_impl {
             // not have been validated and we could not vote. At this point bsp->final_on_strong_qc_block_ref has been validated and we can vote.
             // Only need to consider voting if not already validated, if already validated then we have already voted.
             if (!already_valid)
-               consider_voting(bsp);
+               consider_voting(bsp, main_thread_t::yes);
 
             const signed_block_ptr& b = bsp->block;
             const auto& new_protocol_feature_activations = bsp->get_new_protocol_feature_activations();
@@ -3796,7 +3802,7 @@ struct controller_impl {
 
       if constexpr (savanna_mode) {
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
-         consider_voting(bsp);
+         consider_voting(bsp, main_thread_t::no);
       }
 
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
@@ -3903,19 +3909,29 @@ struct controller_impl {
       }
    }
 
-   void consider_voting(const block_state_legacy_ptr&) {}
-
+   enum class main_thread_t { no, yes };
+   void consider_voting(const block_state_legacy_ptr&, main_thread_t) {}
    // thread safe
-   void consider_voting(const block_state_ptr& bsp) {
+   void consider_voting(const block_state_ptr& bsp, main_thread_t main_thread) {
       // 1. Get the `core.final_on_strong_qc_block_num` for the block you are considering to vote on and use that to find the actual block ID
       //    of the ancestor block that has that block number.
       // 2. If that block ID is for a non validated block, then do not vote for that block.
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
-      if (bsp->core.final_on_strong_qc_block_num > 0) {
-         const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-         if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
-            create_and_send_vote_msg(bsp);
+      if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
+         if (main_thread == main_thread_t::yes) {
+            boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+               const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+               if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+                  create_and_send_vote_msg(bsp);
+               }
+            });
+         } else {
+            // bsp can be used directly instead of copy needed for post
+            const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+            if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+               create_and_send_vote_msg(bsp);
+            }
          }
       }
    }
@@ -3925,7 +3941,7 @@ struct controller_impl {
       assert(bsp && bsp->block);
 
       // consider voting again as final_on_strong_qc_block may have been validated since the bsp was created in create_block_state_i
-      consider_voting(bsp);
+      consider_voting(bsp, main_thread_t::yes);
 
       auto do_accept_block = [&](auto& forkdb) {
          if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
