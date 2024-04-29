@@ -12,6 +12,73 @@
 
 namespace eosio { namespace chain {
 
+   // should be defined for c++17, but clang++16 still has not implemented it
+#ifdef __cpp_lib_hardware_interference_size
+   using std::hardware_constructive_interference_size;
+   using std::hardware_destructive_interference_size;
+#else
+   // 64 bytes on x86-64 │ L1_CACHE_BYTES │ L1_CACHE_SHIFT │ __cacheline_aligned │ ...
+   [[maybe_unused]] constexpr std::size_t hardware_constructive_interference_size = 64;
+   [[maybe_unused]] constexpr std::size_t hardware_destructive_interference_size  = 64;
+#endif
+
+   // Use instead of std::atomic when std::atomic does not support type
+   template <typename T>
+   class large_atomic {
+      mutable std::mutex mtx;
+      T value{};
+   public:
+      T load() const {
+         std::lock_guard g(mtx);
+         return value;
+      }
+      void store(const T& v) {
+         std::lock_guard g(mtx);
+         value = v;
+      }
+
+      class accessor {
+         std::lock_guard<std::mutex> g;
+         T& v;
+      public:
+         accessor(std::mutex& m, T& v)
+            : g(m), v(v) {}
+         T& value() { return v; }
+      };
+
+      auto make_accessor() { return accessor{mtx, value}; }
+   };
+
+   template <typename T>
+   class copyable_atomic {
+      std::atomic<T> value;
+   public:
+      copyable_atomic() = default;
+      copyable_atomic(T v) noexcept
+         : value(v) {}
+      copyable_atomic(const copyable_atomic& rhs)
+         : value(rhs.value.load(std::memory_order_relaxed)) {}
+      copyable_atomic(copyable_atomic&& rhs) noexcept
+         : value(rhs.value.load(std::memory_order_relaxed)) {}
+
+      T load(std::memory_order mo = std::memory_order_seq_cst) const noexcept { return value.load(mo); }
+      void store(T v, std::memory_order mo = std::memory_order_seq_cst) noexcept { value.store(v, mo); }
+
+      template<typename DS>
+      friend DS& operator<<(DS& ds, const copyable_atomic& ca) {
+         fc::raw::pack(ds, ca.load(std::memory_order_relaxed));
+         return ds;
+      }
+
+      template<typename DS>
+      friend DS& operator>>(DS& ds, copyable_atomic& ca) {
+         T v;
+         fc::raw::unpack(ds, v);
+         ca.store(v, std::memory_order_relaxed);
+         return ds;
+      }
+   };
+
    /**
     * Wrapper class for thread pool of boost asio io_context run.
     * Also names threads so that tools like htop can see thread name.
@@ -40,7 +107,7 @@ namespace eosio { namespace chain {
       /// Blocks until all threads are created and completed their init function, or an exception is thrown
       ///  during thread startup or an init function. Exceptions thrown during these stages are rethrown from start()
       ///  but some threads might still have been started. Calling stop() after such a failure is safe.
-      /// @param num_threads is number of threads spawned
+      /// @param num_threads is number of threads spawned, if 0 then no threads are spawned and stop() is a no-op.
       /// @param on_except is the function to call if io_context throws an exception, is called from thread pool thread.
       ///                  if an empty function then logs and rethrows exception on thread which will terminate. Not called
       ///                  for exceptions during the init function (such exceptions are rethrown from start())
@@ -48,6 +115,8 @@ namespace eosio { namespace chain {
       /// @throw assert_exception if already started and not stopped.
       void start( size_t num_threads, on_except_t on_except, init_t init = {} ) {
          FC_ASSERT( !_ioc_work, "Thread pool already started" );
+         if (num_threads == 0)
+            return;
          _ioc_work.emplace( boost::asio::make_work_guard( _ioc ) );
          _ioc.restart();
          _thread_pool.reserve( num_threads );
@@ -73,13 +142,16 @@ namespace eosio { namespace chain {
       }
 
       /// destroy work guard, stop io_context, join thread_pool
+      /// not thread safe, expected to only be called from thread that called start()
       void stop() {
-         _ioc_work.reset();
-         _ioc.stop();
-         for( auto& t : _thread_pool ) {
-            t.join();
+         if (_thread_pool.size() > 0) {
+            _ioc_work.reset();
+            _ioc.stop();
+            for( auto& t : _thread_pool ) {
+               t.join();
+            }
+            _thread_pool.clear();
          }
-         _thread_pool.clear();
       }
 
    private:

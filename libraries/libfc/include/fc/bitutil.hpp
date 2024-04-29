@@ -1,4 +1,6 @@
 #pragma once
+
+#include <boost/dynamic_bitset.hpp>
 #include <stdint.h>
 
 namespace fc {
@@ -24,5 +26,8 @@ inline uint32_t endian_reverse_u32( uint32_t x )
         | (((x        ) & 0xFF) << 0x18)
         ;
 }
+
+// Using uint8_t boost::dynamic_bitset provides a more expected raw pack/unpack format
+using dynamic_bitset = boost::dynamic_bitset<uint8_t>;
 
 } // namespace fc

@@ -1,4 +1,9 @@
 #pragma once
+
+#include <eosio/chain_plugin/account_query_db.hpp>
+#include <eosio/chain_plugin/trx_retry_db.hpp>
+#include <eosio/chain_plugin/trx_finality_status_processing.hpp>
+
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/asset.hpp>
 #include <eosio/chain/authority.hpp>
@@ -16,11 +21,6 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 
-#include <eosio/chain_plugin/account_query_db.hpp>
-#include <eosio/chain_plugin/trx_retry_db.hpp>
-#include <eosio/chain_plugin/trx_finality_status_processing.hpp>
-
-#include <fc/static_variant.hpp>
 #include <fc/time.hpp>
 
 namespace fc { class variant; }
@@ -978,7 +978,7 @@ public:
    chain_apis::read_write get_read_write_api(const fc::microseconds& http_max_response_time);
    chain_apis::read_only get_read_only_api(const fc::microseconds& http_max_response_time) const;
 
-   bool accept_block( const chain::signed_block_ptr& block, const chain::block_id_type& id, const chain::block_state_legacy_ptr& bsp );
+   bool accept_block( const chain::signed_block_ptr& block, const chain::block_id_type& id, const std::optional<chain::block_handle>& obt );
    void accept_transaction(const chain::packed_transaction_ptr& trx, chain::plugin_interface::next_function<chain::transaction_trace_ptr> next);
 
    // Only call this after plugin_initialize()!
@@ -992,6 +992,8 @@ public:
    // set true by other plugins if any plugin allows transactions
    bool accept_transactions() const;
    void enable_accept_transactions();
+   // true if vote processing is enabled
+   bool accept_votes() const;
 
    static void handle_guard_exception(const chain::guard_exception& e);
 

@@ -1,6 +1,5 @@
 #include <eosio/chain_plugin/chain_plugin.hpp>
 #include <eosio/chain_plugin/trx_retry_db.hpp>
-#include <eosio/chain/fork_database.hpp>
 #include <eosio/chain/block_log.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/authorization_manager.hpp>
@@ -17,6 +16,7 @@
 #include <eosio/chain/permission_link_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/chainbase_environment.hpp>
+#include <eosio/chain/block_header_state_utils.hpp>
 
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
@@ -154,10 +154,12 @@ public:
    ,incoming_transaction_async_method(app().get_method<incoming::methods::transaction_async>())
    {}
 
+   std::filesystem::path             finalizers_dir;
    std::filesystem::path             blocks_dir;
    std::filesystem::path             state_dir;
    bool                              readonly = false;
    flat_map<uint32_t, block_id_type> loaded_checkpoints;
+   bool                              accept_votes = false;
    bool                              accept_transactions     = false;
    bool                              api_accept_transactions = true;
    bool                              account_queries_enabled = false;
@@ -192,7 +194,6 @@ public:
    std::optional<scoped_connection>                                   irreversible_block_connection;
    std::optional<scoped_connection>                                   applied_transaction_connection;
    std::optional<scoped_connection>                                   block_start_connection;
-
 
    std::optional<chain_apis::account_query_db>                        _account_query_db;
    std::optional<chain_apis::trx_retry_db>                            _trx_retry_db;
@@ -267,6 +268,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "All files in the archive directory are completely under user's control, i.e. they won't be accessed by nodeos anymore.")
          ("state-dir", bpo::value<std::filesystem::path>()->default_value(config::default_state_dir_name),
           "the location of the state directory (absolute path or relative to application data dir)")
+         ("finalizers-dir", bpo::value<std::filesystem::path>()->default_value(config::default_finalizers_dir_name),
+          "the location of the finalizers safety data directory (absolute path or relative to application data dir)")
          ("protocol-features-dir", bpo::value<std::filesystem::path>()->default_value("protocol_features"),
           "the location of the protocol_features directory (absolute path or relative to application config dir)")
          ("checkpoint", bpo::value<vector<string>>()->composing(), "Pairs of [BLOCK_NUM,BLOCK_ID] that should be enforced as checkpoints.")
@@ -290,6 +293,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "Percentage of actual signature recovery cpu to bill. Whole number percentages, e.g. 50 for 50%")
          ("chain-threads", bpo::value<uint16_t>()->default_value(config::default_controller_thread_pool_size),
           "Number of worker threads in controller thread pool")
+         ("vote-threads", bpo::value<uint16_t>(),
+          "Number of worker threads in vote processor thread pool. If set to 0, voting disabled, votes are not propagatged on P2P network. Defaults to 4 on producer nodes.")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
          ("deep-mind", bpo::bool_switch()->default_value(false),
@@ -540,6 +545,14 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
       }
 
+      if( options.count( "finalizers-dir" )) {
+         auto fd = options.at( "finalizers-dir" ).as<std::filesystem::path>();
+         if( fd.is_relative())
+            finalizers_dir = app().data_dir() / fd;
+         else
+            finalizers_dir = fd;
+      }
+
       if( options.count( "blocks-dir" )) {
          auto bld = options.at( "blocks-dir" ).as<std::filesystem::path>();
          if( bld.is_relative())
@@ -593,6 +606,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       abi_serializer_max_time_us = fc::microseconds(options.at("abi-serializer-max-time-ms").as<uint32_t>() * 1000);
 
+      chain_config->finalizers_dir = finalizers_dir;
       chain_config->blocks_dir = blocks_dir;
       chain_config->state_dir = state_dir;
       chain_config->read_only = readonly;
@@ -622,9 +636,18 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
 
       if( options.count( "chain-threads" )) {
-         chain_config->thread_pool_size = options.at( "chain-threads" ).as<uint16_t>();
-         EOS_ASSERT( chain_config->thread_pool_size > 0, plugin_config_exception,
-                     "chain-threads ${num} must be greater than 0", ("num", chain_config->thread_pool_size) );
+         chain_config->chain_thread_pool_size = options.at( "chain-threads" ).as<uint16_t>();
+         EOS_ASSERT( chain_config->chain_thread_pool_size > 0, plugin_config_exception,
+                     "chain-threads ${num} must be greater than 0", ("num", chain_config->chain_thread_pool_size) );
+      }
+
+      if (options.count("producer-name") || options.count("vote-threads")) {
+         chain_config->vote_thread_pool_size = options.count("vote-threads") ? options.at("vote-threads").as<uint16_t>() : 0;
+         if (chain_config->vote_thread_pool_size == 0 && options.count("producer-name")) {
+            chain_config->vote_thread_pool_size = config::default_vote_thread_pool_size;
+            ilog("Setting vote-threads to ${n} on producing node", ("n", chain_config->vote_thread_pool_size));
+         }
+         accept_votes = chain_config->vote_thread_pool_size > 0;
       }
 
       chain_config->sig_cpu_bill_pct = options.at("signature-cpu-billable-pct").as<uint32_t>();
@@ -1005,12 +1028,12 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             } );
 
       // relay signals to channels
-      accepted_block_header_connection = chain->accepted_block_header.connect(
+      accepted_block_header_connection = chain->accepted_block_header().connect(
             [this]( const block_signal_params& t ) {
                accepted_block_header_channel.publish( priority::medium, t );
             } );
 
-      accepted_block_connection = chain->accepted_block.connect( [this]( const block_signal_params& t ) {
+      accepted_block_connection = chain->accepted_block().connect( [this]( const block_signal_params& t ) {
          const auto& [ block, id ] = t;
          if (_account_query_db) {
             _account_query_db->commit_block(block);
@@ -1027,7 +1050,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          accepted_block_channel.publish( priority::high, t );
       } );
 
-      irreversible_block_connection = chain->irreversible_block.connect( [this]( const block_signal_params& t ) {
+      irreversible_block_connection = chain->irreversible_block().connect( [this]( const block_signal_params& t ) {
          const auto& [ block, id ] = t;
 
          if (_trx_retry_db) {
@@ -1041,7 +1064,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          irreversible_block_channel.publish( priority::low, t );
       } );
       
-      applied_transaction_connection = chain->applied_transaction.connect(
+      applied_transaction_connection = chain->applied_transaction().connect(
             [this]( std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> t ) {
                const auto& [ trace, ptrx ] = t;
                if (_account_query_db) {
@@ -1060,7 +1083,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             } );
 
       if (_trx_finality_status_processing || _trx_retry_db) {
-         block_start_connection = chain->block_start.connect(
+         block_start_connection = chain->block_start().connect(
             [this]( uint32_t block_num ) {
                if (_trx_retry_db) {
                   _trx_retry_db->on_block_start(block_num);
@@ -1072,7 +1095,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
       chain->add_indices();
    } FC_LOG_AND_RETHROW()
-
 }
 
 void chain_plugin::plugin_initialize(const variables_map& options) {
@@ -1140,6 +1162,7 @@ void chain_plugin_impl::plugin_shutdown() {
    applied_transaction_connection.reset();
    block_start_connection.reset();
    chain.reset();
+   dlog("exit shutdown");
 }
 
 void chain_plugin::plugin_shutdown() {
@@ -1148,6 +1171,7 @@ void chain_plugin::plugin_shutdown() {
 
 void chain_plugin::handle_sighup() {
    _deep_mind_log.update_logger( deep_mind_logger_name );
+   fc::logger::update(vote_logger.get_name(), vote_logger);
 }
 
 chain_apis::read_write::read_write(controller& db,
@@ -1177,8 +1201,8 @@ chain_apis::read_only chain_plugin::get_read_only_api(const fc::microseconds& ht
 }
 
 
-bool chain_plugin::accept_block(const signed_block_ptr& block, const block_id_type& id, const block_state_legacy_ptr& bsp ) {
-   return my->incoming_block_sync_method(block, id, bsp);
+bool chain_plugin::accept_block(const signed_block_ptr& block, const block_id_type& id, const std::optional<block_handle>& obt ) {
+   return my->incoming_block_sync_method(block, id, obt);
 }
 
 void chain_plugin::accept_transaction(const chain::packed_transaction_ptr& trx, next_function<chain::transaction_trace_ptr> next) {
@@ -1210,6 +1234,10 @@ void chain_plugin_impl::enable_accept_transactions() {
 
 void chain_plugin::enable_accept_transactions() {
    my->enable_accept_transactions();
+}
+
+bool chain_plugin::accept_votes() const {
+   return my->accept_votes;
 }
 
 
@@ -1794,9 +1822,9 @@ read_only::get_producers( const read_only::get_producers_params& params, const f
 read_only::get_producer_schedule_result read_only::get_producer_schedule( const read_only::get_producer_schedule_params& p, const fc::time_point& ) const {
    read_only::get_producer_schedule_result result;
    to_variant(db.active_producers(), result.active);
-   if(!db.pending_producers().producers.empty())
-      to_variant(db.pending_producers(), result.pending);
-   auto proposed = db.proposed_producers();
+   if (const auto* pending = db.next_producers()) // not applicable for instant-finality
+      to_variant(*pending, result.pending);
+   auto proposed = db.proposed_producers_legacy(); // empty for instant-finality
    if(proposed && !proposed->producers.empty())
       to_variant(*proposed, result.proposed);
    return result;
@@ -1978,9 +2006,9 @@ fc::variant read_only::convert_block( const chain::signed_block_ptr& block, abi_
 
 fc::variant read_only::get_block_info(const read_only::get_block_info_params& params, const fc::time_point&) const {
 
-   signed_block_ptr block;
+   std::optional<signed_block_header> block;
    try {
-         block = db.fetch_block_by_number( params.block_num );
+         block = db.fetch_block_header_by_number( params.block_num );
    } catch (...)   {
       // assert below will handle the invalid block num
    }
@@ -2006,31 +2034,38 @@ fc::variant read_only::get_block_info(const read_only::get_block_info_params& pa
 }
 
 fc::variant read_only::get_block_header_state(const get_block_header_state_params& params, const fc::time_point&) const {
-   block_state_legacy_ptr b;
+   signed_block_ptr sbp;
    std::optional<uint64_t> block_num;
-   std::exception_ptr e;
+
    try {
       block_num = fc::to_uint64(params.block_num_or_id);
    } catch( ... ) {}
 
    if( block_num ) {
-      b = db.fetch_block_state_by_number(*block_num);
+      sbp = db.fetch_block_by_number(*block_num);
    } else {
       try {
-         b = db.fetch_block_state_by_id(fc::variant(params.block_num_or_id).as<block_id_type>());
+         sbp = db.fetch_block_by_id(block_id_type(params.block_num_or_id));
       } EOS_RETHROW_EXCEPTIONS(chain::block_id_type_exception, "Invalid block ID: ${block_num_or_id}", ("block_num_or_id", params.block_num_or_id))
    }
 
-   EOS_ASSERT( b, unknown_block_exception, "Could not find reversible block: ${block}", ("block", params.block_num_or_id));
+   EOS_ASSERT( sbp, unknown_block_exception, "Could not find block: ${block}", ("block", params.block_num_or_id));
+
+   block_header_state_legacy ret;
+   ret.block_num = sbp->block_num();
+   ret.id = sbp->calculate_id();
+   ret.header = *sbp;
+   ret.additional_signatures = detail::extract_additional_signatures(sbp);
 
    fc::variant vo;
-   fc::to_variant( static_cast<const block_header_state_legacy&>(*b), vo );
+   fc::to_variant( ret, vo );
    return vo;
 }
 
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {
    try {
-      app().get_method<incoming::methods::block_sync>()(std::make_shared<signed_block>( std::move(params) ), std::optional<block_id_type>{}, block_state_legacy_ptr{});
+      auto b = std::make_shared<signed_block>( std::move(params) );
+      app().get_method<incoming::methods::block_sync>()(b, b->calculate_id(), std::optional<block_handle>{});
    } catch ( boost::interprocess::bad_alloc& ) {
       handle_db_exhaustion();
    } catch ( const std::bad_alloc& ) {

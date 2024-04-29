@@ -3,6 +3,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/genesis_state_root_key.cpp.in ${CMAKE
 
 file(GLOB HEADERS "include/eosio/chain/*.hpp"
                   "include/eosio/chain/webassembly/*.hpp"
+                  "include/eosio/chain/finality/*.hpp"
                   "${CMAKE_CURRENT_BINARY_DIR}/include/eosio/chain/core_symbol.hpp" )
 
 if((APPLE AND UNIX) OR (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD"))
@@ -78,16 +79,24 @@ set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/transaction.cpp
 )
 
+set(CHAIN_FINALITY_SOURCES
+        finality/finalizer.cpp
+        finality/instant_finality_extension.cpp
+        finality/quorum_certificate.cpp
+        finality/finality_core.cpp
+)
+
 add_library(eosio_rapidjson INTERFACE)
 target_include_directories(eosio_rapidjson INTERFACE ../rapidjson/include)
 
 ## SORT .cpp by most likely to change / break compile
 add_library( eosio_chain
-             merkle.cpp
              name.cpp
              transaction.cpp
              block.cpp
              block_header.cpp
+             block_header_state.cpp
+             block_state.cpp
              block_header_state_legacy.cpp
              block_state_legacy.cpp
              fork_database.cpp
@@ -119,6 +128,7 @@ add_library( eosio_chain
              ${CHAIN_EOSVMOC_SOURCES}
              ${CHAIN_EOSVM_SOURCES}
              ${CHAIN_WEBASSEMBLY_SOURCES}
+             ${CHAIN_FINALITY_SOURCES}
 
              authority.cpp
              trace.cpp

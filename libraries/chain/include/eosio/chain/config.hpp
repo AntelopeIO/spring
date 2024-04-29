@@ -7,13 +7,15 @@ namespace eosio { namespace chain { namespace config {
 
 typedef __uint128_t uint128_t;
 
-const static auto default_blocks_dir_name    = "blocks";
-const static auto reversible_blocks_dir_name = "reversible";
+const static auto default_finalizers_dir_name = "finalizers";
+const static auto default_blocks_dir_name     = "blocks";
+const static auto reversible_blocks_dir_name  = "reversible";
 
-const static auto default_state_dir_name     = "state";
-const static auto forkdb_filename            = "fork_db.dat";
-const static auto default_state_size            = 1*1024*1024*1024ll;
-const static auto default_state_guard_size      =    128*1024*1024ll;
+const static auto default_state_dir_name      = "state";
+const static auto forkdb_filename             = "fork_db.dat";
+const static auto safetydb_filename           = "safety_db.dat";
+const static auto default_state_size          = 1*1024*1024*1024ll;
+const static auto default_state_guard_size    =    128*1024*1024ll;
 
 
 const static name system_account_name    { "eosio"_n };
@@ -78,6 +80,7 @@ const static uint16_t   default_max_auth_depth                       = 6;
 const static uint32_t   default_sig_cpu_bill_pct                     = 50 * percent_1; // billable percentage of signature recovery
 const static uint32_t   default_produce_block_offset_ms              = 450;
 const static uint16_t   default_controller_thread_pool_size          = 2;
+const static uint16_t   default_vote_thread_pool_size                = 4;
 const static uint32_t   default_max_variable_signature_length        = 16384u;
 const static uint32_t   default_max_action_return_value_size         = 256;
 
@@ -128,6 +131,11 @@ const static int max_producers = 125;
 const static size_t maximum_tracked_dpos_confirmations = 1024;     ///<
 static_assert(maximum_tracked_dpos_confirmations >= ((max_producers * 2 / 3) + 1) * producer_repetitions, "Settings never allow for DPOS irreversibility" );
 
+/**
+ * Maximum number of finalizers in the finalizer set
+ */
+const static size_t max_finalizers = 64*1024;
+const static size_t max_finalizer_description_size = 256;
 
 /**
  * The number of blocks produced per round is based upon all producers having a chance

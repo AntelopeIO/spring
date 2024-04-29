@@ -8,8 +8,10 @@ import json
 import shlex
 import signal
 import sys
+import shutil
 from pathlib import Path
 from typing import List
+from dataclasses import InitVar, dataclass, field, is_dataclass, asdict
 
 from datetime import datetime
 from datetime import timedelta
@@ -20,6 +22,14 @@ from .accounts import Account
 from .testUtils import Utils
 from .testUtils import unhandledEnumType
 from .testUtils import ReturnType
+
+@dataclass
+class KeyStrings(object):
+    pubkey: str
+    privkey: str
+    blspubkey: str = None
+    blsprivkey: str = None
+    blspop: str = None
 
 # pylint: disable=too-many-public-methods
 class Node(Transactions):
@@ -66,6 +76,7 @@ class Node(Transactions):
         self.config_dir=config_dir
         self.launch_time=launch_time
         self.isProducer=False
+        self.keys: List[KeyStrings] = field(default_factory=list)
         self.configureVersion()
 
     def configureVersion(self):
@@ -526,6 +537,26 @@ class Node(Transactions):
     def scheduleSnapshotAt(self, sbn):
         param = { "start_block_num": sbn, "end_block_num": sbn }
         return self.processUrllibRequest("producer", "schedule_snapshot", param)
+
+    def getLatestSnapshot(self):
+       snapshotDir = os.path.join(Utils.getNodeDataDir(self.nodeId), "snapshots")
+       snapshotDirContents = os.listdir(snapshotDir)
+       assert len(snapshotDirContents) > 0
+       # disregard snapshot schedule config in same folder
+       snapshotScheduleDB = "snapshot-schedule.json"
+       if snapshotScheduleDB in snapshotDirContents: snapshotDirContents.remove(snapshotScheduleDB)
+       snapshotDirContents.sort()
+       return os.path.join(snapshotDir, snapshotDirContents[-1])
+
+    def removeState(self):
+       dataDir = Utils.getNodeDataDir(self.nodeId)
+       state = os.path.join(dataDir, "state")
+       shutil.rmtree(state, ignore_errors=True)
+
+    def removeReversibleBlks(self):
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
+        shutil.rmtree(reversibleBlks, ignore_errors=True)
 
     @staticmethod
     def findStderrFiles(path):

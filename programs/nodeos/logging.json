@@ -159,6 +159,15 @@
       "net"
       ]
     },{
+    "name": "vote",
+    "level": "debug",
+    "enabled": true,
+    "additivity": false,
+    "appenders": [
+      "stderr",
+      "net"
+      ]
+    },{
       "name": "transaction",
       "level": "info",
       "enabled": true,

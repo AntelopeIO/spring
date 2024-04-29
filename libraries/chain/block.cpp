@@ -1,6 +1,6 @@
 #include <eosio/chain/block.hpp>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
    void additional_block_signatures_extension::reflector_init() {
       static_assert( fc::raw::has_feature_reflector_init_on_unpacked_reflected_types,
                      "additional_block_signatures_extension expects FC to support reflector_init" );
@@ -18,6 +18,11 @@ namespace eosio { namespace chain {
                      ("s", s)
          );
       }
+   }
+
+   void quorum_certificate_extension::reflector_init() {
+      static_assert( fc::raw::has_feature_reflector_init_on_unpacked_reflected_types, "quorum_certificate_extension expects FC to support reflector_init" );
+      static_assert( extension_id() == 3, "extension id for quorum_certificate_extension must be 3" );
    }
 
    flat_multimap<uint16_t, block_extension> signed_block::validate_and_extract_extensions()const {
@@ -58,7 +63,42 @@ namespace eosio { namespace chain {
       }
 
       return results;
-
    }
 
-} } /// namespace eosio::chain
+   // Does not validate ordering, assumes validate_and_extract_extensions() has been called in verify_qc_claim()
+   std::optional<block_extension> signed_block::extract_extension(uint16_t extension_id)const {
+      using decompose_t = block_extension_types::decompose_t;
+
+      assert(std::ranges::is_sorted(block_extensions)); // currently all extensions are unique so default compare works
+
+      for( size_t i = 0; i < block_extensions.size(); ++i ) {
+         const auto& e = block_extensions[i];
+         auto id = e.first;
+
+         if (id > extension_id)
+            break;
+         if (id != extension_id)
+            continue;
+
+         std::optional<block_extension> ext;
+         ext.emplace();
+
+         auto match = decompose_t::extract<block_extension>( id, e.second, *ext );
+         EOS_ASSERT( match, invalid_block_extension,
+                     "Block extension with id type ${id} is not supported",
+                     ("id", id)
+         );
+
+         return ext;
+      }
+
+      return {};
+   }
+
+   bool signed_block::contains_extension(uint16_t extension_id)const {
+      return std::any_of(block_extensions.cbegin(), block_extensions.cend(), [&](const auto& p) {
+         return p.first == extension_id;
+      });
+   }
+
+} /// namespace eosio::chain

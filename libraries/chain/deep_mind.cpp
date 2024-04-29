@@ -1,5 +1,6 @@
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/block_state_legacy.hpp>
+#include <eosio/chain/block_state.hpp>
 #include <eosio/chain/generated_transaction_object.hpp>
 #include <eosio/chain/contract_table_objects.hpp>
 #include <eosio/chain/resource_limits_private.hpp>
@@ -49,7 +50,7 @@ namespace eosio::chain {
    void deep_mind_handler::on_startup(chainbase::database& db, uint32_t head_block_num)
    {
       // FIXME: We should probably feed that from CMake directly somehow ...
-      fc_dlog(_logger, "DEEP_MIND_VERSION spring 13 0");
+      fc_dlog(_logger, "DEEP_MIND_VERSION spring 1 0");
 
       fc_dlog(_logger, "ABIDUMP START ${block_num} ${global_sequence_num}",
          ("block_num", head_block_num)
@@ -77,8 +78,21 @@ namespace eosio::chain {
       auto packed_blk = fc::raw::pack(*bsp);
 
       fc_dlog(_logger, "ACCEPTED_BLOCK ${num} ${blk}",
-         ("num", bsp->block_num)
+         ("num", bsp->block_num())
          ("blk", fc::to_hex(packed_blk))
+      );
+   }
+
+   void deep_mind_handler::on_accepted_block_v2(block_num_type lib, const signed_block_ptr& b, const finality_data_t& fd)
+   {
+      auto packed_blk = fc::raw::pack(*b);
+      auto finality_data = fc::raw::pack(fd);
+
+      fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${num} ${lib} ${blk} ${fd}",
+         ("num", b->block_num())
+         ("lib", lib)
+         ("blk", fc::to_hex(packed_blk))
+         ("fd", fc::to_hex(finality_data))
       );
    }
 

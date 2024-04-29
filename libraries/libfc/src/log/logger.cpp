@@ -38,7 +38,7 @@ namespace fc {
     logger::logger( const logger& l )
     :my(l.my){}
 
-    logger::logger( logger&& l )
+    logger::logger( logger&& l ) noexcept
     :my(std::move(l.my)){}
 
     logger::~logger(){}
@@ -47,7 +47,7 @@ namespace fc {
        my = l.my;
        return *this;
     }
-    logger& logger::operator=( logger&& l ){
+    logger& logger::operator=( logger&& l ) noexcept {
        fc_swap(my,l.my);
        return *this;
     }

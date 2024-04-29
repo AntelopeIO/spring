@@ -23,6 +23,7 @@ totalNodes = producerNodes
 # Parse command line arguments
 args = TestHelper.parse_args({
     "-v",
+    "--activate-if",
     "--dump-error-details",
     "--leave-running",
     "--keep-logs",
@@ -30,6 +31,7 @@ args = TestHelper.parse_args({
 })
 
 Utils.Debug = args.v
+activateIF=args.activate_if
 dumpErrorDetails = args.dump_error_details
 keepLogs = args.keep_logs
 
@@ -83,6 +85,7 @@ try:
         totalNodes=totalNodes,
         pnodes=producerNodes,
         totalProducers=producerNodes,
+        activateIF=activateIF,
         topo="./tests/auto_bp_peering_test_shape.json",
         extraNodeosArgs=" --plugin eosio::net_api_plugin ",
         specificExtraNodeosArgs=specificNodeosArgs,
@@ -94,7 +97,7 @@ try:
         cluster.nodes[nodeId].waitForProducer(
             "defproduceru", exitOnError=True, timeout=300)
 
-    # retrive the producer stable producer schedule
+    # retrieve the producer stable producer schedule
     scheduled_producers = []
     schedule = cluster.nodes[0].processUrllibRequest(
         "chain", "get_producer_schedule")
@@ -103,13 +106,15 @@ try:
 
     connection_check_failures = 0
     for nodeId in range(0, producerNodes):
-        # retrive the connections in each node and check if each only connects to their neighbors in the schedule
+        # retrieve the connections in each node and check if each only connects to their neighbors in the schedule
         connections = cluster.nodes[nodeId].processUrllibRequest(
             "net", "connections")
         peers = []
         for conn in connections["payload"]:
             peer_addr = conn["peer"]
             if len(peer_addr) == 0:
+                if len(conn["last_handshake"]["p2p_address"]) == 0:
+                    continue
                 peer_addr = conn["last_handshake"]["p2p_address"].split()[0]
             if peer_names[peer_addr] != "bios":
                 peers.append(peer_names[peer_addr])

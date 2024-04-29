@@ -188,7 +188,7 @@ paths:
 
   /get_block_header_state:
     post:
-      description: Retrieves the glock header state
+      description: Retrieves a block header state object with only block_num, id, header, and additional_signatures filled. Other fields are left empty or defaulted to a static value.
       operationId: get_block_header_state
       requestBody:
         content:
