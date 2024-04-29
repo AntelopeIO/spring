@@ -2,7 +2,7 @@
 import os
 import shutil
 import signal
-
+import time
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.Node import BlockType
 
@@ -95,6 +95,7 @@ try:
     ret_json = node0.processUrllibRequest("producer", "pause")
     # wait for lib because waitForBlock uses > not >=
     assert node0.waitForBlock(lib, blockType=BlockType.lib), "Node0 did not advance LIB after pause"
+    time.sleep(1)
 
     Print("Disconnect the producing node (Node0) from peer Node1")
     ret_json = node0.processUrllibRequest("net", "disconnect", "localhost:9877")
