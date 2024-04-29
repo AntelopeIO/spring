@@ -139,17 +139,20 @@ void finish_next(const block_header_state& prev,
          // we have at least one `finalizer_policy` in our map, but none of these is
          // due to become active of this block because lib has not advanced enough, so
          // we just copy the multimap and keep using the same `active_finalizer_policy`
+         // ---------------------------------------------------------------------------
          next_header_state.finalizer_policies = prev.finalizer_policies;
       } else {
          while (it != prev.finalizer_policies.end() && it->first <= lib) {
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
+               // -----------------------------------
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
                // block where finalizer_policy was proposed became final. The finalizer policy will
                // become active when next block becomes final.
+               // ---------------------------------------------------------------------------------
                finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
                next_header_state.finalizer_policies.emplace(next_header_state.block_num(), std::move(t));
             }
@@ -157,6 +160,7 @@ void finish_next(const block_header_state& prev,
          }
          if (it != prev.finalizer_policies.end()) {
             // copy remainder of pending finalizer_policy changes
+            // --------------------------------------------------
             next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
                                                         it, prev.finalizer_policies.end());
          }
@@ -164,11 +168,19 @@ void finish_next(const block_header_state& prev,
    }
 
    if (if_ext.new_finalizer_policy) {
+      // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
+      // block's header extensions.
+      // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
+      // increment the generation number, and log that proposal (debug level).
+      // ------------------------------------------------------------------------------------------------
+      dlog("New finalizer policy proposed in block ${id}: ${pol}",
+           ("id", prev.block_id)("pol", *if_ext.new_finalizer_policy));
       next_header_state.finalizer_policy_generation = if_ext.new_finalizer_policy->generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
                                   std::make_shared<finalizer_policy>(std::move(*if_ext.new_finalizer_policy))});
+
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
@@ -176,6 +188,15 @@ void finish_next(const block_header_state& prev,
    // Finally update block id from header
    // -----------------------------------
    next_header_state.block_id = next_header_state.header.calculate_id();
+
+   // Now that we have the block id of the new block, log what changed.
+   // -----------------------------------------------------------------
+   if (next_header_state.active_finalizer_policy != prev.active_finalizer_policy) {
+      const auto& act = next_header_state.active_finalizer_policy;
+      ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
+           ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
+      ilog("New finalizer policy becoming active in block ${id}: ${pol}",("id", next_header_state.block_id)("pol", *act));
+   }
 }
    
 block_header_state block_header_state::next(block_header_state_input& input) const {
