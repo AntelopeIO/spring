@@ -16,10 +16,13 @@ from TestHarness.Node import BlockType
 # A, B, C, and D can be connected to each other however we like as long as blocks sent to node A can traverse to the
 # other nodes B, C, and D. However, node P should only be connected to node A.
 #
-# At some point after IF transition has completed and LIB is advancing, the connection between node P and node A should
-# be severed. The LIB on node P at that point is block N. Then shortly after that, node P should be cleanly shut down.
+# At some point after IF transition has completed and LIB is advancing, block production on node P should be paused.
+# Enough time should be given to allow and in-flight votes on the latest produced blocks to be delivered to node P.
+# Then, the connection between node P and node A should be severed, and then block production on node P resumed. The
+# LIB on node P should advance to but then stall at block N. Then shortly after that, node P should be cleanly shut down.
 #
-# Verify that the LIB on A, B, C, and D has stalled and is less than block N. Then, nodes A, B, C, and D can all be cleanly shut down.
+# Verify that the LIB on A, B, C, and D has stalled and is less than block N. Then, nodes A, B, C, and D can all be
+# cleanly shut down.
 #
 # Then, reversible blocks from all nodes should be removed. All nodes are restarted from an earlier
 # snapshot (prior to block N).
@@ -56,9 +59,8 @@ try:
 
     Print("Stand up cluster")
     specificExtraNodeosArgs={}
-    specificExtraNodeosArgs[0]="--plugin eosio::net_api_plugin "
+    specificExtraNodeosArgs[0]="--plugin eosio::net_api_plugin --plugin eosio::producer_api_plugin "
 
-    # For now do not load system contract as it does not support setfinalizer
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, specificExtraNodeosArgs=specificExtraNodeosArgs,
                       topo="./tests/disaster_recovery_2_test_shape.json", delay=delay, loadSystemContract=False,
                       activateIF=True, signatureProviderForNonProducer=True) is False:
@@ -87,6 +89,10 @@ try:
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
     currentLIB = node0.getIrreversibleBlockNum()
+
+    Print("Pause production on Node0")
+    ret_json = node0.processUrllibRequest("producer", "pause", "localhost:9877")
+    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after pause"
 
     Print("Disconnect the producing node (Node0) from peer Node1")
     ret_json = node0.processUrllibRequest("net", "disconnect", "localhost:9877")
