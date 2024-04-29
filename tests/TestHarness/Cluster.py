@@ -167,6 +167,7 @@ class Cluster(object):
                totalProducers=None, sharedProducers=0, extraNodeosArgs="", specificExtraNodeosArgs=None, specificNodeosInstances=None, onlySetProds=False,
                pfSetupPolicy=PFSetupPolicy.FULL, alternateVersionLabelsFile=None, associatedNodeLabels=None, loadSystemContract=True,
                activateIF=False, biosFinalizer=True,
+               signatureProviderForNonProducer=False,
                nodeosLogPath=Path(Utils.TestLogRoot) / Path(f'{Path(sys.argv[0]).stem}{os.getpid()}'), genesisPath=None,
                maximumP2pPerHost=0, maximumClients=25, prodsEnableTraceApi=True):
         """Launch cluster.
@@ -191,6 +192,7 @@ class Cluster(object):
         loadSystemContract: indicate whether the eosio.system contract should be loaded
         activateIF: Activate/enable instant-finality by setting finalizers
         biosFinalizer: True if the biosNode should act as a finalizer
+        signatureProviderForNonProducer: Add signature provider for non-producer
         genesisPath: set the path to a specific genesis.json to use
         maximumP2pPerHost:  Maximum number of client nodes from any single IP address. Defaults to totalNodes if not set.
         maximumClients: Maximum number of clients from which connections are accepted, use 0 for no limit. Defaults to 25.
@@ -465,6 +467,8 @@ class Cluster(object):
                 if "--plugin eosio::history_api_plugin" in args:
                     argsArr.append("--is-nodeos-v2")
                     break
+        if signatureProviderForNonProducer:
+            argsArr.append("--signature-provider")
 
         # Handle common case of specifying no block offset for older versions
         if "v2" in self.nodeosVers or "v3" in self.nodeosVers or "v4" in self.nodeosVers:
@@ -525,7 +529,7 @@ class Cluster(object):
             return True
 
         Utils.Print("Bootstrap cluster.")
-        if not self.bootstrap(launcher, self.biosNode, self.startedNodesCount, prodCount + sharedProducers, totalProducers, pfSetupPolicy, onlyBios, onlySetProds, loadSystemContract, activateIF, biosFinalizer):
+        if not self.bootstrap(launcher, self.biosNode, self.startedNodesCount, prodCount + sharedProducers, totalProducers, pfSetupPolicy, onlyBios, onlySetProds, loadSystemContract, activateIF, biosFinalizer, signatureProviderForNonProducer):
             Utils.Print("ERROR: Bootstrap failed.")
             return False
 
@@ -997,13 +1001,13 @@ class Cluster(object):
         Utils.Print(f'Found {len(producerKeys)} producer keys')
         return producerKeys
 
-    def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True):
+    def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True, signatureProviderForNonProducer=False):
         # call setfinalizer
         numFins = 0
         for n in (self.nodes + [self.biosNode]):
             if not n or not n.keys or not n.keys[0].blspubkey:
                 continue
-            if not n.isProducer:
+            if not signatureProviderForNonProducer and not n.isProducer:
                 continue
             if n.nodeId == 'bios' and not biosFinalizer:
                 continue
@@ -1021,7 +1025,7 @@ class Cluster(object):
         for n in (self.nodes + [self.biosNode]):
             if not n or not n.keys or not n.keys[0].blspubkey:
                 continue
-            if not n.isProducer:
+            if not signatureProviderForNonProducer and not n.isProducer:
                 continue
             if n.nodeId == 'bios' and not biosFinalizer:
                 continue
@@ -1050,7 +1054,7 @@ class Cluster(object):
                 return None, transId
         return True, transId
 
-    def bootstrap(self, launcher,  biosNode, totalNodes, prodCount, totalProducers, pfSetupPolicy, onlyBios=False, onlySetProds=False, loadSystemContract=True, activateIF=False, biosFinalizer=True):
+    def bootstrap(self, launcher,  biosNode, totalNodes, prodCount, totalProducers, pfSetupPolicy, onlyBios=False, onlySetProds=False, loadSystemContract=True, activateIF=False, biosFinalizer=True, signatureProviderForNonProducer=False):
         """Create 'prodCount' init accounts and deposits 10000000000 SYS in each. If prodCount is -1 will initialize all possible producers.
         Ensure nodes are inter-connected prior to this call. One way to validate this will be to check if every node has block 1."""
 
@@ -1114,7 +1118,7 @@ class Cluster(object):
             return None
 
         if activateIF:
-            success, transId = self.activateInstantFinality(biosFinalizer=biosFinalizer)
+            success, transId = self.activateInstantFinality(biosFinalizer=biosFinalizer, signatureProviderForNonProducer=signatureProviderForNonProducer)
             if not success:
                 Utils.Print("ERROR: Activate instant finality failed")
                 return None
