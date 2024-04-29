@@ -11,35 +11,9 @@
 
 using namespace eosio;
 
-/*
-
-todo :
-
-OK - bug with storing the wrong block number when storing last proof
-OK - calculate direction instead of providing it
-OK - avoid using variant
-OK - use string format for pub key and signatures
-
-upcoming changes to bitset representation
-
-Expand test coverage to include :
-
-OK - 1) "light" proof verification
-OK - 2) verification of a proof where the the finality block is not the same than the target block
-3) proving a new finalizer policy and verifying it is used correctly for subsequent proofs
-4) proving an action
-5) verify garbage collection is working as expected
-
-As well as some counter-examples that should correctly fail
-
-*/
-
 CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;
-
-/*      using bls_public_key = std::vector<char>;
-      using bls_signature = std::vector<char>;*/
 
       const uint32_t POLICY_CACHE_EXPIRY = 600; //10 minutes for testing
       const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing

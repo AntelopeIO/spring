@@ -82,8 +82,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
 
-      std::cout << "Genesis Timestamp : " << genesis_block->timestamp.to_time_point().to_iso_string() << "\n";
-
       // ensure out of scope setup and initial cluster wiring is consistent  
       BOOST_CHECK(genesis_block->block_num() == 6);
 

@@ -82,24 +82,6 @@ void svnn_ibc::_maybe_remove_from_cache(){
         }
     }
 
-/*    auto to_remove_itr = idx.lower_bound(now.sec_since_epoch());
-    auto last_itr = idx.rbegin(); //last entry
-
-    if (to_remove_itr == idx.end() ) return; //no entries, nothing to do
-    if (to_remove_end_itr == idx.end() ) return; //no entries are expired, nothing to do
-    else if (to_remove_itr->primary_key()==last_itr->primary_key()) return; //only last cache entry is present, nothing to do
-    else {
-        //otherwise
-        int count = 0; //attempt to remove up to 10 items during a single action 
-        while(to_remove_itr!=to_remove_end_itr && to_remove_itr->primary_key()!=last_itr->primary_key() && count<10){
-            count++;
-            to_remove_itr=idx.erase(to_remove_itr);
-        }
-
-        print("erased ", count, " cache items\n");
-        check(false, "expected");
-    }*/
-
 }
 
 //verify that a signature over a given message has been generated with the private key matching the public key
