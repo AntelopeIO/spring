@@ -3410,7 +3410,7 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
-               if( read_mode == db_read_mode::IRREVERSIBLE && conf.terminate_at_block > 0 && conf.terminate_at_block <= bsp->block_num() ) {
+               if( conf.terminate_at_block > 0 && conf.terminate_at_block <= bsp->block_num() ) {
                   ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num())("num", conf.terminate_at_block) );
                   shutdown();
                   return;
@@ -3970,12 +3970,6 @@ struct controller_impl {
          EOS_ASSERT( (s == controller::block_status::irreversible || s == controller::block_status::validated),
                      block_validate_exception, "invalid block status for replay" );
 
-         if( conf.terminate_at_block > 0 && conf.terminate_at_block <= chain_head.block_num() ) {
-            ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", chain_head.block_num())("num", conf.terminate_at_block) );
-            shutdown();
-            return;
-         }
-
          const bool skip_validate_signee = !conf.force_all_checks;
          validator_t validator = [this](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
                                         const vector<digest_type>& new_features) {
@@ -4092,12 +4086,6 @@ struct controller_impl {
                   br = controller::block_report{};
                   apply_block( br, bsp, bsp->is_valid() ? controller::block_status::validated
                                                         : controller::block_status::complete, trx_lookup );
-
-                  if( conf.terminate_at_block > 0 && conf.terminate_at_block <= chain_head.block_num()) {
-                     ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", chain_head.block_num())("num", conf.terminate_at_block) );
-                     shutdown();
-                     break;
-                  }
                   if (!switch_fork && check_shutdown()) {
                      shutdown();
                      break;
