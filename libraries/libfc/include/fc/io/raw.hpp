@@ -572,7 +572,7 @@ namespace fc {
       const auto num_blocks = value.num_blocks();
       FC_ASSERT( num_blocks <= MAX_NUM_ARRAY_ELEMENTS );
       fc::raw::pack( s, unsigned_int(value.size()) );
-      constexpr size_t word_size = sizeof(fc::dynamic_bitset::block_type) * CHAR_BIT;
+      [[maybe_unused]] constexpr size_t word_size = sizeof(fc::dynamic_bitset::block_type) * CHAR_BIT;
       assert(num_blocks == (value.size() + word_size - 1) / word_size);
       // convert bitset to a vector of blocks
       std::vector<fc::dynamic_bitset::block_type> blocks;
