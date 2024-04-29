@@ -88,7 +88,6 @@ try:
     assert node1.waitForLibToAdvance(), "Ndoe1 did not advance LIB after snapshot of Node0"
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
-    currentLIB = node0.getIrreversibleBlockNum()
 
     Print("Pause production on Node0")
     lib = node0.getIrreversibleBlockNum()
@@ -104,8 +103,13 @@ try:
     Print("Resume production on Node0")
     ret_json = node0.processUrllibRequest("producer", "resume")
     assert node0.waitForHeadToAdvance(blocksToAdvance=2)
+    libN = node0.getIrreversibleBlockNum()
 
     assert not node1.waitForHeadToAdvance(timeout=5), "Node1 head still advancing after disconnect"
+
+    for node in [node1, node2, node3, node4]:
+        lib = node.getIrreversibleBlockNum()
+        assert lib < libN, "Node LIB {lib} >= LIB N {libN}"
 
     for node in [node0, node1, node2, node3, node4]:
         node.kill(signal.SIGTERM)
@@ -123,6 +127,8 @@ try:
 
     for node in [node0, node1, node2, node3, node4]:
         assert node.waitForLibToAdvance(), "Node did not advance LIB after relaunch"
+        lib = node.getIrreversibleBlockNum()
+        assert lib > libN, "Node LIB {lib} <= LIB N {libN}"
 
     testSuccessful=True
 finally:
