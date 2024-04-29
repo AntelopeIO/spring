@@ -124,10 +124,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          .active_finalizer_policy_and_base_digest = genesis_afp_base_digest
       });
 
-      //action_mroot computed using the post-IF activation merkle tree rules
+      // action_mroot computed using the post-IF activation merkle tree rules
       auto genesis_block_action_mroot = genesis_block_fd.value().action_mroot;
       
-      //initial finality leaf
+      // initial finality leaf
       auto genesis_block_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
          .block_num = genesis_block->block_num(),
          .finality_digest = genesis_block_finality_digest,
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       auto block_4_finality_root = block_4->action_mroot; 
 
-      //  block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
+      // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
       auto block_5 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
       auto block_5_fd = cluster.node0.node.control->head_finality_data();
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_TEST(qc_b_5.qc.has_value());
       
-      //  block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
+      // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
       auto block_6 = cluster.produce_and_push_block();
       cluster.process_node1_vote();
 
@@ -220,9 +220,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       
       std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
 
-      //create a few proofs we'll use to perform tests
+      // create a few proofs we'll use to perform tests
 
-      //heavy proof #1. Proving finality of block #2 using block #2 finality root
+      // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
             ("finality_proof", mvo() //proves finality of block #2
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          );
 
-      //heavy proof #2. Proving finality of block #2 using block #3 finality root
+      // heavy proof #2. Proving finality of block #2 using block #3 finality root
       mutable_variant_object heavy_proof_2 = mvo()
          ("proof", mvo() 
             ("finality_proof", mvo()  //proves finality of block #3
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          );
 
-      //light proof #1. Attempt to prove finality of block #2 with previously proven finality root of block #2
+      // light proof #1. Attempt to prove finality of block #2 with previously proven finality root of block #2
       mutable_variant_object light_proof_1 = mvo()
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
@@ -330,7 +330,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // verify a second proof where the target block is different from the finality block. This also saves a second finality root to the contract, marking the beginning of the cache timer for the older finality root.
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_2);
 
-      cluster.produce_blocks(1);
+      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
 
       // we should still be able to verify a proof of finality for block #2 without finality proof, since the previous root is still cached
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
@@ -340,11 +340,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // the root is still cached when performing this action, so the action succeeds. However, it also triggers garbage collection,removing the old proven root for block #2, so subsequent call with the same action data will fail
       cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
 
-      cluster.produce_blocks(1);
+      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
 
       bool failed = false;
 
-      // Since garbage collection was triggered for the merkle root of block #2, which this proof links to, action now fails
+      // Since garbage collection was previously triggered for the merkle root of block #2 which this proof attempts to link to, action will now fail
       try {
          cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
       }
@@ -352,7 +352,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          failed = true;
       }
 
-      BOOST_CHECK(failed);
+      // verify action has failed, as expected
+      BOOST_CHECK(failed); 
 
    } FC_LOG_AND_RETHROW() }
 

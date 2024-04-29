@@ -75,7 +75,7 @@ public:
 
    // Produces and propagate finality votes block_count blocks.
    void produce_blocks(uint32_t blocks_count);
-   
+
    // Intentionally corrupt node1's vote's block_id and save the original vote
    void node1_corrupt_vote_block_id();
 
