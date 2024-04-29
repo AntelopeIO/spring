@@ -91,13 +91,16 @@ try:
     currentLIB = node0.getIrreversibleBlockNum()
 
     Print("Pause production on Node0")
-    ret_json = node0.processUrllibRequest("producer", "pause", "localhost:9877")
+    ret_json = node0.processUrllibRequest("producer", "pause")
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after pause"
 
     Print("Disconnect the producing node (Node0) from peer Node1")
     ret_json = node0.processUrllibRequest("net", "disconnect", "localhost:9877")
-    assert node0.waitForHeadToAdvance(blocksToAdvance=5), "Node0 head not advancing after disconnect"
     assert not node0.waitForLibToAdvance(timeout=10), "Node0 LIB still advancing after disconnect"
+
+    Print("Resume production on Node0")
+    ret_json = node0.processUrllibRequest("producer", "resume")
+    assert node0.waitForHeadToAdvance(blocksToAdvance=2)
 
     assert not node1.waitForHeadToAdvance(timeout=5), "Node1 head still advancing after disconnect"
 
