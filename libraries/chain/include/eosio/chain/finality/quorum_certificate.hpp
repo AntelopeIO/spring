@@ -5,8 +5,7 @@
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_public_key.hpp>
 #include <fc/crypto/bls_signature.hpp>
-
-#include <boost/dynamic_bitset.hpp>
+#include <fc/bitutil.hpp>
 
 #include <mutex>
 
@@ -17,7 +16,7 @@ namespace eosio::chain {
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
    using bls_private_key         = fc::crypto::blslib::bls_private_key;
 
-   using vote_bitset   = boost::dynamic_bitset<uint32_t>;
+   using vote_bitset   = fc::dynamic_bitset;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
 
    enum class vote_status {
@@ -31,21 +30,21 @@ namespace eosio::chain {
 
    // valid_quorum_certificate
    struct valid_quorum_certificate {
-      bool is_weak()   const { return !!_weak_votes; }
-      bool is_strong() const { return !_weak_votes; }
+      bool is_weak()   const { return !!weak_votes; }
+      bool is_strong() const { return !weak_votes; }
 
-      std::optional<vote_bitset> _strong_votes;
-      std::optional<vote_bitset> _weak_votes;
-      bls_aggregate_signature    _sig;
+      std::optional<vote_bitset> strong_votes;
+      std::optional<vote_bitset> weak_votes;
+      bls_aggregate_signature    sig;
    };
 
    // quorum_certificate
    struct quorum_certificate {
       uint32_t                 block_num;
-      valid_quorum_certificate qc;
+      valid_quorum_certificate data;
 
       qc_claim_t to_qc_claim() const {
-         return {.block_num = block_num, .is_strong_qc = qc.is_strong()};
+         return {.block_num = block_num, .is_strong_qc = data.is_strong()};
       }
    };
 
@@ -75,15 +74,15 @@ namespace eosio::chain {
          friend struct fc::has_reflector_init<votes_t>;
          friend class pending_quorum_certificate;
 
-         vote_bitset                    _bitset;
-         bls_aggregate_signature        _sig;
-         std::vector<std::atomic<bool>> _processed; // avoid locking mutex for _bitset duplicate check
+         vote_bitset                    bitset;
+         bls_aggregate_signature        sig;
+         std::vector<std::atomic<bool>> processed; // avoid locking mutex for _bitset duplicate check
 
          void reflector_init();
       public:
          explicit votes_t(size_t num_finalizers)
-            : _bitset(num_finalizers)
-            , _processed(num_finalizers) {}
+            : bitset(num_finalizers)
+            , processed(num_finalizers) {}
 
          // thread safe
          bool has_voted(size_t index) const;
@@ -114,7 +113,7 @@ namespace eosio::chain {
       // thread safe
       bool has_voted(size_t index) const;
 
-      state_t state() const { std::lock_guard g(*_mtx); return _state; };
+      state_t state() const { std::lock_guard g(*_mtx); return pending_state; };
 
       std::optional<quorum_certificate> get_best_qc(block_num_type block_num) const;
       void set_valid_qc(const valid_quorum_certificate& qc);
@@ -123,14 +122,14 @@ namespace eosio::chain {
       friend struct fc::reflector<pending_quorum_certificate>;
       friend class qc_chain;
       std::unique_ptr<std::mutex> _mtx;
-      std::optional<valid_quorum_certificate> _valid_qc; // best qc received from the network inside block extension
-      uint64_t             _quorum {0};
-      uint64_t             _max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
-      state_t              _state { state_t::unrestricted };
-      uint64_t             _strong_sum {0}; // accumulated sum of strong votes so far
-      uint64_t             _weak_sum {0}; // accumulated sum of weak votes so far
-      votes_t              _weak_votes {0};
-      votes_t              _strong_votes {0};
+      std::optional<valid_quorum_certificate> valid_qc; // best qc received from the network inside block extension
+      uint64_t             quorum {0};
+      uint64_t             max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
+      state_t              pending_state { state_t::unrestricted };
+      uint64_t             strong_sum {0}; // accumulated sum of strong votes so far
+      uint64_t             weak_sum {0}; // accumulated sum of weak votes so far
+      votes_t              weak_votes {0};
+      votes_t              strong_votes {0};
 
       // called by add_vote, already protected by mutex
       vote_status add_strong_vote(size_t index,
@@ -150,8 +149,8 @@ namespace eosio::chain {
 
 
 FC_REFLECT_ENUM(eosio::chain::vote_status, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
-FC_REFLECT(eosio::chain::valid_quorum_certificate, (_strong_votes)(_weak_votes)(_sig));
-FC_REFLECT(eosio::chain::pending_quorum_certificate, (_valid_qc)(_quorum)(_max_weak_sum_before_weak_final)(_state)(_strong_sum)(_weak_sum)(_weak_votes)(_strong_votes));
+FC_REFLECT(eosio::chain::valid_quorum_certificate, (strong_votes)(weak_votes)(sig));
+FC_REFLECT(eosio::chain::pending_quorum_certificate, (valid_qc)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
 FC_REFLECT_ENUM(eosio::chain::pending_quorum_certificate::state_t, (unrestricted)(restricted)(weak_achieved)(weak_final)(strong));
-FC_REFLECT(eosio::chain::pending_quorum_certificate::votes_t, (_bitset)(_sig));
-FC_REFLECT(eosio::chain::quorum_certificate, (block_num)(qc));
+FC_REFLECT(eosio::chain::pending_quorum_certificate::votes_t, (bitset)(sig));
+FC_REFLECT(eosio::chain::quorum_certificate, (block_num)(data));

@@ -491,16 +491,38 @@ struct building_block {
 
       uint32_t get_block_num() const { return block_num; }
 
-      uint32_t get_next_proposer_schedule_version() const {
-         if (!parent.proposer_policies.empty()) {
-            block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
-            if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
-               return itr->second->proposer_schedule.version; // will replace so return same version
-            }
-            return (--parent.proposer_policies.end())->second->proposer_schedule.version + 1;
-         }
+      // returns the next proposer schedule version and true if different
+      // if producers is not different then returns the current schedule version (or next schedule version)
+      std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
-         return active_proposer_policy->proposer_schedule.version + 1;
+
+         auto get_next_sched = [&]() -> const producer_authority_schedule& {
+            // if there are any policies already proposed but not active yet then they are what needs to be compared
+            if (!parent.proposer_policies.empty()) {
+               block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
+               if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
+                  // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
+                  if (itr != parent.proposer_policies.begin()) {
+                     return (--itr)->second->proposer_schedule;
+                  }
+                  // no previous to what will be replaced, use active
+                  return active_proposer_policy->proposer_schedule;
+               }
+               // will not replace any proposed policies, use next to become active
+               return parent.proposer_policies.begin()->second->proposer_schedule;
+            }
+
+            // none currently in-flight, use active
+            return active_proposer_policy->proposer_schedule;
+         };
+
+         const producer_authority_schedule& lhs = get_next_sched();
+
+         if (std::ranges::equal(lhs.producers, producers)) {
+            return {lhs.version, false};
+         }
+
+         return {lhs.version + 1, true};
       }
 
    };
@@ -535,8 +557,10 @@ struct building_block {
    void set_proposed_finalizer_policy(finalizer_policy&& fin_pol)
    {
       std::visit(overloaded{ [&](building_block_legacy& bb) {
-                                 fin_pol.generation = 1;  // only allowed to be set once in legacy mode
-                                 bb.new_finalizer_policy = std::move(fin_pol);
+                                 if (!bb.pending_block_header_state.is_if_transition_block()) {
+                                    fin_pol.generation = 1;  // only allowed to be set once in legacy mode
+                                    bb.new_finalizer_policy = std::move(fin_pol);
+                                 }
                              },
                              [&](building_block_if& bb)     {
                                 bb.new_finalizer_policy = std::move(fin_pol);
@@ -589,11 +613,13 @@ struct building_block {
                         v);
    }
 
-   int64_t get_next_proposer_schedule_version() const {
+   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
       return std::visit(
-         overloaded{[](const building_block_legacy&) -> int64_t { return -1; },
-                    [&](const building_block_if& bb) -> int64_t { return bb.get_next_proposer_schedule_version(); }
-                   },
+         overloaded{[](const building_block_legacy&) -> std::tuple<uint32_t, bool> { return {-1, false}; },
+                    [&](const building_block_if& bb) -> std::tuple<uint32_t, bool> {
+                       return bb.get_next_proposer_schedule_version(producers);
+                    }
+         },
          v);
    }
 
@@ -885,11 +911,13 @@ struct pending_state {
          _block_stage);
    }
 
-   int64_t get_next_proposer_schedule_version() const {
+   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
       return std::visit(overloaded{
-                           [](const building_block& stage) -> int64_t { return stage.get_next_proposer_schedule_version(); },
-                           [](const assembled_block&) -> int64_t { assert(false); return -1; },
-                           [](const completed_block&) -> int64_t { assert(false); return -1; }
+                           [&](const building_block& stage) -> std::tuple<uint32_t, bool> {
+                              return stage.get_next_proposer_schedule_version(producers);
+                           },
+                           [](const assembled_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; },
+                           [](const completed_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; }
                         },
                         _block_stage);
    }
@@ -922,6 +950,7 @@ struct controller_impl {
    block_log                       blog;
    std::optional<pending_state>    pending;
    block_handle                    chain_head;
+   block_state_ptr                 chain_head_trans_svnn_block; // chain_head's Savanna representation during transition
    fork_database                   fork_db;
    large_atomic<block_id_type>     if_irreversible_block_id;
    resource_limits_manager         resource_limits;
@@ -1318,7 +1347,7 @@ struct controller_impl {
       // legacy_branch is from head, all will be validated unless irreversible_mode(),
       // IRREVERSIBLE applies (validates) blocks when irreversible, new_valid will be done after apply in log_irreversible
       assert(read_mode == db_read_mode::IRREVERSIBLE || legacy->action_mroot_savanna);
-      if (legacy->action_mroot_savanna) {
+      if (legacy->action_mroot_savanna && !new_bsp->valid) {
          // Create the valid structure for producing
          new_bsp->valid = prev->new_valid(*new_bsp, *legacy->action_mroot_savanna, new_bsp->strong_digest);
       }
@@ -1528,13 +1557,14 @@ struct controller_impl {
                      const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
                      // transition to savanna
-                     block_state_ptr prev;
+                     block_state_ptr prev = chain_head_trans_svnn_block;
+                     bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
                      for (size_t i = 0; i < legacy_branch.size(); ++i) {
-                        if (i == 0) {
+                        if (i == 0 && replay_not_from_snapshot) {
+                           assert(!prev);
                            prev = block_state::create_if_genesis_block(*legacy_branch[0]);
                         } else {
                            const auto& bspl = legacy_branch[i];
-                           assert(bspl->action_mroot_savanna.has_value());
                            assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
                            auto new_bsp = block_state::create_transition_block(
                                  *prev,
@@ -1542,10 +1572,6 @@ struct controller_impl {
                                  protocol_features.get_protocol_feature_set(),
                                  validator_t{}, skip_validate_signee,
                                  bspl->action_mroot_savanna);
-                           // legacy_branch is from head, all should be validated
-                           assert(bspl->action_mroot_savanna);
-                           // Create the valid structure for producing
-                           new_bsp->valid = prev->new_valid(*new_bsp, *bspl->action_mroot_savanna, new_bsp->strong_digest);
                            prev = new_bsp;
                         }
                      }
@@ -2017,10 +2043,10 @@ struct controller_impl {
    {
        return apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
-             if (fork_db.version_in_use() == fork_database::in_use_t::both) {
-                return fork_db.apply_s<block_state_pair>([&](const auto& forkdb) -> block_state_pair {
-                   return { head, forkdb.head() };
-                });
+             if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+                // During transition to Savanna, we need to build Transition Savanna block
+                // from Savanna Genesis block
+                return { head, get_transition_savanna_block(head) };
              }
              return block_state_pair{ head, {} };
           },
@@ -2107,6 +2133,11 @@ struct controller_impl {
                   auto legacy_ptr = std::make_shared<block_state_legacy>(std::move(*block_state_data.bs_l));
                   chain_head = block_handle{legacy_ptr};
                   result.first = std::move(legacy_ptr);
+
+                  // If we have both bs_l and bs, we are during Savanna transition
+                  if (block_state_data.bs) {
+                     chain_head_trans_svnn_block = std::make_shared<block_state>(std::move(*block_state_data.bs));
+                  }
                } else {
                   auto bs_ptr = std::make_shared<block_state>(std::move(*block_state_data.bs));
                   chain_head = block_handle{bs_ptr};
@@ -3716,10 +3747,10 @@ struct controller_impl {
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.qc.is_strong() == new_qc_claim.is_strong_qc,
+      EOS_ASSERT( qc_proof.data.is_strong() == new_qc_claim.is_strong_qc,
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
-                  ("s1", qc_proof.qc.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+                  ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
       auto bsp = fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
@@ -3729,7 +3760,7 @@ struct controller_impl {
                   ("q", new_qc_claim.block_num)("b", block_num) );
 
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof.qc);
+      bsp->verify_qc(qc_proof.data);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -3838,7 +3869,7 @@ struct controller_impl {
          return;
       }
       const auto& qc_ext = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
-      const auto& received_qc = qc_ext.qc.qc;
+      const auto& received_qc = qc_ext.qc.data;
 
       const auto claimed = fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed ) {
@@ -4049,7 +4080,7 @@ struct controller_impl {
             if( switch_fork ) {
                auto head_fork_comp_str = apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
                ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                    ("chid", chain_head.id())("chn}", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+                    ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
                     ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
 
                // not possible to log transaction specific info when switching forks
@@ -4418,10 +4449,8 @@ struct controller_impl {
       }
    }
 
-   // This is only used during Savanna transition, which is a one-time occurrence,
-   // and it is only used by SHiP..
-   // It is OK to calculate from Savanna Genesis block for each Transition block.
-   std::optional<finality_data_t> get_transition_block_finality_data(const block_state_legacy_ptr& head) const {
+   // Returns corresponding Transition Savanna block for a given Legacy block.
+   block_state_ptr get_transition_savanna_block(const block_state_legacy_ptr& head) const {
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
@@ -4432,14 +4461,13 @@ struct controller_impl {
       block_state_ptr prev;
       auto bitr = legacy_branch.rbegin();
 
-      // get_transition_block_finality_data is called by SHiP as a result
-      // of receiving accepted_block signal. That is before
-      // the call to log_irreversible where root() is updated.
+      // This function can be called before log_irreversible is executed
+      // (where root() is updated), like in SHiP case where it is called
+      // as a result receiving accepted_block signal.
       // Search both root and legacy_branch for the first block having
       // instant_finality_extension -- the Savanna Genesis Block.
       // Then start from the Savanna Genesis Block to create corresponding
       // Savanna blocks.
-      // genesis_block already contains all information for finality_data.
       if (legacy_root->header.contains_header_extension(instant_finality_extension::extension_id())) {
          prev = block_state::create_if_genesis_block(*legacy_root);
       } else {
@@ -4456,19 +4484,24 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
-         assert((*bitr)->action_mroot_savanna.has_value());
          assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
          auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
                protocol_features.get_protocol_feature_set(),
-               validator_t{}, skip_validate_signee, (*bitr)->action_mroot_savanna);
+               validator_t{},
+               skip_validate_signee,
+               (*bitr)->action_mroot_savanna);
 
          prev = new_bsp;
       }
 
       assert(prev);
-      return prev->get_finality_data();
+      return prev;
+   }
+
+   std::optional<finality_data_t> get_transition_block_finality_data(const block_state_legacy_ptr& head) const {
+      return get_transition_savanna_block(head)->get_finality_data();
    }
 
    std::optional<finality_data_t> head_finality_data() const {
@@ -5182,17 +5215,20 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
       return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
    assert(pending);
-   const auto& gpo = db.get<global_property_object>();
-   auto cur_block_num = chain_head.block_num() + 1;
+
+   auto [version, diff] = pending->get_next_proposer_schedule_version(producers);
+   if (!diff)
+      return version;
 
    producer_authority_schedule sch;
-
-   sch.version = pending->get_next_proposer_schedule_version();
+   sch.version = version;
    sch.producers = std::move(producers);
 
    ilog( "proposed producer schedule with version ${v}", ("v", sch.version) );
 
    // overwrite any existing proposed_schedule set earlier in this block
+   auto cur_block_num = chain_head.block_num() + 1;
+   auto& gpo = db.get<global_property_object>();
    db.modify( gpo, [&]( auto& gp ) {
       gp.proposed_schedule_block_num = cur_block_num;
       gp.proposed_schedule = sch;
@@ -5304,6 +5340,12 @@ const producer_authority_schedule* controller::next_producers()const {
       return my->next_producers();
 
    return my->pending->next_producers();
+}
+
+finalizer_policy_ptr controller::head_active_finalizer_policy()const {
+   return apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+      return head->active_finalizer_policy;
+   });
 }
 
 bool controller::light_validation_allowed() const {

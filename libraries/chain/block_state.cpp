@@ -116,14 +116,21 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 }
 
 block_state_ptr block_state::create_transition_block(
-                   const block_header_state&         prev,
+                   const block_state&                prev,
                    signed_block_ptr                  b,
                    const protocol_feature_set&       pfs,
                    const validator_t&                validator,
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
    auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
+
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();
+   // action_mroot_savanna can be empty in IRREVERSIBLE mode. Do not create valid structure
+   // if action_mroot is empty.
+   if( !result_ptr->action_mroot.empty() ) {
+     result_ptr->valid = prev.new_valid(*result_ptr, result_ptr->action_mroot, result_ptr->strong_digest);
+   }
+
    return result_ptr;
 }
 
@@ -215,8 +222,8 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    };
 
    // compute strong and weak accumulated weights
-   auto strong_weights = qc._strong_votes ? weights( *qc._strong_votes ) : 0;
-   auto weak_weights = qc._weak_votes ? weights( *qc._weak_votes ) : 0;
+   auto strong_weights = qc.strong_votes ? weights( *qc.strong_votes ) : 0;
+   auto weak_weights = qc.weak_votes ? weights( *qc.weak_votes ) : 0;
 
    // verfify quorum is met
    if( qc.is_strong() ) {
@@ -252,18 +259,18 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    };
 
    // aggregate public keys and digests for strong and weak votes
-   if( qc._strong_votes ) {
-      pubkeys.emplace_back(aggregate_pubkeys(*qc._strong_votes));
+   if( qc.strong_votes ) {
+      pubkeys.emplace_back(aggregate_pubkeys(*qc.strong_votes));
       digests.emplace_back(std::vector<uint8_t>{strong_digest.data(), strong_digest.data() + strong_digest.data_size()});
    }
 
-   if( qc._weak_votes ) {
-      pubkeys.emplace_back(aggregate_pubkeys(*qc._weak_votes));
+   if( qc.weak_votes ) {
+      pubkeys.emplace_back(aggregate_pubkeys(*qc.weak_votes));
       digests.emplace_back(std::vector<uint8_t>{weak_digest.begin(), weak_digest.end()});
    }
 
    // validate aggregated signature
-   EOS_ASSERT( bls12_381::aggregate_verify(pubkeys, digests, qc._sig.jacobian_montgomery_le()),
+   EOS_ASSERT( bls12_381::aggregate_verify(pubkeys, digests, qc.sig.jacobian_montgomery_le()),
                invalid_qc_claim, "signature validation failed" );
 }
 

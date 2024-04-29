@@ -170,6 +170,29 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    // sch3 becomes active
    BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as sch2 was replaced by sch3
    BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+
+   // get to next producer round
+   auto prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+
+   // test no change to active schedule
+   set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change
+   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions);
+   BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not different so no change
+   BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+
+   // test no change to proposed schedule, only the first one will take affect
+   for (size_t i = 0; i < config::producer_repetitions*2-1; ++i) {
+      BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not taken affect yet
+      BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+      set_producers( {"bob"_n,"carol"_n} );
+      produce_block();
+   }
+   produce_block();
+   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 now as bob,carol now active
+   BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
+
 } FC_LOG_AND_RETHROW()
 
 
