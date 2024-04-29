@@ -82,6 +82,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
 
+      std::cout << "Genesis Timestamp : " << genesis_block->timestamp.to_time_point().to_iso_string() << "\n";
+
       // ensure out of scope setup and initial cluster wiring is consistent  
       BOOST_CHECK(genesis_block->block_num() == 6);
 
@@ -216,16 +218,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_TEST(qc_b_6.qc.has_value());
       
-      // generate proof of inclusion for block_2 in the merkle tree
-      auto merkle_branches_1 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
-      auto merkle_branches_2 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf, block_3_leaf}, 2); 
-
       std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
 
-      // verify proof
-      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
+      //create a few proofs we'll use to perform tests
+
+      //heavy proof #1. Proving finality of block #2 using block #2 finality root
+      mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
-            ("finality_proof", mvo() 
+            ("finality_proof", mvo() //proves finality of block #2
                ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
@@ -241,7 +241,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
                ("last_node_index", 2)
-               ("target",  mvo() 
+               ("target",  mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -255,13 +255,49 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("action_mroot", block_2_action_mroot)
                   )
                )
-               ("merkle_branches", merkle_branches_1)
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2))
             )
-         )
-      );
+         );
 
-      // now that we stored the proven root, we should be able to verify the same proof without the finality data
-      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
+      //heavy proof #2. Proving finality of block #2 using block #3 finality root
+      mutable_variant_object heavy_proof_2 = mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo()  //proves finality of block #3
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("witness_hash", block_5_afp_base_digest)
+                  ("finality_mroot", block_5_finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", qc_b_6.qc.value().qc._sig.to_string())
+                  ("finalizers", raw_bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 3)
+               ("target", mvo() //target block #2
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_action_mroot)
+                  )
+               )
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf, block_3_leaf}, 2))
+            )
+         );
+
+      //light proof #1. Attempt to prove finality of block #2 with previously proven finality root of block #2
+      mutable_variant_object light_proof_1 = mvo()
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
@@ -280,48 +316,43 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("action_mroot", block_2_action_mroot)
                   )
                )
-               ("merkle_branches", merkle_branches_1)
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2))
             )
-         )
-      );
+         );
+      
 
-      // verify a proof where the target block is different from the finality block
-      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, mvo()
-         ("proof", mvo() 
-            ("finality_proof", mvo() 
-               ("qc_block", mvo()
-                  ("major_version", 1)
-                  ("minor_version", 0)
-                  ("finalizer_policy_generation", 1)
-                  ("witness_hash", block_5_afp_base_digest)
-                  ("finality_mroot", block_5_finality_root)
-               )
-               ("qc", mvo()
-                  ("signature", qc_b_6.qc.value().qc._sig.to_string())
-                  ("finalizers", raw_bitset) 
-               )
-            )
-            ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 2)
-               ("last_node_index", 3)
-               ("target", mvo() 
-                  ("finality_data", mvo() 
-                     ("major_version", 1)
-                     ("minor_version", 0)
-                     ("finalizer_policy_generation", 1)
-                     ("witness_hash", block_2_afp_base_digest)
-                     ("finality_mroot", block_2_finality_root)
-                  )
-                  ("dynamic_data", mvo() 
-                     ("block_num", block_2->block_num())
-                     ("action_proofs", fc::variants())
-                     ("action_mroot", block_2_action_mroot)
-                  )
-               )
-               ("merkle_branches", merkle_branches_2)
-            )
-         )
-      );
+      // verify first heavy proof
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_1);
+
+      // now that we stored the proven root, we should be able to verify the same proof without the finality data (aka light proof)
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      // verify a second proof where the target block is different from the finality block. This also saves a second finality root to the contract, marking the beginning of the cache timer for the older finality root.
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_2);
+
+      cluster.produce_blocks(1);
+
+      // we should still be able to verify a proof of finality for block #2 without finality proof, since the previous root is still cached
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      cluster.produce_blocks(1200); //advance 10 minutes
+
+      // the root is still cached when performing this action, so the action succeeds. However, it also triggers garbage collection,removing the old proven root for block #2, so subsequent call with the same action data will fail
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      cluster.produce_blocks(1);
+
+      bool failed = false;
+
+      // Since garbage collection was triggered for the merkle root of block #2, which this proof links to, action now fails
+      try {
+         cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+      }
+      catch(const eosio_assert_message_exception& e){
+         failed = true;
+      }
+
+      BOOST_CHECK(failed);
 
    } FC_LOG_AND_RETHROW() }
 

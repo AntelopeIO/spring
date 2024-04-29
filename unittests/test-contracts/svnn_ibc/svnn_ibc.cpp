@@ -39,16 +39,16 @@ void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t
 //adds the newly proven root if necessary
 void svnn_ibc::_maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot){
     proofs_table _proofs_table(get_self(), get_self().value);
-    auto block_num_index = _proofs_table.get_index<"blocknum"_n>();
+    //auto block_num_index = _proofs_table.get_index<"blocknum"_n>();
     auto merkle_index = _proofs_table.get_index<"merkleroot"_n>();
-    auto last_itr = block_num_index.rbegin();
+    auto last_itr = _proofs_table.rbegin();
 
     //if first proven root or newer than the last proven root, we store it 
-    if (last_itr == block_num_index.rend() || last_itr->block_num<block_num){
+    if (last_itr == _proofs_table.rend() || last_itr->block_num<(uint64_t)block_num){
         auto itr = merkle_index.find(finality_mroot);
         if (itr == merkle_index.end()){
             _proofs_table.emplace( get_self(), [&]( auto& p ) {
-                p.id = _proofs_table.available_primary_key();
+                //p.id = _proofs_table.available_primary_key();
                 p.block_num = block_num;
                 p.finality_mroot = finality_mroot;
                 p.cache_expiry = add_time(current_time_point(), PROOF_CACHE_EXPIRY); //set cache expiry
@@ -58,9 +58,48 @@ void svnn_ibc::_maybe_add_proven_root(const uint32_t block_num, const checksum25
     //otherwise, the proven root is not advancing finality so we don't need to store it
 }
 
-//delete old policies and proofs that are no longer necessary
-void svnn_ibc::_garbage_collection(){
-    //todo : implement
+template<typename Table>
+void svnn_ibc::_maybe_remove_from_cache(){
+
+    time_point now = current_time_point();
+
+    Table table(get_self(), get_self().value);
+
+    auto idx = table.template get_index<"expiry"_n>(); //expiry order index
+
+    auto last_itr = idx.rbegin(); //last entry
+
+    if (last_itr == idx.rend() ) return; //no entries, nothing to do
+
+    if (now.sec_since_epoch() < last_itr->cache_expiry.sec_since_epoch()) return; //cache has not yet expired, nothing to do
+    else {
+
+        //cache must be cleaned up
+        auto itr = idx.begin();
+        while (itr!=idx.end()){
+            if (itr->primary_key() == last_itr->primary_key()) return; //last entry, we always keep that one
+            itr = idx.erase(itr);
+        }
+    }
+
+/*    auto to_remove_itr = idx.lower_bound(now.sec_since_epoch());
+    auto last_itr = idx.rbegin(); //last entry
+
+    if (to_remove_itr == idx.end() ) return; //no entries, nothing to do
+    if (to_remove_end_itr == idx.end() ) return; //no entries are expired, nothing to do
+    else if (to_remove_itr->primary_key()==last_itr->primary_key()) return; //only last cache entry is present, nothing to do
+    else {
+        //otherwise
+        int count = 0; //attempt to remove up to 10 items during a single action 
+        while(to_remove_itr!=to_remove_end_itr && to_remove_itr->primary_key()!=last_itr->primary_key() && count<10){
+            count++;
+            to_remove_itr=idx.erase(to_remove_itr);
+        }
+
+        print("erased ", count, " cache items\n");
+        check(false, "expected");
+    }*/
+
 }
 
 //verify that a signature over a given message has been generated with the private key matching the public key
@@ -157,6 +196,10 @@ ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num
     check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
 
     _maybe_set_finalizer_policy(policy, from_block_num);
+
+    //clean up if necessary
+    _maybe_remove_from_cache<policies_table>();
+    _maybe_remove_from_cache<proofs_table>();
 }
 
 ACTION svnn_ibc::checkproof(const proof& proof){
@@ -169,4 +212,9 @@ ACTION svnn_ibc::checkproof(const proof& proof){
         //if we only have a proof of inclusion of the target block, we execute the "light" code path
         _check_target_block_proof_of_inclusion(proof.target_block_proof_of_inclusion, std::nullopt);
     }
+
+    //clean up if necessary
+    _maybe_remove_from_cache<policies_table>();
+    _maybe_remove_from_cache<proofs_table>();
+
 }

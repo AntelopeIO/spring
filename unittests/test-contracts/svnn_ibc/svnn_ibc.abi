@@ -192,10 +192,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "id",
-                    "type": "uint64"
-                },
-                {
                     "name": "block_num",
                     "type": "uint32"
                 },

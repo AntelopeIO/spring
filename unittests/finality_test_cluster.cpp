@@ -146,6 +146,13 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    return true;
 }
 
+void finality_test_cluster::produce_blocks(uint32_t blocks_count) {
+   for (uint32_t i = 0; i < blocks_count; ++i) {
+      produce_and_push_block();
+      process_node1_vote();
+   }
+}
+
 void finality_test_cluster::node1_corrupt_vote_block_id() {
    std::lock_guard g(node1.votes_mtx);
    node1_orig_vote = node1.votes[0];

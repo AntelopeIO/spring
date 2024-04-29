@@ -159,7 +159,7 @@ CONTRACT svnn_ibc : public contract {
 
       TABLE lastproof {
 
-          uint64_t         id;
+          //uint64_t         id;
 
           uint32_t         block_num;
           
@@ -167,8 +167,8 @@ CONTRACT svnn_ibc : public contract {
 
           time_point       cache_expiry;
 
-          uint64_t primary_key()const { return id; }
-          uint64_t by_block_num()const { return block_num; }
+          //uint64_t primary_key()const { return id; }
+          uint64_t primary_key()const { return (uint64_t)block_num; }
           uint64_t by_cache_expiry()const { return cache_expiry.sec_since_epoch(); }
           checksum256 by_merkle_root()const { return finality_mroot; }
 
@@ -423,7 +423,6 @@ CONTRACT svnn_ibc : public contract {
           indexed_by<"expiry"_n, const_mem_fun<storedpolicy, uint64_t, &storedpolicy::by_cache_expiry>>> policies_table;
 
       typedef eosio::multi_index< "lastproofs"_n, lastproof,
-          indexed_by<"blocknum"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_block_num>>,
           indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
           indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_cache_expiry>>> proofs_table;
 
@@ -432,7 +431,8 @@ CONTRACT svnn_ibc : public contract {
       void _maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
-      void _garbage_collection();
+      template<typename Table>
+      void _maybe_remove_from_cache();
 
       void _verify(const std::string& public_key, const std::string& signature, const std::string& message);
       void _check_qc(const quorum_certificate& qc, const checksum256& finality_mroot, const uint64_t finalizer_policy_generation);
