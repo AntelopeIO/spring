@@ -36,6 +36,7 @@
           "bios",
           "testnet_01",
           "testnet_02",
+          "testnet_03",
           "testnet_04"
         ],
         "producers": [
@@ -58,6 +59,7 @@
           "bios",
           "testnet_00",
           "testnet_02",
+          "testnet_03",
           "testnet_04"
         ],
         "producers": [
@@ -78,8 +80,9 @@
         ],
         "peers": [
           "bios",
-          "testnet_01",
           "testnet_00",
+          "testnet_01",
+          "testnet_02",
           "testnet_04"
         ],
         "producers": [

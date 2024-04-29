@@ -208,7 +208,7 @@ class cluster_generator:
         cfg.add_argument('--logging-level', type=fc_log_level, help='Provide the "level" value to use in the logging.json file')
         cfg.add_argument('--logging-level-map', type=json.loads, help='JSON string of a logging level dictionary to use in the logging.json file for specific nodes, matching based on node number. Ex: {"bios":"off","00":"info"}')
         cfg.add_argument('--is-nodeos-v2', action='store_true', help='Toggles old nodeos compatibility', default=False)
-        cfg.add_argument('--sig-prov-non-producer', action='store_true', help='add signature provider (BLS key pair) for non-producers', default=False)
+        cfg.add_argument('--signature-provider', action='store_true', help='add signature provider (BLS key pair) for non-producers', default=False)
         r = parser.parse_args(args)
         if r.launch != 'none' and r.topology_filename:
             Utils.Print('Output file specified--overriding launch to "none"')
@@ -524,7 +524,7 @@ class cluster_generator:
             eosdcmd.extend(producer_names)
         else:
             a(a(eosdcmd, '--transaction-retry-max-storage-size-gb'), '100')
-            if self.args.sig_prov_non_producer:
+            if self.args.signature_provider:
                 finalizer_keys = list(sum([('--signature-provider', f'{key.blspubkey}=KEY:{key.blsprivkey}') for key in instance.keys if key.blspubkey is not None], ()))
                 if finalizer_keys:
                     eosdcmd.extend(finalizer_keys)

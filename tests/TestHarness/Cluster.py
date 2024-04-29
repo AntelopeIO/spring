@@ -192,7 +192,7 @@ class Cluster(object):
         loadSystemContract: indicate whether the eosio.system contract should be loaded
         activateIF: Activate/enable instant-finality by setting finalizers
         biosFinalizer: True if the biosNode should act as a finalizer
-        signatureProviderForNonProducer: Add siganture provider for non-producer
+        signatureProviderForNonProducer: Add signature provider for non-producer
         genesisPath: set the path to a specific genesis.json to use
         maximumP2pPerHost:  Maximum number of client nodes from any single IP address. Defaults to totalNodes if not set.
         maximumClients: Maximum number of clients from which connections are accepted, use 0 for no limit. Defaults to 25.
@@ -468,7 +468,7 @@ class Cluster(object):
                     argsArr.append("--is-nodeos-v2")
                     break
         if signatureProviderForNonProducer:
-            argsArr.append("--sig-prov-non-producer")
+            argsArr.append("--signature-provider")
 
         # Handle common case of specifying no block offset for older versions
         if "v2" in self.nodeosVers or "v3" in self.nodeosVers or "v4" in self.nodeosVers:
