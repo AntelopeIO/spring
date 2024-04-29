@@ -101,14 +101,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
 
-      // verify number of finalizers and generation of initial policy
       BOOST_CHECK(active_finalizer_policy.finalizers.size() == 3);
       BOOST_CHECK(active_finalizer_policy.generation == 1);
 
       // compute the digest of the finalizer policy
       auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
       
-      // get finality data for genesis block
       auto genesis_block_fd = cluster.node0.node.control->head_finality_data();
 
       // verify we have finality data for the IF genesis block
@@ -342,8 +340,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
 
-      // Since garbage collection was previously triggered for the merkle root of block #2 which this proof attempts to link to, action will now fail
       bool failed = false;
+
+      // Since garbage collection was previously triggered for the merkle root of block #2 which this proof attempts to link to, action will now fail
       try {
          cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
       }
