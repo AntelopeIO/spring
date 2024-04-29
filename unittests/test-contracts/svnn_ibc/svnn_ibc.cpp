@@ -1,13 +1,10 @@
 #include "svnn_ibc.hpp"
 
 //add two numbers from the g1 group (aggregation)
-std::vector<char> svnn_ibc::_g1add(const std::vector<char>& op1, const std::vector<char>& op2) {
-   check(op1.size() == std::tuple_size<bls_g1>::value, "wrong op1 size passed");
-   check(op2.size() == std::tuple_size<bls_g1>::value, "wrong op2 size passed");
+bls_g1 svnn_ibc::_g1add(const bls_g1& op1, const bls_g1& op2) {
    bls_g1 r;
-   bls_g1_add(*reinterpret_cast<const bls_g1*>(op1.data()), *reinterpret_cast<const bls_g1*>(op2.data()), r);
-   std::vector<char> v(r.begin(), r.end());
-   return v;
+   bls_g1_add(op1, op2, r);
+   return r;
 }
 
 void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num){
@@ -67,23 +64,8 @@ void svnn_ibc::_garbage_collection(){
 }
 
 //verify that a signature over a given message has been generated with the private key matching the public key
-void svnn_ibc::_verify(const std::vector<char>& pk, const std::vector<char>& sig, std::vector<const char>& msg){
-    check(pk.size() == std::tuple_size<bls_g1>::value, "wrong pk size passed");
-    check(sig.size() == std::tuple_size<bls_g2>::value, "wrong sig size passed");
-    bls_g1 g1_points[2];
-    bls_g2 g2_points[2];
-
-    memcpy(g1_points[0].data(), eosio::detail::G1_ONE_NEG.data(), sizeof(bls_g1));
-    memcpy(g2_points[0].data(), sig.data(), sizeof(bls_g2));
-
-    bls_g2 p_msg;
-    eosio::detail::g2_fromMessage(msg, eosio::detail::CIPHERSUITE_ID, p_msg);
-    memcpy(g1_points[1].data(), pk.data(), sizeof(bls_g1));
-    memcpy(g2_points[1].data(), p_msg.data(), sizeof(bls_g2));
-
-    bls_gt r;
-    bls_pairing(g1_points, g2_points, 2, r);
-    check(0 == memcmp(r.data(), eosio::detail::GT_ONE.data(), sizeof(bls_gt)), "bls signature verify failed");
+void svnn_ibc::_verify(const std::string& public_key, const std::string& signature, const std::string& message){
+    check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verify failed");
 }
 
 //verify that the quorum certificate over the finality digest is valid
@@ -106,17 +88,17 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     size_t index = 0;
     uint64_t weight = 0;
 
-    bls_public_key agg_pub_key;
+    bls_g1 agg_pub_key;
 
     while (fa_itr != fa_end_itr){
         if (b.test(index)){
+            bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
             if (first){
                 first=false;
-                agg_pub_key = fa_itr->public_key;
+                agg_pub_key = pub_key;
             }
-            else agg_pub_key = _g1add(agg_pub_key, fa_itr->public_key);
+            else agg_pub_key = _g1add(agg_pub_key, pub_key);
             weight+=fa_itr->weight;
-
         }
         index++;
         fa_itr++;
@@ -124,16 +106,15 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
 
     //verify that we have enough vote weight to meet the quorum threshold of the target policy
     check(weight>=target_policy.threshold, "insufficient signatures to reach quorum");
-    std::array<uint8_t, 32> data = finality_digest.extract_as_byte_array();
-    std::vector<const char> v_data(data.begin(), data.end());
+    std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
+    std::string message(fd_data.begin(), fd_data.end());
+
+    std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
     //verify signature validity
-    _verify(agg_pub_key, qc.signature, v_data);
+    _verify(s_agg_pub_key, qc.signature, message);
 }
 
 void svnn_ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
-
-    //verify that the proof of inclusion is over a target block
-    //check(std::holds_alternative<svnn_ibc::block_data>(proof.target), "must supply proof of inclusion over block data");
 
     //resolve the proof to its merkle root
     checksum256 finality_mroot = proof.root();
@@ -160,9 +141,6 @@ void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
     
-    //if proof of inclusion was successful, the target block and its dynamic data have been validated as final and correct
-    //block_data target_block = std::get<svnn_ibc::block_data>(target_block_proof_of_inclusion.target);
-
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
     uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
     _maybe_add_proven_root(target_block_proof_of_inclusion.target.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);

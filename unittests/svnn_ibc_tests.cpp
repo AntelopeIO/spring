@@ -86,17 +86,26 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_CHECK(genesis_block->block_num() == 6);
 
       // check if IF Genesis block contains an IF extension
-      std::optional<eosio::chain::block_header_extension> genesis_if_ext = genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
-      BOOST_CHECK(genesis_if_ext.has_value());
+      std::optional<eosio::chain::block_header_extension> maybe_genesis_if_ext = genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      BOOST_CHECK(maybe_genesis_if_ext.has_value());
+
+      eosio::chain::block_header_extension genesis_if_ext = maybe_genesis_if_ext.value();
       
+      // check that the header extension is of the correct type
+      BOOST_CHECK(std::holds_alternative<eosio::chain::instant_finality_extension>(genesis_if_ext));
+
       // and that it has the expected initial finalizer_policy
-      std::optional<eosio::chain::finalizer_policy> active_finalizer_policy = std::get<eosio::chain::instant_finality_extension>(*genesis_if_ext).new_finalizer_policy;
-      BOOST_CHECK(!!active_finalizer_policy);
-      BOOST_CHECK(active_finalizer_policy->finalizers.size() == 3);
-      BOOST_CHECK(active_finalizer_policy->generation == 1);
+      std::optional<eosio::chain::finalizer_policy> maybe_active_finalizer_policy = std::get<eosio::chain::instant_finality_extension>(genesis_if_ext).new_finalizer_policy;
+
+      BOOST_CHECK(maybe_active_finalizer_policy.has_value());
+
+      eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
+
+      BOOST_CHECK(active_finalizer_policy.finalizers.size() == 3);
+      BOOST_CHECK(active_finalizer_policy.generation == 1);
 
       // compute the digest of the finalizer policy
-      auto active_finalizer_policy_digest = fc::sha256::hash(*active_finalizer_policy);
+      auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
       
       auto genesis_block_fd = cluster.node0.node.control->head_finality_data();
 
@@ -108,7 +117,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto genesis_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, genesis_base_digest));
       
       auto genesis_block_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
-         .active_finalizer_policy_generation      = active_finalizer_policy->generation,
+         .active_finalizer_policy_generation      = active_finalizer_policy.generation,
          .finality_tree_digest                    = digest_type(), //nothing to finalize yet
          .active_finalizer_policy_and_base_digest = genesis_afp_base_digest
       });
@@ -128,38 +137,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       cluster.node0.node.set_code( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_wasm());
       cluster.node0.node.set_abi( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_abi());
 
-      // represent the public keys as std::vector<char> to be passed to smart contract
-      std::array<uint8_t, 96> pub_key_0 = cluster.node0.priv_key.get_public_key().affine_non_montgomery_le();
-      std::array<uint8_t, 96> pub_key_1 = cluster.node1.priv_key.get_public_key().affine_non_montgomery_le();
-      std::array<uint8_t, 96> pub_key_2 = cluster.node2.priv_key.get_public_key().affine_non_montgomery_le();
-      std::vector<char> vc_pub_key0(reinterpret_cast<char*>(pub_key_0.data()), reinterpret_cast<char*>(pub_key_0.data() + pub_key_0.size()));
-      std::vector<char> vc_pub_key1(reinterpret_cast<char*>(pub_key_1.data()), reinterpret_cast<char*>(pub_key_1.data() + pub_key_1.size()));
-      std::vector<char> vc_pub_key2(reinterpret_cast<char*>(pub_key_2.data()), reinterpret_cast<char*>(pub_key_2.data() + pub_key_2.size()));
-
-      // configure ibc contract with the finalizer policy
       cluster.node0.node.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
          ("policy", mvo() 
-            ("generation", 1)
-            ("threshold", 2)
+            ("generation", active_finalizer_policy.generation)
+            ("threshold", active_finalizer_policy.threshold)
             ("last_block_num", 0)
-            ("finalizers", fc::variants({
-               mvo() 
-                  ("description","node0")
-                  ("weight", 1)
-                  ("public_key", vc_pub_key0)
-               ,
-               mvo() 
-                  ("description","node1")
-                  ("weight", 1)
-                  ("public_key", vc_pub_key1)
-               ,
-               mvo() 
-                  ("description","node2")
-                  ("weight", 1)
-                  ("public_key", vc_pub_key2)
-         
-            }))
+            ("finalizers", active_finalizer_policy.finalizers)
          )
       );
 
@@ -236,13 +220,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto merkle_branches_1 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2); 
       auto merkle_branches_2 = generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf, block_3_leaf}, 2); 
 
-      // represent the QC signature as std::vector<char>
-      std::array<uint8_t, 192> a_sig_1 = bls_signature(qc_b_5.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
-      std::vector<char> vc_sig_1(reinterpret_cast<char*>(a_sig_1.data()), reinterpret_cast<char*>(a_sig_1.data() + a_sig_1.size()));
-
-      std::array<uint8_t, 192> a_sig_2 = bls_signature(qc_b_6.qc.value().qc._sig.to_string()).affine_non_montgomery_le();
-      std::vector<char> vc_sig_2(reinterpret_cast<char*>(a_sig_2.data()), reinterpret_cast<char*>(a_sig_2.data() + a_sig_2.size()));
-
       std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
 
       // verify proof
@@ -257,7 +234,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_finality_root)
                )
                ("qc", mvo()
-                  ("signature", vc_sig_1)
+                  ("signature", qc_b_5.qc.value().qc._sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
@@ -320,7 +297,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_5_finality_root)
                )
                ("qc", mvo()
-                  ("signature", vc_sig_2)
+                  ("signature", qc_b_6.qc.value().qc._sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )

@@ -16,13 +16,9 @@ using namespace eosio;
 todo :
 
 OK - bug with storing the wrong block number when storing last proof
-
-
-
 OK - calculate direction instead of providing it
-
-
-use string format for pub key and signatures
+OK - avoid using variant
+OK - use string format for pub key and signatures
 
 upcoming changes to bitset representation
 
@@ -42,8 +38,8 @@ CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;
 
-      using bls_public_key = std::vector<char>;
-      using bls_signature = std::vector<char>;
+/*      using bls_public_key = std::vector<char>;
+      using bls_signature = std::vector<char>;*/
 
       const uint32_t POLICY_CACHE_EXPIRY = 600; //10 minutes for testing
       const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing
@@ -124,14 +120,14 @@ CONTRACT svnn_ibc : public contract {
       }
 
       struct quorum_certificate {
-          std::vector<uint32_t> finalizers;
-          bls_signature signature;
+          std::vector<uint32_t>  finalizers;
+          std::string            signature;
       };
 
       struct finalizer_authority {
-         std::string     description;
-         uint64_t        weight = 0;
-         bls_public_key  public_key;
+         std::string       description;
+         uint64_t          weight = 0;
+         std::string       public_key;
       };
 
       struct fpolicy {
@@ -385,8 +381,6 @@ CONTRACT svnn_ibc : public contract {
          };
       };
 
-      //using target_data = std::variant<block_data, action_data>;
-
       struct block_proof_of_inclusion {
 
          uint64_t target_node_index;
@@ -433,14 +427,14 @@ CONTRACT svnn_ibc : public contract {
           indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
           indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_cache_expiry>>> proofs_table;
 
-      std::vector<char> _g1add(const std::vector<char>& op1, const std::vector<char>& op2);
+      bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2);
 
       void _maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
       void _garbage_collection();
 
-      void _verify(const std::vector<char>& pk, const std::vector<char>& sig, std::vector<const char>& msg);
+      void _verify(const std::string& public_key, const std::string& signature, const std::string& message);
       void _check_qc(const quorum_certificate& qc, const checksum256& finality_mroot, const uint64_t finalizer_policy_generation);
       
       void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);

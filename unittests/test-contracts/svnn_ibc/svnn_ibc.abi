@@ -1,16 +1,7 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
     "version": "eosio::abi/1.2",
-    "types": [
-        {
-            "new_type_name": "bls_public_key",
-            "type": "bytes"
-        },
-        {
-            "new_type_name": "bls_signature",
-            "type": "bytes"
-        }
-    ],
+    "types": [],
     "structs": [
         {
             "name": "action_data",
@@ -174,7 +165,7 @@
                 },
                 {
                     "name": "public_key",
-                    "type": "bls_public_key"
+                    "type": "string"
                 }
             ]
         },
@@ -256,7 +247,7 @@
                 },
                 {
                     "name": "signature",
-                    "type": "bls_signature"
+                    "type": "string"
                 }
             ]
         },
