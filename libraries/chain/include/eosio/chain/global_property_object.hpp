@@ -9,6 +9,7 @@
 #include <eosio/chain/kv_config.hpp>
 #include <eosio/chain/wasm_config.hpp>
 #include <eosio/chain/producer_schedule.hpp>
+#include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/snapshot.hpp>
 #include <chainbase/chainbase.hpp>
 #include "multi_index_includes.hpp"
@@ -70,6 +71,8 @@ namespace eosio::chain {
       id_type                             id;
       std::optional<block_num_type>       proposed_schedule_block_num;
       shared_producer_authority_schedule  proposed_schedule;
+      std::optional<block_num_type>       proposed_fin_pol_block_num;
+      finalizer_policy                    proposed_fin_pol;
       chain_config                        configuration;
       chain_id_type                       chain_id;
       kv_database_config                  kv_configuration;
@@ -176,7 +179,7 @@ CHAINBASE_SET_INDEX_TYPE(eosio::chain::dynamic_global_property_object,
                          eosio::chain::dynamic_global_property_multi_index)
 
 FC_REFLECT(eosio::chain::global_property_object,
-            (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
+            (proposed_schedule_block_num)(proposed_schedule)(proposed_fin_pol_block_num)(proposed_fin_pol)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
           )
 
 FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v2,
