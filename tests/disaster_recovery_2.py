@@ -99,7 +99,7 @@ try:
         lib = node0.getIrreversibleBlockNum()
         node0.processUrllibRequest("producer", "pause")
         # wait for lib because waitForBlock uses > not >=
-        if node0.waitForBlock(lib, blockType=BlockType.lib):
+        if node0.waitForBlock(lib, blockType=BlockType.lib, timeout=10):
             break
         node0.processUrllibRequest("producer", "resume")
         time.sleep(0.25)
