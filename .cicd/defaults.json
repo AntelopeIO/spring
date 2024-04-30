@@ -4,6 +4,6 @@
        "prerelease":false
     },
     "referencecontracts":{
-       "ref":"instant-finality"
+       "ref":"main"
     }
  }
