@@ -60,8 +60,8 @@ CONTRACT svnn_ibc : public contract {
          for (uint64_t i = 0; i < layers_depth; i++) {
             bool isLeft = leaf_index % 2;
             uint64_t pairIndex = isLeft ? leaf_index - 1 :
-                           leaf_index == leaf_count ? leaf_index :
-                           leaf_index + 1;
+                           (leaf_index == leaf_count ? leaf_index : leaf_index + 1);
+
    
             if (pairIndex<leaf_count) proof_path.push_back(isLeft);
    
