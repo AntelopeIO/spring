@@ -88,7 +88,8 @@ try:
 
     # node0 is likely to have higher lib than 1,2,3 since it can incorporate QCs in blocks
     Print("Wait for node 0 to advance")
-    assert node0.waitForHeadToAdvance(blocksToAdvance=2), "Node0 did not advance"
+    # 4 producers, 3 of which are not producing, wait for 4 rounds to make sure node0 defproducera has time to produce
+    assert node0.waitForHeadToAdvance(blocksToAdvance=2, timeout=4*6), "Node0 did not advance"
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "Node0 did not shutdown"
 
