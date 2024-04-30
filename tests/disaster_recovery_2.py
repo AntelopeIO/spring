@@ -88,15 +88,23 @@ try:
 
     Print("Wait for snapshot node lib to advance")
     assert node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib), "Node0 did not advance to make snapshot block LIB"
-    assert node1.waitForLibToAdvance(), "Ndoe1 did not advance LIB after snapshot of Node0"
+    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB after snapshot of Node0"
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
 
     Print("Pause production on Node0")
-    lib = node0.getIrreversibleBlockNum()
-    node0.processUrllibRequest("producer", "pause")
-    # wait for lib because waitForBlock uses > not >=
-    assert node0.waitForBlock(lib, blockType=BlockType.lib), "Node0 did not advance LIB after pause"
+    # loop until we have a lib advance after pause, pause may happen between blocks, need current block to be produced
+    retrys = 10
+    while retrys > 0:
+        lib = node0.getIrreversibleBlockNum()
+        node0.processUrllibRequest("producer", "pause")
+        # wait for lib because waitForBlock uses > not >=
+        if node0.waitForBlock(lib, blockType=BlockType.lib):
+            break
+        node0.processUrllibRequest("producer", "resume")
+        time.sleep(0.25)
+        retrys -= 1
+    assert retrys > 0, "Node0 did not advance LIB after pause"
     time.sleep(1)
 
     Print("Disconnect the producing node (Node0) from peer Node1")
