@@ -5246,7 +5246,7 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 
    ilog( "proposed producer schedule with version ${v}", ("v", sch.version) );
 
-   // overwrite any existing proposed_schedule set earlier in this block
+   // store schedule in gpo so it will be rolledback if transaction fails
    auto cur_block_num = chain_head.block_num() + 1;
    db.modify( gpo, [&]( auto& gp ) {
       gp.proposed_schedule_block_num = cur_block_num;
