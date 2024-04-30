@@ -9,7 +9,7 @@ from TestHarness.Node import BlockType
 ###############################################################
 # disaster_recovery - Scenario 1
 #
-# Verify that if one node in network says locked blocks then consensus can continue.
+# Verify that if one node in network has locked blocks then consensus can continue.
 #
 # Integration test with 4 finalizers (A, B, C, and D).
 #
