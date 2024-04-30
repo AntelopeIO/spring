@@ -491,17 +491,19 @@ struct building_block {
 
       uint32_t get_block_num() const { return block_num; }
 
-      // returns the next proposer schedule version and true if different
+      // returns the next proposer schedule version and true if producers should be proposed in block
       // if producers is not different then returns the current schedule version (or next schedule version)
       std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
+         bool should_propose = false;
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
             // if there are any policies already proposed but not active yet then they are what needs to be compared
             if (!parent.proposer_policies.empty()) {
                block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
                if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
                   // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
+                  should_propose = true;
                   if (itr != parent.proposer_policies.begin()) {
                      return (--itr)->second->proposer_schedule;
                   }
@@ -518,11 +520,14 @@ struct building_block {
 
          const producer_authority_schedule& lhs = get_next_sched();
 
-         if (std::ranges::equal(lhs.producers, producers)) {
-            return {lhs.version, false};
+         decltype(lhs.version) v = lhs.version;
+
+         if (!std::ranges::equal(lhs.producers, producers)) {
+            ++v;
+            should_propose = true;
          }
 
-         return {lhs.version + 1, true};
+         return {v, should_propose};
       }
 
    };
@@ -5231,8 +5236,8 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
       });
    }
 
-   auto [version, diff] = pending->get_next_proposer_schedule_version(producers);
-   if (!diff)
+   auto [version, should_propose] = pending->get_next_proposer_schedule_version(producers);
+   if (!should_propose)
       return version;
 
    producer_authority_schedule sch;
