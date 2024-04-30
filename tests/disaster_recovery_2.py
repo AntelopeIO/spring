@@ -9,6 +9,9 @@ from TestHarness.Node import BlockType
 ###############################################################
 # disaster_recovery - Scenario 2
 #
+# Verify that if finalizers are only locked on LIB blocks then all reversable blocks in the network can be lost
+# and consensus can continue.
+#
 # Integration test with 5 nodes (A, B, C, D, and P). Nodes A, B, C, and D each have one finalizer but no proposers.
 # Node P has a proposer but no finalizers. The finalizer policy consists of the four finalizers with a threshold of 3.
 # The proposer policy involves just the single proposer P.
@@ -84,24 +87,24 @@ try:
     Print(f"Snapshot head block number {ret_head_block_num}")
 
     Print("Wait for snapshot node lib to advance")
-    node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib)
+    assert node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib), "Node0 did not advance to make snapshot block LIB"
     assert node1.waitForLibToAdvance(), "Ndoe1 did not advance LIB after snapshot of Node0"
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
 
     Print("Pause production on Node0")
     lib = node0.getIrreversibleBlockNum()
-    ret_json = node0.processUrllibRequest("producer", "pause")
+    node0.processUrllibRequest("producer", "pause")
     # wait for lib because waitForBlock uses > not >=
     assert node0.waitForBlock(lib, blockType=BlockType.lib), "Node0 did not advance LIB after pause"
     time.sleep(1)
 
     Print("Disconnect the producing node (Node0) from peer Node1")
-    ret_json = node0.processUrllibRequest("net", "disconnect", "localhost:9877")
+    node0.processUrllibRequest("net", "disconnect", "localhost:9877")
     assert not node0.waitForLibToAdvance(timeout=10), "Node0 LIB still advancing after disconnect"
 
     Print("Resume production on Node0")
-    ret_json = node0.processUrllibRequest("producer", "resume")
+    node0.processUrllibRequest("producer", "resume")
     assert node0.waitForHeadToAdvance(blocksToAdvance=2)
     libN = node0.getIrreversibleBlockNum()
 
