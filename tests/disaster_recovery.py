@@ -15,7 +15,8 @@ from TestHarness.Node import BlockType
 #
 #   The 4 nodes are cleanly shutdown in the following state:
 #   - A has LIB N. A has a finalizer safety information file that locks on a block after N.
-#   - B, C, and D have LIB less than N. They have finalizer safety information files that lock on N.
+#   - B, C, and D have LIB less than or same as N. They have finalizer safety information files that lock on N
+#     or a block after N.
 #
 #   Nodes B, C, and D lose their reversible blocks. All nodes restart from an earlier snapshot.
 #
@@ -73,8 +74,8 @@ try:
     Print(f"Snapshot head block number {ret_head_block_num}")
 
     Print("Wait for snapshot node lib to advance")
-    node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib)
-    assert node1.waitForLibToAdvance(), "Ndoe1 did not advance LIB after snapshot of Node0"
+    assert node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib), "Node0 did not advance to make snapshot block LIB"
+    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB after snapshot of Node0"
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
     currentLIB = node0.getIrreversibleBlockNum()
@@ -85,9 +86,9 @@ try:
     for node in [node1, node2, node3]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
-    # node0 will have higher lib than 1,2,3 since it can incorporate QCs in blocks
-    Print("Wait for node 0 LIB to advance")
-    assert node0.waitForBlock(currentLIB, blockType=BlockType.lib), "Node0 did not advance LIB" # uses getBlockNum(blockType=blockType) > blockNum
+    # node0 is likely to have higher lib than 1,2,3 since it can incorporate QCs in blocks
+    Print("Wait for node 0 to advance")
+    assert node0.waitForHeadToAdvance(blocksToAdvance=2), "Node0 did not advance"
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "Node0 did not shutdown"
 
