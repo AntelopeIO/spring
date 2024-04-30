@@ -69,6 +69,11 @@ struct block_header_state {
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
    // block time when proposer_policy will become active
+   // The active time is the next,next producer round. For example,
+   //     round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
+   //     If proposed in A1, A2, .. A12 becomes active in C1
+   //     If proposed in B1, B2, .. B12 becomes active in D1
+   //     If proposed in A2 and another proposed in B3 then there can be 2 in the map
    flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
 
    // track in-flight finalizer policies. This is a `multimap` because the same block number
