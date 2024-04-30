@@ -144,6 +144,11 @@ namespace eosio::testing {
       };
    }
 
+   struct produce_block_result_t {
+      signed_block_ptr block;
+      std::vector<transaction_trace_ptr> traces;
+   };
+
    /**
     *  @class tester
     *  @brief provides utility function to simplify the creation of unit tests
@@ -180,11 +185,10 @@ namespace eosio::testing {
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
-         virtual signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) = 0;
+         virtual produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false) = 0;
          virtual signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) = 0;
          virtual signed_block_ptr finish_block() = 0;
          // produce one block and return traces for all applied transactions, both failed and executed
-         signed_block_ptr     produce_block( std::vector<transaction_trace_ptr>& traces );
          signed_block_ptr     produce_blocks( uint32_t n = 1, bool empty = false );
          void                 produce_blocks_until_end_of_round();
          void                 produce_blocks_for_n_rounds(const uint32_t num_of_rounds = 1);
@@ -493,9 +497,8 @@ namespace eosio::testing {
          }
 
       protected:
-         signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
-         signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs,
-                                          bool no_throw, std::vector<transaction_trace_ptr>& traces );
+         signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
+         produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
 
          void             _start_block(fc::time_point block_time);
          signed_block_ptr _finish_block();
@@ -573,8 +576,8 @@ namespace eosio::testing {
 
       using base_tester::produce_block;
 
-      signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-         return _produce_block(skip_time, false);
+      produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false )override {
+         return _produce_block(skip_time, false, no_throw);
       }
 
       signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
@@ -668,14 +671,14 @@ namespace eosio::testing {
          }
       }
 
-      signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-         auto sb = _produce_block(skip_time, false);
-         validate_push_block(sb);
-         return sb;
+      produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false )override {
+         auto produce_block_result = _produce_block(skip_time, false, no_throw);
+         validate_push_block(produce_block_result.block);
+         return produce_block_result;
       }
 
-      signed_block_ptr produce_block_no_validation( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) {
-         return _produce_block(skip_time, false);
+      produce_block_result_t produce_block_no_validation( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) {
+         return _produce_block(skip_time, false, false);
       }
 
       void validate_push_block(const signed_block_ptr& sb) {
@@ -785,7 +788,7 @@ namespace eosio::testing {
          // It is the genesis block.
          // It will include the first header extension for the instant finality.
          // -----------------------------------------------------------------------
-         auto genesis_block = t.produce_block();
+         auto genesis_block = t.produce_block().block;
          if (block_callback)
             block_callback(genesis_block);
 
@@ -803,14 +806,14 @@ namespace eosio::testing {
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
          while(genesis_block->block_num() > t.lib_block->block_num()) {
-            critical_block = t.produce_block();
+            critical_block = t.produce_block().block;
             if (block_callback)
                block_callback(critical_block);
          }
 
          // Blocks after the critical block are proper IF blocks.
          // -----------------------------------------------------
-         auto first_proper_block = t.produce_block();
+         auto first_proper_block = t.produce_block().block;
          if (block_callback)
             block_callback(first_proper_block);
          BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
@@ -819,7 +822,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------------------------
          signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
          while(first_proper_block->block_num() > t.lib_block->block_num()) {
-            pt_block = t.produce_block();
+            pt_block = t.produce_block().block;
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
             if (block_callback)
                block_callback(pt_block);
@@ -828,7 +831,7 @@ namespace eosio::testing {
          // lib must advance after 3 blocks
          // -------------------------------
          for (size_t i=0; i<3; ++i) {
-            auto b = t.produce_block();
+            auto b = t.produce_block().block;
             if (block_callback)
                block_callback(b);
          }

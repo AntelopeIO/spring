@@ -33,7 +33,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
                BOOST_TEST(control->head_block_num() == expected_block_num);
          }
 
-         auto b = produce_block();
+         auto b = produce_block().block;
          BOOST_TEST( b->confirmed == 0); // must be 0 after instant finality is enabled
 
          // Check if the producer is the same as what we expect
@@ -58,7 +58,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
 
    // enable instant_finality
    set_finalizers(producers);
-   auto setfin_block = produce_block(); // this block contains the header extension of the finalizer set
+   auto setfin_block = produce_block().block; // this block contains the header extension of the finalizer set
 
    for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib_block->block_num(); produce_block()) {
       set_producers({"initc"_n, "inite"_n}); // should be ignored since in transition
@@ -166,8 +166,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
 
    // get to next producer round
-   auto prod = produce_block()->producer;
-   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+   auto prod = produce_block().block->producer;
+   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
 
    // test no change to active schedule
    set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change

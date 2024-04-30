@@ -436,7 +436,7 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
 
    node1.restore_to_original_vote(0);                      // restore node1's vote at index 0 to original vote
-   process_votes(1, 1, 0, vote_mode::strong);         // send restored vote to node0
+   process_votes(1, 1, 0, vote_mode::strong);              // send restored vote to node0
    produce_and_push_block();                               // produce a block so the new QC can propagate
    BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
 
@@ -480,7 +480,7 @@ BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster) { try 
    process_votes(2, num_needed_for_quorum - 1);
 
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);           // because of the one corruted vote, quorum is not reached
+   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);           // because of the one corrupted vote, quorum is not reached
 
    node1.restore_to_original_vote(0);                 // restore node1's vote at index 0 to original vote
    process_votes(1, 1, 0, vote_mode::strong);         // send restored vote to node0

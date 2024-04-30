@@ -81,7 +81,7 @@ vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool dup
 
 // node0 produces a block and pushes it to other nodes
 signed_block_ptr finality_test_cluster::produce_and_push_block() {
-   auto b = node0.produce_block();
+   auto b = node0.produce_block().block;
    for (size_t i=1; i<nodes.size(); ++i)
       nodes[i].push_block(b);
    return b;

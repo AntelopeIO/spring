@@ -1100,7 +1100,7 @@ BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) 
 
    // activate savanna
    c.set_finalizers(policy_input);
-   auto block = c.produce_block(); // this block contains the header extension for the instant finality
+   auto block = c.produce_block().block; // this block contains the header extension for the instant finality
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
@@ -1108,7 +1108,7 @@ BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) 
    BOOST_TEST(!!fin_policy);
    BOOST_TEST(fin_policy->finalizers.size() == accounts.size());
 
-   block = c.produce_block(); // savanna now active
+   block = c.produce_block().block; // savanna now active
    auto fb = c.control->fetch_block_by_id(block->calculate_id());
    BOOST_REQUIRE(!!fb);
    BOOST_TEST(fb == block);
@@ -1676,9 +1676,9 @@ BOOST_AUTO_TEST_CASE( producer_schedule_change_extension_test ) { try {
    // will bear an extension making header-only validators aware of it, and therefore block N + 2 is the first block
    // where a block may bear a downstream extension.
    c.preactivate_protocol_features( {*d} );
-   remote.push_block(c.produce_block());
+   remote.push_block(c.produce_block().block);
 
-   auto last_legacy_block = c.produce_block();
+   auto last_legacy_block = c.produce_block().block;
 
 
    { // ensure producer_schedule_change_extension is rejected
@@ -1722,7 +1722,7 @@ BOOST_AUTO_TEST_CASE( producer_schedule_change_extension_test ) { try {
    remote.push_block(last_legacy_block);
 
    // propagate header awareness of the activation.
-   auto first_new_block = c.produce_block();
+   auto first_new_block = c.produce_block().block;
 
    {
       // create a bad block that has the producer schedule change extension that is valid but not warranted by actions in the block
@@ -1763,7 +1763,7 @@ BOOST_AUTO_TEST_CASE( producer_schedule_change_extension_test ) { try {
    }
 
    remote.push_block(first_new_block);
-   remote.push_block(c.produce_block());
+   remote.push_block(c.produce_block().block);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_legacy_test ) { try {
@@ -1782,7 +1782,7 @@ BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_legacy_test ) { try {
    c.produce_block();
 
    // ensure the last legacy block contains a new_producers
-   auto last_legacy_block = c.produce_block();
+   auto last_legacy_block = c.produce_block().block;
    BOOST_REQUIRE_EQUAL(last_legacy_block->new_producers.has_value(), true);
 
    // promote to active schedule
@@ -1816,7 +1816,7 @@ BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_extension_test ) { try {
    c.produce_block();
 
    // ensure the first possible new block contains a producer_schedule_change_extension
-   auto first_new_block = c.produce_block();
+   auto first_new_block = c.produce_block().block;
    BOOST_REQUIRE_EQUAL(first_new_block->new_producers.has_value(), false);
    BOOST_REQUIRE_EQUAL(first_new_block->header_extensions.size(), 1u);
    BOOST_REQUIRE_EQUAL(first_new_block->header_extensions.at(0).first, producer_schedule_change_extension::extension_id());
@@ -2283,7 +2283,7 @@ BOOST_AUTO_TEST_CASE( block_validation_before_stage_1_test ) { try {
    // Produce a block containing a delayed trx
    constexpr uint32_t delay_sec = 10;
    tester1.push_action("payloadless"_n, "doit"_n, "payloadless"_n, mutable_variant_object(), tester1.DEFAULT_EXPIRATION_DELTA, delay_sec);
-   auto b = tester1.produce_block();
+   auto b = tester1.produce_block().block;
 
    // Push the block to another chain. The block should be validated
    BOOST_REQUIRE_NO_THROW(tester2.push_block(b));
@@ -2304,7 +2304,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
 
    // Create a block with valid transaction
    tester1.create_account("newacc"_n);
-   auto b = tester1.produce_block();
+   auto b = tester1.produce_block().block;
 
    // Make a copy of the block
    auto copy_b = std::make_shared<signed_block>(std::move(*b));

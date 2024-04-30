@@ -53,7 +53,7 @@ controller::config copy_config_and_files(const controller::config& config, int o
 class snapshotted_tester : public base_tester {
 public:
    enum config_file_handling { dont_copy_config_files, copy_config_files };
-   snapshotted_tester(controller::config config, const snapshot_reader_ptr& snapshot, int ordinal,
+   snapshotted_tester(const controller::config& config, const snapshot_reader_ptr& snapshot, int ordinal,
            config_file_handling copy_files_from_config = config_file_handling::dont_copy_config_files) {
       FC_ASSERT(config.blocks_dir.filename().generic_string() != "."
                 && config.state_dir.filename().generic_string() != ".", "invalid path names in controller::config");
@@ -64,8 +64,8 @@ public:
       init(copied_config, snapshot);
    }
 
-   signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-      return _produce_block(skip_time, false);
+   produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false )override {
+      return _produce_block(skip_time, false, no_throw);
    }
 
    signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
@@ -233,7 +233,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot
       );
 
       // produce block
-      auto new_block = chain.produce_block();
+      auto new_block = chain.produce_block().block;
 
       // undo the auto-pending from tester
       chain.control->abort_block();
@@ -293,7 +293,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapsho
       );
 
       // produce & push block
-      snap_chain.push_block(chain.produce_block());
+      snap_chain.push_block(chain.produce_block().block);
    }
 
    // verify the hash at the end
@@ -312,7 +312,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapsho
    }
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *replay_chain.control);
 
-   auto block = chain.produce_block();
+   auto block = chain.produce_block().block;
    chain.control->abort_block();
    snap_chain.push_block(block);
    replay_chain.push_block(block);
@@ -554,7 +554,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
 
       snapshotted_tester snap_chain(chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), ordinal++);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
-      auto block = chain.produce_block();
+      auto block = chain.produce_block().block;
       chain.control->abort_block();
       snap_chain.push_block(block);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
@@ -565,7 +565,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
       snap_chain.open();
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
 
-      block = chain.produce_block();
+      block = chain.produce_block().block;
       chain.control->abort_block();
       snap_chain.push_block(block);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
@@ -583,7 +583,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
       chain_cfg.blog = eosio::chain::empty_blocklog_config{}; // use empty block log
       snapshotted_tester snap_chain(chain_cfg, SNAPSHOT_SUITE::get_reader(snapshot), ordinal++);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
-      auto block = chain.produce_block();
+      auto block = chain.produce_block().block;
       chain.control->abort_block();
       snap_chain.push_block(block);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
@@ -594,7 +594,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
       snap_chain.open();
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
 
-      block = chain.produce_block();
+      block = chain.produce_block().block;
       chain.control->abort_block();
       snap_chain.push_block(block);
       verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);

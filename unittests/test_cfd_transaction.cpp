@@ -7,9 +7,9 @@ std::vector<eosio::chain::signed_block_ptr> deploy_test_api(eosio::testing::test
    std::vector<eosio::chain::signed_block_ptr> result;
    chain.create_account("testapi"_n);
    chain.create_account("dummy"_n);
-   result.push_back(chain.produce_block());
+   result.push_back(chain.produce_block().block);
    chain.set_code("testapi"_n, eosio::testing::test_contracts::test_api_wasm());
-   result.push_back(chain.produce_block());
+   result.push_back(chain.produce_block().block);
    return result;
 }
 

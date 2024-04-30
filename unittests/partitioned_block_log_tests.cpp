@@ -44,7 +44,7 @@ struct restart_from_block_log_test_fixture {
       chain.produce_blocks(1);
       chain.create_account("replay3"_n);
       chain.produce_blocks(1);
-      auto cutoff_block = chain.produce_block();
+      auto cutoff_block = chain.produce_block().block;
       cutoff_block_num  = cutoff_block->block_num();
       chain.produce_blocks(10);
 

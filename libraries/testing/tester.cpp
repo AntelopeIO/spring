@@ -387,12 +387,13 @@ namespace eosio::testing {
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {
-      std::vector<transaction_trace_ptr> traces;
-      return _produce_block( skip_time, skip_pending_trxs, false, traces );
+      auto res = _produce_block( skip_time, skip_pending_trxs, false );
+      return res.block;
    }
 
-   signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs,
-                                                 bool no_throw, std::vector<transaction_trace_ptr>& traces ) {
+   produce_block_result_t base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw ) {
+      produce_block_result_t res;
+
       auto head_time = control->head_block_time();
       auto next_time = head_time + skip_time;
 
@@ -403,7 +404,7 @@ namespace eosio::testing {
       if( !skip_pending_trxs ) {
          for( auto itr = unapplied_transactions.begin(); itr != unapplied_transactions.end();  ) {
             auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
-            traces.emplace_back( trace );
+            res.traces.emplace_back( trace );
             if(!no_throw && trace->except) {
                // this always throws an fc::exception, since the original exception is copied into an fc::exception
                trace->except->dynamic_rethrow_exception();
@@ -415,7 +416,7 @@ namespace eosio::testing {
          while ((scheduled_trxs = get_scheduled_transactions()).size() > 0 ) {
             for( const auto& trx : scheduled_trxs ) {
                auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
-               traces.emplace_back( trace );
+               res.traces.emplace_back( trace );
                if( !no_throw && trace->except ) {
                   // this always throws an fc::exception, since the original exception is copied into an fc::exception
                   trace->except->dynamic_rethrow_exception();
@@ -424,10 +425,10 @@ namespace eosio::testing {
          }
       }
 
-      auto head_block = _finish_block();
+      res.block = _finish_block();
 
       _start_block( next_time + fc::microseconds(config::block_interval_us));
-      return head_block;
+      return res;
    }
 
    void base_tester::_start_block(fc::time_point block_time) {
@@ -510,10 +511,6 @@ namespace eosio::testing {
       }
    }
 
-   signed_block_ptr base_tester::produce_block( std::vector<transaction_trace_ptr>& traces ) {
-      return _produce_block( fc::milliseconds(config::block_interval_ms), false, true, traces );
-   }
-
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
       if( empty ) {
@@ -521,7 +518,7 @@ namespace eosio::testing {
             res = produce_empty_block();
       } else {
          for( uint32_t i = 0; i < n; ++i )
-            res = produce_block();
+            res = produce_block().block;
       }
       return res;
    }
