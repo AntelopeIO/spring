@@ -496,24 +496,11 @@ struct building_block {
       std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
-         bool should_propose = false;
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
             // if there are any policies already proposed but not active yet then they are what needs to be compared
             if (!parent.proposer_policies.empty()) {
-               block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
-               if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
-                  // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
-                  should_propose = true;
-                  if (itr != parent.proposer_policies.begin()) {
-                     return (--itr)->second->proposer_schedule;
-                  }
-                  // no previous to what will be replaced, use active
-                  return active_proposer_policy->proposer_schedule;
-               }
-               // will not replace any proposed policies, use next to become active
-               return parent.proposer_policies.begin()->second->proposer_schedule;
+               return (--parent.proposer_policies.end())->second->proposer_schedule;
             }
-
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
          };
@@ -524,10 +511,10 @@ struct building_block {
 
          if (!std::ranges::equal(lhs.producers, producers)) {
             ++v;
-            should_propose = true;
+            return {v, true};
          }
 
-         return {v, should_propose};
+         return {v, false};
       }
 
    };
@@ -5226,7 +5213,7 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
    if (gpo.proposed_schedule_block_num) {
       if (std::equal(producers.begin(), producers.end(),
                      gpo.proposed_schedule.producers.begin(), gpo.proposed_schedule.producers.end())) {
-         return gpo.proposed_schedule.version; // the proposed producer schedule does not change
+         return std::numeric_limits<uint32_t>::max(); // the proposed producer schedule does not change
       }
       // clear gpo proposed_schedule as we may determine no diff between proposed producers and next proposer schedule
       db.modify( gpo, [&]( auto& gp ) {
@@ -5238,7 +5225,7 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 
    auto [version, should_propose] = pending->get_next_proposer_schedule_version(producers);
    if (!should_propose)
-      return version;
+      return std::numeric_limits<uint32_t>::max();
 
    producer_authority_schedule sch;
    sch.version = version;
@@ -5253,7 +5240,7 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
       gp.proposed_schedule = sch;
    });
 
-   return sch.version;
+   return std::numeric_limits<uint32_t>::max();
 }
 
 int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authority> producers ) {
