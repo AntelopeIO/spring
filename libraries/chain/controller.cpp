@@ -2207,7 +2207,9 @@ struct controller_impl {
 
                   db.create<global_property_object>([&legacy_global_properties,&gs_chain_id](auto& gpo ){
                      gpo.initalize_from(legacy_global_properties, gs_chain_id, kv_database_config{},
-                                       genesis_state::default_initial_wasm_configuration);
+                                        genesis_state::default_initial_wasm_configuration,
+                                        std::nullopt,
+                                        finalizer_policy{});
                   });
                });
                return; // early out to avoid default processing
@@ -2220,7 +2222,9 @@ struct controller_impl {
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo ){
                      gpo.initalize_from(legacy_global_properties, kv_database_config{},
-                                        genesis_state::default_initial_wasm_configuration);
+                                        genesis_state::default_initial_wasm_configuration,
+                                        std::nullopt,
+                                        finalizer_policy{});
                   });
                });
                return; // early out to avoid default processing
@@ -2232,7 +2236,9 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
-                     gpo.initalize_from(legacy_global_properties);
+                     gpo.initalize_from(legacy_global_properties,
+                                        std::nullopt,
+                                        finalizer_policy{});
                   });
                });
                return; // early out to avoid default processing
@@ -3161,12 +3167,12 @@ struct controller_impl {
          // other transition blocks ignore set_finalizers
          auto process_new_finalizer_policy_legacy = [&](building_block::building_block_legacy& bb_legacy) -> void {
             const auto& gpo = db.get<global_property_object>();
-            if (gpo.proposed_fin_pol_block_num && !bb_legacy.pending_block_header_state.is_if_transition_block()) {
+            if (gpo.proposed_fin_pol_block_num.has_value() && !bb_legacy.pending_block_header_state.is_if_transition_block()) {
                new_finalizer_policy = gpo.proposed_fin_pol;
                new_finalizer_policy->generation = 1; // only allowed to be set once in legacy mode
 
                db.modify( gpo, [&]( auto& gp ) {
-                  gp.proposed_fin_pol_block_num = std::optional<block_num_type>();
+                  gp.proposed_fin_pol_block_num = std::nullopt;
                   gp.proposed_fin_pol.generation = 0;
                   gp.proposed_fin_pol.finalizers.clear();
                });
@@ -3176,12 +3182,12 @@ struct controller_impl {
          // Process set_finalizers after transition to Savanna
          auto process_new_finalizer_policy_savanna = [&](building_block::building_block_if& bb_savanna) -> void {
             const auto& gpo = db.get<global_property_object>();
-            if (gpo.proposed_fin_pol_block_num) {
+            if (gpo.proposed_fin_pol_block_num.has_value()) {
                new_finalizer_policy = gpo.proposed_fin_pol;
                new_finalizer_policy->generation = bb_savanna.parent.finalizer_policy_generation + 1;
 
                db.modify( gpo, [&]( auto& gp ) {
-                  gp.proposed_fin_pol_block_num = std::optional<block_num_type>();
+                  gp.proposed_fin_pol_block_num = std::nullopt;
                   gp.proposed_fin_pol.generation = 0;
                   gp.proposed_fin_pol.finalizers.clear();
                });
@@ -3311,8 +3317,7 @@ struct controller_impl {
       auto& bb = std::get<building_block>(pending->_block_stage);
 
       // Use global_property_object instead of building_block so that if the
-      // transaction fails it is rolledback.
-      // Overwrite any existing finalizer policy set earlier in this block.
+      // transaction fails it will be rolledback.
       auto cur_block_num = chain_head.block_num() + 1;
       auto& gpo = db.get<global_property_object>();
       db.modify( gpo, [&]( auto& gp ) {
@@ -5324,7 +5329,7 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    assert(pending);
    auto& bb = std::get<building_block>(pending->_block_stage);
    bool transition_block = bb.apply_l<bool>([&](building_block::building_block_legacy& bl) {
-      return bl.pending_block_header_state.is_if_transition_block() || gpo.proposed_fin_pol_block_num > 0;
+      return bl.pending_block_header_state.is_if_transition_block() || gpo.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
       return -1;
