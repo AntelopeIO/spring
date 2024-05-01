@@ -246,6 +246,9 @@ eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, s
 }
 
 eosio::chain::vote_status finality_test_cluster::process_vote(node_info& node, vote_mode mode) {
-   auto vote_index = node.votes.size() - 1;
+   size_t vote_index = -1;
+   std::unique_lock g(node.votes_mtx);
+   vote_index = node.votes.size() - 1;
+   g.unlock();
    return process_vote( node, vote_index, mode );
 }
