@@ -180,8 +180,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
 
    produce_blocks(config::producer_repetitions);
 
-   // sch3 becomes active
-   BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as sch2 was replaced by sch3
+   // sch3 becomes active, version should be 3 even though sch2 was replaced by sch3
+   BOOST_CHECK_EQUAL( 3u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
@@ -192,12 +192,12 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change
    produce_blocks(config::producer_repetitions);
    produce_blocks(config::producer_repetitions);
-   BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not different so no change
+   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 as not different so no change
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // test no change to proposed schedule, only the first one will take affect
    for (size_t i = 0; i < config::producer_repetitions*2-1; ++i) {
-      BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not taken affect yet
+      BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 as not taken affect yet
       BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
       set_producers( {"bob"_n,"carol"_n} );
       set_producers_force({"bob"_n,"carol"_n} );
@@ -205,7 +205,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
       produce_block();
    }
    produce_block();
-   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 now as bob,carol now active
+   BOOST_CHECK_EQUAL( 4u, control->active_producers().version ); // should be 4 now as bob,carol now active
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
@@ -219,7 +219,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers_force({"bob"_n,"carol"_n} );
    produce_blocks(config::producer_repetitions-1);
    produce_blocks(config::producer_repetitions);
-   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 4 now as bob,alice now active
+   BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol now active
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // test change in same block where there is no change
@@ -227,7 +227,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers_force({"bob"_n,"carol"_n} ); // put back, no change expected
    produce_blocks(config::producer_repetitions);
    produce_blocks(config::producer_repetitions);
-   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 4 now as bob,alice is still active
+   BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol is still active
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
@@ -248,10 +248,10 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers({"bob"_n, "alice"_n} ); // P3
    produce_blocks(config::producer_repetitions-2); // B12
    produce_block(); // C1
-   BOOST_CHECK_EQUAL( 4u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 7u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( alice_sch, control->active_producers() ) );
    produce_blocks(config::producer_repetitions); // D1
-   BOOST_CHECK_EQUAL( 5u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 9u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
@@ -272,10 +272,10 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers({"bob"_n,"carol"_n}); // P3 == P1
    produce_blocks(config::producer_repetitions-2); // B12
    produce_block(); // C1
-   BOOST_CHECK_EQUAL( 6u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 10u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
    produce_blocks(config::producer_repetitions); // D1
-   BOOST_CHECK_EQUAL( 6u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 12u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
@@ -306,7 +306,10 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    produce_block(); // 5
    set_producers({"bob"_n,"carol"_n});
    produce_blocks(config::producer_repetitions-5); // B12
-   BOOST_CHECK_EQUAL( 6u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( 17u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+   produce_blocks(config::producer_repetitions);
+   BOOST_CHECK_EQUAL( 22u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
 } FC_LOG_AND_RETHROW()
