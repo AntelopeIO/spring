@@ -106,23 +106,18 @@ void finish_next(const block_header_state& prev,
    if (!prev.proposer_policies.empty()) {
       auto it = prev.proposer_policies.begin();
       // +1 since this is called after the block is built, this will be the active schedule for the next block
-      while (it != prev.proposer_policies.end() && it->first.slot <= next_header_state.header.timestamp.slot + 1) {
+      if (it->first.slot <= next_header_state.header.timestamp.slot + 1) {
          next_header_state.active_proposer_policy = it->second;
-         ++it;
-      }
-      if (it == prev.proposer_policies.begin()) { // none made active
+         next_header_state.proposer_policies = { ++it, prev.proposer_policies.end() };
+      } else {
          next_header_state.proposer_policies = prev.proposer_policies;
-      } else if (it != prev.proposer_policies.end()) { // some made active
-         next_header_state.proposer_policies = { it, prev.proposer_policies.end() };
-      } else { // all made active
-         // next_header_state.proposer_policies will be emtpy
       }
    }
 
    if (if_ext.new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies.emplace_back(if_ext.new_proposer_policy->active_time,
-                                                       std::move(if_ext.new_proposer_policy));
+      next_header_state.proposer_policies[if_ext.new_proposer_policy->active_time] =
+         std::move(if_ext.new_proposer_policy);
    }
 
    // finality_core

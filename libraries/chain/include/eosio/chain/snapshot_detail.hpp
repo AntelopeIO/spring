@@ -116,7 +116,7 @@ namespace eosio::chain::snapshot_detail {
       finality_core                                       core;
       finalizer_policy_ptr                                active_finalizer_policy;
       proposer_policy_ptr                                 active_proposer_policy;
-      std::deque<std::pair<block_timestamp_type, proposer_policy_ptr>> proposer_policies;
+      flat_map<block_timestamp_type, proposer_policy_ptr> proposer_policies;
       flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
       uint32_t                                            finalizer_policy_generation;
 

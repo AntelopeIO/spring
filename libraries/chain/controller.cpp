@@ -507,7 +507,7 @@ struct building_block {
 
          const producer_authority_schedule& lhs = get_next_sched();
 
-         decltype(lhs.version) v = lhs.version;
+         auto v = lhs.version;
 
          if (!std::ranges::equal(lhs.producers, producers)) {
             ++v;

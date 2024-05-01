@@ -68,18 +68,13 @@ struct block_header_state {
    finalizer_policy_ptr                active_finalizer_policy; // finalizer set + threshold + generation, supports `digest()`
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
-   // <block time when proposer_policy will become active, proposer policy>
+   // block time when proposer_policy will become active
+   // current algorithm only two entries possible, for for the next,next round and one for block round after that
    // The active time is the next,next producer round. For example,
    //   round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
    //   If proposed in A1, A2, .. A12 becomes active in C1
    //   If proposed in B1, B2, .. B12 becomes active in D1
-   // This is a `deque` because the same active block time can contain up to 12 entries (one per block)
-   // for the entry proposed in a block:
-   //   For example, proposer policy proposed: P1 in A1, P2 in A7, P3 in A12, P4 in B2, P5 in B12 then the map contains:
-   //       [C1 -> P1],[C1 -> P2],[C1 -> P3],[D1 -> P4],[D1 -> P5]
-   //   At C1 P1,P2,P3 are applied causing an active policy of P3
-   //   At D1 P4,P5 are appliced causing an acive policy of P5
-   std::deque<std::pair<block_timestamp_type, proposer_policy_ptr>> proposer_policies;
+   flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
 
    // track in-flight finalizer policies. This is a `multimap` because the same block number
    // can hold a `proposed` and a `pending` finalizer_policy. When that block becomes final, the
