@@ -116,19 +116,14 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
 void finality_test_cluster::node_t::corrupt_vote_block_id() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
-   orig_vote = last_vote;
-
-   if( last_vote->block_id.data()[0] == 'a' ) {
-      last_vote->block_id.data()[0] = 'b';
-   } else {
-      last_vote->block_id.data()[0] = 'a';
-   }
+   orig_vote = std::make_shared<vote_message>(*last_vote);
+   last_vote->block_id.data()[0] ^= 1; // flip one bit
 }
 
 void finality_test_cluster::node_t::corrupt_vote_finalizer_key() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
-   orig_vote = last_vote;
+   orig_vote = std::make_shared<vote_message>(*last_vote);
 
    // corrupt the finalizer_key (manipulate so it is different)
    auto g1 = last_vote->finalizer_key.jacobian_montgomery_le();
@@ -140,7 +135,7 @@ void finality_test_cluster::node_t::corrupt_vote_finalizer_key() {
 void finality_test_cluster::node_t::corrupt_vote_signature() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
-   orig_vote = last_vote;
+   orig_vote = std::make_shared<vote_message>(*last_vote);
 
    // corrupt the signature
    auto g2 = last_vote->sig.jacobian_montgomery_le();

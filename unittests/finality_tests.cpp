@@ -419,7 +419,6 @@ BOOST_FIXTURE_TEST_CASE(duplicate_votes, finality_test_cluster) { try {
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
 
-#if 0
 // verify unknown_proposal votes are handled properly
 // --------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
@@ -429,13 +428,14 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
    node1.corrupt_vote_block_id();
 
    // process the corrupted vote
-   BOOST_REQUIRE_THROW(process_votes(1, 1), fc::exception); // throws because it times out waiting on vote (block id not found)
+   BOOST_REQUIRE_THROW(process_votes(1, 1), fc::exception); // throws as it times out waiting on vote (block id not found)
    process_votes(2, num_needed_for_quorum - 1);
 
    produce_and_push_block();
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
 
    node1.restore_to_original_vote(0);                      // restore node1's vote at index 0 to original vote
+   std::cout << 3 << '\n';
    process_votes(1, 1, 0, vote_mode::strong);              // send restored vote to node0
    produce_and_push_block();                               // produce a block so the new QC can propagate
    BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
@@ -445,6 +445,7 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
 
 
 // verify unknown finalizer_key votes are handled properly
+// -------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster) { try {
    // node0 produces a block and pushes to node1
    produce_and_push_block();
@@ -489,7 +490,5 @@ BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster) { try 
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
-
-#endif
 
 BOOST_AUTO_TEST_SUITE_END()
