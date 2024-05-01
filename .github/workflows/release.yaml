@@ -18,18 +18,18 @@ jobs:
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'spring-dev.*ubuntu20\.04_amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu20-amd64
+          artifact-name: spring-dev-amd64
           wait-for-exact-target: true
       - name: Get ubuntu22 spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'spring-dev.*ubuntu22\.04_amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu22-amd64
+          artifact-name: spring-dev-amd64
           wait-for-exact-target: true
       - name: Create Dockerfile
         run: |
@@ -49,5 +49,5 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: ghcr.io/${{env.REPOSITORY_OWNER_LOWER}}/experimental-binaries:${{github.ref_name}}
+          tags: ghcr.io/${{env.REPOSITORY_OWNER_LOWER}}/spring-experimental-binaries:${{github.ref_name}}
           context: .

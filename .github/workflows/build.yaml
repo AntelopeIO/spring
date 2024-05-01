@@ -115,7 +115,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.platform != 'reproducible'
         with:
-          name: spring-dev-${{matrix.platform}}-amd64
+          name: spring-dev-deb-amd64
           path: build/spring-dev*.deb
           compression-level: 0
       - name: Upload spring package
