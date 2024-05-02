@@ -1183,8 +1183,8 @@ struct controller_impl {
       );
    }
 
-   finalizer_policy_ptr active_finalizer_policy(block_num_type block_num)const {
-      block_state_ptr bsp = fetch_bsp_on_head_branch_by_num(block_num);
+   finalizer_policy_ptr active_finalizer_policy(const block_id_type& id, block_num_type block_num)const {
+      block_state_ptr bsp = fetch_bsp_on_branch_by_num(id, block_num);
       if (bsp) {
          return bsp->active_finalizer_policy;
       }
@@ -5372,8 +5372,8 @@ finalizer_policy_ptr controller::head_active_finalizer_policy()const {
    });
 }
 
-finalizer_policy_ptr controller::active_finalizer_policy(block_num_type block_num) const {
-   return my->active_finalizer_policy(block_num);
+finalizer_policy_ptr controller::active_finalizer_policy(const block_id_type& id, block_num_type block_num) const {
+   return my->active_finalizer_policy(id, block_num);
 }
 
 
