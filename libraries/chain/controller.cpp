@@ -5324,6 +5324,9 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    assert(pending);
    auto& bb = std::get<building_block>(pending->_block_stage);
    bool transition_block = bb.apply_l<bool>([&](building_block::building_block_legacy& bl) {
+      // The check for if there is a finalizer policy set is required because
+      // is_if_transition_block() is set in assemble_block so it is not set
+      // for the if genesis block.
       return bl.pending_block_header_state.is_if_transition_block() || gpo.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
