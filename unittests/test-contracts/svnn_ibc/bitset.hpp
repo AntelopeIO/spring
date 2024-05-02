@@ -2,7 +2,7 @@ using namespace eosio;
 
 
 class bitset {
-    using word_t = uint32_t;
+    using word_t = uint8_t;
     static constexpr size_t num_bits = sizeof(word_t) * 8;
     static size_t round_up(size_t sz) { return (sz + num_bits - 1) / num_bits; }
 

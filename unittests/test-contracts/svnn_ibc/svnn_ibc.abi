@@ -239,7 +239,7 @@
             "fields": [
                 {
                     "name": "finalizers",
-                    "type": "uint32[]"
+                    "type": "bytes"
                 },
                 {
                     "name": "signature",

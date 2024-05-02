@@ -94,7 +94,7 @@ CONTRACT svnn_ibc : public contract {
       }
 
       struct quorum_certificate {
-          std::vector<uint32_t>  finalizers;
+          std::vector<uint8_t>   finalizers;
           std::string            signature;
       };
 

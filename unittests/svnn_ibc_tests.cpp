@@ -216,7 +216,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_TEST(qc_b_6.qc.has_value());
       
-      std::vector<uint32_t> raw_bitset = {3}; //node0 ande node1 signed
+      //std::vector<uint8_t> raw_bitset = {3}; //node0 ande node1 signed
+
+      std::string raw_bitset("03"); //node0 ande node1 signed
 
       // create a few proofs we'll use to perform tests
 
