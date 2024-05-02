@@ -490,38 +490,27 @@ struct building_block {
 
       uint32_t get_block_num() const { return block_num; }
 
-      // returns the next proposer schedule version and true if different
-      // if producers is not different then returns the current schedule version (or next schedule version)
-      std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
+      // returns the next proposer schedule version if producers should be proposed in block
+      // if producers is not different then returns empty optional
+      std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            // if there are any policies already proposed but not active yet then they are what needs to be compared
-            if (!parent.proposer_policies.empty()) {
-               block_timestamp_type active_time = detail::get_next_next_round_block_time(timestamp);
-               if (auto itr = parent.proposer_policies.find(active_time); itr != parent.proposer_policies.cend()) {
-                  // Same active time, a new proposer schedule will replace this entry, `next` therefore is the previous
-                  if (itr != parent.proposer_policies.begin()) {
-                     return (--itr)->second->proposer_schedule;
-                  }
-                  // no previous to what will be replaced, use active
-                  return active_proposer_policy->proposer_schedule;
-               }
-               // will not replace any proposed policies, use next to become active
-               return parent.proposer_policies.begin()->second->proposer_schedule;
+            if (!parent.proposer_policies.empty()) { // proposed in-flight
+               // return the last proposed policy to use for comparison
+               return (--parent.proposer_policies.end())->second->proposer_schedule;
             }
-
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
          };
 
          const producer_authority_schedule& lhs = get_next_sched();
-
-         if (std::ranges::equal(lhs.producers, producers)) {
-            return {lhs.version, false};
+         auto v = lhs.version;
+         if (!std::equal(lhs.producers.begin(), lhs.producers.end(), producers.begin(), producers.end())) {
+            ++v;
+            return std::optional<uint32_t>{v};
          }
-
-         return {lhs.version + 1, true};
+         return std::nullopt;
       }
 
    };
@@ -607,10 +596,10 @@ struct building_block {
                         v);
    }
 
-   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
       return std::visit(
-         overloaded{[](const building_block_legacy&) -> std::tuple<uint32_t, bool> { return {-1, false}; },
-                    [&](const building_block_if& bb) -> std::tuple<uint32_t, bool> {
+         overloaded{[](const building_block_legacy&) -> std::optional<uint32_t> { return std::nullopt; },
+                    [&](const building_block_if& bb) -> std::optional<uint32_t> {
                        return bb.get_next_proposer_schedule_version(producers);
                     }
          },
@@ -918,13 +907,13 @@ struct pending_state {
          _block_stage);
    }
 
-   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const vector<producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
       return std::visit(overloaded{
-                           [&](const building_block& stage) -> std::tuple<uint32_t, bool> {
+                           [&](const building_block& stage) -> std::optional<uint32_t> {
                               return stage.get_next_proposer_schedule_version(producers);
                            },
-                           [](const assembled_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; },
-                           [](const completed_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; }
+                           [](const assembled_block&) -> std::optional<uint32_t> { assert(false); return std::nullopt; },
+                           [](const completed_block&) -> std::optional<uint32_t> { assert(false); return std::nullopt; }
                         },
                         _block_stage);
    }
@@ -3149,14 +3138,19 @@ struct controller_impl {
          resource_limits.process_block_usage(bb.block_num());
 
          // Any proposer policy?
-         std::unique_ptr<proposer_policy> new_proposer_policy;
-         auto process_new_proposer_policy = [&](auto&) -> void {
+         auto process_new_proposer_policy = [&](auto&) -> std::unique_ptr<proposer_policy> {
+            std::unique_ptr<proposer_policy> new_proposer_policy;
             const auto& gpo = db.get<global_property_object>();
             if (gpo.proposed_schedule_block_num) {
-               new_proposer_policy                    = std::make_unique<proposer_policy>();
-               new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
-               new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
-               ilog("Scheduling proposer schedule change at ${t}: ${s}", ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+               std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
+               if (version) {
+                  new_proposer_policy                    = std::make_unique<proposer_policy>();
+                  new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
+                  new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
+                  new_proposer_policy->proposer_schedule.version = *version;
+                  ilog("Scheduling proposer schedule change at ${t}: ${s}",
+                       ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+               }
 
                db.modify( gpo, [&]( auto& gp ) {
                   gp.proposed_schedule_block_num = std::optional<block_num_type>();
@@ -3164,8 +3158,9 @@ struct controller_impl {
                   gp.proposed_schedule.producers.clear();
                });
             }
+            return new_proposer_policy;
          };
-         apply_s<void>(chain_head, process_new_proposer_policy);
+         auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
 
          // Any finalizer policy?
          std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
@@ -5276,17 +5271,11 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 
    assert(pending);
 
-   auto [version, diff] = pending->get_next_proposer_schedule_version(producers);
-   if (!diff)
-      return version;
-
    producer_authority_schedule sch;
-   sch.version = version;
+   // sch.version is set in assemble_block
    sch.producers = std::move(producers);
 
-   ilog( "proposed producer schedule with version ${v}", ("v", sch.version) );
-
-   // overwrite any existing proposed_schedule set earlier in this block
+   // store schedule in gpo so it will be rolledback if transaction fails
    auto cur_block_num = chain_head.block_num() + 1;
    auto& gpo = db.get<global_property_object>();
    db.modify( gpo, [&]( auto& gp ) {
@@ -5294,7 +5283,7 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
       gp.proposed_schedule = sch;
    });
 
-   return sch.version;
+   return std::numeric_limits<uint32_t>::max();
 }
 
 int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authority> producers ) {
