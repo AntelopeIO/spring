@@ -79,7 +79,7 @@ namespace eosio::chain {
       std::optional<block_num_type>       proposed_fin_pol_block_num;
       finalizer_policy                    proposed_fin_pol;
 
-     void initalize_from( const legacy::snapshot_global_property_object_v2& legacy, const chain_id_type& chain_id_val,
+     void initialize_from( const legacy::snapshot_global_property_object_v2& legacy, const chain_id_type& chain_id_val,
                           const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = producer_authority_schedule(legacy.proposed_schedule);
@@ -91,7 +91,7 @@ namespace eosio::chain {
          proposed_fin_pol = finalizer_policy{};
       }
 
-      void initalize_from( const legacy::snapshot_global_property_object_v3& legacy,
+      void initialize_from( const legacy::snapshot_global_property_object_v3& legacy,
                            const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = legacy.proposed_schedule;
@@ -103,7 +103,7 @@ namespace eosio::chain {
          proposed_fin_pol = finalizer_policy{};
       }
 
-      void initalize_from( const legacy::snapshot_global_property_object_v4& legacy ) {
+      void initialize_from( const legacy::snapshot_global_property_object_v4& legacy ) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = legacy.proposed_schedule;
          configuration = legacy.configuration;
