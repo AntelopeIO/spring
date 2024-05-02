@@ -1183,6 +1183,14 @@ struct controller_impl {
       );
    }
 
+   finalizer_policy_ptr active_finalizer_policy(block_num_type block_num)const {
+      block_state_ptr bsp = fetch_bsp_on_head_branch_by_num(block_num);
+      if (bsp) {
+         return bsp->active_finalizer_policy;
+      }
+      return nullptr;
+   }
+
    block_state_ptr fetch_bsp(const block_id_type& id) const {
       return fork_db.apply<block_state_ptr>(
          overloaded{
@@ -5363,6 +5371,11 @@ finalizer_policy_ptr controller::head_active_finalizer_policy()const {
       return head->active_finalizer_policy;
    });
 }
+
+finalizer_policy_ptr controller::active_finalizer_policy(block_num_type block_num) const {
+   return my->active_finalizer_policy(block_num);
+}
+
 
 bool controller::light_validation_allowed() const {
    return my->light_validation_allowed();

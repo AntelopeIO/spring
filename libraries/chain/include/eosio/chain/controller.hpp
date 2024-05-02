@@ -267,6 +267,8 @@ namespace eosio::chain {
 
          // returns nullptr pre-savanna
          finalizer_policy_ptr                       head_active_finalizer_policy()const;
+         // returns nullptr pre-savanna, thread-safe, block_num according to forkdb head
+         finalizer_policy_ptr                       active_finalizer_policy(block_num_type block_num)const;
 
          void set_if_irreversible_block_id(const block_id_type& id);
          uint32_t if_irreversible_block_num() const;
