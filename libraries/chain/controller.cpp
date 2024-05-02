@@ -491,9 +491,9 @@ struct building_block {
 
       uint32_t get_block_num() const { return block_num; }
 
-      // returns the next proposer schedule version and true if producers should be proposed in block
-      // if producers is not different then returns the current schedule version (or next schedule version)
-      std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+      // returns the next proposer schedule version if producers should be proposed in block
+      // if producers is not different then returns empty optional
+      std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
@@ -509,9 +509,9 @@ struct building_block {
          auto v = lhs.version;
          if (!std::equal(lhs.producers.begin(), lhs.producers.end(), producers.begin(), producers.end())) {
             ++v;
-            return {v, true};
+            return std::optional<uint32_t>{v};
          }
-         return {v, false};
+         return std::nullopt;
       }
 
    };
@@ -602,10 +602,10 @@ struct building_block {
                         v);
    }
 
-   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
       return std::visit(
-         overloaded{[](const building_block_legacy&) -> std::tuple<uint32_t, bool> { return {-1, false}; },
-                    [&](const building_block_if& bb) -> std::tuple<uint32_t, bool> {
+         overloaded{[](const building_block_legacy&) -> std::optional<uint32_t> { return std::nullopt; },
+                    [&](const building_block_if& bb) -> std::optional<uint32_t> {
                        return bb.get_next_proposer_schedule_version(producers);
                     }
          },
@@ -900,13 +900,13 @@ struct pending_state {
          _block_stage);
    }
 
-   std::tuple<uint32_t, bool> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
       return std::visit(overloaded{
-                           [&](const building_block& stage) -> std::tuple<uint32_t, bool> {
+                           [&](const building_block& stage) -> std::optional<uint32_t> {
                               return stage.get_next_proposer_schedule_version(producers);
                            },
-                           [](const assembled_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; },
-                           [](const completed_block&) -> std::tuple<uint32_t, bool> { assert(false); return {-1, false}; }
+                           [](const assembled_block&) -> std::optional<uint32_t> { assert(false); return std::nullopt; },
+                           [](const completed_block&) -> std::optional<uint32_t> { assert(false); return std::nullopt; }
                         },
                         _block_stage);
    }
@@ -3131,17 +3131,16 @@ struct controller_impl {
          resource_limits.process_block_usage(bb.block_num());
 
          // Any proposer policy?
-         std::unique_ptr<proposer_policy> new_proposer_policy;
-         auto process_new_proposer_policy = [&](auto&) -> void {
+         auto process_new_proposer_policy = [&](auto&) -> std::unique_ptr<proposer_policy> {
+            std::unique_ptr<proposer_policy> new_proposer_policy;
             const auto& gpo = db.get<global_property_object>();
             if (gpo.proposed_schedule_block_num) {
-
-               auto [version, should_propose] = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
-               if (should_propose) {
+               std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
+               if (version) {
                   new_proposer_policy                    = std::make_unique<proposer_policy>();
                   new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
                   new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
-                  new_proposer_policy->proposer_schedule.version = version;
+                  new_proposer_policy->proposer_schedule.version = *version;
                   ilog("Scheduling proposer schedule change at ${t}: ${s}",
                        ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
                }
@@ -3152,8 +3151,9 @@ struct controller_impl {
                   gp.proposed_schedule.producers.clear();
                });
             }
+            return new_proposer_policy;
          };
-         apply_s<void>(chain_head, process_new_proposer_policy);
+         auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
 
          auto assembled_block =
             bb.assemble_block(thread_pool.get_executor(), protocol_features.get_protocol_feature_set(), fork_db, std::move(new_proposer_policy),
