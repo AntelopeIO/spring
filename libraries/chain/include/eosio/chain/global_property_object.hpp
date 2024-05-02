@@ -44,8 +44,7 @@ namespace eosio::chain {
       };
       struct snapshot_global_property_object_v4 {
          static constexpr uint32_t minimum_version = 4;
-         // snapshot_global_property_object_v4 is valid up to snapshot header version 6
-         static constexpr uint32_t maximum_version = 6;
+         static constexpr uint32_t maximum_version = 4;
          static_assert(chain_snapshot_header::minimum_compatible_version <= maximum_version,
                        "snapshot_global_property_object_v4 is no longer needed");
 
@@ -75,45 +74,44 @@ namespace eosio::chain {
       chain_config                        configuration;
       chain_id_type                       chain_id;
       wasm_config                         wasm_configuration;
+      // Note: proposed_fin_pol_block_num and proposed_fin_pol are used per block
+      //       and reset after uses. They do not need to be stored in snapshots.
       std::optional<block_num_type>       proposed_fin_pol_block_num;
       finalizer_policy                    proposed_fin_pol;
 
      void initalize_from( const legacy::snapshot_global_property_object_v2& legacy, const chain_id_type& chain_id_val,
-                          const kv_database_config& kv_config_val, const wasm_config& wasm_config_val,
-                          const std::optional<block_num_type>& proposed_fin_pol_block_num_val,
-                          const finalizer_policy& proposed_fin_pol_val) {
+                          const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = producer_authority_schedule(legacy.proposed_schedule);
          configuration = legacy.configuration;
          chain_id = chain_id_val;
          wasm_configuration = wasm_config_val;
-         proposed_fin_pol_block_num = proposed_fin_pol_block_num_val;
-         proposed_fin_pol = proposed_fin_pol_val;
+         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
+         proposed_fin_pol_block_num = std::nullopt;
+         proposed_fin_pol = finalizer_policy{};
       }
 
       void initalize_from( const legacy::snapshot_global_property_object_v3& legacy,
-                           const kv_database_config& kv_config_val, const wasm_config& wasm_config_val,
-                           const std::optional<block_num_type>& proposed_fin_pol_block_num_val,
-                           const finalizer_policy& proposed_fin_pol_val) {
+                           const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = legacy.proposed_schedule;
          configuration = legacy.configuration;
          chain_id = legacy.chain_id;
          wasm_configuration = wasm_config_val;
-         proposed_fin_pol_block_num = proposed_fin_pol_block_num_val;
-         proposed_fin_pol = proposed_fin_pol_val;
+         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
+         proposed_fin_pol_block_num = std::nullopt;
+         proposed_fin_pol = finalizer_policy{};
       }
 
-      void initalize_from( const legacy::snapshot_global_property_object_v4& legacy,
-                           const std::optional<block_num_type>& proposed_fin_pol_block_num_val,
-                           const finalizer_policy& proposed_fin_pol_val) {
+      void initalize_from( const legacy::snapshot_global_property_object_v4& legacy ) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
          proposed_schedule = legacy.proposed_schedule;
          configuration = legacy.configuration;
          chain_id = legacy.chain_id;
          wasm_configuration = legacy.wasm_configuration;
-         proposed_fin_pol_block_num = proposed_fin_pol_block_num_val;
-         proposed_fin_pol = proposed_fin_pol_val;
+         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
+         proposed_fin_pol_block_num = std::nullopt;
+         proposed_fin_pol = finalizer_policy{};
       }
    };
 
@@ -132,9 +130,8 @@ namespace eosio::chain {
       producer_authority_schedule         proposed_schedule;
       chain_config                        configuration;
       chain_id_type                       chain_id;
+      kv_database_config                  kv_configuration;
       wasm_config                         wasm_configuration;
-      std::optional<block_num_type>       proposed_fin_pol_block_num;
-      finalizer_policy                    proposed_fin_pol;
    };
 
    namespace detail {
@@ -145,8 +142,9 @@ namespace eosio::chain {
 
          static snapshot_global_property_object to_snapshot_row( const global_property_object& value, const chainbase::database& ) {
             return {value.proposed_schedule_block_num, producer_authority_schedule::from_shared(value.proposed_schedule),
-                    value.configuration, value.chain_id, value.wasm_configuration,
-                    value.proposed_fin_pol_block_num, value.proposed_fin_pol};
+                    // global_property_object does not have kv_database_config.
+                    // Set kv_database_config to ddefault value in snapshot
+                    value.configuration, value.chain_id, kv_database_config{}, value.wasm_configuration};
          }
 
          static void from_snapshot_row( snapshot_global_property_object&& row, global_property_object& value, chainbase::database& ) {
@@ -155,8 +153,10 @@ namespace eosio::chain {
             value.configuration = row.configuration;
             value.chain_id = row.chain_id;
             value.wasm_configuration = row.wasm_configuration;
-            value.proposed_fin_pol_block_num = row.proposed_fin_pol_block_num;
-            value.proposed_fin_pol = row.proposed_fin_pol;
+            // Snapshot does not contain proposed_fin_pol_block_num and proposed_fin_pol.
+            // Return their default values
+            value.proposed_fin_pol_block_num = std::nullopt;
+            value.proposed_fin_pol = finalizer_policy{};
          }
       };
    }
@@ -207,7 +207,7 @@ FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v4,
           )
 
 FC_REFLECT(eosio::chain::snapshot_global_property_object,
-            (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(wasm_configuration)(proposed_fin_pol_block_num)(proposed_fin_pol)
+            (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
           )
 
 FC_REFLECT(eosio::chain::dynamic_global_property_object,
