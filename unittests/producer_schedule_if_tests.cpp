@@ -109,6 +109,19 @@ bool compare_schedules( const vector<producer_authority>& a, const producer_auth
 BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
 
+   // set_producers in same block, do it the explicit way to use a diff expiration and avoid duplicate trx
+   auto set_producers_force = [&](const std::vector<account_name>& producers) {
+      static int unique = 0; // used to force uniqueness of transaction
+      auto schedule = get_producer_authorities( producers );
+      fc::variants schedule_variant;
+      schedule_variant.reserve(schedule.size());
+      for( const auto& e: schedule ) {
+         schedule_variant.emplace_back(e.get_abi_variant());
+      }
+      push_action( config::system_account_name, "setprods"_n, config::system_account_name,
+                  fc::mutable_variant_object()("schedule", schedule_variant), DEFAULT_EXPIRATION_DELTA + (++unique));
+   };
+
    while (control->head_block_num() < 3) {
       produce_block();
    }
@@ -126,7 +139,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
 
    // set a new proposer policy sch1
    set_producers( {"alice"_n} );
-   vector<producer_authority> sch1 = {
+   vector<producer_authority> alice_sch = {
                                  producer_authority{"alice"_n, block_signing_authority_v0{1, {{get_public_key("alice"_n, "active"), 1}}}}
                                };
 
@@ -139,7 +152,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
 
    // set another ploicy to have multiple pending different active time policies
    set_producers( {"bob"_n,"carol"_n} );
-   vector<producer_authority> sch2 = {
+   vector<producer_authority> bob_carol_sch = {
                                  producer_authority{"bob"_n,   block_signing_authority_v0{ 1, {{get_public_key("bob"_n,   "active"),1}}}},
                                  producer_authority{"carol"_n, block_signing_authority_v0{ 1, {{get_public_key("carol"_n, "active"),1}}}}
                                };
@@ -147,7 +160,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
 
    // set another ploicy should replace sch2
    set_producers( {"bob"_n,"alice"_n} );
-   vector<producer_authority> sch3 = {
+   vector<producer_authority> bob_alice_sch = {
       producer_authority{"bob"_n,   block_signing_authority_v0{ 1, {{get_public_key("bob"_n,   "active"),1}}}},
       producer_authority{"alice"_n, block_signing_authority_v0{ 1, {{get_public_key("alice"_n, "active"),1}}}}
    };
@@ -157,13 +170,13 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
 
    // sch1  must become active no later than 2 rounds but sch2 cannot become active yet
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
-   BOOST_CHECK_EQUAL( true, compare_schedules( sch1, control->active_producers() ) );
+   BOOST_CHECK_EQUAL( true, compare_schedules( alice_sch, control->active_producers() ) );
 
    produce_blocks(config::producer_repetitions);
 
-   // sch3 becomes active
-   BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as sch2 was replaced by sch3
-   BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+   // sch3 becomes active, version should be 3 even though sch2 was replaced by sch3
+   BOOST_CHECK_EQUAL( 3u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
    auto prod = produce_block().block->producer;
@@ -173,19 +186,125 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change
    produce_blocks(config::producer_repetitions);
    produce_blocks(config::producer_repetitions);
-   BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not different so no change
-   BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 as not different so no change
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // test no change to proposed schedule, only the first one will take affect
    for (size_t i = 0; i < config::producer_repetitions*2-1; ++i) {
-      BOOST_CHECK_EQUAL( 2u, control->active_producers().version ); // should be 2 as not taken affect yet
-      BOOST_CHECK_EQUAL( true, compare_schedules( sch3, control->active_producers() ) );
+      BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 as not taken affect yet
+      BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
       set_producers( {"bob"_n,"carol"_n} );
+      set_producers_force({"bob"_n,"carol"_n} );
+      set_producers_force({"bob"_n,"carol"_n} );
       produce_block();
    }
    produce_block();
-   BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 now as bob,carol now active
-   BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
+   BOOST_CHECK_EQUAL( 4u, control->active_producers().version ); // should be 4 now as bob,carol now active
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+
+   // get to next producer round
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+
+   // test change in same block where there is an existing proposed that is the same
+   set_producers( {"bob"_n,"alice"_n} );
+   produce_block();
+   set_producers( {"bob"_n,"carol"_n} );
+   set_producers_force({"bob"_n,"carol"_n} );
+   produce_blocks(config::producer_repetitions-1);
+   produce_blocks(config::producer_repetitions);
+   BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol now active
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+
+   // test change in same block where there is no change
+   set_producers( {"bob"_n,"alice"_n} );
+   set_producers_force({"bob"_n,"carol"_n} ); // put back, no change expected
+   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions);
+   BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol is still active
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+
+   // get to next producer round
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+
+   // test two in-flight
+   //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
+   //      propose P1 in A2, active in C1
+   //      propose P2 in B2, active in D1
+   //      propose P3 in B3, active in D1, replaces P2
+   produce_block();
+   set_producers({"alice"_n}); // A2, P1
+   produce_blocks(config::producer_repetitions-1); // A12
+   produce_block();
+   set_producers({"bob"_n,"carol"_n}); // B2
+   produce_block();
+   set_producers({"bob"_n, "alice"_n} ); // P3
+   produce_blocks(config::producer_repetitions-2); // B12
+   produce_block(); // C1
+   BOOST_CHECK_EQUAL( 7u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( alice_sch, control->active_producers() ) );
+   produce_blocks(config::producer_repetitions); // D1
+   BOOST_CHECK_EQUAL( 9u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
+
+   // get to next producer round
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+
+   // test two in-flight, P1 == P3, so no change
+   //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
+   //      propose P1 in A2, active in C1
+   //      propose P2 in B2, active in D1
+   //      propose P3 in B3, active in D1, replaces P2
+   produce_block();
+   set_producers({"bob"_n,"carol"_n}); // A2, P1
+   produce_blocks(config::producer_repetitions-1); // A12
+   produce_block();
+   set_producers({"alice"_n}); // B2
+   produce_block();
+   set_producers({"bob"_n,"carol"_n}); // P3 == P1
+   produce_blocks(config::producer_repetitions-2); // B12
+   produce_block(); // C1
+   BOOST_CHECK_EQUAL( 10u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+   produce_blocks(config::producer_repetitions); // D1
+   BOOST_CHECK_EQUAL( 12u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+
+   // get to next producer round
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+
+   // test two in-flight, ultimately no change
+   produce_block(); // 1
+   set_producers({"bob"_n,"carol"_n});
+   produce_block(); // 2
+   set_producers({"alice"_n});
+   produce_block(); // 3
+   set_producers({"carol"_n,"alice"_n});
+   produce_block(); // 4
+   set_producers({"carol"_n});
+   produce_block(); // 5
+   set_producers({"alice"_n});
+   produce_block(); // 6
+   set_producers({"bob"_n,"carol"_n});
+   produce_blocks(config::producer_repetitions-6);
+   set_producers({"bob"_n});
+   produce_block(); // 2
+   set_producers({"bob"_n,"carol"_n});
+   produce_block(); // 3
+   set_producers({"carol"_n,"bob"_n});
+   produce_block(); // 4
+   set_producers({"alice"_n} );
+   produce_block(); // 5
+   set_producers({"bob"_n,"carol"_n});
+   produce_blocks(config::producer_repetitions-5); // B12
+   BOOST_CHECK_EQUAL( 17u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
+   produce_blocks(config::producer_repetitions);
+   BOOST_CHECK_EQUAL( 22u, control->active_producers().version );
+   BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
 } FC_LOG_AND_RETHROW()
 
