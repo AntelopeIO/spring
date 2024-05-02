@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eosio/chain/block.hpp>
 #include <eosio/chain/finality/finalizer_authority.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
@@ -29,11 +30,22 @@ public:
       weak,
    };
 
+   struct node_info {
+      eosio::testing::tester                  node;
+      uint32_t                                prev_lib_num{0};
+      std::mutex                              votes_mtx;
+      std::vector<eosio::chain::vote_message_ptr> votes;
+      fc::crypto::blslib::bls_private_key     priv_key;
+   };
+
    // Construct a test network and activate IF.
    finality_test_cluster();
 
    // node0 produces a block and pushes it to node1 and node2
-   void produce_and_push_block();
+   eosio::chain::signed_block_ptr produce_and_push_block();
+
+   // make setfinalizer final and test finality
+   void initial_tests();
 
    // send node1's vote identified by "index" in the collected votes
    eosio::chain::vote_status process_node1_vote(uint32_t vote_index, vote_mode mode = vote_mode::strong, bool duplicate = false);
@@ -46,7 +58,7 @@ public:
 
    // send node2's latest vote
    eosio::chain::vote_status process_node2_vote(vote_mode mode = vote_mode::strong);
-
+   
    // returns true if node0's LIB has advanced
    bool node0_lib_advancing();
 
@@ -61,6 +73,9 @@ public:
    // node1_votes and node2_votes when starting.
    bool produce_blocks_and_verify_lib_advancing();
 
+   // Produces and propagate finality votes block_count blocks.
+   void produce_blocks(uint32_t blocks_count);
+
    // Intentionally corrupt node1's vote's block_id and save the original vote
    void node1_corrupt_vote_block_id();
 
@@ -73,23 +88,15 @@ public:
    // Restore node1's original vote
    void node1_restore_to_original_vote();
 
-private:
-
-   struct node_info {
-      eosio::testing::tester                  node;
-      uint32_t                                prev_lib_num{0};
-      std::mutex                              votes_mtx;
-      std::vector<eosio::chain::vote_message_ptr> votes;
-      fc::crypto::blslib::bls_private_key     priv_key;
-   };
-
-   std::atomic<uint32_t>                      last_connection_vote{0};
-   std::atomic<eosio::chain::vote_status>     last_vote_status{};
-
    std::array<node_info, 3> nodes;
    node_info& node0 = nodes[0];
    node_info& node1 = nodes[1];
    node_info& node2 = nodes[2];
+
+private:
+
+   std::atomic<uint32_t>                      last_connection_vote{0};
+   std::atomic<eosio::chain::vote_status>     last_vote_status{};
 
    eosio::chain::vote_message_ptr node1_orig_vote;
 
