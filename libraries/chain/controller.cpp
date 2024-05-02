@@ -3155,41 +3155,36 @@ struct controller_impl {
          };
          apply_s<void>(chain_head, process_new_proposer_policy);
 
-         std::optional<finalizer_policy> new_finalizer_policy;
+         // Any finalizer policy?
+         std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
+         const auto& gpo = db.get<global_property_object>();
+         if (gpo.proposed_fin_pol_block_num.has_value()) {
+            new_finalizer_policy = gpo.proposed_fin_pol;
 
-         // Process set_finalizers during transition. Only Savanna Genesis block allows it;
-         // other transition blocks ignore set_finalizers
-         auto process_new_finalizer_policy_legacy = [&](building_block::building_block_legacy& bb_legacy) -> void {
-            const auto& gpo = db.get<global_property_object>();
-            if (gpo.proposed_fin_pol_block_num.has_value() && !bb_legacy.pending_block_header_state.is_if_transition_block()) {
-               new_finalizer_policy = gpo.proposed_fin_pol;
-               new_finalizer_policy->generation = 1; // only allowed to be set once in legacy mode
+            db.modify( gpo, [&]( auto& gp ) {
+               gp.proposed_fin_pol_block_num = std::nullopt;
+               gp.proposed_fin_pol.generation = 0;
+               gp.proposed_fin_pol.finalizers.clear();
+            });
+         }
 
-               db.modify( gpo, [&]( auto& gp ) {
-                  gp.proposed_fin_pol_block_num = std::nullopt;
-                  gp.proposed_fin_pol.generation = 0;
-                  gp.proposed_fin_pol.finalizers.clear();
+         // Add generation and make sure new_finalizer_policy is set only once in Legacy
+         if (new_finalizer_policy.has_value()) {
+            bb.apply<void>(
+               overloaded{
+                  [&](building_block::building_block_legacy& bb_legacy) -> void {
+                     if (bb_legacy.pending_block_header_state.is_if_transition_block()) {
+                        // only allowed to be set once in legacy mode
+                        new_finalizer_policy = std::nullopt;
+                     } else {
+                        new_finalizer_policy->generation = 1;
+                     }
+                  },
+                  [&](building_block::building_block_if& bb_savanna) -> void {
+                     new_finalizer_policy->generation = bb_savanna.parent.finalizer_policy_generation + 1;
+                  }
                });
-            }
-         };
-
-         // Process set_finalizers after transition to Savanna
-         auto process_new_finalizer_policy_savanna = [&](building_block::building_block_if& bb_savanna) -> void {
-            const auto& gpo = db.get<global_property_object>();
-            if (gpo.proposed_fin_pol_block_num.has_value()) {
-               new_finalizer_policy = gpo.proposed_fin_pol;
-               new_finalizer_policy->generation = bb_savanna.parent.finalizer_policy_generation + 1;
-
-               db.modify( gpo, [&]( auto& gp ) {
-                  gp.proposed_fin_pol_block_num = std::nullopt;
-                  gp.proposed_fin_pol.generation = 0;
-                  gp.proposed_fin_pol.finalizers.clear();
-               });
-            }
-         };
-
-         bb.apply<void>(overloaded{ process_new_finalizer_policy_legacy,
-                                    process_new_finalizer_policy_savanna });
+         }
 
          auto assembled_block =
             bb.assemble_block(thread_pool.get_executor(),
