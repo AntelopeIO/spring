@@ -66,7 +66,7 @@ CONTRACT svnn_ibc : public contract {
             if (pairIndex<leaf_count) proof_path.push_back(isLeft);
    
             leaf_count/=2;
-            leaf_index=leaf_index / 2;
+            leaf_index/=2;
          }
 
          return proof_path;
@@ -133,15 +133,12 @@ CONTRACT svnn_ibc : public contract {
 
       TABLE lastproof {
 
-          //uint64_t         id;
-
           uint32_t         block_num;
           
           checksum256      finality_mroot;
 
           time_point       cache_expiry;
 
-          //uint64_t primary_key()const { return id; }
           uint64_t primary_key()const { return (uint64_t)block_num; }
           uint64_t by_cache_expiry()const { return cache_expiry.sec_since_epoch(); }
           checksum256 by_merkle_root()const { return finality_mroot; }
