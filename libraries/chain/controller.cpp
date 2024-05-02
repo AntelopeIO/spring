@@ -674,6 +674,18 @@ struct building_block {
                         v);
    }
 
+   void update_finalizer_policy_generation(finalizer_policy& new_finalizer_policy) {
+      apply<void>(
+         overloaded{
+            [&](building_block::building_block_legacy& bb_legacy) -> void {
+               new_finalizer_policy.generation = 1;
+            },
+            [&](building_block::building_block_if& bb_savanna) -> void {
+               new_finalizer_policy.generation = bb_savanna.parent.finalizer_policy_generation + 1;
+            }
+         });
+   }
+
    qc_data_t get_qc_data(fork_database& fork_db, const block_state& parent) {
       // find most recent ancestor block that has a QC by traversing fork db
       // branch from parent
@@ -3168,22 +3180,16 @@ struct controller_impl {
             });
          }
 
-         // Add generation and make sure new_finalizer_policy is set only once in Legacy
+         // Make sure new_finalizer_policy is set only once in Legacy
+         bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
+            if (bl.pending_block_header_state.is_if_transition_block()) {
+               new_finalizer_policy = std::nullopt;
+            }
+         });
+
+         // Update generation
          if (new_finalizer_policy.has_value()) {
-            bb.apply<void>(
-               overloaded{
-                  [&](building_block::building_block_legacy& bb_legacy) -> void {
-                     if (bb_legacy.pending_block_header_state.is_if_transition_block()) {
-                        // only allowed to be set once in legacy mode
-                        new_finalizer_policy = std::nullopt;
-                     } else {
-                        new_finalizer_policy->generation = 1;
-                     }
-                  },
-                  [&](building_block::building_block_if& bb_savanna) -> void {
-                     new_finalizer_policy->generation = bb_savanna.parent.finalizer_policy_generation + 1;
-                  }
-               });
+            bb.update_finalizer_policy_generation(*new_finalizer_policy);
          }
 
          auto assembled_block =
