@@ -1,13 +1,10 @@
 #include "svnn_ibc.hpp"
 
 //add two numbers from the g1 group (aggregation)
-std::vector<char> svnn_ibc::_g1add(const std::vector<char>& op1, const std::vector<char>& op2) {
-   check(op1.size() == std::tuple_size<bls_g1>::value, "wrong op1 size passed");
-   check(op2.size() == std::tuple_size<bls_g1>::value, "wrong op2 size passed");
+bls_g1 svnn_ibc::_g1add(const bls_g1& op1, const bls_g1& op2) {
    bls_g1 r;
-   bls_g1_add(*reinterpret_cast<const bls_g1*>(op1.data()), *reinterpret_cast<const bls_g1*>(op2.data()), r);
-   std::vector<char> v(r.begin(), r.end());
-   return v;
+   bls_g1_add(op1, op2, r);
+   return r;
 }
 
 void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num){
@@ -26,7 +23,7 @@ void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t
         }
         svnn_ibc::storedpolicy spolicy;
         spolicy.generation = policy.generation;
-        spolicy.fthreshold = policy.fthreshold;
+        spolicy.threshold = policy.threshold;
         spolicy.finalizers = policy.finalizers;
 
         //policy is in force until a newer policy is proven
@@ -42,16 +39,16 @@ void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t
 //adds the newly proven root if necessary
 void svnn_ibc::_maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot){
     proofs_table _proofs_table(get_self(), get_self().value);
-    auto block_num_index = _proofs_table.get_index<"blocknum"_n>();
+    //auto block_num_index = _proofs_table.get_index<"blocknum"_n>();
     auto merkle_index = _proofs_table.get_index<"merkleroot"_n>();
-    auto last_itr = block_num_index.rbegin();
+    auto last_itr = _proofs_table.rbegin();
 
     //if first proven root or newer than the last proven root, we store it 
-    if (last_itr == block_num_index.rend() || last_itr->block_num<block_num){
+    if (last_itr == _proofs_table.rend() || last_itr->block_num<(uint64_t)block_num){
         auto itr = merkle_index.find(finality_mroot);
         if (itr == merkle_index.end()){
             _proofs_table.emplace( get_self(), [&]( auto& p ) {
-                p.id = _proofs_table.available_primary_key();
+                //p.id = _proofs_table.available_primary_key();
                 p.block_num = block_num;
                 p.finality_mroot = finality_mroot;
                 p.cache_expiry = add_time(current_time_point(), PROOF_CACHE_EXPIRY); //set cache expiry
@@ -61,29 +58,35 @@ void svnn_ibc::_maybe_add_proven_root(const uint32_t block_num, const checksum25
     //otherwise, the proven root is not advancing finality so we don't need to store it
 }
 
-//delete old policies and proofs that are no longer necessary
-void svnn_ibc::_garbage_collection(){
-    //todo : implement
+template<typename Table>
+void svnn_ibc::_maybe_remove_from_cache(){
+
+    time_point now = current_time_point();
+
+    Table table(get_self(), get_self().value);
+
+    auto idx = table.template get_index<"expiry"_n>(); //expiry order index
+
+    auto last_itr = idx.rbegin(); //last entry
+
+    if (last_itr == idx.rend() ) return; //no entries, nothing to do
+
+    if (now.sec_since_epoch() < last_itr->cache_expiry.sec_since_epoch()) return; //cache has not yet expired, nothing to do
+    else {
+
+        //cache must be cleaned up
+        auto itr = idx.begin();
+        while (itr!=idx.end()){
+            if (itr->primary_key() == last_itr->primary_key()) return; //last entry, we always keep that one
+            itr = idx.erase(itr);
+        }
+    }
+
 }
 
 //verify that a signature over a given message has been generated with the private key matching the public key
-void svnn_ibc::_verify(const std::vector<char>& pk, const std::vector<char>& sig, std::vector<const char>& msg){
-    check(pk.size() == std::tuple_size<bls_g1>::value, "wrong pk size passed");
-    check(sig.size() == std::tuple_size<bls_g2>::value, "wrong sig size passed");
-    bls_g1 g1_points[2];
-    bls_g2 g2_points[2];
-
-    memcpy(g1_points[0].data(), eosio::detail::G1_ONE_NEG.data(), sizeof(bls_g1));
-    memcpy(g2_points[0].data(), sig.data(), sizeof(bls_g2));
-
-    bls_g2 p_msg;
-    eosio::detail::g2_fromMessage(msg, eosio::detail::CIPHERSUITE_ID, p_msg);
-    memcpy(g1_points[1].data(), pk.data(), sizeof(bls_g1));
-    memcpy(g2_points[1].data(), p_msg.data(), sizeof(bls_g2));
-
-    bls_gt r;
-    bls_pairing(g1_points, g2_points, 2, r);
-    check(0 == memcmp(r.data(), eosio::detail::GT_ONE.data(), sizeof(bls_gt)), "bls signature verify failed");
+void svnn_ibc::_verify(const std::string& public_key, const std::string& signature, const std::string& message){
+    check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verify failed");
 }
 
 //verify that the quorum certificate over the finality digest is valid
@@ -99,42 +102,40 @@ void svnn_ibc::_check_qc(const quorum_certificate& qc, const checksum256& finali
     auto fa_itr = target_policy.finalizers.begin();
     auto fa_end_itr = target_policy.finalizers.end();
     size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
-    std::vector<uint64_t> bitset_data(qc.finalizers);
-    bitset b(finalizer_count, bitset_data);
+    bitset b(finalizer_count, qc.finalizers);
 
     bool first = true;
 
     size_t index = 0;
     uint64_t weight = 0;
 
-    bls_public_key agg_pub_key;
+    bls_g1 agg_pub_key;
 
     while (fa_itr != fa_end_itr){
         if (b.test(index)){
+            bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
             if (first){
                 first=false;
-                agg_pub_key = fa_itr->public_key;
+                agg_pub_key = pub_key;
             }
-            else agg_pub_key = _g1add(agg_pub_key, fa_itr->public_key);
-            weight+=fa_itr->fweight;
-
+            else agg_pub_key = _g1add(agg_pub_key, pub_key);
+            weight+=fa_itr->weight;
         }
         index++;
         fa_itr++;
     }
 
     //verify that we have enough vote weight to meet the quorum threshold of the target policy
-    check(weight>=target_policy.fthreshold, "insufficient signatures to reach quorum");
-    std::array<uint8_t, 32> data = finality_digest.extract_as_byte_array();
-    std::vector<const char> v_data(data.begin(), data.end());
+    check(weight>=target_policy.threshold, "insufficient signatures to reach quorum");
+    std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
+    std::string message(fd_data.begin(), fd_data.end());
+
+    std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
     //verify signature validity
-    _verify(agg_pub_key, qc.signature, v_data);
+    _verify(s_agg_pub_key, qc.signature, message);
 }
 
-void svnn_ibc::_check_target_block_proof_of_inclusion(const proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
-
-    //verify that the proof of inclusion is over a target block
-    check(std::holds_alternative<svnn_ibc::block_data>(proof.target), "must supply proof of inclusion over block data");
+void svnn_ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
 
     //resolve the proof to its merkle root
     checksum256 finality_mroot = proof.root();
@@ -147,25 +148,23 @@ void svnn_ibc::_check_target_block_proof_of_inclusion(const proof_of_inclusion& 
         auto itr = merkle_index.find(finality_mroot);
         check(itr!= merkle_index.end(), "cannot link proof to proven merkle root");
     }
-    block_data target_block = std::get<svnn_ibc::block_data>(proof.target);
-    if (target_block.finality_data.active_finalizer_policy.has_value()){
-        _maybe_set_finalizer_policy(target_block.finality_data.active_finalizer_policy.value(), target_block.dynamic_data.block_num);
+    //block_data target_block = std::get<svnn_ibc::block_data>(proof.target);
+    if (proof.target.finality_data.active_finalizer_policy.has_value()){
+        _maybe_set_finalizer_policy(proof.target.finality_data.active_finalizer_policy.value(), proof.target.dynamic_data.block_num);
     }
 }
 
-void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const proof_of_inclusion& target_block_proof_of_inclusion){
-    //temporarilly disabled : skip qc verification
+void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion){
+
     //if QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
-    //_check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
+    _check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
     
-    //if proof of inclusion was successful, the target block and its dynamic data have been validated as final and correct
-    block_data target_block = std::get<svnn_ibc::block_data>(target_block_proof_of_inclusion.target);
-
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
-    _maybe_add_proven_root(target_block.dynamic_data.block_num, finality_proof.qc_block.finality_mroot);
+    uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
+    _maybe_add_proven_root(target_block_proof_of_inclusion.target.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
 }
 
 ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num){
@@ -179,6 +178,10 @@ ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num
     check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
 
     _maybe_set_finalizer_policy(policy, from_block_num);
+
+    //clean up if necessary
+    _maybe_remove_from_cache<policies_table>();
+    _maybe_remove_from_cache<proofs_table>();
 }
 
 ACTION svnn_ibc::checkproof(const proof& proof){
@@ -191,19 +194,9 @@ ACTION svnn_ibc::checkproof(const proof& proof){
         //if we only have a proof of inclusion of the target block, we execute the "light" code path
         _check_target_block_proof_of_inclusion(proof.target_block_proof_of_inclusion, std::nullopt);
     }
-}
 
-//temporary : reset the state
-ACTION svnn_ibc::clear(){
-   require_auth(get_self());
-   proofs_table _proofs_table(get_self(), get_self().value);
-   policies_table _policies_table(get_self(), get_self().value);
-   auto fp_itr = _proofs_table.begin();
-   while (fp_itr!= _proofs_table.end()){
-       fp_itr = _proofs_table.erase(fp_itr);
-   }
-   auto p_itr = _policies_table.begin();
-   while (p_itr!= _policies_table.end()){
-       p_itr = _policies_table.erase(p_itr);
-   }
+    //clean up if necessary
+    _maybe_remove_from_cache<policies_table>();
+    _maybe_remove_from_cache<proofs_table>();
+
 }
