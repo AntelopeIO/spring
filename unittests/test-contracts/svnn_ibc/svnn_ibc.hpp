@@ -15,14 +15,11 @@ CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;
 
-      using bls_public_key = std::vector<char>;
-      using bls_signature = std::vector<char>;
-
       const uint32_t POLICY_CACHE_EXPIRY = 600; //10 minutes for testing
       const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing
 
       //Compute the maximum number of layers of a merkle tree for a given number of leaves
-      uint64_t calculate_max_depth(uint64_t node_count) {
+      static uint64_t calculate_max_depth(uint64_t node_count) {
          if(node_count <= 1)
             return node_count;
          return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1))));
@@ -50,46 +47,43 @@ CONTRACT svnn_ibc : public contract {
          return tp;
       }
 
-      /*
+      //compute proof path
+      static std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
 
-      //discuss : compute merkle branch direction vs providing them as part of the proof
+         uint64_t leaf_index = c_leaf_index;
+         uint64_t leaf_count = c_leaf_count;
 
-      static std::vector<uint8_t> _get_directions(const uint64_t index, const uint64_t last_node_index){
+         std::vector<bool> proof_path;
 
-          std::vector<uint8_t> proof;
+         uint64_t layers_depth = calculate_max_depth(c_leaf_count) -1;
 
-          uint64_t c_index = index;
-          uint64_t layers_depth = calculate_max_depth(last_node_index) -1;
-          uint64_t c_last_node_index = last_node_index;
+         for (uint64_t i = 0; i < layers_depth; i++) {
+            bool isLeft = leaf_index % 2;
+            uint64_t pairIndex = isLeft ? leaf_index - 1 :
+                           (leaf_index == leaf_count ? leaf_index : leaf_index + 1);
 
-          for (uint64_t i = 0; i < layers_depth; i++) {
-              if (c_last_node_index % 2) c_last_node_index+=1;
-              bool isLeft = c_index % 2 == 0 ? 0 : 1;
-              uint64_t pairIndex = isLeft ? c_index - 1 :
-                          c_index == last_node_index - 1 && i < layers_depth - 1 ? c_index :
-                          c_index + 1;
-              c_last_node_index/=2;
-              if (pairIndex < last_node_index) proof.push_back(isLeft);
-              c_index = c_index / 2;
-          }
-          return proof;
+   
+            if (pairIndex<leaf_count) proof_path.push_back(isLeft);
+   
+            leaf_count/=2;
+            leaf_index/=2;
+         }
+
+         return proof_path;
+
       }
 
-      */
-
-      struct merkle_branch {
-         uint8_t direction;
-         checksum256 hash;
-      };
-
-
       //compute the merkle root of target node and vector of merkle branches
-      static checksum256 _compute_root(const std::vector<merkle_branch> proof_nodes, const checksum256& target){
+      static checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_index, const uint64_t last_node_index){
           checksum256 hash = target;
+          std::vector<bool> proof_path = _get_proof_path(target_index, last_node_index+1);
+
+          check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
           for (int i = 0 ; i < proof_nodes.size() ; i++){
-              const checksum256 node = proof_nodes[i].hash;
+
+              const checksum256 node = proof_nodes[i];
               std::array<uint8_t, 32> arr = node.extract_as_byte_array();
-              if (proof_nodes[i].direction == 0){
+              if (proof_path[i] == false){
                   hash = hash_pair(std::make_pair(hash, node));
               }
               else {
@@ -100,20 +94,20 @@ CONTRACT svnn_ibc : public contract {
       }
 
       struct quorum_certificate {
-          std::vector<uint64_t> finalizers;
-          bls_signature signature;
+          std::vector<uint8_t>   finalizers;
+          std::string            signature;
       };
 
       struct finalizer_authority {
-         std::string     description;
-         uint64_t        fweight = 0;
-         bls_public_key  public_key;
+         std::string       description;
+         uint64_t          weight = 0;
+         std::string       public_key;
       };
 
       struct fpolicy {
 
          uint32_t                         generation = 0; ///< sequentially incrementing version number
-         uint64_t                         fthreshold = 0;  ///< vote fweight threshold to finalize blocks
+         uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
          std::vector<finalizer_authority> finalizers; ///< Instant Finality voter set
 
          checksum256 digest() const {
@@ -133,13 +127,11 @@ CONTRACT svnn_ibc : public contract {
          uint64_t primary_key() const {return generation;}
          uint64_t by_cache_expiry()const { return cache_expiry.sec_since_epoch(); }
 
-         EOSLIB_SERIALIZE( storedpolicy, (generation)(fthreshold)(finalizers)(last_block_num)(cache_expiry))
+         EOSLIB_SERIALIZE( storedpolicy, (generation)(threshold)(finalizers)(last_block_num)(cache_expiry))
 
       };
 
       TABLE lastproof {
-
-          uint64_t         id;
 
           uint32_t         block_num;
           
@@ -147,8 +139,7 @@ CONTRACT svnn_ibc : public contract {
 
           time_point       cache_expiry;
 
-          uint64_t primary_key()const { return id; }
-          uint64_t by_block_num()const { return block_num; }
+          uint64_t primary_key()const { return (uint64_t)block_num; }
           uint64_t by_cache_expiry()const { return cache_expiry.sec_since_epoch(); }
           checksum256 by_merkle_root()const { return finality_mroot; }
 
@@ -220,16 +211,55 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
-      struct proof_of_inclusion;
+      //struct proof_of_inclusion;
+
+      struct action_data {
+
+         r_action action; //antelope action
+         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
+
+         std::vector<char> return_value; //empty if no return value
+
+         //returns the action digest 
+         checksum256 action_digest() const {
+            return action.digest();
+         }; 
+
+         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
+         checksum256 digest() const {
+            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
+            return action_receipt_digest;
+         };
+
+      };
+
+      struct action_proof_of_inclusion {
+
+         uint64_t target_node_index;
+         uint64_t last_node_index;
+
+         action_data target;
+
+         std::vector<checksum256> merkle_branches;
+
+         //returns the merkle root obtained by hashing target.digest() with merkle_branches
+         checksum256 root() const {
+            checksum256 digest = target.digest();
+            checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
+            return root;
+         }; 
+
+      };
 
       struct dynamic_data_v0 {
 
          //block_num is always present
          uint32_t block_num;
 
+
          //can include any number of action_proofs and / or state_proofs pertaining to a given block
          //all action_proofs must resolve to the same action_mroot
-         std::vector<proof_of_inclusion> action_proofs;
+         std::vector<action_proof_of_inclusion> action_proofs;
 
          //can be used instead of providing action_proofs. Useful for proving finalizer policy changes
          std::optional<checksum256> action_mroot;
@@ -322,43 +352,19 @@ CONTRACT svnn_ibc : public contract {
          };
       };
 
-      struct action_data {
-
-         r_action action; //antelope action
-         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
-
-         std::vector<char> return_value; //empty if no return value
-
-         //returns the action digest 
-         checksum256 action_digest() const {
-            return action.digest();
-         }; 
-
-         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
-         checksum256 digest() const {
-            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
-            return action_receipt_digest;
-         };
-
-      };
-
-      using target_data = std::variant<block_data, action_data>;
-
-
-      struct proof_of_inclusion {
+      struct block_proof_of_inclusion {
 
          uint64_t target_node_index;
          uint64_t last_node_index;
 
-         target_data target;
+         block_data target;
 
-         std::vector<merkle_branch> merkle_branches;
+         std::vector<checksum256> merkle_branches;
 
          //returns the merkle root obtained by hashing target.digest() with merkle_branches
          checksum256 root() const {
-            auto call_digest = [](const auto& var) -> checksum256 { return var.digest(); };
-            checksum256 digest = std::visit(call_digest, target);
-            checksum256 root = _compute_root(merkle_branches, digest);
+            checksum256 digest = target.digest();
+            checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
             return root;
          }; 
 
@@ -380,7 +386,7 @@ CONTRACT svnn_ibc : public contract {
          //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the final_on_strong_qc block represented by the finality_mroot present in header
          //2) only a proof_of_inclusion of a target block, which must be included in a merkle tree represented by a root stored in the contract's RAM
          std::optional<finality_proof> finality_proof;
-         proof_of_inclusion target_block_proof_of_inclusion;
+         block_proof_of_inclusion target_block_proof_of_inclusion;
 
       };
 
@@ -388,27 +394,24 @@ CONTRACT svnn_ibc : public contract {
           indexed_by<"expiry"_n, const_mem_fun<storedpolicy, uint64_t, &storedpolicy::by_cache_expiry>>> policies_table;
 
       typedef eosio::multi_index< "lastproofs"_n, lastproof,
-          indexed_by<"blocknum"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_block_num>>,
           indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
           indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_cache_expiry>>> proofs_table;
 
-      std::vector<char> _g1add(const std::vector<char>& op1, const std::vector<char>& op2);
+      bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2);
 
       void _maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
-      void _garbage_collection();
+      template<typename Table>
+      void _maybe_remove_from_cache();
 
-      void _verify(const std::vector<char>& pk, const std::vector<char>& sig, std::vector<const char>& msg);
+      void _verify(const std::string& public_key, const std::string& signature, const std::string& message);
       void _check_qc(const quorum_certificate& qc, const checksum256& finality_mroot, const uint64_t finalizer_policy_generation);
       
-      void _check_finality_proof(const finality_proof& finality_proof, const proof_of_inclusion& target_block_proof_of_inclusion);
-      void _check_target_block_proof_of_inclusion(const proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
+      void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
+      void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
 
       ACTION setfpolicy(const fpolicy& policy, const uint32_t from_block_num); //set finality policy
       ACTION checkproof(const proof& proof);
-
-      //clearing function, to be removed for production version
-      ACTION clear();
 
 };
