@@ -3442,11 +3442,11 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
-               if( conf.terminate_at_block > 0 && conf.terminate_at_block <= bsp->block_num() ) {
-                  ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num())("num", conf.terminate_at_block) );
-                  shutdown();
-                  return;
-               }
+            if( conf.terminate_at_block > 0 && conf.terminate_at_block <= bsp->block_num() ) {
+               ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num())("num", conf.terminate_at_block) );
+               shutdown();
+               return;
+            }
 
             auto start = fc::time_point::now();
 
