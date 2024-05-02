@@ -285,9 +285,9 @@ jobs:
         run: |
           zstdcat build.tar.zst | tar x
       - if: ${{ matrix.test == 'build-tree' }}
-        name: Set leap_DIR env var
+        name: Set spring_DIR env var
         run: |
-          echo "leap_DIR=$PWD/build/lib/cmake/leap" >> "$GITHUB_ENV"
+          echo "spring_DIR=$PWD/build/lib/cmake/spring" >> "$GITHUB_ENV"
       - if: ${{ matrix.test == 'make-dev-install' }}
         name: spring dev-install
         run: |
