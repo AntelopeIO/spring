@@ -1,20 +1,7 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
     "version": "eosio::abi/1.2",
-    "types": [
-        {
-            "new_type_name": "bls_public_key",
-            "type": "bytes"
-        },
-        {
-            "new_type_name": "bls_signature",
-            "type": "bytes"
-        },
-        {
-            "new_type_name": "target_data",
-            "type": "variant_block_data_action_data"
-        }
-    ],
+    "types": [],
     "structs": [
         {
             "name": "action_data",
@@ -31,6 +18,28 @@
                 {
                     "name": "return_value",
                     "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "action_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "last_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "action_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
                 }
             ]
         },
@@ -79,6 +88,28 @@
             ]
         },
         {
+            "name": "block_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "last_node_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "block_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
+                }
+            ]
+        },
+        {
             "name": "checkproof",
             "base": "",
             "fields": [
@@ -87,11 +118,6 @@
                     "type": "proof"
                 }
             ]
-        },
-        {
-            "name": "clear",
-            "base": "",
-            "fields": []
         },
         {
             "name": "dynamic_data_v0",
@@ -103,7 +129,7 @@
                 },
                 {
                     "name": "action_proofs",
-                    "type": "proof_of_inclusion[]"
+                    "type": "action_proof_of_inclusion[]"
                 },
                 {
                     "name": "action_mroot",
@@ -134,12 +160,12 @@
                     "type": "string"
                 },
                 {
-                    "name": "fweight",
+                    "name": "weight",
                     "type": "uint64"
                 },
                 {
                     "name": "public_key",
-                    "type": "bls_public_key"
+                    "type": "string"
                 }
             ]
         },
@@ -152,7 +178,7 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "fthreshold",
+                    "name": "threshold",
                     "type": "uint64"
                 },
                 {
@@ -166,10 +192,6 @@
             "base": "",
             "fields": [
                 {
-                    "name": "id",
-                    "type": "uint64"
-                },
-                {
                     "name": "block_num",
                     "type": "uint32"
                 },
@@ -180,20 +202,6 @@
                 {
                     "name": "cache_expiry",
                     "type": "time_point"
-                }
-            ]
-        },
-        {
-            "name": "merkle_branch",
-            "base": "",
-            "fields": [
-                {
-                    "name": "direction",
-                    "type": "uint8"
-                },
-                {
-                    "name": "hash",
-                    "type": "checksum256"
                 }
             ]
         },
@@ -221,29 +229,7 @@
                 },
                 {
                     "name": "target_block_proof_of_inclusion",
-                    "type": "proof_of_inclusion"
-                }
-            ]
-        },
-        {
-            "name": "proof_of_inclusion",
-            "base": "",
-            "fields": [
-                {
-                    "name": "target_node_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "last_node_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "target",
-                    "type": "target_data"
-                },
-                {
-                    "name": "merkle_branches",
-                    "type": "merkle_branch[]"
+                    "type": "block_proof_of_inclusion"
                 }
             ]
         },
@@ -253,11 +239,11 @@
             "fields": [
                 {
                     "name": "finalizers",
-                    "type": "uint64[]"
+                    "type": "bytes"
                 },
                 {
                     "name": "signature",
-                    "type": "bls_signature"
+                    "type": "string"
                 }
             ]
         },
@@ -329,11 +315,6 @@
             "ricardian_contract": ""
         },
         {
-            "name": "clear",
-            "type": "clear",
-            "ricardian_contract": ""
-        },
-        {
             "name": "setfpolicy",
             "type": "setfpolicy",
             "ricardian_contract": ""
@@ -356,11 +337,6 @@
         }
     ],
     "ricardian_clauses": [],
-    "variants": [
-        {
-            "name": "variant_block_data_action_data",
-            "types": ["block_data","action_data"]
-        }
-    ],
+    "variants": [],
     "action_results": []
 }
