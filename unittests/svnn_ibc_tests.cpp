@@ -1,8 +1,5 @@
 #include <eosio/chain/abi_serializer.hpp>
-#include <eosio/chain/abi_serializer.hpp>
 #include <eosio/testing/tester.hpp>
-
-#include <eosio/chain/fork_database.hpp>
 
 #include <fc/variant_object.hpp>
 
@@ -10,127 +7,352 @@
 
 #include <contracts.hpp>
 #include <test_contracts.hpp>
-
 #include "fork_test_utilities.hpp"
+
+#include <eosio/chain/exceptions.hpp>
+
+#include "finality_test_cluster.hpp"
 
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-#include <eosio/chain/exceptions.hpp>
 using mvo = mutable_variant_object;
-
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
-// Extending the default chain tester
-// ( libraries/testing/include/eosio/testing/tester.hpp )
-class ibc_tester : public tester {
-public:
-   const account_name   _bridge = "bridge"_n;
+   //extract instant finality data from block header extension, as well as qc data from block extension
+   qc_data_t extract_qc_data(const signed_block_ptr& b) {
+      std::optional<qc_data_t> qc_data;
+      auto hexts = b->validate_and_extract_header_extensions();
+      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
+         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
 
-   // This is mostly for creating accounts and loading contracts.
-   void setup(){
-      // load bridge contract
-      create_account( _bridge );
-      set_code( _bridge, eosio::testing::test_contracts::svnn_ibc_wasm());
-      set_abi( _bridge, eosio::testing::test_contracts::svnn_ibc_abi());
+         // get the matching qc extension if present
+         auto exts = b->validate_and_extract_extensions();
+         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+            auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
+            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+         }
+         return qc_data_t{ {}, if_ext.qc_claim };
+      }
+      return {};
    }
 
-   //set a finalizer policy
-   void set_policy(){
-      auto cr = push_action( _bridge, "setfpolicy"_n, _bridge, mutable_variant_object()
+   //generate a proof of inclusion for a node at index from a list of leaves
+   std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
+
+      auto _leaves = leaves;
+      auto _index = index;
+
+      std::vector<digest_type> merkle_branches;
+
+      while (_leaves.size()>1){
+         std::vector<digest_type> new_level;
+         for (size_t i = 0 ; i < _leaves.size() ; i+=2){
+            digest_type left = _leaves[i];
+
+            if (i + 1 < _leaves.size() && (i + 1 != _leaves.size() - 1 || _leaves.size() % 2 == 0)){
+               // Normal case: both children exist and are not at the end or are even
+               digest_type right = _leaves[i+1];
+
+               new_level.push_back(fc::sha256::hash(std::pair<digest_type, digest_type>(left, right)));
+               if (_index == i || _index == i + 1) {
+                 merkle_branches.push_back(_index == i ? right : left);
+                 _index = i / 2; // Update index for next level
+
+               }
+            }
+            else {
+               // Odd number of leaves at this level, and we're at the end
+               new_level.push_back(left); // Promote the left (which is also the right in this case)
+               if (_index == i) _index = i / 2; // Update index for next level, no sibling to add
+
+            }
+         }
+         _leaves = new_level;
+      }
+      return merkle_branches;
+   }
+
+   BOOST_AUTO_TEST_CASE(ibc_test) { try {
+
+       // cluster is set up with the head about to produce IF Genesis      
+      finality_test_cluster cluster;
+
+      // produce IF Genesis block
+      auto genesis_block = cluster.produce_and_push_block();
+
+      // ensure out of scope setup and initial cluster wiring is consistent  
+      BOOST_CHECK(genesis_block->block_num() == 6);
+
+      // check if IF Genesis block contains an IF extension
+      std::optional<eosio::chain::block_header_extension> maybe_genesis_if_ext = genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      BOOST_CHECK(maybe_genesis_if_ext.has_value());
+
+      eosio::chain::block_header_extension genesis_if_ext = maybe_genesis_if_ext.value();
+      
+      // check that the header extension is of the correct type
+      BOOST_CHECK(std::holds_alternative<eosio::chain::instant_finality_extension>(genesis_if_ext));
+
+      // and that it has the expected initial finalizer_policy
+      std::optional<eosio::chain::finalizer_policy> maybe_active_finalizer_policy = std::get<eosio::chain::instant_finality_extension>(genesis_if_ext).new_finalizer_policy;
+
+      BOOST_CHECK(maybe_active_finalizer_policy.has_value());
+
+      eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
+
+      BOOST_CHECK(active_finalizer_policy.finalizers.size() == 3);
+      BOOST_CHECK(active_finalizer_policy.generation == 1);
+
+      // compute the digest of the finalizer policy
+      auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+      
+      auto genesis_block_fd = cluster.node0.node.control->head_finality_data();
+
+      // verify we have finality data for the IF genesis block
+      BOOST_CHECK(genesis_block_fd.has_value());
+
+      // compute IF finality leaf
+      auto genesis_base_digest = genesis_block_fd.value().base_digest;
+      auto genesis_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, genesis_base_digest));
+      
+      auto genesis_block_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
+         .active_finalizer_policy_generation      = active_finalizer_policy.generation,
+         .finality_tree_digest                    = digest_type(), //nothing to finalize yet
+         .active_finalizer_policy_and_base_digest = genesis_afp_base_digest
+      });
+
+      // action_mroot computed using the post-IF activation merkle tree rules
+      auto genesis_block_action_mroot = genesis_block_fd.value().action_mroot;
+      
+      // initial finality leaf
+      auto genesis_block_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = genesis_block->block_num(),
+         .finality_digest = genesis_block_finality_digest,
+         .action_mroot = genesis_block_action_mroot
+      });
+
+      // create the ibc account and deploy the ibc contract to it 
+      cluster.node0.node.create_account( "ibc"_n );
+      cluster.node0.node.set_code( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_wasm());
+      cluster.node0.node.set_abi( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_abi());
+
+      cluster.node0.node.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
-         ("policy", mutable_variant_object() 
-            ("generation", 1)
-            ("fthreshold", 3)
+         ("policy", mvo() 
+            ("generation", active_finalizer_policy.generation)
+            ("threshold", active_finalizer_policy.threshold)
             ("last_block_num", 0)
-            ("finalizers", fc::variants({
-               mutable_variant_object() 
-                  ("description","finalizer1")
-                  ("fweight", 1)
-                  ("public_key", "b12eba13063c6cdc7bbe40e7de62a1c0f861a9ad55e924cdd5049be9b58e205053968179cede5be79afdcbbb90322406aefb7a5ce64edc2a4482d8656daed1eeacfb4286f661c0f9117dcd83fad451d301b2310946e5cd58808f7b441b280a02")
-               ,
-               mutable_variant_object() 
-                  ("description","finalizer2")
-                  ("fweight", 1)
-                  ("public_key", "0728121cffe7b8ddac41817c3a6faca76ae9de762d9c26602f936ac3e283da756002d3671a2858f54c355f67b31b430b23b957dba426d757eb422db617be4cc13daf41691aa059b0f198fa290014d3c3e4fa1def2abc6a3328adfa7705c75508")
-               ,
-               mutable_variant_object() 
-                  ("description","finalizer3")
-                  ("fweight", 1)
-                  ("public_key", "e06c31c83f70b4fe9507877563bfff49235774d94c98dbf9673d61d082ef589f7dd4865281f37d60d1bb433514d4ef0b787424fb5e53472b1d45d28d90614fad29a4e5e0fe70ea387f7845e22c843f6061f9be20a7af21d8b72d02f4ca494a0a")
-               ,
-               mutable_variant_object() 
-                  ("description","finalizer4")
-                  ("fweight", 1)
-                  ("public_key", "08c9bd408bac02747e493d918e4b3e6bd1a2ffaf9bfca4f2e79dd22e12556bf46e911f25613c24d9f6403996c5246c19ef94aff48094868425eda1e46bcd059c59f3b060521be797f5cc2e6debe2180efa12c0814618a38836a64c3d7440740f")
-            }))
+            ("finalizers", active_finalizer_policy.finalizers)
          )
       );
-   }
 
-   //verify a proof
-   void check_proof(){
-      auto cr = push_action( _bridge, "checkproof"_n, _bridge, mutable_variant_object()
-         ("proof", mutable_variant_object() 
-            ("finality_proof", mutable_variant_object() 
-               ("qc_block", mutable_variant_object()
+      // Transition block. Finalizers are not expected to vote on this block. 
+      auto block_1 = cluster.produce_and_push_block();
+      auto block_1_fd = cluster.node0.node.control->head_finality_data();
+      auto block_1_action_mroot = block_1_fd.value().action_mroot;
+      auto block_1_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_1->calculate_id());
+      auto block_1_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_1->block_num(),
+         .finality_digest = block_1_finality_digest,
+         .action_mroot = block_1_action_mroot
+      });
+      
+      // Proper IF Block. From now on, finalizers must vote. Moving forward, the header action_mroot field is reconverted to provide the finality_mroot. The action_mroot is instead provided via the finality data 
+      auto block_2 = cluster.produce_and_push_block();
+      cluster.process_node1_vote(); //enough to reach quorum threshold
+      auto block_2_fd = cluster.node0.node.control->head_finality_data();
+      auto block_2_action_mroot = block_2_fd.value().action_mroot;
+      auto block_2_base_digest = block_2_fd.value().base_digest;
+      auto block_2_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_2->calculate_id());
+      auto block_2_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_2_base_digest));
+      auto block_2_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_2->block_num(),
+         .finality_digest = block_2_finality_digest,
+         .action_mroot = block_2_action_mroot
+      });
+      auto block_2_finality_root = block_2->action_mroot;
+
+      // block_3 contains a QC over block_2
+      auto block_3 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+      auto block_3_fd = cluster.node0.node.control->head_finality_data();
+      auto block_3_action_mroot = block_3_fd.value().action_mroot;
+      auto block_3_finality_digest = cluster.node0.node.control->get_strong_digest_by_id(block_3->calculate_id());
+      auto block_3_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+         .block_num = block_3->block_num(),
+         .finality_digest = block_3_finality_digest,
+         .action_mroot = block_3_action_mroot
+      });
+
+      // block_4 contains a QC over block_3
+      auto block_4 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+      auto block_4_fd = cluster.node0.node.control->head_finality_data();
+      auto block_4_base_digest = block_4_fd.value().base_digest;
+      auto block_4_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_4_base_digest));
+
+      auto block_4_finality_root = block_4->action_mroot; 
+
+      // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
+      auto block_5 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+      auto block_5_fd = cluster.node0.node.control->head_finality_data();
+      auto block_5_base_digest = block_5_fd.value().base_digest;
+      auto block_5_afp_base_digest =  fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(active_finalizer_policy_digest, block_5_base_digest));
+      auto block_5_finality_root = block_5->action_mroot; 
+
+      // retrieve the QC over block_4 that is contained in block_5
+      qc_data_t qc_b_5 = extract_qc_data(block_5);
+
+      BOOST_TEST(qc_b_5.qc.has_value());
+      
+      // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and serves as a proof of finality for it
+      auto block_6 = cluster.produce_and_push_block();
+      cluster.process_node1_vote();
+
+      // retrieve the QC over block_5 that is contained in block_6
+      qc_data_t qc_b_6 = extract_qc_data(block_6);
+
+      BOOST_TEST(qc_b_6.qc.has_value());
+      
+      std::string raw_bitset("03"); //node0 ande node1 signed
+
+      // create a few proofs we'll use to perform tests
+
+      // heavy proof #1. Proving finality of block #2 using block #2 finality root
+      mutable_variant_object heavy_proof_1 = mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo() //proves finality of block #2
+               ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
-                  ("witness_hash", "888ceeb757ea240d1c1ae2f4f717e67b73dcd592b2ba097f63b4c3e3ca4350e1")
-                  ("finality_mroot", "1d2ab7379301370d3fa1b27a9f4ac077f6ea445a1aa3dbf7e18e9cc2c25b140c")
+                  ("witness_hash", block_4_afp_base_digest)
+                  ("finality_mroot", block_4_finality_root)
                )
-               ("qc", mutable_variant_object()
-                  ("signature", "")
-                  ("finalizers", fc::variants({}))
+               ("qc", mvo()
+                  ("signature", qc_b_5.qc.value().data.sig.to_string())
+                  ("finalizers", raw_bitset) 
                )
             )
-            ("target_block_proof_of_inclusion", mutable_variant_object() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
-               ("target", fc::variants({"block_data", mutable_variant_object() 
-                  ("finality_data", mutable_variant_object() 
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 2)
+               ("target",  mvo() //target block #2
+                  ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
-                     ("witness_hash", "dff620c1c4d31cade95ed609269a86d4ecb2357f9302d17675c0665c75786508")
-                     ("finality_mroot", "1397eb7c86719f160188fa740fc3610ccb5a6681ad56807dc99a17fe73a7b7fd")
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
                   )
-                  ("dynamic_data", mutable_variant_object() 
-                     ("block_num", 28)
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
                      ("action_proofs", fc::variants())
-                     ("action_mroot", "4e890ef0e014f93bd1b31fabf1041ecc9fb1c44e957c2f7b1682333ee426677a")
+                     ("action_mroot", block_2_action_mroot)
                   )
-               }))
-               ("merkle_branches", fc::variants({
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "4e17da018040c80339f2714828d1927d5b616f9af7aa4768c1876df6f05e5602")
-                  ,
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "7ee0e16f1941fb5a98d80d20ca92e0c689e9284285d5f90ecd4f8f1ea2ffb53c")
-                  ,
-                  mutable_variant_object() 
-                     ("direction", 1)
-                     ("hash", "401526ba03ec4a955c83cda131dacd3e89becaad2cf04107170e436dd90a553f")
-               }))
+               )
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2))
             )
-         )
-      );
-   }
-};
+         );
 
-BOOST_AUTO_TEST_CASE( first_test ) try {
-   
-   ibc_tester chain_a;
+      // heavy proof #2. Proving finality of block #2 using block #3 finality root
+      mutable_variant_object heavy_proof_2 = mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo()  //proves finality of block #3
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("witness_hash", block_5_afp_base_digest)
+                  ("finality_mroot", block_5_finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", qc_b_6.qc.value().data.sig.to_string())
+                  ("finalizers", raw_bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 3)
+               ("target", mvo() //target block #2
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_action_mroot)
+                  )
+               )
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf, block_3_leaf}, 2))
+            )
+         );
 
-   chain_a.setup();
+      // light proof #1. Attempt to prove finality of block #2 with previously proven finality root of block #2
+      mutable_variant_object light_proof_1 = mvo()
+         ("proof", mvo() 
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 2)
+               ("target", mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_2_afp_base_digest)
+                     ("finality_mroot", block_2_finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_action_mroot)
+                  )
+               )
+               ("merkle_branches", generate_proof_of_inclusion({genesis_block_leaf, block_1_leaf, block_2_leaf}, 2))
+            )
+         );
+      
 
-   chain_a.set_policy();
-   chain_a.check_proof();
+      // verify first heavy proof
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_1);
 
-} FC_LOG_AND_RETHROW()
+      // now that we stored the proven root, we should be able to verify the same proof without the finality data (aka light proof)
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      // verify a second proof where the target block is different from the finality block. This also saves a second finality root to the contract, marking the beginning of the cache timer for the older finality root.
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_2);
+
+      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
+
+      // we should still be able to verify a proof of finality for block #2 without finality proof, since the previous root is still cached
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      cluster.produce_blocks(1200); //advance 10 minutes
+
+      // the root is still cached when performing this action, so the action succeeds. However, it also triggers garbage collection,removing the old proven root for block #2, so subsequent call with the same action data will fail
+      cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+
+      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
+
+      bool failed = false;
+
+      // Since garbage collection was previously triggered for the merkle root of block #2 which this proof attempts to link to, action will now fail
+      try {
+         cluster.node0.node.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
+      }
+      catch(const eosio_assert_message_exception& e){
+         failed = true;
+      }
+
+      // verify action has failed, as expected
+      BOOST_CHECK(failed); 
+
+   } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

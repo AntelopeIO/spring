@@ -170,7 +170,7 @@ void finality_test_cluster::node_t::setup(size_t first_node_key, size_t num_node
 // Update "vote_index" vote on node according to `mode` parameter
 vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& cluster, size_t vote_index,
                                                         vote_mode mode, bool duplicate) {
-   std::lock_guard g(votes_mtx);
+   std::unique_lock g(votes_mtx);
    if (votes.empty())
       return vote_status::unknown_block;
 
@@ -190,6 +190,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
       vote->sig = finkeys.privkeys[cur_key].sign(eosio::chain::create_weak_digest(strong_digest));
    }
 
+   g.unlock();
    return cluster.process_vote(vote, duplicate);
 }
 

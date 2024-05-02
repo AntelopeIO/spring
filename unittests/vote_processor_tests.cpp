@@ -160,20 +160,20 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       for (size_t i = 0; i < 50 && vp.index_size() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(vp.index_size() == 1);
+      BOOST_TEST(vp.index_size() == 1u);
       // move lib past block
       vp.notify_lib(2);
       vp.notify_new_block();
       for (size_t i = 0; i < 50 && vp.index_size() > 0; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(vp.index_size() == 0);
+      BOOST_TEST(vp.index_size() == 0u);
    }
    { // process a valid vote
       signaled = 0;
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
-      BOOST_CHECK_EQUAL(bsp->block_num(), 3);
+      BOOST_CHECK_EQUAL(bsp->block_num(), 3u);
       vote_message_ptr m1 = make_vote_message(bsp);
       add_to_forkdb(bsp);
       vp.process_vote_message(1, m1);
@@ -182,8 +182,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(signaled.load() == 1);
-      BOOST_TEST(1 == received_connection_id);
+      BOOST_TEST(signaled.load() == 1u);
+      BOOST_TEST(1u == received_connection_id);
       BOOST_TEST(vote_status::success == received_vote_status);
       BOOST_TEST(m1 == received_vote_message);
    }
@@ -191,7 +191,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       signaled = 0;
       auto gensis = create_genesis_block_state();
       auto bsp = create_test_block_state(gensis);
-      BOOST_CHECK_EQUAL(bsp->block_num(), 3);
+      BOOST_CHECK_EQUAL(bsp->block_num(), 3u);
       vote_message_ptr m1 = make_vote_message(bsp);
       m1->strong = false; // signed with strong_digest
       add_to_forkdb(bsp);
@@ -199,8 +199,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(signaled.load() == 1);
-      BOOST_TEST(1 == received_connection_id);
+      BOOST_TEST(signaled.load() == 1u);
+      BOOST_TEST(1u == received_connection_id);
       BOOST_TEST(vote_status::invalid_signature == received_vote_status);
       BOOST_TEST(m1 == received_vote_message);
    }
@@ -217,16 +217,16 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
          if (vp.index_size() == 2) break;
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(vp.index_size() == 2);
+      BOOST_TEST(vp.index_size() == 2u);
       std::this_thread::sleep_for(std::chrono::milliseconds{5}); // no votes for awhile
-      BOOST_TEST(signaled.load() == 0);
+      BOOST_TEST(signaled.load() == 0u);
       add_to_forkdb(bsp);
       vp.notify_new_block();
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(signaled.load() == 1);
-      BOOST_TEST(2 == received_connection_id);
+      BOOST_TEST(signaled.load() == 1u);
+      BOOST_TEST(2u == received_connection_id);
       BOOST_TEST(vote_status::success == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message);
 
@@ -235,8 +235,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
-      BOOST_TEST(signaled.load() == 2);
-      BOOST_TEST(3 == received_connection_id);
+      BOOST_TEST(signaled.load() == 2u);
+      BOOST_TEST(3u == received_connection_id);
       BOOST_TEST(vote_status::success == received_vote_status);
       BOOST_CHECK(m2 == received_vote_message);
    }

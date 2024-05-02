@@ -50,6 +50,9 @@ public:
    // node0 produces a block and pushes it to node1 and node2
    signed_block_ptr produce_and_push_block();
 
+   // Produces and propagate finality votes block_count blocks.
+   signed_block_ptr produce_blocks(uint32_t blocks_count);
+
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears
    // node1_votes and node2_votes when starting.

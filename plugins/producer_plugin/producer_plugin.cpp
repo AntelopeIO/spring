@@ -793,7 +793,7 @@ public:
 
       // push the new block
       auto handle_error = [&](const auto& e) {
-         elog("Exception on block ${bn}: ${e}", ("bn", blk_num)("e", e.to_detail_string()));
+         fc_ilog(_log, "Exception on block ${bn}: ${e}", ("bn", blk_num)("e", e.to_detail_string()));
          app().get_channel<channels::rejected_block>().publish(priority::medium, block);
          throw;
       };
@@ -814,7 +814,7 @@ public:
       } catch (boost::interprocess::bad_alloc&) {
          chain_apis::api_base::handle_db_exhaustion();
       } catch (const fork_database_exception& e) {
-         elog("Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
+         fc_elog(_log, "Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
          appbase::app().quit();
          return false;
       } catch (const fc::exception& e) {
@@ -1891,15 +1891,15 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
-      elog("Not producing block because I don't have any private keys relevant to authority: ${authority}",
-           ("authority", scheduled_producer.authority));
+      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
+              ("authority", scheduled_producer.authority));
       _pending_block_mode = pending_block_mode::speculating;
    } else if (_pause_production) {
-      elog("Not producing block because production is explicitly paused");
+      fc_wlog(_log, "Not producing block because production is explicitly paused");
       _pending_block_mode = pending_block_mode::speculating;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
-      elog("Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
-           ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
+      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
+              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
       _pending_block_mode = pending_block_mode::speculating;
    }
 
@@ -1908,14 +1908,14 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
          const block_timestamp_type block_timestamp{block_time};
          if (current_watermark->first > head_block_num) {
-            elog("Not producing block because \"${producer}\" signed a block at a higher block number (${watermark}) than the current "
-                 "fork's head (${head_block_num})",
-                 ("producer", scheduled_producer.producer_name)("watermark", current_watermark->first)("head_block_num", head_block_num));
+            fc_elog(_log, "Not producing block because \"${producer}\" signed a block at a higher block number (${watermark}) than the current "
+                    "fork's head (${head_block_num})",
+                    ("producer", scheduled_producer.producer_name)("watermark", current_watermark->first)("head_block_num", head_block_num));
             _pending_block_mode = pending_block_mode::speculating;
          } else if (current_watermark->second >= block_timestamp) {
-            elog("Not producing block because \"${producer}\" signed a block at the next block time or later (${watermark}) than the pending "
-                 "block time (${block_timestamp})",
-                 ("producer", scheduled_producer.producer_name)("watermark", current_watermark->second)("block_timestamp", block_timestamp));
+            fc_elog(_log, "Not producing block because \"${producer}\" signed a block at the next block time or later (${watermark}) than the pending "
+                    "block time (${block_timestamp})",
+                    ("producer", scheduled_producer.producer_name)("watermark", current_watermark->second)("block_timestamp", block_timestamp));
             _pending_block_mode = pending_block_mode::speculating;
          }
       }
@@ -2032,8 +2032,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       const auto& pending_block_signing_authority = chain.pending_block_signing_authority();
 
       if (in_producing_mode() && pending_block_signing_authority != scheduled_producer.authority) {
-         elog("Unexpected block signing authority, reverting to speculative mode! [expected: \"${expected}\", actual: \"${actual}\"",
-              ("expected", scheduled_producer.authority)("actual", pending_block_signing_authority));
+         fc_elog(_log, "Unexpected block signing authority, reverting to speculative mode! [expected: \"${expected}\", actual: \"${actual}\"",
+                 ("expected", scheduled_producer.authority)("actual", pending_block_signing_authority));
          _pending_block_mode = pending_block_mode::speculating;
       }
 
@@ -2560,7 +2560,7 @@ void producer_plugin_impl::schedule_production_loop() {
    auto result = start_block();
 
    if (result == start_block_result::failed) {
-      elog("Failed to start a pending block, will try again later");
+      fc_wlog(_log, "Failed to start a pending block, will try again later");
       _timer.expires_from_now(boost::posix_time::microseconds(config::block_interval_us / 10));
 
       // we failed to start a block, so try again later?

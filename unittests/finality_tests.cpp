@@ -435,7 +435,6 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
 
    node1.restore_to_original_vote(0);                      // restore node1's vote at index 0 to original vote
-   std::cout << 3 << '\n';
    process_votes(1, 1, 0, vote_mode::strong);              // send restored vote to node0
    produce_and_push_block();                               // produce a block so the new QC can propagate
    BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);

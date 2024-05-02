@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE( activate_preactivate_feature ) try {
 
    // Cannot set latest bios contract since it requires intrinsics that have not yet been whitelisted.
    BOOST_CHECK_EXCEPTION( c.set_code( config::system_account_name, contracts::eosio_bios_wasm() ),
-                          wasm_exception, fc_exception_message_is("env.bls_fp_mod unresolveable")
+                          wasm_exception, fc_exception_message_contains("unresolveable")
    );
 
    // But the old bios contract can still be set.
@@ -2354,11 +2354,12 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
 
 static const char import_set_finalizers_wast[] = R"=====(
 (module
- (import "env" "set_finalizers" (func $set_finalizers (param i32 i32)))
+ (import "env" "set_finalizers" (func $set_finalizers (param i64 i32 i32)))
  (memory $0 1)
  (export "apply" (func $apply))
  (func $apply (param $0 i64) (param $1 i64) (param $2 i64)
    (call $set_finalizers
+         (i64.const 0)
          (i32.const 0)
          (i32.const 4)
    )

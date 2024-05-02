@@ -384,6 +384,7 @@ namespace eosio::testing {
       if (itr == last_produced_block.end() || b->block_num() > block_header::num_from_id(itr->second)) {
          last_produced_block[b->producer] = b->calculate_id();
       }
+      _wait_for_vote_if_needed(*control);
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {

@@ -79,6 +79,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
    result.proposer_policies = {};  // none pending at IF genesis block
    result.finalizer_policies = {}; // none pending at IF genesis block
+   result.finalizer_policy_generation = 1;
    result.header_exts = bsp.header_exts;
 
    // set block_state data ----
@@ -86,8 +87,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.strong_digest = result.compute_finality_digest(); // all block_header_state data populated in result at this point
    result.weak_digest = create_weak_digest(result.strong_digest);
 
-   // TODO: https://github.com/AntelopeIO/leap/issues/2057
-   // TODO: Do not aggregate votes on blocks created from block_state_legacy. This can be removed when #2057 complete.
+   // pending_qc will not be used in the genesis block as finalizers will not vote on it, but still create it for consistency.
    result.pending_qc = pending_quorum_certificate{result.active_finalizer_policy->finalizers.size(),
                                                   result.active_finalizer_policy->threshold,
                                                   result.active_finalizer_policy->max_weak_sum_before_weak_final()};
@@ -143,7 +143,8 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
          .active_proposer_policy      = std::move(sbs.active_proposer_policy),
          .proposer_policies           = std::move(sbs.proposer_policies),
-         .finalizer_policies          = std::move(sbs.finalizer_policies)
+         .finalizer_policies          = std::move(sbs.finalizer_policies),
+         .finalizer_policy_generation = sbs.finalizer_policy_generation
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
