@@ -18,7 +18,7 @@
 //       are an essential part of the Savanna consensus algorithm.
 //     - every time a finalizer votes, it may update its own safety info in memory
 //     - finalizer safety info is appropriately initialized (iff not already present
-//       in the persistent file) at Leap startup.
+//       in the persistent file) at Spring startup.
 //
 //  my_finalizers_t:
 //  ---------------
@@ -77,7 +77,7 @@ namespace eosio::chain {
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
       std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
       fsi_map                           inactive_safety_info;  // loaded at startup, not mutated afterwards
-      fsi_t                             default_fsi = fsi_t::unset_fsi(); // default provided at leap startup
+      fsi_t                             default_fsi = fsi_t::unset_fsi(); // default provided at spring startup
       mutable bool                      inactive_safety_info_written{false};
 
    public:
