@@ -8,8 +8,6 @@ finality_test_cluster::finality_test_cluster() {
    setup_node(node1, "node1"_n);
    setup_node(node2, "node2"_n);
 
-   produce_and_push_block(); // make setfinalizer irreversible
-
    // node0's votes
    node0.node.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
       last_vote_status = std::get<1>(v);
@@ -25,6 +23,24 @@ finality_test_cluster::finality_test_cluster() {
       std::lock_guard g(node2.votes_mtx);
       node2.votes.emplace_back(std::get<2>(v));
    });
+
+}
+
+void finality_test_cluster::initial_tests(){
+
+   auto block_1_n0 = node0.node.produce_block();
+   auto block_1_n1 = node1.node.produce_block();
+   auto block_1_n2 = node2.node.produce_block();
+
+   // this block contains the header exten/sion for the instant finality
+   std::optional<eosio::chain::block_header_extension> ext = block_1_n0->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+   BOOST_TEST(!!ext);
+   std::optional<eosio::chain::finalizer_policy> fin_policy = std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
+   BOOST_TEST(!!fin_policy);
+   BOOST_TEST(fin_policy->finalizers.size() == 3);
+   BOOST_TEST(fin_policy->generation == 1);
+
+   produce_and_push_block(); // make setfinalizer irreversible
 
    // form a 3-chain to make LIB advacing on node0
    // node0's vote (internal voting) and node1's vote make the quorum
@@ -46,6 +62,7 @@ finality_test_cluster::finality_test_cluster() {
       n.votes.clear();
       n.prev_lib_num = n.node.control->if_irreversible_block_num();
    }
+
 }
 
 eosio::chain::vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool duplicate) {
@@ -61,13 +78,14 @@ eosio::chain::vote_status finality_test_cluster::wait_on_vote(uint32_t connectio
       FC_ASSERT(false, "Duplicate should not have been signaled");
    }
    return duplicate ? eosio::chain::vote_status::duplicate : last_vote_status.load();
-}
+} 
 
 // node0 produces a block and pushes it to node1 and node2
-void finality_test_cluster::produce_and_push_block() {
+eosio::chain::signed_block_ptr finality_test_cluster::produce_and_push_block() {
    auto b = node0.node.produce_block();
    node1.node.push_block(b);
    node2.node.push_block(b);
+   return b;
 }
 
 // send node1's vote identified by "vote_index" in the collected votes
@@ -126,6 +144,13 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    }
 
    return true;
+}
+
+void finality_test_cluster::produce_blocks(uint32_t blocks_count) {
+   for (uint32_t i = 0; i < blocks_count; ++i) {
+      produce_and_push_block();
+      process_node1_vote();
+   }
 }
 
 void finality_test_cluster::node1_corrupt_vote_block_id() {
@@ -194,15 +219,6 @@ void finality_test_cluster::setup_node(node_info& node, eosio::chain::account_na
    FC_ASSERT( priv_keys.size() == 1, "number of private keys should be 1" );
    node.priv_key = priv_keys[0];  // we only have one private key
 
-   auto block = node.node.produce_block();
-
-   // this block contains the header extension for the instant finality
-   std::optional<eosio::chain::block_header_extension> ext = block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
-   BOOST_TEST(!!ext);
-   std::optional<eosio::chain::finalizer_policy> fin_policy = std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == 3);
-   BOOST_TEST(fin_policy->generation == 1);
 }
 
 // send a vote to node0
