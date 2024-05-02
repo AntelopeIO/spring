@@ -336,7 +336,7 @@ jobs:
           apt-get -y install cmake build-essential
       - name: Build & Test reference-contracts
         run: |
-          cmake -S reference-contracts -B reference-contracts/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=On -DSYSTEM_ENABLE_LEAP_VERSION_CHECK=Off -DSYSTEM_ENABLE_CDT_VERSION_CHECK=Off
+          cmake -S reference-contracts -B reference-contracts/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=On -DSYSTEM_ENABLE_SPRING_VERSION_CHECK=Off -DSYSTEM_ENABLE_CDT_VERSION_CHECK=Off
           cmake --build reference-contracts/build -- -j $(nproc)
           cd reference-contracts/build/tests
           ctest --output-on-failure -j $(nproc)
