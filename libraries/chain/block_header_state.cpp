@@ -67,8 +67,6 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
    return detail::get_new_protocol_feature_activations(header_exts);
 }
 
-#warning Add last_proposed_finalizer_policy_generation to snapshot_block_header_state_v3, see header file TODO
-
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or instant_finality_extension) applicable to this
