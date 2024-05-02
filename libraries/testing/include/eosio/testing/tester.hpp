@@ -783,7 +783,7 @@ namespace eosio::testing {
       // This assumes `set_finalizer_policy` was called immediately
       // before this. Also this should be done only once.
       // -----------------------------------------------------------
-      void transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
+      finalizer_policy transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
          // `genesis_block` is the first block where set_finalizers() was executed.
          // It is the genesis block.
          // It will include the first header extension for the instant finality.
@@ -836,6 +836,7 @@ namespace eosio::testing {
                block_callback(b);
          }
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
+         return *fin_policy;
       }
 
       Tester&                 t;

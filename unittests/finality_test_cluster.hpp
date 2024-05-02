@@ -32,6 +32,7 @@ public:
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using tester           = eosio::testing::tester;
    static constexpr size_t num_nodes = 4;
+   static constexpr size_t keys_per_node = 10;
 
    // actual quorum - 1 since node0 processes its own votes
    static constexpr size_t num_needed_for_quorum = (num_nodes * 2) / 3;
@@ -44,13 +45,17 @@ public:
       weak,
    };
 
+   struct cluster_config_t {
+      bool   transition_to_savanna;
+   };
+
    // Construct a test network and activate IF.
-   finality_test_cluster(size_t num_keys = 80, size_t fin_policy_size = num_nodes);
+   finality_test_cluster(cluster_config_t cluster_config = {.transition_to_savanna = true});
 
    // node0 produces a block and pushes it to node1 and node2
    signed_block_ptr produce_and_push_block();
 
-   // Produces and propagate finality votes block_count blocks.
+   // Produces and propagate finality votes for `block_count` blocks.
    signed_block_ptr produce_blocks(uint32_t blocks_count);
 
    // Produces a number of blocks and returns true if LIB is advancing.
@@ -131,7 +136,8 @@ private:
    std::atomic<vote_status>   last_vote_status{};
 
 public:
-   std::array<node_t, num_nodes>      nodes;
+   std::array<node_t, num_nodes>                 nodes;
+   std::optional<eosio::chain::finalizer_policy> fin_policy; // policy used to transition to Savanna
 
    node_t& node0 = nodes[0];
    node_t& node1 = nodes[1];

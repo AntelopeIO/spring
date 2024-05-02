@@ -470,8 +470,6 @@ BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster) { tr
 BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster) { try {
    produce_and_push_block();
 
-   std::cout << node1.votes.size() << '\n';
-
    // intentionally corrupt signature in node1's vote (vote index 0)
    node1.corrupt_vote_signature();
 

@@ -7,27 +7,27 @@ static auto num_from_id(const eosio::chain::block_id_type &id) {
 }
 
 // Construct a test network and activate IF.
-finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_size)
+finality_test_cluster::finality_test_cluster(cluster_config_t config)
 {
    using namespace eosio::testing;
    size_t num_finalizers = nodes.size();
 
    // -----------------------------------------------------------------------------------
    // each node gets an equal range of keys to be used as local finalizer.
-   // for example, the default parameters  are `num_keys = 80` and `fin_policy_size = 4`,
-   // which means that for 4 nodes, we'll make each node capable on voting with 20
-   // different keys (node0 will use keys 0 .. 19, node1 will use keys 20 .. 39, etc...
+   // for example, the default parameters  are `num_keys = 40` and `fin_policy_size = 4`,
+   // which means that for 4 nodes, we'll make each node capable on voting with 10
+   // different keys (node0 will use keys 0 .. 9, node1 will use keys 10 .. 19, etc...
    // (see set_node_finalizers() call).
    //
    // The first finalizer_policy (see set_finalizer_policy below) will activate
-   // keys 0, 20, 40 and 60
+   // keys 0, 10, 20 and 30
    // -----------------------------------------------------------------------------------
-   size_t split = num_keys / num_finalizers;
+   size_t split = finality_test_cluster::keys_per_node;
 
    // set initial finalizer key for each node
    // ---------------------------------------
    for (size_t i=0; i<nodes.size(); ++i) {
-      nodes[i].finkeys.init_keys(num_keys, fin_policy_size);
+      nodes[i].finkeys.init_keys(split * num_finalizers, num_finalizers);
       nodes[i].setup(i * split, split);
    }
 
@@ -37,6 +37,7 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
       last_connection_vote = std::get<0>(v);
    });
 
+
    // set initial finalizer policy
    // ----------------------------
    std::array<size_t, num_nodes> initial_policy;
@@ -44,24 +45,26 @@ finality_test_cluster::finality_test_cluster(size_t num_keys, size_t fin_policy_
       initial_policy[i] = i * split;
    node0.finkeys.set_finalizer_policy(initial_policy);
 
-   // transition to Savanna
-   // ---------------------
-   node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
-      for (size_t i=1; i<nodes.size(); ++i) {
-         nodes[i].push_block(b);
-         nodes[i].process_vote(*this);
-      }
-   });
+   if (config.transition_to_savanna) {
+      // transition to Savanna
+      // ---------------------
+      fin_policy = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
+         for (size_t i=1; i<nodes.size(); ++i) {
+            nodes[i].push_block(b);
+            nodes[i].process_vote(*this);
+         }
+      });
 
-   // at this point, node0 has a QC to include in next block.
-   // Produce that block and push it, but don't process votes so that
-   // we don't start with an existing QC
-   // ---------------------------------------------------------------
-   produce_and_push_block();
+      // at this point, node0 has a QC to include in next block.
+      // Produce that block and push it, but don't process votes so that
+      // we don't start with an existing QC
+      // ---------------------------------------------------------------
+      produce_and_push_block();
 
-   // reset votes and saved lib, so that each test starts in a clean slate
-   // --------------------------------------------------------------------
-   clear_votes_and_reset_lib();
+      // reset votes and saved lib, so that each test starts in a clean slate
+      // --------------------------------------------------------------------
+      clear_votes_and_reset_lib();
+   }
 }
 
 vote_status finality_test_cluster::wait_on_vote(uint32_t connection_id, bool duplicate) {
@@ -84,6 +87,16 @@ signed_block_ptr finality_test_cluster::produce_and_push_block() {
    auto b = node0.produce_block().block;
    for (size_t i=1; i<nodes.size(); ++i)
       nodes[i].push_block(b);
+   return b;
+}
+
+// Produces and propagate finality votes for `block_count` blocks.
+signed_block_ptr finality_test_cluster::produce_blocks(uint32_t blocks_count) {
+   signed_block_ptr b;
+   for (uint32_t i=0; i<blocks_count; ++i) {
+      b = produce_and_push_block();
+      process_votes(1, num_nodes - 1);
+   }
    return b;
 }
 
@@ -178,7 +191,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
       vote_index = votes.size() - 1;
 
    assert(vote_index < votes.size());
-   auto& vote = votes[vote_index];
+   auto vote = votes[vote_index];
    if( mode == vote_mode::strong ) {
       vote->strong = true;
    } else {
