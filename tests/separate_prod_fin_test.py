@@ -10,6 +10,7 @@ from TestHarness.TestHelper import AppArgs
 # 3 non-producer nodes; each of them has a finalizer key. Since threshold is 4,
 # if LIB advances, it implies at least 2 non-producer finalizer participates in
 # the finalization process.
+# Also verifies finalizer can run with vote-threads=0
 #
 ###############################################################
 
@@ -43,6 +44,9 @@ try:
     # For now do not load system contract as it does not support setfinalizer
     # separate_prod_fin_test_shape.json defines 2 producer nodes each has 1
     # producer and 3 non-producer nodes
+    specificExtraNodeosArgs={}
+    specificExtraNodeosArgs[total_nodes-1]="--vote-threads 0 "
+    specificExtraNodeosArgs[total_nodes-2]="--vote-threads 0 "
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes,
                       topo="./tests/separate_prod_fin_test_shape.json", delay=delay,
                       activateIF=True, signatureProviderForNonProducer=True) is False:

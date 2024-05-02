@@ -1,0 +1,124 @@
+{
+  "name": "testnet_",
+  "ssh_helper": {
+    "ssh_cmd": "/usr/bin/ssh",
+    "scp_cmd": "/usr/bin/scp",
+    "ssh_identity": "",
+    "ssh_args": ""
+  },
+  "nodes": {
+      "bios":{
+        "name": "bios",
+        "keys": [
+          {
+            "privkey":"5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3",
+            "pubkey":"EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+          }
+        ],
+        "peers": [],
+        "producers": [
+          "eosio"
+        ],
+        "dont_start": false
+      },
+      "testnet_00":{
+        "name": "testnet_00",
+        "keys": [
+          {
+            "privkey":"5Jf4sTk7vwX1MYpLJ2eQFanVvKYXFqGBrCyANPukuP2BJ5WAAKZ",
+            "pubkey":"EOS58B33q9S7oNkgeFfcoW3VJYu4obfDiqn5RHGE2ige6jVjUhymR"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01"
+        ],
+        "producers": [
+          "defproducera"
+        ],
+        "dont_start": false
+      },
+      "testnet_01":{
+        "name": "testnet_01",
+        "keys": [
+          {
+            "privkey":"5HviUPkTEtvF2B1nm8aZUnjma2TzgpKRjuXjwHyy3FME4xDbkZF",
+            "pubkey":"EOS5CbcTDgbks2ptTxvyCbT9HFbzX7PDHUY2wN4DDnVBhhQr2ZNDE",
+            "blspubkey":"PUB_BLS_Y8ndNvnrEpnzJcNUg49ncWDiDGRgR7WUmRRDR9yMURoS6zF14sPnbb-DsTGp0cEM628a4CmG6KXMhPJMqGZvb7RM_MGIwgbEhVaENL8rXeYLOuFDS375KHFgXxs2P5sZuaN7aA",
+            "blsprivkey":"PVT_BLS_A1Mifu5xyaxiveyjnZ-qN2zOt-5_KLMpjTrDI9udcQNV1NBR",
+            "blspop":"SIG_BLS_7D0OUU1h7E0AKkAmqV4v3Ot9oSPWJBOss4yDejr2x1g5G31cSSAYIAtqZOYC-ioNzddY7zkvTcbhKgBzv5a-G1HmV1pOCXXPJ5TL0iqU8Ks5abeEWCdhArGATmRQiSMYNcj9rMQcm3H6Z0pOlOdbDdt8Cg-SY_H4jEGmAY2ZqudAH_U8gS19aydJU-2uQq0SPIr2Okl-WNbc-q3NVQw6Y0sAHAwN4BOIHup2MJyDDDIbpSEkBchRp3zna1XJf6oBuUzpqQ"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_02",
+          "testnet_04"
+        ],
+        "producers": [
+        ],
+        "dont_start": false
+      },
+      "testnet_02":{
+        "name": "testnet_02",
+        "keys": [
+          {
+            "privkey":"5KkQbdxFHr8Pg1N3DEMDdU7emFgUTwQvh99FDJrodFhUbbsAtQT",
+            "pubkey":"EOS6Tkpf8kcDfa32WA9B4nTcEJ64ZdDMSNioDcaL6rzdMwnpzaWJB",
+            "blspubkey":"PUB_BLS_Wf_O_QeyVhekDXS5q3qBxTyj_qxSrX_uiCY4z8ClpW0X2jrAVgAVHOQ9IR2H40QTWveD8QIGhhSbmSFPa0zFbs5k3yfnjfuuwpA7T1O13_LSdtxT19ehYiE4chZX6SUMJ09JFA",
+            "blsprivkey":"PVT_BLS_1ZLWim0k80ssXswSZp1T3ydHO9U3gLnKKlEBIDy8927XDLLj",
+            "blspop":"SIG_BLS_EL09aI3w-qCgarLM2Z5-T6sisSHBN0J4vMZxtGQklkOcAxgnCaPPXe0roxY4W0gVe2y6T01YrklmT_qZu2tAwqiNrVJcScY8QKvRSeczGBBab1MgnHvaAOuf6bA4JPAELIu2iPWfsS6-oLyLbNP5xtZpMXPHu3yaSJssXNOb5rcVs1KXaIUEagJeAlBBQEcKmFWfeAsJ_R8JDw4i9gSNmROzUjm6LVBpvB7vrnPDPFRA0BQ19H4FED6PtuFPShwJGVz4dg"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01",
+          "testnet_04"
+        ],
+        "producers": [
+        ],
+        "dont_start": false
+      },
+      "testnet_03":{
+        "name": "testnet_03",
+        "keys": [
+          {
+            "privkey":"5JxTJJegQBpEL1p77TzkN1ompMB9gDwAfjM9chPzFCB4chxmwrE",
+            "pubkey":"EOS52ntDHqA2qj4xVo7KmxdezMRhvvBqpZBuKYJCsgihisxmywpAx",
+            "blspubkey":"PUB_BLS_C-FprIiry6X-8dlLYH7xUAhIuKXBQv56zJPgtcdmKeHf8AAy750eRrOYBtKG0-QEIN5l_yl9dTLvAYmOios6Q5t3ybWBUVVQ2WWcbZLVxzwBftLwYvo1zPXH7LHEE_sAgP1i7g",
+            "blsprivkey":"PVT_BLS_ubElmjajfsYP_9HRSpmV-Fi_IPWKTyJS4XFSWrU8ezMZ_mL_",
+            "blspop":"SIG_BLS_k3wrhVl2GUG_lGsPr9io-zoamPw7eiaxMDExk-yOqcpXtu0zALHoUWJRh0WOerAS1-_RQNhbi4q-BWO9IbiNWRKP9CYIhNIL6ochGHHy4aBmZ-IzEjfBrDt7inDtFTYY0Gl372e5OqPXAwi6J3GeHipXuzAiw7SV8XdWFefthxId4meKX6vw5_RWx4XQ4ScRYoCG7UQtIZkQPEsu1SfJGL6z-cfTTSq-naKbzp0QQYfqtQkFfmL7qQUH1iohnb0HbTbRbQ"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01",
+          "testnet_02",
+          "testnet_04"
+        ],
+        "producers": [
+        ],
+        "dont_start": false
+      },
+      "testnet_04":{
+        "name": "testnet_04",
+        "keys": [
+          {
+            "privkey":"5K3h9XiAmrx9EuqD8CRxHgQwEVDaWpqrhrnpdvwHtVzwJFMhNmE",
+            "pubkey":"EOS7K5pQCk22ojetRdyumrqp6nJX6eiQiTWWcGkZAMGhoBxgcsxhK",
+            "blspubkey":"PUB_BLS_kGOCEX1MM5Xl928OOvGLyNo3_GpV8av1HnoaCEGOD8bAu3MDvazu0gCZGA1G7msTh1ZTPMEMVdXMuRVS0tv_9bW9Ohz9XvgtjgbPpxxc_NaeENkGg4uDBOro0Rk8DCEW4ToLKA",
+            "blsprivkey":"PVT_BLS_EnQXObGKvYqfubrKjxpCqNkHeLlkQg7LERjDGm1RKjgyFZnk",
+            "blspop":"SIG_BLS_bXrzPVc-ahxOCWrcl-iWIMuS8ego54iz7vi38A8h_ViqtxklH9O3A2z0eiw5j40M08ejiTm7JbCY_GOwulv1oXb9SaLYQkCTZjzCVssDkghLBRTVCZW2oJmU9WbZXikNw6nkygTs5sUTtCda2a_M5jqY_Rw92_NWmbolgBNkFvMcAgSHexdETA-b7QgJX_oYBWkyP0Pt8LzO6bJueZSjH8wZ8VuPc9o8taY85mt_qgdOTbXVBG2m5ud0eAUps2UHAHt-Ig"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01",
+          "testnet_02",
+          "testnet_03"
+        ],
+        "producers": [
+        ],
+        "dont_start": false
+      }
+  }
+}
