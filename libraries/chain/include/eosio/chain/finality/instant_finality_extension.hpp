@@ -19,7 +19,11 @@ struct instant_finality_extension : fc::reflect_init {
       new_proposer_policy(std::move(new_proposer_policy))
    {}
 
-   void reflector_init();
+   void reflector_init() const {
+      static_assert( fc::raw::has_feature_reflector_init_on_unpacked_reflected_types,
+                     "instant_finality_extension expects FC to support reflector_init" );
+      static_assert( extension_id() == 2, "instant_finality_extension extension id must be 2" );
+   }
 
    qc_claim_t                         qc_claim;
    std::optional<finalizer_policy>    new_finalizer_policy;
