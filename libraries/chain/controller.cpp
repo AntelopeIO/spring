@@ -1452,6 +1452,7 @@ struct controller_impl {
             std::vector<std::future<std::vector<char>>> v;
             v.reserve( branch.size() );
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
+
                v.emplace_back( post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } ) );
             }
             auto it = v.begin();
@@ -3444,6 +3445,12 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
+            if( conf.terminate_at_block > 0 && conf.terminate_at_block <= bsp->block_num() ) {
+               ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num())("num", conf.terminate_at_block) );
+               shutdown();
+               return;
+            }
+
             auto start = fc::time_point::now();
 
             const bool already_valid = bsp->is_valid();
@@ -3973,12 +3980,6 @@ struct controller_impl {
       try {
          const auto& b = bsp->block;
 
-         if( conf.terminate_at_block > 0 && conf.terminate_at_block <= chain_head.block_num()) {
-            ilog("Reached configured maximum block ${num}; terminating", ("num", conf.terminate_at_block) );
-            shutdown();
-            return;
-         }
-         
          auto do_push = [&](auto& forkdb) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>) {
                forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
@@ -4013,12 +4014,6 @@ struct controller_impl {
          EOS_ASSERT( b, block_validate_exception, "trying to push empty block" );
          EOS_ASSERT( (s == controller::block_status::irreversible || s == controller::block_status::validated),
                      block_validate_exception, "invalid block status for replay" );
-
-         if( conf.terminate_at_block > 0 && conf.terminate_at_block <= chain_head.block_num() ) {
-            ilog("Reached configured maximum block ${num}; terminating", ("num", conf.terminate_at_block) );
-            shutdown();
-            return;
-         }
 
          const bool skip_validate_signee = !conf.force_all_checks;
          validator_t validator = [this](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
@@ -4136,12 +4131,6 @@ struct controller_impl {
                   br = controller::block_report{};
                   apply_block( br, bsp, bsp->is_valid() ? controller::block_status::validated
                                                         : controller::block_status::complete, trx_lookup );
-
-                  if( conf.terminate_at_block > 0 && conf.terminate_at_block <= chain_head.block_num()) {
-                     ilog("Reached configured maximum block ${num}; terminating", ("num", conf.terminate_at_block) );
-                     shutdown();
-                     break;
-                  }
                   if (!switch_fork && check_shutdown()) {
                      shutdown();
                      break;
