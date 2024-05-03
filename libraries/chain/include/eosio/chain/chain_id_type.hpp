@@ -18,6 +18,7 @@ namespace chain {
    namespace legacy {
       struct snapshot_global_property_object_v3;
       struct snapshot_global_property_object_v4;
+      struct snapshot_global_property_object_v5;
    }
 
    struct chain_id_type : public fc::sha256 {
@@ -60,6 +61,7 @@ namespace chain {
          friend struct snapshot_global_property_object;
          friend struct legacy::snapshot_global_property_object_v3;
          friend struct legacy::snapshot_global_property_object_v4;
+         friend struct legacy::snapshot_global_property_object_v5;
    };
 
 } }  // namespace eosio::chain

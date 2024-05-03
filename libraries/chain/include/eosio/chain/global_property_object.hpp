@@ -55,6 +55,21 @@ namespace eosio::chain {
          kv_database_config                  kv_configuration;
          wasm_config                         wasm_configuration;
       };
+      struct snapshot_global_property_object_v5 {
+         // minimum_version and maximum_version refer to chain_snapshot_header
+         // version. snapshot_global_property_object_v5 applies to version 5 & 6
+         static constexpr uint32_t minimum_version = 5;
+         static constexpr uint32_t maximum_version = 6;
+         static_assert(chain_snapshot_header::minimum_compatible_version <= maximum_version,
+                       "snapshot_global_property_object_v5 is no longer needed");
+
+         std::optional<block_num_type>       proposed_schedule_block_num;
+         producer_authority_schedule         proposed_schedule;
+         chain_config                        configuration;
+         chain_id_type                       chain_id;
+         kv_database_config                  kv_configuration;
+         wasm_config                         wasm_configuration;
+      };
    }
 
    /**
@@ -113,6 +128,17 @@ namespace eosio::chain {
          proposed_fin_pol_block_num = std::nullopt;
          proposed_fin_pol = finalizer_policy{};
       }
+
+      void initialize_from( const legacy::snapshot_global_property_object_v5& legacy ) {
+         proposed_schedule_block_num = legacy.proposed_schedule_block_num;
+         proposed_schedule = legacy.proposed_schedule;
+         configuration = legacy.configuration;
+         chain_id = legacy.chain_id;
+         wasm_configuration = legacy.wasm_configuration;
+         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
+         proposed_fin_pol_block_num = std::nullopt;
+         proposed_fin_pol = finalizer_policy{};
+      }
    };
 
 
@@ -130,7 +156,6 @@ namespace eosio::chain {
       producer_authority_schedule         proposed_schedule;
       chain_config                        configuration;
       chain_id_type                       chain_id;
-      kv_database_config                  kv_configuration;
       wasm_config                         wasm_configuration;
    };
 
@@ -142,9 +167,7 @@ namespace eosio::chain {
 
          static snapshot_global_property_object to_snapshot_row( const global_property_object& value, const chainbase::database& ) {
             return {value.proposed_schedule_block_num, producer_authority_schedule::from_shared(value.proposed_schedule),
-                    // global_property_object does not have kv_database_config.
-                    // Set kv_database_config to ddefault value in snapshot
-                    value.configuration, value.chain_id, kv_database_config{}, value.wasm_configuration};
+                    value.configuration, value.chain_id, value.wasm_configuration};
          }
 
          static void from_snapshot_row( snapshot_global_property_object&& row, global_property_object& value, chainbase::database& ) {
@@ -206,8 +229,12 @@ FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v4,
             (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
           )
 
-FC_REFLECT(eosio::chain::snapshot_global_property_object,
+FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v5,
             (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
+          )
+
+FC_REFLECT(eosio::chain::snapshot_global_property_object,
+            (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(wasm_configuration)
           )
 
 FC_REFLECT(eosio::chain::dynamic_global_property_object,
