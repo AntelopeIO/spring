@@ -12,8 +12,10 @@ namespace eosio { namespace chain {
     * The key and value limits apply when adding or modifying elements.  They may be reduced
     * below existing database entries.
     * 
-    * This has been marked for removal at a later date, when v7 snapshots are deemed necessary.
-    * kv_database_config will be removed as part of that effort.
+    * Current uses of kv_database_config were removed in Spring 1.0.
+    * Do not use it in the future.
+    * The file is kept for backward compatibilities as it was used in snapshots
+    * containing snapshot_global_property_object_v4 and snapshot_global_property_object_v4.
     */
    struct kv_database_config {
       std::uint32_t max_key_size   = 0; ///< the maximum size in bytes of a key
