@@ -26,7 +26,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    //extract instant finality data from block header extension, as well as qc data from block extension
    qc_data_t extract_qc_data(const signed_block_ptr& b) {
-      std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
       if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
          auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
@@ -166,7 +165,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // field is reconverted to provide the finality_mroot.
       // The action_mroot is instead provided via the finality data
       auto block_2 = cluster.produce_and_push_block();
-      cluster.process_votes(1, cluster.num_needed_for_quorum - 1); //enough to reach quorum threshold
+      cluster.process_votes(1, cluster.num_needed_for_quorum); //enough to reach quorum threshold
       auto block_2_fd = cluster.node0.control->head_finality_data();
       auto block_2_action_mroot = block_2_fd.value().action_mroot;
       auto block_2_base_digest = block_2_fd.value().base_digest;
@@ -181,7 +180,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // block_3 contains a QC over block_2
       auto block_3 = cluster.produce_and_push_block();
-      cluster.process_votes(1, cluster.num_needed_for_quorum - 1);
+      cluster.process_votes(1, cluster.num_needed_for_quorum );
       auto block_3_fd = cluster.node0.control->head_finality_data();
       auto block_3_action_mroot = block_3_fd.value().action_mroot;
       auto block_3_finality_digest = cluster.node0.control->get_strong_digest_by_id(block_3->calculate_id());
@@ -193,7 +192,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // block_4 contains a QC over block_3
       auto block_4 = cluster.produce_and_push_block();
-      cluster.process_votes(1, cluster.num_needed_for_quorum - 1);
+      cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_4_fd = cluster.node0.control->head_finality_data();
       auto block_4_base_digest = block_4_fd.value().base_digest;
       auto block_4_afp_base_digest = hash_pair(active_finalizer_policy_digest, block_4_base_digest);
@@ -206,7 +205,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
       // serves as a proof of finality for it
       auto block_5 = cluster.produce_and_push_block();
-      cluster.process_votes(1, cluster.num_needed_for_quorum - 1);
+      cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_5_fd = cluster.node0.control->head_finality_data();
       auto block_5_base_digest = block_5_fd.value().base_digest;
       auto block_5_afp_base_digest =  hash_pair(active_finalizer_policy_digest, block_5_base_digest);
@@ -220,14 +219,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2
       // and serves as a proof of finality for it
       auto block_6 = cluster.produce_and_push_block();
-      cluster.process_votes(1, cluster.num_needed_for_quorum - 1);
+      cluster.process_votes(1, cluster.num_needed_for_quorum);
 
       // retrieve the QC over block_5 that is contained in block_6
       qc_data_t qc_b_6 = extract_qc_data(block_6);
 
       BOOST_TEST(qc_b_6.qc.has_value());
       
-      std::string raw_bitset("03"); //node0 ande node1 signed
+      std::string raw_bitset("07"); //node0 ande node1 signed
 
       // create a few proofs we'll use to perform tests
 
