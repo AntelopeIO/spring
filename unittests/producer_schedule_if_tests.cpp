@@ -203,8 +203,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block()->producer;
-   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+   prod = produce_block().block->producer;
+   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
 
    // test change in same block where there is an existing proposed that is the same
    set_producers( {"bob"_n,"alice"_n} );
@@ -225,8 +225,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block()->producer;
-   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+   prod = produce_block().block->producer;
+   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
 
    // test two in-flight
    //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
@@ -249,8 +249,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block()->producer;
-   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+   prod = produce_block().block->producer;
+   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
 
    // test two in-flight, P1 == P3, so no change
    //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
@@ -273,8 +273,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block()->producer;
-   for (auto b = produce_block(); b->producer == prod; b = produce_block());
+   prod = produce_block().block->producer;
+   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
 
    // test two in-flight, ultimately no change
    produce_block(); // 1
