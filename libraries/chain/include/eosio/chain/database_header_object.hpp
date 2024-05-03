@@ -23,11 +23,15 @@ namespace eosio { namespace chain {
           *   - 1 : initial version, prior to this no `database_header_object` existed in the shared memory file but
           *         no changes to its format were made so it can be safely added to existing databases
           *   - 2 : shared_authority now holds shared_key_weights & shared_public_keys
-          *         change from producer_key to producer_authority for many in-memory structures
+          *         change from producer_key to producer_authority for many in-memory structures.
+          *         NOTE: The version has not been updated since EOSIO 2.0. Version 2.0 implies
+          *         all changes up to and including Leap 5.0.
+          *   - 3 : global_property_object now holds proposed_fin_pol_block_num and proposed_fin_pol,
+          *         and removes kv_configuration in Spring 1.0
           */
 
-         static constexpr uint32_t current_version            = 2;
-         static constexpr uint32_t minimum_version            = 2;
+         static constexpr uint32_t current_version            = 3;
+         static constexpr uint32_t minimum_version            = 3;
 
          id_type        id;
          uint32_t       version = current_version;

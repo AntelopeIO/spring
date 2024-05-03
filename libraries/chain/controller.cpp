@@ -398,7 +398,6 @@ struct building_block {
       deque<transaction_receipt>          pending_trx_receipts;
       checksum_or_digests                 trx_mroot_or_receipt_digests {digests_t{}};
       action_digests_t                    action_receipt_digests;
-      std::optional<finalizer_policy>     new_finalizer_policy;
 
       building_block_common(const vector<digest_type>& new_protocol_feature_activations,
                             action_digests_t::store_which_t store_which) :
@@ -543,19 +542,14 @@ struct building_block {
                                       [&](building_block_if&)        -> R { return {}; }}, v);
    }
 
-   void set_proposed_finalizer_policy(finalizer_policy&& fin_pol)
-   {
-      std::visit(overloaded{ [&](building_block_legacy& bb) {
-                                 if (!bb.pending_block_header_state.is_if_transition_block()) {
-                                    fin_pol.generation = 1;  // only allowed to be set once in legacy mode
-                                    bb.new_finalizer_policy = std::move(fin_pol);
-                                 }
-                             },
-                             [&](building_block_if& bb)     {
-                                fin_pol.generation = bb.parent.finalizer_policy_generation + 1;
-                                bb.new_finalizer_policy = std::move(fin_pol);
-                              } },
-                  v);
+   template <class R, class F>
+   R apply(F&& f) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit(overloaded{[&](building_block_legacy& bb) { std::forward<F>(f)(bb); },
+                               [&](building_block_if& bb)     { std::forward<F>(f)(bb); }}, v);
+      else
+         return std::visit(overloaded{[&](building_block_legacy& bb) -> R { return std::forward<F>(f)(bb); },
+                                      [&](building_block_if& bb)     -> R { return std::forward<F>(f)(bb); }}, v);
    }
 
    deque<transaction_metadata_ptr> extract_trx_metas() {
@@ -669,6 +663,18 @@ struct building_block {
                         v);
    }
 
+   void update_finalizer_policy_generation(finalizer_policy& new_finalizer_policy) {
+      apply<void>(
+         overloaded{
+            [&](building_block::building_block_legacy& bb_legacy) -> void {
+               new_finalizer_policy.generation = 1;
+            },
+            [&](building_block::building_block_if& bb_savanna) -> void {
+               new_finalizer_policy.generation = bb_savanna.parent.finalizer_policy_generation + 1;
+            }
+         });
+   }
+
    qc_data_t get_qc_data(fork_database& fork_db, const block_state& parent) {
       // find most recent ancestor block that has a QC by traversing fork db
       // branch from parent
@@ -701,6 +707,7 @@ struct building_block {
                                   const protocol_feature_set& pfs,
                                   fork_database& fork_db,
                                   std::unique_ptr<proposer_policy> new_proposer_policy,
+                                  std::optional<finalizer_policy> new_finalizer_policy,
                                   bool validating,
                                   std::optional<qc_data_t> validating_qc_data,
                                   const block_state_ptr& validating_bsp) {
@@ -728,7 +735,7 @@ struct building_block {
 
                // in dpos, we create a signed_block here. In IF mode, we do it later (when we are ready to sign it)
                auto block_ptr = std::make_shared<signed_block>(bb.pending_block_header_state.make_block_header(
-                  transaction_mroot, action_mroot, bb.new_pending_producer_schedule, std::move(bb.new_finalizer_policy),
+                  transaction_mroot, action_mroot, bb.new_pending_producer_schedule, std::move(new_finalizer_policy),
                   vector<digest_type>(bb.new_protocol_feature_activations), pfs));
 
                block_ptr->transactions = std::move(bb.pending_trx_receipts);
@@ -787,7 +794,7 @@ struct building_block {
                   bb_input,
                   transaction_mroot,
                   std::move(new_proposer_policy),
-                  std::move(bb.new_finalizer_policy),
+                  std::move(new_finalizer_policy),
                   qc_data.qc_claim,
                   finality_mroot_claim
                };
@@ -2209,8 +2216,8 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties,&gs_chain_id](auto& gpo ){
-                     gpo.initalize_from(legacy_global_properties, gs_chain_id, kv_database_config{},
-                                       genesis_state::default_initial_wasm_configuration);
+                     gpo.initialize_from(legacy_global_properties, gs_chain_id, kv_database_config{},
+                                        genesis_state::default_initial_wasm_configuration);
                   });
                });
                return; // early out to avoid default processing
@@ -2222,7 +2229,7 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo ){
-                     gpo.initalize_from(legacy_global_properties, kv_database_config{},
+                     gpo.initialize_from(legacy_global_properties, kv_database_config{},
                                         genesis_state::default_initial_wasm_configuration);
                   });
                });
@@ -2235,7 +2242,7 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
-                     gpo.initalize_from(legacy_global_properties);
+                     gpo.initialize_from(legacy_global_properties);
                   });
                });
                return; // early out to avoid default processing
@@ -3164,8 +3171,36 @@ struct controller_impl {
          };
          auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
 
+         // Any finalizer policy?
+         std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
+         const auto& gpo = db.get<global_property_object>();
+         if (gpo.proposed_fin_pol_block_num.has_value()) {
+            new_finalizer_policy = gpo.proposed_fin_pol;
+
+            db.modify( gpo, [&]( auto& gp ) {
+               gp.proposed_fin_pol_block_num = std::nullopt;
+               gp.proposed_fin_pol.generation = 0;
+               gp.proposed_fin_pol.finalizers.clear();
+            });
+         }
+
+         // Make sure new_finalizer_policy is set only once in Legacy
+         bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
+            if (bl.pending_block_header_state.is_if_transition_block()) {
+               new_finalizer_policy = std::nullopt;
+            }
+         });
+
+         // Update generation
+         if (new_finalizer_policy.has_value()) {
+            bb.update_finalizer_policy_generation(*new_finalizer_policy);
+         }
+
          auto assembled_block =
-            bb.assemble_block(thread_pool.get_executor(), protocol_features.get_protocol_feature_set(), fork_db, std::move(new_proposer_policy),
+            bb.assemble_block(thread_pool.get_executor(),
+                              protocol_features.get_protocol_feature_set(),
+                              fork_db, std::move(new_proposer_policy),
+                              std::move(new_finalizer_policy),
                               validating, std::move(validating_qc_data), validating_bsp);
 
          // Update TaPoS table:
@@ -3283,8 +3318,17 @@ struct controller_impl {
 
    void set_proposed_finalizers(finalizer_policy&& fin_pol) {
       assert(pending); // has to exist and be building_block since called from host function
+      assert(std::holds_alternative<building_block>(pending->_block_stage));
       auto& bb = std::get<building_block>(pending->_block_stage);
-      bb.set_proposed_finalizer_policy(std::move(fin_pol));
+
+      // Use global_property_object instead of building_block so that if the
+      // transaction fails it will be rolledback.
+      auto cur_block_num = chain_head.block_num() + 1;
+      auto& gpo = db.get<global_property_object>();
+      db.modify( gpo, [&]( auto& gp ) {
+         gp.proposed_fin_pol_block_num = cur_block_num;
+         gp.proposed_fin_pol = std::move(fin_pol);
+      });
 
       bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
          // Savanna uses new algorithm for proposer schedule change, prevent any in-flight legacy proposer schedule changes
@@ -5281,8 +5325,11 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    // ignore proposed producers during transition
    assert(pending);
    auto& bb = std::get<building_block>(pending->_block_stage);
-   bool transition_block = bb.apply_l<bool>([](building_block::building_block_legacy& bl) {
-      return bl.pending_block_header_state.is_if_transition_block() || bl.new_finalizer_policy;
+   bool transition_block = bb.apply_l<bool>([&](building_block::building_block_legacy& bl) {
+      // The check for if there is a finalizer policy set is required because
+      // is_if_transition_block() is set in assemble_block so it is not set
+      // for the if genesis block.
+      return bl.pending_block_header_state.is_if_transition_block() || gpo.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
       return -1;
