@@ -79,20 +79,31 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_test_cluster cluster;// { finality_test_cluster::cluster_config_t{.transition_to_savanna = false} };
+      finality_test_cluster cluster { finality_test_cluster::cluster_config_t{.transition_to_savanna = false} };
 
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
 
-      // ensure out of scope setup and initial cluster wiring is consistent  
-      BOOST_CHECK_EQUAL(genesis_block->block_num(), 14);
+      // ensure out of scope setup and initial cluster wiring is consistent
+      BOOST_CHECK_EQUAL(genesis_block->block_num(), 4);
 
-      // get the finalizer policy that the cluster used to transition to Savanna
-      std::optional<eosio::chain::finalizer_policy> maybe_active_finalizer_policy = cluster.fin_policy;
+      // check if IF Genesis block contains an IF extension
+      std::optional<eosio::chain::block_header_extension> maybe_genesis_if_ext =
+         genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      BOOST_CHECK(maybe_genesis_if_ext.has_value());
+
+      eosio::chain::block_header_extension genesis_if_ext = maybe_genesis_if_ext.value();
+
+      // check that the header extension is of the correct type
+      BOOST_CHECK(std::holds_alternative<eosio::chain::instant_finality_extension>(genesis_if_ext));
+
+      // and that it has the expected initial finalizer_policy
+      std::optional<eosio::chain::finalizer_policy> maybe_active_finalizer_policy =
+         std::get<eosio::chain::instant_finality_extension>(genesis_if_ext).new_finalizer_policy;
 
       BOOST_CHECK(maybe_active_finalizer_policy.has_value());
 
-      auto& active_finalizer_policy = *maybe_active_finalizer_policy;
+      eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
 
       BOOST_CHECK_EQUAL(active_finalizer_policy.finalizers.size(), finality_test_cluster::num_nodes);
       BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1);
@@ -187,7 +198,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_4_base_digest = block_4_fd.value().base_digest;
       auto block_4_afp_base_digest = hash_pair(active_finalizer_policy_digest, block_4_base_digest);
 
-      auto block_4_finality_root = block_4->action_mroot; 
+      auto block_4_finality_root = block_4->action_mroot;
+      qc_data_t qc_b_4 = extract_qc_data(block_4);
+
+      BOOST_TEST(qc_b_4.qc.has_value());
 
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
       // serves as a proof of finality for it
