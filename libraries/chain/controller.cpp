@@ -2217,8 +2217,7 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties,&gs_chain_id](auto& gpo ){
-                     gpo.initialize_from(legacy_global_properties, gs_chain_id, kv_database_config{},
-                                        genesis_state::default_initial_wasm_configuration);
+                     gpo.initialize_from(legacy_global_properties, gs_chain_id);
                   });
                });
                return; // early out to avoid default processing
@@ -2230,8 +2229,7 @@ struct controller_impl {
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo ){
-                     gpo.initialize_from(legacy_global_properties, kv_database_config{},
-                                        genesis_state::default_initial_wasm_configuration);
+                     gpo.initialize_from(legacy_global_properties);
                   });
                });
                return; // early out to avoid default processing

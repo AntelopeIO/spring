@@ -11,6 +11,7 @@
 #include <eosio/chain/producer_schedule.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/snapshot.hpp>
+#include <eosio/chain/genesis_state.hpp>
 #include <chainbase/chainbase.hpp>
 #include "multi_index_includes.hpp"
 
@@ -94,53 +95,38 @@ namespace eosio::chain {
       std::optional<block_num_type>       proposed_fin_pol_block_num;
       finalizer_policy                    proposed_fin_pol;
 
-     void initialize_from( const legacy::snapshot_global_property_object_v2& legacy, const chain_id_type& chain_id_val,
-                          const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
+      // For snapshot_global_property_object_v2 and initialize_from( const T& legacy )
+      template<typename T>
+      void initialize_from( const T& legacy, const chain_id_type& chain_id_val) {
          proposed_schedule_block_num = legacy.proposed_schedule_block_num;
-         proposed_schedule = producer_authority_schedule(legacy.proposed_schedule);
+
+         if constexpr (std::is_same_v<T, legacy::snapshot_global_property_object_v2>) {
+            proposed_schedule = producer_authority_schedule(legacy.proposed_schedule);
+         } else {
+            proposed_schedule = legacy.proposed_schedule;
+         }
+
          configuration = legacy.configuration;
          chain_id = chain_id_val;
-         wasm_configuration = wasm_config_val;
+
+         if constexpr (std::is_same_v<T, legacy::snapshot_global_property_object_v2> ||
+                       std::is_same_v<T, legacy::snapshot_global_property_object_v3>) {
+            wasm_configuration = genesis_state::default_initial_wasm_configuration;
+         } else {
+            wasm_configuration = legacy.wasm_configuration;
+         }
+
          // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
          proposed_fin_pol_block_num = std::nullopt;
          proposed_fin_pol = finalizer_policy{};
       }
 
-      void initialize_from( const legacy::snapshot_global_property_object_v3& legacy,
-                           const kv_database_config& kv_config_val, const wasm_config& wasm_config_val) {
-         proposed_schedule_block_num = legacy.proposed_schedule_block_num;
-         proposed_schedule = legacy.proposed_schedule;
-         configuration = legacy.configuration;
-         chain_id = legacy.chain_id;
-         wasm_configuration = wasm_config_val;
-         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
-         proposed_fin_pol_block_num = std::nullopt;
-         proposed_fin_pol = finalizer_policy{};
-      }
-
-      void initialize_from( const legacy::snapshot_global_property_object_v4& legacy ) {
-         proposed_schedule_block_num = legacy.proposed_schedule_block_num;
-         proposed_schedule = legacy.proposed_schedule;
-         configuration = legacy.configuration;
-         chain_id = legacy.chain_id;
-         wasm_configuration = legacy.wasm_configuration;
-         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
-         proposed_fin_pol_block_num = std::nullopt;
-         proposed_fin_pol = finalizer_policy{};
-      }
-
-      void initialize_from( const legacy::snapshot_global_property_object_v5& legacy ) {
-         proposed_schedule_block_num = legacy.proposed_schedule_block_num;
-         proposed_schedule = legacy.proposed_schedule;
-         configuration = legacy.configuration;
-         chain_id = legacy.chain_id;
-         wasm_configuration = legacy.wasm_configuration;
-         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
-         proposed_fin_pol_block_num = std::nullopt;
-         proposed_fin_pol = finalizer_policy{};
+      // For snapshot_global_property_object v3, v4, and v5
+      template<typename T>
+      void initialize_from( const T& legacy ) {
+         initialize_from(legacy, legacy.chain_id);
       }
    };
-
 
    using global_property_multi_index = chainbase::shared_multi_index_container<
       global_property_object,
