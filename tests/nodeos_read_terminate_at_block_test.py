@@ -9,8 +9,8 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 ###############################################################
 # nodeos_read_terminate_at_block_test
 #
-# A few tests centered around read mode of irreversible,
-# and head with terminate-at-block set
+# A few tests centered around read mode of irreversible, head, and speculative
+# with terminate-at-block set for regular and replay from snapshot through  block logs.
 #
 ###############################################################
 
@@ -19,7 +19,9 @@ errorExit = Utils.errorExit
 cmdError = Utils.cmdError
 relaunchTimeout = 10
 numOfProducers = 1
-totalNodes = 4
+# One producing node, three regular terminate-at-block nodes, and three nodes
+# where replay snapshot through block logs with terminate-at-block
+totalNodes = 7
 
 # Parse command line arguments
 args = TestHelper.parse_args({
@@ -174,6 +176,41 @@ def checkHeadOrSpeculative(head, lib):
     )
 
 
+# Test terminate-at-block for replay from snapshot through block logs
+def executeSnapshotBlocklogTest(cluster, testNodeId, resultMsgs, nodeArgs, termAtBlock):
+    testNode = cluster.getNode(testNodeId)
+    testResult = False
+    resultDesc = "!!!BUG IS CONFIRMED ON TEST CASE #{} ({})".format(
+        testNodeId,
+        f"replay block log, {nodeArgs} --terminate-at-block {termAtBlock}"
+    )
+
+    # Kill node before use.
+    if not testNode.killed:
+        assert testNode.kill(signal.SIGTERM)
+
+    # Start from snapshot, replay through block log and terminate at specified block
+    chainArg=f'--snapshot {testNode.getLatestSnapshot()} --replay-blockchain --terminate-at-block {termAtBlock}'
+    testNode.relaunch(chainArg=chainArg, waitForTerm=True)
+
+    # Check the node stops at the correct block by checking the log.
+    errFileName=f"{cluster.nodeosLogPath}/node_{str(testNodeId).zfill(2)}/stderr.txt"
+    with open(errFileName) as errFile:
+        for line in errFile:
+            m=re.search(r"Block ([\d]+) reached configured maximum block", line)
+            if m:
+                assert int(m.group(1)) == termAtBlock, f"actual terminating block number {m.group(1)} not equal to expected termAtBlock {termAtBlock}"
+                resultDesc = f"!!!TEST CASE #{testNodeId} (replay block log, mode {nodeArgs} --terminate-at-block {termAtBlock}) IS SUCCESSFUL"
+                testResult = True
+
+    Print(resultDesc)
+    resultMsgs.append(resultDesc)
+
+    if testNode and not testNode.killed:
+        assert testNode.kill(signal.SIGTERM)
+
+    return testResult
+
 # Setup cluster and it's wallet manager
 walletMgr = WalletMgr(True)
 cluster = Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs=args.keep_logs)
@@ -184,11 +221,22 @@ testResultMsgs = []
 testSuccessful = False
 try:
     specificNodeosArgs = {
-        0 : "--enable-stale-production",
+        0 : "--enable-stale-production"
+    }
+    regularNodeosArgs = {
         1 : "--read-mode irreversible --terminate-at-block 75",
         2 : "--read-mode head --terminate-at-block 100",
         3 : "--read-mode speculative --terminate-at-block 125"
     }
+    replayNodeosArgs = {
+        4 : "--read-mode irreversible",
+        5 : "--read-mode head",
+        6 : "--read-mode speculative"
+    }
+
+    # combine all together
+    specificNodeosArgs.update(regularNodeosArgs)
+    specificNodeosArgs.update(replayNodeosArgs)
 
     TestHelper.printSystemInfo("BEGIN")
     cluster.launch(
@@ -204,30 +252,57 @@ try:
     producingNodeId = 0
     producingNode = cluster.getNode(producingNodeId)
 
+    replayTermAt = {}
+
+    # Create snapshots on replay test nodes
+    for nodeId in replayNodeosArgs:
+        replayNode = cluster.getNode(nodeId)
+        ret = replayNode.createSnapshot()
+        assert ret is not None, "snapshot creation on node {nodeId} failed"
+        headBlockNum = ret["payload"]["head_block_num"]
+
+        # Set replay for 5 blocks
+        termAt = headBlockNum + 5
+        replayTermAt[nodeId] = termAt
+
     # wait for all to terminate, needs to be larger than largest terminate-at-block
-    producingNode.waitForBlock( 150, timeout=150 )
+    # and leave room for snapshot blocks
+    producingNode.waitForBlock( 250, timeout=150 )
     cluster.biosNode.kill(signal.SIGTERM)
     producingNode.kill(signal.SIGTERM)
+
+    # Stop all replay nodes
+    for nodeId in replayNodeosArgs:
+        cluster.getNode(nodeId).kill(signal.SIGTERM)
 
     # Start executing test cases here
     Utils.Print("Script Begin .............................")
 
-    for nodeId, nodeArgs in specificNodeosArgs.items():
-        # The test only needs to be run on the non-producer nodes.
-        if nodeId == producingNodeId:
-            continue
-
+    # Test regular terminate-at-block
+    for nodeId, nodeArgs in regularNodeosArgs.items():
         success = executeTest(
             cluster,
             nodeId,
             nodeArgs,
             testResultMsgs
         )
-
         if not success:
             break
-    else:
-        testSuccessful = True
+
+    # Test terminate-at-block in replay from snapshot and through block logs
+    if success:
+        for nodeId, nodeArgs in replayNodeosArgs.items():
+            success = executeSnapshotBlocklogTest(
+                cluster,
+                nodeId,
+                testResultMsgs,
+                nodeArgs,
+                replayTermAt[nodeId]
+            )
+            if not success:
+                break
+
+    testSuccessful = success
 
     Utils.Print("Script End ................................")
 
@@ -242,7 +317,7 @@ finally:
     # Print test result
     for msg in testResultMsgs:
         Print(msg)
-    if not testSuccessful and len(testResultMsgs) < 3:
+    if not testSuccessful and len(testResultMsgs) < totalNodes - 1:
         Print("Subsequent tests were not run after failing test scenario.")
 
 exitCode = 0 if testSuccessful else 1
