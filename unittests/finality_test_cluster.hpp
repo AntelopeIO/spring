@@ -83,6 +83,12 @@ struct finality_node_t : public eosio::testing::tester {
 
 };
 
+struct finality_cluster_config_t {
+   bool   transition_to_savanna;
+};
+
+template<size_t NUM_NODES>
+requires (NUM_NODES > 3)
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
@@ -105,21 +111,108 @@ public:
    };
 
    // Construct a test network and activate IF.
-   finality_test_cluster(cluster_config_t cluster_config = {.transition_to_savanna = true});
+   finality_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = true}) {
+      using namespace eosio::testing;
+      size_t num_finalizers = nodes.size();
+
+      // -----------------------------------------------------------------------------------
+      // each node gets an equal range of keys to be used as local finalizer.
+      // for example, the default parameters  are `num_keys = 40` and `fin_policy_size = 4`,
+      // which means that for 4 nodes, we'll make each node capable on voting with 10
+      // different keys (node0 will use keys 0 .. 9, node1 will use keys 10 .. 19, etc...
+      // (see set_node_finalizers() call).
+      //
+      // The first finalizer_policy (see set_finalizer_policy below) will activate
+      // keys 0, 10, 20 and 30
+      // -----------------------------------------------------------------------------------
+      size_t split = finality_test_cluster::keys_per_node;
+
+      // set initial finalizer key for each node
+      // ---------------------------------------
+      for (size_t i=0; i<nodes.size(); ++i) {
+         nodes[i].finkeys.init_keys(split * num_finalizers, num_finalizers);
+         nodes[i].setup(i * split, split);
+      }
+
+      // node0's votes
+      node0.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+         last_vote_status = std::get<1>(v);
+         last_connection_vote = std::get<0>(v);
+      });
+
+
+      // set initial finalizer policy
+      // ----------------------------
+      std::array<size_t, num_nodes> initial_policy;
+      for (size_t i=0; i<nodes.size(); ++i)
+         initial_policy[i] = i * split;
+      node0.finkeys.set_finalizer_policy(initial_policy);
+
+      if (config.transition_to_savanna) {
+         // transition to Savanna
+         // ---------------------
+         fin_policy = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
+            for (size_t i=1; i<nodes.size(); ++i)
+               nodes[i].push_block(b);
+            process_votes(1, num_nodes - 1);
+         });
+
+         // at this point, node0 has a QC to include in next block.
+         // Produce that block and push it, but don't process votes so that
+         // we don't start with an existing QC
+         // ---------------------------------------------------------------
+         produce_and_push_block();
+
+         // reset votes and saved lib, so that each test starts in a clean slate
+         // --------------------------------------------------------------------
+         clear_votes_and_reset_lib();
+      }
+   }
 
    // node0 produces a block and pushes it to node1 and node2
-   signed_block_ptr produce_and_push_block();
+   signed_block_ptr produce_and_push_block() {
+      auto b = node0.produce_block().block;
+      for (size_t i=1; i<nodes.size(); ++i)
+         nodes[i].push_block(b);
+      return b;
+   }
 
    // Produces and propagate finality votes for `block_count` blocks.
-   signed_block_ptr produce_blocks(uint32_t blocks_count);
+   signed_block_ptr produce_blocks(uint32_t blocks_count)  {
+      signed_block_ptr b;
+      for (uint32_t i=0; i<blocks_count; ++i) {
+         b = produce_and_push_block();
+         process_votes(1, num_nodes - 1);
+      }
+      return b;
+   }
 
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears
    // node1_votes and node2_votes when starting.
-   bool produce_blocks_and_verify_lib_advancing();
+   bool produce_blocks_and_verify_lib_advancing() {
+      // start from fresh
+      clear_votes_and_reset_lib();
+
+      produce_and_push_block();
+      for (auto i = 0; i < 3; ++i) {
+         process_votes(1, num_needed_for_quorum);
+         produce_and_push_block();
+         if (lib_advancing() < num_nodes)
+            return false;
+      }
+
+      return true;
+   }
 
    // returns true if lib advanced on all nodes since we last checked
-   size_t lib_advancing();
+   size_t lib_advancing() {
+      size_t num_advancing = 0;
+      for (auto& n : nodes)
+         if (n.lib_advancing())
+            ++num_advancing;
+      return num_advancing;
+   }
 
    vote_status process_vote(size_t node_idx, size_t vote_index = (size_t)-1,
                             vote_mode mode = vote_mode::strong, bool duplicate = false) {
@@ -158,7 +251,26 @@ private:
    void setup_node(finality_node_t& node, eosio::chain::account_name local_finalizer);
 
    // send the vote message to node0 which is the producer (and Savanna leader), and wait till processed
-   vote_status process_vote(vote_message_ptr& vote, bool duplicate);
+   vote_status process_vote(vote_message_ptr& vote, bool duplicate) {
+      static uint32_t connection_id = 0;
+      node0.control->process_vote_message( ++connection_id, vote );
+      if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.lib_num())
+         return wait_on_vote(connection_id, duplicate);
+      return vote_status::unknown_block;
+   }
 
-   vote_status wait_on_vote(uint32_t connection_id, bool duplicate);
+   vote_status wait_on_vote(uint32_t connection_id, bool duplicate)  {
+      // wait for this node's vote to be processed
+      // duplicates are not signaled
+      size_t retrys = 200;
+      while ( (last_connection_vote != connection_id) && --retrys) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      }
+      if (!duplicate && last_connection_vote != connection_id) {
+         FC_ASSERT(false, "Never received vote");
+      } else if (duplicate && last_connection_vote == connection_id) {
+         FC_ASSERT(false, "Duplicate should not have been signaled");
+      }
+      return duplicate ? vote_status::duplicate : last_vote_status.load();
+   }
 };

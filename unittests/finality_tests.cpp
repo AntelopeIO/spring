@@ -9,7 +9,7 @@ BOOST_AUTO_TEST_SUITE(finality_tests)
 
 // verify LIB advances with 2 finalizers voting.
 // ---------------------------------------------
-BOOST_FIXTURE_TEST_CASE(two_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(two_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       process_votes(1, num_needed_for_quorum);
@@ -22,7 +22,7 @@ BOOST_FIXTURE_TEST_CASE(two_votes, finality_test_cluster) { try {
 
 // verify LIB does not advances with finalizers not voting.
 // --------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(no_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(no_votes, finality_test_cluster<4>) { try {
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
@@ -37,7 +37,7 @@ BOOST_FIXTURE_TEST_CASE(no_votes, finality_test_cluster) { try {
 
 // verify LIB does not advances when one less than the quorum votes
 // ----------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(quorum_minus_one, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(quorum_minus_one, finality_test_cluster<4>) { try {
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
@@ -52,7 +52,7 @@ BOOST_FIXTURE_TEST_CASE(quorum_minus_one, finality_test_cluster) { try {
 
 // verify LIB advances with all finalizers voting
 // ----------------------------------------------
-BOOST_FIXTURE_TEST_CASE(all_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(all_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       process_votes(1, num_nodes - 1);
@@ -65,7 +65,7 @@ BOOST_FIXTURE_TEST_CASE(all_votes, finality_test_cluster) { try {
 
 // verify LIB advances when votes conflict (strong first and followed by weak)
 // ---------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster<4>) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       auto next_idx = process_votes(1, num_needed_for_quorum);  // first a quorum of strong votes
@@ -82,7 +82,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster) {
 // really not significant difference with previous test, just position of weak
 // vote in bitset changes.
 // ---------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(conflicting_votes_weak_first, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(conflicting_votes_weak_first, finality_test_cluster<4>) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       process_vote(1, -1, vote_mode::weak);    // a weak vote on node 1
@@ -96,7 +96,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_weak_first, finality_test_cluster) { t
 
 // Verify a delayed vote works
 // ---------------------------
-BOOST_FIXTURE_TEST_CASE(one_delayed_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(one_delayed_votes, finality_test_cluster<4>) { try {
    // hold the vote for the first block to simulate delay
    produce_and_push_block();
    produce_and_push_block();
@@ -123,7 +123,7 @@ BOOST_FIXTURE_TEST_CASE(one_delayed_votes, finality_test_cluster) { try {
 
 // Verify 3 consecutive delayed votes work
 // ---------------------------------------
-BOOST_FIXTURE_TEST_CASE(three_delayed_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(three_delayed_votes, finality_test_cluster<4>) { try {
    // produce 4 blocks and hold the votes for the first 3 to simulate delayed votes
    // The 4 blocks have the same QC claim as no QCs are created because quorum was
    // not reached
@@ -158,7 +158,7 @@ BOOST_FIXTURE_TEST_CASE(three_delayed_votes, finality_test_cluster) { try {
 
 // What happens when votes are processed out of order
 // --------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(out_of_order_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(out_of_order_votes, finality_test_cluster<4>) { try {
    // produce 3 blocks and hold the votes to simulate delayed votes
    // The 3 blocks have the same QC claim as no QCs are created because missing votes
    for (auto i = 0; i < 3; ++i)
@@ -192,7 +192,7 @@ BOOST_FIXTURE_TEST_CASE(out_of_order_votes, finality_test_cluster) { try {
 
 // Verify a vote which was delayed by a large number of blocks does not cause any issues
 // -------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster<4>) { try {
    // Produce and push a block, vote on it after a long delay.
    constexpr uint32_t delayed_vote_index = 0;
 
@@ -213,7 +213,7 @@ BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster) { try {
 
 // Check that if we never vote on a block, it doesn't cause any problem
 // --------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster<4>) { try {
    // Produce and push a block, never vote on it to simulate lost.
    // The block contains a strong QC extension for prior block
    auto b1 = produce_and_push_block();
@@ -241,7 +241,7 @@ BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster) { try {
 
 // One weak vote preventing a strong QC
 // ------------------------------------
-BOOST_FIXTURE_TEST_CASE(one_weak_vote, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(one_weak_vote, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    auto next_idx = process_votes(1, num_needed_for_quorum -1); // one less strong vote than needed for quorum
@@ -258,7 +258,7 @@ BOOST_FIXTURE_TEST_CASE(one_weak_vote, finality_test_cluster) { try {
 
 // A quorum-1 of weak votes and one strong vote
 // --------------------------------------------
-BOOST_FIXTURE_TEST_CASE(quorum_minus_one_weak_vote, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(quorum_minus_one_weak_vote, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
@@ -274,7 +274,7 @@ BOOST_FIXTURE_TEST_CASE(quorum_minus_one_weak_vote, finality_test_cluster) { try
 
 // A sequence of "weak - strong - weak - strong" QCs
 // -------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(weak_strong_weak_strong, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(weak_strong_weak_strong, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
@@ -298,7 +298,7 @@ BOOST_FIXTURE_TEST_CASE(weak_strong_weak_strong, finality_test_cluster) { try {
 
 // A sequence of "weak - weak - strong - strong" QCs
 // -------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(weak_weak_strong_strong, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(weak_weak_strong_strong, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
@@ -323,7 +323,7 @@ BOOST_FIXTURE_TEST_CASE(weak_weak_strong_strong, finality_test_cluster) { try {
 
 // Verify a combination of weak, delayed, lost votes still works
 // -------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(weak_delayed_lost_vote, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(weak_delayed_lost_vote, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    // quorum of weak votes
@@ -360,7 +360,7 @@ BOOST_FIXTURE_TEST_CASE(weak_delayed_lost_vote, finality_test_cluster) { try {
 
 // Verify a combination of delayed, weak, lost votes still work
 // -------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(delayed_strong_weak_lost_vote, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(delayed_strong_weak_lost_vote, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    // delay votes at index 1
@@ -402,7 +402,7 @@ BOOST_FIXTURE_TEST_CASE(delayed_strong_weak_lost_vote, finality_test_cluster) { 
 
 // verify duplicate votes do not affect LIB advancing
 // --------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(duplicate_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(duplicate_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    for (auto i = 0; i < 5; ++i) {
@@ -421,7 +421,7 @@ BOOST_FIXTURE_TEST_CASE(duplicate_votes, finality_test_cluster) { try {
 
 // verify unknown_proposal votes are handled properly
 // --------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    // intentionally corrupt block_id in node1's vote (vote index 0)
@@ -445,7 +445,7 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster) { try {
 
 // verify unknown finalizer_key votes are handled properly
 // -------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster<4>) { try {
    // node0 produces a block and pushes to node1
    produce_and_push_block();
 
@@ -467,7 +467,7 @@ BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster) { tr
 
 // verify corrupted signature votes are handled properly
 // -----------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster) { try {
+BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    // intentionally corrupt signature in node1's vote (vote index 0)

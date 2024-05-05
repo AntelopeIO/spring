@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_test_cluster cluster { finality_test_cluster::cluster_config_t{.transition_to_savanna = false} };
+      finality_test_cluster<4> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
 
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
 
-      BOOST_CHECK_EQUAL(active_finalizer_policy.finalizers.size(), finality_test_cluster::num_nodes);
+      BOOST_CHECK_EQUAL(active_finalizer_policy.finalizers.size(), cluster.num_nodes);
       BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1);
 
       // compute the digest of the finalizer policy
