@@ -10,20 +10,7 @@
 
 #include <eosio/testing/tester.hpp>
 
-// ----------------------------------------------------------------------------
-// Set up a test network which consists of 4 nodes (one producer, 4 finalizers)
-//
-//   * node0 produces blocks and pushes them to [node1, node2, node3];
-//     node0 votes on the blocks it produces internally.
-//
-//   * [node1, node2, node3] vote on proposals sent by node0, votes are sent
-//     to node0 when `process_vote` is called
-//
-// Each node has one finalizer, quorum is computed to 3
-// After starup up, IF is activated on node0.
-//
-// APIs are provided to modify/delay/alter/re-order/remove votes
-// from [node1, node2, node3] to node0.
+
 // ----------------------------------------------------------------------------
 struct finality_node_t : public eosio::testing::tester {
    using vote_message_ptr = eosio::chain::vote_message_ptr;
@@ -87,8 +74,28 @@ struct finality_cluster_config_t {
    bool   transition_to_savanna;
 };
 
-template<size_t NUM_NODES>
-requires (NUM_NODES > 3)
+// ------------------------------------------------------------------------------------
+// finality_test_cluster
+// ---------------------
+//
+// Set up a test network which consists of NUM_NODES nodes (one producer,
+// NUM_NODES finalizers)
+//
+//   * node0 produces blocks and pushes them to [node1, node2, node3, ...];
+//     node0 votes on the blocks it produces internally.
+//
+//   * [node1, node2, node3, ...] vote on proposals sent by node0, votes are sent
+//     to node0 when `process_vote` is called
+//
+// Each node has one finalizer, quorum is computed using the same formula as in the
+// system contracts.
+//
+// After startup up, IF is activated on node0.
+//
+// APIs are provided to modify/delay/alter/re-order/remove votes
+// from [node1, node2, node3, ...] to node0.
+//  ------------------------------------------------------------------------------------
+template<size_t NUM_NODES> requires (NUM_NODES > 3)
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
@@ -105,10 +112,6 @@ public:
 
    static_assert(num_needed_for_quorum < num_nodes,
                  "this is needed for some tests (conflicting_votes_strong_first for ex)");
-
-   struct cluster_config_t {
-      bool   transition_to_savanna;
-   };
 
    // Construct a test network and activate IF.
    finality_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = true}) {
