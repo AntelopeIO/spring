@@ -25,13 +25,73 @@
 // APIs are provided to modify/delay/alter/re-order/remove votes
 // from [node1, node2, node3] to node0.
 // ----------------------------------------------------------------------------
+struct finality_node_t : public eosio::testing::tester {
+   using vote_message_ptr = eosio::chain::vote_message_ptr;
+   using vote_status      = eosio::chain::vote_status;
+
+   enum class vote_mode {
+      strong,
+      weak,
+   };
+
+   uint32_t                                prev_lib_num{0};
+   std::mutex                              votes_mtx;
+   std::vector<vote_message_ptr>           votes;
+   eosio::chain::vote_message_ptr          orig_vote;
+   eosio::testing::finalizer_keys<tester>  finkeys;
+   size_t                                  cur_key; // index of key used in current policy
+
+   finality_node_t() : finkeys(*this) {}
+
+   size_t last_vote_index() const { return votes.size() - 1; }
+
+   void setup(size_t first_node_key, size_t num_node_keys);
+
+   // returns true if LIB advances on this node since we last checked
+   bool lib_advancing();
+
+   uint32_t lib_num() const { return lib_block->block_num(); }
+
+   // Intentionally corrupt node's vote's block_id and save the original vote
+   void corrupt_vote_block_id();
+
+   // Intentionally corrupt node's vote's finalizer_key and save the original vote
+   void corrupt_vote_finalizer_key();
+
+   // Intentionally corrupt node's vote's signature and save the original vote
+   void corrupt_vote_signature();
+
+   // Restore node's original vote
+   void restore_to_original_vote(size_t idx) {
+      std::lock_guard g(votes_mtx);
+      if (idx == (size_t)-1)
+         votes.back() = orig_vote;
+      else
+         votes[idx] = orig_vote;
+   }
+
+   void clear_votes_and_reset_lib() {
+      std::lock_guard g(votes_mtx);
+      votes.clear();
+      prev_lib_num = lib_num();
+   }
+
+   // Update "vote_index" vote on node according to `mode` parameter, and returns
+   // the updated vote.
+   vote_message_ptr get_vote(size_t vote_index = (size_t)-1, vote_mode mode = vote_mode::strong,
+                             bool duplicate = false);
+
+};
+
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
    using vote_status      = eosio::chain::vote_status;
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using tester           = eosio::testing::tester;
-   static constexpr size_t num_nodes = 4;
+   using vote_mode        = finality_node_t::vote_mode;
+
+   static constexpr size_t num_nodes = NUM_NODES;
    static constexpr size_t keys_per_node = 10;
 
    // actual quorum - 1 since node0 processes its own votes
@@ -39,11 +99,6 @@ public:
 
    static_assert(num_needed_for_quorum < num_nodes,
                  "this is needed for some tests (conflicting_votes_strong_first for ex)");
-
-   enum class vote_mode {
-      strong,
-      weak,
-   };
 
    struct cluster_config_t {
       bool   transition_to_savanna;
@@ -66,13 +121,19 @@ public:
    // returns true if lib advanced on all nodes since we last checked
    size_t lib_advancing();
 
+   vote_status process_vote(size_t node_idx, size_t vote_index = (size_t)-1,
+                            vote_mode mode = vote_mode::strong, bool duplicate = false) {
+      auto vote = nodes[node_idx].get_vote(vote_index, mode, duplicate);
+      return vote ? process_vote(vote, duplicate) : vote_status::unknown_block;;
+   }
+
    // returns first node to not vote
    size_t process_votes(size_t start_idx, size_t num_voting_nodes, size_t vote_index = (size_t)-1,
                         vote_mode mode = vote_mode::strong, bool duplicate = false) {
       assert(num_voting_nodes > 0 && (num_voting_nodes + start_idx <= num_nodes));
       size_t i = start_idx;
       for (; i<num_voting_nodes+start_idx; ++i)
-         nodes[i].process_vote(*this, vote_index, mode, duplicate);
+         process_vote(i, vote_index, mode, duplicate);
       return i;
    }
 
@@ -81,70 +142,20 @@ public:
          n.clear_votes_and_reset_lib();
    }
 
-   struct node_t : public tester {
-      uint32_t                                prev_lib_num{0};
-      std::mutex                              votes_mtx;
-      std::vector<vote_message_ptr>           votes;
-      eosio::chain::vote_message_ptr          orig_vote;
-      eosio::testing::finalizer_keys<tester>  finkeys;
-      size_t                                  cur_key; // index of key used in current policy
-
-      node_t() : finkeys(*this) {}
-
-      size_t last_vote_index() const { return votes.size() - 1; }
-
-      void setup(size_t first_node_key, size_t num_node_keys);
-
-      // returns true if LIB advances on this node since we last checked
-      bool lib_advancing();
-
-      uint32_t lib_num() const { return lib_block->block_num(); }
-
-      // Intentionally corrupt node's vote's block_id and save the original vote
-      void corrupt_vote_block_id();
-
-      // Intentionally corrupt node's vote's finalizer_key and save the original vote
-      void corrupt_vote_finalizer_key();
-
-      // Intentionally corrupt node's vote's signature and save the original vote
-      void corrupt_vote_signature();
-
-      // Restore node's original vote
-      void restore_to_original_vote(size_t idx) {
-         std::lock_guard g(votes_mtx);
-         if (idx == (size_t)-1)
-            votes.back() = orig_vote;
-         else
-            votes[idx] = orig_vote;
-      }
-
-      void clear_votes_and_reset_lib() {
-         std::lock_guard g(votes_mtx);
-         votes.clear();
-         prev_lib_num = lib_num();
-      }
-
-      // Update "vote_index" vote on node according to `mode` parameter, and send and process
-      // the vote on node0 which is the producer (and Savanna leader)
-      vote_status process_vote(finality_test_cluster& cluster, size_t vote_index = (size_t)-1,
-                               vote_mode mode = vote_mode::strong, bool duplicate = false);
-
-   };
-
 private:
    std::atomic<uint32_t>      last_connection_vote{0};
    std::atomic<vote_status>   last_vote_status{};
 
 public:
-   std::array<node_t, num_nodes>                 nodes;
+   std::array<finality_node_t, num_nodes>                 nodes;
    std::optional<eosio::chain::finalizer_policy> fin_policy; // policy used to transition to Savanna
 
-   node_t& node0 = nodes[0];
-   node_t& node1 = nodes[1];
+   finality_node_t& node0 = nodes[0];
+   finality_node_t& node1 = nodes[1];
 
 private:
    // sets up "node_index" node
-   void setup_node(node_t& node, eosio::chain::account_name local_finalizer);
+   void setup_node(finality_node_t& node, eosio::chain::account_name local_finalizer);
 
    // send the vote message to node0 which is the producer (and Savanna leader), and wait till processed
    vote_status process_vote(vote_message_ptr& vote, bool duplicate);

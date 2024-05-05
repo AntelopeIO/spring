@@ -70,7 +70,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster) {
    for (auto i = 0; i < 3; ++i) {
       auto next_idx = process_votes(1, num_needed_for_quorum);  // first a quorum of strong votes
       assert(next_idx < num_nodes);
-      nodes[next_idx].process_vote(*this, -1, vote_mode::weak); // and one weak vote
+      process_vote(next_idx, -1, vote_mode::weak); // and one weak vote
       produce_and_push_block();
 
       // when we have a quorum of strong votes, one weak vote should not prevent LIB from advancing
@@ -85,7 +85,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster) {
 BOOST_FIXTURE_TEST_CASE(conflicting_votes_weak_first, finality_test_cluster) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
-      node1.process_vote(*this, -1, vote_mode::weak);    // a weak vote on node 1
+      process_vote(1, -1, vote_mode::weak);    // a weak vote on node 1
       process_votes(2, num_needed_for_quorum);           // and a quorum of strong votes
       produce_and_push_block();
 
@@ -245,7 +245,7 @@ BOOST_FIXTURE_TEST_CASE(one_weak_vote, finality_test_cluster) { try {
    produce_and_push_block();
 
    auto next_idx = process_votes(1, num_needed_for_quorum -1); // one less strong vote than needed for quorum
-   nodes[next_idx].process_vote(*this, -1, vote_mode::weak);   // and one weak vote
+   process_vote(next_idx, -1, vote_mode::weak);   // and one weak vote
    produce_and_push_block();
    BOOST_REQUIRE_EQUAL(lib_advancing(), 0); // weak QC (1 shy of strong) => LIB does not advance
 
@@ -453,14 +453,14 @@ BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster) { tr
    node1.corrupt_vote_finalizer_key();
 
    // process the corrupted vote. LIB should not advance
-   node1.process_vote(*this, 0);
-   BOOST_REQUIRE(node1.process_vote(*this, 0) == eosio::chain::vote_status::unknown_public_key);
+   process_vote(1, 0);
+   BOOST_REQUIRE(process_vote(1, 0) == eosio::chain::vote_status::unknown_public_key);
 
    // restore to original vote
    node1.restore_to_original_vote(0);
 
    // process the original vote. LIB should advance
-   node1.process_vote(*this, 0);
+   process_vote(1, 0);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }

@@ -49,10 +49,9 @@ finality_test_cluster::finality_test_cluster(cluster_config_t config)
       // transition to Savanna
       // ---------------------
       fin_policy = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
-         for (size_t i=1; i<nodes.size(); ++i) {
+         for (size_t i=1; i<nodes.size(); ++i)
             nodes[i].push_block(b);
-            nodes[i].process_vote(*this);
-         }
+         process_votes(1, num_nodes - 1);
       });
 
       // at this point, node0 has a QC to include in next block.
@@ -126,14 +125,14 @@ bool finality_test_cluster::produce_blocks_and_verify_lib_advancing() {
    return true;
 }
 
-void finality_test_cluster::node_t::corrupt_vote_block_id() {
+void finality_node_t::corrupt_vote_block_id() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
    last_vote->block_id.data()[0] ^= 1; // flip one bit
 }
 
-void finality_test_cluster::node_t::corrupt_vote_finalizer_key() {
+void finality_node_t::corrupt_vote_finalizer_key() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
@@ -145,7 +144,7 @@ void finality_test_cluster::node_t::corrupt_vote_finalizer_key() {
    last_vote->finalizer_key = fc::crypto::blslib::bls_public_key(affine);
 }
 
-void finality_test_cluster::node_t::corrupt_vote_signature() {
+void finality_node_t::corrupt_vote_signature() {
    std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
@@ -157,7 +156,7 @@ void finality_test_cluster::node_t::corrupt_vote_signature() {
    last_vote->sig = fc::crypto::blslib::bls_signature(affine);
 }
 
-bool finality_test_cluster::node_t::lib_advancing() {
+bool finality_node_t::lib_advancing() {
    //std::cout << "curr_lib_num = " << lib_num() << ", prev_lib_num = " << prev_lib_num << '\n';
    if (lib_num() > prev_lib_num) {
       prev_lib_num = lib_num();
@@ -168,7 +167,7 @@ bool finality_test_cluster::node_t::lib_advancing() {
 }
 
 // private methods follow
-void finality_test_cluster::node_t::setup(size_t first_node_key, size_t num_node_keys) {
+void finality_node_t::setup(size_t first_node_key, size_t num_node_keys) {
    using namespace eosio::testing;
 
    cur_key = first_node_key;
@@ -181,11 +180,10 @@ void finality_test_cluster::node_t::setup(size_t first_node_key, size_t num_node
 }
 
 // Update "vote_index" vote on node according to `mode` parameter
-vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& cluster, size_t vote_index,
-                                                        vote_mode mode, bool duplicate) {
-   std::unique_lock g(votes_mtx);
+vote_message_ptr finality_node_t::get_vote(size_t vote_index, vote_mode mode, bool duplicate) {
+   std::lock_guard g(votes_mtx);
    if (votes.empty())
-      return vote_status::unknown_block;
+      return {};
 
    if (vote_index == (size_t)-1)
       vote_index = votes.size() - 1;
@@ -203,8 +201,7 @@ vote_status finality_test_cluster::node_t::process_vote(finality_test_cluster& c
       vote->sig = finkeys.privkeys[cur_key].sign(eosio::chain::create_weak_digest(strong_digest));
    }
 
-   g.unlock();
-   return cluster.process_vote(vote, duplicate);
+   return vote;
 }
 
 // Update "vote_index" vote on node according to `mode` parameter, and send the vote message to
