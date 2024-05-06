@@ -158,7 +158,7 @@ BOOST_AUTO_TEST_CASE(future_fork_test) { try {
 
    // create 10 blocks synced
    for (int i = 0; i < 10; i++) {
-      node_b.push_block(node_a.produce_block().block);
+      node_b.push_block(node_a.produce_block());
    }
 
    // produce a block on node A with a new account and permission
@@ -182,8 +182,8 @@ BOOST_AUTO_TEST_CASE(future_fork_test) { try {
    BOOST_TEST_REQUIRE(find_account_auth(pre_results, tester_account, "role"_n) == true);
 
    // have node B take over from head-1 and produce "future" blocks to overtake
-   node_a.push_block(node_b.produce_block(fc::milliseconds(config::block_interval_ms * 100)).block);
-   node_a.push_block(node_b.produce_block().block);
+   node_a.push_block(node_b.produce_block(fc::milliseconds(config::block_interval_ms * 100)));
+   node_a.push_block(node_b.produce_block());
 
    // ensure the account was forked away
    const auto post_results = aq_db.get_accounts_by_authorizers(pars);
@@ -206,7 +206,7 @@ BOOST_AUTO_TEST_CASE(fork_test) { try {
 
       // create 10 blocks synced
       for (int i = 0; i < 10; i++) {
-         node_b.push_block(node_a.produce_block().block);
+         node_b.push_block(node_a.produce_block());
       }
 
       // produce a block on node A with a new account and permission
@@ -258,7 +258,7 @@ BOOST_AUTO_TEST_CASE(fork_test) { try {
       aq_db.cache_transaction_trace(trace_ptr4);
 
       // push b's onto a
-      node_a.push_block(node_b.produce_block().block);
+      node_a.push_block(node_b.produce_block());
 
       const auto trace_ptr5 = node_b.push_action(config::system_account_name, updateauth::get_name(), tester_account, fc::mutable_variant_object()
             ("account", tester_account)
@@ -275,7 +275,7 @@ BOOST_AUTO_TEST_CASE(fork_test) { try {
       );
       aq_db.cache_transaction_trace(trace_ptr6);
 
-      node_a.push_block(node_b.produce_block().block);
+      node_a.push_block(node_b.produce_block());
 
       // ensure the account was forked away
       const auto post_results = aq_db.get_accounts_by_authorizers(pars);

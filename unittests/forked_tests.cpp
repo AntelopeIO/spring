@@ -62,7 +62,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
    // skip a's blocks on remote
    // create 7 forks of 7 blocks so this fork is longer where the ith block is corrupted
    for (size_t i = 0; i < 7; i ++) {
-      auto b = remote.produce_block(offset).block;
+      auto b = remote.produce_block(offset);
       BOOST_REQUIRE_EQUAL( b->producer.to_string(), "b" );
 
       for (size_t j = 0; j < 7; j ++) {
@@ -171,11 +171,11 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    wlog( "c1 blocks:" );
    c.produce_blocks(3);
-   signed_block_ptr b = c.produce_block().block;
+   signed_block_ptr b = c.produce_block();
    account_name expected_producer = "dan"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
 
-   b = c.produce_block().block;
+   b = c.produce_block();
    expected_producer = "sam"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    c.produce_blocks(10);
@@ -197,14 +197,14 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    wlog( "c2 blocks:" );
    c2.produce_blocks(12); // pam produces 12 blocks
-   b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ).block; // sam skips over dan's blocks
+   b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // sam skips over dan's blocks
    expected_producer = "sam"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    c2.produce_blocks(11 + 12);
 
 
    wlog( "c1 blocks:" );
-   b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ).block; // dan skips over pam's blocks
+   b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // dan skips over pam's blocks
    expected_producer = "dan"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    c.produce_blocks(11);
@@ -221,11 +221,11 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    wlog( "c1 blocks:" );
    c.produce_blocks(24);
 
-   b = c.produce_block().block; // Switching active schedule to version 2 happens in this block.
+   b = c.produce_block(); // Switching active schedule to version 2 happens in this block.
    expected_producer = "pam"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
 
-   b = c.produce_block().block;
+   b = c.produce_block();
    expected_producer = "cam"_n;
 //   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    c.produce_blocks(10);
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    wlog( "now cam and dan rejoin sam and pam on c2" );
    c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // cam skips over pam's blocks (this block triggers a block on this branch to become irreversible)
    c2.produce_blocks(11); // cam produces the remaining 11 blocks
-   b = c2.produce_block().block; // dan produces a block
+   b = c2.produce_block(); // dan produces a block
 
    // a node on chain 1 now gets all but the last block from chain 2 which should cause a fork switch
    wlog( "push c2 blocks (except for the last block by dan) to c1" );
@@ -586,11 +586,11 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    signed_block_ptr cb;
    c.produce_blocks(3);
    signed_block_ptr b;
-   cb = b = c.produce_block().block;
+   cb = b = c.produce_block();
    account_name expected_producer = "dan"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
 
-   b = c.produce_block().block;
+   b = c.produce_block();
    expected_producer = "sam"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    c.produce_blocks(10);
@@ -613,18 +613,18 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    signed_block_ptr c2b;
    wlog( "c2 blocks:" );
    c2.produce_blocks(12); // pam produces 12 blocks
-   b = c2b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ).block; // sam skips over dan's blocks
+   b = c2b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // sam skips over dan's blocks
    expected_producer = "sam"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    // save blocks for verification of forking later
    std::vector<signed_block_ptr> c2blocks;
    for( size_t i = 0; i < 11 + 12; ++i ) {
-      c2blocks.emplace_back( c2.produce_block().block );
+      c2blocks.emplace_back( c2.produce_block() );
    }
 
 
    wlog( "c1 blocks:" );
-   b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ).block; // dan skips over pam's blocks
+   b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // dan skips over pam's blocks
    expected_producer = "dan"_n;
    BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
    // create accounts on c1 which will be forked out
@@ -750,7 +750,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
                            }) ;
 
    // produce block which will apply the unapplied transactions
-   produce_block_result_t produce_block_result = c.produce_block(fc::milliseconds(config::block_interval_ms), true);
+   produce_block_result_t produce_block_result = c.produce_block_ex(fc::milliseconds(config::block_interval_ms), true);
    std::vector<transaction_trace_ptr>& traces = produce_block_result.traces;
 
    BOOST_REQUIRE_EQUAL( 4u, traces.size() );

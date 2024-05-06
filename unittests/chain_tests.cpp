@@ -191,7 +191,7 @@ BOOST_AUTO_TEST_CASE( signal_validated_blocks ) try {
    validator.push_block(accepted_block);
 
    chain.create_account("hello"_n);
-   auto produced_block = chain.produce_block().block;
+   auto produced_block = chain.produce_block();
    validator.push_block(accepted_block);
    BOOST_CHECK(produced_block->calculate_id() == accepted_id);
    BOOST_CHECK(accepted_id == validated_id);

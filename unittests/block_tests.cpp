@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_test)
 
    // First we create a valid block with valid transaction
    main.create_account("newacc"_n);
-   auto b = main.produce_block().block;
+   auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
    auto copy_b = std::make_shared<signed_block>(std::move(*b));
@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_mroot_test)
 
    // First we create a valid block with valid transaction
    main.create_account("newacc"_n);
-   auto b = main.produce_block().block;
+   auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
    auto copy_b = std::make_shared<signed_block>(std::move(*b));
@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_mroot_test)
 std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(validating_tester& main, account_name act_name) {
    // First we create a valid block with valid transaction
    main.create_account(act_name);
-   signed_block_ptr b = main.produce_block_no_validation().block;
+   signed_block_ptr b = main.produce_block_no_validation();
 
    // Make a copy of the valid block and corrupt the transaction
    auto copy_b = std::make_shared<signed_block>(b->clone());
@@ -137,13 +137,13 @@ BOOST_AUTO_TEST_CASE(trusted_producer_test)
    std::set<account_name> producers = { "defproducera"_n, "defproducerb"_n, "defproducerc"_n, "defproducerd"_n };
    for (auto prod : producers)
        main.create_account(prod);
-   auto b = main.produce_block().block;
+   auto b = main.produce_block();
 
    std::vector<account_name> schedule(producers.cbegin(), producers.cend());
    auto trace = main.set_producers(schedule);
 
    while (b->producer != "defproducera"_n) {
-      b = main.produce_block().block;
+      b = main.produce_block();
    }
 
    auto blocks = corrupt_trx_in_block(main, "tstproducera"_n);
@@ -163,13 +163,13 @@ BOOST_AUTO_TEST_CASE(trusted_producer_verify_2nd_test)
    std::set<account_name> producers = { "defproducera"_n, "defproducerb"_n, "defproducerc"_n, "defproducerd"_n };
    for (auto prod : producers)
        main.create_account(prod);
-   auto b = main.produce_block().block;
+   auto b = main.produce_block();
 
    std::vector<account_name> schedule(producers.cbegin(), producers.cend());
    auto trace = main.set_producers(schedule);
 
    while (b->producer != "defproducerc"_n) {
-      b = main.produce_block().block;
+      b = main.produce_block();
    }
 
    auto blocks = corrupt_trx_in_block(main, "tstproducera"_n);
@@ -189,13 +189,13 @@ BOOST_AUTO_TEST_CASE(untrusted_producer_test)
    std::set<account_name> producers = { "defproducera"_n, "defproducerb"_n, "defproducerc"_n, "defproducerd"_n };
    for (auto prod : producers)
        main.create_account(prod);
-   auto b = main.produce_block().block;
+   auto b = main.produce_block();
 
    std::vector<account_name> schedule(producers.cbegin(), producers.cend());
    auto trace = main.set_producers(schedule);
 
    while (b->producer != "defproducerb"_n) {
-      b = main.produce_block().block;
+      b = main.produce_block();
    }
 
    auto blocks = corrupt_trx_in_block(main, "tstproducera"_n);
@@ -226,7 +226,7 @@ BOOST_AUTO_TEST_CASE(broadcasted_block_test)
     bcasted_blk_by_recv_node = block;
   });
 
-  auto b = producer_node.produce_block().block;
+  auto b = producer_node.produce_block();
   receiving_node.push_block(b);
 
   bytes bcasted_blk_by_prod_node_packed = fc::raw::pack(*bcasted_blk_by_prod_node);

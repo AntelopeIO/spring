@@ -225,7 +225,7 @@ std::pair<transaction_trace_ptr, signed_block_ptr> _CallFunction(Tester& test, T
       if (!no_throw) {
          BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
       }
-      auto block = test.produce_block().block;
+      auto block = test.produce_block();
       return { res, block };
    }
 }
@@ -844,13 +844,13 @@ BOOST_AUTO_TEST_CASE(light_validation_skip_cfa) try {
    tester chain(setup_policy::full);
 
    std::vector<signed_block_ptr> blocks;
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
 
    chain.create_account( "testapi"_n );
    chain.create_account( "dummy"_n );
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
 
    cf_action cfa;
    signed_transaction trx;
@@ -866,7 +866,7 @@ BOOST_AUTO_TEST_CASE(light_validation_skip_cfa) try {
    // run normal passing case
    auto sigs = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.control->get_chain_id());
    auto trace = chain.push_transaction(trx);
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
 
    BOOST_REQUIRE(trace->receipt);
    BOOST_CHECK_EQUAL(trace->receipt->status, transaction_receipt::executed);
@@ -1593,21 +1593,21 @@ BOOST_AUTO_TEST_CASE(inline_action_with_over_4k_limit) { try {
    tester chain2(setup_policy::full, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
-      block = chain.produce_block().block;
+      block = chain.produce_block();
       chain2.push_block(block);
    }
    chain.create_account( "testapi"_n );
    for (int n=0; n < 2; ++n) {
-      block = chain.produce_block().block;
+      block = chain.produce_block();
       chain2.push_block(block);
    }
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   block = chain.produce_block().block;
+   block = chain.produce_block();
    chain2.push_block(block);
 
    block = CALL_TEST_FUNCTION_WITH_BLOCK(chain, "test_transaction", "send_action_4k", {}).second;
    chain2.push_block(block);
-   block = chain.produce_block().block;
+   block = chain.produce_block();
    chain2.push_block(block);
 
 } FC_LOG_AND_RETHROW() }
@@ -1643,13 +1643,13 @@ BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    tester chain2(setup_policy::full_except_do_not_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
-      block = chain.produce_block().block;
+      block = chain.produce_block();
       chain2.push_block(block);
    }
    chain.create_accounts( {"testapi"_n, "testapi2"_n, "alice"_n} );
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
    chain.set_code( "testapi2"_n, test_contracts::test_api_wasm() );
-   block = chain.produce_block().block;
+   block = chain.produce_block();
    chain2.push_block(block);
 
    transaction_trace_ptr trace;
@@ -1660,7 +1660,7 @@ BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    block = CALL_TEST_FUNCTION_WITH_BLOCK(chain, "test_transaction", "send_deferred_transaction_4k_action", {} ).second;
    chain2.push_block(block);
    BOOST_CHECK(!trace);
-   block = chain.produce_block( fc::seconds(2) ).block;
+   block = chain.produce_block( fc::seconds(2) );
    chain2.push_block(block);
 
    //check that it gets executed afterwards
@@ -1672,7 +1672,7 @@ BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    c.disconnect();
 
    for (int n=0; n < 10; ++n) {
-      block = chain.produce_block().block;
+      block = chain.produce_block();
       chain2.push_block(block);
    }
 
@@ -3872,7 +3872,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    fin_keys.set_finalizer_policy(0);
 
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
-   auto block = t.produce_block().block;
+   auto block = t.produce_block();
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
@@ -3899,7 +3899,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 
    auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
-   block = t.produce_block().block;
+   block = t.produce_block();
 
    // lib must advance after 3 blocks
    t.produce_blocks(3);
@@ -3920,7 +3920,7 @@ void test_finality_transition(const vector<account_name>& accounts,
    // activate savanna
    t.set_finalizers(input);
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
-   auto block = t.produce_block().block;
+   auto block = t.produce_block();
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
@@ -3932,7 +3932,7 @@ void test_finality_transition(const vector<account_name>& accounts,
 
    block_num_type active_block_num = block->block_num();
    while (active_block_num > t.lib_block->block_num()) {
-      block = t.produce_block().block;
+      block = t.produce_block();
    }
    // lib_block is IF Genesis Block
    // block is IF Critical Block
@@ -3945,7 +3945,7 @@ void test_finality_transition(const vector<account_name>& accounts,
 
    auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
-   block = t.produce_block().block;
+   block = t.produce_block();
 
    t.produce_blocks(4);
    if( lib_advancing_expected ) {

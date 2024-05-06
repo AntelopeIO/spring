@@ -524,7 +524,7 @@ namespace eosio::testing {
             res = produce_empty_block();
       } else {
          for( uint32_t i = 0; i < n; ++i )
-            res = produce_block().block;
+            res = produce_block();
       }
       return res;
    }

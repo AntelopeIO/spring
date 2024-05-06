@@ -33,7 +33,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
                BOOST_TEST(control->head_block_num() == expected_block_num);
          }
 
-         auto b = produce_block().block;
+         auto b = produce_block();
          BOOST_TEST( b->confirmed == 0); // must be 0 after instant finality is enabled
 
          // Check if the producer is the same as what we expect
@@ -58,7 +58,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
 
    // enable instant_finality
    set_finalizers(producers);
-   auto setfin_block = produce_block().block; // this block contains the header extension of the finalizer set
+   auto setfin_block = produce_block(); // this block contains the header extension of the finalizer set
 
    for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib_block->block_num(); produce_block()) {
       set_producers({"initc"_n, "inite"_n}); // should be ignored since in transition
@@ -179,8 +179,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
-   auto prod = produce_block().block->producer;
-   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
+   auto prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
 
    // test no change to active schedule
    set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change
@@ -203,8 +203,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block().block->producer;
-   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
 
    // test change in same block where there is an existing proposed that is the same
    set_producers( {"bob"_n,"alice"_n} );
@@ -225,8 +225,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block().block->producer;
-   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
 
    // test two in-flight
    //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
@@ -249,8 +249,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block().block->producer;
-   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
 
    // test two in-flight, P1 == P3, so no change
    //    round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
@@ -273,8 +273,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, validating_tester ) t
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // get to next producer round
-   prod = produce_block().block->producer;
-   for (auto b = produce_block().block; b->producer == prod; b = produce_block().block);
+   prod = produce_block()->producer;
+   for (auto b = produce_block(); b->producer == prod; b = produce_block());
 
    // test two in-flight, ultimately no change
    produce_block(); // 1

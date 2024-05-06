@@ -788,7 +788,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    auto create_account_traces = chain2.create_accounts( {"adam"_n} );
    auto create_account_trace_id = create_account_traces[0]->id;
 
-   auto b = chain2.produce_block().block;
+   auto b = chain2.produce_block();
    chain2.produce_blocks(11+12);
 
    for( uint32_t start = fork_block_num + 1, end = chain2.control->head_block_num(); start <= end; ++start ) {

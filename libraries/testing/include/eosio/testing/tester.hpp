@@ -162,6 +162,7 @@ namespace eosio::testing {
 
          static const uint32_t DEFAULT_BILLED_CPU_TIME_US = 2000;
          static const fc::microseconds abi_serializer_max_time;
+         static constexpr fc::microseconds default_skip_time = fc::milliseconds(config::block_interval_ms);
 
          virtual ~base_tester() {
             lib_connection.disconnect();
@@ -186,9 +187,11 @@ namespace eosio::testing {
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
-         virtual produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false) = 0;
-         virtual signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) = 0;
-         virtual signed_block_ptr finish_block() = 0;
+         virtual produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false) = 0;
+         virtual signed_block_ptr       produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false) = 0;
+         virtual signed_block_ptr       produce_empty_block( fc::microseconds skip_time = default_skip_time ) = 0;
+         virtual signed_block_ptr       finish_block() = 0;
+
          // produce one block and return traces for all applied transactions, both failed and executed
          signed_block_ptr     produce_blocks( uint32_t n = 1, bool empty = false );
          void                 produce_blocks_until_end_of_round();
@@ -576,11 +579,15 @@ namespace eosio::testing {
 
       using base_tester::produce_block;
 
-      produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false )override {
+      produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
          return _produce_block(skip_time, false, no_throw);
       }
 
-      signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+      signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         return _produce_block(skip_time, false, no_throw).block;
+      }
+
+      signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time ) override {
          unapplied_transactions.add_aborted( control->abort_block() );
          return _produce_block(skip_time, true);
       }
@@ -671,14 +678,18 @@ namespace eosio::testing {
          }
       }
 
-      produce_block_result_t produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false )override {
+      produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
          auto produce_block_result = _produce_block(skip_time, false, no_throw);
          validate_push_block(produce_block_result.block);
          return produce_block_result;
       }
 
-      produce_block_result_t produce_block_no_validation( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) {
-         return _produce_block(skip_time, false, false);
+      signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         return produce_block_ex(skip_time, no_throw).block;
+      }
+
+      signed_block_ptr produce_block_no_validation( fc::microseconds skip_time = default_skip_time ) {
+         return _produce_block(skip_time, false, false).block;
       }
 
       void validate_push_block(const signed_block_ptr& sb) {
@@ -688,7 +699,7 @@ namespace eosio::testing {
          _wait_for_vote_if_needed(*validating_node);
       }
 
-      signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+      signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
          unapplied_transactions.add_aborted( control->abort_block() );
          auto sb = _produce_block(skip_time, true);
          validate_push_block(sb);
@@ -785,7 +796,7 @@ namespace eosio::testing {
       // -----------------------------------------------------------
       finalizer_policy transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
          auto produce_block = [&]() {
-            auto b = t.produce_block().block;
+            auto b = t.produce_block();
             if (block_callback)
                block_callback(b);
             return b;

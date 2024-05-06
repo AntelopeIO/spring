@@ -174,7 +174,7 @@ public:
 
    // node0 produces a block and pushes it to node1 and node2
    signed_block_ptr produce_and_push_block() {
-      auto b = node0.produce_block().block;
+      auto b = node0.produce_block();
       for (size_t i=1; i<nodes.size(); ++i)
          nodes[i].push_block(b);
       return b;

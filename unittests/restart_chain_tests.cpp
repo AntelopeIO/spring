@@ -66,8 +66,12 @@ class replay_tester : public base_tester {
    }
    using base_tester::produce_block;
 
-   produce_block_result_t produce_block(fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms), bool no_throw = false) override {
+   produce_block_result_t produce_block_ex(fc::microseconds skip_time = default_skip_time, bool no_throw = false) override {
       return _produce_block(skip_time, false, no_throw);
+   }
+
+    signed_block_ptr produce_block(fc::microseconds skip_time = default_skip_time, bool no_throw = false) override {
+      return produce_block_ex(skip_time, no_throw).block;
    }
 
    signed_block_ptr
@@ -87,9 +91,9 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
    tester chain;
 
    std::vector<signed_block_ptr> blocks;
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
 
    tester other;
    for (const auto& new_block : blocks) {
@@ -103,9 +107,9 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
    // restarting chain with no block log and no genesis
    other.open();
 
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
    chain.control->abort_block();
 
    for (const auto& new_block : blocks) {
@@ -117,9 +121,9 @@ BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
    tester chain;
 
    std::vector<signed_block_ptr> blocks;
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
-   blocks.push_back(chain.produce_block().block);
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
+   blocks.push_back(chain.produce_block());
 
    tester other;
    for (const auto& new_block : blocks) {

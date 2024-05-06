@@ -638,7 +638,7 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
       remote.block_signing_private_keys.emplace(get_public_key("alice"_n, "bs2"), get_private_key("alice"_n, "bs2"));
 
       // Generate the block that will be corrupted.
-      auto valid_block = remote.produce_block().block;
+      auto valid_block = remote.produce_block();
 
       BOOST_REQUIRE( valid_block->producer == "alice"_n );
 

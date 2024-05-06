@@ -30,12 +30,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_snapshot_information, SNAPSHOT_SUITE, snapsho
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
    chain.produce_blocks(1);
 
-   auto block = chain.produce_block().block;
+   auto block = chain.produce_block();
    BOOST_REQUIRE_EQUAL(block->block_num(), 6u); // ensure that test setup stays consistent with original snapshot setup
    // undo the auto-pending from tester
    chain.control->abort_block();
 
-   auto block2 = chain.produce_block().block;
+   auto block2 = chain.produce_block();
    BOOST_REQUIRE_EQUAL(block2->block_num(), 7u); // ensure that test setup stays consistent with original snapshot setup
    // undo the auto-pending from tester
    chain.control->abort_block();
