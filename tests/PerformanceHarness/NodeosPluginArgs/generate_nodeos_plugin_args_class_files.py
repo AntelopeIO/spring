@@ -56,7 +56,7 @@ def main():
 
     myStr = result.stdout
     myStr = myStr.rstrip("\n")
-    myStr = re.sub(":\n\s+-",':@@@\n  -', string=myStr)
+    myStr = re.sub(":\n\\s+-",':@@@\n  -', string=myStr)
     myStr = re.sub("\n\n",'\n@@@', string=myStr)
     myStr = re.sub("Application Options:\n",'', string=myStr)
     pluginSections = re.split("(@@@.*?@@@\n)", string=myStr)
@@ -68,16 +68,16 @@ def main():
 
     pluginOptsDict = {}
     for section, options in pairwise(pluginSections[1:]):
-        myOpts = re.sub("\s+", " ", options)
+        myOpts = re.sub("\\s+", " ", options)
         myOpts = re.sub("\n", " ", myOpts)
         myOpts = re.sub(" --", "\n--",string = myOpts)
         splitOpts=re.split("\n", myOpts)
 
         argDescDict = {}
         for opt in splitOpts[1:]:
-            secondSplit = re.split("(--[\w\-]+)", opt)[1:]
+            secondSplit = re.split("(--[\\w\\-]+)", opt)[1:]
             argument=secondSplit[0]
-            argDefaultDesc=secondSplit[1].lstrip("\s")
+            argDefaultDesc=secondSplit[1].lstrip("\\s")
             argDescDict[argument] = argDefaultDesc
         section=re.sub("@@@", "", section)
         section=re.sub("\n", "", section)
@@ -122,7 +122,7 @@ def main():
                 newKey="".join([x.capitalize() for x in key.split('-')]).replace('--','')
                 newKey="".join([newKey[0].lower(), newKey[1:]])
                 value = chainPluginArgs[newKey]
-                match = re.search("\(=.*?\)", value)
+                match = re.search("\\(=.*?\\)", value)
                 if match is not None:
                     value = match.group(0)[2:-1]
                     try:
