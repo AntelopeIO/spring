@@ -146,8 +146,7 @@ namespace eosio::testing {
 
    struct produce_block_result_t {
       signed_block_ptr                   block;
-      transaction_trace_ptr              onblock_trace;
-      std::vector<transaction_trace_ptr> traces;
+      std::vector<transaction_trace_ptr> traces; // onblock trace first, followed by transaction traces
    };
 
    /**

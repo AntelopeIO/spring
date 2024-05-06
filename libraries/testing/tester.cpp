@@ -400,20 +400,20 @@ namespace eosio::testing {
       static transaction_trace_ptr onblock_trace;
 
       if( !control->is_building_block() || control->pending_block_time() != next_time ) {
-         res.onblock_trace = _start_block( next_time );
+         res.traces.emplace_back(_start_block( next_time ));
       } else {
-         res.onblock_trace = std::move(onblock_trace); // saved from _start_block call in last _produce_block
+         res.traces.emplace_back(std::move(onblock_trace)); // saved from _start_block call in last _produce_block
       }
 
       if( !skip_pending_trxs ) {
          for( auto itr = unapplied_transactions.begin(); itr != unapplied_transactions.end();  ) {
             auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
-            res.traces.emplace_back( trace );
             if(!no_throw && trace->except) {
                // this always throws an fc::exception, since the original exception is copied into an fc::exception
                trace->except->dynamic_rethrow_exception();
             }
             itr = unapplied_transactions.erase( itr );
+            res.traces.emplace_back( std::move(trace) );
          }
 
          vector<transaction_id_type> scheduled_trxs;
