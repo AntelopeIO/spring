@@ -26,7 +26,7 @@ struct finality_node_t : public eosio::testing::tester {
    std::vector<vote_message_ptr>           votes;
    eosio::chain::vote_message_ptr          orig_vote;
    eosio::testing::finalizer_keys<tester>  finkeys;
-   size_t                                  cur_key; // index of key used in current policy
+   size_t                                  cur_key{0}; // index of key used in current policy
 
    finality_node_t() : finkeys(*this) {}
 
@@ -154,7 +154,7 @@ public:
       if (config.transition_to_savanna) {
          // transition to Savanna
          // ---------------------
-         fin_policy_0 = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
+         fin_policy_0 = node0.finkeys.transition_to_savanna([&](const signed_block_ptr& b) {
             for (size_t i=1; i<nodes.size(); ++i)
                nodes[i].push_block(b);
             process_votes(1, num_nodes - 1);

@@ -745,7 +745,7 @@ namespace eosio::testing {
    // -------------------------------------------------------------------------------------
    template <class Tester>
    struct finalizer_keys {
-      finalizer_keys(Tester& t, size_t num_keys = 0, size_t finalizer_policy_size = 0) : t(t) {
+      explicit finalizer_keys(Tester& t, size_t num_keys = 0, size_t finalizer_policy_size = 0) : t(t) {
          if (num_keys)
             init_keys(num_keys, finalizer_policy_size);
       }
@@ -771,13 +771,13 @@ namespace eosio::testing {
       // OK to configure keys not used in a finalizer_policy
       // -------------------------------------------------------------
       void set_node_finalizers(size_t first_key, size_t num_keys) {
-         t.set_node_finalizers({&key_names[first_key], num_keys});
+         t.set_node_finalizers({&key_names.at(first_key), num_keys});
       }
 
       // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
       // ----------------------------------------------------------------------------------
       std::vector<bls_public_key> set_finalizer_policy(size_t first_key) {
-         return t.set_active_finalizers({&key_names[first_key], fin_policy_size});
+         return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
       }
 
       std::vector<bls_public_key>  set_finalizer_policy(std::span<const size_t> indices) {
@@ -785,7 +785,7 @@ namespace eosio::testing {
          vector<account_name> names;
          names.reserve(fin_policy_size);
          for (auto idx : indices)
-            names.push_back(key_names[idx]);
+            names.push_back(key_names.at(idx));
          return t.set_active_finalizers({names.begin(), fin_policy_size});
       }
 
@@ -794,7 +794,7 @@ namespace eosio::testing {
       // before this.
       // This should be done only once.
       // -----------------------------------------------------------
-      finalizer_policy transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
+      finalizer_policy transition_to_savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
          auto produce_block = [&]() {
             auto b = t.produce_block();
             if (block_callback)
@@ -850,7 +850,7 @@ namespace eosio::testing {
       vector<account_name>    key_names;
       vector<bls_public_key>  pubkeys;
       vector<bls_private_key> privkeys;
-      size_t                  fin_policy_size;
+      size_t                  fin_policy_size {0};
    };
 
 

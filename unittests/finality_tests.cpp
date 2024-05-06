@@ -225,7 +225,7 @@ BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster<4>) { try {
    // The strong QC extension for prior block makes LIB advance on nodes
    BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
 
-   // but don't propagate the votes on b2. Mage sure they are lost
+   // but don't propagate the votes on b2. Make sure they are lost
    clear_votes_and_reset_lib();
 
    produce_and_push_block();                // Produce another block

@@ -36,7 +36,6 @@ void finality_node_t::corrupt_vote_signature() {
 }
 
 bool finality_node_t::lib_advancing() {
-   //std::cout << "curr_lib_num = " << lib_num() << ", prev_lib_num = " << prev_lib_num << '\n';
    if (lib_num() > prev_lib_num) {
       prev_lib_num = lib_num();
       return true;
@@ -77,7 +76,7 @@ vote_message_ptr finality_node_t::get_vote(size_t vote_index, vote_mode mode, bo
       // fetch the strong digest
       auto strong_digest = control->get_strong_digest_by_id(vote->block_id);
       // convert the strong digest to weak and sign it
-      vote->sig = finkeys.privkeys[cur_key].sign(eosio::chain::create_weak_digest(strong_digest));
+      vote->sig = finkeys.privkeys.at(cur_key).sign(eosio::chain::create_weak_digest(strong_digest));
    }
 
    return vote;
