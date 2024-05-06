@@ -9,7 +9,7 @@ import signal
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 
 ###############################################################
-# ship_legacy_to_svnn
+# ship_reqs_across_savanna
 # 
 # This test verifies SHiP get_blocks_result_v1 works across Legacy and Savanna boundary.
 #   1. Start a producer Node and a SHiP node in Legacy mode
