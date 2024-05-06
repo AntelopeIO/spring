@@ -478,10 +478,9 @@ namespace eosio::testing {
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
          // -----------------------------------------------------------------
-         void check_active_finalizer_policy(const signed_block_ptr& block,
-                                            uint32_t generation,
-                                            std::span<const bls_public_key> keys_span) {
-            auto finpol = active_finalizer_policy(block->calculate_id());
+         void check_head_finalizer_policy(uint32_t generation,
+                                          std::span<const bls_public_key> keys_span) {
+            auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
             BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
@@ -765,32 +764,37 @@ namespace eosio::testing {
 
       // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
       // ----------------------------------------------------------------------------------
-      std::span<const bls_public_key> set_finalizer_policy(size_t first_key) {
-         t.set_active_finalizers({&key_names[first_key], fin_policy_size});
-         return { &pubkeys[first_key], fin_policy_size };
+      std::vector<bls_public_key> set_finalizer_policy(size_t first_key) {
+         return t.set_active_finalizers({&key_names[first_key], fin_policy_size});
       }
 
-      void set_finalizer_policy(std::span<size_t> indices) {
+      std::vector<bls_public_key>  set_finalizer_policy(std::span<const size_t> indices) {
          assert(indices.size() == fin_policy_size);
          vector<account_name> names;
          names.reserve(fin_policy_size);
          for (auto idx : indices)
             names.push_back(key_names[idx]);
-         t.set_active_finalizers({names.begin(), fin_policy_size});
+         return t.set_active_finalizers({names.begin(), fin_policy_size});
       }
 
       // Produce blocks until the transition to Savanna is completed.
       // This assumes `set_finalizer_policy` was called immediately
-      // before this. Also this should be done only once.
+      // before this.
+      // This should be done only once.
       // -----------------------------------------------------------
       finalizer_policy transition_to_Savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
+         auto produce_block = [&]() {
+            auto b = t.produce_block().block;
+            if (block_callback)
+               block_callback(b);
+            return b;
+         };
+
          // `genesis_block` is the first block where set_finalizers() was executed.
          // It is the genesis block.
          // It will include the first header extension for the instant finality.
          // -----------------------------------------------------------------------
-         auto genesis_block = t.produce_block().block;
-         if (block_callback)
-            block_callback(genesis_block);
+         auto genesis_block = produce_block();
 
          // Do some sanity checks on the genesis block
          // ------------------------------------------
@@ -805,36 +809,27 @@ namespace eosio::testing {
          // The critical block is the block that makes the genesis_block irreversible
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-         while(genesis_block->block_num() > t.lib_block->block_num()) {
-            critical_block = t.produce_block().block;
-            if (block_callback)
-               block_callback(critical_block);
-         }
+         while(genesis_block->block_num() > t.lib_block->block_num())
+            critical_block = produce_block();
 
          // Blocks after the critical block are proper IF blocks.
          // -----------------------------------------------------
-         auto first_proper_block = t.produce_block().block;
-         if (block_callback)
-            block_callback(first_proper_block);
+         auto first_proper_block = produce_block();
          BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
 
          // wait till the first proper block becomes irreversible. Transition will be done then
          // -----------------------------------------------------------------------------------
          signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
          while(first_proper_block->block_num() > t.lib_block->block_num()) {
-            pt_block = t.produce_block().block;
+            pt_block = produce_block();
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
-            if (block_callback)
-               block_callback(pt_block);
          }
 
          // lib must advance after 3 blocks
          // -------------------------------
-         for (size_t i=0; i<3; ++i) {
-            auto b = t.produce_block().block;
-            if (block_callback)
-               block_callback(b);
-         }
+         for (size_t i=0; i<3; ++i)
+            auto b = produce_block();
+
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
          return *fin_policy;
       }

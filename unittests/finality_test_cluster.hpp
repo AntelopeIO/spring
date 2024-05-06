@@ -103,6 +103,7 @@ public:
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using tester           = eosio::testing::tester;
    using vote_mode        = finality_node_t::vote_mode;
+   using bls_public_key   = fc::crypto::blslib::bls_public_key;
 
    static constexpr size_t num_nodes = NUM_NODES;
    static constexpr size_t keys_per_node = 10;
@@ -146,15 +147,14 @@ public:
 
       // set initial finalizer policy
       // ----------------------------
-      std::array<size_t, num_nodes> initial_policy;
       for (size_t i=0; i<nodes.size(); ++i)
-         initial_policy[i] = i * split;
-      node0.finkeys.set_finalizer_policy(initial_policy);
+         fin_policy_indices_0[i] = i * split;
+      fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(fin_policy_indices_0);
 
       if (config.transition_to_savanna) {
          // transition to Savanna
          // ---------------------
-         fin_policy = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
+         fin_policy_0 = node0.finkeys.transition_to_Savanna([&](const signed_block_ptr& b) {
             for (size_t i=1; i<nodes.size(); ++i)
                nodes[i].push_block(b);
             process_votes(1, num_nodes - 1);
@@ -244,7 +244,11 @@ private:
 
 public:
    std::array<finality_node_t, num_nodes>                 nodes;
-   std::optional<eosio::chain::finalizer_policy> fin_policy; // policy used to transition to Savanna
+
+   // Used for transition to Savanna
+   std::optional<eosio::chain::finalizer_policy> fin_policy_0;         // policy used to transition to Savanna
+   std::array<size_t, num_nodes>                 fin_policy_indices_0; // set of key indices used for transition
+   std::vector<bls_public_key>                   fin_policy_pubkeys_0; // set of public keys used for transition
 
    finality_node_t& node0 = nodes[0];
    finality_node_t& node1 = nodes[1];

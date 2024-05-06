@@ -7,9 +7,9 @@ using namespace eosio::chain;
  */
 BOOST_AUTO_TEST_SUITE(finality_tests)
 
-// verify LIB advances with 2 finalizers voting.
-// ---------------------------------------------
-BOOST_FIXTURE_TEST_CASE(two_votes, finality_test_cluster<4>) { try {
+// verify LIB advances with a quorum of finalizers voting.
+// -------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(quorum_of_votes, finality_test_cluster<4>) { try {
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       process_votes(1, num_needed_for_quorum);
@@ -486,6 +486,40 @@ BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster<4>) { t
    BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
+} FC_LOG_AND_RETHROW() }
+
+// verify LIB advances after second set_finalizers
+// -----------------------------------------------
+BOOST_FIXTURE_TEST_CASE(second_set_finalizers, finality_test_cluster<4>) { try {
+   produce_and_push_block();
+   process_votes(1, num_needed_for_quorum);
+   produce_and_push_block();
+
+   // when a quorum of nodes vote, LIB should advance
+   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
+
+   // run a second set_finalizers
+   // ---------------------------
+   assert(fin_policy_0);        // current finalizer policy from transition to Savanna
+
+   auto indices1 = fin_policy_indices_0;  // start from original set of indices
+   assert(indices1[0] == 0);              // we used index 0 for node0 in original policy
+   indices1[0] = 1;                       // update key used for node0 in policy
+   auto pubkeys1 = node0.finkeys.set_finalizer_policy(indices1);
+
+   // we need two 3-chains for the new finalizer policy to be activated
+   for (size_t i=0; i<6; ++i) {
+      produce_and_push_block();
+      process_votes(1, num_nodes - 1);
+      node0.check_head_finalizer_policy(1, fin_policy_pubkeys_0); // original policy still active
+   }
+
+   // we just completed the two 3-chains, so the next block we produce will have the new finalizer policy activated
+   produce_and_push_block();
+   node0.check_head_finalizer_policy(2, pubkeys1);
+   node1.check_head_finalizer_policy(2, pubkeys1);
+
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
