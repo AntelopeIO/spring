@@ -5,7 +5,9 @@
 namespace chainbase {
 
 constexpr size_t header_size = 1024;
-constexpr uint64_t header_id = 0x3342444f49534f45ULL; //"EOSIODB3" little endian
+// `CHAINB01` reflects changes since `EOSIODB3`.
+// Spring 1.0 is compatible with `CHAINB01`.
+constexpr uint64_t header_id = 0x3130424e49414843ULL; //"CHAINB01" little endian
 
 struct environment  {
    environment() {
