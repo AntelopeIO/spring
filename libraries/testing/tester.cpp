@@ -397,9 +397,12 @@ namespace eosio::testing {
 
       auto head_time = control->head_block_time();
       auto next_time = head_time + skip_time;
+      static transaction_trace_ptr onblock_trace;
 
       if( !control->is_building_block() || control->pending_block_time() != next_time ) {
-         _start_block( next_time );
+         res.onblock_trace = _start_block( next_time );
+      } else {
+         res.onblock_trace = std::move(onblock_trace); // saved from _start_block call in last _produce_block
       }
 
       if( !skip_pending_trxs ) {
@@ -428,11 +431,11 @@ namespace eosio::testing {
 
       res.block = _finish_block();
 
-      _start_block( next_time + fc::microseconds(config::block_interval_us));
+      onblock_trace = _start_block( next_time + fc::microseconds(config::block_interval_us));
       return res;
    }
 
-   void base_tester::_start_block(fc::time_point block_time) {
+   transaction_trace_ptr base_tester::_start_block(fc::time_point block_time) {
       auto head_block_number = control->head_block_num();
       auto producer = control->head_active_producers().get_scheduled_producer(block_time);
 
@@ -459,11 +462,13 @@ namespace eosio::testing {
          preactivated_protocol_features.end()
       );
 
-      control->start_block( block_time, head_block_number - last_produced_block_num, feature_to_be_activated,
-                            controller::block_status::incomplete );
+      auto onblock_trace = control->start_block( block_time, head_block_number - last_produced_block_num,
+                                                 feature_to_be_activated,
+                                                 controller::block_status::incomplete );
 
       // Clear the list, if start block finishes successfuly, the protocol features should be assumed to be activated
       protocol_features_to_be_activated_wo_preactivation.clear();
+      return onblock_trace;
    }
 
    signed_block_ptr base_tester::_finish_block() {

@@ -145,7 +145,8 @@ namespace eosio::testing {
    }
 
    struct produce_block_result_t {
-      signed_block_ptr block;
+      signed_block_ptr                   block;
+      transaction_trace_ptr              onblock_trace;
       std::vector<transaction_trace_ptr> traces;
    };
 
@@ -499,9 +500,9 @@ namespace eosio::testing {
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
 
-         void             _start_block(fc::time_point block_time);
-         signed_block_ptr _finish_block();
-         void             _wait_for_vote_if_needed(controller& c);
+         transaction_trace_ptr  _start_block(fc::time_point block_time);
+         signed_block_ptr       _finish_block();
+         void                   _wait_for_vote_if_needed(controller& c);
 
       // Fields:
       protected:
