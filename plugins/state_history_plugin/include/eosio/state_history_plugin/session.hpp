@@ -23,6 +23,10 @@ using namespace state_history;
 
 class session_base {
 public:
+   session_base() = default;
+   session_base(const session_base&) = delete;
+   session_base& operator=(const session_base&) = delete;
+
    virtual void block_applied(const chain::block_num_type block_num) = 0;
 
    virtual ~session_base() = default;
