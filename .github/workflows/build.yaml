@@ -285,9 +285,9 @@ jobs:
         run: |
           zstdcat build.tar.zst | tar x
       - if: ${{ matrix.test == 'build-tree' }}
-        name: Set leap_DIR env var
+        name: Set spring_DIR env var
         run: |
-          echo "leap_DIR=$PWD/build/lib/cmake/leap" >> "$GITHUB_ENV"
+          echo "spring_DIR=$PWD/build/lib/cmake/spring" >> "$GITHUB_ENV"
       - if: ${{ matrix.test == 'make-dev-install' }}
         name: spring dev-install
         run: |
@@ -336,7 +336,7 @@ jobs:
           apt-get -y install cmake build-essential
       - name: Build & Test reference-contracts
         run: |
-          cmake -S reference-contracts -B reference-contracts/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=On -DSYSTEM_ENABLE_LEAP_VERSION_CHECK=Off -DSYSTEM_ENABLE_CDT_VERSION_CHECK=Off
+          cmake -S reference-contracts -B reference-contracts/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=On -DSYSTEM_ENABLE_SPRING_VERSION_CHECK=Off -DSYSTEM_ENABLE_CDT_VERSION_CHECK=Off
           cmake --build reference-contracts/build -- -j $(nproc)
           cd reference-contracts/build/tests
           ctest --output-on-failure -j $(nproc)

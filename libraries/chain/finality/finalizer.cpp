@@ -232,7 +232,7 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 // --------------------------------------------------------------------------------------------
 // Can be called either:
 //   - when transitioning to IF (before any votes are to be sent)
-//   - at leap startup, if we start at a block which is either within or past the IF transition.
+//   - at spring startup, if we start at a block which is either within or past the IF transition.
 // In either case, we are never updating existing finalizer safety information. This is only
 // to ensure that the safety information will have defaults that ensure safety as much as
 // possible, and allow for liveness which will allow the finalizers to eventually vote.

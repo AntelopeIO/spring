@@ -75,7 +75,7 @@ RetString base64_decode(const String& s, bool remove_linebreaks = false, bool ur
 template <typename RetString = std::string>
 RetString base64_encode(const unsigned char* s, size_t len, bool url = false);
 
-// Convenient methods for existing Leap uses
+// Convenient methods for existing Spring uses
 
 std::string base64_encode(char const* s, unsigned int len);
 std::vector<char> base64_decode( const std::string& s);
@@ -150,7 +150,7 @@ inline unsigned int pos_of_char(const unsigned char chr, bool url) {
    //(Pablo Martin-Gomez, https://github.com/Bouska)
    //
    // Original version throw std::runtime_error("Input is not valid base64-encoded data.");
-   // Throw FC assert and the same error text to match existing Leap usages.
+   // Throw FC assert and the same error text to match existing Spring usages.
    FC_ASSERT(false, "encountered non-base64 character");
 }
 
@@ -349,7 +349,7 @@ inline RetString base64_encode_mime(const String& s) {
    return detail::encode_mime<RetString, String>(s);
 }
 
-// Convenient methods for existing Leap uses
+// Convenient methods for existing Spring uses
 inline std::string base64_encode(char const* s, unsigned int len) {
    return base64_encode<std::string>((unsigned char const*)s, len, false);
 }

@@ -11,15 +11,6 @@ namespace eosio::chain {
 // gets updated if a protocol feature causes a breaking change to light block
 // header validation
 
-// data for finality_digest
-struct finality_digest_data_v1 {
-   uint32_t    major_version{light_header_protocol_version_major};
-   uint32_t    minor_version{light_header_protocol_version_minor};
-   uint32_t    active_finalizer_policy_generation {0};
-   digest_type finality_tree_digest;
-   digest_type active_finalizer_policy_and_base_digest;
-};
-
 // compute base_digest explicitly because of pointers involved.
 digest_type block_header_state::compute_base_digest() const {
    digest_type::encoder enc;
@@ -75,8 +66,6 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
 const vector<digest_type>& block_header_state::get_new_protocol_feature_activations()const {
    return detail::get_new_protocol_feature_activations(header_exts);
 }
-
-#warning Add last_proposed_finalizer_policy_generation to snapshot_block_header_state_v3, see header file TODO
 
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
@@ -298,6 +287,3 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
 
 } // namespace eosio::chain
 
-FC_REFLECT( eosio::chain::finality_digest_data_v1,
-            (major_version)(minor_version)(active_finalizer_policy_generation)
-            (finality_tree_digest)(active_finalizer_policy_and_base_digest) )

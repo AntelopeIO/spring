@@ -68,6 +68,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_high_transaction_test.py ${CMA
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_retry_transaction_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_retry_transaction_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/transition_to_if.py ${CMAKE_CURRENT_BINARY_DIR}/transition_to_if.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery.py ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_2.py ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery_2.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_2_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery_2_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_forked_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test.py COPYONLY)
@@ -149,6 +151,8 @@ set_property(TEST transition_to_if_lr PROPERTY LABELS long_running_tests)
 
 add_test(NAME disaster_recovery COMMAND tests/disaster_recovery.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST disaster_recovery PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME disaster_recovery_2 COMMAND tests/disaster_recovery_2.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST disaster_recovery_2 PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME ship_test COMMAND tests/ship_test.py -v --num-clients 10 --num-requests 5000 ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST ship_test PROPERTY LABELS nonparallelizable_tests)
