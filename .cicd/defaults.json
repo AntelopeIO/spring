@@ -1,9 +1,9 @@
 {
     "cdt":{
-       "target":"hotstuff_integration",
-       "prerelease":false
+       "target":"main",
+       "prerelease":true
     },
     "referencecontracts":{
-       "ref":"instant-finality"
+       "ref":"main"
     }
  }

@@ -153,7 +153,8 @@ namespace webassembly {
           *
           * @param packed_producer_schedule - vector of producer keys
           *
-          * @return -1 if proposing a new producer schedule was unsuccessful, otherwise returns the version of the new proposed schedule.
+          * @return pre-savanna:  -1 if proposing a new producer schedule was unsuccessful, otherwise returns the version of the new proposed schedule.
+          *         post-savanna: -1 if proposing a new producer schedule was unsuccessful, otherwise returns max uint32_t
          */
          int64_t set_proposed_producers(legacy_span<const char> packed_producer_schedule);
 
@@ -169,29 +170,34 @@ namespace webassembly {
           * @param packed_producer_format - format of the producer data blob.
           * @param packed_producer_schedule - packed data of representing the producer schedule in the format indicated.
           *
-          * @return -1 if proposing a new producer schedule was unsuccessful, otherwise returns the version of the new proposed schedule.
+          * @return pre-savanna:  -1 if proposing a new producer schedule was unsuccessful, otherwise returns the version of the new proposed schedule.
+          *         post-savanna: -1 if proposing a new producer schedule was unsuccessful, otherwise returns max uint32_t
          */
          int64_t set_proposed_producers_ex(uint64_t packed_producer_format, legacy_span<const char> packed_producer_schedule);
 
          /**
           * Submits a finalizer set change.
           *
-          *  // format for packed finalizer_policy
-          *  struct abi_finalizer_authority {
+          *  // V0 format for packed finalizer_policy
+          *  struct finalizer_authority {
           *     std::string              description;
-          *     uint64_t                 fweight = 0; // weight that this finalizer's vote has for meeting fthreshold
-          *     std::array<uint8_t, 96>  public_key_g1_affine_le;
+          *     uint64_t                 weight = 0; // weight that this finalizer's vote has for meeting fthreshold
+          *     std::vector<uint8_t>     public_key; // Affine little endian non-montgomery g1, cdt/abi_serializer has issues with std::array, size 96
           *  };
-          *  struct abi_finalizer_policy {
-          *     uint64_t                             fthreshold = 0;
-          *     std::vector<abi_finalizer_authority> finalizers;
+          *  struct finalizer_policy {
+          *     uint64_t                          threshold = 0;
+          *     std::vector<finalizer_authority>  finalizers;
           *  };
+          *
+          * Valid formats:
+          * 0 : serialized finalizer_policy
           *
           * @ingroup privileged
           *
+          * @param packed_finalizer_format - format of the finalizer_policy data blob.
           * @param packed_finalizer_policy - a serialized finalizer_policy object.
          */
-         void set_finalizers(span<const char> packed_finalizer_policy);
+         void set_finalizers(uint64_t packed_finalizer_format, span<const char> packed_finalizer_policy);
 
          /**
           * Retrieve the blockchain config parameters.

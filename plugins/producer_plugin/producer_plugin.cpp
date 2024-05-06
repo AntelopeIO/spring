@@ -707,8 +707,8 @@ public:
       }
       if (vote_logger.is_enabled(fc::log_level::info) || _update_vote_block_metrics) {
          if (block->contains_extension(quorum_certificate_extension::extension_id())) {
-            if (const auto& active_finalizers = chain.head_active_finalizer_policy()) {
-               const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
+            const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
+            if (const auto& active_finalizers = chain.active_finalizer_policy(id, qc_ext.qc.block_num)) {
                const auto& qc = qc_ext.qc.data;
                log_missing_votes(block, id, active_finalizers, qc);
                update_vote_block_metrics(block->block_num(), active_finalizers, qc);
@@ -1861,7 +1861,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    uint32_t head_block_num = chain.head_block_num();
 
    if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
-      ilog("Reached configured maximum block ${num}; terminating", ("num", chain.get_terminate_at_block()));
+      ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
       app().quit();
       return start_block_result::failed;
    }
