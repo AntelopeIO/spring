@@ -187,8 +187,13 @@ namespace eosio::testing {
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
-         virtual produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false) = 0;
-         virtual signed_block_ptr       produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false) = 0;
+         // `produce_block_ex` does the same thing as produce_block, but returns a struct including
+         // the transaction traces in addition to the `signed_block_ptr`.
+         virtual produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time,
+                                                          bool no_throw = false) = 0;
+
+         virtual signed_block_ptr       produce_block( fc::microseconds skip_time = default_skip_time,
+                                                       bool no_throw = false) = 0;
          virtual signed_block_ptr       produce_empty_block( fc::microseconds skip_time = default_skip_time ) = 0;
          virtual signed_block_ptr       finish_block() = 0;
 
@@ -196,7 +201,8 @@ namespace eosio::testing {
          signed_block_ptr     produce_blocks( uint32_t n = 1, bool empty = false );
          void                 produce_blocks_until_end_of_round();
          void                 produce_blocks_for_n_rounds(const uint32_t num_of_rounds = 1);
-         // Produce minimal number of blocks as possible to spend the given time without having any producer become inactive
+         // Produce minimal number of blocks as possible to spend the given time without having any
+         // producer become inactive
          void                 produce_min_num_of_blocks_to_spend_time_wo_inactive_prod(const fc::microseconds target_elapsed_time = fc::microseconds());
          void                 push_block(signed_block_ptr b);
 
@@ -821,7 +827,8 @@ namespace eosio::testing {
          // The critical block is the block that makes the genesis_block irreversible
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-         while(genesis_block->block_num() > t.lib_block->block_num())
+         auto genesis_block_num = genesis_block->block_num();
+         while(genesis_block_num > t.lib_block->block_num())
             critical_block = produce_block();
 
          // Blocks after the critical block are proper IF blocks.
