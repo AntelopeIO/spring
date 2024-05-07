@@ -66,12 +66,15 @@ class replay_tester : public base_tester {
    }
    using base_tester::produce_block;
 
-   signed_block_ptr produce_block(fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms)) override {
-      return _produce_block(skip_time, false);
+   produce_block_result_t produce_block_ex(fc::microseconds skip_time = default_skip_time, bool no_throw = false) override {
+      return _produce_block(skip_time, false, no_throw);
    }
 
-   signed_block_ptr
-   produce_empty_block(fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms)) override {
+   signed_block_ptr produce_block(fc::microseconds skip_time = default_skip_time, bool no_throw = false) override {
+      return produce_block_ex(skip_time, no_throw).block;
+   }
+
+   signed_block_ptr produce_empty_block(fc::microseconds skip_time = default_skip_time) override {
       unapplied_transactions.add_aborted(control->abort_block());
       return _produce_block(skip_time, true);
    }
@@ -92,7 +95,7 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
    blocks.push_back(chain.produce_block());
 
    tester other;
-   for (auto new_block : blocks) {
+   for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
    blocks.clear();
@@ -108,7 +111,7 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
    blocks.push_back(chain.produce_block());
    chain.control->abort_block();
 
-   for (auto new_block : blocks) {
+   for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
 }
@@ -122,7 +125,7 @@ BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
    blocks.push_back(chain.produce_block());
 
    tester other;
-   for (auto new_block : blocks) {
+   for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
    blocks.clear();

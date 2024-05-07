@@ -141,12 +141,13 @@ namespace eosio::chain {
 
          /**
           * Starts a new pending block session upon which new transactions can be pushed.
+          * returns the trace for the on_block action
           */
-         void start_block( block_timestamp_type time,
-                           uint16_t confirm_block_count,
-                           const vector<digest_type>& new_protocol_feature_activations,
-                           block_status bs,
-                           const fc::time_point& deadline = fc::time_point::maximum() );
+         transaction_trace_ptr start_block( block_timestamp_type time,
+                                            uint16_t confirm_block_count,
+                                            const vector<digest_type>& new_protocol_feature_activations,
+                                            block_status bs,
+                                            const fc::time_point& deadline = fc::time_point::maximum() );
 
          /**
           * @return transactions applied in aborted block

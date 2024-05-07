@@ -53,7 +53,7 @@ controller::config copy_config_and_files(const controller::config& config, int o
 class snapshotted_tester : public base_tester {
 public:
    enum config_file_handling { dont_copy_config_files, copy_config_files };
-   snapshotted_tester(controller::config config, const snapshot_reader_ptr& snapshot, int ordinal,
+   snapshotted_tester(const controller::config& config, const snapshot_reader_ptr& snapshot, int ordinal,
            config_file_handling copy_files_from_config = config_file_handling::dont_copy_config_files) {
       FC_ASSERT(config.blocks_dir.filename().generic_string() != "."
                 && config.state_dir.filename().generic_string() != ".", "invalid path names in controller::config");
@@ -64,11 +64,15 @@ public:
       init(copied_config, snapshot);
    }
 
-   signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-      return _produce_block(skip_time, false);
+   produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
+      return _produce_block(skip_time, false, no_throw);
    }
 
-   signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+   signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
+      return produce_block_ex(skip_time, no_throw).block;
+   }
+
+   signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
       control->abort_block();
       return _produce_block(skip_time, true);
    }

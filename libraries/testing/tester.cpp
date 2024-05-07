@@ -342,6 +342,12 @@ namespace eosio::testing {
               }
           }
       });
+
+      lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
+         const auto& [ block, id ] = t;
+         lib_block = block;
+         lib_id    = id;
+      });
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot ) {
@@ -382,35 +388,39 @@ namespace eosio::testing {
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {
-      std::vector<transaction_trace_ptr> traces;
-      return _produce_block( skip_time, skip_pending_trxs, false, traces );
+      auto res = _produce_block( skip_time, skip_pending_trxs, false );
+      return res.block;
    }
 
-   signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs,
-                                                 bool no_throw, std::vector<transaction_trace_ptr>& traces ) {
+   produce_block_result_t base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw ) {
+      produce_block_result_t res;
+
       auto head_time = control->head_block_time();
       auto next_time = head_time + skip_time;
+      static transaction_trace_ptr onblock_trace;
 
       if( !control->is_building_block() || control->pending_block_time() != next_time ) {
-         _start_block( next_time );
+         res.onblock_trace = _start_block( next_time );
+      } else {
+         res.onblock_trace = std::move(onblock_trace); // saved from _start_block call in last _produce_block
       }
 
       if( !skip_pending_trxs ) {
          for( auto itr = unapplied_transactions.begin(); itr != unapplied_transactions.end();  ) {
             auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
-            traces.emplace_back( trace );
             if(!no_throw && trace->except) {
                // this always throws an fc::exception, since the original exception is copied into an fc::exception
                trace->except->dynamic_rethrow_exception();
             }
             itr = unapplied_transactions.erase( itr );
+            res.traces.emplace_back( std::move(trace) );
          }
 
          vector<transaction_id_type> scheduled_trxs;
          while ((scheduled_trxs = get_scheduled_transactions()).size() > 0 ) {
             for( const auto& trx : scheduled_trxs ) {
                auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
-               traces.emplace_back( trace );
+               res.traces.emplace_back( trace );
                if( !no_throw && trace->except ) {
                   // this always throws an fc::exception, since the original exception is copied into an fc::exception
                   trace->except->dynamic_rethrow_exception();
@@ -419,13 +429,13 @@ namespace eosio::testing {
          }
       }
 
-      auto head_block = _finish_block();
+      res.block = _finish_block();
 
-      _start_block( next_time + fc::microseconds(config::block_interval_us));
-      return head_block;
+      onblock_trace = _start_block( next_time + fc::microseconds(config::block_interval_us));
+      return res;
    }
 
-   void base_tester::_start_block(fc::time_point block_time) {
+   transaction_trace_ptr base_tester::_start_block(fc::time_point block_time) {
       auto head_block_number = control->head_block_num();
       auto producer = control->head_active_producers().get_scheduled_producer(block_time);
 
@@ -452,11 +462,13 @@ namespace eosio::testing {
          preactivated_protocol_features.end()
       );
 
-      control->start_block( block_time, head_block_number - last_produced_block_num, feature_to_be_activated,
-                            controller::block_status::incomplete );
+      auto onblock_trace = control->start_block( block_time, head_block_number - last_produced_block_num,
+                                                 feature_to_be_activated,
+                                                 controller::block_status::incomplete );
 
       // Clear the list, if start block finishes successfuly, the protocol features should be assumed to be activated
       protocol_features_to_be_activated_wo_preactivation.clear();
+      return onblock_trace;
    }
 
    signed_block_ptr base_tester::_finish_block() {
@@ -505,18 +517,16 @@ namespace eosio::testing {
       }
    }
 
-   signed_block_ptr base_tester::produce_block( std::vector<transaction_trace_ptr>& traces ) {
-      return _produce_block( fc::milliseconds(config::block_interval_ms), false, true, traces );
-   }
-
-   void base_tester::produce_blocks( uint32_t n, bool empty ) {
+   signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
+      signed_block_ptr res;
       if( empty ) {
          for( uint32_t i = 0; i < n; ++i )
-            produce_empty_block();
+            res = produce_empty_block();
       } else {
          for( uint32_t i = 0; i < n; ++i )
-            produce_block();
+            res = produce_block();
       }
+      return res;
    }
 
    vector<transaction_id_type> base_tester::get_scheduled_transactions() const {
@@ -564,14 +574,14 @@ namespace eosio::testing {
    }
 
 
-  void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
-     trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
-     trx.set_reference_block( control->head_block_id() );
+   void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
+      trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
+      trx.set_reference_block( control->head_block_id() );
 
-     trx.max_net_usage_words = 0; // No limit
-     trx.max_cpu_usage_ms = 0; // No limit
-     trx.delay_sec = delay_sec;
-  }
+      trx.max_net_usage_words = 0; // No limit
+      trx.max_cpu_usage_ms = 0; // No limit
+      trx.delay_sec = delay_sec;
+   }
 
 
    transaction_trace_ptr base_tester::create_account( account_name a, account_name creator, bool multisig, bool include_code ) {
@@ -1193,7 +1203,8 @@ namespace eosio::testing {
 
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
+   base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
       auto num_finalizers = finalizer_names.size();
       std::vector<finalizer_policy_input::finalizer_info> finalizers_info;
       finalizers_info.reserve(num_finalizers);
@@ -1210,7 +1221,8 @@ namespace eosio::testing {
       return set_finalizers(policy_input);
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>> base_tester::set_finalizers(const finalizer_policy_input& input) {
+   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
+   base_tester::set_finalizers(const finalizer_policy_input& input) {
       chain::bls_pub_priv_key_map_t local_finalizer_keys;
       fc::variants finalizer_auths;
       std::vector<bls_private_key> priv_keys;
@@ -1264,7 +1276,8 @@ namespace eosio::testing {
          pubkeys.push_back(pubkey);
          input.finalizers.emplace_back(name, 1);
       }
-      input.threshold = names.size()  * 2 / 3 + 1;
+      // same as reference-contracts/.../contracts/eosio.system/src/finalizer_key.cpp#L73
+      input.threshold = (names.size() * 2) / 3 + 1;
       set_finalizers(input);
       return pubkeys;
    }
