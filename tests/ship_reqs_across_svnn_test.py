@@ -59,15 +59,13 @@ try:
     cluster.waitOnClusterSync(blockAdvancing=5)
     Print("Cluster in Sync")
 
-    #Verify nodes are in sync and advancing
-    cluster.waitOnClusterSync(blockAdvancing=3)
     Print("Shutdown unneeded bios node")
     cluster.biosNode.kill(signal.SIGTERM)
 
     shipNode = cluster.getNode(shipNodeNum)
     # Block with start_block_num is before Savanna and block with end_block_num is after Savanna
     start_block_num = 1
-    end_block_num = start_block_num + shipNode.getBlockNum()
+    end_block_num = shipNode.getBlockNum()
 
     # Start a SHiP client and request blocks between start_block_num and end_block_num
     shipClient = "tests/ship_streamer"
