@@ -24,7 +24,7 @@ class ordered_diff {
 public:
    struct diff_result {
       Container<size_t>                remove_indexes;
-      Container<std::tuple<size_t, T>> insert_indexes;
+      Container<std::pair<size_t, T>>  insert_indexes;
    };
 
    /// Generate diff_result that when `apply_diff(source, diff_result)` to source will generate target
