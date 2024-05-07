@@ -400,9 +400,9 @@ namespace eosio::testing {
       static transaction_trace_ptr onblock_trace;
 
       if( !control->is_building_block() || control->pending_block_time() != next_time ) {
-         res.traces.emplace_back(_start_block( next_time ));
+         res.onblock_trace = _start_block( next_time );
       } else {
-         res.traces.emplace_back(std::move(onblock_trace)); // saved from _start_block call in last _produce_block
+         res.onblock_trace = std::move(onblock_trace); // saved from _start_block call in last _produce_block
       }
 
       if( !skip_pending_trxs ) {
