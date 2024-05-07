@@ -78,6 +78,8 @@ static constexpr int state_history_log_header_serial_size = sizeof(state_history
                                                             sizeof(state_history_log_header::payload_size);
 static_assert(sizeof(state_history_log_header) == state_history_log_header_serial_size);
 
+static constexpr unsigned ship_log_iostreams_buffer_size = 64*1024;
+
 namespace state_history {
    struct prune_config {
       uint32_t                prune_blocks;                  //number of blocks to prune to when doing a prune
@@ -108,16 +110,16 @@ struct locked_decompress_stream {
    template <typename StateHistoryLog>
    void init(StateHistoryLog&& log, fc::cfile& stream, uint64_t compressed_size) {
       auto istream = std::make_unique<bio::filtering_istreambuf>();
-      istream->push(bio::zlib_decompressor());
-      istream->push(bio::restrict(bio::file_source(stream.get_file_path().string()), stream.tellp(), compressed_size));
+      istream->push(bio::zlib_decompressor(), ship_log_iostreams_buffer_size);
+      istream->push(bio::restrict(bio::file_source(stream.get_file_path().string()), stream.tellp(), compressed_size), ship_log_iostreams_buffer_size);
       buf = std::move(istream);
    }
 
    template <typename LogData>
    void init(LogData&& log, fc::datastream<const char*>& stream, uint64_t compressed_size) {
       auto istream = std::make_unique<bio::filtering_istreambuf>();
-      istream->push(bio::zlib_decompressor());
-      istream->push(bio::restrict(bio::file_source(log.filename), stream.pos() - log.data(), compressed_size));
+      istream->push(bio::zlib_decompressor(), ship_log_iostreams_buffer_size);
+      istream->push(bio::restrict(bio::file_source(log.filename), stream.pos() - log.data(), compressed_size), ship_log_iostreams_buffer_size);
       buf = std::move(istream);
    }
 
@@ -433,9 +435,9 @@ class state_history_log {
          detail::counter cnt;
          {
             bio::filtering_ostreambuf buf;
-            buf.push(boost::ref(cnt));
-            buf.push(bio::zlib_compressor(boost::iostreams::zlib::no_compression));
-            buf.push(bio::file_descriptor_sink(stream.fileno(), bio::never_close_handle));
+            buf.push(boost::ref(cnt), ship_log_iostreams_buffer_size);
+            buf.push(bio::zlib_compressor(bio::zlib::no_compression, ship_log_iostreams_buffer_size));
+            buf.push(bio::file_descriptor_sink(stream.fileno(), bio::never_close_handle), ship_log_iostreams_buffer_size);
             pack_to(buf);
          }
 
