@@ -3890,11 +3890,11 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<finalizer_policy> fin_policy = std::get<instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == finalizers.size());
-   BOOST_TEST(fin_policy->generation == 1);
-   BOOST_TEST(fin_policy->threshold == finalizers.size() / 3 * 2 + 1);
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == finalizers.size());
+   BOOST_TEST(fin_policy_diff->generation == 1);
+   BOOST_TEST(fin_policy_diff->threshold == finalizers.size() / 3 * 2 + 1);
    block_id_type if_genesis_block_id = block->calculate_id();
 
    for (block_num_type active_block_num = block->block_num(); active_block_num > lib; t.produce_block()) {
@@ -3943,10 +3943,10 @@ void test_finality_transition(const vector<account_name>& accounts, const base_t
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<finalizer_policy> fin_policy = std::get<instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == accounts.size());
-   BOOST_TEST(fin_policy->generation == 1);
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == accounts.size());
+   BOOST_TEST(fin_policy_diff->generation == 1);
    block_id_type if_genesis_block_id = block->calculate_id();
 
    block_num_type active_block_num = block->block_num();

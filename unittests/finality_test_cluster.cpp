@@ -35,10 +35,10 @@ void finality_test_cluster::initial_tests(){
    // this block contains the header exten/sion for the instant finality
    std::optional<eosio::chain::block_header_extension> ext = block_1_n0->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<eosio::chain::finalizer_policy> fin_policy = std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == 3);
-   BOOST_TEST(fin_policy->generation == 1);
+   std::optional<eosio::chain::finalizer_policy_diff> fin_policy_diff = std::get<eosio::chain::instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == 3);
+   BOOST_TEST(fin_policy_diff->generation == 1);
 
    produce_and_push_block(); // make setfinalizer irreversible
 

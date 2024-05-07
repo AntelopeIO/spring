@@ -179,24 +179,43 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    auto b2 = t.produce_block();
    auto pubkeys5 = t.set_active_finalizers({&finalizers[5], finset_size});
    t.produce_blocks(2);
+   auto pubkeys6 = t.set_active_finalizers({&finalizers[6], finset_size});
    b5 = t.produce_block();
+   auto pubkeys7 = t.set_active_finalizers({&finalizers[7], finset_size});
    check_finalizer_policy(t, b5, 2, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
    b6 = t.produce_block();
+   auto pubkeys8 = t.set_active_finalizers({&finalizers[8], finset_size});
    check_finalizer_policy(t, b6, 3, pubkeys3); // 6 blocks after pubkeys3 (b6 - b0), pubkeys3 should be active
    auto b7 = t.produce_block();
+   auto pubkeys9 = t.set_active_finalizers({&finalizers[9], finset_size});
    check_finalizer_policy(t, b7, 4, pubkeys4); // 6 blocks after pubkeys4 (b7 - b1), pubkeys4 should be active
 
    auto b8 = t.produce_block();
+   auto pubkeys10 = t.set_active_finalizers({&finalizers[10], finset_size});
    check_finalizer_policy(t, b8, 4, pubkeys4); // 7 blocks after pubkeys4, pubkeys4 should still be active
    auto b9 = t.produce_block();
+   auto pubkeys11 = t.set_active_finalizers({&finalizers[11], finset_size});
    check_finalizer_policy(t, b9, 5, pubkeys5); // 6 blocks after pubkeys5 (b9 - b3), pubkeys5 should be active
+   auto b10 = t.produce_block();
+   auto b11 = t.produce_block(); // two blocks between 5 & 6 proposals
+   check_finalizer_policy(t, b11, 6, pubkeys6); // the rest are all one block apart, tests pending with propsed
+   auto b12 = t.produce_block();
+   check_finalizer_policy(t, b12, 7, pubkeys7);
+   auto b13 = t.produce_block();
+   check_finalizer_policy(t, b13, 8, pubkeys8);
+   auto b14 = t.produce_block();
+   check_finalizer_policy(t, b14, 9, pubkeys9);
+   auto b15 = t.produce_block();
+   check_finalizer_policy(t, b15, 10, pubkeys10);
+   auto b16 = t.produce_block();
+   check_finalizer_policy(t, b16, 11, pubkeys11);
 
    // and no further change
-   ensure_next_block_finalizer_policy(t, 5, pubkeys5);
-   ensure_next_block_finalizer_policy(t, 5, pubkeys5);
-   ensure_next_block_finalizer_policy(t, 5, pubkeys5);
-   ensure_next_block_finalizer_policy(t, 5, pubkeys5);
-   ensure_next_block_finalizer_policy(t, 5, pubkeys5);
+   ensure_next_block_finalizer_policy(t, 11, pubkeys11);
+   ensure_next_block_finalizer_policy(t, 11, pubkeys11);
+   ensure_next_block_finalizer_policy(t, 11, pubkeys11);
+   ensure_next_block_finalizer_policy(t, 11, pubkeys11);
+   ensure_next_block_finalizer_policy(t, 11, pubkeys11);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
