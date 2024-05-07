@@ -226,7 +226,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_TEST(qc_b_6.qc.has_value());
       
-      std::string raw_bitset("07"); //node0 ande node1 signed
+      std::string raw_bitset("07"); // a quorum of finalizers signed, starting at node0
 
       // create a few proofs we'll use to perform tests
 

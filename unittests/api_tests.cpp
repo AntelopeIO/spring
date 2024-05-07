@@ -3868,8 +3868,10 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    finalizer_keys fin_keys(t, num_finalizers, num_finalizers);
 
    // activate savanna
-   fin_keys.set_node_finalizers(0, num_finalizers);
-   fin_keys.set_finalizer_policy(0);
+   fin_keys.set_node_finalizers(0, num_finalizers); // activate `num_finalizers` keys for this node,
+                                                    // starting at key index 0.
+   fin_keys.set_finalizer_policy(0);                // sets the finalizer_policy using consecutive keys,
+                                                    // starting at key index 0.
 
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
    auto block = t.produce_block();

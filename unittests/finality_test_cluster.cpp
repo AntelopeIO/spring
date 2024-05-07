@@ -58,7 +58,7 @@ void finality_node_t::setup(size_t first_node_key, size_t num_node_keys) {
 }
 
 // Update "vote_index" vote on node according to `mode` parameter
-vote_message_ptr finality_node_t::get_vote(size_t vote_index, vote_mode mode, bool duplicate) {
+vote_message_ptr finality_node_t::get_vote(size_t vote_index, vote_mode mode) {
    std::lock_guard g(votes_mtx);
    if (votes.empty())
       return {};

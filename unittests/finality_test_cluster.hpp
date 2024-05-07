@@ -30,7 +30,10 @@ struct finality_node_t : public eosio::testing::tester {
 
    finality_node_t() : finkeys(*this) {}
 
-   size_t last_vote_index() const { return votes.size() - 1; }
+   size_t last_vote_index() const {
+      assert(!votes.empty());
+      return votes.size() - 1;
+   }
 
    void setup(size_t first_node_key, size_t num_node_keys);
 
@@ -51,10 +54,14 @@ struct finality_node_t : public eosio::testing::tester {
    // Restore node's original vote
    void restore_to_original_vote(size_t idx) {
       std::lock_guard g(votes_mtx);
+      assert(!votes.empty());
+
       if (idx == (size_t)-1)
          votes.back() = orig_vote;
-      else
+      else {
+         assert(idx < votes.size());
          votes[idx] = orig_vote;
+      }
    }
 
    void clear_votes_and_reset_lib() {
@@ -65,8 +72,7 @@ struct finality_node_t : public eosio::testing::tester {
 
    // Update "vote_index" vote on node according to `mode` parameter, and returns
    // the updated vote.
-   vote_message_ptr get_vote(size_t vote_index = (size_t)-1, vote_mode mode = vote_mode::strong,
-                             bool duplicate = false);
+   vote_message_ptr get_vote(size_t vote_index = (size_t)-1, vote_mode mode = vote_mode::strong);
 
 };
 
@@ -219,7 +225,7 @@ public:
 
    vote_status process_vote(size_t node_idx, size_t vote_index = (size_t)-1,
                             vote_mode mode = vote_mode::strong, bool duplicate = false) {
-      auto vote = nodes[node_idx].get_vote(vote_index, mode, duplicate);
+      auto vote = nodes[node_idx].get_vote(vote_index, mode);
       return vote ? process_vote(vote, duplicate) : vote_status::unknown_block;;
    }
 
