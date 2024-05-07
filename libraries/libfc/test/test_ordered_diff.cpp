@@ -46,6 +46,13 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       ordered_diff<char>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
+   { // No change
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = source;
+      auto result = ordered_diff<char>::diff(source, target);
+      ordered_diff<char>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
    { // Mix of removals and inserts
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'a', 'c', 'e', 'f', 'g', 'h'};
@@ -74,6 +81,20 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       ordered_diff<char>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
+   { // shift left
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'b', 'c', 'd', 'e', 'f'};
+      auto result = ordered_diff<char>::diff(source, target);
+      ordered_diff<char>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
+   { // shift right
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'z', 'a', 'b', 'c', 'd'};
+      auto result = ordered_diff<char>::diff(source, target);
+      ordered_diff<char>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE(ordered_diff_string_test) try {
@@ -87,14 +108,21 @@ BOOST_AUTO_TEST_CASE(ordered_diff_string_test) try {
    }
    {
       vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
-      vector<string> target = {"prod2", "prod1", "prod3", "prod4", "prod5"};;
+      vector<string> target = {"prod2", "prod1", "prod3", "prod4", "prod5"};
       auto result = ordered_diff<string>::diff(source, target);
       ordered_diff<string>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
    {
       vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
-      vector<string> target = {"prod5", "prod1", "prod2", "prod3", "prod4"};;
+      vector<string> target = {"prod5", "prod1", "prod2", "prod3", "prod4"};
+      auto result = ordered_diff<string>::diff(source, target);
+      ordered_diff<string>::apply_diff(source, std::move(result));
+      BOOST_TEST(source == target);
+   }
+   {
+      vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
+      vector<string> target = {"prod2", "prod3", "prod4", "prod5", "prod6"};
       auto result = ordered_diff<string>::diff(source, target);
       ordered_diff<string>::apply_diff(source, std::move(result));
       BOOST_TEST(source == target);
