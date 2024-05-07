@@ -16,21 +16,21 @@ BOOST_FIXTURE_TEST_CASE(quorum_of_votes, finality_test_cluster<4>) { try {
       produce_and_push_block();
 
       // when a quorum of nodes vote, LIB should advance
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 } FC_LOG_AND_RETHROW() }
 
 // verify LIB does not advances with finalizers not voting.
 // --------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(no_votes, finality_test_cluster<4>) { try {
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       produce_and_push_block();
       // don't process votes
 
       // when only node0 votes, LIB shouldn't advance
-      BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
    }
 } FC_LOG_AND_RETHROW() }
 
@@ -38,14 +38,14 @@ BOOST_FIXTURE_TEST_CASE(no_votes, finality_test_cluster<4>) { try {
 // verify LIB does not advances when one less than the quorum votes
 // ----------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(quorum_minus_one, finality_test_cluster<4>) { try {
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
    produce_and_push_block();
    for (auto i = 0; i < 3; ++i) {
       produce_and_push_block();
       process_votes(1, num_needed_for_quorum - 1);
 
       // when one less than required vote, LIB shouldn't advance
-      BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
    }
 } FC_LOG_AND_RETHROW() }
 
@@ -59,7 +59,7 @@ BOOST_FIXTURE_TEST_CASE(all_votes, finality_test_cluster<4>) { try {
       produce_and_push_block();
 
       // when all nodes vote, LIB should advance
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 } FC_LOG_AND_RETHROW() }
 
@@ -74,7 +74,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_strong_first, finality_test_cluster<4>
       produce_and_push_block();
 
       // when we have a quorum of strong votes, one weak vote should not prevent LIB from advancing
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 } FC_LOG_AND_RETHROW() }
 
@@ -90,7 +90,7 @@ BOOST_FIXTURE_TEST_CASE(conflicting_votes_weak_first, finality_test_cluster<4>) 
       produce_and_push_block();
 
       // when we have a quorum of strong votes, one weak vote should not prevent LIB from advancing
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 } FC_LOG_AND_RETHROW() }
 
@@ -106,17 +106,17 @@ BOOST_FIXTURE_TEST_CASE(one_delayed_votes, finality_test_cluster<4>) { try {
    // prompting LIB advancing on node2
    process_votes(1, num_needed_for_quorum, 0);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // block 1 (index 1) has the same QC claim as block 0. It cannot move LIB
    process_votes(1, num_needed_for_quorum, 1);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // producing, pushing, and voting a new block makes LIB moving
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -131,19 +131,19 @@ BOOST_FIXTURE_TEST_CASE(three_delayed_votes, finality_test_cluster<4>) { try {
       produce_and_push_block();
 
    // LIB did not advance
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // vote block 0 (index 0) to make it have a strong QC,
    // prompting LIB advacing on nodes
    process_votes(1, num_needed_for_quorum, 0);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // blocks 1 to 3 have the same QC claim as block 0. They cannot move LIB
    for (auto i=1; i < 4; ++i) {
       process_votes(1, num_needed_for_quorum, i);
       produce_and_push_block();
-      BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
    }
 
    // Now send votes for the last block that node0 produced (block 8). It will be
@@ -151,7 +151,7 @@ BOOST_FIXTURE_TEST_CASE(three_delayed_votes, finality_test_cluster<4>) { try {
    // the next block it produces.
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -170,22 +170,22 @@ BOOST_FIXTURE_TEST_CASE(out_of_order_votes, finality_test_cluster<4>) { try {
    // prompting LIB advacing
    process_votes(1, num_needed_for_quorum, 2);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // block 1 (index 1) has the same QC claim as block 2. It will not move LIB
    process_votes(1, num_needed_for_quorum, 1);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // block 0 (index 0) has the same QC claim as block 2. It will not move LIB
    process_votes(1, num_needed_for_quorum, 0);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // producing, pushing, and voting a new block makes LIB moving
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -202,7 +202,7 @@ BOOST_FIXTURE_TEST_CASE(long_delayed_votes, finality_test_cluster<4>) { try {
    for (auto i = 2; i < 100; ++i) {
       process_votes(1, num_needed_for_quorum);
       produce_and_push_block();
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 
    // Late vote does not cause any issues
@@ -223,18 +223,18 @@ BOOST_FIXTURE_TEST_CASE(lost_votes, finality_test_cluster<4>) { try {
    BOOST_REQUIRE_EQUAL(ext.qc.block_num, b1->block_num());
 
    // The strong QC extension for prior block makes LIB advance on nodes
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // but don't propagate the votes on b2. Make sure they are lost
    clear_votes_and_reset_lib();
 
    produce_and_push_block();                // Produce another block
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0); // LIB doesn't advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0); // LIB doesn't advance
 
    process_votes(1, num_needed_for_quorum); // and propagate the votes for this new block to node0
    produce_and_push_block();
 
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // vote causes lib to advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // vote causes lib to advance
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -247,11 +247,11 @@ BOOST_FIXTURE_TEST_CASE(one_weak_vote, finality_test_cluster<4>) { try {
    auto next_idx = process_votes(1, num_needed_for_quorum -1); // one less strong vote than needed for quorum
    process_vote(next_idx, -1, vote_mode::weak);   // and one weak vote
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0); // weak QC (1 shy of strong) => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0); // weak QC (1 shy of strong) => LIB does not advance
 
    process_votes(1, num_needed_for_quorum); // now this provides enough strong votes for quorum
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // strong QC => LIB does advance
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -263,11 +263,11 @@ BOOST_FIXTURE_TEST_CASE(quorum_minus_one_weak_vote, finality_test_cluster<4>) { 
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0); // weak QC => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0); // weak QC => LIB does not advance
 
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // strong QC => LIB does advance
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -279,19 +279,19 @@ BOOST_FIXTURE_TEST_CASE(weak_strong_weak_strong, finality_test_cluster<4>) { try
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);           // weak QC => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);           // weak QC => LIB does not advance
 
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);  // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);  // strong QC => LIB does advance
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);          // weak QC => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);          // weak QC => LIB does not advance
 
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // strong QC => LIB does advance
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -303,19 +303,19 @@ BOOST_FIXTURE_TEST_CASE(weak_weak_strong_strong, finality_test_cluster<4>) { try
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);         // weak QC => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);         // weak QC => LIB does not advance
 
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);         // weak QC => LIB does not advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);         // weak QC => LIB does not advance
 
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // strong QC => LIB does advance
 
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes); // strong QC => LIB does advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes); // strong QC => LIB does advance
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -329,31 +329,31 @@ BOOST_FIXTURE_TEST_CASE(weak_delayed_lost_vote, finality_test_cluster<4>) { try 
    // quorum of weak votes
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // delay votes at index 1
    constexpr uint32_t delayed_index = 1; 
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // quorum of strong votes
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // A lost vote
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // The delayed vote arrives, does not advance lib
    process_votes(1, num_needed_for_quorum, delayed_index);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // strong vote advances lib
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -366,36 +366,36 @@ BOOST_FIXTURE_TEST_CASE(delayed_strong_weak_lost_vote, finality_test_cluster<4>)
    // delay votes at index 1
    constexpr uint32_t delayed_index = 0;
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // quorum of strong votes
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // quorum of weak votes
    process_votes(1, num_needed_for_quorum, -1, vote_mode::weak);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // quorum of strong votes
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    // A lost vote
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // The delayed vote arrives, does not advance lib
    process_votes(1, num_needed_for_quorum, delayed_index);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // strong vote advances lib
    process_votes(1, num_needed_for_quorum);
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -413,7 +413,7 @@ BOOST_FIXTURE_TEST_CASE(duplicate_votes, finality_test_cluster<4>) { try {
       produce_and_push_block();
 
       // verify duplicate votes do not affect LIB advancing
-      BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    }
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
@@ -432,12 +432,12 @@ BOOST_FIXTURE_TEST_CASE(unknown_proposal_votes, finality_test_cluster<4>) { try 
    process_votes(2, num_needed_for_quorum - 1);
 
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    node1.restore_to_original_vote(0);                      // restore node1's vote at index 0 to original vote
    process_votes(1, 1, 0, vote_mode::strong);              // send restored vote to node0
    produce_and_push_block();                               // produce a block so the new QC can propagate
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -478,12 +478,12 @@ BOOST_FIXTURE_TEST_CASE(corrupted_signature_votes, finality_test_cluster<4>) { t
    process_votes(2, num_needed_for_quorum - 1);
 
    produce_and_push_block();
-   BOOST_REQUIRE_EQUAL(lib_advancing(), 0);           // because of the one corrupted vote, quorum is not reached
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);           // because of the one corrupted vote, quorum is not reached
 
    node1.restore_to_original_vote(0);                 // restore node1's vote at index 0 to original vote
    process_votes(1, 1, 0, vote_mode::strong);         // send restored vote to node0
    produce_and_push_block();                          // produce a block so the new QC can propagate
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
 
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 } FC_LOG_AND_RETHROW() }
@@ -496,7 +496,7 @@ BOOST_FIXTURE_TEST_CASE(second_set_finalizers, finality_test_cluster<4>) { try {
    produce_and_push_block();
 
    // when a quorum of nodes vote, LIB should advance
-   BOOST_REQUIRE_EQUAL(lib_advancing(), num_nodes);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);
    BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
 
    // run a second set_finalizers

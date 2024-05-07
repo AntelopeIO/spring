@@ -118,7 +118,7 @@ public:
    static constexpr size_t num_needed_for_quorum = (num_nodes * 2) / 3;
 
    static_assert(num_needed_for_quorum < num_nodes,
-                 "this is needed for some tests (conflicting_votes_strong_first for ex)");
+                 "this is needed for some tests (conflicting_votes_strong_first for example)");
 
    // Construct a test network and activate IF.
    finality_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = true}) {
@@ -178,7 +178,7 @@ public:
       }
    }
 
-   // node0 produces a block and pushes it to node1 and node2
+   // node0 produces a block and pushes it to all other nodes from the cluster
    signed_block_ptr produce_and_push_block() {
       auto b = node0.produce_block();
       for (size_t i=1; i<nodes.size(); ++i)
@@ -198,7 +198,7 @@ public:
 
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears
-   // node1_votes and node2_votes when starting.
+   // node1 to nodeN votes when starting.
    bool produce_blocks_and_verify_lib_advancing() {
       // start from fresh
       clear_votes_and_reset_lib();
@@ -207,15 +207,15 @@ public:
       for (auto i = 0; i < 3; ++i) {
          process_votes(1, num_needed_for_quorum);
          produce_and_push_block();
-         if (lib_advancing() < num_nodes)
+         if (num_lib_advancing() < num_nodes)
             return false;
       }
 
       return true;
    }
 
-   // returns true if lib advanced on all nodes since we last checked
-   size_t lib_advancing() {
+   // returns the number of nodes on which `lib` advanced since we last checked
+   size_t num_lib_advancing() {
       size_t num_advancing = 0;
       for (auto& n : nodes)
          if (n.lib_advancing())
@@ -233,10 +233,9 @@ public:
    size_t process_votes(size_t start_idx, size_t num_voting_nodes, size_t vote_index = (size_t)-1,
                         vote_mode mode = vote_mode::strong, bool duplicate = false) {
       assert(num_voting_nodes > 0 && (num_voting_nodes + start_idx <= num_nodes));
-      size_t i = start_idx;
-      for (; i<num_voting_nodes+start_idx; ++i)
+      for (size_t i = start_idx; i<num_voting_nodes+start_idx; ++i)
          process_vote(i, vote_index, mode, duplicate);
-      return i;
+      return num_voting_nodes + start_idx;
    }
 
    void clear_votes_and_reset_lib() {

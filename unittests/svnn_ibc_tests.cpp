@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_test_cluster<4g> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
+      finality_test_cluster<4> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
 
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
