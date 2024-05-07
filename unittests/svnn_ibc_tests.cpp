@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_test_cluster<4> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
+      finality_test_cluster<4g> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
 
       // produce IF Genesis block
       auto genesis_block = cluster.produce_and_push_block();
@@ -225,8 +225,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       qc_data_t qc_b_6 = extract_qc_data(block_6);
 
       BOOST_TEST(qc_b_6.qc.has_value());
-      
-      std::string raw_bitset("07"); // a quorum of finalizers signed, starting at node0
+
+      std::stringstream sstream;
+      sstream << std::hex << (1 << (cluster.num_needed_for_quorum + 1)) - 1; // we expect a quorum of finalizers to vote
+                                                                             // +1 because num_needed_for_quorum excludes node0
+      std::string raw_bitset = sstream.str();
+      if (raw_bitset.size() % 2)
+         raw_bitset.insert(0, "0");
 
       // create a few proofs we'll use to perform tests
 
