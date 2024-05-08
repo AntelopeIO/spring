@@ -135,6 +135,7 @@ void finish_next(const block_header_state& prev,
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
                // -----------------------------------
+               assert(prev.active_finalizer_policy);
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*prev.active_finalizer_policy));
                next_header_state.active_finalizer_policy->apply_diff(tracker.policy_diff);
             } else {
@@ -162,7 +163,7 @@ void finish_next(const block_header_state& prev,
       // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
       // increment the generation number, and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
-      dlog("New finalizer policy proposed in block ${id}: ${pol}",
+      dlog("New finalizer policy proposed in block ${id}, diff: ${pol}",
            ("id", prev.block_id)("pol", *if_ext.new_finalizer_policy_diff));
       next_header_state.finalizer_policy_generation = if_ext.new_finalizer_policy_diff->generation;
       next_header_state.finalizer_policies.emplace(
