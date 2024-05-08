@@ -134,18 +134,18 @@ struct block_header_state {
       if (finalizer_policies.empty()) {
          return active_finalizer_policy->create_diff(new_policy);
       }
-      finalizer_policy_ptr fin_policy_ptr = std::make_shared<finalizer_policy>(*active_finalizer_policy);
+      finalizer_policy fin_policy = *active_finalizer_policy;
       for (const auto& e : finalizer_policies) {
          if (e.second.state == finalizer_policy_tracker::state_t::pending) {
-            fin_policy_ptr->apply_diff(e.second.policy_diff);
+            fin_policy.apply_diff(e.second.policy_diff);
          }
       }
       for (const auto& e : finalizer_policies) {
          if (e.second.state == finalizer_policy_tracker::state_t::proposed) {
-            fin_policy_ptr->apply_diff(e.second.policy_diff);
+            fin_policy.apply_diff(e.second.policy_diff);
          }
       }
-      return fin_policy_ptr->create_diff(new_policy);
+      return fin_policy.create_diff(new_policy);
    }
 };
 
