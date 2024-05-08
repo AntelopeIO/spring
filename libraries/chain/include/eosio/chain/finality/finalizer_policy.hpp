@@ -32,7 +32,7 @@ namespace eosio::chain {
       void apply_diff(X&& diff) {
          generation = diff.generation;
          threshold = diff.threshold;
-         finalizers_differ::apply_diff(finalizers, std::move(diff.finalizers_diff));
+         finalizers = finalizers_differ::apply_diff(std::move(finalizers), std::forward<X>(diff).finalizers_diff);
       }
 
       // max accumulated weak weight before becoming weak_final

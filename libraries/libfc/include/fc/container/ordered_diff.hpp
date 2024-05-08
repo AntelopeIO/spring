@@ -88,11 +88,12 @@ public:
       return result;
    }
 
-   /// @param diff the diff_result created from diff(source, target), apply_diff(source, diff_result) => target
+   /// @param diff the diff_result created from diff(source, target), apply_diff(std::move(source), diff_result) => target
    /// @param container the source of diff(source, target) to modify using the diff_result to produce original target
+   /// @return the modified container now equal to original target
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
-   static void apply_diff(Container<T>& container, X&& diff) {
+   static Container<T> apply_diff(Container<T>&& container, X&& diff) {
       // Remove from the source based on diff.remove_indexes
       std::ptrdiff_t offset = 0;
       for (SizeType index : diff.remove_indexes) {
@@ -104,6 +105,7 @@ public:
       for (auto& [index, value] : diff.insert_indexes) {
          container.insert(container.begin() + index, std::move(value));
       }
+      return container;
    }
 
 }; // class ordered_diff
