@@ -174,8 +174,6 @@ CONTRACT svnn_ibc : public contract {
             const auto serialized_data = pack(data);
             const auto serialized_output = pack(returnvalue);
             hashes[0] = sha256(serialized_base.data(), serialized_base.size());
-            std::vector<uint8_t> data_digest(action_input_size);
-            std::vector<uint8_t> output_digest(return_value_size);
             std::vector<uint8_t> h1_result(rhs_size);
             std::copy (serialized_data.cbegin(), serialized_data.cend(), h1_result.begin());
             std::copy (serialized_output.cbegin(), serialized_output.cend(), h1_result.begin() + action_input_size);

@@ -75,13 +75,76 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       return merkle_branches;
    }
 
+   struct ibc_block_data_t {
+      signed_block_ptr block;
+      action_trace onblock_trace;
+      std::vector<transaction_trace_ptr> traces;
+      finality_data_t fd;
+      digest_type action_mroot;
+      digest_type base_digest;
+      digest_type finality_digest;
+      digest_type afp_base_digest;
+      digest_type finality_leaf;
+      digest_type finality_root;
+   };
+
+   class ibc_cluster : public finality_test_cluster<4> {
+   public:
+
+      eosio::chain::finalizer_policy current_finalizer_policy;
+      digest_type current_finalizer_policy_digest;
+
+      ibc_block_data_t produce_ibc_block(){
+
+         auto result = this->produce_and_push_block_ex();
+         signed_block_ptr block = result.block;
+         action_trace onblock_trace = result.onblock_trace->action_traces[0];
+         std::vector<transaction_trace_ptr> traces = result.traces;
+
+         //extract new finalizer policy
+         eosio::chain::block_header_extension block_if_ext =
+            *block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+
+         std::optional<eosio::chain::finalizer_policy> maybe_new_finalizer_policy =
+            std::get<eosio::chain::instant_finality_extension>(block_if_ext).new_finalizer_policy;
+
+         if (maybe_new_finalizer_policy.has_value()){
+
+            current_finalizer_policy = maybe_new_finalizer_policy.value();
+
+            // compute the digest of the new finalizer policy
+            current_finalizer_policy_digest = fc::sha256::hash(current_finalizer_policy);
+            
+         }
+
+         this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
+         finality_data_t fd = *this->node0.control->head_finality_data();
+         digest_type action_mroot = fd.action_mroot;
+         digest_type base_digest = fd.base_digest;
+         digest_type finality_digest = this->node0.control->get_strong_digest_by_id(block->calculate_id());
+         digest_type afp_base_digest = hash_pair(current_finalizer_policy_digest, base_digest);
+         digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
+            .block_num = block->block_num(),
+            .finality_digest = finality_digest,
+            .action_mroot = action_mroot
+         });
+         digest_type finality_root = block->action_mroot;
+
+         return {block, onblock_trace, traces, fd, action_mroot, base_digest, finality_digest, afp_base_digest, finality_leaf, finality_root };
+
+      }
+   };
+
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
       finality_test_cluster<4> cluster { finality_cluster_config_t{.transition_to_savanna = false} };
 
       // produce IF Genesis block
-      auto genesis_block = cluster.produce_and_push_block();
+      auto genesis_block_result = cluster.produce_and_push_block_ex();
+      auto genesis_block = genesis_block_result.block;
+      auto genesis_block_onblock_trace = genesis_block_result.onblock_trace->action_traces[0];
+      auto genesis_block_traces = genesis_block_result.traces;
 
       // ensure out of scope setup and initial cluster wiring is consistent
       BOOST_CHECK_EQUAL(genesis_block->block_num(), 4);
@@ -110,6 +173,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // compute the digest of the finalizer policy
       auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
       
+      std::cout << "active_finalizer_policy_digest " << active_finalizer_policy_digest << "\n";
+
       auto genesis_block_fd = cluster.node0.control->head_finality_data();
 
       // verify we have finality data for the IF genesis block
@@ -127,7 +192,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // action_mroot computed using the post-IF activation merkle tree rules
       auto genesis_block_action_mroot = genesis_block_fd.value().action_mroot;
-      
+
+      std::cout << "genesis_block_action_mroot " << genesis_block_action_mroot << "\n";
+      std::cout << "genesis_block_onblock_trace " << genesis_block_onblock_trace.digest_savanna() << "\n";
+      std::cout << "genesis_block_traces.size() " << genesis_block_traces.size() << "\n";
+
       // initial finality leaf
       auto genesis_block_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
          .block_num = genesis_block->block_num(),
@@ -151,7 +220,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       );
 
       // Transition block. Finalizers are not expected to vote on this block. 
-      auto block_1 = cluster.produce_and_push_block();
+      auto block_1_result = cluster.produce_and_push_block_ex();
+      auto block_1 = block_1_result.block;
       auto block_1_fd = cluster.node0.control->head_finality_data();
       auto block_1_action_mroot = block_1_fd.value().action_mroot;
       auto block_1_finality_digest = cluster.node0.control->get_strong_digest_by_id(block_1->calculate_id());
@@ -164,7 +234,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // Proper IF Block. From now on, finalizers must vote. Moving forward, the header action_mroot
       // field is reconverted to provide the finality_mroot.
       // The action_mroot is instead provided via the finality data
-      auto block_2 = cluster.produce_and_push_block();
+      auto block_2_result = cluster.produce_and_push_block_ex();
+      auto block_2 = block_2_result.block;
+      auto block_2_onblock_trace = block_2_result.onblock_trace->action_traces[0];
+      auto block_2_traces = block_2_result.traces;
       cluster.process_votes(1, cluster.num_needed_for_quorum); //enough to reach quorum threshold
       auto block_2_fd = cluster.node0.control->head_finality_data();
       auto block_2_action_mroot = block_2_fd.value().action_mroot;
@@ -178,8 +251,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       });
       auto block_2_finality_root = block_2->action_mroot;
 
+      std::cout << "block_2_action_mroot " << block_2_action_mroot << "\n";
+      std::cout << "block_2_onblock_trace " << block_2_onblock_trace.digest_savanna() << "\n";
+      std::cout << "block_2_traces.size() " << block_2_traces.size() << "\n";
+
       // block_3 contains a QC over block_2
-      auto block_3 = cluster.produce_and_push_block();
+      auto block_3_result = cluster.produce_and_push_block_ex();
+      auto block_3 = block_3_result.block;
       cluster.process_votes(1, cluster.num_needed_for_quorum );
       auto block_3_fd = cluster.node0.control->head_finality_data();
       auto block_3_action_mroot = block_3_fd.value().action_mroot;
@@ -191,7 +269,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       });
 
       // block_4 contains a QC over block_3
-      auto block_4 = cluster.produce_and_push_block();
+      auto block_4_result = cluster.produce_and_push_block_ex();
+      auto block_4 = block_4_result.block;
       cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_4_fd = cluster.node0.control->head_finality_data();
       auto block_4_base_digest = block_4_fd.value().base_digest;
@@ -204,7 +283,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
       // serves as a proof of finality for it
-      auto block_5 = cluster.produce_and_push_block();
+      auto block_5_result = cluster.produce_and_push_block_ex();
+      auto block_5 = block_5_result.block;
       cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_5_fd = cluster.node0.control->head_finality_data();
       auto block_5_base_digest = block_5_fd.value().base_digest;
@@ -218,7 +298,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2
       // and serves as a proof of finality for it
-      auto block_6 = cluster.produce_and_push_block();
+      auto block_6_result = cluster.produce_and_push_block_ex();
+      auto block_6 = block_6_result.block;
       cluster.process_votes(1, cluster.num_needed_for_quorum);
 
       // retrieve the QC over block_5 that is contained in block_6
@@ -346,7 +427,17 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // timer for the older finality root.
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_2);
 
-      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
+      //advance 1 block to avoid duplicate transaction.
+      auto block_7_result = cluster.produce_and_push_block_ex();
+      auto block_7 = block_7_result.block;
+      auto block_7_onblock_trace = block_7_result.onblock_trace->action_traces[0];
+      auto block_7_traces = block_7_result.traces;
+      auto block_7_fd = cluster.node0.control->head_finality_data();
+      auto block_7_action_mroot = block_7_fd.value().action_mroot;
+
+      std::cout << "block_7_action_mroot " << block_7_action_mroot << "\n";
+      std::cout << "block_7_onblock_trace " << block_7_onblock_trace.digest_savanna() << "\n";
+      std::cout << "block_7_traces.size() " << block_7_traces.size() << "\n";
 
       // we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
@@ -374,6 +465,39 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify action has failed, as expected
       BOOST_CHECK(failed); 
+
+      //change the finalizer policy by rotating the key of node0
+      cluster.node0.finkeys.set_finalizer_policy(1);
+
+      // produce a new block
+      auto block_8_result = cluster.produce_and_push_block_ex();
+      auto block_8 = block_8_result.block;
+      auto block_8_onblock_trace = block_8_result.onblock_trace->action_traces[0];
+      auto block_8_traces = block_8_result.traces;
+
+      //extract new finalizer policy
+      eosio::chain::block_header_extension block_8_if_ext =
+         *block_8->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+
+      std::optional<eosio::chain::finalizer_policy> maybe_new_finalizer_policy =
+         std::get<eosio::chain::instant_finality_extension>(block_8_if_ext).new_finalizer_policy;
+
+      BOOST_CHECK(maybe_new_finalizer_policy.has_value());
+
+      eosio::chain::finalizer_policy new_finalizer_policy = maybe_new_finalizer_policy.value();
+
+      BOOST_CHECK_EQUAL(new_finalizer_policy.finalizers.size(), cluster.num_nodes);
+      BOOST_CHECK_EQUAL(new_finalizer_policy.generation, 2); //check that the finalizer policy generation has incremented
+
+      // compute the digest of the new finalizer policy
+      auto new_finalizer_policy_digest = fc::sha256::hash(new_finalizer_policy);
+      
+      std::cout << "new_finalizer_policy_digest " << new_finalizer_policy_digest << "\n";
+
+      // make new finalizer policy block final
+      cluster.produce_and_push_block_ex();
+      cluster.produce_and_push_block_ex();
+
 
    } FC_LOG_AND_RETHROW() }
 
