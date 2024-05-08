@@ -147,7 +147,7 @@ namespace eosio::testing {
    struct produce_block_result_t {
       signed_block_ptr                   block;
       transaction_trace_ptr              onblock_trace;
-      std::vector<transaction_trace_ptr> unapplied_transaction_traces; // unapplied from previous `push_block` not on head branch
+      std::vector<transaction_trace_ptr> unapplied_transaction_traces; // only traces of any unapplied transactions
    };
 
    /**
