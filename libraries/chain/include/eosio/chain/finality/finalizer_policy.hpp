@@ -6,8 +6,9 @@
 
 namespace eosio::chain {
 
-   using finalizers_differ = fc::ordered_diff<finalizer_authority>;
-   using finalizers_diff_t = fc::ordered_diff<finalizer_authority>::diff_result;
+   static_assert(std::numeric_limits<uint16_t>::max() <= config::max_finalizers);
+   using finalizers_differ = fc::ordered_diff<finalizer_authority, uint16_t>;
+   using finalizers_diff_t = finalizers_differ::diff_result;
 
    struct finalizer_policy_diff {
       uint32_t                         generation = 0; ///< sequentially incrementing version number
