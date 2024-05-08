@@ -147,7 +147,7 @@ namespace eosio::testing {
    struct produce_block_result_t {
       signed_block_ptr                   block;
       transaction_trace_ptr              onblock_trace;
-      std::vector<transaction_trace_ptr> traces;         // transaction traces
+      std::vector<transaction_trace_ptr> unapplied_transaction_traces; // unapplied from previous `push_block` not on head branch
    };
 
    /**
@@ -271,19 +271,23 @@ namespace eosio::testing {
          transaction_trace_ptr       set_producer_schedule(const vector<producer_authority>& schedule);
          transaction_trace_ptr       set_producers_legacy(const vector<account_name>& producer_names);
 
+         struct set_finalizers_output_t {
+            transaction_trace_ptr        setfinalizer_trace;
+            std::vector<bls_private_key> privkeys;  // private keys of **local** finalizers
+            std::vector<bls_public_key>  pubkeys;   // public keys of all finalizers in the policy
+         };
+
          // libtester uses 1 as weight of each of the finalizer, sets (2/3 finalizers + 1)
          // as threshold, and makes all finalizers vote QC
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>>
-         set_finalizers(std::span<const account_name> finalizer_names);
+         set_finalizers_output_t set_finalizers(std::span<const account_name> finalizer_names);
 
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>>
-         set_finalizers(const std::vector<account_name>& names) {
+         set_finalizers_output_t set_finalizers(const std::vector<account_name>& names) {
             return set_finalizers(std::span{names.begin(), names.end()});
          }
 
          void set_node_finalizers(std::span<const account_name> finalizer_names);
 
-         std::vector<fc::crypto::blslib::bls_public_key> set_active_finalizers(std::span<const account_name> finalizer_names);
+         set_finalizers_output_t set_active_finalizers(std::span<const account_name> finalizer_names);
 
          // Finalizer policy input to set up a test: weights, threshold and local finalizers
          // which participate voting.
@@ -297,7 +301,7 @@ namespace eosio::testing {
             uint64_t                    threshold {0};
             std::vector<account_name>   local_finalizers;
          };
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>> set_finalizers(const finalizer_policy_input& input);
+         set_finalizers_output_t set_finalizers(const finalizer_policy_input& input);
 
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
             return control->active_finalizer_policy(id);
@@ -782,11 +786,11 @@ namespace eosio::testing {
 
       // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
       // ----------------------------------------------------------------------------------
-      std::vector<bls_public_key> set_finalizer_policy(size_t first_key) {
+      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key) {
          return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
       }
 
-      std::vector<bls_public_key>  set_finalizer_policy(std::span<const size_t> indices) {
+      base_tester::set_finalizers_output_t  set_finalizer_policy(std::span<const size_t> indices) {
          assert(indices.size() == fin_policy_size);
          vector<account_name> names;
          names.reserve(fin_policy_size);

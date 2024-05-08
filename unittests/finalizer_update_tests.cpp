@@ -42,12 +42,12 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
-   auto pubkeys0 = fin_keys.set_finalizer_policy(0);
+   auto pubkeys0 = fin_keys.set_finalizer_policy(0).pubkeys;
    fin_keys.transition_to_savanna();
 
    // run set_finalizers(), verify it becomes active after exactly two 3-chains
    // -------------------------------------------------------------------------
-   auto pubkeys1 = fin_keys.set_finalizer_policy(1);
+   auto pubkeys1 = fin_keys.set_finalizer_policy(1).pubkeys;
    t.produce_block();
    t.check_head_finalizer_policy(1, pubkeys0); // new policy should only be active until after two 3-chains
 
@@ -78,13 +78,13 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    fin_keys.set_node_finalizers(0, num_keys);
 
    // run initial set_finalizer_policy() and waits until transition is complete
-   auto pubkeys0 = fin_keys.set_finalizer_policy(0);
+   auto pubkeys0 = fin_keys.set_finalizer_policy(0).pubkeys;
    fin_keys.transition_to_savanna();
 
    // run set_finalizers() twice in same block, verify only latest one becomes active
    // -------------------------------------------------------------------------------
    (void)fin_keys.set_finalizer_policy(1);
-   auto pubkeys2 = fin_keys.set_finalizer_policy(2);
+   auto pubkeys2 = fin_keys.set_finalizer_policy(2).pubkeys;
    t.produce_block();
    t.check_head_finalizer_policy(1, pubkeys0); // new policy should only be active until after two 3-chains
    t.produce_blocks(5);
@@ -95,12 +95,12 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    // run a test with multiple set_finlizers in-flight during the two 3-chains they
    // take to become active
    // -----------------------------------------------------------------------------
-   auto pubkeys3 = fin_keys.set_finalizer_policy(3);
+   auto pubkeys3 = fin_keys.set_finalizer_policy(3).pubkeys;
    t.produce_block();
-   auto pubkeys4 = fin_keys.set_finalizer_policy(4);
+   auto pubkeys4 = fin_keys.set_finalizer_policy(4).pubkeys;
    t.produce_block();
    t.produce_block();
-   auto pubkeys5 = fin_keys.set_finalizer_policy(5);
+   auto pubkeys5 = fin_keys.set_finalizer_policy(5).pubkeys;
    t.produce_blocks(3);
    t.check_head_finalizer_policy(2, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
    t.produce_block();

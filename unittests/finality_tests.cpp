@@ -506,7 +506,7 @@ BOOST_FIXTURE_TEST_CASE(second_set_finalizers, finality_test_cluster<4>) { try {
    auto indices1 = fin_policy_indices_0;  // start from original set of indices
    assert(indices1[0] == 0);              // we used index 0 for node0 in original policy
    indices1[0] = 1;                       // update key used for node0 in policy
-   auto pubkeys1 = node0.finkeys.set_finalizer_policy(indices1);
+   auto pubkeys1 = node0.finkeys.set_finalizer_policy(indices1).pubkeys;
 
    // we need two 3-chains for the new finalizer policy to be activated
    for (size_t i=0; i<6; ++i) {

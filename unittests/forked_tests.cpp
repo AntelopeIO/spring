@@ -751,7 +751,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
 
    // produce block which will apply the unapplied transactions
    produce_block_result_t produce_block_result = c.produce_block_ex(fc::milliseconds(config::block_interval_ms), true);
-   std::vector<transaction_trace_ptr>& traces = produce_block_result.traces;
+   std::vector<transaction_trace_ptr>& traces = produce_block_result.unapplied_transaction_traces;
 
    BOOST_REQUIRE_EQUAL( 4u, traces.size() );
    BOOST_CHECK_EQUAL( trace1->id, traces.at(0)->id );
