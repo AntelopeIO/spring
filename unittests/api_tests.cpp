@@ -3863,28 +3863,16 @@ BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
 BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    validating_tester t;
 
-   uint32_t lib = 0;
-   signed_block_ptr lib_block;
-   t.control->irreversible_block().connect([&](const block_signal_params& t) {
-      const auto& [ block, id ] = t;
-      lib = block->block_num();
-      lib_block = block;
-   });
-
-   t.produce_block();
-
-   // Create finalizer accounts
-   vector<account_name> finalizers = {
-      "inita"_n, "initb"_n, "initc"_n, "initd"_n, "inite"_n, "initf"_n, "initg"_n,
-      "inith"_n, "initi"_n, "initj"_n, "initk"_n, "initl"_n, "initm"_n, "initn"_n,
-      "inito"_n, "initp"_n, "initq"_n, "initr"_n, "inits"_n, "initt"_n, "initu"_n
-   };
-
-   t.create_accounts(finalizers);
-   t.produce_block();
+   // Create finalizer keys
+   constexpr size_t num_finalizers = 21;
+   finalizer_keys fin_keys(t, num_finalizers, num_finalizers);
 
    // activate savanna
-   t.set_finalizers(finalizers);
+   fin_keys.set_node_finalizers(0, num_finalizers); // activate `num_finalizers` keys for this node,
+                                                    // starting at key index 0.
+   fin_keys.set_finalizer_policy(0);                // sets the finalizer_policy using consecutive keys,
+                                                    // starting at key index 0.
+
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
    auto block = t.produce_block();
 
@@ -3892,43 +3880,38 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    BOOST_TEST(!!ext);
    std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
    BOOST_TEST(!!fin_policy_diff);
-   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == finalizers.size());
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == num_finalizers);
    BOOST_TEST(fin_policy_diff->generation == 1);
-   BOOST_TEST(fin_policy_diff->threshold == finalizers.size() / 3 * 2 + 1);
+   // same as reference-contracts/.../contracts/eosio.system/src/finalizer_key.cpp#L73
+   BOOST_TEST(fin_policy_diff->threshold == (num_finalizers * 2) / 3 + 1);
    block_id_type if_genesis_block_id = block->calculate_id();
 
-   for (block_num_type active_block_num = block->block_num(); active_block_num > lib; t.produce_block()) {
+   for (block_num_type active_block_num = block->block_num(); active_block_num > t.lib_block->block_num(); t.produce_block()) {
       (void)active_block_num; // avoid warning
    };
 
    // lib_block is IF Genesis Block
    // block is IF Critical Block
-   auto fb = t.control->fetch_block_by_id(lib_block->calculate_id());
+   auto fb = t.control->fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
-   BOOST_TEST(fb->calculate_id() == lib_block->calculate_id());
+   BOOST_TEST(fb->calculate_id() == t.lib_id);
    ext = fb->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 
-   auto lib_after_transition = lib;
+   auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
    // lib must advance after 3 blocks
    t.produce_blocks(3);
-   BOOST_CHECK_GT(lib, lib_after_transition);
+   BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
 } FC_LOG_AND_RETHROW() }
 
-void test_finality_transition(const vector<account_name>& accounts, const base_tester::finalizer_policy_input& input, bool lib_advancing_expected) {
+void test_finality_transition(const vector<account_name>& accounts,
+                              const base_tester::finalizer_policy_input& input,
+                              bool lib_advancing_expected) {
    validating_tester t;
-
-   uint32_t lib = 0;
-   signed_block_ptr lib_block;
-   t.control->irreversible_block().connect([&](const block_signal_params& t) {
-      const auto& [ block, id ] = t;
-      lib = block->block_num();
-      lib_block = block;
-   });
 
    t.produce_block();
 
@@ -3950,27 +3933,27 @@ void test_finality_transition(const vector<account_name>& accounts, const base_t
    block_id_type if_genesis_block_id = block->calculate_id();
 
    block_num_type active_block_num = block->block_num();
-   while (active_block_num > lib) {
+   while (active_block_num > t.lib_block->block_num()) {
       block = t.produce_block();
    }
    // lib_block is IF Genesis Block
    // block is IF Critical Block
-   auto fb = t.control->fetch_block_by_id(lib_block->calculate_id());
+   auto fb = t.control->fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
-   BOOST_TEST(fb->calculate_id() == lib_block->calculate_id());
+   BOOST_TEST(fb->calculate_id() == t.lib_id);
    ext = fb->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 
-   auto lib_after_transition = lib;
+   auto lib_after_transition = t.lib_block->block_num();
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
    t.produce_blocks(4);
    if( lib_advancing_expected ) {
-      BOOST_CHECK_GT(lib, lib_after_transition);
+      BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
    } else {
-      BOOST_CHECK_EQUAL(lib, lib_after_transition);
+      BOOST_CHECK_EQUAL(t.lib_block->block_num(), lib_after_transition);
    }
 }
 

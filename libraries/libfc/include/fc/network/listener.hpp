@@ -59,8 +59,8 @@ struct listener_base<boost::asio::local::stream_protocol> {
 /// detail for fc::create_listener().
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////
-template <typename Protocol, typename CreateSession>
-struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener<Protocol, CreateSession>> {
+template <typename Protocol, typename Executor, typename CreateSession>
+struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener<Protocol, Executor, CreateSession>> {
  private:
    typename Protocol::acceptor      acceptor_;
    boost::asio::deadline_timer      accept_error_timer_;
@@ -71,7 +71,7 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 
  public:
    using endpoint_type = typename Protocol::endpoint;
-   listener(boost::asio::io_context& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
+   listener(Executor& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
             const std::string& local_address, const endpoint_type& endpoint,
             const std::string& extra_listening_log_info, const CreateSession& create_session)
        : listener_base<Protocol>(local_address), acceptor_(executor, endpoint), accept_error_timer_(executor),
@@ -159,8 +159,8 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 ///
 /// @tparam Protocol either \c boost::asio::ip::tcp or \c boost::asio::local::stream_protocol
 /// @throws std::system_error or boost::system::system_error
-template <typename Protocol, typename CreateSession>
-void create_listener(boost::asio::io_context& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
+template <typename Protocol, typename Executor, typename CreateSession>
+void create_listener(Executor& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
                      const std::string& address, const std::string& extra_listening_log_info,
                      const CreateSession& create_session) {
    using tcp = boost::asio::ip::tcp;
@@ -186,7 +186,7 @@ void create_listener(boost::asio::io_context& executor, logger& logger, boost::p
       auto create_listener = [&](const auto& endpoint) {
          const auto& ip_addr = endpoint.address();
          try {
-            auto listener = std::make_shared<fc::listener<Protocol, CreateSession>>(
+            auto listener = std::make_shared<fc::listener<Protocol, Executor, CreateSession>>(
                   executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, create_session);
             listener->log_listening(endpoint, address);
             listener->do_accept();
@@ -256,7 +256,7 @@ void create_listener(boost::asio::io_context& executor, logger& logger, boost::p
          fs::remove(sock_path);
       }
 
-      auto listener = std::make_shared<fc::listener<stream_protocol, CreateSession>>(
+      auto listener = std::make_shared<fc::listener<stream_protocol, Executor, CreateSession>>(
             executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, create_session);
       listener->log_listening(endpoint, address);
       listener->do_accept();

@@ -48,12 +48,6 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
       BOOST_TEST(scheduled_changed_to_new);
    };
 
-   uint32_t lib = 0;
-   control->irreversible_block().connect([&](const block_signal_params& t) {
-      const auto& [ block, id ] = t;
-      lib = block->block_num();
-   });
-
    // Create producer accounts
    vector<account_name> producers = {
            "inita"_n, "initb"_n, "initc"_n, "initd"_n, "inite"_n, "initf"_n, "initg"_n,
@@ -66,7 +60,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
    set_finalizers(producers);
    auto setfin_block = produce_block(); // this block contains the header extension of the finalizer set
 
-   for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib; produce_block()) {
+   for (block_num_type active_block_num = setfin_block->block_num(); active_block_num > lib_block->block_num(); produce_block()) {
       set_producers({"initc"_n, "inite"_n}); // should be ignored since in transition
       (void)active_block_num; // avoid warning
    };
