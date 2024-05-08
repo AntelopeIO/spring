@@ -820,7 +820,7 @@ namespace eosio::testing {
          const auto& fin_policy_diff = ext.new_finalizer_policy_diff;
          BOOST_TEST(!!fin_policy_diff);
          BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == fin_policy_size);
-         BOOST_TEST(fin_policy_diff->generation == 1);
+         BOOST_TEST(fin_policy_diff->generation == 1u);
          BOOST_TEST(fin_policy_diff->threshold == (fin_policy_size * 2) / 3 + 1);
 
          // wait till the genesis_block becomes irreversible.

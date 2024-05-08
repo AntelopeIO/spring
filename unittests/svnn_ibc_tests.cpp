@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto genesis_block = cluster.produce_and_push_block();
 
       // ensure out of scope setup and initial cluster wiring is consistent
-      BOOST_CHECK_EQUAL(genesis_block->block_num(), 4);
+      BOOST_CHECK_EQUAL(genesis_block->block_num(), 4u);
 
       // check if IF Genesis block contains an IF extension
       std::optional<eosio::chain::block_header_extension> maybe_genesis_if_ext =
@@ -105,7 +105,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
 
       BOOST_CHECK_EQUAL(active_finalizer_policy.finalizers.size(), cluster.num_nodes);
-      BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1);
+      BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1u);
 
       // compute the digest of the finalizer policy
       auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
