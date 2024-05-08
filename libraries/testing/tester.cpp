@@ -1161,6 +1161,7 @@ namespace eosio::testing {
    vector<producer_authority> base_tester::get_producer_authorities( const vector<account_name>& producer_names )const {
        // Create producer schedule
        vector<producer_authority> schedule;
+       schedule.reserve(producer_names.size());
        for (auto& producer_name: producer_names) {
           schedule.emplace_back(producer_authority{ producer_name, block_signing_authority_v0{1, {{ get_public_key( producer_name, "active" ), 1}} } });
        }
@@ -1183,7 +1184,6 @@ namespace eosio::testing {
 
       return push_action( config::system_account_name, "setprods"_n, config::system_account_name,
                           fc::mutable_variant_object()("schedule", schedule_variant));
-
    }
 
    transaction_trace_ptr base_tester::set_producers_legacy(const vector<account_name>& producer_names) {
@@ -1200,7 +1200,6 @@ namespace eosio::testing {
 
       return push_action( config::system_account_name, "setprods"_n, config::system_account_name,
                           fc::mutable_variant_object()("schedule", legacy_keys));
-
    }
 
    base_tester::set_finalizers_output_t base_tester::set_finalizers(std::span<const account_name> finalizer_names) {

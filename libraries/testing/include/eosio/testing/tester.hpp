@@ -271,24 +271,6 @@ namespace eosio::testing {
          transaction_trace_ptr       set_producer_schedule(const vector<producer_authority>& schedule);
          transaction_trace_ptr       set_producers_legacy(const vector<account_name>& producer_names);
 
-         struct set_finalizers_output_t {
-            transaction_trace_ptr        setfinalizer_trace;
-            std::vector<bls_private_key> privkeys;  // private keys of **local** finalizers
-            std::vector<bls_public_key>  pubkeys;   // public keys of all finalizers in the policy
-         };
-
-         // libtester uses 1 as weight of each of the finalizer, sets (2/3 finalizers + 1)
-         // as threshold, and makes all finalizers vote QC
-         set_finalizers_output_t set_finalizers(std::span<const account_name> finalizer_names);
-
-         set_finalizers_output_t set_finalizers(const std::vector<account_name>& names) {
-            return set_finalizers(std::span{names.begin(), names.end()});
-         }
-
-         void set_node_finalizers(std::span<const account_name> finalizer_names);
-
-         set_finalizers_output_t set_active_finalizers(std::span<const account_name> finalizer_names);
-
          // Finalizer policy input to set up a test: weights, threshold and local finalizers
          // which participate voting.
          struct finalizer_policy_input {
@@ -301,7 +283,32 @@ namespace eosio::testing {
             uint64_t                    threshold {0};
             std::vector<account_name>   local_finalizers;
          };
+
+         struct set_finalizers_output_t {
+            transaction_trace_ptr        setfinalizer_trace;
+            std::vector<bls_private_key> privkeys;  // private keys of **local** finalizers
+            std::vector<bls_public_key>  pubkeys;   // public keys of all finalizers in the policy
+         };
+
          set_finalizers_output_t set_finalizers(const finalizer_policy_input& input);
+
+         void set_node_finalizers(std::span<const account_name> finalizer_names);
+
+         set_finalizers_output_t set_active_finalizers(std::span<const account_name> finalizer_names);
+
+         // Useful when using a single node.
+         // Set a finalizer policy with a few finalizers, all local to the current node.
+         // All have weight == 1, threshold is `num_finalizers * 2 / 3 + 1`
+         // -----------------------------------------------------------------------------
+         set_finalizers_output_t set_finalizers(std::span<const account_name> finalizer_names);
+
+         // Useful when using a single node.
+         // Set a finalizer policy with a few finalizers, all local to the current node.
+         // All have weight == 1, threshold is `num_finalizers * 2 / 3 + 1`
+         // -----------------------------------------------------------------------------
+         set_finalizers_output_t set_finalizers(const std::vector<account_name>& names) {
+            return set_finalizers(std::span{names.begin(), names.end()});
+         }
 
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
             return control->active_finalizer_policy(id);
