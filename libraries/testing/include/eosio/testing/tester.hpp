@@ -817,11 +817,11 @@ namespace eosio::testing {
          // Do some sanity checks on the genesis block
          // ------------------------------------------
          const auto& ext = genesis_block->template extract_header_extension<instant_finality_extension>();
-         const auto& fin_policy = ext.new_finalizer_policy;
-         BOOST_TEST(!!fin_policy);
-         BOOST_TEST(fin_policy->finalizers.size() == fin_policy_size);
-         BOOST_TEST(fin_policy->generation == 1);
-         BOOST_TEST(fin_policy->threshold == (fin_policy_size * 2) / 3 + 1);
+         const auto& fin_policy_diff = ext.new_finalizer_policy_diff;
+         BOOST_TEST(!!fin_policy_diff);
+         BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == fin_policy_size);
+         BOOST_TEST(fin_policy_diff->generation == 1);
+         BOOST_TEST(fin_policy_diff->threshold == (fin_policy_size * 2) / 3 + 1);
 
          // wait till the genesis_block becomes irreversible.
          // The critical block is the block that makes the genesis_block irreversible
@@ -850,7 +850,9 @@ namespace eosio::testing {
             auto b = produce_block();
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
-         return *fin_policy;
+         finalizer_policy fin_policy;
+         fin_policy.apply_diff(*fin_policy_diff);
+         return fin_policy;
       }
 
       Tester&                 t;
