@@ -18,7 +18,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       BOOST_TEST(source == target);
    }
    { // Basic case, deque
-      using ordered_deque_char_diff = ordered_diff<char, std::deque>;
+      using ordered_deque_char_diff = ordered_diff<char, uint16_t, std::deque>;
       deque<char>       source = {'a', 'x', 'c', 'd', 'e'};
       deque<char>       target = {'z', 'c', 'y', 'f'};
       auto               result = ordered_deque_char_diff::diff(source, target);
@@ -28,15 +28,15 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
    { // Empty vectors
       vector<char> source;
       vector<char> target;
-      ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
-      ordered_diff<char>::apply_diff(source, result);
+      ordered_diff<char, uint8_t>::diff_result result = ordered_diff<char, uint8_t>::diff(source, target);
+      ordered_diff<char, uint8_t>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
    { // All elements removed
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target;
-      auto result = ordered_diff<char>::diff(source, target);
-      ordered_diff<char>::apply_diff(source, result);
+      auto result = ordered_diff<char, int>::diff(source, target);
+      ordered_diff<char, int>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
    { // All elements inserted
@@ -93,6 +93,48 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> target = {'z', 'a', 'b', 'c', 'd'};
       auto result = ordered_diff<char>::diff(source, target);
       ordered_diff<char>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
+   { // non-unique
+      vector<char> source = {'a', 'b', 'c', 'd', 'e', 'c', 'a', 'q'};
+      vector<char> target = {'z', 'a', 'b', 'c', 'd', 'a'};
+      auto result = ordered_diff<char>::diff(source, target);
+      ordered_diff<char>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
+   { // full
+      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()+1);
+      std::iota(source.begin(), source.end(), 0);
+      vector<uint8_t> target(source.size());
+      std::reverse_copy(source.begin(), source.end(), target.begin());
+      auto result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      ordered_diff<uint8_t, uint8_t>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+      target.clear();
+      result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      ordered_diff<uint8_t, uint8_t>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+      source.clear();
+      result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      ordered_diff<uint8_t, uint8_t>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+   }
+   { // non-unique full
+      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()*2);
+      std::iota(source.begin(), source.begin()+std::numeric_limits<uint8_t>::max(), 0);
+      std::iota(source.begin()+std::numeric_limits<uint8_t>::max(), source.end(), 0);
+      vector<uint8_t> target(source.size());
+      std::reverse_copy(source.begin(), source.end(), target.begin());
+      auto result = ordered_diff<uint8_t, uint16_t>::diff(source, target);
+      ordered_diff<uint8_t, uint16_t>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+      target.clear();
+      result = ordered_diff<uint8_t, uint16_t>::diff(source, target);
+      ordered_diff<uint8_t, uint16_t>::apply_diff(source, result);
+      BOOST_TEST(source == target);
+      source.clear();
+      result = ordered_diff<uint8_t, uint16_t>::diff(source, target);
+      ordered_diff<uint8_t, uint16_t>::apply_diff(source, result);
       BOOST_TEST(source == target);
    }
 } FC_LOG_AND_RETHROW();
