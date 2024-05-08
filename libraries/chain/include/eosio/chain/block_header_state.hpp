@@ -47,7 +47,7 @@ struct finality_digest_data_v1 {
 struct finalizer_policy_tracker {
    enum class state_t { proposed = 0, pending };
    state_t                    state;
-   finalizer_policy_diff      policy_diff;
+   finalizer_policy_ptr       policy;
 };
 
 struct building_block_input {
@@ -130,23 +130,8 @@ struct block_header_state {
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
-   finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const {
-      if (finalizer_policies.empty()) {
-         return active_finalizer_policy->create_diff(new_policy);
-      }
-      finalizer_policy fin_policy = *active_finalizer_policy;
-      for (const auto& e : finalizer_policies) {
-         if (e.second.state == finalizer_policy_tracker::state_t::pending) {
-            fin_policy.apply_diff(e.second.policy_diff);
-         }
-      }
-      for (const auto& e : finalizer_policies) {
-         if (e.second.state == finalizer_policy_tracker::state_t::proposed) {
-            fin_policy.apply_diff(e.second.policy_diff);
-         }
-      }
-      return fin_policy.create_diff(new_policy);
-   }
+   finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const;
+   finalizer_policy calculate_finalizer_policy(const finalizer_policy_diff& diff) const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
@@ -155,7 +140,7 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 FC_REFLECT_ENUM( eosio::chain::finalizer_policy_tracker::state_t, (proposed)(pending))
 
-FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy_diff))
+FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
 
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)

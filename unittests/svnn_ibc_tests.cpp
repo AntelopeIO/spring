@@ -101,10 +101,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          std::get<eosio::chain::instant_finality_extension>(genesis_if_ext).new_finalizer_policy_diff;
 
       BOOST_CHECK(maybe_active_finalizer_policy_diff.has_value());
-/** TODO diff or full active policy ?
-      eosio::chain::finalizer_policy active_finalizer_policy = maybe_active_finalizer_policy.value();
 
-      BOOST_CHECK_EQUAL(active_finalizer_policy.finalizers.size(), cluster.num_nodes);
+      eosio::chain::finalizer_policy_diff active_finalizer_policy_diff = maybe_active_finalizer_policy_diff.value();
+      eosio::chain::finalizer_policy active_finalizer_policy;
+      active_finalizer_policy.apply_diff(active_finalizer_policy_diff);
+
       BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1u);
 
       // compute the digest of the finalizer policy
@@ -374,7 +375,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify action has failed, as expected
       BOOST_CHECK(failed); 
-*/
+
    } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
