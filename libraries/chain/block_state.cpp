@@ -353,7 +353,7 @@ finality_data_t block_state::get_finality_data() {
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
       .action_mroot                       = action_mroot,
       .base_digest                        = *base_digest,
-      .proposed_finalizer_policy          = proposed_finalizer_policy
+      .proposed_finalizer_policy          = std::move(proposed_finalizer_policy)
    };
 }
 
