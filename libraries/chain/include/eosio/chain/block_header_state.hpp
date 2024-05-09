@@ -131,10 +131,7 @@ struct block_header_state {
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
-   finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const;
-   finalizer_policy calculate_finalizer_policy(const finalizer_policy_diff& diff) const;
-   proposer_policy_diff calculate_proposer_policy_diff(const proposer_policy& new_policy) const;
-   proposer_policy calculate_proposer_policy(const proposer_policy_diff& diff) const;
+   const proposer_policy& get_last_proposed_proposer_policy() const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;

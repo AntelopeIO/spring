@@ -28,11 +28,14 @@ struct proposer_policy {
 
    template <typename X>
    requires std::same_as<std::decay_t<X>, proposer_policy_diff>
-   void apply_diff(X&& diff) {
-      proposer_schedule.version = diff.version;
-      active_time = diff.active_time;
-      proposer_schedule.producers = producer_auth_differ::apply_diff(std::move(proposer_schedule.producers),
-                                                                     std::forward<X>(diff).producer_auth_diff);
+   [[nodiscard]] proposer_policy apply_diff(X&& diff) const {
+      proposer_policy result;
+      result.proposer_schedule.version = diff.version;
+      result.active_time = diff.active_time;
+      auto copy = proposer_schedule.producers;
+      result.proposer_schedule.producers = producer_auth_differ::apply_diff(std::move(copy),
+                                                                            std::forward<X>(diff).producer_auth_diff);
+      return result;
    }
 };
 

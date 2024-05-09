@@ -103,8 +103,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_CHECK(maybe_active_finalizer_policy_diff.has_value());
 
       eosio::chain::finalizer_policy_diff active_finalizer_policy_diff = maybe_active_finalizer_policy_diff.value();
-      eosio::chain::finalizer_policy active_finalizer_policy;
-      active_finalizer_policy.apply_diff(active_finalizer_policy_diff);
+      eosio::chain::finalizer_policy active_finalizer_policy =
+         eosio::chain::finalizer_policy{}.apply_diff(active_finalizer_policy_diff);
 
       BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1u);
 
