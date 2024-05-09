@@ -64,7 +64,7 @@ struct finality_data_t {
    uint32_t     active_finalizer_policy_generation{0};
    digest_type  action_mroot{};
    digest_type  base_digest{};
-   std::optional<finalizer_policy> proposed_finalizer_policy{std::nullopt}; // finalizer policy, if proposed in the block
+   std::optional<finalizer_policy> proposed_finalizer_policy; // finalizer policy, if proposed in the block
 };
 
 struct block_state : public block_header_state {     // block_header_state provides parent link

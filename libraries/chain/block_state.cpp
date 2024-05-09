@@ -339,7 +339,7 @@ finality_data_t block_state::get_finality_data() {
    }
 
    // Check if there is any proposed finalizer policy in the block
-   std::optional<finalizer_policy> proposed_finalizer_policy = std::nullopt;
+   std::optional<finalizer_policy> proposed_finalizer_policy;
    auto range = finalizer_policies.equal_range(block_num());
    for (auto itr = range.first; itr != range.second; ++itr) {
       if (itr->second.state == finalizer_policy_tracker::state_t::proposed) {
