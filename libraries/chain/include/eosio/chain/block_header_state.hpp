@@ -61,7 +61,7 @@ struct building_block_input {
 // this struct can be extracted from a building block
 struct block_header_state_input : public building_block_input {
    digest_type                       transaction_mroot;    // Comes from std::get<checksum256_type>(building_block::trx_mroot_or_receipt_digests)
-   std::shared_ptr<proposer_policy>  new_proposer_policy;  // Comes from building_block::new_proposer_policy
+   std::optional<proposer_policy>    new_proposer_policy;  // Comes from building_block::new_proposer_policy
    std::optional<finalizer_policy>   new_finalizer_policy; // Comes from building_block::new_finalizer_policy
    qc_claim_t                        most_recent_ancestor_with_qc; // Comes from traversing branch from parent and calling get_best_qc()
    digest_type                       finality_mroot_claim;
@@ -133,6 +133,8 @@ struct block_header_state {
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const;
    finalizer_policy calculate_finalizer_policy(const finalizer_policy_diff& diff) const;
+   proposer_policy_diff calculate_proposer_policy_diff(const proposer_policy& new_policy) const;
+   proposer_policy calculate_proposer_policy(const proposer_policy_diff& diff) const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;

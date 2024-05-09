@@ -89,6 +89,30 @@ finalizer_policy block_header_state::calculate_finalizer_policy(const finalizer_
    return result;
 }
 
+proposer_policy_diff block_header_state::calculate_proposer_policy_diff(const proposer_policy& new_policy) const {
+   if (proposer_policies.empty()) {
+      assert(active_proposer_policy);
+      return active_proposer_policy->create_diff(new_policy);
+   }
+   auto it = proposer_policies.rbegin();
+   assert(it != proposer_policies.rend());
+   return it->second->create_diff(new_policy);
+}
+
+proposer_policy block_header_state::calculate_proposer_policy(const proposer_policy_diff& diff) const {
+   if (proposer_policies.empty()) {
+      assert(active_proposer_policy);
+      proposer_policy result = *active_proposer_policy;
+      result.apply_diff(diff);
+      return result;
+   }
+   auto it = proposer_policies.rbegin();
+   assert(it != proposer_policies.rend());
+   proposer_policy result = *it->second;
+   result.apply_diff(diff);
+   return result;
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or instant_finality_extension) applicable to this
@@ -125,10 +149,14 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (if_ext.new_proposer_policy) {
+   std::optional<proposer_policy> new_proposer_policy;
+   if (if_ext.new_proposer_policy_diff) {
+      new_proposer_policy = prev.calculate_proposer_policy(*if_ext.new_proposer_policy_diff);
+   }
+   if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies[if_ext.new_proposer_policy->active_time] =
-         std::move(if_ext.new_proposer_policy);
+      next_header_state.proposer_policies[new_proposer_policy->active_time] =
+         std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
    }
 
    // finality_core
@@ -232,9 +260,13 @@ block_header_state block_header_state::next(block_header_state_input& input) con
    if (input.new_finalizer_policy) {
       new_finalizer_policy_diff = calculate_finalizer_policy_diff(*input.new_finalizer_policy);
    }
+   std::optional<proposer_policy_diff> new_proposer_policy_diff;
+   if (input.new_proposer_policy) {
+      new_proposer_policy_diff = calculate_proposer_policy_diff(*input.new_proposer_policy);
+   }
    instant_finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
                                            std::move(new_finalizer_policy_diff),
-                                           std::move(input.new_proposer_policy) };
+                                           std::move(new_proposer_policy_diff) };
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();
    emplace_extension(next_header_state.header.header_extensions, if_ext_id, fc::raw::pack(new_if_ext));

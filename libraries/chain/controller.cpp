@@ -706,7 +706,7 @@ struct building_block {
    assembled_block assemble_block(boost::asio::io_context& ioc,
                                   const protocol_feature_set& pfs,
                                   fork_database& fork_db,
-                                  std::unique_ptr<proposer_policy> new_proposer_policy,
+                                  std::optional<proposer_policy> new_proposer_policy,
                                   std::optional<finalizer_policy> new_finalizer_policy,
                                   bool validating,
                                   std::optional<qc_data_t> validating_qc_data,
@@ -3164,13 +3164,13 @@ struct controller_impl {
          resource_limits.process_block_usage(bb.block_num());
 
          // Any proposer policy?
-         auto process_new_proposer_policy = [&](auto&) -> std::unique_ptr<proposer_policy> {
-            std::unique_ptr<proposer_policy> new_proposer_policy;
+         auto process_new_proposer_policy = [&](auto&) -> std::optional<proposer_policy> {
+            std::optional<proposer_policy> new_proposer_policy;
             const auto& gpo = db.get<global_property_object>();
             if (gpo.proposed_schedule_block_num) {
                std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
                if (version) {
-                  new_proposer_policy                    = std::make_unique<proposer_policy>();
+                  new_proposer_policy.emplace();
                   new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
                   new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
                   new_proposer_policy->proposer_schedule.version = *version;
@@ -3186,7 +3186,7 @@ struct controller_impl {
             }
             return new_proposer_policy;
          };
-         auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
+         auto new_proposer_policy = apply_s<std::optional<proposer_policy>>(chain_head, process_new_proposer_policy);
 
          // Any finalizer policy?
          std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
