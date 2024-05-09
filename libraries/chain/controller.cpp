@@ -5283,6 +5283,8 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
    if (producers.empty())
       return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
+   EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
+              "Producer schedule exceeds the maximum proposer count for this chain");
    assert(pending);
 
    producer_authority_schedule sch;
@@ -5301,6 +5303,8 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 }
 
 int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authority> producers ) {
+   EOS_ASSERT(producers.size() <= config::max_producers, wasm_execution_error,
+              "Producer schedule exceeds the maximum producer count for this chain");
    const auto& gpo = db.get<global_property_object>();
    auto cur_block_num = chain_head.block_num() + 1;
 
