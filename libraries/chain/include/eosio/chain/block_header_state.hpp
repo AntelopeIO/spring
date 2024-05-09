@@ -130,6 +130,7 @@ struct block_header_state {
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
+   const finalizer_policy& get_last_proposed_finalizer_policy() const;
    finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const;
    finalizer_policy calculate_finalizer_policy(const finalizer_policy_diff& diff) const;
 };

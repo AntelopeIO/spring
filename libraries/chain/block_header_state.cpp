@@ -67,46 +67,26 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
    return detail::get_new_protocol_feature_activations(header_exts);
 }
 
+// The last proposed finalizer policy if none proposed or pending is the active finalizer policy
+const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy() const {
+   if (!finalizer_policies.empty()) {
+      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+         if (ritr->second.state == finalizer_policy_tracker::state_t::proposed)
+            return *ritr->second.policy;
+      }
+      return *finalizer_policies.rbegin()->second.policy;
+   }
+   return *active_finalizer_policy;
+}
+
 finalizer_policy_diff block_header_state::calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const {
-   if (finalizer_policies.empty()) {
-      return active_finalizer_policy->create_diff(new_policy);
-   }
-   for (const auto& e : finalizer_policies) {
-      if (e.second.state == finalizer_policy_tracker::state_t::pending) {
-         return e.second.policy->create_diff(new_policy);
-      }
-   }
-   for (const auto& e : finalizer_policies) {
-      if (e.second.state == finalizer_policy_tracker::state_t::proposed) {
-         return e.second.policy->create_diff(new_policy);
-      }
-   }
-   assert(false);
+   return get_last_proposed_finalizer_policy().create_diff(new_policy);
 }
 
 finalizer_policy block_header_state::calculate_finalizer_policy(const finalizer_policy_diff& diff) const {
-   finalizer_policy result;
-   if (finalizer_policies.empty()) {
-      assert(active_finalizer_policy);
-      result = *active_finalizer_policy;
-      result.apply_diff(diff);
-      return result;
-   }
-   for (const auto& e : finalizer_policies) {
-      if (e.second.state == finalizer_policy_tracker::state_t::pending) {
-         result = *e.second.policy;
-         result.apply_diff(diff);
-         return result;
-      }
-   }
-   for (const auto& e : finalizer_policies) {
-      if (e.second.state == finalizer_policy_tracker::state_t::proposed) {
-         result = *e.second.policy;
-         result.apply_diff(diff);
-         return result;
-      }
-   }
-   assert(false);
+   finalizer_policy result = get_last_proposed_finalizer_policy();
+   result.apply_diff(diff);
+   return result;
 }
 
 // -------------------------------------------------------------------------------------------------
