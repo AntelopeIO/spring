@@ -6,7 +6,7 @@
 
 namespace eosio::chain {
 
-   static_assert(std::numeric_limits<uint16_t>::max() <= config::max_finalizers);
+   static_assert(std::numeric_limits<uint16_t>::max() >= config::max_finalizers - 1);
    using finalizers_differ = fc::ordered_diff<finalizer_authority, uint16_t>;
    using finalizers_diff_t = finalizers_differ::diff_result;
 
