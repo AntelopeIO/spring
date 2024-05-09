@@ -71,6 +71,17 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    size_t num_keys    = 50u;
    size_t finset_size = 21u;
 
+   auto verify_block_finality_generation = [](const signed_block_ptr& block, uint32_t gen) {
+      std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+      BOOST_TEST(!!ext);
+      std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+      BOOST_TEST(!!fin_policy_diff);
+      BOOST_TEST(fin_policy_diff->generation == gen);
+      // each set_finalizer_policy in this test removes one and adds one
+      BOOST_TEST(fin_policy_diff->finalizers_diff.remove_indexes.size() == 1);
+      BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == 1);
+   };
+
    // Create finalizer keys
    finalizer_keys fin_keys(t, num_keys, finset_size);
 
@@ -96,30 +107,39 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    // take to become active
    // ------------------------------------------------------------------------------
    auto pubkeys3 = fin_keys.set_finalizer_policy(3u).pubkeys;
-   t.produce_block();
+   auto b = t.produce_block();
+   verify_block_finality_generation(b, 3);
    auto pubkeys4 = fin_keys.set_finalizer_policy(4u).pubkeys;
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 4);
    t.produce_block();
    auto pubkeys5 = fin_keys.set_finalizer_policy(5u).pubkeys;
-   t.produce_blocks(2);
-   auto pubkeys6 = fin_keys.set_finalizer_policy(6u).pubkeys;
+   b = t.produce_block();
+   verify_block_finality_generation(b, 5);
    t.produce_block();
+   auto pubkeys6 = fin_keys.set_finalizer_policy(6u).pubkeys;
+   b = t.produce_block();
+   verify_block_finality_generation(b, 6);
    auto pubkeys7 = fin_keys.set_finalizer_policy(7u).pubkeys;
    t.check_head_finalizer_policy(2u, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 7);
    auto pubkeys8 = fin_keys.set_finalizer_policy(8u).pubkeys;
    t.check_head_finalizer_policy(3u, pubkeys3); // 6 blocks after pubkeys3 (b6 - b0), pubkeys3 should be active
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 8);
    auto pubkeys9 = fin_keys.set_finalizer_policy(9u).pubkeys;
    t.check_head_finalizer_policy(4u, pubkeys4); // 6 blocks after pubkeys4 (b7 - b1), pubkeys4 should be active
-
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 9);
    auto pubkeys10 = fin_keys.set_finalizer_policy(10u).pubkeys;
    t.check_head_finalizer_policy(4u, pubkeys4); // 7 blocks after pubkeys4, pubkeys4 should still be active
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 10);
    auto pubkeys11 = fin_keys.set_finalizer_policy(11u).pubkeys;
    t.check_head_finalizer_policy(5u, pubkeys5); // 6 blocks after pubkeys5 (b9 - b3), pubkeys5 should be active
-   t.produce_block();
+   b = t.produce_block();
+   verify_block_finality_generation(b, 11);
    t.produce_block(); // two blocks between 5 & 6 proposals
    t.check_head_finalizer_policy(6u, pubkeys6); // the rest are all one block apart, tests pending with propsed
    auto b12 = t.produce_block();
