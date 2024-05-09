@@ -2942,6 +2942,8 @@ struct controller_impl {
            handle_exception(wrapper);
          }
 
+         // this code is hit if an exception was thrown, and handled by `handle_exception`
+         // ------------------------------------------------------------------------------
          if (!trx->is_transient()) {
             dmlog_applied_transaction(trace);
             emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
