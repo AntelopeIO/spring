@@ -337,11 +337,23 @@ finality_data_t block_state::get_finality_data() {
    if (!base_digest) {
       base_digest = compute_base_digest(); // cache it
    }
+
+   // Check if there is any proposed finalizer policy in the block
+   std::optional<finalizer_policy> proposed_finalizer_policy = std::nullopt;
+   auto range = finalizer_policies.equal_range(block_num());
+   for (auto itr = range.first; itr != range.second; ++itr) {
+      if (itr->second.state == finalizer_policy_tracker::state_t::proposed) {
+         proposed_finalizer_policy = *itr->second.policy;
+         break;
+      }
+   }
+
    return {
       // other fields take the default values set by finality_data_t definition
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
-      .action_mroot = action_mroot,
-      .base_digest  = *base_digest
+      .action_mroot                       = action_mroot,
+      .base_digest                        = *base_digest,
+      .proposed_finalizer_policy          = proposed_finalizer_policy
    };
 }
 
