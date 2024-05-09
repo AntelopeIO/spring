@@ -2942,6 +2942,8 @@ struct controller_impl {
            handle_exception(wrapper);
          }
 
+         // this code is hit if an exception was thrown, and handled by `handle_exception`
+         // ------------------------------------------------------------------------------
          if (!trx->is_transient()) {
             dmlog_applied_transaction(trace);
             emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
@@ -2956,12 +2958,12 @@ struct controller_impl {
       } FC_CAPTURE_AND_RETHROW((trace))
    } /// push_transaction
 
-   void start_block( block_timestamp_type when,
-                     uint16_t confirm_block_count,
-                     const vector<digest_type>& new_protocol_feature_activations,
-                     controller::block_status s,
-                     const std::optional<block_id_type>& producer_block_id,
-                     const fc::time_point& deadline )
+   transaction_trace_ptr start_block( block_timestamp_type when,
+                                      uint16_t confirm_block_count,
+                                      const vector<digest_type>& new_protocol_feature_activations,
+                                      controller::block_status s,
+                                      const std::optional<block_id_type>& producer_block_id,
+                                      const fc::time_point& deadline )
    {
       EOS_ASSERT( !pending, block_validate_exception, "pending block already exists" );
 
@@ -2999,6 +3001,8 @@ struct controller_impl {
       pending->_producer_block_id = producer_block_id;
 
       auto& bb = std::get<building_block>(pending->_block_stage);
+
+      transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
       // speculative incomplete block (otherwise we need clean state for head mode, ephemeral block)
@@ -3106,10 +3110,11 @@ struct controller_impl {
                   in_trx_requiring_checks = old_value;
                });
             in_trx_requiring_checks = true;
-            auto trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
-                                           gpo.configuration.min_transaction_cpu_usage, true, 0 );
-            if( trace->except ) {
-               wlog("onblock ${block_num} is REJECTING: ${entire_trace}",("block_num", chain_head.block_num() + 1)("entire_trace", trace));
+            onblock_trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
+                                      gpo.configuration.min_transaction_cpu_usage, true, 0 );
+            if( onblock_trace->except ) {
+               wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
+                    ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
             }
          } catch( const std::bad_alloc& e ) {
             elog( "on block transaction failed due to a std::bad_alloc" );
@@ -3132,6 +3137,7 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+      return onblock_trace;
    } /// start_block
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
@@ -4938,11 +4944,11 @@ void controller::validate_protocol_features( const vector<digest_type>& features
                                 features_to_activate );
 }
 
-void controller::start_block( block_timestamp_type when,
-                              uint16_t confirm_block_count,
-                              const vector<digest_type>& new_protocol_feature_activations,
-                              block_status bs,
-                              const fc::time_point& deadline )
+transaction_trace_ptr controller::start_block( block_timestamp_type when,
+                                               uint16_t confirm_block_count,
+                                               const vector<digest_type>& new_protocol_feature_activations,
+                                               block_status bs,
+                                               const fc::time_point& deadline )
 {
    validate_db_available_size();
 
@@ -4952,8 +4958,8 @@ void controller::start_block( block_timestamp_type when,
 
    EOS_ASSERT( bs == block_status::incomplete || bs == block_status::ephemeral, block_validate_exception, "speculative block type required" );
 
-   my->start_block( when, confirm_block_count, new_protocol_feature_activations,
-                    bs, std::optional<block_id_type>(), deadline );
+   return my->start_block( when, confirm_block_count, new_protocol_feature_activations,
+                           bs, std::optional<block_id_type>(), deadline );
 }
 
 void controller::assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback ) {
