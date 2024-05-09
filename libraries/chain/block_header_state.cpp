@@ -67,6 +67,28 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
    return detail::get_new_protocol_feature_activations(header_exts);
 }
 
+// The last proposed finalizer policy if none proposed or pending is the active finalizer policy
+const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy() const {
+   if (!finalizer_policies.empty()) {
+      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+         if (ritr->second.state == finalizer_policy_tracker::state_t::proposed)
+            return *ritr->second.policy;
+      }
+      return *finalizer_policies.rbegin()->second.policy;
+   }
+   return *active_finalizer_policy;
+}
+
+finalizer_policy_diff block_header_state::calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const {
+   return get_last_proposed_finalizer_policy().create_diff(new_policy);
+}
+
+finalizer_policy block_header_state::calculate_finalizer_policy(const finalizer_policy_diff& diff) const {
+   finalizer_policy result = get_last_proposed_finalizer_policy();
+   result.apply_diff(diff);
+   return result;
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or instant_finality_extension) applicable to this
@@ -156,20 +178,21 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (if_ext.new_finalizer_policy) {
+   if (if_ext.new_finalizer_policy_diff) {
+      finalizer_policy new_finalizer_policy = prev.calculate_finalizer_policy(*if_ext.new_finalizer_policy_diff);
+
       // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
       // block's header extensions.
       // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
       // increment the generation number, and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
-      dlog("New finalizer policy proposed in block ${id}: ${pol}",
-           ("id", prev.block_id)("pol", *if_ext.new_finalizer_policy));
-      next_header_state.finalizer_policy_generation = if_ext.new_finalizer_policy->generation;
+      dlog("New finalizer policy proposed in block ${id}..: ${pol}",
+           ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
+      next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(*if_ext.new_finalizer_policy))});
-
+                                  std::make_shared<finalizer_policy>(std::move(new_finalizer_policy))});
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
@@ -205,8 +228,12 @@ block_header_state block_header_state::next(block_header_state_input& input) con
 
    // finality extension
    // ------------------
+   std::optional<finalizer_policy_diff> new_finalizer_policy_diff;
+   if (input.new_finalizer_policy) {
+      new_finalizer_policy_diff = calculate_finalizer_policy_diff(*input.new_finalizer_policy);
+   }
    instant_finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
-                                           std::move(input.new_finalizer_policy),
+                                           std::move(new_finalizer_policy_diff),
                                            std::move(input.new_proposer_policy) };
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();

@@ -46,8 +46,8 @@ struct finality_digest_data_v1 {
 // ------------------------------------------------------------------------------------------
 struct finalizer_policy_tracker {
    enum class state_t { proposed = 0, pending };
-   state_t               state;
-   finalizer_policy_ptr  policy;
+   state_t                    state;
+   finalizer_policy_ptr       policy;
 };
 
 struct building_block_input {
@@ -129,6 +129,10 @@ struct block_header_state {
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+
+   const finalizer_policy& get_last_proposed_finalizer_policy() const;
+   finalizer_policy_diff calculate_finalizer_policy_diff(const finalizer_policy& new_policy) const;
+   finalizer_policy calculate_finalizer_policy(const finalizer_policy_diff& diff) const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
