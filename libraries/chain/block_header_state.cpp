@@ -120,8 +120,7 @@ finalizer_policy block_header_state::calculate_finalizer_policy(const finalizer_
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 instant_finality_extension if_ext,
-                 std::optional<finalizer_policy> new_finalizer_policy) {
+                 instant_finality_extension if_ext) {
    // activated protocol features
    // ---------------------------
    if (!new_protocol_feature_activations.empty()) {
@@ -199,19 +198,21 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (new_finalizer_policy) {
+   if (if_ext.new_finalizer_policy_diff) {
+      finalizer_policy new_finalizer_policy = prev.calculate_finalizer_policy(*if_ext.new_finalizer_policy_diff);
+
       // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
       // block's header extensions.
       // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
       // increment the generation number, and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
       dlog("New finalizer policy proposed in block ${id}..: ${pol}",
-           ("id", prev.block_id.str().substr(8,16))("pol", *new_finalizer_policy));
-      next_header_state.finalizer_policy_generation = new_finalizer_policy->generation;
+           ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
+      next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(*new_finalizer_policy))});
+                                  std::make_shared<finalizer_policy>(std::move(new_finalizer_policy))});
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
@@ -269,8 +270,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext),
-               std::move(input.new_finalizer_policy));
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext));
 
    return next_header_state;
 }
@@ -327,13 +327,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
                  ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   std::optional<finalizer_policy> new_finalizer_policy;
-   if (if_ext.new_finalizer_policy_diff) {
-      new_finalizer_policy = calculate_finalizer_policy(*if_ext.new_finalizer_policy_diff);
-   }
-
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext,
-               std::move(new_finalizer_policy));
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext);
 
    return next_header_state;
 }
