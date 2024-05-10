@@ -119,7 +119,8 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
-   // Returns true if the block is a Savanna Genesis Block
+   // Returns true if the block is a Savanna Genesis Block.
+   // This method is applicable to any transition block which is re-classified as a Savanna block.
    bool is_savanna_genesis_block() const { return core.is_genesis_block_num(block_num()); }
 
    // Returns true if the block is a Proper Savanna Block

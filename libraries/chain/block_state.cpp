@@ -341,7 +341,7 @@ finality_data_t block_state::get_finality_data() {
    // Check if there is any proposed finalizer policy in the block
    std::optional<finalizer_policy> proposed_finalizer_policy;
    if (is_savanna_genesis_block()) {
-      // For Genesis Block, use the acttive finalizer policy which was proposed in the block.
+      // For Genesis Block, use the active finalizer policy which was proposed in the block.
       proposed_finalizer_policy = *active_finalizer_policy;
    } else {
       auto range = finalizer_policies.equal_range(block_num());
