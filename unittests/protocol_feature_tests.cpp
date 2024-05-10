@@ -1104,9 +1104,9 @@ BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) 
 
    std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<finalizer_policy> fin_policy = std::get<instant_finality_extension>(*ext).new_finalizer_policy;
-   BOOST_TEST(!!fin_policy);
-   BOOST_TEST(fin_policy->finalizers.size() == accounts.size());
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == accounts.size());
 
    block = c.produce_block(); // savanna now active
    auto fb = c.control->fetch_block_by_id(block->calculate_id());

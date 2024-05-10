@@ -46,8 +46,8 @@ struct finality_digest_data_v1 {
 // ------------------------------------------------------------------------------------------
 struct finalizer_policy_tracker {
    enum class state_t { proposed = 0, pending };
-   state_t               state;
-   finalizer_policy_ptr  policy;
+   state_t                    state;
+   finalizer_policy_ptr       policy;
 };
 
 struct building_block_input {
@@ -61,7 +61,7 @@ struct building_block_input {
 // this struct can be extracted from a building block
 struct block_header_state_input : public building_block_input {
    digest_type                       transaction_mroot;    // Comes from std::get<checksum256_type>(building_block::trx_mroot_or_receipt_digests)
-   std::shared_ptr<proposer_policy>  new_proposer_policy;  // Comes from building_block::new_proposer_policy
+   std::optional<proposer_policy>    new_proposer_policy;  // Comes from building_block::new_proposer_policy
    std::optional<finalizer_policy>   new_finalizer_policy; // Comes from building_block::new_finalizer_policy
    qc_claim_t                        most_recent_ancestor_with_qc; // Comes from traversing branch from parent and calling get_best_qc()
    digest_type                       finality_mroot_claim;
@@ -132,6 +132,9 @@ struct block_header_state {
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+
+   const finalizer_policy& get_last_proposed_finalizer_policy() const;
+   const proposer_policy& get_last_proposed_proposer_policy() const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
