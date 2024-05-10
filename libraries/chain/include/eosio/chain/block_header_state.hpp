@@ -119,6 +119,9 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
+   // Returns true if the block is a Savanna Genesis Block
+   bool is_savanna_genesis_block() const { return core.is_genesis_block_num(block_num()); }
+
    // Returns true if the block is a Proper Savanna Block
    bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
