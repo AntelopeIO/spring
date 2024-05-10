@@ -7,6 +7,27 @@ using namespace fc;
 
 BOOST_AUTO_TEST_SUITE(ordered_diff_tests)
 
+void print_diff(const auto& diff) {
+   // std::cout << "Remove: [";
+   // for (const auto& e : diff.remove_indexes) {
+   //    std::cout << e << ", ";
+   // }
+   // std::cout << "]\n";
+   // std::cout << "Add: [";
+   // for (const auto& e : diff.insert_indexes) {
+   //    std::cout << e.first << "|" << e.second << ", ";
+   // }
+   // std::cout << "]\n";
+}
+
+// verify only the inserts are in the diff insert_indexes
+void verify_inserted(const auto& diff, const auto& inserts) {
+   BOOST_TEST_REQUIRE(diff.insert_indexes.size() == inserts.size());
+   for (size_t i = 0; i < inserts.size(); ++i) {
+      BOOST_TEST(diff.insert_indexes[i].second == inserts[i]);
+   }
+}
+
 BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
    using namespace std;
 
@@ -14,6 +35,8 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char>       source = {'a', 'b', 'c', 'd', 'e'};
       vector<char>       target = {'a', 'c', 'e', 'f'};
       auto               result = ordered_diff<char>::diff(source, target);
+      print_diff(result);
+      verify_inserted(result, std::vector{'f'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -22,6 +45,8 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       deque<char>       source = {'a', 'x', 'c', 'd', 'e'};
       deque<char>       target = {'z', 'c', 'y', 'f'};
       auto               result = ordered_deque_char_diff::diff(source, target);
+      print_diff(result);
+      verify_inserted(result, std::vector{'z', 'y', 'f'});
       source = ordered_deque_char_diff::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -29,6 +54,8 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source;
       vector<char> target;
       ordered_diff<char, uint8_t>::diff_result result = ordered_diff<char, uint8_t>::diff(source, target);
+      print_diff(result);
+      verify_inserted(result, target);
       source = ordered_diff<char, uint8_t>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -36,6 +63,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target;
       auto result = ordered_diff<char, int>::diff(source, target);
+      verify_inserted(result, target);
       source = ordered_diff<char, int>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -43,6 +71,8 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source;
       vector<char> target = {'a', 'b', 'c', 'd', 'e'};
       auto result = ordered_diff<char>::diff(source, target);
+      print_diff(result);
+      verify_inserted(result, target);
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -50,6 +80,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = source;
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -57,6 +88,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'a', 'c', 'e', 'f', 'g', 'h'};
       ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'f', 'g', 'h'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -64,6 +96,8 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<int> source = {1, 2, 3, 4, 5};
       vector<int> target = {3, 4, 6, 2, 0};
       auto result = ordered_diff<int>::diff(source, target);
+      // 2 insert because order changed between 3,4 and 2
+      verify_inserted(result, std::vector{6, 2, 0});
       source = ordered_diff<int>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -71,6 +105,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'f', 'g', 'h', 'i'};
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, target);
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -78,6 +113,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'e', 'd', 'c', 'b', 'a'};
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'d', 'c', 'b', 'a'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -85,6 +121,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'b', 'c', 'd', 'e', 'f'};
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'f'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -92,6 +129,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'z', 'a', 'b', 'c', 'd'};
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'z'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -99,6 +137,40 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e', 'c', 'a', 'q'};
       vector<char> target = {'z', 'a', 'b', 'c', 'd', 'a'};
       auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'z'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Long diff
+      vector<char>       source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char>       target = {'x', 'y', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      auto               result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'x', 'y'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Longer diff
+      vector<char>       source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char>       target = {'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      auto               result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'x', 'y', 'z'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Longer still diff
+      vector<char>       source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char>       target = {'t', 'u', 'v', 'w', 'x', 'y', 'z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      auto               result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'t', 'u', 'v', 'w', 'x', 'y', 'z'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Longer still diff with additional diff
+      vector<char>       source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char>       target = {'t', 'u', 'v', 'w', 'x', 'y', 'z', 'a', 'b', 'c', 'd', 'x', 'e', 'f', 'g', 'h'};
+      auto               result = ordered_diff<char>::diff(source, target);
+      print_diff(result);
+      verify_inserted(result, std::vector{'t', 'u', 'v', 'w', 'x', 'y', 'z', 'x'});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -192,7 +264,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_moveable_test) try {
       auto result = ordered_diff<count_moves>::diff(source, target);
       source = ordered_diff<count_moves>::apply_diff(std::move(source), std::move(result));
       BOOST_TEST(source == target);
-      BOOST_TEST(count_moves::num_moves == 1);
+      BOOST_TEST(count_moves::num_moves == 2); // one move is for std::reverse
    }
 
 } FC_LOG_AND_RETHROW();

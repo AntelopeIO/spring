@@ -1,5 +1,11 @@
 #pragma once
 
+#include <algorithm>
+#include <concepts>
+#include <cstddef>
+#include <iterator>
+#include <limits>
+#include <type_traits>
 #include <vector>
 #include <utility>
 
@@ -8,6 +14,8 @@ namespace fc {
 /**
  * @class ordered_diff
  * @brief Provides ability to generate and apply diff of containers of type T
+ *
+ * Minimizes the number of inserts to transform source to target.
  *
  * Example use:
  *    std::vector<char> source = { 'a', 'b', 'f', 'c', 'd' };
@@ -31,59 +39,57 @@ public:
 
    /// Generate diff_result that when `apply_diff(source, diff_result)` will modify source to be equal to target.
    static diff_result diff(const Container<T>& source, const Container<T>& target) {
-      size_t s = 0;
-      size_t t = 0;
-
       diff_result result;
-      while (s < source.size() || t < target.size()) {
-         if (s < source.size() && t < target.size()) {
-            if (source[s] == target[t]) {
-               // nothing to do, skip over
-               assert(s <= std::numeric_limits<SizeType>::max());
-               assert(t <= std::numeric_limits<SizeType>::max());
-               ++s;
-               ++t;
-            } else { // not equal
-               if (s == source.size() - 1 && t == target.size() - 1) {
-                  // both at end, insert target and remove source
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++s;
-                  ++t;
-               } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
-                  // misalignment, but next value equal, insert and remove
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++s;
-                  ++t;
-               } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
-                  // source equals next target, insert current target
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++t;
-               } else { // source[s + 1] == target[t]
-                  // target matches next source, remove current source
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  ++s;
-               }
+
+      // longest common subsequence table using single row to minimize memory usage
+      // See https://www.geeksforgeeks.org/minimum-number-deletions-insertions-transform-one-string-another/
+      Container<size_t> lcs_row(target.size() + 1, 0);
+
+      // Compute LCS
+      for (size_t s = 1; s <= source.size(); ++s) {
+         size_t prev = 0;
+         for (size_t t = 1; t <= target.size(); ++t) {
+            size_t curr = lcs_row[t];
+            if (source[s - 1] == target[t - 1]) {
+               lcs_row[t] = prev + 1;
+            } else {
+               lcs_row[t] = std::max(lcs_row[t], lcs_row[t - 1]);
             }
-         } else if (s < source.size()) {
-            // remove extra in source
-            assert(s <= std::numeric_limits<SizeType>::max());
-            result.remove_indexes.push_back(s);
-            ++s;
-         } else if (t < target.size()) {
-            // insert extra in target
-            assert(t <= std::numeric_limits<SizeType>::max());
-            result.insert_indexes.emplace_back(t, target[t]);
-            ++t;
+            prev = curr;
          }
       }
+
+      // Use LCS to generate diff
+      size_t s = source.size();
+      size_t t = target.size();
+      while (s > 0 && t > 0) {
+         if (source[s - 1] == target[t - 1]) {
+            --s;
+            --t;
+         } else if (lcs_row[t] > lcs_row[t - 1]) {
+            assert(s - 1 <= std::numeric_limits<SizeType>::max());
+            result.remove_indexes.push_back(s - 1);
+            --s;
+         } else {
+            assert(t - 1 <= std::numeric_limits<SizeType>::max());
+            result.insert_indexes.emplace_back(t - 1, target[t - 1]);
+            --t;
+         }
+      }
+      // handle remaining elements
+      while (s > 0) {
+         assert(s - 1 <= std::numeric_limits<SizeType>::max());
+         result.remove_indexes.push_back(s - 1);
+         --s;
+      }
+      while (t > 0) {
+         assert(t - 1 <= std::numeric_limits<SizeType>::max());
+         result.insert_indexes.emplace_back(t - 1, target[t - 1]);
+         --t;
+      }
+
+      std::reverse(result.remove_indexes.begin(), result.remove_indexes.end());
+      std::reverse(result.insert_indexes.begin(), result.insert_indexes.end());
 
       return result;
    }
