@@ -264,7 +264,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_moveable_test) try {
       auto result = ordered_diff<count_moves>::diff(source, target);
       source = ordered_diff<count_moves>::apply_diff(std::move(source), std::move(result));
       BOOST_TEST(source == target);
-      BOOST_TEST(count_moves::num_moves == 2); // one move is for std::reverse
+      BOOST_TEST(count_moves::num_moves == 2u); // one move is for std::reverse
    }
 
 } FC_LOG_AND_RETHROW();
