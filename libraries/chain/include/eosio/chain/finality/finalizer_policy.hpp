@@ -29,10 +29,13 @@ namespace eosio::chain {
 
       template <typename X>
       requires std::same_as<std::decay_t<X>, finalizer_policy_diff>
-      void apply_diff(X&& diff) {
-         generation = diff.generation;
-         threshold = diff.threshold;
-         finalizers = finalizers_differ::apply_diff(std::move(finalizers), std::forward<X>(diff).finalizers_diff);
+      [[nodiscard]] finalizer_policy apply_diff(X&& diff) const {
+         finalizer_policy result;
+         result.generation = diff.generation;
+         result.threshold = diff.threshold;
+         auto copy = finalizers;
+         result.finalizers = finalizers_differ::apply_diff(std::move(copy), std::forward<X>(diff).finalizers_diff);
+         return result;
       }
 
       // max accumulated weak weight before becoming weak_final

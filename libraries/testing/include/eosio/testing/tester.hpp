@@ -861,9 +861,7 @@ namespace eosio::testing {
             auto b = produce_block();
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
-         finalizer_policy fin_policy;
-         fin_policy.apply_diff(*fin_policy_diff);
-         return fin_policy;
+         return finalizer_policy{}.apply_diff(*fin_policy_diff);
       }
 
       Tester&                 t;
