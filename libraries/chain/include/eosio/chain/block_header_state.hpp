@@ -95,6 +95,10 @@ struct block_header_state {
    // It matches the finalizer policy generation most recently included in this block's `if_extension` or its ancestors
    uint32_t                            finalizer_policy_generation{1};
 
+   // digest of the finalizer policy (which includes the generation number in it) with the greatest generation number
+   // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
+   digest_type                         last_pending_finalizer_policy_digest;
+
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
 
@@ -131,6 +135,7 @@ struct block_header_state {
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
+   const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
 };
 
@@ -145,6 +150,6 @@ FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(proposer_policies)(finalizer_policies)
-            (finalizer_policy_generation)(header_exts))
+            (finalizer_policy_generation)(last_pending_finalizer_policy_digest)(header_exts))
 
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(active_finalizer_policy_and_base_digest) )

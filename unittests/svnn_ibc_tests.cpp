@@ -108,8 +108,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1u);
 
-      // compute the digest of the finalizer policy
-      auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+      // compute the digest of the last_pending_finalizer_policy_digest which is active at this point
+      auto last_pending_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
       
       auto genesis_block_fd = cluster.node0.control->head_finality_data();
 
@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // compute IF finality leaf
       auto genesis_base_digest = genesis_block_fd.value().base_digest;
-      auto genesis_afp_base_digest = hash_pair(active_finalizer_policy_digest, genesis_base_digest);
+      auto genesis_afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, genesis_base_digest);
       
       auto genesis_block_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
          .active_finalizer_policy_generation      = active_finalizer_policy.generation,
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_2_action_mroot = block_2_fd.value().action_mroot;
       auto block_2_base_digest = block_2_fd.value().base_digest;
       auto block_2_finality_digest = cluster.node0.control->get_strong_digest_by_id(block_2->calculate_id());
-      auto block_2_afp_base_digest = hash_pair(active_finalizer_policy_digest, block_2_base_digest);
+      auto block_2_afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, block_2_base_digest);
       auto block_2_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
          .block_num = block_2->block_num(),
          .finality_digest = block_2_finality_digest,
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_4_fd = cluster.node0.control->head_finality_data();
       auto block_4_base_digest = block_4_fd.value().base_digest;
-      auto block_4_afp_base_digest = hash_pair(active_finalizer_policy_digest, block_4_base_digest);
+      auto block_4_afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, block_4_base_digest);
 
       auto block_4_finality_root = block_4->action_mroot;
       qc_data_t qc_b_4 = extract_qc_data(block_4);
@@ -209,7 +209,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       cluster.process_votes(1, cluster.num_needed_for_quorum);
       auto block_5_fd = cluster.node0.control->head_finality_data();
       auto block_5_base_digest = block_5_fd.value().base_digest;
-      auto block_5_afp_base_digest =  hash_pair(active_finalizer_policy_digest, block_5_base_digest);
+      auto block_5_afp_base_digest =  hash_pair(last_pending_finalizer_policy_digest, block_5_base_digest);
       auto block_5_finality_root = block_5->action_mroot; 
 
       // retrieve the QC over block_4 that is contained in block_5
