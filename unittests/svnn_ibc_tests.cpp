@@ -221,7 +221,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = 1,
                .finality_tree_digest                    = digest_type(), //nothing to finalize yet
-               .active_finalizer_policy_and_base_digest = afp_base_digest
+               .last_pending_finalizer_policy_and_base_digest = afp_base_digest
             });
          }
          else finality_digest = this->node0.control->get_strong_digest_by_id(block->calculate_id());
@@ -243,7 +243,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          digest_type computed_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = active_finalizer_policy.generation,
                .finality_tree_digest                    = is_genesis ? digest_type() : finality_root,
-               .active_finalizer_policy_and_base_digest = afp_base_digest
+               .last_pending_finalizer_policy_and_base_digest = afp_base_digest
             });
 
          // add finality leaf to the internal list
