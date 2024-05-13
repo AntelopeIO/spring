@@ -580,10 +580,15 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(qc_b_17.qc.has_value());
 
       // heavy proof #3. 
-
+      
       // Proving finality of block #11 using block #11 finality root. 
-      // #11 is the first block to contain a cryptographic commitment to the finalizer policy proposed in block #8.
-      // While this finalizer policy is not guaranteed to ever become active, it is guaranteed to exist in the canonical history of any chain that extends this block.
+      
+      // A QC on block #13 makes #11 final, which also sets the finalizer policy proposed in #8 as the last pending policy.
+
+      // This also implies finalizers are comitting to this finalizer policy as part of the canonical history of any 
+      // chain extending from block #11 (even if the policy never becomes active).
+      
+      // This allows us to prove this finalizer policy to the IBC contract, and use it to prove finality of subsequent blocks.
 
       mutable_variant_object heavy_proof_3 = mvo()
          ("assert", false)
@@ -623,7 +628,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          );
 
-      // heavy proof #4. Proving finality of block #12 using block #12 finality root
+      // heavy proof #4.
+
+      // Proving finality of block #12 using block #12 finality root.
+
+      // The QC provided in this proof is signed by the second generation of finalizers.
+      
+      // heavy_proof_3 must be proven before we can prove heavy_proof_4.
+
       mutable_variant_object heavy_proof_4= mvo()
          ("assert", false)
          ("proof", mvo() 
@@ -661,15 +673,28 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          );
 
+      bool last_action_failed = false;
 
-      // verify heavy proof #3
+      // since heavy_proof_4 requires finalizer policy generation #2, we cannot prove it yet.
+      try {
+         cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
+      }
+      catch(const eosio_assert_message_exception& e){
+         last_action_failed = true;
+      }
+
+      // checkproof action has failed, as expected.
+      BOOST_CHECK(last_action_failed); 
+
+      // we must first prove that block #11 became final, which makes the policy proposed in block #8 pending.
+      // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
 
-      // verify heavy proof #4
+      // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
 
-/*
-      // We now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
+
+      // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
 
@@ -682,7 +707,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
 
-      bool failed = false;
+      last_action_failed = false;
 
       // Since garbage collection was previously triggered for the merkle root of block #2 which this
       // proof attempts to link to, action will now fail
@@ -690,12 +715,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
       }
       catch(const eosio_assert_message_exception& e){
-         failed = true;
+         last_action_failed = true;
       }
 
       // verify action has failed, as expected
-      BOOST_CHECK(failed); 
-*/
+      BOOST_CHECK(last_action_failed); 
+
 
    } FC_LOG_AND_RETHROW() }
 
