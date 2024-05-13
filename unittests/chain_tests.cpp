@@ -16,7 +16,7 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(chain_tests)
 
 BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
-   validating_tester tester;
+   validating_tester tester{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto new_key = get_public_key(name("newkey"), config::active_name.to_string());
 
@@ -58,7 +58,7 @@ BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( replace_account_keys ) try {
-   validating_tester tester;
+   validating_tester tester{ {}, nullptr, setup_policy::full_pre_savanna };
    const name usr = config::system_account_name;
    const name active_permission = config::active_name;
    const auto& rlm = tester.control->get_resource_limits_manager();
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE( replace_account_keys ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( decompressed_size_over_limit ) try {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    // build a transaction, add cf data, sign
    cf_action                        cfa;
@@ -151,8 +151,8 @@ BOOST_AUTO_TEST_CASE( decompressed_size_under_limit ) try {
 
 // verify accepted_block signals validated blocks
 BOOST_AUTO_TEST_CASE( signal_validated_blocks ) try {
-   tester chain;
-   tester validator;
+   tester chain(setup_policy::full_pre_savanna);
+   tester validator(setup_policy::full_pre_savanna);
 
    signed_block_ptr accepted_block;
    block_id_type accepted_id;

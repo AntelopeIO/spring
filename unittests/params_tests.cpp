@@ -14,7 +14,7 @@ using mvo = mutable_variant_object;
  */
 class params_tester : public tester {
 public:
-   params_tester() : tester(){}
+   params_tester() : tester(setup_policy::full_pre_savanna){}
    params_tester(setup_policy policy) : tester(policy){}
 
    void setup(){

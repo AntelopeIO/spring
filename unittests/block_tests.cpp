@@ -9,7 +9,7 @@ BOOST_AUTO_TEST_SUITE(block_tests)
 
 BOOST_AUTO_TEST_CASE(block_with_invalid_tx_test)
 {
-   tester main;
+   tester main(setup_policy::full_pre_savanna);
 
    // First we create a valid block with valid transaction
    main.create_account("newacc"_n);
@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_test)
    copy_b->producer_signature = main.get_private_key(config::system_account_name, "active").sign(sig_digest);
 
    // Push block with invalid transaction to other chain
-   tester validator;
+   tester validator(setup_policy::full_pre_savanna);
    auto btf = validator.control->create_block_handle_future( copy_b->calculate_id(), copy_b );
    validator.control->abort_block();
    controller::block_report br;
@@ -56,7 +56,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_test)
 
 BOOST_AUTO_TEST_CASE(block_with_invalid_tx_mroot_test)
 {
-   tester main;
+   tester main(setup_policy::full_pre_savanna);
 
    // First we create a valid block with valid transaction
    main.create_account("newacc"_n);
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(block_with_invalid_tx_mroot_test)
    copy_b->producer_signature = main.get_private_key(config::system_account_name, "active").sign(sig_digest);
 
    // Push block with invalid transaction to other chain
-   tester validator;
+   tester validator(setup_policy::full_pre_savanna);
    auto btf = validator.control->create_block_handle_future( copy_b->calculate_id(), copy_b );
    validator.control->abort_block();
    controller::block_report br;
@@ -128,7 +128,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(validating_te
 BOOST_AUTO_TEST_CASE(trusted_producer_test)
 {
    flat_set<account_name> trusted_producers = { "defproducera"_n, "defproducerc"_n };
-   validating_tester main(trusted_producers);
+   validating_tester main(trusted_producers, nullptr, setup_policy::full_pre_savanna);
    // only using validating_tester to keep the 2 chains in sync, not to validate that the validating_node matches the main node,
    // since it won't be
    main.skip_validate = true;
@@ -154,7 +154,7 @@ BOOST_AUTO_TEST_CASE(trusted_producer_test)
 BOOST_AUTO_TEST_CASE(trusted_producer_verify_2nd_test)
 {
    flat_set<account_name> trusted_producers = { "defproducera"_n, "defproducerc"_n };
-   validating_tester main(trusted_producers);
+   validating_tester main(trusted_producers, nullptr, setup_policy::full_pre_savanna);
    // only using validating_tester to keep the 2 chains in sync, not to validate that the validating_node matches the main node,
    // since it won't be
    main.skip_validate = true;
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE(trusted_producer_verify_2nd_test)
 BOOST_AUTO_TEST_CASE(untrusted_producer_test)
 {
    flat_set<account_name> trusted_producers = { "defproducera"_n, "defproducerc"_n };
-   validating_tester main(trusted_producers);
+   validating_tester main(trusted_producers, nullptr, setup_policy::full_pre_savanna);
    // only using validating_tester to keep the 2 chains in sync, not to validate that the validating_node matches the main node,
    // since it won't be
    main.skip_validate = true;
@@ -211,8 +211,8 @@ BOOST_AUTO_TEST_CASE(untrusted_producer_test)
 BOOST_AUTO_TEST_CASE(broadcasted_block_test)
 {
 
-  tester producer_node;
-  tester receiving_node;
+  tester producer_node(setup_policy::full_pre_savanna);
+  tester receiving_node(setup_policy::full_pre_savanna);
 
   signed_block_ptr bcasted_blk_by_prod_node;
   signed_block_ptr bcasted_blk_by_recv_node;

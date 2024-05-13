@@ -63,7 +63,7 @@ class currency_tester : public validating_tester {
          return trace;
       }
 
-      currency_tester(setup_policy p = setup_policy::full)
+      currency_tester(setup_policy p = setup_policy::full_pre_savanna)
          :validating_tester({}, nullptr, p), abi_ser(json::from_string(test_contracts::eosio_token_abi()).as<abi_def>(), abi_serializer::create_yield_function( abi_serializer_max_time ))
       {
          create_account( "eosio.token"_n);
@@ -93,7 +93,7 @@ class currency_tester : public validating_tester {
 
 class pre_disable_deferred_trx_currency_tester : public currency_tester {
    public:
-      pre_disable_deferred_trx_currency_tester() : currency_tester(setup_policy::full_except_do_not_disable_deferred_trx) {}
+      pre_disable_deferred_trx_currency_tester() : currency_tester(setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx) {}
 };
 
 const name currency_tester::eosio_token = "eosio.token"_n;

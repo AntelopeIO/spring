@@ -87,14 +87,14 @@ class replay_tester : public base_tester {
 BOOST_AUTO_TEST_SUITE(restart_chain_tests)
 
 BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
 
-   tester other;
+   tester other(setup_policy::full_pre_savanna);
    for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
@@ -117,14 +117,14 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
 }
 
 BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
 
-   tester other;
+   tester other(setup_policy::full_pre_savanna);
    for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
 }
 
 BOOST_AUTO_TEST_CASE(test_restart_from_block_log) {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    chain.create_account("replay1"_n);
    chain.produce_blocks(1);
@@ -170,7 +170,7 @@ BOOST_AUTO_TEST_CASE(test_restart_from_block_log) {
 }
 
 BOOST_AUTO_TEST_CASE(test_light_validation_restart_from_block_log) {
-   tester chain(setup_policy::full);
+   tester chain(setup_policy::full_pre_savanna);
 
    chain.create_account("testapi"_n);
    chain.create_account("dummy"_n);

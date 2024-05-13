@@ -32,11 +32,13 @@ std::filesystem::path get_retained_dir(const eosio::chain::controller::config& c
    return retained_dir;
 }
 
+using namespace eosio::testing;
+
 struct restart_from_block_log_test_fixture {
    eosio::testing::tester chain;
    uint32_t               cutoff_block_num;
 
-   restart_from_block_log_test_fixture() {
+   restart_from_block_log_test_fixture() : chain(setup_policy::full_pre_savanna) {
       using namespace eosio::chain;
       chain.create_account("replay1"_n);
       chain.produce_blocks(1);
@@ -179,7 +181,7 @@ BOOST_AUTO_TEST_CASE(test_split_log_all_in_retained_new_default) {
 BOOST_AUTO_TEST_CASE(test_split_log_util1) {
    fc::temp_directory temp_dir;
 
-   eosio::testing::tester chain;
+   eosio::testing::tester chain(setup_policy::full_pre_savanna);
    chain.produce_blocks(160);
 
    uint32_t head_block_num = chain.control->head_block_num();
@@ -430,7 +432,7 @@ BOOST_AUTO_TEST_CASE(test_split_from_v1_log) {
 
 void trim_blocklog_front(uint32_t version) {
    blocklog_version_setter set_version(version);
-   eosio::testing::tester  chain;
+   eosio::testing::tester  chain(setup_policy::full_pre_savanna);
    chain.produce_blocks(10);
    chain.produce_blocks(20);
    chain.close();
@@ -464,7 +466,7 @@ BOOST_AUTO_TEST_CASE(test_trim_blocklog_front_v2) { trim_blocklog_front(2); }
 
 BOOST_AUTO_TEST_CASE(test_blocklog_split_then_merge) {
 
-   eosio::testing::tester chain;
+   eosio::testing::tester chain(setup_policy::full_pre_savanna);
    chain.produce_blocks(160);
    chain.close();
 

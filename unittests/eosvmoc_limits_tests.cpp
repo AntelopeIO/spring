@@ -82,7 +82,7 @@ static eosvmoc::config make_eosvmoc_config_without_limits() {
 
 // test all limits are not set for tests
 BOOST_AUTO_TEST_CASE( limits_not_set ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    auto& cfg = chain.get_config();
 
    BOOST_REQUIRE(cfg.eosvmoc_config.cpu_limit == std::nullopt);

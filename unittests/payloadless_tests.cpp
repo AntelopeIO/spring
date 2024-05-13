@@ -19,7 +19,8 @@ using namespace eosio::testing;
 using namespace fc;
 
 class payloadless_tester : public validating_tester {
-
+public:
+   payloadless_tester() : validating_tester{ {}, nullptr, setup_policy::full_pre_savanna } {}
 };
 
 BOOST_AUTO_TEST_SUITE(payloadless_tests)

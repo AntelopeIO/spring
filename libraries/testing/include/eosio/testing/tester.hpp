@@ -66,8 +66,9 @@ namespace eosio::testing {
       preactivate_feature_only,
       preactivate_feature_and_new_bios,
       old_wasm_parser,
-      full_except_do_not_disable_deferred_trx,
-      full
+      full_pre_savanna_except_do_not_disable_deferred_trx,
+      full_pre_savanna,
+      full                    // savanna consensus activated
    };
 
    std::ostream& operator<<(std::ostream& os, setup_policy p);
@@ -538,7 +539,8 @@ namespace eosio::testing {
 
    class tester : public base_tester {
    public:
-      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
+      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD,
+             std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
@@ -608,7 +610,7 @@ namespace eosio::testing {
 
    class tester_no_disable_deferred_trx : public tester {
    public:
-      tester_no_disable_deferred_trx(): tester(setup_policy::full_except_do_not_disable_deferred_trx) {
+      tester_no_disable_deferred_trx(): tester(setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx) {
       }
    };
 
@@ -741,7 +743,7 @@ namespace eosio::testing {
 
    class validating_tester_no_disable_deferred_trx : public validating_tester {
    public:
-      validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_except_do_not_disable_deferred_trx) {
+      validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx) {
       }
    };
 

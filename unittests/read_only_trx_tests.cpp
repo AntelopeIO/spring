@@ -13,7 +13,7 @@ using namespace fc;
 using mvo = fc::mutable_variant_object;
 
 struct read_only_trx_tester : validating_tester {
-   read_only_trx_tester() {
+   read_only_trx_tester() : validating_tester{ {}, nullptr, setup_policy::full_pre_savanna } {
       produce_block();
    };
 

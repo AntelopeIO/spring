@@ -188,7 +188,7 @@ namespace {
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    // Create 2 accounts
    chain.create_accounts({"snapshot"_n, "snapshot1"_n});
@@ -254,7 +254,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -349,7 +349,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapsho
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -524,7 +524,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_pending_schedule_snapshot, SNAPSHOT_SUITE, sn
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_block_log, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -609,7 +609,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
 BOOST_AUTO_TEST_CASE(json_snapshot_validity_test)
 {
    auto ordinal = 0;
-   tester chain;
+   tester chain(setup_policy::full_pre_savanna);
 
    // prep the chain
    chain.create_account("snapshot"_n);

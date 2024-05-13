@@ -212,7 +212,7 @@ BOOST_FIXTURE_TEST_CASE( delay_error_create_account, validating_tester_no_disabl
 
 // test link to permission with delay directly on it
 BOOST_AUTO_TEST_CASE( link_delay_direct_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    const auto& tester_account = "tester"_n;
 
    create_accounts(chain);
@@ -324,7 +324,7 @@ BOOST_AUTO_TEST_CASE( link_delay_direct_test ) { try {
 
 // test link to permission with delay on permission which is parent of min permission (special logic in permission_object::satisfies)
 BOOST_AUTO_TEST_CASE( link_delay_direct_parent_permission_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 
@@ -441,7 +441,7 @@ BOOST_AUTO_TEST_CASE( link_delay_direct_parent_permission_test ) { try {
 
 // test link to permission with delay on permission between min permission and authorizing permission it
 BOOST_AUTO_TEST_CASE( link_delay_direct_walk_parent_permissions_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    const auto& tester_account = "tester"_n;
 
    create_accounts(chain);
@@ -565,7 +565,7 @@ BOOST_AUTO_TEST_CASE( link_delay_direct_walk_parent_permissions_test ) { try {
 
 // test removing delay on permission
 BOOST_AUTO_TEST_CASE( link_delay_permission_change_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 
@@ -713,7 +713,7 @@ BOOST_AUTO_TEST_CASE( link_delay_permission_change_test ) { try {
 
 // test removing delay on permission based on heirarchy delay
 BOOST_AUTO_TEST_CASE( link_delay_permission_change_with_delay_heirarchy_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 
@@ -875,7 +875,7 @@ BOOST_AUTO_TEST_CASE( link_delay_permission_change_with_delay_heirarchy_test ) {
 
 // test moving link with delay on permission
 BOOST_AUTO_TEST_CASE( link_delay_link_change_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 
@@ -1040,7 +1040,7 @@ BOOST_AUTO_TEST_CASE( link_delay_link_change_test ) { try {
 
 // test link with unlink
 BOOST_AUTO_TEST_CASE( link_delay_unlink_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    const auto& tester_account = "tester"_n;
 
    create_accounts(chain);
@@ -1199,7 +1199,7 @@ BOOST_AUTO_TEST_CASE( link_delay_unlink_test ) { try {
 
 // test moving link with delay on permission's parent
 BOOST_AUTO_TEST_CASE( link_delay_link_change_heirarchy_test ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    const auto& tester_account = "tester"_n;
 
    create_accounts(chain);
@@ -1860,7 +1860,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
 
 BOOST_AUTO_TEST_CASE( max_transaction_delay_create ) { try {
    //assuming max transaction delay is 45 days (default in config.hpp)
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 
@@ -1882,7 +1882,7 @@ BOOST_AUTO_TEST_CASE( max_transaction_delay_create ) { try {
 
 BOOST_AUTO_TEST_CASE( max_transaction_delay_execute ) { try {
    //assuming max transaction delay is 45 days (default in config.hpp)
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    const auto& tester_account = "tester"_n;
 
    create_accounts(chain);

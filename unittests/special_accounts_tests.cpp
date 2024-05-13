@@ -16,7 +16,7 @@ BOOST_AUTO_TEST_SUITE(special_account_tests)
 BOOST_FIXTURE_TEST_CASE(accounts_exists, tester)
 { try {
 
-      tester test;
+      tester test(eosio::testing::setup_policy::full_pre_savanna);
       chain::controller *control = test.control.get();
       const chain::database& chain1_db = control->db();
 

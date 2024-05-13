@@ -13,7 +13,7 @@ BOOST_AUTO_TEST_SUITE(database_tests)
    // Simple tests of undo infrastructure
    BOOST_AUTO_TEST_CASE(undo_test) {
       try {
-         validating_tester test;
+         validating_tester test{ {}, nullptr, setup_policy::full_pre_savanna };
 
          // Bypass read-only restriction on state DB access for this unit test which really needs to mutate the DB to properly conduct its test.
          eosio::chain::database& db = const_cast<eosio::chain::database&>( test.control->db() );
@@ -41,7 +41,7 @@ BOOST_AUTO_TEST_SUITE(database_tests)
    // Test the block fetching methods on database, fetch_bock_by_id, and fetch_block_by_number
    BOOST_AUTO_TEST_CASE(get_blocks) {
       try {
-         validating_tester test;
+         validating_tester test{ {}, nullptr, setup_policy::full_pre_savanna };
          vector<block_id_type> block_ids;
 
          const uint32_t num_of_blocks_to_prod = 200;

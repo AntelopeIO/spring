@@ -31,7 +31,7 @@ static void ensure_next_block_finalizer_policy(validating_tester& t,
 // to take effect.
 // ---------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
    size_t num_keys    = 22;
    size_t finset_size = 21;
 
@@ -67,7 +67,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
 // at the same time.
 // ---------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
    size_t num_keys    = 50;
    size_t finset_size = 21;
 

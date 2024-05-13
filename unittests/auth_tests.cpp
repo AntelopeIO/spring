@@ -91,7 +91,7 @@ BOOST_FIXTURE_TEST_CASE( delegate_auth, validating_tester ) { try {
 
 BOOST_AUTO_TEST_CASE(update_auths) {
 try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    chain.create_account(name("alice"));
    chain.create_account(name("bob"));
 
@@ -225,7 +225,7 @@ try {
 
 BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
    try {
-      validating_tester chain;
+      validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
       chain.create_account(name("alice"));
 
       // public key with no corresponding private key
@@ -259,7 +259,7 @@ BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
 }
 
 BOOST_AUTO_TEST_CASE(link_auths) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    chain.create_accounts({name("alice"),name("bob")});
 
@@ -302,7 +302,7 @@ BOOST_AUTO_TEST_CASE(link_auths) { try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE(link_then_update_auth) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    chain.create_account(name("alice"));
 
@@ -329,7 +329,7 @@ BOOST_AUTO_TEST_CASE(link_then_update_auth) { try {
 
 BOOST_AUTO_TEST_CASE(create_account) {
 try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    chain.create_account(name("joe"));
    chain.produce_block();
 
@@ -367,7 +367,7 @@ try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE( any_auth ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    chain.create_accounts( {name("alice"), name("bob")} );
    chain.produce_block();
 
@@ -463,7 +463,7 @@ try {
 
 BOOST_AUTO_TEST_CASE(stricter_auth) {
 try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    chain.produce_block();
 
@@ -512,7 +512,7 @@ try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
    std::vector<transaction_id_type> ids;
@@ -553,7 +553,7 @@ BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE(delete_auth) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
 
    const auto& tester_account = "tester"_n;
 

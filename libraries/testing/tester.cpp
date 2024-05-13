@@ -234,22 +234,26 @@ namespace eosio::testing {
       };
 
       switch (policy) {
-         case setup_policy::old_bios_only: {
+         case setup_policy::old_bios_only:
+         {
             set_before_preactivate_bios_contract();
             break;
          }
-         case setup_policy::preactivate_feature_only: {
+         case setup_policy::preactivate_feature_only:
+         {
             schedule_preactivate_protocol_feature();
             produce_block(); // block production is required to activate protocol feature
             break;
          }
-         case setup_policy::preactivate_feature_and_new_bios: {
+         case setup_policy::preactivate_feature_and_new_bios:
+         {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
             break;
          }
-         case setup_policy::old_wasm_parser: {
+         case setup_policy::old_wasm_parser:
+         {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
@@ -273,18 +277,24 @@ namespace eosio::testing {
             set_bios_contract();
             break;
          }
+         case setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx:
+         case setup_policy::full_pre_savanna:
          case setup_policy::full:
-         case setup_policy::full_except_do_not_disable_deferred_trx: {
+         {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
-            if( policy == setup_policy::full ) {
-               preactivate_all_builtin_protocol_features();
-            } else {
+            if( policy == setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx) {
                preactivate_all_but_disable_deferred_trx();
+            } else {
+               preactivate_all_builtin_protocol_features();
             }
             produce_block();
             set_bios_contract();
+            if (policy == setup_policy::full) {
+               // Activate Savanna consensus
+               // --------------------------
+            }
             break;
          }
          case setup_policy::none:

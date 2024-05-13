@@ -336,7 +336,7 @@ BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    c.produce_block();
@@ -602,7 +602,7 @@ BOOST_AUTO_TEST_CASE( large_authority_overflow_test ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
-   tester main;
+   tester main(setup_policy::full_pre_savanna);
 
    main.create_accounts( {"alice"_n} );
    main.produce_block();

@@ -72,6 +72,8 @@ public:
    using tester::tester;
    using deltas_vector = vector<eosio::state_history::table_delta>;
 
+   table_deltas_tester() : tester{ setup_policy::full_pre_savanna } {}
+
    pair<bool, deltas_vector::iterator> find_table_delta(const std::string &name, bool full_snapshot = false) {
       v = eosio::state_history::create_deltas(control->db(), full_snapshot);;
 
@@ -452,7 +454,7 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
 }
 
    BOOST_AUTO_TEST_CASE(test_deltas) {
-      tester main;
+      tester main(setup_policy::full_pre_savanna);
 
       auto v = eosio::state_history::create_deltas(main.control->db(), false);
 

@@ -395,7 +395,7 @@ struct permission_visitor {
 
 BOOST_AUTO_TEST_CASE(authority_checker)
 { try {
-   testing::validating_tester test;
+   testing::validating_tester test{ {}, nullptr, setup_policy::full_pre_savanna };
    auto a = test.get_public_key(name("a"), "active");
    auto b = test.get_public_key(name("b"), "active");
    auto c = test.get_public_key(name("c"), "active");
@@ -718,7 +718,7 @@ BOOST_AUTO_TEST_CASE(alphabetic_sort)
 
 BOOST_AUTO_TEST_CASE(transaction_test) { try {
 
-   testing::validating_tester test;
+   testing::validating_tester test{ {}, nullptr, setup_policy::full_pre_savanna };
    signed_transaction trx;
 
    fc::variant pretty_trx = fc::mutable_variant_object()
@@ -883,7 +883,7 @@ BOOST_AUTO_TEST_CASE(signed_int_test) { try {
 
 BOOST_AUTO_TEST_CASE(transaction_metadata_test) { try {
 
-   testing::validating_tester test;
+   testing::validating_tester test{ {}, nullptr, setup_policy::full_pre_savanna };
    signed_transaction trx;
 
    fc::variant pretty_trx = fc::mutable_variant_object()
@@ -1220,7 +1220,7 @@ BOOST_AUTO_TEST_CASE(stable_priority_queue_test) {
 #endif
 #ifndef __SANITIZE_ADDRESS__
 BOOST_AUTO_TEST_CASE(bad_alloc_test) {
-   tester t; // force a controller to be constructed and set the new_handler
+   tester t(setup_policy::full_pre_savanna); // force a controller to be constructed and set the new_handler
    int* ptr = nullptr;
    const auto fail = [&]() {
       ptr = new int[std::numeric_limits<int64_t>::max()/16];

@@ -655,7 +655,7 @@ BOOST_FIXTURE_TEST_CASE( check_global_reset, validating_tester ) try {
 //Make sure we can create a wasm with maximum pages, but not grow it any
 BOOST_DATA_TEST_CASE( big_memory, bdata::make({setup_policy::preactivate_feature_and_new_bios, setup_policy::old_wasm_parser, setup_policy::full}), policy ) try {
    validating_tester t(flat_set<account_name>{}, {}, policy);
-   if(policy != setup_policy::full)
+   if(policy != setup_policy::full && policy != setup_policy::full_pre_savanna)
       t.preactivate_builtin_protocol_features({builtin_protocol_feature_t::configurable_wasm_limits});
 
    t.produce_blocks(2);

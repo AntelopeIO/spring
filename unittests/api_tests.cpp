@@ -841,7 +841,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(light_validation_skip_cfa) try {
-   tester chain(setup_policy::full);
+   tester chain(setup_policy::full_pre_savanna);
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
@@ -979,7 +979,7 @@ void call_test(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cp
 }
 
 BOOST_AUTO_TEST_CASE(checktime_fail_tests) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
    t.produce_blocks(2);
 
    ilog( "create account" );
@@ -1580,7 +1580,7 @@ BOOST_AUTO_TEST_CASE(transaction_tests_before_disable_trxs_protocol_features) { 
  * transaction tests after before disable_trxs_protocol_features are activated
  *************************************************************************************/
 BOOST_AUTO_TEST_CASE(transaction_tests_after_disable_trxs_protocol_features) { try {
-   validating_tester chain;
+   validating_tester chain{ {}, nullptr, setup_policy::full_pre_savanna };
    transaction_tests<validating_tester>(chain);
 } FC_LOG_AND_RETHROW() }
 
@@ -1590,7 +1590,7 @@ BOOST_AUTO_TEST_CASE(transaction_tests_after_disable_trxs_protocol_features) { t
 BOOST_AUTO_TEST_CASE(inline_action_with_over_4k_limit) { try {
    const uint32_t _4k = 4 * 1024;
    tester chain(setup_policy::full, db_read_mode::HEAD, {_4k + 100});
-   tester chain2(setup_policy::full, db_read_mode::HEAD, {_4k + 100});
+   tester chain2(setup_policy::full_pre_savanna, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();
@@ -1617,7 +1617,7 @@ BOOST_AUTO_TEST_CASE(inline_action_with_over_4k_limit) { try {
  *************************************************************************************/
 BOOST_AUTO_TEST_CASE(inline_action_objective_limit) { try {
    const uint32_t _4k = 4 * 1024;
-   tester chain(setup_policy::full, db_read_mode::HEAD, {_4k});
+   tester chain(setup_policy::full_pre_savanna, db_read_mode::HEAD, {_4k});
    chain.produce_blocks(2);
    chain.create_account( "testapi"_n );
    chain.produce_blocks(100);
@@ -1639,8 +1639,8 @@ BOOST_AUTO_TEST_CASE(inline_action_objective_limit) { try {
 
 BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    const uint32_t _4k = 4 * 1024;
-   tester chain(setup_policy::full_except_do_not_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
-   tester chain2(setup_policy::full_except_do_not_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+   tester chain(setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
+   tester chain2(setup_policy::full_pre_savanna_except_do_not_disable_deferred_trx, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();
@@ -3714,7 +3714,7 @@ BOOST_FIXTURE_TEST_CASE(action_ordinal_failtest3, validating_tester) { try {
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE(action_results_tests) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
    t.produce_blocks(2);
    t.create_account( "test"_n );
    t.set_code( "test"_n, test_contracts::action_results_wasm() );
@@ -3823,7 +3823,7 @@ static const char get_code_hash_wast[] = R"=====(
 )=====";
 
 BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
    t.produce_blocks(2);
    t.create_account("gethash"_n);
    t.create_account("test"_n);
@@ -3861,7 +3861,7 @@ BOOST_AUTO_TEST_CASE(get_code_hash_tests) { try {
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
 
    // Create finalizer keys
    constexpr size_t num_finalizers = 21;
@@ -3911,7 +3911,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 void test_finality_transition(const vector<account_name>& accounts,
                               const base_tester::finalizer_policy_input& input,
                               bool lib_advancing_expected) {
-   validating_tester t;
+   validating_tester t{ {}, nullptr, setup_policy::full_pre_savanna };
 
    t.produce_block();
 

@@ -18,7 +18,7 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
 BOOST_AUTO_TEST_CASE( irrblock ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
    c.produce_blocks(10);
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
@@ -34,7 +34,7 @@ struct fork_tracker {
 };
 
 BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
-   tester bios;
+   tester bios(setup_policy::full_pre_savanna);
    bios.produce_block();
    bios.produce_block();
    bios.create_accounts( {"a"_n,"b"_n,"c"_n,"d"_n,"e"_n} );
@@ -125,7 +125,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE( forking ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
    while (c.control->head_block_num() < 3) {
       c.produce_block();
    }
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
  *  the highest last irreversible block over one that is longer.
  */
 BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
    while (c.control->head_block_num() < 11) {
       c.produce_block();
    }
@@ -379,7 +379,7 @@ BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( read_modes ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
    c.produce_block();
    c.produce_block();
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -408,7 +408,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
       return (db.find<account_object, by_name>( n ) != nullptr);
    };
 
-   tester main;
+   tester main(setup_policy::full_pre_savanna);
 
    main.create_accounts( {"producer1"_n, "producer2"_n} );
    main.produce_block();
@@ -514,7 +514,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
-   tester c1;
+   tester c1(setup_policy::full_pre_savanna);
 
    c1.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    c1.produce_block();
@@ -568,7 +568,7 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
-   tester c;
+   tester c(setup_policy::full_pre_savanna);
    while (c.control->head_block_num() < 3) {
       c.produce_block();
    }
