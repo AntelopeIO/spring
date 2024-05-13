@@ -72,8 +72,8 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 
    assert(bsp.block->contains_header_extension(instant_finality_extension::extension_id())); // required by transition mechanism
    instant_finality_extension if_ext = bsp.block->extract_header_extension<instant_finality_extension>();
-   assert(if_ext.new_finalizer_policy); // required by transition mechanism
-   result.active_finalizer_policy = std::make_shared<finalizer_policy>(*if_ext.new_finalizer_policy);
+   assert(if_ext.new_finalizer_policy_diff); // required by transition mechanism
+   result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*if_ext.new_finalizer_policy_diff)));
    result.active_proposer_policy = std::make_shared<proposer_policy>();
    result.active_proposer_policy->active_time = bsp.timestamp();
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
@@ -337,11 +337,28 @@ finality_data_t block_state::get_finality_data() {
    if (!base_digest) {
       base_digest = compute_base_digest(); // cache it
    }
+
+   // Check if there is any proposed finalizer policy in the block
+   std::optional<finalizer_policy> proposed_finalizer_policy;
+   if (is_savanna_genesis_block()) {
+      // For Genesis Block, use the active finalizer policy which was proposed in the block.
+      proposed_finalizer_policy = *active_finalizer_policy;
+   } else {
+      auto range = finalizer_policies.equal_range(block_num());
+      for (auto itr = range.first; itr != range.second; ++itr) {
+         if (itr->second.state == finalizer_policy_tracker::state_t::proposed) {
+            proposed_finalizer_policy = *itr->second.policy;
+            break;
+         }
+      }
+   }
+
    return {
       // other fields take the default values set by finality_data_t definition
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
-      .action_mroot = action_mroot,
-      .base_digest  = *base_digest
+      .action_mroot                       = action_mroot,
+      .base_digest                        = *base_digest,
+      .proposed_finalizer_policy          = std::move(proposed_finalizer_policy)
    };
 }
 
