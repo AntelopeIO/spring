@@ -345,5 +345,37 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    return next_header_state;
 }
 
+// -------------------------------------------------------------------------------
+// do some sanity checks on block_header_state
+// -------------------------------------------------------------------------------
+bool block_header_state::sanity_check() const {
+   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
+   // for any block number
+   // -----------------------------------------------------------------------------
+   block_num_type block_num(0);
+   bool pending{false}, proposed{false};
+
+   for (auto it = finalizer_policies.begin(); it != finalizer_policies.end(); ++it) {
+      if (block_num != it->first) {
+         pending = proposed = false;
+         block_num = it->first;
+      }
+      const auto& tracker = it->second;
+      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
+         if (proposed)
+            return false;
+         else
+            proposed = true;
+      }
+      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
+         if (pending)
+            return false;
+         else
+            pending = true;
+      }
+   }
+   return true;
+}
+
 } // namespace eosio::chain
 
