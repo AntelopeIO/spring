@@ -5111,6 +5111,10 @@ block_state_legacy_ptr controller::head_block_state_legacy()const {
    });
 }
 
+bool controller::head_sanity_check()const {
+   return apply<bool>(my->chain_head, [](const auto& head) { return head->sanity_check(); });
+}
+
 const signed_block_ptr& controller::head_block()const {
    return my->chain_head.block();
 }

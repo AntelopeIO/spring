@@ -180,6 +180,8 @@ void finish_next(const block_header_state& prev,
          // ---------------------------------------------------------------------------
          next_header_state.finalizer_policies = prev.finalizer_policies;
       } else {
+         auto next_block_num = next_header_state.block_num();
+
          while (it != prev.finalizer_policies.end() && it->first <= lib) {
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
@@ -188,11 +190,33 @@ void finish_next(const block_header_state& prev,
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
-               // block where finalizer_policy was proposed became final. The finalizer policy will
-               // become active when next block becomes final.
+
+               // The block where finalizer_policy was proposed has became final. The finalizer
+               // policy will become active when `next_block_num` becomes final.
+               //
+               // So `tracker.policy` should become `pending` at `next_block_num`.
+               //
+               // Either insert a new `finalizer_policy_tracker` value, or update the `pending`
+               // policy if there is already one  at `next_block_num` (which can happen when
+               // finality advances multiple block at a time, and more than one policy move from
+               // proposed to pending.
+               //
+               // Since we iterate finalizer_policies which is a multimap sorted by block number,
+               // the last one we add will be for the highest block number, which is what we want.
                // ---------------------------------------------------------------------------------
-               finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
-               next_header_state.finalizer_policies.emplace(next_header_state.block_num(), std::move(t));
+               auto range = next_header_state.finalizer_policies.equal_range(next_block_num);
+               auto itr = range.first;
+               for (; itr != range.second; ++itr) {
+                  if (itr->second.state == finalizer_policy_tracker::state_t::pending) {
+                     itr->second.policy = tracker.policy;
+                     break;
+                  }
+               }
+               if (itr == range.second) {
+                  // there wasn't already a pending one for `next_block_num`, add a new tracker
+                  finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
+                  next_header_state.finalizer_policies.emplace(next_block_num, std::move(t));
+               }
             }
             ++it;
          }
@@ -343,6 +367,38 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext);
 
    return next_header_state;
+}
+
+// -------------------------------------------------------------------------------
+// do some sanity checks on block_header_state
+// -------------------------------------------------------------------------------
+bool block_header_state::sanity_check() const {
+   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
+   // for any block number
+   // -----------------------------------------------------------------------------
+   block_num_type block_num(0);
+   bool pending{false}, proposed{false};
+
+   for (auto it = finalizer_policies.begin(); it != finalizer_policies.end(); ++it) {
+      if (block_num != it->first) {
+         pending = proposed = false;
+         block_num = it->first;
+      }
+      const auto& tracker = it->second;
+      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
+         if (proposed)
+            return false;
+         else
+            proposed = true;
+      }
+      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
+         if (pending)
+            return false;
+         else
+            pending = true;
+      }
+   }
+   return true;
 }
 
 } // namespace eosio::chain
