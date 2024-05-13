@@ -44,14 +44,14 @@ digest_type block_header_state::compute_base_digest() const {
 
 digest_type block_header_state::compute_finality_digest() const {
    auto base_digest = compute_base_digest();
-   std::pair<const digest_type&, const digest_type&> active_and_base{ last_pending_finalizer_policy_digest, base_digest };
-   auto afp_base_digest = fc::sha256::hash(active_and_base);
+   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
+   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .finality_tree_digest                    = finality_mroot(),
-      .active_finalizer_policy_and_base_digest = afp_base_digest
+      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
 
    return fc::sha256::hash(finality_digest_data);
