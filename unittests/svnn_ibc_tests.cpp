@@ -715,7 +715,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // Proving finality of block #12 using block #12 finality root.
 
-      // The QC provided in this proof is signed by the second generation of finalizers.
+      // The QC provided in this proof (over block #14) is signed by the second generation of finalizers.
       
       // heavy_proof_3 must be proven before we can prove heavy_proof_4.
 
@@ -775,7 +775,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
-
 
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
