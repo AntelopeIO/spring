@@ -148,6 +148,8 @@ struct block_header_state_legacy : public detail::block_header_state_legacy_comm
    void                   sign( const signer_callback_type& signer );
    void                   verify_signee()const;
 
+   bool                   sanity_check() const { return true; }
+
    const vector<digest_type>& get_new_protocol_feature_activations()const;
 };
 

@@ -131,6 +131,8 @@ struct block_header_state {
       return qc_claim > core.latest_qc_claim();
    }
 
+   bool sanity_check() const; // does sanity check of block_header_state, returns true if successful
+
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
