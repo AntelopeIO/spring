@@ -36,7 +36,7 @@ struct blog_replay_fixture {
 
       chain.produce_blocks(10);
 
-      // Make sure the account were created
+      // Make sure the accounts were created
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
@@ -75,14 +75,14 @@ struct blog_replay_fixture {
          }
       });
 
-      // Make sure irreversible fork_db exists
+      // Make sure reversible fork_db exists
       BOOST_CHECK(std::filesystem::exists(copied_config.blocks_dir / config::reversible_blocks_dir_name / "fork_db.dat"));
 
       // Start replay and stop at block `stop_at`
       replay_chain.control->startup( [](){}, check_shutdown, *genesis );
       replay_chain.close();
 
-      // Make sure irreversible fork_db still exists
+      // Make sure reversible fork_db still exists
       BOOST_CHECK(std::filesystem::exists(copied_config.blocks_dir / config::reversible_blocks_dir_name / "fork_db.dat"));
 
       // Prepare resuming replay
@@ -114,7 +114,7 @@ struct blog_replay_fixture {
    }
 };
 
-// Test replay through blocks log and irreverible blocks
+// Test replay through blocks log and reverible blocks
 BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
    eosio::chain::controller::config copied_config = chain.get_config();
 
@@ -142,10 +142,10 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle, blog_replay_fixture) try {
    stop_and_resume_replay(last_irreversible_block_num - 1);
 } FC_LOG_AND_RETHROW()
 
-// Test  replay stopping in the middle of irreverible blocks and resuming
+// Test replay stopping in the middle of reverible blocks and resuming
 BOOST_FIXTURE_TEST_CASE(replay_stop_in_reversible_blocks, blog_replay_fixture) try {
-   // block `last_head_block_num - 1` is within reversible_blocks, where in Savanna
-   // we have at least 3 reversible blocks
+   // block `last_head_block_num - 1` is within reversible_blocks, since in Savanna
+   // we have at least 2 reversible blocks
    stop_and_resume_replay(last_head_block_num - 1);
 } FC_LOG_AND_RETHROW()
 
