@@ -493,9 +493,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(qc_b_9.qc.has_value());
       BOOST_TEST(qc_b_10.qc.has_value());
 
-      // At this stage, we can prove the inclusion of actions that happened in block #7.
+      // At this stage, we can prove the inclusion of actions into block #7.
 
-      // first, we create action proofs to verify inclusion of actions
+      // first, we create action proofs to verify inclusion of some actions
 
       // onblock action proof
       mutable_variant_object onblock_action_proof = mvo()

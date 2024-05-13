@@ -218,8 +218,6 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
-      //struct proof_of_inclusion;
-
       struct action_data {
 
          action               action; //antelope action
@@ -250,61 +248,6 @@ CONTRACT svnn_ibc : public contract {
             checksum256 final_hash = sha256(result.data(), 96);
             return final_hash;
 
-/*            assert(!!receipt);
-            const action_receipt& r = *receipt;
-
-            digest_type::encoder e;
-            fc::raw::pack(e, r.receiver);
-            fc::raw::pack(e, r.recv_sequence);
-            fc::raw::pack(e, act.account);
-            fc::raw::pack(e, act.name);
-            fc::raw::pack(e, r.act_digest);
-
-            {
-               digest_type::encoder e2;
-               fc::raw::pack(e2, r.global_sequence);
-               fc::raw::pack(e2, r.auth_sequence);
-               fc::raw::pack(e2, r.code_sequence);
-               fc::raw::pack(e2, r.abi_sequence);
-               fc::raw::pack(e, e2.result());
-            }
-            return e.result();*/
-
-            //auto receiver_size = pack_size(rei)
-
-            //std::vector<char> data(8 + 8 + 8 + 8 + 32 + 8 +  );
-/*
-            checksum256 final_hash = sha256(result.data(), 64);
-            return final_hash;*/
-
-/*            checksum256 hashes[2];
-            const r_action_base* base = this;
-            const auto action_input_size = pack_size(data);
-            const auto return_value_size = pack_size(return_value);
-            const auto rhs_size = action_input_size + return_value_size;
-            const auto serialized_base = pack(*base);
-            const auto serialized_data = pack(data);
-            const auto serialized_output = pack(return_value);
-            hashes[0] = sha256(serialized_base.data(), serialized_base.size());
-            std::vector<uint8_t> h1_result(rhs_size);
-            std::copy (serialized_data.cbegin(), serialized_data.cend(), h1_result.begin());
-            std::copy (serialized_output.cbegin(), serialized_output.cend(), h1_result.begin() + action_input_size);
-            hashes[1] = sha256(reinterpret_cast<char*>(h1_result.data()), rhs_size);
-            std::array<uint8_t, 32> arr1 = hashes[0].extract_as_byte_array();
-            std::array<uint8_t, 32> arr2 = hashes[1].extract_as_byte_array();
-            std::array<uint8_t, 64> result;
-            std::copy (arr1.cbegin(), arr1.cend(), result.begin());
-            std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 32);
-            checksum256 final_hash = sha256(reinterpret_cast<char*>(result.data()), 64);
-            return final_hash;*/
-
-
-
-/*            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
-            
-            print("action_data action_receipt_digest : ", action_receipt_digest, "\n");
-
-            return action_receipt_digest;*/
          };
 
       };
@@ -334,7 +277,6 @@ CONTRACT svnn_ibc : public contract {
 
          //block_num is always present
          uint32_t block_num;
-
 
          //can include any number of action_proofs and / or state_proofs pertaining to a given block
          //all action_proofs must resolve to the same action_mroot
@@ -367,7 +309,6 @@ CONTRACT svnn_ibc : public contract {
 
          //finalizer_policy_generation for this block
          uint32_t finalizer_policy_generation;
-
 
          std::optional<finalizer_policy_input> new_finalizer_policy;
 
