@@ -74,8 +74,8 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "active_finalizer_policy",
-                    "type": "fpolicy?"
+                    "name": "new_finalizer_policy",
+                    "type": "finalizer_policy_input?"
                 },
                 {
                     "name": "witness_hash",
@@ -116,6 +116,10 @@
                 {
                     "name": "proof",
                     "type": "proof"
+                },
+                {
+                    "name": "assert",
+                    "type": "bool"
                 }
             ]
         },
@@ -152,7 +156,7 @@
             ]
         },
         {
-            "name": "finalizer_authority",
+            "name": "finalizer_authority_input",
             "base": "",
             "fields": [
                 {
@@ -170,7 +174,7 @@
             ]
         },
         {
-            "name": "fpolicy",
+            "name": "finalizer_policy_input",
             "base": "",
             "fields": [
                 {
@@ -183,7 +187,7 @@
                 },
                 {
                     "name": "finalizers",
-                    "type": "finalizer_authority[]"
+                    "type": "finalizer_authority_input[]"
                 }
             ]
         },
@@ -285,7 +289,7 @@
             "fields": [
                 {
                     "name": "policy",
-                    "type": "fpolicy"
+                    "type": "finalizer_policy_input"
                 },
                 {
                     "name": "from_block_num",
@@ -295,7 +299,7 @@
         },
         {
             "name": "storedpolicy",
-            "base": "fpolicy",
+            "base": "finalizer_policy_input",
             "fields": [
                 {
                     "name": "last_block_num",

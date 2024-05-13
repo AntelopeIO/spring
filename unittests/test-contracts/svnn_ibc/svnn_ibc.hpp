@@ -98,17 +98,17 @@ CONTRACT svnn_ibc : public contract {
           std::string            signature;
       };
 
-      struct finalizer_authority {
+      struct finalizer_authority_internal {
          std::string       description;
          uint64_t          weight = 0;
-         std::string       public_key;
+         std::vector<uint8_t> public_key;
       };
 
-      struct fpolicy {
+      struct finalizer_policy_internal {
 
          uint32_t                         generation = 0; ///< sequentially incrementing version number
          uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-         std::vector<finalizer_authority> finalizers; ///< Instant Finality voter set
+         std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
 
          checksum256 digest() const {
              std::vector<char> serialized = pack(*this);
@@ -117,8 +117,35 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
+      struct finalizer_authority_input {
+         std::string       description;
+         uint64_t          weight = 0;
+         std::string       public_key;
+      };
+
+      struct finalizer_policy_input {
+
+         uint32_t                         generation = 0; ///< sequentially incrementing version number
+         uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
+         std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
+
+         checksum256 digest() const {
+
+            std::vector<finalizer_authority_internal> finalizers_i;
+            for (auto f : finalizers){
+               std::array<char,96> decoded_key = decode_bls_public_key_to_g1(f.public_key);
+               std::vector<uint8_t> vector_key(decoded_key.begin(), decoded_key.end());
+               finalizer_authority_internal fai{f.description, f.weight, vector_key};
+               finalizers_i.push_back(fai);
+            }
+            finalizer_policy_internal internal{generation, threshold, finalizers_i};
+            return internal.digest();
+         }
+
+      };
+
       //finalizer policy augmented with contextually-relevant data 
-      TABLE storedpolicy : fpolicy {
+      TABLE storedpolicy : finalizer_policy_input {
 
          uint32_t       last_block_num = 0; //last block number where this policy is in force
 
@@ -287,8 +314,8 @@ CONTRACT svnn_ibc : public contract {
          //finalizer_policy_generation for this block
          uint32_t finalizer_policy_generation;
 
-         //if the block to prove contains a finalizer policy change, it can be provided
-         std::optional<fpolicy> active_finalizer_policy;
+
+         std::optional<finalizer_policy_input> new_finalizer_policy;
 
          //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
          checksum256 witness_hash;
@@ -296,15 +323,22 @@ CONTRACT svnn_ibc : public contract {
          //final_on_qc for this block
          checksum256 finality_mroot;
 
-         //returns hash of digest of active_finalizer_policy + witness_hash if active_finalizer_policy is present, otherwise returns witness_hash
+         //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
          checksum256 resolve_witness() const {
-            if (active_finalizer_policy.has_value()){
-               std::vector<char> serialized_policy = pack(active_finalizer_policy.value());
-               checksum256 policy_digest = sha256(serialized_policy.data(), serialized_policy.size());
+            print("resolve_witness\n");
+            if (new_finalizer_policy.has_value()){
+            print("has_value\n");
+
+               checksum256 policy_digest = new_finalizer_policy.value().digest();
                checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
+
+               print("\n");
+               print("policy_digest ", policy_digest, "\n");
+               print("base_fpolicy_digest ", base_fpolicy_digest, "\n");
                return base_fpolicy_digest;
             }
             else {
+            print("no value\n");
                return witness_hash;
             }
          }; 
@@ -397,7 +431,7 @@ CONTRACT svnn_ibc : public contract {
 
       bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2);
 
-      void _maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num);
+      void _maybe_set_finalizer_policy(const finalizer_policy_input& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
       template<typename Table>
@@ -409,7 +443,7 @@ CONTRACT svnn_ibc : public contract {
       void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
       void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
 
-      ACTION setfpolicy(const fpolicy& policy, const uint32_t from_block_num); //set finality policy
-      ACTION checkproof(const proof& proof);
+      ACTION setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num); //set finality policy
+      ACTION checkproof(const proof& proof, const bool assert);
 
 };
