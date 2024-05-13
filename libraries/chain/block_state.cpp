@@ -145,7 +145,8 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .active_proposer_policy      = std::move(sbs.active_proposer_policy),
          .proposer_policies           = std::move(sbs.proposer_policies),
          .finalizer_policies          = std::move(sbs.finalizer_policies),
-         .finalizer_policy_generation = sbs.finalizer_policy_generation
+         .finalizer_policy_generation = sbs.finalizer_policy_generation,
+         .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
