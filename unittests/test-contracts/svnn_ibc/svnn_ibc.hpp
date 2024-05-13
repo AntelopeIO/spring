@@ -265,9 +265,6 @@ CONTRACT svnn_ibc : public contract {
          checksum256 root() const {
             checksum256 digest = target.digest();
             checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
-
-            print("action_proof_of_inclusion root : ", root, "\n");
-
             return root;
          }; 
 
@@ -320,20 +317,12 @@ CONTRACT svnn_ibc : public contract {
 
          //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
          checksum256 resolve_witness() const {
-            print("resolve_witness\n");
             if (new_finalizer_policy.has_value()){
-            print("has_value\n");
-
                checksum256 policy_digest = new_finalizer_policy.value().digest();
                checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
-
-               print("\n");
-               print("policy_digest ", policy_digest, "\n");
-               print("base_fpolicy_digest ", base_fpolicy_digest, "\n");
                return base_fpolicy_digest;
             }
             else {
-            print("no value\n");
                return witness_hash;
             }
          }; 
