@@ -75,33 +75,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       return merkle_branches;
    }
 
-
-/*      // check if IF Genesis block contains an IF extension
-      std::optional<eosio::chain::block_header_extension> maybe_genesis_if_ext =
-         genesis_block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
-      BOOST_CHECK(maybe_genesis_if_ext.has_value());
-
-      eosio::chain::block_header_extension genesis_if_ext = maybe_genesis_if_ext.value();
-
-      // check that the header extension is of the correct type
-      BOOST_CHECK(std::holds_alternative<eosio::chain::instant_finality_extension>(genesis_if_ext));
-
-      // and that it has the expected initial finalizer_policy
-      std::optional<eosio::chain::finalizer_policy_diff> maybe_active_finalizer_policy_diff =
-         std::get<eosio::chain::instant_finality_extension>(genesis_if_ext).new_finalizer_policy_diff;
-
-      BOOST_CHECK(maybe_active_finalizer_policy_diff.has_value());
-
-      eosio::chain::finalizer_policy_diff active_finalizer_policy_diff = maybe_active_finalizer_policy_diff.value();
-      eosio::chain::finalizer_policy active_finalizer_policy =
-         eosio::chain::finalizer_policy{}.apply_diff(active_finalizer_policy_diff);
-
-      BOOST_CHECK_EQUAL(active_finalizer_policy.generation, 1u);
-
-      // compute the digest of the finalizer policy
-      auto active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
->>>>>>> 45d9c8e8ebdc1f80f3b0dfba964d70bdb0797823
-*/
    bool has_finalizer_policy_diffs(const signed_block_ptr block){
 
       // extract new finalizer policy
@@ -130,11 +103,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       eosio::chain::finalizer_policy active_finalizer_policy =
          current_policy.apply_diff(maybe_active_finalizer_policy_diff.value());
 
-/*      std::optional<eosio::chain::finalizer_policy> maybe_new_finalizer_policy =
-         std::get<eosio::chain::instant_finality_extension>(block_if_ext).new_finalizer_policy;*/
-
-      //assert(maybe_new_finalizer_policy.has_value());
-
       return active_finalizer_policy;
 
    }
@@ -151,7 +119,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          finality_data_t finality_data;
          digest_type action_mroot;
          digest_type base_digest;
-         digest_type finalizer_policy_digest;
+         digest_type active_finalizer_policy_digest;
          digest_type finality_digest;
          digest_type computed_finality_digest;
          digest_type afp_base_digest;
@@ -159,14 +127,17 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          digest_type finality_root;
       };
 
-      // cache finalizer policy + digest
-      eosio::chain::finalizer_policy current_finalizer_policy;
-      digest_type current_finalizer_policy_digest;
+      // cache finalizer policies + digests
+      eosio::chain::finalizer_policy last_proposed_finalizer_policy;
+      digest_type last_proposed_finalizer_policy_digest;
 
-      eosio::chain::finalizer_policy pending_finalizer_policy;
-      digest_type pending_finalizer_policy_digest;
+      eosio::chain::finalizer_policy last_pending_finalizer_policy;
+      digest_type last_pending_finalizer_policy_digest;
 
-      uint32_t blocks_since_pending_policy = 0;
+      eosio::chain::finalizer_policy active_finalizer_policy;
+      digest_type active_finalizer_policy_digest;
+
+      uint32_t blocks_since_proposed_policy = 0;
 
       bool is_genesis = true;
 
@@ -183,31 +154,38 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          if (has_finalizer_policy_diffs(block)){
 
             if (is_genesis){
-               current_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());
-               current_finalizer_policy_digest = fc::sha256::hash(current_finalizer_policy);
-               pending_finalizer_policy = current_finalizer_policy;
-               pending_finalizer_policy_digest = fc::sha256::hash(current_finalizer_policy);
+               active_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());
+               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+               last_pending_finalizer_policy = active_finalizer_policy;
+               last_pending_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+               last_proposed_finalizer_policy = active_finalizer_policy;
+               last_proposed_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
             }
             else {
-               pending_finalizer_policy = update_finalizer_policy(block, current_finalizer_policy);
-               pending_finalizer_policy_digest = fc::sha256::hash(current_finalizer_policy);
-               blocks_since_pending_policy = 0;
+               last_proposed_finalizer_policy = update_finalizer_policy(block, active_finalizer_policy);
+               last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
+               blocks_since_proposed_policy = 0;
             }
 
          }
 
-         if (current_finalizer_policy_digest!= pending_finalizer_policy_digest && blocks_since_pending_policy == 6){
-            current_finalizer_policy = pending_finalizer_policy;
-            current_finalizer_policy_digest = fc::sha256::hash(current_finalizer_policy);
+         if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy == 3){
+            last_pending_finalizer_policy = last_proposed_finalizer_policy;
+            last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
          }
 
-         blocks_since_pending_policy++;
+         if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy == 6){
+            active_finalizer_policy = last_pending_finalizer_policy;
+            active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+         }
+
+         blocks_since_proposed_policy++;
 
          this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type afp_base_digest = hash_pair(current_finalizer_policy_digest, base_digest);
+         digest_type afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, base_digest);
          digest_type finality_digest;
 
          if (is_genesis){
@@ -231,14 +209,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          digest_type finality_root = block->action_mroot;
 
          digest_type computed_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
-               .active_finalizer_policy_generation      = current_finalizer_policy.generation,
+               .active_finalizer_policy_generation      = active_finalizer_policy.generation,
                .finality_tree_digest                    = finality_root, //nothing to finalize yet
                .active_finalizer_policy_and_base_digest = afp_base_digest
             });
 
          finality_leaves.push_back(finality_leaf);
 
-         return {block, onblock_trace, finality_data, action_mroot, base_digest, current_finalizer_policy_digest, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
+         return {block, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy_digest, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
 
       }
 
@@ -268,10 +246,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // ensure out of scope setup and initial cluster wiring is consistent
       BOOST_CHECK_EQUAL(genesis_block_result.block->block_num(), 4u);
-
       
-      BOOST_CHECK_EQUAL(cluster.current_finalizer_policy.finalizers.size(), cluster.num_nodes);
-      BOOST_CHECK_EQUAL(cluster.current_finalizer_policy.generation, 1);
+      BOOST_CHECK_EQUAL(cluster.active_finalizer_policy.finalizers.size(), cluster.num_nodes);
+      BOOST_CHECK_EQUAL(cluster.active_finalizer_policy.generation, 1);
 
       // create the ibc account and deploy the ibc contract to it 
       cluster.node0.create_account( "ibc"_n );
@@ -280,20 +257,21 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       cluster.node0.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
-         ("policy", cluster.current_finalizer_policy)
+         ("policy", cluster.active_finalizer_policy)
       );
 
       // Transition block. Finalizers are not expected to vote on this block.
       auto block_1_result = cluster.produce_ibc_block();
 
-      // Proper IF Block. From now on, finalizers must vote. Moving forward, the header action_mroot
-      // field is reconverted to provide the finality_mroot.
+      // Proper IF Block. From now on, finalizers must vote.
+      // Moving forward, the header action_mroot field is reconverted to provide the finality_mroot.
       // The action_mroot is instead provided via the finality data
+
       auto block_2_result = cluster.produce_ibc_block();
-      
       // block_3 contains a QC over block_2
       auto block_3_result = cluster.produce_ibc_block();
       // block_4 contains a QC over block_3
+
       auto block_4_result = cluster.produce_ibc_block();
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
       // serves as a proof of finality for it
@@ -442,66 +420,69 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_CHECK(computed_action_mroot == block_7_result.action_mroot);
 
-      // we now test finalizer policy change
+      // we now test a finalizer policy change
       auto indices1 = cluster.fin_policy_indices_0;  // start from original set of indices
-      indices1[0] = 1;                       // update key used for node0 in policy
+      indices1[0] = 1;                       // update key used for node0 in policy, which will result in a new policy
 
-      digest_type previous_policy_digest = cluster.current_finalizer_policy_digest;
-
-      std::cout << "previous_policy_digest before block 8 " << previous_policy_digest << "\n";
+      // take note of policy digest prior to changes
+      digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
 
       // change the finalizer policy by rotating the key of node0
       cluster.node0.finkeys.set_finalizer_policy(indices1);
 
-      // produce a new block. This block contains a new finalizer policy
+      // produce a new block. This block contains a new proposed finalizer policy
       auto block_8_result = cluster.produce_ibc_block();
 
-      //BOOST_TEST(has_new_finalizer_policy_diffs(block_8_result.block));
+      // verify the block header contains the proposed finalizer policy differences
+      BOOST_TEST(has_finalizer_policy_diffs(block_8_result.block));
 
-      //auto new_finalizer_policy = extract_finalizer_policy(block_8_result.block);
-
-      // make new finalizer policy block final
       auto block_9_result = cluster.produce_ibc_block();
       auto block_10_result = cluster.produce_ibc_block();
-      auto block_11_result = cluster.produce_ibc_block(); //QC on #10 included in #11 makes #8 final, new policy is now pending
 
+      // take a note of the pending policy. When we get a QC on block #10, the pending policy will update
+      digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
+
+      // still the same
+      BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
+
+      // QC on #10 included in #11 makes #8 final, proposed policy is now pending
+      auto block_11_result = cluster.produce_ibc_block(); 
+
+      // verify that the last pending policy has been updated
+      BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       auto block_12_result = cluster.produce_ibc_block();
       auto block_13_result = cluster.produce_ibc_block(); //new policy takes effect on next block
    
       //verify that the current finalizer policy is still in force up to this point    
-      BOOST_TEST(previous_policy_digest==cluster.current_finalizer_policy_digest);
+      BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
       
       auto block_14_result = cluster.produce_ibc_block();
 
       //verify that the new finalizer policy is now in force
-      //BOOST_TEST(previous_policy_digest!=cluster.current_finalizer_policy_digest);
+      BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_15_result = cluster.produce_ibc_block();
       auto block_16_result = cluster.produce_ibc_block();
       auto block_17_result = cluster.produce_ibc_block();
 
-      std::cout << " policy_digest 1  " <<  block_1_result.finalizer_policy_digest << " " <<  block_1_result.computed_finality_digest << " " <<  block_1_result.finality_digest << "\n";
-      std::cout << " policy_digest 2  " <<  block_2_result.finalizer_policy_digest << " " <<  block_2_result.computed_finality_digest << " " <<  block_2_result.finality_digest << "\n";
-      std::cout << " policy_digest 3  " <<  block_3_result.finalizer_policy_digest << " " <<  block_3_result.computed_finality_digest << " " <<  block_3_result.finality_digest << "\n";
-      std::cout << " policy_digest 4  " <<  block_4_result.finalizer_policy_digest << " " <<  block_4_result.computed_finality_digest << " " <<  block_4_result.finality_digest << "\n";
-      std::cout << " policy_digest 5  " <<  block_5_result.finalizer_policy_digest << " " <<  block_5_result.computed_finality_digest << " " <<  block_5_result.finality_digest << "\n";
-      std::cout << " policy_digest 6  " <<  block_6_result.finalizer_policy_digest << " " <<  block_6_result.computed_finality_digest << " " <<  block_6_result.finality_digest << "\n";
-      std::cout << " policy_digest 7  " <<  block_7_result.finalizer_policy_digest << " " <<  block_7_result.computed_finality_digest << " " <<  block_7_result.finality_digest << "\n";
-      std::cout << " policy_digest 8  " <<  block_8_result.finalizer_policy_digest << " " <<  block_8_result.computed_finality_digest << " " <<  block_8_result.finality_digest << "\n";
-      std::cout << " policy_digest 9  " <<  block_9_result.finalizer_policy_digest << " " <<  block_9_result.computed_finality_digest << " " <<  block_9_result.finality_digest << "\n";
-      std::cout << " policy_digest 10 " << block_10_result.finalizer_policy_digest << " " << block_10_result.computed_finality_digest << " " << block_10_result.finality_digest << "\n";
-      std::cout << " policy_digest 11 " << block_11_result.finalizer_policy_digest << " " << block_11_result.computed_finality_digest << " " << block_11_result.finality_digest << "\n";
-      std::cout << " policy_digest 12 " << block_12_result.finalizer_policy_digest << " " << block_12_result.computed_finality_digest << " " << block_12_result.finality_digest << "\n";
-      std::cout << " policy_digest 13 " << block_13_result.finalizer_policy_digest << " " << block_13_result.computed_finality_digest << " " << block_13_result.finality_digest << "\n";
-      std::cout << " policy_digest 14 " << block_14_result.finalizer_policy_digest << " " << block_14_result.computed_finality_digest << " " << block_14_result.finality_digest << "\n";
-      std::cout << " policy_digest 15 " << block_15_result.finalizer_policy_digest << " " << block_15_result.computed_finality_digest << " " << block_15_result.finality_digest << "\n";
-      std::cout << " policy_digest 16 " << block_16_result.finalizer_policy_digest << " " << block_16_result.computed_finality_digest << " " << block_16_result.finality_digest << "\n";
-      std::cout << " policy_digest 17 " << block_17_result.finalizer_policy_digest << " " << block_17_result.computed_finality_digest << " " << block_17_result.finality_digest << "\n";
- 
-
-
-      std::cout << "sup! \n";
+      std::cout << " policy_digest 1  " <<  block_1_result.active_finalizer_policy_digest << " " <<  block_1_result.computed_finality_digest << " " <<  block_1_result.finality_digest << "\n";
+      std::cout << " policy_digest 2  " <<  block_2_result.active_finalizer_policy_digest << " " <<  block_2_result.computed_finality_digest << " " <<  block_2_result.finality_digest << "\n";
+      std::cout << " policy_digest 3  " <<  block_3_result.active_finalizer_policy_digest << " " <<  block_3_result.computed_finality_digest << " " <<  block_3_result.finality_digest << "\n";
+      std::cout << " policy_digest 4  " <<  block_4_result.active_finalizer_policy_digest << " " <<  block_4_result.computed_finality_digest << " " <<  block_4_result.finality_digest << "\n";
+      std::cout << " policy_digest 5  " <<  block_5_result.active_finalizer_policy_digest << " " <<  block_5_result.computed_finality_digest << " " <<  block_5_result.finality_digest << "\n";
+      std::cout << " policy_digest 6  " <<  block_6_result.active_finalizer_policy_digest << " " <<  block_6_result.computed_finality_digest << " " <<  block_6_result.finality_digest << "\n";
+      std::cout << " policy_digest 7  " <<  block_7_result.active_finalizer_policy_digest << " " <<  block_7_result.computed_finality_digest << " " <<  block_7_result.finality_digest << "\n";
+      std::cout << " policy_digest 8  " <<  block_8_result.active_finalizer_policy_digest << " " <<  block_8_result.computed_finality_digest << " " <<  block_8_result.finality_digest << "\n";
+      std::cout << " policy_digest 9  " <<  block_9_result.active_finalizer_policy_digest << " " <<  block_9_result.computed_finality_digest << " " <<  block_9_result.finality_digest << "\n";
+      std::cout << " policy_digest 10 " << block_10_result.active_finalizer_policy_digest << " " << block_10_result.computed_finality_digest << " " << block_10_result.finality_digest << "\n";
+      std::cout << " policy_digest 11 " << block_11_result.active_finalizer_policy_digest << " " << block_11_result.computed_finality_digest << " " << block_11_result.finality_digest << "\n";
+      std::cout << " policy_digest 12 " << block_12_result.active_finalizer_policy_digest << " " << block_12_result.computed_finality_digest << " " << block_12_result.finality_digest << "\n";
+      std::cout << " policy_digest 13 " << block_13_result.active_finalizer_policy_digest << " " << block_13_result.computed_finality_digest << " " << block_13_result.finality_digest << "\n";
+      std::cout << " policy_digest 14 " << block_14_result.active_finalizer_policy_digest << " " << block_14_result.computed_finality_digest << " " << block_14_result.finality_digest << "\n";
+      std::cout << " policy_digest 15 " << block_15_result.active_finalizer_policy_digest << " " << block_15_result.computed_finality_digest << " " << block_15_result.finality_digest << "\n";
+      std::cout << " policy_digest 16 " << block_16_result.active_finalizer_policy_digest << " " << block_16_result.computed_finality_digest << " " << block_16_result.finality_digest << "\n";
+      std::cout << " policy_digest 17 " << block_17_result.active_finalizer_policy_digest << " " << block_17_result.computed_finality_digest << " " << block_17_result.finality_digest << "\n";
 
       qc_data_t qc_b_8 = extract_qc_data(block_8_result.block);
       qc_data_t qc_b_9 = extract_qc_data(block_9_result.block);
@@ -565,7 +546,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
 /*      cluster.node0.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
-         ("policy", cluster.current_finalizer_policy)
+         ("policy", cluster.active_finalizer_policy)
       );*/
 
       // heavy proof #4. Proving finality of block #12 using block #12 finality root
