@@ -20,8 +20,8 @@ struct blog_replay_fixture {
    // Activate Savanna and create blocks log
    blog_replay_fixture() {
       // Activate Savanna
-      size_t num_keys    = 21u;
-      size_t finset_size = 21u;
+      size_t num_keys    = 4u;
+      size_t finset_size = 4u;
       finalizer_keys fin_keys(chain, num_keys, finset_size); // Create finalizer keys
       fin_keys.set_node_finalizers(0u, num_keys); // set finalizers on current node
       fin_keys.set_finalizer_policy(0u);
