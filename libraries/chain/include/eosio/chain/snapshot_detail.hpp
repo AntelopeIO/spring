@@ -126,6 +126,7 @@ namespace eosio::chain::snapshot_detail {
 
       snapshot_block_state_v7() = default;
 
+      // When adding a member initialization here also update block_state(snapshot_block_state_v7) constructor
       explicit snapshot_block_state_v7(const block_state& bs)
          : block_id(bs.block_id)
          , header(bs.header)
