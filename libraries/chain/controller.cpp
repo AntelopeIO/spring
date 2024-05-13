@@ -1606,7 +1606,10 @@ struct controller_impl {
                      // note if is_proper_svnn_block is not reached then transistion will happen live
                   }
                });
-               if( check_shutdown() ) break;
+               if( check_shutdown() ) {
+                  ilog( "quitting from replay_block_log because of shutdown" );
+                  break;
+               }
                if( next->block_num() % 500 == 0 ) {
                   ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
                }
@@ -1642,6 +1645,11 @@ struct controller_impl {
          except_ptr = replay_block_log();
       } else {
          ilog( "no block log found" );
+      }
+
+      if( check_shutdown() ) {
+         ilog( "quitting from replay because of shutdown" );
+         return;
       }
 
       try {
@@ -1721,7 +1729,6 @@ struct controller_impl {
             auto branch = fork_db.fetch_branch_from_head();
             int rev = 0;
             for( auto i = branch.rbegin(); i != branch.rend(); ++i ) {
-               if( check_shutdown() ) break;
                if( (*i)->block_num() <= head_block_num ) continue;
                ++rev;
                replay_push_block<BSP>( *i, controller::block_status::validated );
