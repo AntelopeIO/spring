@@ -547,7 +547,7 @@ BOOST_FIXTURE_TEST_CASE(finality_skip, finality_test_cluster<4>) { try {
 
    // produce 2 blocks that will be made final after the three `add_set_finalizers` below
    // ------------------------------------------------------------------------------------
-   for (size_t i=0; i<2; ++i) {
+   for (size_t i=0; i<4; ++i) {
       produce_and_push_block();
       process_votes(1, num_nodes - 1);
    }
@@ -584,34 +584,12 @@ BOOST_FIXTURE_TEST_CASE(finality_skip, finality_test_cluster<4>) { try {
       node0.check_head_finalizer_policy(1u, fin_policy_pubkeys_0);
    }
 
+   // when we receive the votes of that last block finishing the 3-chain, the active
+   // `finalizer_policy` finally changes.
+   // ------------------------------------------------------------------------------
    produce_and_push_block();
    process_votes(1, num_nodes - 1);
    node0.check_head_finalizer_policy(4u, pubkeys3);
-
-#if 0
-
-   // Now process the votes for these last 3 blocks and send the QC in new block.
-   // After the `push_block()`, all 3 set_finalizers should become pending.
-   // --------------------------------------------------------------------------
-   for (size_t i=3; i<6; ++i)
-      process_votes(1, num_nodes - 1, i);
-   produce_and_push_block();
-
-   // make sure we don't have duplicate finalizer policies for the same block number
-   // in either `proposed` or `pending` state
-   // ------------------------------------------------------------------------------
-   node0.check_head_finalizer_policy(1u, fin_policy_pubkeys_0);
-
-   // After another 3-chain, pubkeys3 should become active.
-   // The two `set_finalizers` for pubkeys1 and pubkeys2 should have been skipped
-   // so generation should be 2.
-   // -----------------------------------------------------
-   for (size_t i=0; i<6; ++i) {
-      produce_and_push_block();
-      process_votes(1, num_nodes - 1);
-   }
-   node0.check_head_finalizer_policy(2u, pubkeys3);
-#endif
 
 } FC_LOG_AND_RETHROW() }
 
