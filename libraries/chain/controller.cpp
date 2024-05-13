@@ -706,7 +706,7 @@ struct building_block {
    assembled_block assemble_block(boost::asio::io_context& ioc,
                                   const protocol_feature_set& pfs,
                                   fork_database& fork_db,
-                                  std::unique_ptr<proposer_policy> new_proposer_policy,
+                                  std::optional<proposer_policy> new_proposer_policy,
                                   std::optional<finalizer_policy> new_finalizer_policy,
                                   bool validating,
                                   std::optional<qc_data_t> validating_qc_data,
@@ -3171,13 +3171,13 @@ struct controller_impl {
          resource_limits.process_block_usage(bb.block_num());
 
          // Any proposer policy?
-         auto process_new_proposer_policy = [&](auto&) -> std::unique_ptr<proposer_policy> {
-            std::unique_ptr<proposer_policy> new_proposer_policy;
+         auto process_new_proposer_policy = [&](auto&) -> std::optional<proposer_policy> {
+            std::optional<proposer_policy> new_proposer_policy;
             const auto& gpo = db.get<global_property_object>();
             if (gpo.proposed_schedule_block_num) {
                std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
                if (version) {
-                  new_proposer_policy                    = std::make_unique<proposer_policy>();
+                  new_proposer_policy.emplace();
                   new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
                   new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
                   new_proposer_policy->proposer_schedule.version = *version;
@@ -3193,7 +3193,7 @@ struct controller_impl {
             }
             return new_proposer_policy;
          };
-         auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
+         auto new_proposer_policy = apply_s<std::optional<proposer_policy>>(chain_head, process_new_proposer_policy);
 
          // Any finalizer policy?
          std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
@@ -5118,6 +5118,10 @@ block_state_legacy_ptr controller::head_block_state_legacy()const {
    });
 }
 
+bool controller::head_sanity_check()const {
+   return apply<bool>(my->chain_head, [](const auto& head) { return head->sanity_check(); });
+}
+
 const signed_block_ptr& controller::head_block()const {
    return my->chain_head.block();
 }
@@ -5290,6 +5294,8 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
    if (producers.empty())
       return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
+   EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
+              "Producer schedule exceeds the maximum proposer count for this chain");
    assert(pending);
 
    producer_authority_schedule sch;
@@ -5308,6 +5314,8 @@ int64_t controller_impl::set_proposed_producers( vector<producer_authority> prod
 }
 
 int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authority> producers ) {
+   EOS_ASSERT(producers.size() <= config::max_producers, wasm_execution_error,
+              "Producer schedule exceeds the maximum producer count for this chain");
    const auto& gpo = db.get<global_property_object>();
    auto cur_block_num = chain_head.block_num() + 1;
 
