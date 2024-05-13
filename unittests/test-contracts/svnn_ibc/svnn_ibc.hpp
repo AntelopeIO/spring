@@ -180,26 +180,26 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
-      struct r_action_base {
+      struct action_base {
          name             account;
          name             name;
          std::vector<permission_level> authorization;
 
       };
 
-      struct r_action :  r_action_base {
+      struct action :  action_base {
          std::vector<char>    data;
-         std::vector<char>    returnvalue;
+         std::vector<char>    return_value;
 
          checksum256 digest() const {
             checksum256 hashes[2];
-            const r_action_base* base = this;
+            const action_base* base = this;
             const auto action_input_size = pack_size(data);
-            const auto return_value_size = pack_size(returnvalue);
+            const auto return_value_size = pack_size(return_value);
             const auto rhs_size = action_input_size + return_value_size;
             const auto serialized_base = pack(*base);
             const auto serialized_data = pack(data);
-            const auto serialized_output = pack(returnvalue);
+            const auto serialized_output = pack(return_value);
             hashes[0] = sha256(serialized_base.data(), serialized_base.size());
             std::vector<uint8_t> h1_result(rhs_size);
             std::copy (serialized_data.cbegin(), serialized_data.cend(), h1_result.begin());
@@ -214,46 +214,40 @@ CONTRACT svnn_ibc : public contract {
             return final_hash;
          }
 
-         EOSLIB_SERIALIZE( r_action, (account)(name)(authorization)(data)(returnvalue))
+         EOSLIB_SERIALIZE( action, (account)(name)(authorization)(data)(return_value))
 
       };
-
-      struct action_receipt {
-
-         name                       receiver;
-
-         //act_digest is provided instead by obtaining the action digest. Implementation depends on the activation of action_return_value feature
-         //checksum256              act_digest;
-
-         uint64_t                   global_sequence = 0;
-         uint64_t                   recv_sequence   = 0;
-   
-         std::vector<authseq>       auth_sequence;
-         unsigned_int               code_sequence = 0;
-         unsigned_int               abi_sequence  = 0;
-
-         EOSLIB_SERIALIZE( action_receipt, (receiver)(global_sequence)(recv_sequence)(auth_sequence)(code_sequence)(abi_sequence) )
-
-      };
-
-      //struct proof_of_inclusion;
 
       struct action_data {
 
-         r_action action; //antelope action
-         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
+         action               action; //antelope action
+         name                 receiver;
+         uint64_t             recv_sequence   = 0;
 
-         std::vector<char> return_value; //empty if no return value
+         checksum256          witness_hash;
 
-         //returns the action digest 
-         checksum256 action_digest() const {
-            return action.digest();
-         }; 
-
-         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
          checksum256 digest() const {
-            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
-            return action_receipt_digest;
+
+            //4x uint64_t + 2x checksum256
+            std::vector<char> result(8 + 8 + 8 + 8 + 32 + 32);
+
+            const auto serialized_receiver = pack(receiver); //uint64_t
+            const auto serialized_recv_sequence = pack(recv_sequence); //uint64_t
+            const auto serialized_account = pack(action.account); //uint64_t
+            const auto serialized_name = pack(action.name); //uint64_t
+            const auto serialized_act_digest = pack(action.digest()); //checksum256
+            const auto serialized_witness_hash = pack(witness_hash); //checksum256
+
+            std::copy (serialized_receiver.cbegin(), serialized_receiver.cend(), result.begin());
+            std::copy (serialized_recv_sequence.cbegin(), serialized_recv_sequence.cend(), result.begin() + 8);
+            std::copy (serialized_account.cbegin(), serialized_account.cend(), result.begin() + 16);
+            std::copy (serialized_name.cbegin(), serialized_name.cend(), result.begin() + 24);
+            std::copy (serialized_act_digest.cbegin(), serialized_act_digest.cend(), result.begin() + 32);
+            std::copy (serialized_witness_hash.cbegin(), serialized_witness_hash.cend(), result.begin() + 64);
+
+            checksum256 final_hash = sha256(result.data(), 96);
+            return final_hash;
+
          };
 
       };
@@ -271,6 +265,9 @@ CONTRACT svnn_ibc : public contract {
          checksum256 root() const {
             checksum256 digest = target.digest();
             checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
+
+            print("action_proof_of_inclusion root : ", root, "\n");
+
             return root;
          }; 
 
@@ -280,7 +277,6 @@ CONTRACT svnn_ibc : public contract {
 
          //block_num is always present
          uint32_t block_num;
-
 
          //can include any number of action_proofs and / or state_proofs pertaining to a given block
          //all action_proofs must resolve to the same action_mroot

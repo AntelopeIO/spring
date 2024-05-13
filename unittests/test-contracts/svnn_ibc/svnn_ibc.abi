@@ -4,20 +4,56 @@
     "types": [],
     "structs": [
         {
+            "name": "action",
+            "base": "action_base",
+            "fields": [
+                {
+                    "name": "data",
+                    "type": "bytes"
+                },
+                {
+                    "name": "return_value",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "action_base",
+            "base": "",
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "authorization",
+                    "type": "permission_level[]"
+                }
+            ]
+        },
+        {
             "name": "action_data",
             "base": "",
             "fields": [
                 {
                     "name": "action",
-                    "type": "r_action"
+                    "type": "action"
                 },
                 {
-                    "name": "action_receipt_digest",
+                    "name": "receiver",
+                    "type": "name"
+                },
+                {
+                    "name": "recv_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "witness_hash",
                     "type": "checksum256"
-                },
-                {
-                    "name": "return_value",
-                    "type": "bytes"
                 }
             ]
         },
@@ -248,38 +284,6 @@
                 {
                     "name": "signature",
                     "type": "string"
-                }
-            ]
-        },
-        {
-            "name": "r_action",
-            "base": "r_action_base",
-            "fields": [
-                {
-                    "name": "data",
-                    "type": "bytes"
-                },
-                {
-                    "name": "returnvalue",
-                    "type": "bytes"
-                }
-            ]
-        },
-        {
-            "name": "r_action_base",
-            "base": "",
-            "fields": [
-                {
-                    "name": "account",
-                    "type": "name"
-                },
-                {
-                    "name": "name",
-                    "type": "name"
-                },
-                {
-                    "name": "authorization",
-                    "type": "permission_level[]"
                 }
             ]
         },

@@ -449,9 +449,16 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce the block to avoid duplicate transaction error
       auto block_7_result = cluster.produce_block();
 
+      std::vector<digest_type> action_leaves;
+
+      action_leaves.push_back(block_7_result.onblock_trace.digest_savanna());
+      action_leaves.push_back(check_heavy_proof_1_trace.digest_savanna());
+      action_leaves.push_back(check_light_proof_1_trace.digest_savanna());
+      action_leaves.push_back(check_heavy_proof_2_trace.digest_savanna());
+
       // since a few actions were included in the previous block, we can verify that they correctly hash into the action_mroot for that block
-      auto pair_1_hash = hash_pair(block_7_result.onblock_trace.digest_savanna(), check_heavy_proof_1_trace.digest_savanna());
-      auto pair_2_hash = hash_pair(check_light_proof_1_trace.digest_savanna(), check_heavy_proof_2_trace.digest_savanna());
+      auto pair_1_hash = hash_pair(action_leaves[0], action_leaves[1]);
+      auto pair_2_hash = hash_pair(action_leaves[2], action_leaves[3]);
 
       auto computed_action_mroot = hash_pair(pair_1_hash, pair_2_hash);
 
@@ -473,10 +480,146 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // verify the block header contains the proposed finalizer policy differences
       BOOST_TEST(has_finalizer_policy_diffs(block_8_result.block));
 
+      // advance finality
       auto block_9_result = cluster.produce_block();
       auto block_10_result = cluster.produce_block();
 
-      // take a note of the pending policy. When we get a QC on block #10, the pending policy will update
+      // verify we have all the QCs up to this point
+      qc_data_t qc_b_8 = extract_qc_data(block_8_result.block);
+      qc_data_t qc_b_9 = extract_qc_data(block_9_result.block);
+      qc_data_t qc_b_10 = extract_qc_data(block_10_result.block);
+
+      BOOST_TEST(qc_b_8.qc.has_value());
+      BOOST_TEST(qc_b_9.qc.has_value());
+      BOOST_TEST(qc_b_10.qc.has_value());
+
+      // At this stage, we can prove the inclusion of actions that happened in block #7.
+
+      // first, we create action proofs to verify inclusion of actions
+
+      // onblock action proof
+      mutable_variant_object onblock_action_proof = mvo()
+         ("target_node_index", 0)
+         ("last_node_index", 3)
+         ("target", mvo()
+            ("action", mvo()
+               ("account", block_7_result.onblock_trace.act.account)
+               ("name", block_7_result.onblock_trace.act.name)
+               ("authorization", block_7_result.onblock_trace.act.authorization)
+               ("data", block_7_result.onblock_trace.act.data)
+               ("return_value", block_7_result.onblock_trace.return_value)
+            )
+            ("receiver", block_7_result.onblock_trace.receiver)
+            ("recv_sequence", block_7_result.onblock_trace.receipt.value().recv_sequence)
+            ("witness_hash", block_7_result.onblock_trace.savanna_witness_hash())
+         )
+         ("merkle_branches", generate_proof_of_inclusion(action_leaves, 0));
+
+
+      // first action proof (check_heavy_proof_1)
+      mutable_variant_object action_proof_1 = mvo()
+         ("target_node_index", 1)
+         ("last_node_index", 3)
+         ("target", mvo()
+            ("action", mvo()
+               ("account", check_heavy_proof_1_trace.act.account)
+               ("name", check_heavy_proof_1_trace.act.name)
+               ("authorization", check_heavy_proof_1_trace.act.authorization)
+               ("data", check_heavy_proof_1_trace.act.data)
+               ("return_value", check_heavy_proof_1_trace.return_value)
+            )
+            ("receiver", check_heavy_proof_1_trace.receiver)
+            ("recv_sequence", check_heavy_proof_1_trace.receipt.value().recv_sequence)
+            ("witness_hash", check_heavy_proof_1_trace.savanna_witness_hash())
+         )
+         ("merkle_branches", generate_proof_of_inclusion(action_leaves, 1));
+
+      // second action proof (check_light_proof_1)
+      mutable_variant_object action_proof_2 = mvo()
+         ("target_node_index", 2)
+         ("last_node_index", 3)
+         ("target", mvo()
+            ("action", mvo()
+               ("account", check_light_proof_1_trace.act.account)
+               ("name", check_light_proof_1_trace.act.name)
+               ("authorization", check_light_proof_1_trace.act.authorization)
+               ("data", check_light_proof_1_trace.act.data)
+               ("return_value", check_light_proof_1_trace.return_value)
+            )
+            ("receiver", check_light_proof_1_trace.receiver)
+            ("recv_sequence", check_light_proof_1_trace.receipt.value().recv_sequence)
+            ("witness_hash", check_light_proof_1_trace.savanna_witness_hash())
+         )
+         ("merkle_branches", generate_proof_of_inclusion(action_leaves, 2));
+
+      // proof to verify the inclusion of onblock action via heavy proof
+      mutable_variant_object action_heavy_proof = mvo()
+         ("assert", false)
+         ("proof", mvo() 
+            ("finality_proof", mvo() //proves finality of block #7
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("witness_hash", block_9_result.afp_base_digest)
+                  ("finality_mroot", block_9_result.finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", qc_b_10.qc.value().data.sig.to_string())
+                  ("finalizers", raw_bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 7)
+               ("last_node_index", 7)
+               ("target",  mvo() //target block #2
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_7_result.afp_base_digest)
+                     ("finality_mroot", block_7_result.finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_7_result.block->block_num())
+                     ("action_proofs", fc::variants({onblock_action_proof}))
+                  )
+               )
+               ("merkle_branches", generate_proof_of_inclusion(cluster.get_finality_leaves(7), 7))
+            )
+         );
+
+      // proof to verify the inclusion of the first and second actions via light proof
+      mutable_variant_object action_light_proof = mvo()
+         ("assert", false)
+         ("proof", mvo() 
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 7)
+               ("last_node_index", 7)
+               ("target", mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_7_result.afp_base_digest)
+                     ("finality_mroot", block_7_result.finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_7_result.block->block_num())
+                     ("action_proofs", fc::variants({action_proof_1, action_proof_2}))
+                  )
+               )
+               ("merkle_branches", generate_proof_of_inclusion(cluster.get_finality_leaves(7), 7))
+            )
+         );
+
+      // action proof verification
+      action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
+      action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
+      
+      // At this stage, we can test the change in pending policy.
+
+      // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
       digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
 
       // still the same
@@ -503,63 +646,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
-      std::cout << " policy digests 1  " <<  block_1_result.active_finalizer_policy_digest << " " <<  block_1_result.last_pending_finalizer_policy_digest << " " <<  block_1_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 2  " <<  block_2_result.active_finalizer_policy_digest << " " <<  block_2_result.last_pending_finalizer_policy_digest << " " <<  block_2_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 3  " <<  block_3_result.active_finalizer_policy_digest << " " <<  block_3_result.last_pending_finalizer_policy_digest << " " <<  block_3_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 4  " <<  block_4_result.active_finalizer_policy_digest << " " <<  block_4_result.last_pending_finalizer_policy_digest << " " <<  block_4_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 5  " <<  block_5_result.active_finalizer_policy_digest << " " <<  block_5_result.last_pending_finalizer_policy_digest << " " <<  block_5_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 6  " <<  block_6_result.active_finalizer_policy_digest << " " <<  block_6_result.last_pending_finalizer_policy_digest << " " <<  block_6_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 7  " <<  block_7_result.active_finalizer_policy_digest << " " <<  block_7_result.last_pending_finalizer_policy_digest << " " <<  block_7_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 8  " <<  block_8_result.active_finalizer_policy_digest << " " <<  block_8_result.last_pending_finalizer_policy_digest << " " <<  block_8_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 9  " <<  block_9_result.active_finalizer_policy_digest << " " <<  block_9_result.last_pending_finalizer_policy_digest << " " <<  block_9_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 10 " << block_10_result.active_finalizer_policy_digest << " " << block_10_result.last_pending_finalizer_policy_digest << " " << block_10_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 11 " << block_11_result.active_finalizer_policy_digest << " " << block_11_result.last_pending_finalizer_policy_digest << " " << block_11_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 12 " << block_12_result.active_finalizer_policy_digest << " " << block_12_result.last_pending_finalizer_policy_digest << " " << block_12_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 13 " << block_13_result.active_finalizer_policy_digest << " " << block_13_result.last_pending_finalizer_policy_digest << " " << block_13_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 14 " << block_14_result.active_finalizer_policy_digest << " " << block_14_result.last_pending_finalizer_policy_digest << " " << block_14_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 15 " << block_15_result.active_finalizer_policy_digest << " " << block_15_result.last_pending_finalizer_policy_digest << " " << block_15_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 16 " << block_16_result.active_finalizer_policy_digest << " " << block_16_result.last_pending_finalizer_policy_digest << " " << block_16_result.last_proposed_finalizer_policy_digest << "\n";
-      std::cout << " policy digests 17 " << block_17_result.active_finalizer_policy_digest << " " << block_17_result.last_pending_finalizer_policy_digest << " " << block_17_result.last_proposed_finalizer_policy_digest << "\n";
-
-      std::cout << " finality_digest (computed vs actual) 1  " << " " <<  block_1_result.computed_finality_digest << " " <<  block_1_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 2  " << " " <<  block_2_result.computed_finality_digest << " " <<  block_2_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 3  " << " " <<  block_3_result.computed_finality_digest << " " <<  block_3_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 4  " << " " <<  block_4_result.computed_finality_digest << " " <<  block_4_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 5  " << " " <<  block_5_result.computed_finality_digest << " " <<  block_5_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 6  " << " " <<  block_6_result.computed_finality_digest << " " <<  block_6_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 7  " << " " <<  block_7_result.computed_finality_digest << " " <<  block_7_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 8  " << " " <<  block_8_result.computed_finality_digest << " " <<  block_8_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 9  " << " " <<  block_9_result.computed_finality_digest << " " <<  block_9_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 10 " << " " << block_10_result.computed_finality_digest << " " << block_10_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 11 " << " " << block_11_result.computed_finality_digest << " " << block_11_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 12 " << " " << block_12_result.computed_finality_digest << " " << block_12_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 13 " << " " << block_13_result.computed_finality_digest << " " << block_13_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 14 " << " " << block_14_result.computed_finality_digest << " " << block_14_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 15 " << " " << block_15_result.computed_finality_digest << " " << block_15_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 16 " << " " << block_16_result.computed_finality_digest << " " << block_16_result.finality_digest << "\n";
-      std::cout << " finality_digest (computed vs actual) 17 " << " " << block_17_result.computed_finality_digest << " " << block_17_result.finality_digest << "\n";
-
-      std::cout << " finality_root 1  " <<  block_1_result.finality_root << "\n";
-      std::cout << " finality_root 2  " <<  block_2_result.finality_root << "\n";
-      std::cout << " finality_root 3  " <<  block_3_result.finality_root << "\n";
-      std::cout << " finality_root 4  " <<  block_4_result.finality_root << "\n";
-      std::cout << " finality_root 5  " <<  block_5_result.finality_root << "\n";
-      std::cout << " finality_root 6  " <<  block_6_result.finality_root << "\n";
-      std::cout << " finality_root 7  " <<  block_7_result.finality_root << "\n";
-      std::cout << " finality_root 8  " <<  block_8_result.finality_root << "\n";
-      std::cout << " finality_root 9  " <<  block_9_result.finality_root << "\n";
-      std::cout << " finality_root 10 " << block_10_result.finality_root << "\n";
-      std::cout << " finality_root 11 " << block_11_result.finality_root << "\n";
-      std::cout << " finality_root 12 " << block_12_result.finality_root << "\n";
-      std::cout << " finality_root 13 " << block_13_result.finality_root << "\n";
-      std::cout << " finality_root 14 " << block_14_result.finality_root << "\n";
-      std::cout << " finality_root 15 " << block_15_result.finality_root << "\n";
-      std::cout << " finality_root 16 " << block_16_result.finality_root << "\n";
-      std::cout << " finality_root 17 " << block_17_result.finality_root << "\n";
-
-      qc_data_t qc_b_8 = extract_qc_data(block_8_result.block);
-      qc_data_t qc_b_9 = extract_qc_data(block_9_result.block);
-      qc_data_t qc_b_10 = extract_qc_data(block_10_result.block);
       qc_data_t qc_b_11 = extract_qc_data(block_11_result.block);
       qc_data_t qc_b_12 = extract_qc_data(block_12_result.block);
       qc_data_t qc_b_13 = extract_qc_data(block_13_result.block);
@@ -568,9 +654,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       qc_data_t qc_b_16 = extract_qc_data(block_16_result.block);
       qc_data_t qc_b_17 = extract_qc_data(block_17_result.block);
 
-      BOOST_TEST(qc_b_8.qc.has_value());
-      BOOST_TEST(qc_b_9.qc.has_value());
-      BOOST_TEST(qc_b_10.qc.has_value());
       BOOST_TEST(qc_b_11.qc.has_value());
       BOOST_TEST(qc_b_12.qc.has_value());
       BOOST_TEST(qc_b_13.qc.has_value());

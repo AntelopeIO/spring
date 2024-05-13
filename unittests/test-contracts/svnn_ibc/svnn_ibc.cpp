@@ -182,6 +182,7 @@ ACTION svnn_ibc::setfpolicy(const finalizer_policy_input& policy, const uint32_t
     //clean up if necessary
     _maybe_remove_from_cache<policies_table>();
     _maybe_remove_from_cache<proofs_table>();
+    
 }
 
 ACTION svnn_ibc::checkproof(const proof& proof, const bool assert){
@@ -198,7 +199,6 @@ ACTION svnn_ibc::checkproof(const proof& proof, const bool assert){
     //clean up if necessary
     _maybe_remove_from_cache<policies_table>();
     _maybe_remove_from_cache<proofs_table>();
-
 
     check(!assert, "expected");
 
