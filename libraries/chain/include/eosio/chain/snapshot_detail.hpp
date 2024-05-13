@@ -119,6 +119,7 @@ namespace eosio::chain::snapshot_detail {
       flat_map<block_timestamp_type, proposer_policy_ptr> proposer_policies;
       flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
       uint32_t                                            finalizer_policy_generation;
+      digest_type                                         last_pending_finalizer_policy_digest;
 
       // from block_state
       std::optional<valid_t>                              valid;
@@ -135,6 +136,7 @@ namespace eosio::chain::snapshot_detail {
          , proposer_policies(bs.proposer_policies)
          , finalizer_policies(bs.finalizer_policies)
          , finalizer_policy_generation(bs.finalizer_policy_generation)
+         , last_pending_finalizer_policy_digest(bs.last_pending_finalizer_policy_digest)
          , valid(bs.valid)
       {}
    };
@@ -215,6 +217,7 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
             (proposer_policies)
             (finalizer_policies)
             (finalizer_policy_generation)
+            (last_pending_finalizer_policy_digest)
             (valid)
    )
 
