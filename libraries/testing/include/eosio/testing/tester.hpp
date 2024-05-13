@@ -170,7 +170,7 @@ namespace eosio::testing {
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
-         void              init(controller::config config, const genesis_state& genesis);
+         void              init(controller::config config, const genesis_state& genesis, bool do_startup = true);
          void              init(controller::config config);
          void              init(controller::config config, protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot);
          void              init(controller::config config, protocol_feature_set&& pfs, const genesis_state& genesis);
@@ -180,10 +180,10 @@ namespace eosio::testing {
          void              close();
          void              open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id, const std::function<void()>& lambda );
          void              open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot );
-         void              open( protocol_feature_set&& pfs, const genesis_state& genesis );
+         void              open( protocol_feature_set&& pfs, const genesis_state& genesis, bool do_startup = true );
          void              open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id = {} );
          void              open( const snapshot_reader_ptr& snapshot );
-         void              open( const genesis_state& genesis );
+         void              open( const genesis_state& genesis, bool do_startup = true );
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
@@ -553,8 +553,15 @@ namespace eosio::testing {
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
-      tester(controller::config config, const genesis_state& genesis) {
-         init(std::move(config), genesis);
+      // If `do_startup` is true, tester starts the chain during initialization.
+      //
+      // If `do_startup` is true, tester does NOT start the chain during initialization;
+      // the user must call `startup()` explicitly.
+      // Before calling `startup()`, the user can do additional setups like connecting
+      // to a particular signal, and customizing shutdown conditions.
+      // See blocks_log_replay_tests.cpp in unit_test for an example.
+      tester(controller::config config, const genesis_state& genesis, bool do_startup = true) {
+         init(std::move(config), genesis, do_startup);
       }
 
       tester(controller::config config) {

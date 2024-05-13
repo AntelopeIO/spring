@@ -199,9 +199,9 @@ namespace eosio::testing {
       open(snapshot);
    }
 
-   void base_tester::init(controller::config config, const genesis_state& genesis) {
+   void base_tester::init(controller::config config, const genesis_state& genesis, bool do_startup) {
       cfg = std::move(config);
-      open(genesis);
+      open(genesis, do_startup);
    }
 
    void base_tester::init(controller::config config) {
@@ -302,8 +302,8 @@ namespace eosio::testing {
       open( make_protocol_feature_set(), snapshot );
    }
 
-   void base_tester::open( const genesis_state& genesis ) {
-      open( make_protocol_feature_set(), genesis );
+   void base_tester::open( const genesis_state& genesis, bool do_startup ) {
+      open( make_protocol_feature_set(), genesis, do_startup );
    }
 
    void base_tester::open( std::optional<chain_id_type> expected_chain_id ) {
@@ -358,10 +358,14 @@ namespace eosio::testing {
       });
    }
 
-   void base_tester::open( protocol_feature_set&& pfs, const genesis_state& genesis ) {
-      open(std::move(pfs), genesis.compute_chain_id(), [&genesis,&control=this->control]() {
-         control->startup( [](){}, []() { return false; }, genesis );
-      });
+   void base_tester::open( protocol_feature_set&& pfs, const genesis_state& genesis, bool do_startup ) {
+      if (do_startup) {
+         open(std::move(pfs), genesis.compute_chain_id(), [&genesis,&control=this->control]() {
+            control->startup( [](){}, []() { return false; }, genesis );
+         });
+      } else {
+         open(std::move(pfs), genesis.compute_chain_id(), nullptr);
+      }
    }
 
    void base_tester::open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id ) {
