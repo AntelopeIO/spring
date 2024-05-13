@@ -501,6 +501,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
+            BOOST_REQUIRE_EQUAL(control->head_sanity_check(), true);
             auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
