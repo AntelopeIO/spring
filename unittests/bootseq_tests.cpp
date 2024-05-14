@@ -57,6 +57,8 @@ std::vector<genesis_account> test_genesis( {
 
 class bootseq_tester : public validating_tester {
 public:
+   bootseq_tester() : validating_tester({}, nullptr, setup_policy::full_pre_savanna) {};
+
    void deploy_contract( bool call_init = true ) {
       set_code( config::system_account_name, test_contracts::eosio_system_wasm() );
       set_abi( config::system_account_name, test_contracts::eosio_system_abi() );
