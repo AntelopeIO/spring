@@ -2,9 +2,9 @@
 #include <boost/test/unit_test.hpp>
 
 // Test scenarios
-//    * replay through blocks log and irreverible blocks
+//    * replay through blocks log and reverible blocks
 //    * replay stopping in the middle of blocks log and resuming
-//    * replay stopping in the middle of irreverible blocks and resuming
+//    * replay stopping in the middle of reverible blocks and resuming
 //
 
 BOOST_AUTO_TEST_SUITE(blocks_log_replay_tests)

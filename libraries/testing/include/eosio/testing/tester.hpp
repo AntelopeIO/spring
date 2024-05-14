@@ -556,7 +556,7 @@ namespace eosio::testing {
 
       // If `do_startup` is true, tester starts the chain during initialization.
       //
-      // If `do_startup` is true, tester does NOT start the chain during initialization;
+      // If `do_startup` is false, tester does NOT start the chain during initialization;
       // the user must call `startup()` explicitly.
       // Before calling `startup()`, the user can do additional setups like connecting
       // to a particular signal, and customizing shutdown conditions.
