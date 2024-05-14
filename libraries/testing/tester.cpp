@@ -294,6 +294,13 @@ namespace eosio::testing {
             if (policy == setup_policy::full) {
                // Activate Savanna consensus
                // --------------------------
+               constexpr size_t num_keys    = 4u;
+               constexpr size_t finset_size = 4u;
+               constexpr size_t first_key_idx = 0u;
+               finalizer_keys fin_keys(*this, num_keys, finset_size); // Create finalizer keys
+               fin_keys.set_node_finalizers(first_key_idx, num_keys); // set finalizers on current node
+               fin_keys.set_finalizer_policy(first_key_idx); // set active finalizer policy
+               fin_keys.transition_to_savanna();
             }
             break;
          }
