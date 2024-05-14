@@ -841,7 +841,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE(light_validation_skip_cfa) try {
-   tester chain(setup_policy::full_pre_savanna);
+   tester chain;
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
@@ -1590,7 +1590,7 @@ BOOST_AUTO_TEST_CASE(transaction_tests_after_disable_trxs_protocol_features) { t
 BOOST_AUTO_TEST_CASE(inline_action_with_over_4k_limit) { try {
    const uint32_t _4k = 4 * 1024;
    tester chain(setup_policy::full, db_read_mode::HEAD, {_4k + 100});
-   tester chain2(setup_policy::full_pre_savanna, db_read_mode::HEAD, {_4k + 100});
+   tester chain2(setup_policy::full, db_read_mode::HEAD, {_4k + 100});
    signed_block_ptr block;
    for (int n=0; n < 2; ++n) {
       block = chain.produce_block();
