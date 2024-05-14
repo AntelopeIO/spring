@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       using ordered_deque_char_diff = ordered_diff<char, uint16_t, std::deque>;
       deque<char>       source = {'a', 'x', 'c', 'd', 'e'};
       deque<char>       target = {'z', 'c', 'y', 'f'};
-      auto               result = ordered_deque_char_diff::diff(source, target);
+      auto              result = ordered_deque_char_diff::diff(source, target);
       print_diff(result);
       verify_inserted(result, std::vector{'z', 'y', 'f'});
       source = ordered_deque_char_diff::apply_diff(std::move(source), result);
@@ -84,6 +84,23 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // One Equal
+      vector<char> source = {'a'};
+      vector<char> target = source;
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // one diff
+      vector<char> source = {'a', 'a', 'b', 'a', 'a'};
+      vector<char> target = {'a', 'a', 'a', 'a'};
+      ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+
+   }
    { // Mix of removals and inserts
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'a', 'c', 'e', 'f', 'g', 'h'};
@@ -93,12 +110,27 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       BOOST_TEST(source == target);
    }
    { // Mix of removals and inserts
-      vector<int> source = {1, 2, 3, 4, 5};
-      vector<int> target = {3, 4, 6, 2, 0};
-      auto result = ordered_diff<int>::diff(source, target);
-      // 2 insert because order changed between 3,4 and 2
-      verify_inserted(result, std::vector{6, 2, 0});
-      source = ordered_diff<int>::apply_diff(std::move(source), result);
+      vector<char> source = {'a', 'x', 'c', 'j', 'e', 'k', 'a', 'b'};
+      vector<char> target = {'a', 'c', 'e', 'f', 'g', 'h'};
+      ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'f', 'g', 'h'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Mix of removals and inserts
+      vector<char> source = {'a', 'x', 'c', 'j', 'e', 'k'};
+      vector<char> target = {'e', 'c', 'a', 'f', 'a', 'h'};
+      ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'f', 'a', 'h'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Mix of removals and inserts
+      vector<char> source = {'b', 'c', 'd', 'e', 'f'};
+      vector<char> target = {'d', 'e', 'g', 'c', 'a'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector{'g', 'a'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
    { // Complete change
@@ -113,7 +145,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'e', 'd', 'c', 'b', 'a'};
       auto result = ordered_diff<char>::diff(source, target);
-      verify_inserted(result, std::vector{'d', 'c', 'b', 'a'});
+      verify_inserted(result, std::vector<char>{});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -125,11 +157,43 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // shift left 1
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'b', 'c', 'd', 'e'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // shift left 2
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'c', 'd', 'e'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
    { // shift right
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'z', 'a', 'b', 'c', 'd'};
       auto result = ordered_diff<char>::diff(source, target);
       verify_inserted(result, std::vector{'z'});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // shift right 1
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'a', 'b', 'c', 'd'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // shift right 2
+      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = {'a', 'b', 'c'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
@@ -244,27 +308,32 @@ BOOST_AUTO_TEST_CASE(ordered_diff_string_test) try {
 
 } FC_LOG_AND_RETHROW();
 
-class count_moves {
+class count_copies {
    std::string s;
 public:
    inline static size_t num_moves = 0;
-   count_moves(const count_moves& m) : s(m.s) {};
-   count_moves(count_moves&& m) noexcept : s(std::move(m.s)) { ++num_moves; };
-   count_moves& operator=(const count_moves& rhs) = default;
-   explicit count_moves(std::string s) : s(s) {};
-   auto operator<=>(const count_moves&) const = default;
-   bool operator==(const count_moves&) const = default;
+   inline static size_t num_copies = 0;
+   count_copies(const count_copies& m) : s(m.s) { ++num_copies; };
+   count_copies(count_copies&& m) noexcept : s(std::move(m.s)) { ++num_moves; };
+   count_copies& operator=(const count_copies& rhs) {  s = rhs.s; ++num_copies; return *this; }
+   count_copies& operator=(count_copies&& rhs) { if (&rhs == this) return *this; s = std::move(rhs.s); ++num_moves; return *this; }
+   explicit count_copies(std::string s) : s(s) {};
+   auto operator<=>(const count_copies&) const = default;
+   bool operator==(const count_copies&) const = default;
 };
 
 BOOST_AUTO_TEST_CASE(ordered_diff_moveable_test) try {
    using namespace std;
    {
-      vector<count_moves> source = {count_moves{"hello"}, count_moves{"there"}};
-      vector<count_moves> target = {count_moves{"hi"}, count_moves{"there"}};
-      auto result = ordered_diff<count_moves>::diff(source, target);
-      source = ordered_diff<count_moves>::apply_diff(std::move(source), std::move(result));
+      vector<count_copies> source = {count_copies{"hello"}, count_copies{"there"}, count_copies{"how"}, count_copies{"you"}};
+      vector<count_copies> target = {count_copies{"hi"}, count_copies{"you"}, count_copies{"there"}};
+      auto result = ordered_diff<count_copies>::diff(source, target);
+      auto num_copies = count_copies::num_copies;
+      auto num_moves = count_copies::num_moves;
+      source = ordered_diff<count_copies>::apply_diff(std::move(source), std::move(result));
       BOOST_TEST(source == target);
-      BOOST_TEST(count_moves::num_moves == 2u); // one move is for std::reverse
+      BOOST_TEST(count_copies::num_copies == num_copies); // no copies applying diff
+      BOOST_TEST(count_copies::num_moves < 2*num_moves);
    }
 
 } FC_LOG_AND_RETHROW();

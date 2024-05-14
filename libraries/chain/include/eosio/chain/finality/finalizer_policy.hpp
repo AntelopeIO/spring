@@ -56,5 +56,5 @@ namespace eosio::chain {
 } /// eosio::chain
 
 FC_REFLECT( eosio::chain::finalizer_policy, (generation)(threshold)(finalizers) )
-FC_REFLECT( eosio::chain::finalizers_diff_t, (remove_indexes)(insert_indexes) )
+FC_REFLECT( eosio::chain::finalizers_diff_t, (remove_indexes)(insert_indexes)(move_indexes) )
 FC_REFLECT( eosio::chain::finalizer_policy_diff, (generation)(threshold)(finalizers_diff) )
