@@ -85,15 +85,19 @@ public:
          }
 
          if (cmp == std::weak_ordering::less) {
+            assert(orig_sorted[orig_index].second <= std::numeric_limits<SizeType>::max());
             result.remove_indexes.emplace_back(orig_sorted[orig_index].second);
             ++orig_index;
          } else if (cmp == std::weak_ordering::greater) {
+            assert(targ_sorted[cur_index].second <= std::numeric_limits<SizeType>::max());
             result.insert_indexes.emplace_back(targ_sorted[cur_index].second, std::move(targ_sorted[cur_index].first));
             ++cur_index;
          } else {
             // cmp == std::weak_ordering::equivalent
             assert(orig_sorted[orig_index].first == targ_sorted[cur_index].first);
             if (orig_sorted[orig_index].second != targ_sorted[cur_index].second) {
+               assert(orig_sorted[orig_index].second <= std::numeric_limits<SizeType>::max());
+               assert(targ_sorted[cur_index].second <= std::numeric_limits<SizeType>::max());
                result.move_indexes.emplace_back(orig_sorted[orig_index].second, targ_sorted[cur_index].second);
             }
             ++orig_index;
