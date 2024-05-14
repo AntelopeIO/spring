@@ -43,17 +43,15 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   assert(active_finalizer_policy);
-   auto active_finalizer_policy_digest = fc::sha256::hash(*active_finalizer_policy);
    auto base_digest = compute_base_digest();
+   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
+   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
 
-   std::pair<const digest_type&, const digest_type&> active_and_base{ active_finalizer_policy_digest, base_digest };
-   auto afp_base_digest = fc::sha256::hash(active_and_base);
-
+   assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .finality_tree_digest                    = finality_mroot(),
-      .active_finalizer_policy_and_base_digest = afp_base_digest
+      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
 
    return fc::sha256::hash(finality_digest_data);
@@ -67,7 +65,7 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
    return detail::get_new_protocol_feature_activations(header_exts);
 }
 
-// The last proposed finalizer policy if none proposed or pending is the active finalizer policy
+// The last proposed finalizer policy if none proposed or pending then the active finalizer policy
 const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy() const {
    if (!finalizer_policies.empty()) {
       for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
@@ -75,6 +73,31 @@ const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy()
             return *ritr->second.policy;
       }
       return *finalizer_policies.rbegin()->second.policy;
+   }
+   return *active_finalizer_policy;
+}
+
+// The last pending finalizer policy if none pending then the active finalizer policy
+// Used to populate last_pending_finalizer_policy_digest which is expected to be the highest generation pending
+const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() const {
+   if (!finalizer_policies.empty()) {
+      // lambda only used when asserts enabled
+      [[maybe_unused]] auto highest_pending_generation = [this]() {
+         finalizer_policy_ptr highest;
+         for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+            if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
+               if (!highest || highest->generation < ritr->second.policy->generation)
+                  highest = ritr->second.policy;
+            }
+         }
+         return highest;
+      };
+      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+         if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
+            assert(highest_pending_generation() == ritr->second.policy);
+            return *ritr->second.policy;
+         }
+      }
    }
    return *active_finalizer_policy;
 }
@@ -206,6 +229,8 @@ void finish_next(const block_header_state& prev,
          }
       }
    }
+
+   next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
 
    if (if_ext.new_finalizer_policy_diff) {
       finalizer_policy new_finalizer_policy = prev.get_last_proposed_finalizer_policy().apply_diff(*if_ext.new_finalizer_policy_diff);
