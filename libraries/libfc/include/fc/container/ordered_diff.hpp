@@ -112,19 +112,17 @@ public:
       // update move indexes
       if (!result.move_indexes.empty()) {
          // remove decreases `from` index
-         auto m = result.move_indexes.begin();
-         for (auto ritr = result.remove_indexes.rbegin(); ritr != result.remove_indexes.rend(); ++ritr) {
-            m = std::lower_bound(m, result.move_indexes.end(), *ritr, [&](const auto& p, const auto& v) { return p.first < v; });
-            for (auto i = m; i != result.move_indexes.end(); ++i) {
-               --i->first;
+         for (const auto& i : result.remove_indexes) {
+            auto m = std::lower_bound(result.move_indexes.begin(), result.move_indexes.end(), i, [&](const auto& p, const auto& v) { return p.first < v; });
+            for (; m != result.move_indexes.end(); ++m) {
+               --m->first;
             }
          }
          // insert increases `from` index
-         m = result.move_indexes.begin();
          for (const auto& i : result.insert_indexes) {
-            m = std::lower_bound(m, result.move_indexes.end(), i.first, [](const auto& p, const auto& v) { return p.first < v; });
-            for (auto i = m; i != result.move_indexes.end(); ++i) {
-               ++i->first;
+            auto m = std::lower_bound(result.move_indexes.begin(), result.move_indexes.end(), i.first, [](const auto& p, const auto& v) { return p.first < v; });
+            for (; m != result.move_indexes.end(); ++m) {
+               ++m->first;
             }
          }
          // remove any moves that are not needed, from == to
@@ -142,12 +140,15 @@ public:
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
    static Container<T> apply_diff(Container<T>&& container, X&& diff) {
-      // Remove from the container based on diff.remove_indexes
+      // Remove from the container based on diff.remove_indexes which is descending order
       for (auto index : diff.remove_indexes) {
          container.erase(container.begin() + index);
       }
 
       // Insert into the container based on diff.insert_indexes
+      if constexpr (requires(Container<T>& t) { t.reserve(0u); }) {
+         container.reserve(container.size() + diff.insert_indexes.size());
+      }
       for (auto&& [index, value] : diff.insert_indexes) {
          container.insert(container.begin() + index, std::move(value));
       }

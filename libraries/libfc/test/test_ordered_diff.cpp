@@ -197,6 +197,22 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // remove odd
+      vector<char> source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char> target = {'b', 'd', 'f', 'h'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // remove even
+      vector<char> source = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+      vector<char> target = {'a', 'c', 'e', 'g'};
+      auto result = ordered_diff<char>::diff(source, target);
+      verify_inserted(result, std::vector<char>{});
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
    { // non-unique
       vector<char> source = {'a', 'b', 'c', 'd', 'e', 'c', 'a', 'q'};
       vector<char> target = {'z', 'a', 'b', 'c', 'd', 'a'};
@@ -305,6 +321,27 @@ BOOST_AUTO_TEST_CASE(ordered_diff_string_test) try {
       source = ordered_diff<string>::apply_diff(std::move(source), std::move(result));
       BOOST_TEST(source == target);
    }
+   {
+      vector<string> source = {
+         "inita", "initb", "initc", "initd", "inite", "initf", "initg",
+         "inith", "initi", "initj", "initk", "initl", "initm", "initn",
+         "inito", "initp", "initq", "initr", "inits", "initt", "initu"};
+      vector<string> target = { source[3], source[6], source[9], source[12], source[15], source[18], source[20] };
+      auto result = ordered_diff<string>::diff(source, target);
+      source = ordered_diff<string>::apply_diff(std::move(source), std::move(result));
+      BOOST_TEST(source == target);
+   }
+   {
+      vector<string> source = {
+         "inita", "initb", "initc", "initd", "inite", "initf", "initg",
+         "inith", "initi", "initj", "initk", "initl", "initm", "initn",
+         "inito", "initp", "initq", "initr", "inits", "initt", "initu"};
+      vector<string> target = { source[3], source[6] };
+      auto result = ordered_diff<string>::diff(source, target);
+      source = ordered_diff<string>::apply_diff(std::move(source), std::move(result));
+      BOOST_TEST(source == target);
+   }
+
 
 } FC_LOG_AND_RETHROW();
 
