@@ -156,7 +156,7 @@ public:
       // ----------------------------
       for (size_t i=0; i<nodes.size(); ++i)
          fin_policy_indices_0[i] = i * split;
-      fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(fin_policy_indices_0);
+      fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(fin_policy_indices_0).pubkeys;
 
       if (config.transition_to_savanna) {
          // transition to Savanna

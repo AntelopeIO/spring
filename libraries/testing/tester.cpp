@@ -423,14 +423,13 @@ namespace eosio::testing {
                trace->except->dynamic_rethrow_exception();
             }
             itr = unapplied_transactions.erase( itr );
-            res.traces.emplace_back( std::move(trace) );
+            res.unapplied_transaction_traces.emplace_back( std::move(trace) );
          }
 
          vector<transaction_id_type> scheduled_trxs;
          while ((scheduled_trxs = get_scheduled_transactions()).size() > 0 ) {
             for( const auto& trx : scheduled_trxs ) {
                auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
-               res.traces.emplace_back( trace );
                if( !no_throw && trace->except ) {
                   // this always throws an fc::exception, since the original exception is copied into an fc::exception
                   trace->except->dynamic_rethrow_exception();
@@ -1171,6 +1170,7 @@ namespace eosio::testing {
    vector<producer_authority> base_tester::get_producer_authorities( const vector<account_name>& producer_names )const {
        // Create producer schedule
        vector<producer_authority> schedule;
+       schedule.reserve(producer_names.size());
        for (auto& producer_name: producer_names) {
           schedule.emplace_back(producer_authority{ producer_name, block_signing_authority_v0{1, {{ get_public_key( producer_name, "active" ), 1}} } });
        }
@@ -1193,7 +1193,6 @@ namespace eosio::testing {
 
       return push_action( config::system_account_name, "setprods"_n, config::system_account_name,
                           fc::mutable_variant_object()("schedule", schedule_variant));
-
    }
 
    transaction_trace_ptr base_tester::set_producers_legacy(const vector<account_name>& producer_names) {
@@ -1210,11 +1209,9 @@ namespace eosio::testing {
 
       return push_action( config::system_account_name, "setprods"_n, config::system_account_name,
                           fc::mutable_variant_object()("schedule", legacy_keys));
-
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
-   base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
+   base_tester::set_finalizers_output_t base_tester::set_finalizers(std::span<const account_name> finalizer_names) {
       auto num_finalizers = finalizer_names.size();
       std::vector<finalizer_policy_input::finalizer_info> finalizers_info;
       finalizers_info.reserve(num_finalizers);
@@ -1231,11 +1228,11 @@ namespace eosio::testing {
       return set_finalizers(policy_input);
    }
 
-   std::pair<transaction_trace_ptr, std::vector<bls_private_key>>
-   base_tester::set_finalizers(const finalizer_policy_input& input) {
+   base_tester::set_finalizers_output_t base_tester::set_finalizers(const finalizer_policy_input& input) {
+      set_finalizers_output_t res;
+
       chain::bls_pub_priv_key_map_t local_finalizer_keys;
       fc::variants finalizer_auths;
-      std::vector<bls_private_key> priv_keys;
 
       for (const auto& f: input.finalizers) {
          auto [privkey, pubkey, pop] = get_bls_key( f.name );
@@ -1244,8 +1241,10 @@ namespace eosio::testing {
          if( auto it = std::ranges::find_if(input.local_finalizers, [&](const auto& name) { return name == f.name; });
              it != input.local_finalizers.end()) {
             local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
-            priv_keys.emplace_back(privkey);
+            res.privkeys.emplace_back(privkey);
          };
+
+         res.pubkeys.emplace_back(pubkey);
 
          finalizer_auths.emplace_back(
             fc::mutable_variant_object()
@@ -1261,14 +1260,14 @@ namespace eosio::testing {
       fin_policy_variant("threshold", input.threshold);
       fin_policy_variant("finalizers", std::move(finalizer_auths));
 
-      return { push_action( config::system_account_name, "setfinalizer"_n, config::system_account_name,
-                          fc::mutable_variant_object()("finalizer_policy", std::move(fin_policy_variant))),
-               priv_keys };
+      res.setfinalizer_trace =
+         push_action( config::system_account_name, "setfinalizer"_n, config::system_account_name,
+                      fc::mutable_variant_object()("finalizer_policy", std::move(fin_policy_variant)));
+      return res;
    }
 
    void base_tester::set_node_finalizers(std::span<const account_name> names) {
-
-      chain::bls_pub_priv_key_map_t local_finalizer_keys;
+      bls_pub_priv_key_map_t local_finalizer_keys;
       for (auto name: names) {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
@@ -1276,20 +1275,15 @@ namespace eosio::testing {
       control->set_node_finalizer_keys(local_finalizer_keys);
    }
 
-   std::vector<bls_public_key> base_tester::set_active_finalizers(std::span<const account_name> names) {
-      std::vector<bls_public_key> pubkeys;
-      pubkeys.reserve(names.size());
+   base_tester::set_finalizers_output_t base_tester::set_active_finalizers(std::span<const account_name> names) {
       finalizer_policy_input input;
       input.finalizers.reserve(names.size());
-      for (auto name : names) {
-         auto [privkey, pubkey, pop] = get_bls_key(name);
-         pubkeys.push_back(pubkey);
+      for (auto name : names)
          input.finalizers.emplace_back(name, 1);
-      }
+
       // same as reference-contracts/.../contracts/eosio.system/src/finalizer_key.cpp#L73
       input.threshold = (names.size() * 2) / 3 + 1;
-      set_finalizers(input);
-      return pubkeys;
+      return set_finalizers(input);
    }
 
    const table_id_object* base_tester::find_table( name code, name scope, name table ) {
