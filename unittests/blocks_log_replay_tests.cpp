@@ -2,9 +2,9 @@
 #include <boost/test/unit_test.hpp>
 
 // Test scenarios
-//    * replay through blocks log and reverible blocks
+//    * replay through blocks log and reversible blocks
 //    * replay stopping in the middle of blocks log and resuming
-//    * replay stopping in the middle of reverible blocks and resuming
+//    * replay stopping in the middle of reversible blocks and resuming
 //
 
 BOOST_AUTO_TEST_SUITE(blocks_log_replay_tests)
@@ -114,7 +114,7 @@ struct blog_replay_fixture {
    }
 };
 
-// Test replay through blocks log and reverible blocks
+// Test replay through blocks log and reversible blocks
 BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
    eosio::chain::controller::config copied_config = chain.get_config();
 
@@ -142,7 +142,7 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle, blog_replay_fixture) try {
    stop_and_resume_replay(last_irreversible_block_num - 1);
 } FC_LOG_AND_RETHROW()
 
-// Test replay stopping in the middle of reverible blocks and resuming
+// Test replay stopping in the middle of reversible blocks and resuming
 BOOST_FIXTURE_TEST_CASE(replay_stop_in_reversible_blocks, blog_replay_fixture) try {
    // block `last_head_block_num - 1` is within reversible_blocks, since in Savanna
    // we have at least 2 reversible blocks
