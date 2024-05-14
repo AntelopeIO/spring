@@ -147,12 +147,8 @@ namespace eosio::chain {
          return result;
       }
 
-      friend bool operator == ( const block_signing_authority_v0& lhs, const block_signing_authority_v0& rhs ) {
-         return tie( lhs.threshold, lhs.keys ) == tie( rhs.threshold, rhs.keys );
-      }
-      friend bool operator != ( const block_signing_authority_v0& lhs, const block_signing_authority_v0& rhs ) {
-         return tie( lhs.threshold, lhs.keys ) != tie( rhs.threshold, rhs.keys );
-      }
+      friend auto operator <=> ( const block_signing_authority_v0&, const block_signing_authority_v0&) = default;
+      friend bool operator ==  ( const block_signing_authority_v0&, const block_signing_authority_v0&) = default;
    };
 
    using block_signing_authority = std::variant<block_signing_authority_v0>;
@@ -209,12 +205,8 @@ namespace eosio::chain {
        */
       fc::variant get_abi_variant() const;
 
-      friend bool operator == ( const producer_authority& lhs, const producer_authority& rhs ) {
-         return tie( lhs.producer_name, lhs.authority ) == tie( rhs.producer_name, rhs.authority );
-      }
-      friend bool operator != ( const producer_authority& lhs, const producer_authority& rhs ) {
-         return tie( lhs.producer_name, lhs.authority ) != tie( rhs.producer_name, rhs.authority );
-      }
+      friend auto operator<=>(const producer_authority&, const producer_authority&) = default;
+      friend bool operator==(const producer_authority&, const producer_authority&) = default;
    };
 
    struct producer_authority_schedule {

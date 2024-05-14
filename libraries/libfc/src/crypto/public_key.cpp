@@ -93,10 +93,15 @@ namespace fc { namespace crypto {
       return eq_comparator<public_key::storage_type>::apply(p1._storage, p2._storage);
    }
 
-   bool operator!=( const public_key& p1, const public_key& p2) {
-      return !(p1 == p2);
+   std::strong_ordering operator<=>(const public_key& lhs, const public_key& rhs) {
+      if (lhs == rhs)
+         return std::strong_ordering::equal;
+      else if (lhs < rhs)
+         return std::strong_ordering::less;
+      else
+         return std::strong_ordering::greater;
    }
-
+   
    bool operator<( const public_key& p1, const public_key& p2)
    {
       return less_comparator<public_key::storage_type>::apply(p1._storage, p2._storage);

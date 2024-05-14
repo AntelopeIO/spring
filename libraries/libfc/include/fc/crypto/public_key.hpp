@@ -46,8 +46,8 @@ namespace fc { namespace crypto {
 
       private:
          friend std::ostream& operator<<(std::ostream& s, const public_key& k);
+         friend std::strong_ordering operator<=>(const public_key&, const public_key&);
          friend bool operator==( const public_key& p1, const public_key& p2);
-         friend bool operator!=( const public_key& p1, const public_key& p2);
          friend bool operator<( const public_key& p1, const public_key& p2);
          friend struct reflector<public_key>;
          friend class private_key;

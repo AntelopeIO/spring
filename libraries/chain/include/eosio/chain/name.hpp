@@ -68,11 +68,12 @@ namespace eosio::chain {
       friend constexpr bool operator > ( const name& a, const name& b ) { return a.value > b.value; }
       friend constexpr bool operator <= ( const name& a, const name& b ) { return a.value <= b.value; }
       friend constexpr bool operator >= ( const name& a, const name& b ) { return a.value >= b.value; }
-      friend constexpr bool operator == ( const name& a, const name& b ) { return a.value == b.value; }
-      friend constexpr bool operator != ( const name& a, const name& b ) { return a.value != b.value; }
 
       friend constexpr bool operator == ( const name& a, uint64_t b ) { return a.value == b; }
       friend constexpr bool operator != ( const name& a, uint64_t b ) { return a.value != b; }
+
+      friend constexpr auto operator <=> (const name&, const name&) = default;
+      friend constexpr bool operator ==  (const name&, const name&) = default;
 
       constexpr explicit operator bool()const { return value != 0; }
 
