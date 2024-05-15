@@ -17,37 +17,43 @@ using namespace eosio::testing;
 
 BOOST_AUTO_TEST_SUITE(auth_tests)
 
-BOOST_FIXTURE_TEST_CASE( missing_sigs, validating_tester ) { try {
-   create_accounts( {"alice"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE( missing_sigs, TESTER, validating_testers ) { try {
+   TESTER chain;
 
-   BOOST_REQUIRE_THROW( push_reqauth( "alice"_n, {permission_level{"alice"_n, config::active_name}}, {} ), unsatisfied_authorization );
-   auto trace = push_reqauth("alice"_n, "owner");
+   chain.create_accounts( {"alice"_n} );
+   chain.produce_block();
 
-   produce_block();
-   BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trace->id));
+   BOOST_REQUIRE_THROW( chain.push_reqauth( "alice"_n, {permission_level{"alice"_n, config::active_name}}, {} ), unsatisfied_authorization );
+   auto trace = chain.push_reqauth("alice"_n, "owner");
+
+   chain.produce_block();
+   BOOST_REQUIRE_EQUAL(true, chain.chain_has_transaction(trace->id));
 
 } FC_LOG_AND_RETHROW() } /// missing_sigs
 
-BOOST_FIXTURE_TEST_CASE( missing_multi_sigs, validating_tester ) { try {
-    produce_block();
-    create_account("alice"_n, config::system_account_name, true);
-    produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE( missing_multi_sigs, TESTER, validating_testers ) { try {
+    TESTER chain;
 
-    BOOST_REQUIRE_THROW(push_reqauth("alice"_n, "owner"), unsatisfied_authorization); // without multisig
-    auto trace = push_reqauth("alice"_n, "owner", true); // with multisig
+    chain.produce_block();
+    chain.create_account("alice"_n, config::system_account_name, true);
+    chain.produce_block();
 
-    produce_block();
-    BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trace->id));
+    BOOST_REQUIRE_THROW(chain.push_reqauth("alice"_n, "owner"), unsatisfied_authorization); // without multisig
+    auto trace = chain.push_reqauth("alice"_n, "owner", true); // with multisig
+
+    chain.produce_block();
+    BOOST_REQUIRE_EQUAL(true, chain.chain_has_transaction(trace->id));
 
  } FC_LOG_AND_RETHROW() } /// missing_multi_sigs
 
-BOOST_FIXTURE_TEST_CASE( missing_auths, validating_tester ) { try {
-   create_accounts( {"alice"_n, "bob"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE( missing_auths, TESTER, validating_testers ) { try {
+   TESTER chain;
+
+   chain.create_accounts( {"alice"_n, "bob"_n} );
+   chain.produce_block();
 
    /// action not provided from authority
-   BOOST_REQUIRE_THROW( push_reqauth( "alice"_n, {permission_level{"bob"_n, config::active_name}}, { get_private_key("bob"_n, "active") } ), missing_auth_exception);
+   BOOST_REQUIRE_THROW( chain.push_reqauth( "alice"_n, {permission_level{"bob"_n, config::active_name}}, { chain.get_private_key("bob"_n, "active") } ), missing_auth_exception);
 
 } FC_LOG_AND_RETHROW() } /// transfer_test
 
@@ -55,35 +61,37 @@ BOOST_FIXTURE_TEST_CASE( missing_auths, validating_tester ) { try {
  *  This test case will attempt to allow one account to transfer on behalf
  *  of another account by updating the active authority.
  */
-BOOST_FIXTURE_TEST_CASE( delegate_auth, validating_tester ) { try {
-   create_accounts( {"alice"_n,"bob"_n});
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE( delegate_auth, TESTER, validating_testers ) { try {
+   TESTER chain;
+
+   chain.create_accounts( {"alice"_n,"bob"_n});
+   chain.produce_block();
 
    auto delegated_auth = authority( 1, {},
                           {
                             { .permission = {"bob"_n,config::active_name}, .weight = 1}
                           });
 
-   auto original_auth = control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
+   auto original_auth = chain.control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
    wdump((original_auth));
 
-   set_authority( "alice"_n, config::active_name,  delegated_auth );
+   chain.set_authority( "alice"_n, config::active_name,  delegated_auth );
 
-   auto new_auth = control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
+   auto new_auth = chain.control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
    wdump((new_auth));
    BOOST_CHECK_EQUAL((new_auth == delegated_auth), true);
 
-   produce_block();
-   produce_block();
+   chain.produce_block();
+   chain.produce_block();
 
-   auto auth = control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
+   auto auth = chain.control->get_authorization_manager().get_permission({"alice"_n, config::active_name}).auth.to_authority();
    wdump((auth));
    BOOST_CHECK_EQUAL((new_auth == auth), true);
 
    /// execute nonce from alice signed by bob
-   auto trace = push_reqauth("alice"_n, {permission_level{"alice"_n, config::active_name}}, { get_private_key("bob"_n, "active") } );
+   auto trace = chain.push_reqauth("alice"_n, {permission_level{"alice"_n, config::active_name}}, { chain.get_private_key("bob"_n, "active") } );
 
-   produce_block();
+   chain.produce_block();
    //todoBOOST_REQUIRE_EQUAL(true, chain_has_transaction(trace->id));
 
 } FC_LOG_AND_RETHROW() }
@@ -91,7 +99,8 @@ BOOST_FIXTURE_TEST_CASE( delegate_auth, validating_tester ) { try {
 
 BOOST_AUTO_TEST_CASE(update_auths) {
 try {
-   validating_tester chain;
+   savanna_validating_tester chain;
+
    chain.create_account(name("alice"));
    chain.create_account(name("bob"));
 
@@ -225,7 +234,7 @@ try {
 
 BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
    try {
-      validating_tester chain;
+      savanna_validating_tester chain;
       chain.create_account(name("alice"));
 
       // public key with no corresponding private key
@@ -258,8 +267,8 @@ BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
    } FC_LOG_AND_RETHROW()
 }
 
-BOOST_AUTO_TEST_CASE(link_auths) { try {
-   validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( link_auths, TESTER, validating_testers ) { try {
+   TESTER chain;
 
    chain.create_accounts({name("alice"),name("bob")});
 
@@ -301,8 +310,8 @@ BOOST_AUTO_TEST_CASE(link_auths) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(link_then_update_auth) { try {
-   validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( link_then_update_auth, TESTER, validating_testers ) { try {
+   TESTER chain;
 
    chain.create_account(name("alice"));
 
@@ -329,7 +338,7 @@ BOOST_AUTO_TEST_CASE(link_then_update_auth) { try {
 
 BOOST_AUTO_TEST_CASE(create_account) {
 try {
-   validating_tester chain;
+   savanna_validating_tester chain;
    chain.create_account(name("joe"));
    chain.produce_block();
 
@@ -366,8 +375,8 @@ try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( any_auth ) { try {
-   validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( any_auth, TESTER, validating_testers ) { try {
+   TESTER chain;
    chain.create_accounts( {name("alice"), name("bob")} );
    chain.produce_block();
 
@@ -401,7 +410,9 @@ BOOST_AUTO_TEST_CASE( any_auth ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(no_double_billing) {
+// This test does not apply to Savanna testing for now, as setup_policy::preactivate_feature_and_new_bios
+// does not load up bios contract for setfinalizer
+BOOST_AUTO_TEST_CASE( no_double_billing ) {
 try {
    fc::temp_directory tempdir;
    validating_tester chain( tempdir, true );
@@ -461,9 +472,9 @@ try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(stricter_auth) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( stricter_auth, TESTER, validating_testers ) {
 try {
-   validating_tester chain;
+   TESTER chain;
 
    chain.produce_block();
 
@@ -511,8 +522,8 @@ try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
-   validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_special, TESTER, validating_testers ) { try {
+   TESTER chain;
 
    const auto& tester_account = "tester"_n;
    std::vector<transaction_id_type> ids;
@@ -552,8 +563,8 @@ BOOST_AUTO_TEST_CASE( linkauth_special ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(delete_auth) { try {
-   validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
+   TESTER chain;
 
    const auto& tester_account = "tester"_n;
 
