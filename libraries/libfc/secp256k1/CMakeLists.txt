@@ -10,7 +10,7 @@ target_compile_definitions(secp256k1-internal INTERFACE ENABLE_MODULE_RECOVERY=1
                                                         COMB_TEETH=6
                                                         ECMULT_WINDOW_SIZE=15
                                                         SECP256K1_STATIC=1)
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL x86_64 OR CMAKE_SYSTEM_PROCESSOR STREQUAL amd64)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL x86_64)
   target_compile_definitions(secp256k1-internal INTERFACE USE_ASM_X86_64=1)
 endif()
 
