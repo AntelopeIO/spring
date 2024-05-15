@@ -81,6 +81,7 @@ const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy()
 // Used to populate last_pending_finalizer_policy_digest which is expected to be the highest generation pending
 const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() const {
    if (!finalizer_policies.empty()) {
+      // lambda only used when asserts enabled
       [[maybe_unused]] auto highest_pending_generation = [this]() {
          finalizer_policy_ptr highest;
          for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
