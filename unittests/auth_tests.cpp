@@ -97,9 +97,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delegate_auth, TESTER, validating_testers ) { try
 } FC_LOG_AND_RETHROW() }
 
 
-BOOST_AUTO_TEST_CASE(update_auths) {
-try {
-   savanna_validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try {
+   TESTER chain;
 
    chain.create_account(name("alice"));
    chain.create_account(name("bob"));
@@ -117,7 +116,7 @@ try {
    // Ensure the permission is updated
    permission_object::id_type owner_id;
    {
-      auto obj = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("owner")));
+      auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("owner")));
       BOOST_TEST(obj != nullptr);
       BOOST_TEST(obj->owner == name("alice"));
       BOOST_TEST(obj->name == name("owner"));
@@ -140,7 +139,7 @@ try {
    chain.produce_blocks();
 
    {
-      auto obj = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("active")));
+      auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("active")));
       BOOST_TEST(obj != nullptr);
       BOOST_TEST(obj->owner == name("alice"));
       BOOST_TEST(obj->name == name("active"));
@@ -169,12 +168,12 @@ try {
                        { permission_level{name("alice"), name("active")} }, { new_active_priv_key });
    chain.produce_blocks();
    {
-      auto obj = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
+      auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
       BOOST_TEST(obj != nullptr);
       BOOST_TEST(obj->owner == name("alice"));
       BOOST_TEST(obj->name == name("spending"));
-      BOOST_TEST(chain.get<permission_object>(obj->parent).owner == name("alice"));
-      BOOST_TEST(chain.get<permission_object>(obj->parent).name == name("active"));
+      BOOST_TEST(chain.template get<permission_object>(obj->parent).owner == name("alice"));
+      BOOST_TEST(chain.template get<permission_object>(obj->parent).name == name("active"));
    }
 
    // Update spending auth parent to be its own, should fail
@@ -187,7 +186,7 @@ try {
    // Remove spending auth
    chain.delete_authority(name("alice"), name("spending"), { permission_level{name("alice"), name("active")} }, { new_active_priv_key });
    {
-      auto obj = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
+      auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
       BOOST_TEST(obj == nullptr);
    }
    chain.produce_blocks();
@@ -202,8 +201,8 @@ try {
 
    // Verify correctness of trading and spending
    {
-      const auto* trading = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("trading")));
-      const auto* spending = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
+      const auto* trading = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("trading")));
+      const auto* spending = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
       BOOST_TEST(trading != nullptr);
       BOOST_TEST(spending != nullptr);
       BOOST_TEST(trading->owner == name("alice"));
@@ -211,8 +210,8 @@ try {
       BOOST_TEST(trading->name == name("trading"));
       BOOST_TEST(spending->name == name("spending"));
       BOOST_TEST(spending->parent == trading->id);
-      BOOST_TEST(chain.get(trading->parent).owner == name("alice"));
-      BOOST_TEST(chain.get(trading->parent).name == name("active"));
+      BOOST_TEST(chain.template get(trading->parent).owner == name("alice"));
+      BOOST_TEST(chain.template get(trading->parent).name == name("active"));
 
    }
 
@@ -225,16 +224,15 @@ try {
 
    // Delete spending auth
    chain.delete_authority(name("alice"), name("spending"), { permission_level{name("alice"), name("active")} }, { new_active_priv_key });
-   BOOST_TEST((chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")))) == nullptr);
+   BOOST_TEST((chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")))) == nullptr);
    // Delete trading auth, now it should succeed since it doesn't have any children anymore
    chain.delete_authority(name("alice"), name("trading"), { permission_level{name("alice"), name("active")} }, { new_active_priv_key });
-   BOOST_TEST((chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("trading")))) == nullptr);
+   BOOST_TEST((chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("trading")))) == nullptr);
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
-   try {
-      savanna_validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( update_auth_unknown_private_key, TESTER, validating_testers ) { try {
+      TESTER  chain;
       chain.create_account(name("alice"));
 
       // public key with no corresponding private key
@@ -251,7 +249,7 @@ BOOST_AUTO_TEST_CASE(update_auth_unknown_private_key) {
       // Ensure the permission is updated
       permission_object::id_type owner_id;
       {
-         auto obj = chain.find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("owner")));
+         auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("owner")));
          BOOST_TEST(obj != nullptr);
          BOOST_TEST(obj->owner == name("alice"));
          BOOST_TEST(obj->name == name("owner"));
@@ -336,21 +334,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( link_then_update_auth, TESTER, validating_testers
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(create_account) {
-try {
-   savanna_validating_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( create_account, TESTER, validating_testers ) { try {
+   TESTER chain;
    chain.create_account(name("joe"));
    chain.produce_block();
 
    // Verify account created properly
-   const auto& joe_owner_authority = chain.get<permission_object, by_owner>(boost::make_tuple(name("joe"), name("owner")));
+   const auto& joe_owner_authority = chain.template get<permission_object, by_owner>(boost::make_tuple(name("joe"), name("owner")));
    BOOST_TEST(joe_owner_authority.auth.threshold == 1u);
    BOOST_TEST(joe_owner_authority.auth.accounts.size() == 1u);
    BOOST_TEST(joe_owner_authority.auth.keys.size() == 1u);
    BOOST_TEST(joe_owner_authority.auth.keys[0].key.to_string({}) == chain.get_public_key(name("joe"), "owner").to_string({}));
    BOOST_TEST(joe_owner_authority.auth.keys[0].weight == 1u);
 
-   const auto& joe_active_authority = chain.get<permission_object, by_owner>(boost::make_tuple(name("joe"), name("active")));
+   const auto& joe_active_authority = chain.template get<permission_object, by_owner>(boost::make_tuple(name("joe"), name("active")));
    BOOST_TEST(joe_active_authority.auth.threshold == 1u);
    BOOST_TEST(joe_active_authority.auth.accounts.size() == 1u);
    BOOST_TEST(joe_active_authority.auth.keys.size() == 1u);
