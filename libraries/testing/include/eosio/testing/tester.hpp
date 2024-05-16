@@ -618,6 +618,14 @@ namespace eosio::testing {
 
    };
 
+   class savanna_tester : public tester {
+   public:
+      savanna_tester();
+   };
+
+   using legacy_tester = tester;
+   using testers = boost::mpl::list<legacy_tester, savanna_tester>;
+
    class tester_no_disable_deferred_trx : public tester {
    public:
       tester_no_disable_deferred_trx(): tester(setup_policy::full_except_do_not_disable_deferred_trx) {
@@ -757,6 +765,14 @@ namespace eosio::testing {
       }
    };
 
+   class savanna_validating_tester : public validating_tester {
+   public:
+      savanna_validating_tester();
+   };
+
+   using legacy_validating_tester = validating_tester;
+   using validating_testers = boost::mpl::list<legacy_validating_tester, savanna_validating_tester>;
+
    // -------------------------------------------------------------------------------------
    // creates and manages a set of `bls_public_key` used for finalizers voting and policies
    // Supports initial transition to Savanna.
@@ -863,6 +879,12 @@ namespace eosio::testing {
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
          return finalizer_policy{}.apply_diff(*fin_policy_diff);
+      }
+
+      void activate_savanna(size_t first_key_idx) {
+         set_node_finalizers(first_key_idx, pubkeys.size());
+         set_finalizer_policy(first_key_idx);
+         transition_to_savanna();
       }
 
       Tester&                 t;
