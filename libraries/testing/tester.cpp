@@ -1396,6 +1396,12 @@ namespace eosio::testing {
       execute_setup_policy(policy);
    }
 
+   savanna_tester::savanna_tester() {
+      // Activate Savanna consensus
+      finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
+      fin_keys.activate_savanna(0u /* first_key_idx */);
+   }
+
    unique_ptr<controller> validating_tester::create_validating_node(controller::config vcfg, const genesis_state& genesis, bool use_genesis, deep_mind_handler* dmlog) {
       unique_ptr<controller> validating_node = std::make_unique<controller>(vcfg, make_protocol_feature_set(), genesis.compute_chain_id());
       validating_node->add_indices();
@@ -1411,6 +1417,12 @@ namespace eosio::testing {
          validating_node->startup( [](){}, []() { return false; } );
       }
       return validating_node;
+   }
+
+   savanna_validating_tester::savanna_validating_tester() {
+      // Activate Savanna consensus
+      finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
+      fin_keys.activate_savanna(0u /* first_key_idx */);
    }
 
    bool fc_exception_message_is::operator()( const fc::exception& ex ) {
