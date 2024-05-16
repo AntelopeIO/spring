@@ -4018,7 +4018,7 @@ namespace eosio {
       });
    }
 
-   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type& id ) {
+   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* next_producers = chain_plug->chain().next_producers()) {
          on_pending_schedule(*next_producers);
