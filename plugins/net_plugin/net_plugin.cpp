@@ -269,6 +269,7 @@ namespace eosio {
                             const fc::microseconds& blk_latency );
       void recv_handshake( const connection_ptr& c, const handshake_message& msg, uint32_t nblk_combined_latency );
       void sync_recv_notice( const connection_ptr& c, const notice_message& msg );
+      void send_handshakes_if_synced(const fc::microseconds& blk_latency);
    };
 
    class dispatch_manager {
@@ -534,7 +535,7 @@ namespace eosio {
       uint32_t get_chain_head_num() const;
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
-      void on_accepted_block();
+      void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
       void on_voted_block( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
@@ -2542,6 +2543,9 @@ namespace eosio {
                      sync_next_expected_num = blk_num + 1;
                   }
                }
+               if (blk_num >= sync_known_lib_num) {
+                  send_handshakes_when_synced = true;
+               }
             }
 
             uint32_t head = my_impl->get_chain_head_num();
@@ -2554,7 +2558,14 @@ namespace eosio {
             }
 
          }
-      } else if ( blk_latency.count() < config::block_interval_us && send_handshakes_when_synced ) {
+      } else {
+         send_handshakes_if_synced(blk_latency);
+      }
+   }
+
+   // thread safe
+   void sync_manager::send_handshakes_if_synced(const fc::microseconds& blk_latency) {
+      if (blk_latency.count() < config::block_interval_us && send_handshakes_when_synced) {
          send_handshakes();
          send_handshakes_when_synced = false;
       }
@@ -4007,7 +4018,8 @@ namespace eosio {
       });
    }
 
-   void net_plugin_impl::on_accepted_block() {
+   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type& id ) {
+      sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* next_producers = chain_plug->chain().next_producers()) {
          on_pending_schedule(*next_producers);
       }
@@ -4458,7 +4470,8 @@ namespace eosio {
          } );
 
          cc.accepted_block().connect( [my = shared_from_this()]( const block_signal_params& t ) {
-            my->on_accepted_block();
+            const auto& [ block, id ] = t;
+            my->on_accepted_block(block, id);
          } );
          cc.irreversible_block().connect( [my = shared_from_this()]( const block_signal_params& t ) {
             const auto& [ block, id ] = t;
