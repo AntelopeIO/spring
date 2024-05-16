@@ -127,6 +127,9 @@ private:
             stream.next_layer().set_option(boost::asio::ip::tcp::no_delay(true));
          stream.next_layer().set_option(boost::asio::socket_base::send_buffer_size(1024*1024));
          stream.write_buffer_bytes(512*1024);
+         stream.set_option(boost::beast::websocket::stream_base::decorator([](boost::beast::websocket::response_type& res) {
+            res.set(boost::beast::http::field::server, "state_history/" + app().version_string());
+         }));
 
          co_await stream.async_accept();
          co_await stream.async_write(boost::asio::const_buffer(state_history_plugin_abi, strlen(state_history_plugin_abi)));
