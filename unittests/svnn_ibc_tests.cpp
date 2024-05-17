@@ -780,7 +780,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
 
-      cluster.produce_blocks(1200); //advance 10 minutes
+      cluster.produce_blocks(10); //advance 5 seconds
 
       // the root is still cached when performing this action, so the action succeeds.
       // However, it also triggers garbage collection,removing the old proven root for block #2,

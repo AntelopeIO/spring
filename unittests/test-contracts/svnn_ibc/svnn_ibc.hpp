@@ -15,8 +15,8 @@ CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;
 
-      const uint32_t POLICY_CACHE_EXPIRY = 600; //10 minutes for testing
-      const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing
+      const uint32_t POLICY_CACHE_EXPIRY = 5; //5 seconds for testing
+      const uint32_t PROOF_CACHE_EXPIRY = 5; //5 seconds for testing
 
       //Compute the maximum number of layers of a merkle tree for a given number of leaves
       static uint64_t calculate_max_depth(uint64_t node_count) {
