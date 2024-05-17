@@ -285,6 +285,10 @@ namespace eosio::testing {
             }
             produce_block();
             set_bios_contract();
+            if( is_savanna ) {
+               finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
+               fin_keys.activate_savanna(0u /* first_key_idx */);
+            }
             break;
          }
          case setup_policy::none:
@@ -1396,10 +1400,12 @@ namespace eosio::testing {
       execute_setup_policy(policy);
    }
 
-   savanna_tester::savanna_tester() {
-      // Activate Savanna consensus
-      finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
-      fin_keys.activate_savanna(0u /* first_key_idx */);
+   savanna_tester::savanna_tester(setup_policy policy, db_read_mode read_mode, std::optional<uint32_t> genesis_max_inline_action_size)
+   : tester(policy, read_mode, genesis_max_inline_action_size, true) { // true for is_savanna
+   }
+
+   savanna_tester::savanna_tester(controller::config config, const genesis_state& genesis)
+   : tester(config, genesis, true) { // true for is_savanna
    }
 
    unique_ptr<controller> validating_tester::create_validating_node(controller::config vcfg, const genesis_state& genesis, bool use_genesis, deep_mind_handler* dmlog) {
@@ -1419,10 +1425,8 @@ namespace eosio::testing {
       return validating_node;
    }
 
-   savanna_validating_tester::savanna_validating_tester() {
-      // Activate Savanna consensus
-      finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
-      fin_keys.activate_savanna(0u /* first_key_idx */);
+   savanna_validating_tester::savanna_validating_tester(const flat_set<account_name>& trusted_producers, deep_mind_handler* dmlog, setup_policy p)
+   : validating_tester(trusted_producers, dmlog, p, true) { // true for is_savanna
    }
 
    bool fc_exception_message_is::operator()( const fc::exception& ex ) {

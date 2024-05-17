@@ -542,6 +542,7 @@ namespace eosio::testing {
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
          signed_block_ptr                              lib_block; // updated via irreversible_block signal
          block_id_type                                 lib_id;    // updated via irreversible_block signal
+         bool                                          is_savanna{false};
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
@@ -550,11 +551,13 @@ namespace eosio::testing {
 
    class tester : public base_tester {
    public:
-      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
+      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
-      tester(controller::config config, const genesis_state& genesis) {
+      tester(controller::config config, const genesis_state& genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          init(std::move(config), genesis);
       }
 
@@ -620,7 +623,8 @@ namespace eosio::testing {
 
    class savanna_tester : public tester {
    public:
-      savanna_tester();
+      savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
+      savanna_tester(controller::config config, const genesis_state& genesis);
    };
 
    using legacy_tester = tester;
@@ -650,7 +654,9 @@ namespace eosio::testing {
       }
       controller::config vcfg;
 
-      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full) {
+      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full, bool is_savanna = false) {
+         this->is_savanna = false;
+
          auto def_conf = default_config(tempdir);
 
          vcfg = def_conf.first;
@@ -767,7 +773,7 @@ namespace eosio::testing {
 
    class savanna_validating_tester : public validating_tester {
    public:
-      savanna_validating_tester();
+      savanna_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full);
    };
 
    using legacy_validating_tester = validating_tester;
