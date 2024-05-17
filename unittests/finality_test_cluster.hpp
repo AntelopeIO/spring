@@ -276,7 +276,7 @@ private:
       // duplicates are not signaled
       size_t retrys = 200;
       while ( (last_connection_vote != connection_id) && --retrys) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (!duplicate && last_connection_vote != connection_id) {
          FC_ASSERT(false, "Never received vote");
