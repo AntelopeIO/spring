@@ -455,7 +455,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
 
    // test require_notice
    auto scope = std::vector<account_name>{"testapi"_n};
-   auto test_require_notice = [this, &chain](auto& test, std::vector<char>& data, std::vector<account_name>& scope){
+   auto test_require_notice = [&chain](auto& test, std::vector<char>& data, std::vector<account_name>& scope){
       signed_transaction trx;
       auto tm = test_api_action<TEST_METHOD("test_action", "require_notice")>{};
 
@@ -2292,7 +2292,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(multi_index_tests, T, validating_testers) { try {
    chain.set_abi( "testapi"_n, test_contracts::test_api_multi_index_abi() );
    chain.produce_blocks(1);
 
-   auto check_failure = [this, &chain]( action_name a, const char* expected_error_msg ) {
+   auto check_failure = [&chain]( action_name a, const char* expected_error_msg ) {
       BOOST_CHECK_EXCEPTION(  chain.push_action( "testapi"_n, a, "testapi"_n, {} ),
                               eosio_assert_message_exception,
                               eosio_assert_message_is( expected_error_msg )
