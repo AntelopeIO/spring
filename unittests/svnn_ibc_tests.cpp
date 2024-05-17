@@ -75,16 +75,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       return merkle_branches;
    }
 
-   bool has_finalizer_policy_diffs(const signed_block_ptr block){
+   bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
-      eosio::chain::block_header_extension block_if_ext =
-         *block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
 
-      std::optional<eosio::chain::finalizer_policy_diff> maybe_active_finalizer_policy_diff =
-         std::get<eosio::chain::instant_finality_extension>(block_if_ext).new_finalizer_policy_diff;
-
-      if (maybe_active_finalizer_policy_diff.has_value()) return true;
+      if (if_ext.new_finalizer_policy_diff.has_value()) return true;
       else return false;
 
    }
@@ -92,16 +88,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    eosio::chain::finalizer_policy update_finalizer_policy(const signed_block_ptr block, eosio::chain::finalizer_policy current_policy){
 
       // extract new finalizer policy
-      eosio::chain::block_header_extension block_if_ext =
-         *block->extract_header_extension(eosio::chain::instant_finality_extension::extension_id());
+      instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
 
-      std::optional<eosio::chain::finalizer_policy_diff> maybe_active_finalizer_policy_diff =
-         std::get<eosio::chain::instant_finality_extension>(block_if_ext).new_finalizer_policy_diff;
-
-      assert(maybe_active_finalizer_policy_diff.has_value());
+      assert(if_ext.new_finalizer_policy_diff.has_value());
 
       eosio::chain::finalizer_policy active_finalizer_policy =
-         current_policy.apply_diff(maybe_active_finalizer_policy_diff.value());
+         current_policy.apply_diff(if_ext.new_finalizer_policy_diff.value());
 
       return active_finalizer_policy;
 
@@ -170,13 +162,16 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       ibc_block_data_t produce_block(){
          auto result = this->produce_and_push_block_ex();
          signed_block_ptr block = result.block;
+
+         BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
+
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
          // if we have policy diffs, process them
          if (has_finalizer_policy_diffs(block)){
 
             if (is_genesis){
-            // if block is genesis, the initial policy is the last proposed, last pending and currently active
+               // if block is genesis, the initial policy is the last proposed, last pending and currently active
                last_proposed_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());;
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
                last_pending_finalizer_policy = last_proposed_finalizer_policy;
