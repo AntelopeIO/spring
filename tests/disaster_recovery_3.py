@@ -82,10 +82,20 @@ try:
     libBlock = node0.getBlock(currentLIB)
     Print(f"Lib Block: {libBlock}")
 
-    Print("Shutdown all nodes")
-    for node in [node0, node1, node2, node3]:
+    Print("Shutdown two nodes")
+    for node in [node0, node1]:
         node.kill(signal.SIGTERM)
-    for node in [node0, node1, node2, node3]:
+    for node in [node0, node1]:
+        assert not node.verifyAlive(), "Node did not shutdown"
+
+    Print("Wait for lib to advance on other nodes")
+    for node in [node2, node3]:
+        assert node.waitForBlock(currentLIB-1, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
+
+    Print("Shutdown other two nodes")
+    for node in [node2, node3]:
+        node.kill(signal.SIGTERM)
+    for node in [node2, node3]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
     Print("Remove reversible blocks and state, but not finalizers safety data")
