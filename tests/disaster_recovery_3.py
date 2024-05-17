@@ -9,11 +9,11 @@ from TestHarness.Node import BlockType
 ###############################################################
 # disaster_recovery - Scenario 3
 #
-# Create integration test with 4 nodes (A, B, C, and D) which each have their own producer and finalizer. The finalizer
-# policy consists of the four finalizers with a threshold of 3. The proposer policy involves all four proposers.
+# Integration test with 4 nodes (A, B, C, and D), each having its own producer and finalizer. The finalizer policy
+# consists of the four finalizers with a threshold of 3. The proposer policy involves all four proposers.
 #
-# - At least two of the four nodes should have a LIB N and a finalizer safety information file that locks on a block
-#   after N. The other two nodes should have a LIB that is less than or equal to block N.
+# - At least two of the four nodes have a LIB N and a finalizer safety information file that locks on a block
+#   after N. The other two nodes have a LIB that is less than or equal to block N.
 #
 # All nodes are shut down. The reversible blocks on all nodes is deleted. Restart all nodes from an earlier snapshot.
 #
@@ -108,8 +108,9 @@ try:
     for node in [node0, node1, node2, node3]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
+    Print("Remove finalizer safety data")
     for node in [node0, node1, node2, node3]:
-        node.removeFinalizersSafetyFile()
+        node.removeFinalizersSafetyDir()
 
     Print("Restart nodes")
     for node in [node0, node1, node2, node3]:

@@ -563,7 +563,7 @@ class Node(Transactions):
         reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
         shutil.rmtree(reversibleBlks, ignore_errors=True)
 
-    def removeFinalizersSafetyFile(self):
+    def removeFinalizersSafetyDir(self):
         dataDir = Utils.getNodeDataDir(self.nodeId)
         finalizersDir = os.path.join(dataDir, "finalizers")
         shutil.rmtree(finalizersDir, ignore_errors=True)
