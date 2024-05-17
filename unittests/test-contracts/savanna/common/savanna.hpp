@@ -11,18 +11,18 @@ using namespace eosio;
 namespace savanna {
 
    //Compute the maximum number of layers of a merkle tree for a given number of leaves
-   static uint64_t calculate_max_depth(uint64_t node_count) {
+   uint64_t calculate_max_depth(uint64_t node_count) {
       if(node_count <= 1)
          return node_count;
       return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1))));
    }
 
-   static uint32_t reverse_bytes(const uint32_t input){
+   uint32_t reverse_bytes(const uint32_t input){
       uint32_t output = (input>>24 & 0xff)|(input>>8 & 0xff00)|(input<<8 & 0xff0000)|(input<<24 & 0xff000000);
       return output;
    }
 
-   static checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
+   checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
       std::array<uint8_t, 32> arr1 = p.first.extract_as_byte_array();
       std::array<uint8_t, 32> arr2 = p.second.extract_as_byte_array();
       std::array<uint8_t, 64> result;
@@ -32,7 +32,7 @@ namespace savanna {
       return hash;
    }
 
-   static time_point add_time(const time_point& time, const uint32_t seconds ){
+   time_point add_time(const time_point& time, const uint32_t seconds ){
       int64_t total_seconds = (static_cast<int64_t>(time.sec_since_epoch()) + static_cast<int64_t>(seconds));
       microseconds ms = microseconds(total_seconds * 1000000);
       time_point tp = time_point(ms);
@@ -40,7 +40,7 @@ namespace savanna {
    }
 
    //compute proof path
-   static std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
+   std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
 
       uint64_t leaf_index = c_leaf_index;
       uint64_t leaf_count = c_leaf_count;
@@ -66,7 +66,7 @@ namespace savanna {
    }
 
    //compute the merkle root of target node and vector of merkle branches
-   static checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_index, const uint64_t last_node_index){
+   checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_index, const uint64_t last_node_index){
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_index, last_node_index+1);
 
@@ -85,6 +85,17 @@ namespace savanna {
        return hash;
    }
 
+   //add two numbers from the g1 group (aggregation)
+   bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2) {
+      bls_g1 r;
+      bls_g1_add(op1, op2, r);
+      return r;
+   }
+
+   void _verify(const std::string& public_key, const std::string& signature, const std::string& message){
+      check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verification failed");
+   }
+   
    struct quorum_certificate {
        std::vector<uint8_t>   finalizers;
        std::string            signature;
@@ -370,14 +381,4 @@ namespace savanna {
 
    };
 
-   //add two numbers from the g1 group (aggregation)
-   bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2) {
-      bls_g1 r;
-      bls_g1_add(op1, op2, r);
-      return r;
-   }
-
-   void _verify(const std::string& public_key, const std::string& signature, const std::string& message){
-      check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verification failed");
-   }
 }
