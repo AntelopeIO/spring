@@ -3251,6 +3251,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
+                  vote_processor.notify_new_block();
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
