@@ -284,8 +284,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // create the ibc account and deploy the ibc contract to it 
       cluster.node0.create_account( "ibc"_n );
-      cluster.node0.set_code( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_wasm());
-      cluster.node0.set_abi( "ibc"_n, eosio::testing::test_contracts::svnn_ibc_abi());
+      cluster.node0.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
+      cluster.node0.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
 
       cluster.node0.push_action( "ibc"_n, "setfpolicy"_n, "ibc"_n, mvo()
          ("from_block_num", 1)
