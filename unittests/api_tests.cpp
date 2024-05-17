@@ -850,8 +850,8 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
-   tester chain(setup_policy::full);
+BOOST_AUTO_TEST_CASE_TEMPLATE(light_validation_skip_cfa, T, testers)  try {
+   T chain;
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
@@ -895,7 +895,7 @@ BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
    auto& cfg = conf_genesis.first;
    cfg.trusted_producers = { "eosio"_n }; // light validation
 
-   tester other( conf_genesis.first, conf_genesis.second );
+   T other( conf_genesis.first, conf_genesis.second );
    other.execute_setup_policy( setup_policy::full );
 
    transaction_trace_ptr other_trace;
@@ -920,7 +920,8 @@ BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
    auto check_action_traces = [](const auto& t, const auto& ot) {
       BOOST_CHECK_EQUAL("", ot.console); // cfa not executed for light validation (trusted producer)
       BOOST_CHECK_EQUAL(t.receipt->global_sequence, ot.receipt->global_sequence);
-      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy()); // digest_legacy because test doesn't switch to Savanna
+      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy());
+      BOOST_CHECK_EQUAL(t.digest_savanna(), ot.digest_savanna());
    };
 
    BOOST_CHECK(other_trace->action_traces.at(0).context_free); // cfa
