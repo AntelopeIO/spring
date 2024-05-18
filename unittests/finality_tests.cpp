@@ -1,12 +1,180 @@
 #include "finality_test_cluster.hpp"
 
 using namespace eosio::chain;
+using namespace eosio::testing;
 
 /*
  * register test suite `finality_tests`
  */
 BOOST_AUTO_TEST_SUITE(finality_tests)
 
+// test set_finalizer host function serialization and tester set_finalizers
+BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
+   validating_tester t;
+
+   // Create finalizer keys
+   constexpr size_t num_finalizers = 21;
+   finalizer_keys fin_keys(t, num_finalizers, num_finalizers);
+
+   // activate savanna
+   fin_keys.set_node_finalizers(0, num_finalizers); // activate `num_finalizers` keys for this node,
+                                                    // starting at key index 0.
+   fin_keys.set_finalizer_policy(0);                // sets the finalizer_policy using consecutive keys,
+                                                    // starting at key index 0.
+
+   // this block contains the header extension for the instant finality, savanna activated when it is LIB
+   auto block = t.produce_block();
+
+   std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+   BOOST_TEST(!!ext);
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == num_finalizers);
+   BOOST_TEST(fin_policy_diff->generation == 1);
+   // same as reference-contracts/.../contracts/eosio.system/src/finalizer_key.cpp#L73
+   BOOST_TEST(fin_policy_diff->threshold == (num_finalizers * 2) / 3 + 1);
+   block_id_type if_genesis_block_id = block->calculate_id();
+
+   for (block_num_type active_block_num = block->block_num(); active_block_num > t.lib_block->block_num(); t.produce_block()) {
+      (void)active_block_num; // avoid warning
+   };
+
+   // lib_block is IF Genesis Block
+   // block is IF Critical Block
+   auto fb = t.control->fetch_block_by_id(t.lib_id);
+   BOOST_REQUIRE(!!fb);
+   BOOST_TEST(fb->calculate_id() == t.lib_id);
+   ext = fb->extract_header_extension(instant_finality_extension::extension_id());
+   BOOST_REQUIRE(!!ext);
+   BOOST_TEST(if_genesis_block_id == fb->calculate_id());
+
+   auto lib_after_transition = t.lib_block->block_num();
+   // block after IF Critical Block is IF Proper Block
+   block = t.produce_block();
+
+   // lib must advance after 3 blocks
+   t.produce_blocks(3);
+   BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
+} FC_LOG_AND_RETHROW() }
+
+void test_finality_transition(const vector<account_name>& accounts,
+                              const base_tester::finalizer_policy_input& input,
+                              bool lib_advancing_expected) {
+   validating_tester t;
+
+   t.produce_block();
+
+   // Create finalizer accounts
+   t.create_accounts(accounts);
+   t.produce_block();
+
+   // activate savanna
+   t.set_finalizers(input);
+   // this block contains the header extension for the instant finality, savanna activated when it is LIB
+   auto block = t.produce_block();
+
+   std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+   BOOST_TEST(!!ext);
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   BOOST_TEST(!!fin_policy_diff);
+   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == accounts.size());
+   BOOST_TEST(fin_policy_diff->generation == 1);
+   block_id_type if_genesis_block_id = block->calculate_id();
+
+   block_num_type active_block_num = block->block_num();
+   while (active_block_num > t.lib_block->block_num()) {
+      block = t.produce_block();
+   }
+   // lib_block is IF Genesis Block
+   // block is IF Critical Block
+   auto fb = t.control->fetch_block_by_id(t.lib_id);
+   BOOST_REQUIRE(!!fb);
+   BOOST_TEST(fb->calculate_id() == t.lib_id);
+   ext = fb->extract_header_extension(instant_finality_extension::extension_id());
+   BOOST_REQUIRE(!!ext);
+   BOOST_TEST(if_genesis_block_id == fb->calculate_id());
+
+   auto lib_after_transition = t.lib_block->block_num();
+   // block after IF Critical Block is IF Proper Block
+   block = t.produce_block();
+
+   t.produce_blocks(4);
+   if( lib_advancing_expected ) {
+      BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
+   } else {
+      BOOST_CHECK_EQUAL(t.lib_block->block_num(), lib_after_transition);
+   }
+}
+
+BOOST_AUTO_TEST_CASE(threshold_equal_to_half_weight_sum_test) { try {
+   vector<account_name> account_names = {
+      "alice"_n, "bob"_n, "carol"_n
+   };
+
+   // threshold set to half of the weight sum of finalizers
+   base_tester::finalizer_policy_input policy_input = {
+      .finalizers       = { {.name = "alice"_n, .weight = 1},
+                            {.name = "bob"_n,   .weight = 2},
+                            {.name = "carol"_n, .weight = 3} },
+      .threshold        = 3,
+      .local_finalizers = {"alice"_n, "bob"_n}
+   };
+
+   // threshold must be greater than half of the sum of the weights
+   BOOST_REQUIRE_THROW( test_finality_transition(account_names, policy_input, false), eosio_assert_message_exception );
+
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(votes_equal_to_threshold_test) { try {
+   vector<account_name> account_names = {
+      "alice"_n, "bob"_n, "carol"_n
+   };
+
+   base_tester::finalizer_policy_input policy_input = {
+      .finalizers       = { {.name = "alice"_n, .weight = 1},
+                            {.name = "bob"_n,   .weight = 3},
+                            {.name = "carol"_n, .weight = 5} },
+      .threshold        = 5,
+      .local_finalizers = {"carol"_n}
+   };
+
+   // Carol votes with weight 5 and threshold 5
+   test_finality_transition(account_names, policy_input, true); // lib_advancing_expected
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(votes_greater_than_threshold_test) { try {
+   vector<account_name> account_names = {
+      "alice"_n, "bob"_n, "carol"_n
+   };
+
+   base_tester::finalizer_policy_input policy_input = {
+      .finalizers       = { {.name = "alice"_n, .weight = 1},
+                            {.name = "bob"_n,   .weight = 4},
+                            {.name = "carol"_n, .weight = 2} },
+      .threshold        = 4,
+      .local_finalizers = {"alice"_n, "bob"_n}
+   };
+
+   // alice and bob vote with weight 5 and threshold 4
+   test_finality_transition(account_names, policy_input, true); // lib_advancing_expected
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(votes_less_than_threshold_test) { try {
+   vector<account_name> account_names = {
+      "alice"_n, "bob"_n, "carol"_n
+   };
+
+   base_tester::finalizer_policy_input policy_input = {
+      .finalizers       = { {.name = "alice"_n, .weight = 1},
+                            {.name = "bob"_n,   .weight = 3},
+                            {.name = "carol"_n, .weight = 10} },
+      .threshold        = 8,
+      .local_finalizers = {"alice"_n, "bob"_n}
+   };
+
+   // alice and bob vote with weight 4 but threshold 8. LIB cannot advance
+   test_finality_transition(account_names, policy_input, false); // not expecting lib advancing
+} FC_LOG_AND_RETHROW() }
 // verify LIB advances with a quorum of finalizers voting.
 // -------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(quorum_of_votes, finality_test_cluster<4>) { try {
