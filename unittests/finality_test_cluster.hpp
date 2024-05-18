@@ -196,6 +196,13 @@ public:
       return b;
    }
 
+   eosio::testing::produce_block_result_t produce_and_push_block_ex() {
+      auto b = node0.produce_block_ex();
+      for (size_t i=1; i<nodes.size(); ++i)
+         nodes[i].push_block(b.block);
+      return b;
+   }
+
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears
    // node1 to nodeN votes when starting.
@@ -276,7 +283,7 @@ private:
       // duplicates are not signaled
       size_t retrys = 200;
       while ( (last_connection_vote != connection_id) && --retrys) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (!duplicate && last_connection_vote != connection_id) {
          FC_ASSERT(false, "Never received vote");

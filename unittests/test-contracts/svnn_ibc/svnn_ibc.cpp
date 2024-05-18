@@ -7,7 +7,7 @@ bls_g1 svnn_ibc::_g1add(const bls_g1& op1, const bls_g1& op2) {
    return r;
 }
 
-void svnn_ibc::_maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num){
+void svnn_ibc::_maybe_set_finalizer_policy(const finalizer_policy_input& policy, const uint32_t from_block_num){
     policies_table _policies_table(get_self(), get_self().value);
     auto itr = _policies_table.rbegin();
     //if the new policy is more recent than the most recent we are aware of, we record the new one
@@ -86,7 +86,7 @@ void svnn_ibc::_maybe_remove_from_cache(){
 
 //verify that a signature over a given message has been generated with the private key matching the public key
 void svnn_ibc::_verify(const std::string& public_key, const std::string& signature, const std::string& message){
-    check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verify failed");
+    check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verification failed");
 }
 
 //verify that the quorum certificate over the finality digest is valid
@@ -149,8 +149,8 @@ void svnn_ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclu
         check(itr!= merkle_index.end(), "cannot link proof to proven merkle root");
     }
     //block_data target_block = std::get<svnn_ibc::block_data>(proof.target);
-    if (proof.target.finality_data.active_finalizer_policy.has_value()){
-        _maybe_set_finalizer_policy(proof.target.finality_data.active_finalizer_policy.value(), proof.target.dynamic_data.block_num);
+    if (proof.target.finality_data.new_finalizer_policy.has_value()){
+        _maybe_set_finalizer_policy(proof.target.finality_data.new_finalizer_policy.value(), proof.target.dynamic_data.block_num);
     }
 }
 
@@ -167,7 +167,7 @@ void svnn_ibc::_check_finality_proof(const finality_proof& finality_proof, const
     _maybe_add_proven_root(target_block_proof_of_inclusion.target.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
 }
 
-ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num){
+ACTION svnn_ibc::setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num){
 
     //can only be called with account authority
     require_auth(get_self());
@@ -175,16 +175,17 @@ ACTION svnn_ibc::setfpolicy(const fpolicy& policy, const uint32_t from_block_num
     policies_table _policies_table(get_self(), get_self().value);
 
     //can only be used once for the initilization of the contract
-    check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
+    //check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
 
     _maybe_set_finalizer_policy(policy, from_block_num);
 
     //clean up if necessary
     _maybe_remove_from_cache<policies_table>();
     _maybe_remove_from_cache<proofs_table>();
+    
 }
 
-ACTION svnn_ibc::checkproof(const proof& proof){
+ACTION svnn_ibc::checkproof(const proof& proof, const bool assert){
 
     //if we have a finality proof, we execute the "heavy" code path
     if (proof.finality_proof.has_value()){
@@ -198,5 +199,7 @@ ACTION svnn_ibc::checkproof(const proof& proof){
     //clean up if necessary
     _maybe_remove_from_cache<policies_table>();
     _maybe_remove_from_cache<proofs_table>();
+
+    check(!assert, "expected");
 
 }
