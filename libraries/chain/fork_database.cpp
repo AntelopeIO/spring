@@ -209,6 +209,9 @@ namespace eosio::chain {
    void fork_database_impl<BSP>::close_impl(std::ofstream& out) {
       assert(!!head && !!root); // if head or root are null, we don't save and shouldn't get here
 
+      ilog("Writing fork_database with root ${rn}:${r} and head ${hn}:${h}",
+           ("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
+
       fc::raw::pack( out, *root );
 
       uint32_t num_blocks_in_fork_db = index.size();
@@ -719,8 +722,7 @@ namespace eosio::chain {
       auto in_use_value = in_use.load();
       // check that fork_dbs are in a consistent state
       if (!legacy_valid && !savanna_valid) {
-         wlog( "fork_database is in a bad state when closing; not writing out '${filename}', legacy_valid=${l}, savanna_valid=${s}",
-               ("filename", fork_db_file)("l", legacy_valid)("s", savanna_valid) );
+         ilog("No fork_database to persist, not writing out: ${f}", ("f", fork_db_file));
          return;
       } else if (legacy_valid && savanna_valid && in_use_value == in_use_t::savanna) {
          legacy_valid = false; // don't write legacy if not needed, we delay 'clear' of legacy until close
@@ -729,6 +731,7 @@ namespace eosio::chain {
               (savanna_valid && (in_use_value == in_use_t::savanna)) ||
               (legacy_valid && savanna_valid && (in_use_value == in_use_t::both)) );
 
+      ilog("Persisting to fork_database file: ${f}", ("f", fork_db_file));
       std::ofstream out( fork_db_file.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
 
       fc::raw::pack( out, magic_number );
