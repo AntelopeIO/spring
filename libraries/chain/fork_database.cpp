@@ -722,7 +722,7 @@ namespace eosio::chain {
       auto in_use_value = in_use.load();
       // check that fork_dbs are in a consistent state
       if (!legacy_valid && !savanna_valid) {
-         ilog("No fork_database to persist, not writing out: ${f}", ("f", fork_db_file));
+         ilog("No fork_database to persist");
          return;
       } else if (legacy_valid && savanna_valid && in_use_value == in_use_t::savanna) {
          legacy_valid = false; // don't write legacy if not needed, we delay 'clear' of legacy until close
