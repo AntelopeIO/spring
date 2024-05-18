@@ -455,7 +455,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
 
    // test require_notice
    auto scope = std::vector<account_name>{"testapi"_n};
-   auto test_require_notice = [this, &chain](auto& test, std::vector<char>& data, std::vector<account_name>& scope){
+   auto test_require_notice = [&chain](auto& test, std::vector<char>& data, std::vector<account_name>& scope){
       signed_transaction trx;
       auto tm = test_api_action<TEST_METHOD("test_action", "require_notice")>{};
 
@@ -850,8 +850,8 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
-   tester chain(setup_policy::full);
+BOOST_AUTO_TEST_CASE_TEMPLATE(light_validation_skip_cfa, T, testers)  try {
+   T chain;
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
@@ -895,7 +895,7 @@ BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
    auto& cfg = conf_genesis.first;
    cfg.trusted_producers = { "eosio"_n }; // light validation
 
-   tester other( conf_genesis.first, conf_genesis.second );
+   T other( conf_genesis.first, conf_genesis.second );
    other.execute_setup_policy( setup_policy::full );
 
    transaction_trace_ptr other_trace;
@@ -920,7 +920,8 @@ BOOST_AUTO_TEST_CASE( light_validation_skip_cfa ) try {
    auto check_action_traces = [](const auto& t, const auto& ot) {
       BOOST_CHECK_EQUAL("", ot.console); // cfa not executed for light validation (trusted producer)
       BOOST_CHECK_EQUAL(t.receipt->global_sequence, ot.receipt->global_sequence);
-      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy()); // digest_legacy because test doesn't switch to Savanna
+      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy());
+      BOOST_CHECK_EQUAL(t.digest_savanna(), ot.digest_savanna());
    };
 
    BOOST_CHECK(other_trace->action_traces.at(0).context_free); // cfa
@@ -2291,7 +2292,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(multi_index_tests, T, validating_testers) { try {
    chain.set_abi( "testapi"_n, test_contracts::test_api_multi_index_abi() );
    chain.produce_blocks(1);
 
-   auto check_failure = [this, &chain]( action_name a, const char* expected_error_msg ) {
+   auto check_failure = [&chain]( action_name a, const char* expected_error_msg ) {
       BOOST_CHECK_EXCEPTION(  chain.push_action( "testapi"_n, a, "testapi"_n, {} ),
                               eosio_assert_message_exception,
                               eosio_assert_message_is( expected_error_msg )
