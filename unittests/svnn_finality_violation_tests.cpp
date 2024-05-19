@@ -304,7 +304,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       std::vector<char> return_value = result->action_traces[0].return_value;
 
       // lazy parsing of the return value
-
       // skip one byte (variable-length int encoding), read 2 bytes (intersection as a string)
       std::string intersection(return_value.begin() + 1, return_value.begin() + 3);
       // skip one byte (variable-length int encoding), read 2 bytes (symmetric difference as a string)

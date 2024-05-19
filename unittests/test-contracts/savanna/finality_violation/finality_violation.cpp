@@ -32,6 +32,7 @@ std::pair<std::string, std::string> finality_violation::addviolation(const final
     
     auto result = bitset::compare(proof1_bitset, proof2_bitset);
 
+    //return guilty bitset vs innocent bitset
     return {result.first.to_string(), result.second.to_string()};
 
 }
