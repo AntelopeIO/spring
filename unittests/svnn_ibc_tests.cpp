@@ -100,7 +100,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("finality_proof", mvo() //proves finality of block #2
                ("qc_block", mvo()
@@ -138,7 +137,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // heavy proof #2. Proving finality of block #2 using block #3 finality root
       mutable_variant_object heavy_proof_2 = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("finality_proof", mvo()  //proves finality of block #3
                ("qc_block", mvo()
@@ -176,7 +174,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // light proof #1. Attempt to prove finality of block #2 with previously proven finality root of block #2
       mutable_variant_object light_proof_1 = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
@@ -320,7 +317,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // proof to verify the inclusion of onblock action via heavy proof
       mutable_variant_object action_heavy_proof = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("finality_proof", mvo() //proves finality of block #7
                ("qc_block", mvo()
@@ -357,7 +353,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // proof to verify the inclusion of the first and second actions via light proof
       mutable_variant_object action_light_proof = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 7)
@@ -440,7 +435,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // This allows us to prove this finalizer policy to the IBC contract, and use it to prove finality of subsequent blocks.
 
       mutable_variant_object heavy_proof_3 = mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("finality_proof", mvo()
                ("qc_block", mvo()
@@ -486,7 +480,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // heavy_proof_3 must be proven before we can prove heavy_proof_4.
 
       mutable_variant_object heavy_proof_4= mvo()
-         ("assert", false)
          ("proof", mvo() 
             ("finality_proof", mvo()
                ("qc_block", mvo()
