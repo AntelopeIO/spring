@@ -47,17 +47,24 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
          node2 is tricked into joining a fake chain where node0 and node1 are finalizing, but from which node3 is absent.
 
-         In the meanwhile, node2 is absent from the real chain, but node0 and node1 are still finalizing on it, therefore double-signing between the fake and real chains.
+         Meanwhile, node2 is absent from the real chain, but node0 and node1 are still finalizing on it, therefore double-signing between the fake and real chains.
 
          node3, unaware of the ongoing attack, is finalizing on the real chain normally.
 
-         node2 is able to rejoin the real chain later, and to prove the finality violation.
+         user1, a light client, unknowingly joins the fake chain, and submits an important transaction to it.
+
+         user1 stores enough data to prove the final inclusion of this important transaction into the fake chain.
+
+         user1 discovers the real chain later, and uses the stored data to construct a finality violation proof.
+
+         user1 then submits it to the finality proof verification contract.
 
       */
 
-      // setup a fake chain
+      // setup the fake chain. node3 doesn't receive votes on the fake chain
       finality_proof::proof_test_cluster<4> fake_chain;
-      finality_proof::proof_test_cluster<4> real_chain;
+      fake_chain.vote_propagation = {1, 1, 0};
+      std::string fake_bitset("07");
 
       fake_chain.node0.create_accounts( { "user1"_n, "user2"_n, "violation"_n, "eosio.token"_n } );
 
@@ -67,10 +74,11 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       fake_chain.node0.set_code( "violation"_n, test_contracts::finality_violation_wasm() );
       fake_chain.node0.set_abi( "violation"_n, test_contracts::finality_violation_abi() );
 
-      //node3 doesn't receive votes on the fake chain
-      fake_chain.vote_propagation = {1, 1, 0};
+      // setup the real chain. node2 doesn't receive votes on the real chain
+      finality_proof::proof_test_cluster<4> real_chain;
+      real_chain.vote_propagation = {1, 0, 1};
+      std::string real_bitset("0b");
 
-      //  and setup a real chain
       real_chain.node0.create_accounts( { "user1"_n, "user2"_n, "violation"_n, "eosio.token"_n } );
 
       real_chain.node0.set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
@@ -79,9 +87,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       real_chain.node0.set_code( "violation"_n, test_contracts::finality_violation_wasm() );
       real_chain.node0.set_abi( "violation"_n, test_contracts::finality_violation_abi() );
 
-      //node2 doesn't receive votes on the real chain
-      real_chain.vote_propagation = {1, 0, 1};
-
+      // create and issue initial tokens on both chains
       mutable_variant_object create_action = mvo()
          ( "issuer", "eosio"_n)
          ( "maximum_supply", "100.0000 EOS");
@@ -105,14 +111,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       real_chain.node0.push_action("eosio.token"_n, "issue"_n, "eosio"_n, issue_action);
       real_chain.node0.push_action("eosio.token"_n, "transfer"_n, "eosio"_n, initial_transfer);
 
-      //we produce the IF genesis block on both chains
+      // produce the IF genesis block on both chains
       auto fake_genesis_block_result = fake_chain.produce_block();
       auto real_genesis_block_result = real_chain.produce_block();
 
-      //we verify that we have the same finalizer policy on both chains
+      // verify that the same finalizer policy is active on both chains
       BOOST_TEST(fake_chain.active_finalizer_policy_digest == real_chain.active_finalizer_policy_digest);
 
-      //we produce enough block to complete the IF transition, and a few more
+      // produce enough block to complete the IF transition, and a few more after that
       auto fake_block_1_result = fake_chain.produce_block();
       auto real_block_1_result = real_chain.produce_block();
 
@@ -131,7 +137,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_6_result = fake_chain.produce_block();
       auto real_block_6_result = real_chain.produce_block();
 
-      //verify that the two chains are the same so far
+      // verify that the two chains are the same so far
       BOOST_TEST(fake_genesis_block_result.finality_leaf==real_genesis_block_result.finality_leaf);
       BOOST_TEST(fake_block_1_result.finality_leaf==real_block_1_result.finality_leaf);
       BOOST_TEST(fake_block_2_result.finality_leaf==real_block_2_result.finality_leaf);
@@ -149,7 +155,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       qc_data_t fake_qc_b_6 = extract_qc_data(fake_block_6_result.block);
       qc_data_t real_qc_b_6 = extract_qc_data(real_block_6_result.block);
 
-      //verify that we have QCs on block #4 and onward for both chains
+      // verify QCs on block #4 and onward for both chains
       BOOST_TEST(fake_qc_b_4.qc.has_value());
       BOOST_TEST(real_qc_b_4.qc.has_value());
       BOOST_TEST(fake_qc_b_5.qc.has_value());
@@ -157,72 +163,55 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(fake_qc_b_6.qc.has_value());
       BOOST_TEST(real_qc_b_6.qc.has_value());
 
-      //verify that the signatures on QCs are different on both chains
+      // verify that the signatures on QCs are different on both chains
       BOOST_TEST(fake_qc_b_4.qc.value().data.sig.to_string() != real_qc_b_4.qc.value().data.sig.to_string());
       BOOST_TEST(fake_qc_b_5.qc.value().data.sig.to_string() != real_qc_b_5.qc.value().data.sig.to_string());
       BOOST_TEST(fake_qc_b_6.qc.value().data.sig.to_string() != real_qc_b_6.qc.value().data.sig.to_string());
-
-      //now, we create and push a transaction to the fake chain
-      mutable_variant_object transfer = mvo()
+      
+      // user1 pushes an important transaction to the fake chain.
+      // user1 wants to preserve sufficient information about this transfer so they can construct a finality violation proof if/when they discover the real chain.
+      mutable_variant_object important_transfer = mvo()
          ("from", "user1"_n)
          ("to", "user2"_n)
          ("quantity", "1.0000 EOS")
          ("memo", "");
 
-      fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, transfer);
+      // user1 can record the trace of the transaction (as reported by the proposer that included the transaction into a block).
+      // While this action trace is not necessary to prove a finality violation, it can be useful to prove damages.
+      action_trace critical_transfer_trace = fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, important_transfer)->action_traces[0];
 
-      // the double-signing of block_7 is the "original sin", where the fake and the real chain start diverging
+      // The double-signing of block_7 is the "original sin". The fork between the fake chain and the real chain happens here.
+      // Since the fake block_7 is the one that includes the important transaction, user1 records it and its finality data (AKA the "important block").
       auto fake_block_7_result = fake_chain.produce_block();
       auto real_block_7_result = real_chain.produce_block();
 
-      //we verify that fake and real finality leaves for block_7 are different, which result in two different chains that are both valid 
+      // verify that fake and real finality leaves for block_7 are different, which results in two different chains that are both valid in the eyes of a light client.
       BOOST_TEST(fake_block_7_result.finality_leaf!=real_block_7_result.finality_leaf);
 
       auto fake_block_8_result = fake_chain.produce_block();
       auto real_block_8_result = real_chain.produce_block();
 
+      // A QC on this block makes the important block final. user1 records the fake block_9, as well as its associated finality data.
       auto fake_block_9_result = fake_chain.produce_block();
       auto real_block_9_result = real_chain.produce_block();   
 
-      //the QC contained in block_10 is over block_9, which makes a different version of block_7 final on the fake and on the real chains
+      // The QC contained in block_10 is over block_9, which makes a block_7 final. user1 saves this QC, as well as the finalizer policy associated to it. 
       auto fake_block_10_result = fake_chain.produce_block();
       auto real_block_10_result = real_chain.produce_block();
-
-      //we verify that we still have the same finalizer policy on both chains
-      BOOST_TEST(fake_chain.active_finalizer_policy_digest == real_chain.active_finalizer_policy_digest);
-
-      qc_data_t fake_qc_b_7 = extract_qc_data(fake_block_7_result.block);
-      qc_data_t real_qc_b_7 = extract_qc_data(real_block_7_result.block);
-
-      qc_data_t fake_qc_b_8 = extract_qc_data(fake_block_8_result.block);
-      qc_data_t real_qc_b_8 = extract_qc_data(real_block_8_result.block);
-
-      qc_data_t fake_qc_b_9 = extract_qc_data(fake_block_9_result.block);
-      qc_data_t real_qc_b_9 = extract_qc_data(real_block_9_result.block);
 
       qc_data_t fake_qc_b_10 = extract_qc_data(fake_block_10_result.block);
       qc_data_t real_qc_b_10 = extract_qc_data(real_block_10_result.block);
 
-      BOOST_TEST(fake_qc_b_7.qc.has_value());
-      BOOST_TEST(real_qc_b_7.qc.has_value());
-      BOOST_TEST(fake_qc_b_8.qc.has_value());
-      BOOST_TEST(real_qc_b_8.qc.has_value());
-      BOOST_TEST(fake_qc_b_9.qc.has_value());
-      BOOST_TEST(real_qc_b_9.qc.has_value());
       BOOST_TEST(fake_qc_b_10.qc.has_value());
       BOOST_TEST(real_qc_b_10.qc.has_value());
 
-      //bitsets for the fake and real chains
-      std::string fake_bitset("07");
-      std::string real_bitset("0b");
+      // At this stage, user1 has enough information to :
+      // 1) prove the inclusion of the important action into a block (the important block) AND
+      // 2) prove the finality of the important block according to a given finalizer policy
 
-      //assemble finality violation proof
-      mutable_variant_object finalizer_policy = mvo()
-         ("from_block_num", 1)
-         ("policy", real_chain.active_finalizer_policy);
-
+      //proof of finality of the important block
       mutable_variant_object proof1 = mvo()
-            ("finality_proof", mvo() //proves finality of block #2
+            ("finality_proof", mvo()
                ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
@@ -255,6 +244,19 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(fake_chain.get_finality_leaves(7), 7))
             );
 
+      mutable_variant_object finalizer_policy = mvo()
+         ("from_block_num", 1)
+         ("policy", fake_chain.active_finalizer_policy);
+
+      // verify that the same finalizer policy is still active on both chains
+      BOOST_TEST(fake_chain.active_finalizer_policy_digest == real_chain.active_finalizer_policy_digest);
+
+      // user1 now discovers the real chain, which does not include the important block or important transaction.
+      
+      // Since user1 recorded a proof of finality for the inclusion of the important block, and they now also have a proof of finality for a block conflicting with the important block
+      // user1 can now construct a finality violation proof.
+
+      // proof of finality for a block conflicting with the important block
       mutable_variant_object proof2 = mvo()
             ("finality_proof", mvo() //proves finality of block #2
                ("qc_block", mvo()
@@ -289,15 +291,16 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(real_chain.get_finality_leaves(7), 7))
             );
       
+      // assemble the finality violation proof
       mutable_variant_object finality_violation_proof = mvo()
          ("finalizer_policy", real_chain.active_finalizer_policy)
          ("proof1", proof1)
          ("proof2", proof2);
 
-      //submit finality violation proof to the smart contract
+      // submit the finality violation proof to the smart contract
       real_chain.node0.push_action("violation"_n, "addviolation"_n, "user1"_n, finality_violation_proof);
 
-      //if the proof was accepted, it means the finality violation has been proven
+      //if the proof was accepted, it means the finality violation has been proven. QED
 
    } FC_LOG_AND_RETHROW() }
 

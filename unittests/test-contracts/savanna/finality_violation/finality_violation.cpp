@@ -28,12 +28,4 @@ ACTION finality_violation::addviolation(const finalizer_policy_input& finalizer_
 
     //todo : calculate intersection / symmetric difference
 
-    violations_table table(get_self(), get_self().value);
-
-    table.emplace( get_self(), [&]( auto& v ) {
-        v.finalizer_policy = finalizer_policy;
-        v.proof1 = proof1;
-        v.proof2 = proof2;
-    });
-
 }
