@@ -152,40 +152,40 @@ namespace savanna {
    //verify that the quorum certificate over the finality digest is valid
    void _check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
 
-       auto fa_itr = finalizer_policy.finalizers.begin();
-       auto fa_end_itr = finalizer_policy.finalizers.end();
-       size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
-       bitset b(finalizer_count, qc.finalizers);
+      auto fa_itr = finalizer_policy.finalizers.begin();
+      auto fa_end_itr = finalizer_policy.finalizers.end();
+      size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
+      savanna::bitset b(finalizer_count, qc.finalizers);
 
-       bool first = true;
+      bool first = true;
 
-       size_t index = 0;
-       uint64_t weight = 0;
+      size_t index = 0;
+      uint64_t weight = 0;
 
-       bls_g1 agg_pub_key;
+      bls_g1 agg_pub_key;
 
-       while (fa_itr != fa_end_itr){
-           if (b.test(index)){
-               bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
-               if (first){
-                   first=false;
-                   agg_pub_key = pub_key;
-               }
-               else agg_pub_key = _g1add(agg_pub_key, pub_key);
-               weight+=fa_itr->weight;
-           }
-           index++;
-           fa_itr++;
-       }
+      while (fa_itr != fa_end_itr){
+          if (b.test(index)){
+              bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
+              if (first){
+                  first=false;
+                  agg_pub_key = pub_key;
+              }
+              else agg_pub_key = _g1add(agg_pub_key, pub_key);
+              weight+=fa_itr->weight;
+          }
+          index++;
+          fa_itr++;
+      }
 
-       //verify that we have enough vote weight to meet the quorum threshold of the target policy
-       check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
-       std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
-       std::string message(fd_data.begin(), fd_data.end());
+      //verify that we have enough vote weight to meet the quorum threshold of the target policy
+      check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
+      std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
+      std::string message(fd_data.begin(), fd_data.end());
 
-       std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
-       //verify signature validity
-       _verify(s_agg_pub_key, qc.signature, message);
+      std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
+      //verify signature validity
+      _verify(s_agg_pub_key, qc.signature, message);
    }
 
 

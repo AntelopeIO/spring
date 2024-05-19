@@ -13,8 +13,10 @@ CONTRACT finality_violation : public contract {
    public:
       using contract::contract;
 
-      ACTION addviolation(const finalizer_policy_input& finalizer_policy, const proof& proof1, const proof& proof2 ); //set finality policy
+      [[eosio::action]]
 
-      ACTION logverdict();
+      std::pair<std::string, std::string> addviolation(const finalizer_policy_input& finalizer_policy, const proof& proof1, const proof& proof2 ); //set finality policy
+
+      //ACTION logverdict(const std::string guilty, const std::string not_guilty);
 
 };

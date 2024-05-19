@@ -232,6 +232,20 @@
             ]
         },
         {
+            "name": "pair_string_string",
+            "base": "",
+            "fields": [
+                {
+                    "name": "first",
+                    "type": "string"
+                },
+                {
+                    "name": "second",
+                    "type": "string"
+                }
+            ]
+        },
+        {
             "name": "permission_level",
             "base": "",
             "fields": [
@@ -272,28 +286,6 @@
                     "type": "string"
                 }
             ]
-        },
-        {
-            "name": "violation",
-            "base": "",
-            "fields": [
-                {
-                    "name": "id",
-                    "type": "uint64"
-                },
-                {
-                    "name": "finalizer_policy",
-                    "type": "finalizer_policy_input"
-                },
-                {
-                    "name": "proof1",
-                    "type": "proof"
-                },
-                {
-                    "name": "proof2",
-                    "type": "proof"
-                }
-            ]
         }
     ],
     "actions": [
@@ -303,16 +295,13 @@
             "ricardian_contract": ""
         }
     ],
-    "tables": [
-        {
-            "name": "violations",
-            "type": "violation",
-            "index_type": "i64",
-            "key_names": [],
-            "key_types": []
-        }
-    ],
+    "tables": [],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": []
+    "action_results": [
+        {
+            "name": "addviolation",
+            "result_type": "pair_string_string"
+        }
+    ]
 }

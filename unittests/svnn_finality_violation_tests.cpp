@@ -298,9 +298,21 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          ("proof2", proof2);
 
       // submit the finality violation proof to the smart contract
-      real_chain.node0.push_action("violation"_n, "addviolation"_n, "user1"_n, finality_violation_proof);
+      auto result = real_chain.node0.push_action("violation"_n, "addviolation"_n, "user1"_n, finality_violation_proof);
 
-      //if the proof was accepted, it means the finality violation has been proven. QED
+      // if the proof was accepted, it means the finality violation has been verified as valid. Capture the return value
+      std::vector<char> return_value = result->action_traces[0].return_value;
+
+      // lazy parsing of the return value
+
+      // skip one byte (variable-length int encoding), read 2 bytes (intersection as a string)
+      std::string intersection(return_value.begin() + 1, return_value.begin() + 3);
+      // skip one byte (variable-length int encoding), read 2 bytes (symmetric difference as a string)
+      std::string symmetric_difference(return_value.begin() + 4, return_value.end());
+
+      // verdict is reached, verify that node0 and node1 are guilty, while node2 and node3 are innocent
+      BOOST_TEST(intersection == "03"); //node0 and node1 are guilty
+      BOOST_TEST(symmetric_difference == "0c"); //node2 ande node3 are not guilty
 
    } FC_LOG_AND_RETHROW() }
 

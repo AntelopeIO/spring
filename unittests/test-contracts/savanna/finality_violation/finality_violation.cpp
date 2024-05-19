@@ -1,6 +1,6 @@
 #include "finality_violation.hpp"
 
-ACTION finality_violation::addviolation(const finalizer_policy_input& finalizer_policy, const proof& proof1, const proof& proof2 ){
+std::pair<std::string, std::string> finality_violation::addviolation(const finalizer_policy_input& finalizer_policy, const proof& proof1, const proof& proof2 ){
 
     //verify finality proofs are present
     check(proof1.finality_proof.has_value(), "must provide finality proof for signature verification");
@@ -26,6 +26,12 @@ ACTION finality_violation::addviolation(const finalizer_policy_input& finalizer_
     check ( proof1.target_block_proof_of_inclusion.target.finality_data.finality_digest()
             != proof2.target_block_proof_of_inclusion.target.finality_data.finality_digest() , "proof target blocks must have a different finality digest");
 
-    //todo : calculate intersection / symmetric difference
+    //calculate intersection / symmetric difference
+    savanna::bitset proof1_bitset(finalizer_policy.finalizers.size(), proof1.finality_proof->qc.finalizers);
+    savanna::bitset proof2_bitset(finalizer_policy.finalizers.size(), proof2.finality_proof->qc.finalizers);
+    
+    auto result = bitset::compare(proof1_bitset, proof2_bitset);
+
+    return {result.first.to_string(), result.second.to_string()};
 
 }
