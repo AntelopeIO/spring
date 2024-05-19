@@ -186,6 +186,8 @@ public:
 
    // called from net threads
    void notify_new_block() {
+      if (stopped)
+         return;
       // would require a mtx lock to check if index is empty, post check to thread_pool
       boost::asio::post(thread_pool.get_executor(), [this] {
          std::unique_lock g(mtx);
