@@ -77,8 +77,7 @@ void ibc::_maybe_remove_from_cache(){
 
 }
 
-//verify that the quorum certificate over the finality digest is valid
-void ibc::_check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const uint64_t finalizer_policy_generation){
+finalizer_policy_input ibc::_get_stored_finalizer_policy(const uint64_t finalizer_policy_generation){
 
     policies_table _policies_table(get_self(), get_self().value);
     check(_policies_table.begin() != _policies_table.end(), "must set a finalizer policy before checking proofs");
@@ -86,47 +85,17 @@ void ibc::_check_qc(const quorum_certificate& qc, const checksum256& finality_di
     //fetch the finalizer policy where generation num is equal prepare.input.finalizer_policy_generation, and that it is still in force
     auto itr = _policies_table.find(finalizer_policy_generation);
     check(itr!=_policies_table.end(), "finalizer policy not found");
-    storedpolicy target_policy = *itr;
-    auto fa_itr = target_policy.finalizers.begin();
-    auto fa_end_itr = target_policy.finalizers.end();
-    size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
-    bitset b(finalizer_count, qc.finalizers);
+    return *itr;
 
-    bool first = true;
-
-    size_t index = 0;
-    uint64_t weight = 0;
-
-    bls_g1 agg_pub_key;
-
-    while (fa_itr != fa_end_itr){
-        if (b.test(index)){
-            bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
-            if (first){
-                first=false;
-                agg_pub_key = pub_key;
-            }
-            else agg_pub_key = _g1add(agg_pub_key, pub_key);
-            weight+=fa_itr->weight;
-        }
-        index++;
-        fa_itr++;
-    }
-
-    //verify that we have enough vote weight to meet the quorum threshold of the target policy
-    check(weight>=target_policy.threshold, "insufficient signatures to reach quorum");
-    std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
-    std::string message(fd_data.begin(), fd_data.end());
-
-    std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
-    //verify signature validity
-    _verify(s_agg_pub_key, qc.signature, message);
 }
 
 void ibc::_check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion){
 
-    //if QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
-    _check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finality_proof.qc_block.finalizer_policy_generation);
+    //attempt to retrieve the stored policy with the correct generation number
+    finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.finalizer_policy_generation);
+
+    //verify QC. If QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
+    _check_qc(finality_proof.qc, finality_proof.qc_block.finality_digest(), finalizer_policy);
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
@@ -141,13 +110,13 @@ void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion&
     //resolve the proof to its merkle root
     checksum256 finality_mroot = proof.root();
     if (reference_root.has_value()){
-        check(reference_root.value() == finality_mroot, "cannot link proof to proven merkle root");
+        check(reference_root.value() == finality_mroot, "proof of inclusion is invalid");
     }
     else {
         proofs_table _proofs_table(get_self(), get_self().value);
         auto merkle_index = _proofs_table.get_index<"merkleroot"_n>();
         auto itr = merkle_index.find(finality_mroot);
-        check(itr!= merkle_index.end(), "cannot link proof to proven merkle root");
+        check(itr!= merkle_index.end(), "proof of inclusion is invalid");
     }
     //block_data target_block = std::get<ibc::block_data>(proof.target);
     if (proof.target.finality_data.new_finalizer_policy.has_value()){

@@ -84,7 +84,7 @@
             "base": "",
             "fields": [
                 {
-                    "name": "policy",
+                    "name": "finalizer_policy",
                     "type": "finalizer_policy_input"
                 },
                 {
@@ -276,7 +276,24 @@
         {
             "name": "violation",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "proof1",
+                    "type": "proof"
+                },
+                {
+                    "name": "proof2",
+                    "type": "proof"
+                }
+            ]
         }
     ],
     "actions": [

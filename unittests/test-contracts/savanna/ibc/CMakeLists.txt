@@ -1,6 +1,7 @@
 set( IBC_CONTRACT "ibc" )
 
 if( EOSIO_COMPILE_TEST_CONTRACTS )
+   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/common)
    add_contract( ${IBC_CONTRACT} ${IBC_CONTRACT} ${IBC_CONTRACT}.cpp )
 else()
    configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/${IBC_CONTRACT}.wasm ${CMAKE_CURRENT_BINARY_DIR}/${IBC_CONTRACT}.wasm COPYONLY )

@@ -6,8 +6,6 @@
 
 #include "../common/savanna.hpp"
 
-#include "bitset.hpp"
-
 using namespace eosio;
 using namespace savanna;
 
@@ -53,15 +51,14 @@ CONTRACT ibc : public contract {
           indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
           indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_cache_expiry>>> proofs_table;
 
-
       void _maybe_set_finalizer_policy(const finalizer_policy_input& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
       template<typename Table>
       void _maybe_remove_from_cache();
 
-      void _check_qc(const quorum_certificate& qc, const checksum256& finality_mroot, const uint64_t finalizer_policy_generation);
-      
+      finalizer_policy_input _get_stored_finalizer_policy(const uint64_t finalizer_policy_generation);
+
       void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
       void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
 

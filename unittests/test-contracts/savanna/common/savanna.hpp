@@ -6,9 +6,62 @@
 #include <eosio/system.hpp>
 #include <eosio/transaction.hpp>
 
+#include "bitset.hpp"
+
 using namespace eosio;
 
 namespace savanna {
+
+   struct quorum_certificate {
+       std::vector<uint8_t>   finalizers;
+       std::string            signature;
+   };
+   
+   struct finalizer_authority_internal {
+      std::string       description;
+      uint64_t          weight = 0;
+      std::vector<uint8_t> public_key;
+   };
+
+   struct finalizer_policy_internal {
+
+      uint32_t                         generation = 0; ///< sequentially incrementing version number
+      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
+      std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
+
+      checksum256 digest() const {
+          std::vector<char> serialized = pack(*this);
+          return sha256(serialized.data(), serialized.size());
+      }
+
+   };
+
+   struct finalizer_authority_input {
+      std::string       description;
+      uint64_t          weight = 0;
+      std::string       public_key;
+   };
+
+   struct finalizer_policy_input {
+
+      uint32_t                         generation = 0; ///< sequentially incrementing version number
+      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
+      std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
+
+      checksum256 digest() const {
+
+         std::vector<finalizer_authority_internal> finalizers_i;
+         for (auto f : finalizers){
+            std::array<char,96> decoded_key = decode_bls_public_key_to_g1(f.public_key);
+            std::vector<uint8_t> vector_key(decoded_key.begin(), decoded_key.end());
+            finalizer_authority_internal fai{f.description, f.weight, vector_key};
+            finalizers_i.push_back(fai);
+         }
+         finalizer_policy_internal internal{generation, threshold, finalizers_i};
+         return internal.digest();
+      }
+
+   };
 
    //Compute the maximum number of layers of a merkle tree for a given number of leaves
    uint64_t calculate_max_depth(uint64_t node_count) {
@@ -96,56 +149,45 @@ namespace savanna {
       check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verification failed");
    }
    
-   struct quorum_certificate {
-       std::vector<uint8_t>   finalizers;
-       std::string            signature;
-   };
+   //verify that the quorum certificate over the finality digest is valid
+   void _check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
 
-   struct finalizer_authority_internal {
-      std::string       description;
-      uint64_t          weight = 0;
-      std::vector<uint8_t> public_key;
-   };
+       auto fa_itr = finalizer_policy.finalizers.begin();
+       auto fa_end_itr = finalizer_policy.finalizers.end();
+       size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
+       bitset b(finalizer_count, qc.finalizers);
 
-   struct finalizer_policy_internal {
+       bool first = true;
 
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
+       size_t index = 0;
+       uint64_t weight = 0;
 
-      checksum256 digest() const {
-          std::vector<char> serialized = pack(*this);
-          return sha256(serialized.data(), serialized.size());
-      }
+       bls_g1 agg_pub_key;
 
-   };
+       while (fa_itr != fa_end_itr){
+           if (b.test(index)){
+               bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
+               if (first){
+                   first=false;
+                   agg_pub_key = pub_key;
+               }
+               else agg_pub_key = _g1add(agg_pub_key, pub_key);
+               weight+=fa_itr->weight;
+           }
+           index++;
+           fa_itr++;
+       }
 
-   struct finalizer_authority_input {
-      std::string       description;
-      uint64_t          weight = 0;
-      std::string       public_key;
-   };
+       //verify that we have enough vote weight to meet the quorum threshold of the target policy
+       check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
+       std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
+       std::string message(fd_data.begin(), fd_data.end());
 
-   struct finalizer_policy_input {
+       std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
+       //verify signature validity
+       _verify(s_agg_pub_key, qc.signature, message);
+   }
 
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
-
-      checksum256 digest() const {
-
-         std::vector<finalizer_authority_internal> finalizers_i;
-         for (auto f : finalizers){
-            std::array<char,96> decoded_key = decode_bls_public_key_to_g1(f.public_key);
-            std::vector<uint8_t> vector_key(decoded_key.begin(), decoded_key.end());
-            finalizer_authority_internal fai{f.description, f.weight, vector_key};
-            finalizers_i.push_back(fai);
-         }
-         finalizer_policy_internal internal{generation, threshold, finalizers_i};
-         return internal.digest();
-      }
-
-   };
 
    struct authseq {
       name account;
