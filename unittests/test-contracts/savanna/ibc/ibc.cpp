@@ -132,7 +132,7 @@ ACTION ibc::setfpolicy(const finalizer_policy_input& policy, const uint32_t from
     policies_table _policies_table(get_self(), get_self().value);
 
     //can only be used once for the initilization of the contract
-    //check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
+    check(_policies_table.begin() == _policies_table.end(), "can only set finalizer policy manually for initialization");
 
     _maybe_set_finalizer_policy(policy, from_block_num);
 
