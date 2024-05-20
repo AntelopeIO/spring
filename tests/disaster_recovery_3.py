@@ -79,8 +79,8 @@ try:
 
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
     currentLIB = node0.getIrreversibleBlockNum()
-    libBlock = node0.getBlock(currentLIB)
-    Print(f"Lib Block: {libBlock}")
+    n_LIB = currentLIB + 1
+    libBlock = node0.getBlock(n_LIB)
 
     Print("Shutdown two nodes")
     for node in [node0, node1]:
@@ -89,8 +89,8 @@ try:
         assert not node.verifyAlive(), "Node did not shutdown"
 
     Print("Wait for lib to advance on other nodes")
-    for node in [node2, node3]:
-        assert node.waitForBlock(currentLIB-1, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
+    for node in [node2, node3]: # waitForBlock uses > not >=. node2 & node3 have lib of n_LIB
+        assert node.waitForBlock(n_LIB-1, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
 
     Print("Shutdown other two nodes")
     for node in [node2, node3]:
@@ -107,6 +107,13 @@ try:
     for i in range(4):
         isRelaunchSuccess = cluster.getNode(i).relaunch(chainArg=" -e --snapshot {}".format(node0.getLatestSnapshot()))
         assert isRelaunchSuccess, f"node {i} relaunch from snapshot failed"
+
+    Print("Verify forks resolve and libBlock is included on all nodes")
+    Print(f"Lib Block: {libBlock}")
+    for node in [node0, node1, node2, node3]:
+        node.waitForBlock(n_LIB)
+        nodeId = node.getBlock(n_LIB)["id"]
+        assert nodeId == libBlock["id"], "Node lib block id does not match prior lib block id"
 
     Print("Verify LIB does not advance on any node")
     for node in [node0, node1, node2, node3]:
@@ -131,7 +138,7 @@ try:
         assert node.waitForLibToAdvance(), "Node did not advance LIB after restart"
 
     for node in [node0, node1, node2, node3]:
-        nodeId = node.getBlock(currentLIB)["id"]
+        nodeId = node.getBlock(n_LIB)["id"]
         assert nodeId == libBlock["id"], "Node lib block id does not match prior lib block id"
 
     testSuccessful=True
