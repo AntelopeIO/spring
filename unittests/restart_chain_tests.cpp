@@ -54,10 +54,14 @@ FC_REFLECT(cf_action, (payload)(cfd_idx))
 #define DUMMY_ACTION_DEFAULT_B 0xab11cd1244556677
 #define DUMMY_ACTION_DEFAULT_C 0x7451ae12
 
+template <typename T>
 class replay_tester : public base_tester {
  public:
    template <typename OnAppliedTrx>
    replay_tester(controller::config config, const genesis_state& genesis, OnAppliedTrx&& on_applied_trx) {
+      if constexpr (std::is_same_v<T, savanna_tester>) {
+         is_savanna = true;
+      }
       cfg = config;
       base_tester::open(make_protocol_feature_set(), genesis.compute_chain_id(), [&genesis,&control=this->control, &on_applied_trx]() {
          control->applied_transaction().connect(on_applied_trx);
@@ -86,15 +90,15 @@ class replay_tester : public base_tester {
 
 BOOST_AUTO_TEST_SUITE(restart_chain_tests)
 
-BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
-   tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_existing_state_without_block_log, T, testers ) {
+   T chain;
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
 
-   tester other;
+   T other;
    for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
@@ -116,15 +120,15 @@ BOOST_AUTO_TEST_CASE(test_existing_state_without_block_log) {
    }
 }
 
-BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
-   tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_with_different_chain_id, T, testers ) {
+   T chain;
 
    std::vector<signed_block_ptr> blocks;
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
    blocks.push_back(chain.produce_block());
 
-   tester other;
+   T other;
    for (const auto& new_block : blocks) {
       other.push_block(new_block);
    }
@@ -139,8 +143,8 @@ BOOST_AUTO_TEST_CASE(test_restart_with_different_chain_id) {
                            fc_exception_message_starts_with("chain ID in state "));
 }
 
-BOOST_AUTO_TEST_CASE(test_restart_from_block_log) {
-   tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_from_block_log, T, testers ) {
+   T chain;
 
    chain.create_account("replay1"_n);
    chain.produce_blocks(1);
@@ -169,8 +173,8 @@ BOOST_AUTO_TEST_CASE(test_restart_from_block_log) {
    BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay3"_n));
 }
 
-BOOST_AUTO_TEST_CASE(test_light_validation_restart_from_block_log) {
-   tester chain(setup_policy::full);
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, testers ) {
+   T chain(setup_policy::full);
 
    chain.create_account("testapi"_n);
    chain.create_account("dummy"_n);
@@ -214,7 +218,7 @@ BOOST_AUTO_TEST_CASE(test_light_validation_restart_from_block_log) {
    remove_existing_states(copied_config);
    transaction_trace_ptr other_trace;
 
-   replay_tester from_block_log_chain(copied_config, *genesis,
+   replay_tester<T> from_block_log_chain(copied_config, *genesis,
                                        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
                                           auto& t = std::get<0>(x);
                                           if (t && t->id == trace->id) {
@@ -232,7 +236,9 @@ BOOST_AUTO_TEST_CASE(test_light_validation_restart_from_block_log) {
    auto check_action_traces = [](const auto& t, const auto& ot) {
       BOOST_CHECK_EQUAL("", ot.console); // cfa not executed for replay
       BOOST_CHECK_EQUAL(t.receipt->global_sequence, ot.receipt->global_sequence);
-      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy()); // digest_legacy because test doesn't switch to Savanna
+      // both legacy and savanna digests should be the same
+      BOOST_CHECK_EQUAL(t.digest_legacy(), ot.digest_legacy());
+      BOOST_CHECK_EQUAL(t.digest_savanna(), ot.digest_savanna());
    };
 
    BOOST_CHECK(other_trace->action_traces.at(0).context_free); // cfa
