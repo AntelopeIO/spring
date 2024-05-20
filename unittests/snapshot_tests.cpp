@@ -481,7 +481,7 @@ void compatible_versions_test()
    //    now the test should pass.
    // 5. add the 3 new snapshot files in git.
    // -------------------------------------------------------------------------------------------------------------
-   // Save one copy of snapshots under Savanna only
+   // Only want to save one snapshot, use Savanna as that is the latest
    if constexpr (std::is_same_v<TESTER, savanna_tester>) {
       if (save_snapshot)
       {
