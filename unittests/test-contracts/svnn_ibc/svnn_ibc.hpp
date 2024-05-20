@@ -15,8 +15,8 @@ CONTRACT svnn_ibc : public contract {
    public:
       using contract::contract;
 
-      const uint32_t POLICY_CACHE_EXPIRY = 600; //10 minutes for testing
-      const uint32_t PROOF_CACHE_EXPIRY = 600; //10 minutes for testing
+      const uint32_t POLICY_CACHE_EXPIRY = 5; //5 seconds for testing
+      const uint32_t PROOF_CACHE_EXPIRY = 5; //5 seconds for testing
 
       //Compute the maximum number of layers of a merkle tree for a given number of leaves
       static uint64_t calculate_max_depth(uint64_t node_count) {
@@ -98,17 +98,17 @@ CONTRACT svnn_ibc : public contract {
           std::string            signature;
       };
 
-      struct finalizer_authority {
+      struct finalizer_authority_internal {
          std::string       description;
          uint64_t          weight = 0;
-         std::string       public_key;
+         std::vector<uint8_t> public_key;
       };
 
-      struct fpolicy {
+      struct finalizer_policy_internal {
 
          uint32_t                         generation = 0; ///< sequentially incrementing version number
          uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-         std::vector<finalizer_authority> finalizers; ///< Instant Finality voter set
+         std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
 
          checksum256 digest() const {
              std::vector<char> serialized = pack(*this);
@@ -117,8 +117,35 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
+      struct finalizer_authority_input {
+         std::string       description;
+         uint64_t          weight = 0;
+         std::string       public_key;
+      };
+
+      struct finalizer_policy_input {
+
+         uint32_t                         generation = 0; ///< sequentially incrementing version number
+         uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
+         std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
+
+         checksum256 digest() const {
+
+            std::vector<finalizer_authority_internal> finalizers_i;
+            for (auto f : finalizers){
+               std::array<char,96> decoded_key = decode_bls_public_key_to_g1(f.public_key);
+               std::vector<uint8_t> vector_key(decoded_key.begin(), decoded_key.end());
+               finalizer_authority_internal fai{f.description, f.weight, vector_key};
+               finalizers_i.push_back(fai);
+            }
+            finalizer_policy_internal internal{generation, threshold, finalizers_i};
+            return internal.digest();
+         }
+
+      };
+
       //finalizer policy augmented with contextually-relevant data 
-      TABLE storedpolicy : fpolicy {
+      TABLE storedpolicy : finalizer_policy_input {
 
          uint32_t       last_block_num = 0; //last block number where this policy is in force
 
@@ -153,29 +180,27 @@ CONTRACT svnn_ibc : public contract {
 
       };
 
-      struct r_action_base {
+      struct action_base {
          name             account;
          name             name;
          std::vector<permission_level> authorization;
 
       };
 
-      struct r_action :  r_action_base {
+      struct action :  action_base {
          std::vector<char>    data;
-         std::vector<char>    returnvalue;
+         std::vector<char>    return_value;
 
          checksum256 digest() const {
             checksum256 hashes[2];
-            const r_action_base* base = this;
+            const action_base* base = this;
             const auto action_input_size = pack_size(data);
-            const auto return_value_size = pack_size(returnvalue);
+            const auto return_value_size = pack_size(return_value);
             const auto rhs_size = action_input_size + return_value_size;
             const auto serialized_base = pack(*base);
             const auto serialized_data = pack(data);
-            const auto serialized_output = pack(returnvalue);
+            const auto serialized_output = pack(return_value);
             hashes[0] = sha256(serialized_base.data(), serialized_base.size());
-            std::vector<uint8_t> data_digest(action_input_size);
-            std::vector<uint8_t> output_digest(return_value_size);
             std::vector<uint8_t> h1_result(rhs_size);
             std::copy (serialized_data.cbegin(), serialized_data.cend(), h1_result.begin());
             std::copy (serialized_output.cbegin(), serialized_output.cend(), h1_result.begin() + action_input_size);
@@ -189,46 +214,40 @@ CONTRACT svnn_ibc : public contract {
             return final_hash;
          }
 
-         EOSLIB_SERIALIZE( r_action, (account)(name)(authorization)(data)(returnvalue))
+         EOSLIB_SERIALIZE( action, (account)(name)(authorization)(data)(return_value))
 
       };
-
-      struct action_receipt {
-
-         name                       receiver;
-
-         //act_digest is provided instead by obtaining the action digest. Implementation depends on the activation of action_return_value feature
-         //checksum256              act_digest;
-
-         uint64_t                   global_sequence = 0;
-         uint64_t                   recv_sequence   = 0;
-   
-         std::vector<authseq>       auth_sequence;
-         unsigned_int               code_sequence = 0;
-         unsigned_int               abi_sequence  = 0;
-
-         EOSLIB_SERIALIZE( action_receipt, (receiver)(global_sequence)(recv_sequence)(auth_sequence)(code_sequence)(abi_sequence) )
-
-      };
-
-      //struct proof_of_inclusion;
 
       struct action_data {
 
-         r_action action; //antelope action
-         checksum256 action_receipt_digest; //required witness hash, actual action_receipt is irrelevant to IBC
+         action               action; //antelope action
+         name                 receiver;
+         uint64_t             recv_sequence   = 0;
 
-         std::vector<char> return_value; //empty if no return value
+         checksum256          witness_hash;
 
-         //returns the action digest 
-         checksum256 action_digest() const {
-            return action.digest();
-         }; 
-
-         //returns the receipt digest, composed of the action_digest() and action_receipt_digest witness hash
          checksum256 digest() const {
-            checksum256 action_receipt_digest = hash_pair( std::make_pair( action_digest(), action_receipt_digest) );
-            return action_receipt_digest;
+
+            //4x uint64_t + 2x checksum256
+            std::vector<char> result(8 + 8 + 8 + 8 + 32 + 32);
+
+            const auto serialized_receiver = pack(receiver); //uint64_t
+            const auto serialized_recv_sequence = pack(recv_sequence); //uint64_t
+            const auto serialized_account = pack(action.account); //uint64_t
+            const auto serialized_name = pack(action.name); //uint64_t
+            const auto serialized_act_digest = pack(action.digest()); //checksum256
+            const auto serialized_witness_hash = pack(witness_hash); //checksum256
+
+            std::copy (serialized_receiver.cbegin(), serialized_receiver.cend(), result.begin());
+            std::copy (serialized_recv_sequence.cbegin(), serialized_recv_sequence.cend(), result.begin() + 8);
+            std::copy (serialized_account.cbegin(), serialized_account.cend(), result.begin() + 16);
+            std::copy (serialized_name.cbegin(), serialized_name.cend(), result.begin() + 24);
+            std::copy (serialized_act_digest.cbegin(), serialized_act_digest.cend(), result.begin() + 32);
+            std::copy (serialized_witness_hash.cbegin(), serialized_witness_hash.cend(), result.begin() + 64);
+
+            checksum256 final_hash = sha256(result.data(), 96);
+            return final_hash;
+
          };
 
       };
@@ -255,7 +274,6 @@ CONTRACT svnn_ibc : public contract {
 
          //block_num is always present
          uint32_t block_num;
-
 
          //can include any number of action_proofs and / or state_proofs pertaining to a given block
          //all action_proofs must resolve to the same action_mroot
@@ -289,8 +307,7 @@ CONTRACT svnn_ibc : public contract {
          //finalizer_policy_generation for this block
          uint32_t finalizer_policy_generation;
 
-         //if the block to prove contains a finalizer policy change, it can be provided
-         std::optional<fpolicy> active_finalizer_policy;
+         std::optional<finalizer_policy_input> new_finalizer_policy;
 
          //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
          checksum256 witness_hash;
@@ -298,11 +315,10 @@ CONTRACT svnn_ibc : public contract {
          //final_on_qc for this block
          checksum256 finality_mroot;
 
-         //returns hash of digest of active_finalizer_policy + witness_hash if active_finalizer_policy is present, otherwise returns witness_hash
+         //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
          checksum256 resolve_witness() const {
-            if (active_finalizer_policy.has_value()){
-               std::vector<char> serialized_policy = pack(active_finalizer_policy.value());
-               checksum256 policy_digest = sha256(serialized_policy.data(), serialized_policy.size());
+            if (new_finalizer_policy.has_value()){
+               checksum256 policy_digest = new_finalizer_policy.value().digest();
                checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
                return base_fpolicy_digest;
             }
@@ -399,7 +415,7 @@ CONTRACT svnn_ibc : public contract {
 
       bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2);
 
-      void _maybe_set_finalizer_policy(const fpolicy& policy, const uint32_t from_block_num);
+      void _maybe_set_finalizer_policy(const finalizer_policy_input& policy, const uint32_t from_block_num);
       void _maybe_add_proven_root(const uint32_t block_num, const checksum256& finality_mroot);
 
       template<typename Table>
@@ -411,7 +427,7 @@ CONTRACT svnn_ibc : public contract {
       void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
       void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
 
-      ACTION setfpolicy(const fpolicy& policy, const uint32_t from_block_num); //set finality policy
-      ACTION checkproof(const proof& proof);
+      ACTION setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num); //set finality policy
+      ACTION checkproof(const proof& proof, const bool assert);
 
 };

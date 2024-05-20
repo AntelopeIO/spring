@@ -4,20 +4,56 @@
     "types": [],
     "structs": [
         {
+            "name": "action",
+            "base": "action_base",
+            "fields": [
+                {
+                    "name": "data",
+                    "type": "bytes"
+                },
+                {
+                    "name": "return_value",
+                    "type": "bytes"
+                }
+            ]
+        },
+        {
+            "name": "action_base",
+            "base": "",
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "name",
+                    "type": "name"
+                },
+                {
+                    "name": "authorization",
+                    "type": "permission_level[]"
+                }
+            ]
+        },
+        {
             "name": "action_data",
             "base": "",
             "fields": [
                 {
                     "name": "action",
-                    "type": "r_action"
+                    "type": "action"
                 },
                 {
-                    "name": "action_receipt_digest",
+                    "name": "receiver",
+                    "type": "name"
+                },
+                {
+                    "name": "recv_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "witness_hash",
                     "type": "checksum256"
-                },
-                {
-                    "name": "return_value",
-                    "type": "bytes"
                 }
             ]
         },
@@ -74,8 +110,8 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "active_finalizer_policy",
-                    "type": "fpolicy?"
+                    "name": "new_finalizer_policy",
+                    "type": "finalizer_policy_input?"
                 },
                 {
                     "name": "witness_hash",
@@ -116,6 +152,10 @@
                 {
                     "name": "proof",
                     "type": "proof"
+                },
+                {
+                    "name": "assert",
+                    "type": "bool"
                 }
             ]
         },
@@ -152,7 +192,7 @@
             ]
         },
         {
-            "name": "finalizer_authority",
+            "name": "finalizer_authority_input",
             "base": "",
             "fields": [
                 {
@@ -170,7 +210,7 @@
             ]
         },
         {
-            "name": "fpolicy",
+            "name": "finalizer_policy_input",
             "base": "",
             "fields": [
                 {
@@ -183,7 +223,7 @@
                 },
                 {
                     "name": "finalizers",
-                    "type": "finalizer_authority[]"
+                    "type": "finalizer_authority_input[]"
                 }
             ]
         },
@@ -248,44 +288,12 @@
             ]
         },
         {
-            "name": "r_action",
-            "base": "r_action_base",
-            "fields": [
-                {
-                    "name": "data",
-                    "type": "bytes"
-                },
-                {
-                    "name": "returnvalue",
-                    "type": "bytes"
-                }
-            ]
-        },
-        {
-            "name": "r_action_base",
-            "base": "",
-            "fields": [
-                {
-                    "name": "account",
-                    "type": "name"
-                },
-                {
-                    "name": "name",
-                    "type": "name"
-                },
-                {
-                    "name": "authorization",
-                    "type": "permission_level[]"
-                }
-            ]
-        },
-        {
             "name": "setfpolicy",
             "base": "",
             "fields": [
                 {
                     "name": "policy",
-                    "type": "fpolicy"
+                    "type": "finalizer_policy_input"
                 },
                 {
                     "name": "from_block_num",
@@ -295,7 +303,7 @@
         },
         {
             "name": "storedpolicy",
-            "base": "fpolicy",
+            "base": "finalizer_policy_input",
             "fields": [
                 {
                     "name": "last_block_num",

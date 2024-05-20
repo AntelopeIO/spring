@@ -1698,7 +1698,9 @@ struct controller_impl {
 
          auto pending_head = forkdb.pending_head();
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog( "fork database head ${h}, root ${r}", ("h", pending_head->block_num())( "r", forkdb.root()->block_num() ) );
+            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
+                 ("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
@@ -3251,6 +3253,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
+                  vote_processor.notify_new_block();
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
