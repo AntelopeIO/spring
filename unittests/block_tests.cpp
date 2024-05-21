@@ -1,5 +1,6 @@
 #include <boost/test/unit_test.hpp>
 #include <eosio/testing/tester.hpp>
+#include <test_contracts.hpp>
 
 using namespace eosio;
 using namespace testing;
@@ -343,5 +344,44 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { t
       BOOST_REQUIRE_EQUAL( 0u,  unapplied_trxs.size() );
 
    } FC_LOG_AND_RETHROW() }
+
+// Verify blocks are produced when onblock fails
+BOOST_AUTO_TEST_CASE_TEMPLATE(no_onblock_test, T, testers) { try {
+   T c;
+
+   c.produce_block_ex();
+   auto r = c.produce_block_ex();
+   BOOST_TEST_REQUIRE(!!r.onblock_trace);
+   BOOST_TEST(!!r.onblock_trace->receipt);
+   BOOST_TEST(!r.onblock_trace->except);
+   BOOST_TEST(!r.onblock_trace->except_ptr);
+   BOOST_TEST(!r.block->action_mroot.empty());
+
+   // Deploy contract that rejects all actions dispatched to it with the following exceptions:
+   //   * eosio::setcode to set code on the eosio is allowed (unless the rejectall account exists)
+   //   * eosio::newaccount is allowed only if it creates the rejectall account.
+   c.set_code( config::system_account_name, test_contracts::reject_all_wasm() );
+   c.produce_block();
+   r = c.produce_block_ex(); // empty block, no valid onblock since it is rejected
+   BOOST_TEST_REQUIRE(!!r.onblock_trace);
+   BOOST_TEST(!r.onblock_trace->receipt);
+   BOOST_TEST(!!r.onblock_trace->except);
+   BOOST_TEST(!!r.onblock_trace->except_ptr);
+
+   // In Legacy, action_mroot is the mroot of all delivered action receipts.
+   // In Savanna, action_mroot is the root of the Finality Tree
+   // associated with the block, i.e. the root of
+   // validation_tree(core.final_on_strong_qc_block_num).
+   if constexpr (std::is_same_v<T, savanna_tester>) {
+      BOOST_TEST(r.block->is_proper_svnn_block());
+      BOOST_TEST(!r.block->action_mroot.empty());
+   } else {
+      BOOST_TEST(!r.block->is_proper_svnn_block());
+      BOOST_TEST(r.block->action_mroot.empty());
+   }
+   c.produce_empty_block();
+
+} FC_LOG_AND_RETHROW() }
+
 
 BOOST_AUTO_TEST_SUITE_END()
