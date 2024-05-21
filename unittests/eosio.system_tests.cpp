@@ -573,6 +573,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( stake_unstake_separate, T, eosio_system_testers )
    BOOST_REQUIRE_EQUAL( core_from_string("30.0000"), total["cpu_weight"].template as<asset>());
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(eosio_system_part2_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( adding_stake_partial_unstake, T, eosio_system_testers ) try {
    T chain;
@@ -981,6 +984,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( vote_same_producer_30_times, T, eosio_system_test
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(eosio_system_part3_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( producer_keep_votes, T, eosio_system_testers ) try {
    T chain;
@@ -1268,7 +1274,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( proxy_actions_affect_producers, T, eosio_system_t
 
 BOOST_AUTO_TEST_SUITE_END()
 
-BOOST_AUTO_TEST_SUITE(eosio_system_part2_tests)
+BOOST_AUTO_TEST_SUITE(eosio_system_part4_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( multiple_producer_votepay_share, T, eosio_system_testers ) try {
    T chain;
@@ -1899,6 +1905,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( producers_upgrade_system_contract, T, eosio_syste
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(eosio_system_part5_tests)
+
 BOOST_AUTO_TEST_CASE_TEMPLATE( producer_onblock_check, T, eosio_system_testers ) try {
    T chain;
 
@@ -2492,6 +2502,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( multiple_namebids, T, eosio_system_testers ) try 
                             fc::exception, fc_assert_exception_message_is( not_closed_message ) );
 
 } FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(eosio_system_part6_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( vote_producers_in_and_out, T, eosio_system_testers ) try {
    T chain;
