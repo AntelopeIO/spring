@@ -621,12 +621,13 @@ struct state_history_tester_logs  {
    eosio::state_history::trace_converter trace_converter;
 };
 
-struct state_history_tester : state_history_tester_logs, tester {
+template<typename T>
+struct state_history_tester : state_history_tester_logs, T {
 
 
    state_history_tester(const std::filesystem::path& dir, const eosio::state_history_log_config& config)
-   : state_history_tester_logs(dir, config), tester ([this](eosio::chain::controller& control) {
-      control.applied_transaction().connect(
+   : state_history_tester_logs(dir, config), T ([this](eosio::chain::controller& control) {
+       control.applied_transaction().connect(
        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> t) {
           trace_converter.add_transaction(std::get<0>(t), std::get<1>(t));
        });
@@ -651,6 +652,9 @@ struct state_history_tester : state_history_tester_logs, tester {
       });
    }) {}
 };
+
+using state_history_testers = boost::mpl::list<state_history_tester<legacy_tester>,
+                                               state_history_tester<savanna_tester>>;
 
 static std::vector<char> get_decompressed_entry(eosio::state_history_log& log, block_num_type block_num) {
    auto result = log.create_locked_decompress_stream();
@@ -679,7 +683,7 @@ static std::vector<eosio::ship_protocol::transaction_trace> get_traces(eosio::st
    return traces;
 }
 
-BOOST_AUTO_TEST_CASE(test_splitted_log) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_splitted_log, T, state_history_testers ) {
 
    fc::temp_directory state_history_dir;
 
@@ -690,7 +694,7 @@ BOOST_AUTO_TEST_CASE(test_splitted_log) {
       .max_retained_files = 5
    };
 
-   state_history_tester chain(state_history_dir.path(), config);
+   T chain(state_history_dir.path(), config);
    chain.produce_blocks(50);
 
    deploy_test_api(chain);
@@ -760,6 +764,7 @@ void push_blocks( tester& from, tester& to ) {
    }
 }
 
+template<typename T>
 bool test_fork(uint32_t stride, uint32_t max_retained_files) {
 
    fc::temp_directory state_history_dir;
@@ -771,7 +776,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
       .max_retained_files = max_retained_files
    };
 
-   state_history_tester chain1(state_history_dir.path(), config);
+   state_history_tester<T> chain1(state_history_dir.path(), config);
    chain1.produce_blocks(2);
 
    chain1.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -779,7 +784,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    chain1.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
    chain1.produce_blocks(30);
 
-   tester chain2(setup_policy::none);
+   T chain2(setup_policy::none);
    push_blocks(chain1, chain2);
 
    auto fork_block_num = chain1.control->head_block_num();
@@ -804,24 +809,24 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    return trace_found;
 }
 
-BOOST_AUTO_TEST_CASE(test_fork_no_stride) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_fork_no_stride, T, testers ) {
    // In this case, the chain fork would NOT trunk the trace log across the stride boundary.
-   BOOST_CHECK(test_fork(UINT32_MAX, 10));
+   BOOST_CHECK(test_fork<T>(UINT32_MAX, 10));
 }
-BOOST_AUTO_TEST_CASE(test_fork_with_stride1) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_fork_with_stride1, T, testers ) {
    // In this case, the chain fork would trunk the trace log across the stride boundary.
    // However, there are still some traces remains after the truncation.
-   BOOST_CHECK(test_fork(10, 10));
+   BOOST_CHECK(test_fork<T>(10, 10));
 }
-BOOST_AUTO_TEST_CASE(test_fork_with_stride2) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_fork_with_stride2, T, testers ) {
    // In this case, the chain fork would trunk the trace log across the stride boundary.
    // However, no existing trace remain after the truncation. Because we only keep a very
    // short history, the create_account_trace is not available to be found. We just need
    // to make sure no exception is throw.
-   BOOST_CHECK_NO_THROW(test_fork(5, 1));
+   BOOST_CHECK_NO_THROW(test_fork<T>(5, 1));
 }
 
-BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_corrupted_log_recovery, T, state_history_testers ) {
 
    fc::temp_directory state_history_dir;
 
@@ -831,7 +836,7 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
       .max_retained_files = 5
    };
 
-   state_history_tester chain(state_history_dir.path(), config);
+   T chain(state_history_dir.path(), config);
    chain.produce_blocks(50);
    chain.close();
 
@@ -844,7 +849,7 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
 
    std::filesystem::remove_all(chain.get_config().blocks_dir/"reversible");
 
-   state_history_tester new_chain(state_history_dir.path(), config);
+   T new_chain(state_history_dir.path(), config);
    new_chain.produce_blocks(50);
 
    BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
