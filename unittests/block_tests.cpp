@@ -345,6 +345,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { t
 
    } FC_LOG_AND_RETHROW() }
 
+// Verify blocks are produced when onblock fails
 BOOST_AUTO_TEST_CASE_TEMPLATE(no_onblock_test, T, testers) { try {
    T c;
 
