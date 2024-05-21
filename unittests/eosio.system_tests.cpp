@@ -163,6 +163,7 @@ BOOST_FIXTURE_TEST_CASE( buysell, eosio_system_tester ) try {
 BOOST_FIXTURE_TEST_CASE( stake_unstake, eosio_system_tester ) try {
    cross_15_percent_threshold();
 
+   ilog("before produce_blocks( 10 )");
    produce_blocks( 10 );
    produce_block( fc::hours(3*24) );
 

@@ -16,7 +16,7 @@ using mvo = fc::mutable_variant_object;
 
 namespace eosio_system {
 
-class eosio_system_tester : public validating_tester {
+class eosio_system_tester : public savanna_validating_tester {
 public:
 
    eosio_system_tester()

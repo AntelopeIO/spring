@@ -397,6 +397,7 @@ namespace eosio::testing {
    }
 
    produce_block_result_t base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw ) {
+      ilog("entering _produce_block");
       produce_block_result_t res;
 
       auto head_time = control->head_block_time();
@@ -439,6 +440,7 @@ namespace eosio::testing {
    }
 
    transaction_trace_ptr base_tester::_start_block(fc::time_point block_time) {
+      ilog("entering _start_block");
       auto head_block_number = control->head_block_num();
       auto producer = control->head_active_producers().get_scheduled_producer(block_time);
 
@@ -475,6 +477,7 @@ namespace eosio::testing {
    }
 
    signed_block_ptr base_tester::_finish_block() {
+      ilog("entering _finish_block");
       FC_ASSERT( control->is_building_block(), "must first start a block before it can be finished" );
 
       auto auth = control->pending_block_signing_authority();
@@ -526,8 +529,10 @@ namespace eosio::testing {
          for( uint32_t i = 0; i < n; ++i )
             res = produce_empty_block();
       } else {
-         for( uint32_t i = 0; i < n; ++i )
+         for( uint32_t i = 0; i < n; ++i ) {
+            ilog("produce_blocks: ${i}", ("i", i));
             res = produce_block();
+         }
       }
       return res;
    }
