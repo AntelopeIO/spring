@@ -12,33 +12,34 @@ using namespace fc;
 
 using mvo = fc::mutable_variant_object;
 
-struct dry_run_trx_tester : validating_tester {
+template<typename T>
+struct dry_run_trx_tester : T {
    dry_run_trx_tester() {
-      produce_block();
+      T::produce_block();
    };
 
    void set_up_test_contract() {
-      create_accounts( {"noauthtable"_n, "alice"_n} );
-      set_code( "noauthtable"_n, test_contracts::no_auth_table_wasm() );
-      set_abi( "noauthtable"_n, test_contracts::no_auth_table_abi() );
-      produce_block();
+      T::create_accounts( {"noauthtable"_n, "alice"_n} );
+      T::set_code( "noauthtable"_n, test_contracts::no_auth_table_wasm() );
+      T::set_abi( "noauthtable"_n, test_contracts::no_auth_table_abi() );
+      T::produce_block();
 
       insert_data = abi_ser.variant_to_binary( "insert", mutable_variant_object()
          ("user", "alice") ("id", 1) ("age", 10),
-         abi_serializer::create_yield_function( abi_serializer_max_time ) );
+         abi_serializer::create_yield_function( T::abi_serializer_max_time ) );
       getage_data = abi_ser.variant_to_binary("getage", mutable_variant_object()
          ("user", "alice"),
-         abi_serializer::create_yield_function( abi_serializer_max_time ));
+         abi_serializer::create_yield_function( T::abi_serializer_max_time ));
    }
 
    void send_action(const action& act, bool sign = false) {
       signed_transaction trx;
       trx.actions.push_back( act );
-      set_transaction_headers( trx );
+      T::set_transaction_headers( trx );
       if (sign) // dry-run can contain signature, but not required
-         trx.sign(get_private_key(act.authorization.at(0).actor, act.authorization.at(0).permission.to_string()), control->get_chain_id());
+         trx.sign(T::get_private_key(act.authorization.at(0).actor, act.authorization.at(0).permission.to_string()), T::control->get_chain_id());
 
-      push_transaction( trx, fc::time_point::maximum(), DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run );
+      T::push_transaction( trx, fc::time_point::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run );
    }
 
    auto send_db_api_transaction(action_name name, bytes data, const vector<permission_level>& auth={{"alice"_n, config::active_name}},
@@ -52,77 +53,86 @@ struct dry_run_trx_tester : validating_tester {
       act.data = data;
 
       trx.actions.push_back( act );
-      set_transaction_headers( trx );
+      T::set_transaction_headers( trx );
       trx.delay_sec = delay_sec;
       if ( type == transaction_metadata::trx_type::input ) {
-         trx.sign(get_private_key("alice"_n, "active"), control->get_chain_id());
+         trx.sign(T::get_private_key("alice"_n, "active"), T::control->get_chain_id());
       }
 
-      return push_transaction( trx, fc::time_point::maximum(), DEFAULT_BILLED_CPU_TIME_US, false, type );
+      return T::push_transaction( trx, fc::time_point::maximum(), T::DEFAULT_BILLED_CPU_TIME_US, false, type );
    }
 
    void insert_a_record() {
       auto res = send_db_api_transaction("insert"_n, insert_data);
       BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
-      produce_block();
+      T::produce_block();
    }
 
-   abi_serializer abi_ser{ json::from_string(test_contracts::no_auth_table_abi()).as<abi_def>(), abi_serializer::create_yield_function(abi_serializer_max_time )};
+   abi_serializer abi_ser{ json::from_string(test_contracts::no_auth_table_abi()).as<abi_def>(), abi_serializer::create_yield_function(T::abi_serializer_max_time )};
    bytes insert_data;
    bytes getage_data;
 };
 
+using dry_run_trx_testers = boost::mpl::list<dry_run_trx_tester<legacy_validating_tester>,
+                                             dry_run_trx_tester<savanna_validating_tester>>;
+
 BOOST_AUTO_TEST_SUITE(dry_run_trx_tests)
 
-BOOST_FIXTURE_TEST_CASE(require_authorization, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( require_authorization, T, dry_run_trx_testers ) { try {
+   T chain;
+
+   chain.produce_blocks( 1 );
 
    action act = {
       {}, // no authorization provided: vector<permission_level>{{config::system_account_name,config::active_name}},
       newaccount{
        .creator  = config::system_account_name,
        .name     = "alice"_n,
-       .owner    = authority( get_public_key( "alice"_n, "owner" ) ),
-       .active   = authority( get_public_key( "alice"_n, "active" ) )
+       .owner    = authority( chain.get_public_key( "alice"_n, "owner" ) ),
+       .active   = authority( chain.get_public_key( "alice"_n, "active" ) )
       }
    };
 
    // dry-run requires authorization
-   BOOST_REQUIRE_THROW(send_action(act, false), tx_no_auths);
+   BOOST_REQUIRE_THROW(chain.send_action(act, false), tx_no_auths);
 
    // sign trx with no authorization
    signed_transaction trx;
    trx.actions.push_back( act );
-   set_transaction_headers( trx );
-   trx.sign(get_private_key("alice"_n, "active"), control->get_chain_id());
-   BOOST_REQUIRE_THROW(push_transaction( trx, fc::time_point::maximum(), DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run ), tx_no_auths);
+   chain.set_transaction_headers( trx );
+   trx.sign(chain.get_private_key("alice"_n, "active"), chain.control->get_chain_id());
+   BOOST_REQUIRE_THROW(chain.push_transaction( trx, fc::time_point::maximum(), chain.DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run ), tx_no_auths);
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(newaccount_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( newaccount_test, T, dry_run_trx_testers ) { try {
+   T chain;
+
+   chain.produce_blocks( 1 );
 
    action act = {
       vector<permission_level>{{config::system_account_name,config::active_name}},
       newaccount{
          .creator  = config::system_account_name,
          .name     = "alice"_n,
-         .owner    = authority( get_public_key( "alice"_n, "owner" ) ),
-         .active   = authority( get_public_key( "alice"_n, "active" ) )
+         .owner    = authority( chain.get_public_key( "alice"_n, "owner" ) ),
+         .active   = authority( chain.get_public_key( "alice"_n, "active" ) )
       }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
-   BOOST_CHECK_THROW(control->get_account("alice"_n), fc::exception); // not actually created
-   produce_blocks( 1 );
-   BOOST_CHECK_THROW(control->get_account("alice"_n), fc::exception); // not actually created
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
+   BOOST_CHECK_THROW(chain.control->get_account("alice"_n), fc::exception); // not actually created
+   chain.produce_blocks( 1 );
+   BOOST_CHECK_THROW(chain.control->get_account("alice"_n), fc::exception); // not actually created
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(setcode_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( setcode_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_accounts( {"setcodetest"_n} );
+   chain.produce_blocks( 1 );
+
+   chain.create_accounts( {"setcodetest"_n} );
 
    auto wasm = test_contracts::no_auth_table_wasm();
    action act = {
@@ -135,15 +145,17 @@ BOOST_FIXTURE_TEST_CASE(setcode_test, dry_run_trx_tester) { try {
       }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
-   BOOST_TEST(!is_code_cached("setcodetest"_n));
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
+   BOOST_TEST(!chain.is_code_cached("setcodetest"_n));
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(setabi_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( setabi_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_accounts( {"setabitest"_n} );
+   chain.produce_blocks( 1 );
+
+   chain.create_accounts( {"setabitest"_n} );
 
    auto abi = test_contracts::no_auth_table_abi();
    action act = {
@@ -153,19 +165,21 @@ BOOST_FIXTURE_TEST_CASE(setabi_test, dry_run_trx_tester) { try {
       }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
-   const auto* accnt = control->db().template find<chain::account_object, chain::by_name>( "setabitest"_n );
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
+   const auto* accnt = chain.control->db().template find<chain::account_object, chain::by_name>( "setabitest"_n );
    BOOST_REQUIRE(accnt);
    BOOST_TEST(accnt->abi.size() == 0u); // no abi actually set
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(updateauth_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( updateauth_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_accounts( {"alice"_n} );
+   chain.produce_blocks( 1 );
 
-   auto auth = authority( get_public_key( "alice"_n, "test" ) );
+   chain.create_accounts( {"alice"_n} );
+
+   auto auth = authority( chain.get_public_key( "alice"_n, "test" ) );
    action act = {
       vector<permission_level>{{"alice"_n, config::active_name}},
       updateauth {
@@ -173,21 +187,23 @@ BOOST_FIXTURE_TEST_CASE(updateauth_test, dry_run_trx_tester) { try {
       }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(deleteauth_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( deleteauth_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_accounts( {"alice"_n} );
+   chain.produce_blocks( 1 );
+
+   chain.create_accounts( {"alice"_n} );
 
    // update auth
-   push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
+   chain.push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
            ("account", "alice")
            ("permission", "first")
            ("parent", "active")
-           ("auth",  authority(get_public_key("alice"_n, "first")))
+           ("auth",  authority(chain.get_public_key("alice"_n, "first")))
    );
 
    name account = "alice"_n;
@@ -197,25 +213,27 @@ BOOST_FIXTURE_TEST_CASE(deleteauth_test, dry_run_trx_tester) { try {
       deleteauth { account, permission }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(linkauth_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_account("eosio.token"_n);
-   set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
-   set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
+   chain.produce_blocks( 1 );
 
-   create_accounts( {"alice"_n} );
+   chain.create_account("eosio.token"_n);
+   chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
+   chain.set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
+
+   chain.create_accounts( {"alice"_n} );
 
    // update auth
-   push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
+   chain.push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
            ("account", "alice")
            ("permission", "first")
            ("parent", "active")
-           ("auth",  authority(get_public_key("alice"_n, "first")))
+           ("auth",  authority(chain.get_public_key("alice"_n, "first")))
    );
 
    name account = "alice"_n;
@@ -227,29 +245,31 @@ BOOST_FIXTURE_TEST_CASE(linkauth_test, dry_run_trx_tester) { try {
       linkauth { account, code, type, requirement }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(unlinkauth_test, dry_run_trx_tester) { try {
-   produce_blocks( 1 );
+BOOST_AUTO_TEST_CASE_TEMPLATE( unlinkauth_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   create_account("eosio.token"_n);
-   set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
-   set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
+   chain.produce_blocks( 1 );
 
-   create_accounts( {"alice"_n} );
+   chain.create_account("eosio.token"_n);
+   chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
+   chain.set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
+
+   chain.create_accounts( {"alice"_n} );
 
    // update auth
-   push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
+   chain.push_action(config::system_account_name, updateauth::get_name(), "alice"_n, fc::mutable_variant_object()
            ("account", "alice")
            ("permission", "first")
            ("parent", "active")
-           ("auth",  authority(get_public_key("alice"_n, "first")))
+           ("auth",  authority(chain.get_public_key("alice"_n, "first")))
    );
 
    // link auth
-   push_action(config::system_account_name, linkauth::get_name(), "alice"_n, fc::mutable_variant_object()
+   chain.push_action(config::system_account_name, linkauth::get_name(), "alice"_n, fc::mutable_variant_object()
            ("account", "alice")
            ("code", "eosio.token")
            ("type", "transfer")
@@ -263,66 +283,72 @@ BOOST_FIXTURE_TEST_CASE(unlinkauth_test, dry_run_trx_tester) { try {
       unlinkauth { account, code, type }
    };
 
-   send_action(act, false); // should not throw
-   send_action(act, true); // should not throw
+   chain.send_action(act, false); // should not throw
+   chain.send_action(act, true); // should not throw
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(delay_sec_test, dry_run_trx_tester) { try {
-   set_up_test_contract();
+BOOST_AUTO_TEST_CASE_TEMPLATE( delay_sec_test, T, dry_run_trx_testers ) { try {
+   T chain;
+
+   chain.set_up_test_contract();
 
    // verify dry-run transaction does not allow non-zero delay_sec.
-   BOOST_CHECK_THROW(send_db_api_transaction("getage"_n, getage_data, {}, transaction_metadata::trx_type::dry_run, 3), transaction_exception);
+   BOOST_CHECK_THROW(chain.send_db_api_transaction("getage"_n, chain.getage_data, {}, transaction_metadata::trx_type::dry_run, 3), transaction_exception);
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(db_insert_test, dry_run_trx_tester) { try {
-   set_up_test_contract();
+BOOST_AUTO_TEST_CASE_TEMPLATE( db_insert_test, T, dry_run_trx_testers ) { try {
+   T chain;
+
+   chain.set_up_test_contract();
 
    // verify DB operation is allowed by dry-run transaction
-   send_db_api_transaction("insert"_n, insert_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
+   chain.send_db_api_transaction("insert"_n, chain.insert_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
 
    // verify the dry-run insert was rolled back, use a read-only trx to query
-   BOOST_CHECK_EXCEPTION(send_db_api_transaction("getage"_n, getage_data, {}, transaction_metadata::trx_type::read_only), fc::exception,
+   BOOST_CHECK_EXCEPTION(chain.send_db_api_transaction("getage"_n, chain.getage_data, {}, transaction_metadata::trx_type::read_only), fc::exception,
                             [](const fc::exception& e) {
                                return expect_assert_message(e, "Record does not exist");
                             });
 
-   insert_a_record();
+   chain.insert_a_record();
 
    // do a dry-run transaction and verify the return value (age) is the same as inserted
-   auto res = send_db_api_transaction("getage"_n, getage_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
+   auto res = chain.send_db_api_transaction("getage"_n, chain.getage_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
    BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
    BOOST_CHECK_EQUAL(res->action_traces[0].return_value[0], 10);
    BOOST_CHECK_GT(res->net_usage, 0u);
    BOOST_CHECK_GT(res->elapsed.count(), 0u);
 } FC_LOG_AND_RETHROW() }
 
-BOOST_FIXTURE_TEST_CASE(sequence_numbers_test, dry_run_trx_tester) { try {
-   set_up_test_contract();
+BOOST_AUTO_TEST_CASE_TEMPLATE( sequence_numbers_test, T, dry_run_trx_testers ) { try {
+   T chain;
 
-   const auto& p = control->get_dynamic_global_properties();
-   auto receiver_account = control->db().find<account_metadata_object,by_name>("noauthtable"_n);
-   auto amo = control->db().find<account_metadata_object,by_name>("alice"_n);
+   chain.set_up_test_contract();
+
+   const auto& p = chain.control->get_dynamic_global_properties();
+   auto receiver_account = chain.control->db().template find<account_metadata_object,by_name>("noauthtable"_n);
+   auto amo = chain.control->db().template find<account_metadata_object,by_name>("alice"_n);
 
    // verify sequence numbers in state increment for non-read-only transactions
    auto prev_global_action_sequence = p.global_action_sequence;
    auto prev_recv_sequence = receiver_account->recv_sequence;
    auto prev_auth_sequence = amo->auth_sequence; 
 
-   auto res = send_db_api_transaction("insert"_n, insert_data);
+   auto res = chain.send_db_api_transaction("insert"_n, chain.insert_data);
    BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
 
    BOOST_CHECK_EQUAL( prev_global_action_sequence + 1, p.global_action_sequence );
    BOOST_CHECK_EQUAL( prev_recv_sequence + 1, receiver_account->recv_sequence );
    BOOST_CHECK_EQUAL( prev_auth_sequence + 1, amo->auth_sequence );
    
-   produce_block();
+   chain.produce_block();
 
    // verify sequence numbers in state do not change for dry-run transactions
    prev_global_action_sequence = p.global_action_sequence;
    prev_recv_sequence = receiver_account->recv_sequence;
    prev_auth_sequence = amo->auth_sequence; 
 
-   send_db_api_transaction("getage"_n, getage_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
+   chain.send_db_api_transaction("getage"_n, chain.getage_data, vector<permission_level>{{"alice"_n, config::active_name}}, transaction_metadata::trx_type::dry_run);
 
    BOOST_CHECK_EQUAL( prev_global_action_sequence, p.global_action_sequence );
    BOOST_CHECK_EQUAL( prev_recv_sequence, receiver_account->recv_sequence );
