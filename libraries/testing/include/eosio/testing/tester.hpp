@@ -596,7 +596,8 @@ namespace eosio::testing {
       }
 
       tester(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full,
-             db_read_mode read_mode = db_read_mode::HEAD);
+             db_read_mode read_mode = db_read_mode::HEAD,
+             bool is_savanna = false);
 
       using base_tester::produce_block;
 
@@ -625,6 +626,8 @@ namespace eosio::testing {
    public:
       savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
       savanna_tester(controller::config config, const genesis_state& genesis);
+      savanna_tester(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full,
+             db_read_mode read_mode = db_read_mode::HEAD);
    };
 
    using legacy_tester = tester;

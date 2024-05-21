@@ -1386,7 +1386,8 @@ namespace eosio::testing {
       preactivate_builtin_protocol_features( builtins );
    }
 
-   tester::tester(const std::function<void(controller&)>& control_setup, setup_policy policy, db_read_mode read_mode) {
+   tester::tester(const std::function<void(controller&)>& control_setup, setup_policy policy, db_read_mode read_mode, bool is_savanna) {
+      this->is_savanna         = is_savanna;
       auto def_conf            = default_config(tempdir);
       def_conf.first.read_mode = read_mode;
       cfg                      = def_conf.first;
@@ -1406,6 +1407,10 @@ namespace eosio::testing {
 
    savanna_tester::savanna_tester(controller::config config, const genesis_state& genesis)
    : tester(config, genesis, true) { // true for is_savanna
+   }
+
+   savanna_tester::savanna_tester(const std::function<void(controller&)>& control_setup, setup_policy policy, db_read_mode read_mode)
+   : tester(control_setup, policy, read_mode, true) {
    }
 
    unique_ptr<controller> validating_tester::create_validating_node(controller::config vcfg, const genesis_state& genesis, bool use_genesis, deep_mind_handler* dmlog) {
