@@ -8,15 +8,15 @@
 
 using namespace eosio;
 using namespace chain;
-using tester = eosio::testing::tester;
+using namespace eosio::testing;
 
 BOOST_AUTO_TEST_SUITE(special_account_tests)
 
 //Check special accounts exits in genesis
-BOOST_FIXTURE_TEST_CASE(accounts_exists, tester)
+BOOST_AUTO_TEST_CASE_TEMPLATE( accounts_exists, T, testers )
 { try {
 
-      tester test;
+      T test;
       chain::controller *control = test.control.get();
       const chain::database& chain1_db = control->db();
 
