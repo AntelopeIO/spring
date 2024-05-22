@@ -360,7 +360,8 @@ class Node(Transactions):
 
     # pylint: disable=too-many-locals
     # If nodeosPath is equal to None, it will use the existing nodeos path
-    def relaunch(self, chainArg=None, newChain=False, skipGenesis=True, timeout=Utils.systemWaitTimeout, addSwapFlags=None, nodeosPath=None, waitForTerm=False):
+    def relaunch(self, chainArg=None, newChain=False, skipGenesis=True, timeout=Utils.systemWaitTimeout,
+                 addSwapFlags=None, rmArgs=None, nodeosPath=None, waitForTerm=False):
 
         assert(self.pid is None)
         assert(self.killed)
@@ -370,6 +371,10 @@ class Node(Transactions):
         cmdArr=self.cmd[:]
         if nodeosPath: cmdArr[0] = nodeosPath
         toAddOrSwap=copy.deepcopy(addSwapFlags) if addSwapFlags is not None else {}
+        if rmArgs is not None:
+            for v in shlex.split(rmArgs):
+                i = cmdArr.index(v)
+                cmdArr.pop(i)
         if not newChain:
             if skipGenesis:
                 try:
@@ -557,6 +562,11 @@ class Node(Transactions):
         dataDir = Utils.getNodeDataDir(self.nodeId)
         reversibleBlks = os.path.join(dataDir, "blocks", "reversible")
         shutil.rmtree(reversibleBlks, ignore_errors=True)
+
+    def removeFinalizersSafetyDir(self):
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        finalizersDir = os.path.join(dataDir, "finalizers")
+        shutil.rmtree(finalizersDir, ignore_errors=True)
 
     @staticmethod
     def findStderrFiles(path):
