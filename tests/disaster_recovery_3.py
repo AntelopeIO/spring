@@ -54,8 +54,9 @@ try:
     Print(f'producing nodes: {pnodes}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
     Print("Stand up cluster")
+    extraNodeosArgs = " --plugin eosio::producer_api_plugin "
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, delay=delay, loadSystemContract=False,
-                      activateIF=True, biosFinalizer=False) is False:
+                      extraNodeosArgs=extraNodeosArgs, activateIF=True, biosFinalizer=False) is False:
         errorExit("Failed to stand up eos cluster.")
 
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] != "eosio", "launch should have waited for production to change"
@@ -76,8 +77,14 @@ try:
     Print("Wait for snapshot node lib to advance")
     assert node0.waitForBlock(ret_head_block_num+1, blockType=BlockType.lib), "Node0 did not advance to make snapshot block LIB"
     assert node1.waitForLibToAdvance(), "Node1 did not advance LIB after snapshot of Node0"
-
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
+
+    Print("Stop production on Node0 and Node1")
+    assert node0.waitForProducer("defproducera"), "Node 0 did not produce"
+    for node in [node0, node1]:
+        node.processUrllibRequest("producer", "pause", exitOnError=True)
+    time.sleep(0.5)
+
     currentLIB = node0.getIrreversibleBlockNum()
     n_LIB = currentLIB + 1
     libBlock = node0.getBlock(n_LIB)
@@ -91,6 +98,8 @@ try:
     Print("Wait for lib to advance to LIB N on other 2 nodes")
     for node in [node2, node3]: # waitForBlock uses > not >=. node2 & node3 have lib of n_LIB
         assert node.waitForBlock(n_LIB-1, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
+        currentLIB = node.getIrreversibleBlockNum()
+        assert currentLIB == n_LIB, f"Node advanced LIB {currentLIB} beyond N LIB {n_LIB}"
 
     Print("Shutdown other two nodes")
     for node in [node2, node3]:
