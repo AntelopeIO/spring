@@ -280,7 +280,6 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
-   assert(!action_mroot.empty());
    assert(!strong_digest.empty());
 
    // Copy parent's validation_tree and validation_mroots.

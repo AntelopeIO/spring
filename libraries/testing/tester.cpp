@@ -1408,6 +1408,10 @@ namespace eosio::testing {
    : tester(config, genesis, true) { // true for is_savanna
    }
 
+   savanna_tester::savanna_tester(const fc::temp_directory& tempdir, bool use_genesis)
+   : tester(tempdir, use_genesis, true) { // true for is_savanna
+   }
+
    unique_ptr<controller> validating_tester::create_validating_node(controller::config vcfg, const genesis_state& genesis, bool use_genesis, deep_mind_handler* dmlog) {
       unique_ptr<controller> validating_node = std::make_unique<controller>(vcfg, make_protocol_feature_set(), genesis.compute_chain_id());
       validating_node->add_indices();
