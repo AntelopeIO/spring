@@ -106,7 +106,7 @@ void finish_next(const block_header_state& prev,
    if (if_ext.new_proposer_policy) {
       // called when assembling the block
       next_header_state.proposer_policies[if_ext.new_proposer_policy->active_time] =
-         std::move(if_ext.new_proposer_policy);
+         std::make_shared<proposer_policy>(std::move(*if_ext.new_proposer_policy));
    }
 
    // finality_core

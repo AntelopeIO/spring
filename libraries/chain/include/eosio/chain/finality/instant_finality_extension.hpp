@@ -13,7 +13,7 @@ struct instant_finality_extension : fc::reflect_init {
    instant_finality_extension() = default;
    instant_finality_extension(qc_claim_t qc_claim,
                               std::optional<finalizer_policy> new_finalizer_policy,
-                              std::shared_ptr<proposer_policy> new_proposer_policy) :
+                              std::optional<proposer_policy> new_proposer_policy) :
       qc_claim(qc_claim),
       new_finalizer_policy(std::move(new_finalizer_policy)),
       new_proposer_policy(std::move(new_proposer_policy))
@@ -27,7 +27,7 @@ struct instant_finality_extension : fc::reflect_init {
 
    qc_claim_t                         qc_claim;
    std::optional<finalizer_policy>    new_finalizer_policy;
-   std::shared_ptr<proposer_policy>   new_proposer_policy;
+   std::optional<proposer_policy>     new_proposer_policy;
 };
 
 } /// eosio::chain

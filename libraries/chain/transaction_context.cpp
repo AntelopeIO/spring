@@ -835,7 +835,7 @@ namespace eosio::chain {
       if (producers.empty())
          return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
-      EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
+      EOS_ASSERT(producers.size() <= config::max_producers, wasm_execution_error,
                  "Producer schedule exceeds the maximum proposer count for this chain");
 
       trx_blk_context.proposed_schedule_block_num = control.head_block_num() + 1;
