@@ -74,11 +74,12 @@ std::string make_locals_wasm(int n_params, int n_locals, int n_stack)
 using wasm_config_testers = boost::mpl::list<wasm_config_tester<legacy_tester>,
                                              wasm_config_tester<savanna_tester>>;
 
-BOOST_AUTO_TEST_SUITE(wasm_config_tests)
-
 struct old_wasm_tester : tester {
    old_wasm_tester() : tester{setup_policy::old_wasm_parser} {}
 };
+
+// Split the tests into two parts so that they can be finished within CICD time limit
+BOOST_AUTO_TEST_SUITE(wasm_config_part1_tests)
 
 template<typename T>
 void test_max_mutable_global_bytes(T& chain, int32_t n_globals, int32_t oversize) {
@@ -280,7 +281,6 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_sectio
    test_max_section_elements_export(*this, n_elements, oversize);
 }
 
-
 static const char max_linear_memory_wast[] = R"=====(
 (module
   (import "env" "eosio_assert" (func $$eosio_assert (param i32 i32)))
@@ -330,6 +330,10 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_linear
                        n_init, oversize) {
    test_max_linear_memory_init(*this, n_init, oversize);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
 
 static const std::vector<std::tuple<int, int, bool, bool>> func_local_params = {
    // Default value of max_func_local_bytes
