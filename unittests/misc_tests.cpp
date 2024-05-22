@@ -393,9 +393,9 @@ struct permission_visitor {
 
 };
 
-BOOST_AUTO_TEST_CASE(authority_checker)
+BOOST_AUTO_TEST_CASE_TEMPLATE( authority_checker, T, validating_testers )
 { try {
-   testing::validating_tester test;
+   T test;
    auto a = test.get_public_key(name("a"), "active");
    auto b = test.get_public_key(name("b"), "active");
    auto c = test.get_public_key(name("c"), "active");
@@ -716,9 +716,9 @@ BOOST_AUTO_TEST_CASE(alphabetic_sort)
 } FC_LOG_AND_RETHROW() }
 
 
-BOOST_AUTO_TEST_CASE(transaction_test) { try {
+BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_test, T, validating_testers ) { try {
 
-   testing::validating_tester test;
+   T test;
    signed_transaction trx;
 
    fc::variant pretty_trx = fc::mutable_variant_object()
@@ -881,9 +881,9 @@ BOOST_AUTO_TEST_CASE(signed_int_test) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE(transaction_metadata_test) { try {
+BOOST_AUTO_TEST_CASE_TEMPLATE( transaction_metadata_test, T, validating_testers ) { try {
 
-   testing::validating_tester test;
+   T test;
    signed_transaction trx;
 
    fc::variant pretty_trx = fc::mutable_variant_object()
@@ -1219,8 +1219,8 @@ BOOST_AUTO_TEST_CASE(stable_priority_queue_test) {
    #endif
 #endif
 #ifndef __SANITIZE_ADDRESS__
-BOOST_AUTO_TEST_CASE(bad_alloc_test) {
-   tester t; // force a controller to be constructed and set the new_handler
+BOOST_AUTO_TEST_CASE_TEMPLATE( bad_alloc_test, T, testers ) {
+   T t; // force a controller to be constructed and set the new_handler
    int* ptr = nullptr;
    const auto fail = [&]() {
       ptr = new int[std::numeric_limits<int64_t>::max()/16];
