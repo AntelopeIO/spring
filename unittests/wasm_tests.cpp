@@ -62,7 +62,8 @@ struct provereset {
 
 FC_REFLECT_EMPTY(provereset);
 
-BOOST_AUTO_TEST_SUITE(wasm_tests)
+// Split the tests into two parts so that they can be finished within CICD time limit
+BOOST_AUTO_TEST_SUITE(wasm_part1_tests)
 
 /**
  * Prove that action reading and assertions are working
@@ -1269,6 +1270,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_big_deserialization, T, validating_testers 
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_part2_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try {
    T chain;
