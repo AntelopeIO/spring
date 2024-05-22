@@ -569,7 +569,8 @@ namespace eosio::testing {
          init(std::move(config), std::move(pfs), genesis);
       }
 
-      tester(const fc::temp_directory& tempdir, bool use_genesis) {
+      tester(const fc::temp_directory& tempdir, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
 
@@ -625,6 +626,7 @@ namespace eosio::testing {
    public:
       savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
       savanna_tester(controller::config config, const genesis_state& genesis);
+      savanna_tester(const fc::temp_directory& tempdir, bool use_genesis);
    };
 
    using legacy_tester = tester;
