@@ -281,6 +281,10 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_sectio
    test_max_section_elements_export(*this, n_elements, oversize);
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
+
 static const char max_linear_memory_wast[] = R"=====(
 (module
   (import "env" "eosio_assert" (func $$eosio_assert (param i32 i32)))
@@ -395,10 +399,6 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_func_lo
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_func_local_bytes_svnn, data::make({0, 8192, 16384}) * data::make(func_local_params), n_params, n_locals, n_stack, set_high, expect_success) {
    test_max_func_local_bytes(*this, n_params, n_locals, n_stack, set_high, expect_success);
 }
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_func_local_bytes_mixed, T, wasm_config_testers ) {
    T chain;
@@ -599,6 +599,10 @@ BOOST_FIXTURE_TEST_CASE(max_func_local_bytes_mixed_old, old_wasm_tester) {
    BOOST_CHECK_THROW(set_code("stackz"_n, code.c_str()), wasm_exception);
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
+
 template<typename T>
 void test_max_table_elements(T& chain, int32_t max_table_elements, int32_t oversize) {
    chain.produce_block();
@@ -756,10 +760,6 @@ BOOST_DATA_TEST_CASE_F( wasm_config_tester<savanna_validating_tester>, max_symbo
                         n_symbol, oversize, wast ) {
    test_max_symbol_bytes_export(*this, n_symbol, oversize, wast);
 }
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
 
 static const char max_symbol_import_wast[] = R"=====(
 (module
