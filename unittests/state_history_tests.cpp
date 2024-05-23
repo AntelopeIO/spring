@@ -695,7 +695,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_splitted_log, T, state_history_testers ) {
    };
 
    T chain(state_history_dir.path(), config);
-   chain.produce_blocks(50);
+   while(chain.produce_blocks()->block_num() < 50u);
 
    deploy_test_api(chain);
    auto cfd_trace = push_test_cfd_transaction(chain);
@@ -782,22 +782,23 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    chain1.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
    chain1.produce_block();
    chain1.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
-   chain1.produce_blocks(30);
+   while(chain1.produce_blocks()->block_num() < 38u);
+   //chain1 head block is 38 now
 
    T chain2(setup_policy::none);
    push_blocks(chain1, chain2);
 
    auto fork_block_num = chain1.control->head_block_num();
-
-   chain1.produce_blocks(12);
+   chain1.produce_block(); //block 39
    auto create_account_traces = chain2.create_accounts( {"adam"_n} );
    auto create_account_trace_id = create_account_traces[0]->id;
 
-   auto b = chain2.produce_block();
-   chain2.produce_blocks(11+12);
+   auto b = chain2.produce_block(); //block 39
+   chain2.produce_blocks(5);        //block 44
 
    for( uint32_t start = fork_block_num + 1, end = chain2.control->head_block_num(); start <= end; ++start ) {
       auto fb = chain2.control->fetch_block_by_number( start );
+      BOOST_REQUIRE(!!fb);
       chain1.push_block( fb );
    }
    auto traces = get_traces(chain1.traces_log, b->block_num());
