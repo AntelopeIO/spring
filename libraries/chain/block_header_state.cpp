@@ -124,7 +124,8 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 instant_finality_extension if_ext) {
+                 instant_finality_extension if_ext,
+                 bool log) { // only log on assembled blocks, to avoid double logging
    // activated protocol features
    // ---------------------------
    if (!new_protocol_feature_activations.empty()) {
@@ -240,8 +241,9 @@ void finish_next(const block_header_state& prev,
       // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
       // increment the generation number, and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
-      dlog("New finalizer policy proposed in block ${id}..: ${pol}",
-           ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
+      if (log)
+         dlog("New finalizer policy proposed in block ${id}..: ${pol}",
+              ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
       next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
@@ -259,9 +261,11 @@ void finish_next(const block_header_state& prev,
    // -----------------------------------------------------------------
    if (next_header_state.active_finalizer_policy != prev.active_finalizer_policy) {
       const auto& act = next_header_state.active_finalizer_policy;
-      ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
-           ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
-      ilog("New finalizer policy becoming active in block ${id}: ${pol}",("id", next_header_state.block_id)("pol", *act));
+      if (log) {
+         ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
+              ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
+         ilog("New finalizer policy becoming active in block ${id}: ${pol}",("id", next_header_state.block_id)("pol", *act));
+      }
    }
 }
    
@@ -308,7 +312,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext));
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext), true);
 
    return next_header_state;
 }
@@ -365,7 +369,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
                  ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext);
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext, false);
 
    return next_header_state;
 }

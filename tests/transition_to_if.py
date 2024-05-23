@@ -2,6 +2,7 @@
 
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.TestHelper import AppArgs
+from TestHarness.Node import BlockType
 
 ###############################################################
 # transition_to_if
@@ -88,12 +89,23 @@ try:
     # with setprods of (defproducera, defproducerg, defproducerl, defproducerq)
     assert cluster.biosNode.waitForProducer("defproducerq"), "defproducerq did not produce"
 
+    Print("Set prods")
     # should take effect in first block of defproducerg slot (so defproducerh)
     assert cluster.setProds(["defproducerb", "defproducerh", "defproducerm", "defproducerr"]), "setprods failed"
     setProdsBlockNum = cluster.biosNode.getBlockNum()
     assert cluster.biosNode.waitForBlock(setProdsBlockNum+12+12+1), "Block of new producers not reached"
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] == "defproducerh", "setprods should have taken effect"
     assert cluster.getNode(4).waitForBlock(setProdsBlockNum + 12 + 12 + 1), "Block of new producers not reached on irreversible node"
+
+    Print("Set finalizers")
+    nodes = [cluster.getNode(0), cluster.getNode(1), cluster.getNode(2)]
+    transId = cluster.setFinalizers(nodes)
+    assert transId is not None, "setfinalizers failed"
+    if not cluster.biosNode.waitForTransFinalization(transId):
+        Utils.Print("ERROR: setfinalizer transaction %s not rolled into a LIB block" % (transId))
+    currentHead = cluster.biosNode.getHeadBlockNum()
+    assert cluster.biosNode.waitForBlock(currentHead, blockType=BlockType.lib), "LIB did not advance for setfinalizers to activate"
+    assert cluster.biosNode.waitForLibToAdvance(), "LIB did not advance after setfinalizers"
 
     testSuccessful=True
 finally:
