@@ -1022,7 +1022,7 @@ class Cluster(object):
             if not self.biosNode.waitForTransFinalization(transId, timeout=21 * 12 * 3):
                 Utils.Print(f'ERROR: Failed to validate setfinalizer transaction {transId} got rolled into a '
                             f'LIB block on server port {self.biosNode.port}.')
-            return None, transId
+                return None, transId
         return True, transId
 
     def setFinalizers(self, nodes, node=None):
