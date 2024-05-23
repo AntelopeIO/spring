@@ -274,9 +274,10 @@ bool is_block_cpu_usage_exceeded(const block_cpu_usage_exceeded& e) { return tru
 bool is_deadline_exception(const deadline_exception& e) { return true; }
 
 /*
- * register test suite `api_tests`
+ * Split the tests into two parts so that they can be finished within CICD time limit.
+ * Register test suite `api_part1_tests`
  */
-BOOST_AUTO_TEST_SUITE(api_tests)
+BOOST_AUTO_TEST_SUITE(api_part1_tests)
 
 /*
  * Print capturing stuff
@@ -2064,6 +2065,10 @@ BOOST_AUTO_TEST_CASE(more_deferred_transaction_tests) { try {
 
    BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(api_part2_tests)
 
 /*************************************************************************************
  * chain_tests test case
