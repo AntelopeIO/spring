@@ -2527,7 +2527,8 @@ namespace eosio {
          } else {
             if (!blk_applied) {
                if (blk_num >= c->sync_last_requested_block) {
-                  peer_dlog(c, "calling cancel_wait, block ${b}", ("b", blk_num));
+                  peer_dlog(c, "calling cancel_wait, block ${b}, sync_last_requested_block ${lrb}",
+                            ("b", blk_num)("lrb", c->sync_last_requested_block));
                   c->cancel_wait();
                } else {
                   peer_dlog(c, "calling sync_wait, block ${b}", ("b", blk_num));
@@ -2536,6 +2537,7 @@ namespace eosio {
 
                if (sync_last_requested_num == 0) { // block was rejected
                   sync_next_expected_num = my_impl->get_chain_lib_num() + 1;
+                  peer_dlog(c, "Reset sync_next_expected_num to ${n}", ("n", sync_next_expected_num));
                } else {
                   if (blk_num == sync_next_expected_num) {
                      ++sync_next_expected_num;
@@ -2544,6 +2546,8 @@ namespace eosio {
                   }
                }
                if (blk_num >= sync_known_lib_num) {
+                  peer_dlog(c, "received non-applied block ${bn} > ${kn}, will send handshakes when caught up",
+                            ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                }
             }
@@ -2554,7 +2558,18 @@ namespace eosio {
                   fc_dlog(logger, "Requesting range ahead, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} sync_last_requested_num: ${lrn}",
                           ("h", head)("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
                   request_next_chunk();
+                  return;
                }
+            }
+
+            if (!blk_applied && blk_num >= c->sync_last_requested_block) {
+               // block was not applied, possibly because we already have the block
+               // We didn't request the next chunk of blocks, request them anyway because we might need them to resolve a fork
+               fc_dlog(logger, "Requesting blocks, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} "
+                               "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                       ("h", head)("bn", blk_num)("nen", sync_next_expected_num)
+                       ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+               request_next_chunk();
             }
 
          }
@@ -2566,6 +2581,7 @@ namespace eosio {
    // thread safe
    void sync_manager::send_handshakes_if_synced(const fc::microseconds& blk_latency) {
       if (blk_latency.count() < config::block_interval_us && send_handshakes_when_synced) {
+         fc_dlog(logger, "Block latency within block interval, synced, sending handshakes");
          send_handshakes();
          send_handshakes_when_synced = false;
       }
