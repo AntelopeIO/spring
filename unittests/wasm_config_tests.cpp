@@ -78,7 +78,7 @@ struct old_wasm_tester : tester {
    old_wasm_tester() : tester{setup_policy::old_wasm_parser} {}
 };
 
-// Split the tests into two parts so that they can be finished within CICD time limit
+// Split the tests into multiple parts so that they can be finished within CICD time limit
 BOOST_AUTO_TEST_SUITE(wasm_config_part1_tests)
 
 template<typename T>
@@ -281,6 +281,10 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_sectio
    test_max_section_elements_export(*this, n_elements, oversize);
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
+
 static const char max_linear_memory_wast[] = R"=====(
 (module
   (import "env" "eosio_assert" (func $$eosio_assert (param i32 i32)))
@@ -330,10 +334,6 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_linear
                        n_init, oversize) {
    test_max_linear_memory_init(*this, n_init, oversize);
 }
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
 
 static const std::vector<std::tuple<int, int, bool, bool>> func_local_params = {
    // Default value of max_func_local_bytes
@@ -598,6 +598,10 @@ BOOST_FIXTURE_TEST_CASE(max_func_local_bytes_mixed_old, old_wasm_tester) {
    code.replace(code.find("param i32"), 5, "param f32");
    BOOST_CHECK_THROW(set_code("stackz"_n, code.c_str()), wasm_exception);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
 
 template<typename T>
 void test_max_table_elements(T& chain, int32_t max_table_elements, int32_t oversize) {

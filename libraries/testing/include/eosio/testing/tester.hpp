@@ -663,7 +663,7 @@ namespace eosio::testing {
       controller::config vcfg;
 
       validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full, bool is_savanna = false) {
-         this->is_savanna = false;
+         this->is_savanna = is_savanna;
 
          auto def_conf = default_config(tempdir);
 
