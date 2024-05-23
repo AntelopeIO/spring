@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_with_empty_values_test)
       header.header_extensions,
       instant_finality_extension::extension_id(),
       fc::raw::pack( instant_finality_extension{qc_claim_t{last_qc_block_num, is_last_strong_qc},
-                                                std::optional<finalizer_policy>{}, std::shared_ptr<proposer_policy>{}} )
+                                                std::optional<finalizer_policy>{}, std::optional<proposer_policy>{}} )
    );
 
    std::optional<block_header_extension> ext = header.extract_header_extension(instant_finality_extension::extension_id());
@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_uniqueness_test)
       header.header_extensions,
       instant_finality_extension::extension_id(),
       fc::raw::pack( instant_finality_extension{qc_claim_t{0, false}, {std::nullopt},
-                                                std::shared_ptr<proposer_policy>{}} )
+                                                std::optional<proposer_policy>{}} )
    );
 
    std::vector<finalizer_authority> finalizers { {"test description", 50, fc::crypto::blslib::bls_public_key{"PUB_BLS_qVbh4IjYZpRGo8U_0spBUM-u-r_G0fMo4MzLZRsKWmm5uyeQTp74YFaMN9IDWPoVVT5rj_Tw1gvps6K9_OZ6sabkJJzug3uGfjA6qiaLbLh5Fnafwv-nVgzzzBlU2kwRrcHc8Q" }} };
@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_uniqueness_test)
    emplace_extension(
       header.header_extensions,
       instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{100, true}, new_finalizer_policy, new_proposer_policy} )
+      fc::raw::pack( instant_finality_extension{qc_claim_t{100, true}, new_finalizer_policy, *new_proposer_policy} )
    );
    
    BOOST_CHECK_THROW(header.validate_and_extract_header_extensions(), invalid_block_header_extension);
@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_with_values_test)
    emplace_extension(
       header.header_extensions,
       instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{last_qc_block_num, is_strong_qc}, new_finalizer_policy, new_proposer_policy} )
+      fc::raw::pack( instant_finality_extension{qc_claim_t{last_qc_block_num, is_strong_qc}, new_finalizer_policy, *new_proposer_policy} )
    );
 
    std::optional<block_header_extension> ext = header.extract_header_extension(instant_finality_extension::extension_id());
