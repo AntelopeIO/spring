@@ -9,7 +9,6 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/deep_mind.hpp>
 
-#include <chrono>
 #include <bit>
 
 namespace eosio::chain {
@@ -407,6 +406,7 @@ namespace eosio::chain {
 
    void transaction_context::squash() {
       if (undo_session) undo_session->squash();
+      control.apply_trx_block_context(trx_blk_context);
    }
 
    void transaction_context::undo() {
@@ -831,5 +831,23 @@ namespace eosio::chain {
       }
    }
 
+   int64_t transaction_context::set_proposed_producers(vector<producer_authority> producers) {
+      if (producers.empty())
+         return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
+
+      EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
+                 "Producer schedule exceeds the maximum proposer count for this chain");
+
+      trx_blk_context.proposed_schedule_block_num = control.head_block_num() + 1;
+      // proposed_schedule.version is set in assemble_block
+      trx_blk_context.proposed_schedule.producers = std::move(producers);
+
+      return std::numeric_limits<uint32_t>::max();
+   }
+
+   void transaction_context::set_proposed_finalizers(finalizer_policy&& fin_pol) {
+      trx_blk_context.proposed_fin_pol_block_num = control.head_block_num() + 1;
+      trx_blk_context.proposed_fin_pol = std::move(fin_pol);
+   }
 
 } /// eosio::chain
