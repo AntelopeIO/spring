@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
 }
 
 template <typename T>
-std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(validating_tester& main, account_name act_name) {
+std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, account_name act_name) {
    // First we create a valid block with valid transaction
    main.create_account(act_name);
    signed_block_ptr b = main.produce_block_no_validation();
@@ -129,14 +129,14 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(validating_te
    const auto& trxs = copy_b->transactions;
    for( const auto& a : trxs )
       trx_digests.emplace_back( a.digest() );
-   if constexpr (std::is_same_v<T, savanna_tester>) {
+   if constexpr (std::is_same_v<T, savanna_validating_tester>) {
       copy_b->transaction_mroot = calculate_merkle( std::move(trx_digests) );
    } else {
       copy_b->transaction_mroot = calculate_merkle_legacy( std::move(trx_digests) );
    }
 
    // Re-sign the block
-   if constexpr (std::is_same_v<T, savanna_tester>) {
+   if constexpr (std::is_same_v<T, savanna_validating_tester>) {
       copy_b->producer_signature = main.get_private_key(b->producer, "active").sign(copy_b->calculate_id());
    } else {
       auto header_bmroot = digest_type::hash( std::make_pair( copy_b->digest(), main.control->head_block_state_legacy()->blockroot_merkle.get_root() ) );
