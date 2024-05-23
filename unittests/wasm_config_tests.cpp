@@ -78,7 +78,7 @@ struct old_wasm_tester : tester {
    old_wasm_tester() : tester{setup_policy::old_wasm_parser} {}
 };
 
-// Split the tests into two parts so that they can be finished within CICD time limit
+// Split the tests into multiple parts so that they can be finished within CICD time limit
 BOOST_AUTO_TEST_SUITE(wasm_config_part1_tests)
 
 template<typename T>
@@ -331,10 +331,6 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_linear
    test_max_linear_memory_init(*this, n_init, oversize);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
-
 static const std::vector<std::tuple<int, int, bool, bool>> func_local_params = {
    // Default value of max_func_local_bytes
    {8192, 0, false, true}, {4096, 4096, false, true}, {0, 8192, false, true},
@@ -399,6 +395,10 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_func_lo
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_func_local_bytes_svnn, data::make({0, 8192, 16384}) * data::make(func_local_params), n_params, n_locals, n_stack, set_high, expect_success) {
    test_max_func_local_bytes(*this, n_params, n_locals, n_stack, set_high, expect_success);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_func_local_bytes_mixed, T, wasm_config_testers ) {
    T chain;
@@ -756,6 +756,10 @@ BOOST_DATA_TEST_CASE_F( wasm_config_tester<savanna_validating_tester>, max_symbo
                         n_symbol, oversize, wast ) {
    test_max_symbol_bytes_export(*this, n_symbol, oversize, wast);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
 
 static const char max_symbol_import_wast[] = R"=====(
 (module
