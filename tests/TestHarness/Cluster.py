@@ -1002,17 +1002,33 @@ class Cluster(object):
         return producerKeys
 
     def activateInstantFinality(self, biosFinalizer=True, waitForFinalization=True, signatureProviderForNonProducer=False):
-        # call setfinalizer
-        numFins = 0
+        nodes = self.nodes.copy()
+        nodes.append(self.biosNode)
         for n in (self.nodes + [self.biosNode]):
             if not n or not n.keys or not n.keys[0].blspubkey:
+                nodes.remove(n)
                 continue
             if not signatureProviderForNonProducer and not n.isProducer:
+                nodes.remove(n)
                 continue
             if n.nodeId == 'bios' and not biosFinalizer:
+                nodes.remove(n)
                 continue
-            numFins = numFins + 1
 
+        transId = self.setFinalizers(nodes)
+        if transId is None:
+            return None, 0
+        if waitForFinalization:
+            if not self.biosNode.waitForTransFinalization(transId, timeout=21 * 12 * 3):
+                Utils.Print(f'ERROR: Failed to validate setfinalizer transaction {transId} got rolled into a '
+                            f'LIB block on server port {self.biosNode.port}.')
+                return None, transId
+        return True, transId
+
+    def setFinalizers(self, nodes, node=None):
+        if node is None:
+            node = self.biosNode
+        numFins = len(nodes)
         threshold = int(numFins * 2 / 3 + 1)
         if threshold > 2 and threshold == numFins:
             # nodes are often stopped, so do not require all node votes
@@ -1022,13 +1038,7 @@ class Cluster(object):
         setFinStr += f'  "threshold": {threshold}, '
         setFinStr += f'  "finalizers": ['
         finNum = 1
-        for n in (self.nodes + [self.biosNode]):
-            if not n or not n.keys or not n.keys[0].blspubkey:
-                continue
-            if not signatureProviderForNonProducer and not n.isProducer:
-                continue
-            if n.nodeId == 'bios' and not biosFinalizer:
-                continue
+        for n in nodes:
             setFinStr += f'    {{"description": "finalizer #{finNum}", '
             setFinStr += f'     "weight":1, '
             setFinStr += f'     "public_key": "{n.keys[0].blspubkey}", '
@@ -1042,17 +1052,13 @@ class Cluster(object):
         if Utils.Debug: Utils.Print("setfinalizers: %s" % (setFinStr))
         Utils.Print("Setting finalizers")
         opts = "--permission eosio@active"
-        trans = self.biosNode.pushMessage("eosio", "setfinalizer", setFinStr, opts)
+        trans = node.pushMessage("eosio", "setfinalizer", setFinStr, opts)
         if trans is None or not trans[0]:
             Utils.Print("ERROR: Failed to set finalizers")
-            return None, 0
+            return None
         Node.validateTransaction(trans[1])
         transId = Node.getTransId(trans[1])
-        if waitForFinalization:
-            if not self.biosNode.waitForTransFinalization(transId, timeout=21*12*3):
-                Utils.Print("ERROR: Failed to validate setfinalizer transaction %s got rolled into a LIB block on server port %d." % (transId, biosNode.port))
-                return None, transId
-        return True, transId
+        return transId
 
     def bootstrap(self, launcher,  biosNode, totalNodes, prodCount, totalProducers, pfSetupPolicy, onlyBios=False, onlySetProds=False, loadSystemContract=True, activateIF=False, biosFinalizer=True, signatureProviderForNonProducer=False):
         """Create 'prodCount' init accounts and deposits 10000000000 SYS in each. If prodCount is -1 will initialize all possible producers.

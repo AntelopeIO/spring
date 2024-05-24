@@ -569,7 +569,8 @@ namespace eosio::testing {
          init(std::move(config), std::move(pfs), genesis);
       }
 
-      tester(const fc::temp_directory& tempdir, bool use_genesis) {
+      tester(const fc::temp_directory& tempdir, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
 
@@ -582,7 +583,8 @@ namespace eosio::testing {
       }
 
       template <typename Lambda>
-      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
+      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
          conf_edit(cfg);
@@ -625,6 +627,12 @@ namespace eosio::testing {
    public:
       savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
       savanna_tester(controller::config config, const genesis_state& genesis);
+      savanna_tester(const fc::temp_directory& tempdir, bool use_genesis);
+
+      template <typename Lambda>
+      savanna_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
+      }
    };
 
    using legacy_tester = tester;
@@ -655,7 +663,7 @@ namespace eosio::testing {
       controller::config vcfg;
 
       validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full, bool is_savanna = false) {
-         this->is_savanna = false;
+         this->is_savanna = is_savanna;
 
          auto def_conf = default_config(tempdir);
 
@@ -696,7 +704,8 @@ namespace eosio::testing {
       }
 
       template <typename Lambda>
-      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
+      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = false;
          auto def_conf = default_config(tempdir);
          conf_edit(def_conf.first);
          vcfg = def_conf.first;
@@ -774,6 +783,11 @@ namespace eosio::testing {
    class savanna_validating_tester : public validating_tester {
    public:
       savanna_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full);
+
+      template <typename Lambda>
+      savanna_validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : validating_tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
+      }
    };
 
    using legacy_validating_tester = validating_tester;

@@ -40,6 +40,8 @@ namespace eosio::chain {
    using chainbase::pinnable_mapped_file;
    using boost::signals2::signal;
 
+   class transaction_context;
+   struct trx_block_context;
    class dynamic_global_property_object;
    class global_property_object;
    class permission_object;
@@ -329,10 +331,11 @@ namespace eosio::chain {
 
          bool is_known_unexpired_transaction( const transaction_id_type& id) const;
 
-         int64_t set_proposed_producers( vector<producer_authority> producers );
+         // called by host function
+         int64_t set_proposed_producers( transaction_context& trx_context, vector<producer_authority> producers );
 
-         // called by host function set_finalizers
-         void set_proposed_finalizers( finalizer_policy&& fin_pol );
+         void apply_trx_block_context( trx_block_context& trx_blk_context );
+
          // called from net threads
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
