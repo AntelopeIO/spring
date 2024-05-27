@@ -798,6 +798,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( table_init_oob, T, validating_testers ) try {
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_part2_tests)
+
 BOOST_AUTO_TEST_CASE_TEMPLATE( memory_init_border, T, validating_testers ) try {
    T chain;
 
@@ -1269,10 +1273,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_big_deserialization, T, validating_testers 
    t.produce_blocks(1);
 
 } FC_LOG_AND_RETHROW()
-
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_part2_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try {
    T chain;
@@ -1754,6 +1754,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( fuzz, T, validating_testers ) try {
 
    chain.produce_blocks(1);
 } FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_part3_tests)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( big_maligned_host_ptr, T, validating_testers ) try {
    T chain;
