@@ -21,7 +21,7 @@ account_name get_expected_producer(const vector<producer_authority>& schedule, b
 
 } // anonymous namespace
 
-BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) try {
 
    // Utility function to ensure that producer schedule work as expected
    const auto& confirm_schedule_correctness = [&](const vector<producer_authority>& new_prod_schd, uint32_t expected_schd_ver)  {
@@ -95,7 +95,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, validating_tester ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( verify_producers, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( verify_producers, legacy_validating_tester ) try {
 
    vector<account_name> valid_producers = {
       "inita"_n, "initb"_n, "initc"_n, "initd"_n, "inite"_n, "initf"_n, "initg"_n,
@@ -120,7 +120,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producers, validating_tester ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    while (control->head_block_num() < 3) {
       produce_block();
@@ -187,7 +187,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, validating_tester ) t
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, tester ) try {
+BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    while (control->head_block_num() < 3) {
       produce_block();
@@ -250,7 +250,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, tester ) try {
 
 BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
    fc::temp_directory tempdir;
-   validating_tester c( tempdir, true );
+   legacy_validating_tester c( tempdir, true );
    c.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
@@ -336,7 +336,7 @@ BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
-   tester c;
+   legacy_tester c;
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    c.produce_block();
@@ -457,7 +457,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_one_of_n_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( producer_one_of_n_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n} );
    produce_block();
 
@@ -475,7 +475,7 @@ BOOST_FIXTURE_TEST_CASE( producer_one_of_n_test, validating_tester ) try {
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_m_of_n_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( producer_m_of_n_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n} );
    produce_block();
 
@@ -496,7 +496,7 @@ BOOST_FIXTURE_TEST_CASE( producer_m_of_n_test, validating_tester ) try {
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( satisfiable_msig_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( satisfiable_msig_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n} );
    produce_block();
 
@@ -514,7 +514,7 @@ BOOST_FIXTURE_TEST_CASE( satisfiable_msig_test, validating_tester ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( duplicate_producers_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( duplicate_producers_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n} );
    produce_block();
 
@@ -533,7 +533,7 @@ BOOST_FIXTURE_TEST_CASE( duplicate_producers_test, validating_tester ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( duplicate_keys_test, validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( duplicate_keys_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n} );
    produce_block();
 
@@ -602,7 +602,7 @@ BOOST_AUTO_TEST_CASE( large_authority_overflow_test ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
-   tester main;
+   legacy_tester main;
 
    main.create_accounts( {"alice"_n} );
    main.produce_block();
