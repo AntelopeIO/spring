@@ -4253,44 +4253,38 @@ struct controller_impl {
    }
 
    void update_producers_authority() {
+      auto& bb = std::get<building_block>(pending->_block_stage);
+      const auto& producers = bb.active_producers().producers;
 
-      auto update_producers_auth = [&](const vector<producer_authority>& producers) {
-         auto update_permission = [&](auto& permission, auto threshold) {
-            auto auth = authority(threshold, {}, {});
-            for (auto& p : producers) {
-               auth.accounts.push_back({
-                  {p.producer_name, config::active_name},
-                  1
-               });
-            }
+      auto update_permission = [&](auto& permission, auto threshold) {
+         auto auth = authority(threshold, {}, {});
+         for (auto& p : producers) {
+            auth.accounts.push_back({
+               {p.producer_name, config::active_name},
+               1
+            });
+         }
 
-            if (permission.auth != auth) {
-               db.modify(permission, [&](auto& po) { po.auth = auth; });
-            }
-         };
-
-         uint32_t num_producers       = producers.size();
-         auto     calculate_threshold = [=](uint32_t numerator, uint32_t denominator) {
-            return ((num_producers * numerator) / denominator) + 1;
-         };
-
-         update_permission(authorization.get_permission({config::producers_account_name, config::active_name}),
-                           calculate_threshold(2, 3) /* more than two-thirds */);
-
-         update_permission(
-            authorization.get_permission({config::producers_account_name, config::majority_producers_permission_name}),
-            calculate_threshold(1, 2) /* more than one-half */);
-
-         update_permission(
-            authorization.get_permission({config::producers_account_name, config::minority_producers_permission_name}),
-            calculate_threshold(1, 3) /* more than one-third */);
-
-         // TODO: Add tests
+         if (permission.auth != auth) {
+            db.modify(permission, [&](auto& po) { po.auth = auth; });
+         }
       };
 
-      // this is not called when hotstuff is activated
-      auto& bb = std::get<building_block>(pending->_block_stage);
-      update_producers_auth(bb.active_producers().producers);
+      uint32_t num_producers       = producers.size();
+      auto     calculate_threshold = [=](uint32_t numerator, uint32_t denominator) {
+         return ((num_producers * numerator) / denominator) + 1;
+      };
+
+      update_permission(authorization.get_permission({config::producers_account_name, config::active_name}),
+                        calculate_threshold(2, 3) /* more than two-thirds */);
+
+      update_permission(
+         authorization.get_permission({config::producers_account_name, config::majority_producers_permission_name}),
+         calculate_threshold(1, 2) /* more than one-half */);
+
+      update_permission(
+         authorization.get_permission({config::producers_account_name, config::minority_producers_permission_name}),
+         calculate_threshold(1, 3) /* more than one-third */);
    }
 
    void create_block_summary(const block_id_type& id) {
