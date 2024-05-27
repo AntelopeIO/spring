@@ -67,9 +67,9 @@ std::vector<table_delta> create_deltas(const chainbase::database& db, bool full_
 
 BOOST_AUTO_TEST_SUITE(test_state_history)
 
-class table_deltas_tester : public tester {
+class table_deltas_tester : public legacy_tester {
 public:
-   using tester::tester;
+   using legacy_tester::legacy_tester;
    using deltas_vector = vector<eosio::state_history::table_delta>;
 
    pair<bool, deltas_vector::iterator> find_table_delta(const std::string &name, bool full_snapshot = false) {
@@ -452,7 +452,7 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
 }
 
    BOOST_AUTO_TEST_CASE(test_deltas) {
-      tester main;
+      legacy_tester main;
 
       auto v = eosio::state_history::create_deltas(main.control->db(), false);
 
@@ -621,11 +621,11 @@ struct state_history_tester_logs  {
    eosio::state_history::trace_converter trace_converter;
 };
 
-struct state_history_tester : state_history_tester_logs, tester {
+struct state_history_tester : state_history_tester_logs, legacy_tester {
 
 
    state_history_tester(const std::filesystem::path& dir, const eosio::state_history_log_config& config)
-   : state_history_tester_logs(dir, config), tester ([this](eosio::chain::controller& control) {
+   : state_history_tester_logs(dir, config), legacy_tester ([this](eosio::chain::controller& control) {
       control.applied_transaction().connect(
        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> t) {
           trace_converter.add_transaction(std::get<0>(t), std::get<1>(t));
