@@ -10,7 +10,8 @@ BOOST_AUTO_TEST_SUITE(finality_tests)
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
-   validating_tester t;
+   // Do not transition to Savanna at constrution. Transition explicitly later.
+   validating_tester_not_transition_to_savanna t;
 
    // Create finalizer keys
    constexpr size_t num_finalizers = 21;
@@ -60,7 +61,8 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 void test_finality_transition(const vector<account_name>& accounts,
                               const base_tester::finalizer_policy_input& input,
                               bool lib_advancing_expected) {
-   validating_tester t;
+   // Do not transition to Savanna at constrution. Transition explicitly later.
+   validating_tester_not_transition_to_savanna t;
 
    t.produce_block();
 
