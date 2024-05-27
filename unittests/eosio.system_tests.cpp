@@ -1980,6 +1980,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( producer_onblock_check, T, eosio_system_testers )
    BOOST_REQUIRE_EQUAL(chain.success(), chain.vote( "producvoterb"_n, vector<account_name>(producer_names.begin(), producer_names.begin()+21)));
    BOOST_REQUIRE_EQUAL(chain.success(), chain.vote( "producvoterc"_n, vector<account_name>(producer_names.begin(), producer_names.end())));
 
+   int retries = 50;
+   while (chain.produce_block()->producer == config::system_account_name && --retries);
+   BOOST_REQUIRE(retries > 0);
+
    // give a chance for everyone to produce blocks
    {
       chain.produce_blocks(21 * 12);
