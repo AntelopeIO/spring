@@ -18,7 +18,7 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
 BOOST_AUTO_TEST_CASE( irrblock ) try {
-   tester c;
+   legacy_tester c;
    c.produce_blocks(10);
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
@@ -34,7 +34,7 @@ struct fork_tracker {
 };
 
 BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
-   tester bios;
+   legacy_tester bios;
    bios.produce_block();
    bios.produce_block();
    bios.create_accounts( {"a"_n,"b"_n,"c"_n,"d"_n,"e"_n} );
@@ -46,7 +46,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
    BOOST_REQUIRE( produce_until_transition( bios, "e"_n, "a"_n ) );
 
    // sync remote node
-   tester remote(setup_policy::none);
+   legacy_tester remote(setup_policy::none);
    push_blocks(bios, remote);
 
    // produce 6 blocks on bios
@@ -125,7 +125,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE( forking ) try {
-   tester c;
+   legacy_tester c;
    while (c.control->head_block_num() < 3) {
       c.produce_block();
    }
@@ -164,7 +164,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
       );
 
 
-   tester c2(setup_policy::none);
+   legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
    push_blocks(c, c2);
    wlog( "end push c1 blocks to c2" );
@@ -279,7 +279,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
  *  the highest last irreversible block over one that is longer.
  */
 BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
-   tester c;
+   legacy_tester c;
    while (c.control->head_block_num() < 11) {
       c.produce_block();
    }
@@ -288,7 +288,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    wlog("set producer schedule to [dan,sam,pam,scott]");
    c.produce_blocks(50);
 
-   tester c2(setup_policy::none);
+   legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
    push_blocks(c, c2);
 
@@ -298,7 +298,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
 
    uint32_t fork_num = c.control->head_block_num();
 
-   auto nextproducer = [](tester &c, int skip_interval) ->account_name {
+   auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
       auto head_time = c.control->head_block_time();
       auto next_time = head_time + fc::milliseconds(config::block_interval_ms * skip_interval);
       return c.control->active_producers().get_scheduled_producer(next_time).producer_name;
@@ -341,9 +341,9 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
  */
 BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) try {
 
-   tester n1(setup_policy::none);
-   tester n2(setup_policy::none);
-   tester n3(setup_policy::none);
+   legacy_tester n1(setup_policy::none);
+   legacy_tester n2(setup_policy::none);
+   legacy_tester n3(setup_policy::none);
 
    n1.produce_block();
 
@@ -379,7 +379,7 @@ BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( read_modes ) try {
-   tester c;
+   legacy_tester c;
    c.produce_block();
    c.produce_block();
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -389,12 +389,12 @@ BOOST_AUTO_TEST_CASE( read_modes ) try {
    auto head_block_num = c.control->head_block_num();
    auto last_irreversible_block_num = c.control->last_irreversible_block_num();
 
-   tester head(setup_policy::none, db_read_mode::HEAD);
+   legacy_tester head(setup_policy::none, db_read_mode::HEAD);
    push_blocks(c, head);
    BOOST_CHECK_EQUAL(head_block_num, head.control->fork_db_head_block_num());
    BOOST_CHECK_EQUAL(head_block_num, head.control->head_block_num());
 
-   tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
+   legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
    push_blocks(c, irreversible);
    BOOST_CHECK_EQUAL(head_block_num, irreversible.control->fork_db_head_block_num());
    BOOST_CHECK_EQUAL(last_irreversible_block_num, irreversible.control->head_block_num());
@@ -408,7 +408,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
       return (db.find<account_object, by_name>( n ) != nullptr);
    };
 
-   tester main;
+   legacy_tester main;
 
    main.create_accounts( {"producer1"_n, "producer2"_n} );
    main.produce_block();
@@ -428,7 +428,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 
    BOOST_REQUIRE( lib2 < hbn1 );
 
-   tester other(setup_policy::none);
+   legacy_tester other(setup_policy::none);
 
    push_blocks( main, other );
    BOOST_CHECK_EQUAL( other.control->head_block_num(), hbn2 );
@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    BOOST_REQUIRE( hbn4 > hbn3 );
    BOOST_REQUIRE( lib4 < hbn1 );
 
-   tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
+   legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
 
    push_blocks( main, irreversible, hbn1 );
 
@@ -514,7 +514,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
-   tester c1;
+   legacy_tester c1;
 
    c1.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    c1.produce_block();
@@ -529,7 +529,7 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
    c1.produce_block();
    produce_until_transition( c1, "carol"_n, "alice"_n );
 
-   tester c2(setup_policy::none);
+   legacy_tester c2(setup_policy::none);
 
    push_blocks( c1, c2 );
 
@@ -568,7 +568,7 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
-   tester c1;
+   legacy_tester c1;
    while (c1.control->head_block_num() < 3) {
       c1.produce_block();
    }
@@ -578,7 +578,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    wlog("set producer schedule to [dan,sam,pam]");
    c1.produce_blocks(40);
 
-   tester c2(setup_policy::none);
+   legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
    push_blocks(c1, c2);
 
