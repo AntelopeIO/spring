@@ -20,8 +20,9 @@ BOOST_AUTO_TEST_SUITE(producer_snapshot_tests)
 
 using next_t = pending_snapshot<snapshot_scheduler::snapshot_information>::next_t;
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_snapshot_information, SNAPSHOT_SUITE, snapshot_suites) {
-   tester chain;
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void test_snapshot_information() {
+   TESTER chain;
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -31,12 +32,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_snapshot_information, SNAPSHOT_SUITE, snapsho
    chain.produce_blocks(1);
 
    auto block = chain.produce_block();
-   BOOST_REQUIRE_EQUAL(block->block_num(), 6u); // ensure that test setup stays consistent with original snapshot setup
+   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+      BOOST_REQUIRE_EQUAL(block->block_num(), 15u); // ensure that test setup stays consistent with original snapshot setup
+   } else {
+      BOOST_REQUIRE_EQUAL(block->block_num(), 6u); // ensure that test setup stays consistent with original snapshot setup
+   }
    // undo the auto-pending from tester
    chain.control->abort_block();
 
    auto block2 = chain.produce_block();
-   BOOST_REQUIRE_EQUAL(block2->block_num(), 7u); // ensure that test setup stays consistent with original snapshot setup
+   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+      BOOST_REQUIRE_EQUAL(block2->block_num(), 16u); // ensure that test setup stays consistent with original snapshot setup
+   } else {
+      BOOST_REQUIRE_EQUAL(block2->block_num(), 7u); // ensure that test setup stays consistent with original snapshot setup
+   }
    // undo the auto-pending from tester
    chain.control->abort_block();
 
@@ -61,8 +70,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_snapshot_information, SNAPSHOT_SUITE, snapsho
    next_t next;
    pending_snapshot pending{ block2->previous, next, pending_path.generic_string(), final_path.generic_string() };
    test_snap_info = pending.finalize(*chain.control);
-   BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 6u);
+   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+      BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 15u);
+   } else {
+      BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 6u);
+   }
    BOOST_REQUIRE_EQUAL(test_snap_info.version, chain_snapshot_header::current_version);
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(snapshot_information_test, SNAPSHOT_SUITE, snapshot_suites) {
+   test_snapshot_information<legacy_tester, SNAPSHOT_SUITE>();
+   test_snapshot_information<savanna_tester, SNAPSHOT_SUITE>();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
