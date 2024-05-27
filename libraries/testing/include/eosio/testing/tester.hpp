@@ -67,6 +67,7 @@ namespace eosio::testing {
       preactivate_feature_and_new_bios,
       old_wasm_parser,
       full_except_do_not_disable_deferred_trx,
+      full_except_do_not_transition_to_savanna,
       full
    };
 
@@ -542,7 +543,6 @@ namespace eosio::testing {
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
          signed_block_ptr                              lib_block; // updated via irreversible_block signal
          block_id_type                                 lib_id;    // updated via irreversible_block signal
-         bool                                          is_savanna{false};
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
@@ -551,13 +551,11 @@ namespace eosio::testing {
 
    class tester : public base_tester {
    public:
-      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}, bool is_savanna = false) {
-         this->is_savanna = is_savanna;
+      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
-      tester(controller::config config, const genesis_state& genesis, bool is_savanna = false) {
-         this->is_savanna = is_savanna;
+      tester(controller::config config, const genesis_state& genesis) {
          init(std::move(config), genesis);
       }
 
@@ -569,8 +567,7 @@ namespace eosio::testing {
          init(std::move(config), std::move(pfs), genesis);
       }
 
-      tester(const fc::temp_directory& tempdir, bool use_genesis, bool is_savanna = false) {
-         this->is_savanna = is_savanna;
+      tester(const fc::temp_directory& tempdir, bool use_genesis) {
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
 
@@ -583,8 +580,7 @@ namespace eosio::testing {
       }
 
       template <typename Lambda>
-      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
-         this->is_savanna = is_savanna;
+      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
          conf_edit(cfg);
@@ -623,19 +619,42 @@ namespace eosio::testing {
 
    };
 
-   class savanna_tester : public tester {
+   // The behavior of tester_not_transition_to_savanna under setup_policy::full
+   // behaves as the legacy tester: activating all the protocol features but not
+   // transition to Savanna consensus.
+   // If needed, the tester can be transitioned to Savanna by explicitly calling
+   // set_finalizer host function only.
+   class tester_not_transition_to_savanna : public tester {
    public:
-      savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
-      savanna_tester(controller::config config, const genesis_state& genesis);
-      savanna_tester(const fc::temp_directory& tempdir, bool use_genesis);
+      tester_not_transition_to_savanna(setup_policy policy = setup_policy::full_except_do_not_transition_to_savanna, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{})
+      : tester(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
+                                            : policy,
+               read_mode, genesis_max_inline_action_size) {};
+
+      tester_not_transition_to_savanna(controller::config config, const genesis_state& genesis)
+      : tester(config, genesis) {};
+
+      tester_not_transition_to_savanna(const fc::temp_directory& tempdir, bool use_genesis)
+      : tester(tempdir, use_genesis) {};
 
       template <typename Lambda>
-      savanna_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
-      : tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
-      }
+      tester_not_transition_to_savanna(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : tester(tempdir, conf_edit, use_genesis) {};
+
+      tester_not_transition_to_savanna(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD)
+      : tester(control_setup,
+               policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
+                                            : policy,
+               read_mode) {};
+
+      // setup_policy::full does not not transition to Savanna consensus.
+      void execute_setup_policy(const setup_policy policy) {
+         tester::execute_setup_policy(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : policy);
+      };
    };
 
-   using legacy_tester = tester;
+   using legacy_tester  = tester_not_transition_to_savanna;
+   using savanna_tester = tester;
    using testers = boost::mpl::list<legacy_tester, savanna_tester>;
 
    class tester_no_disable_deferred_trx : public tester {
@@ -662,9 +681,7 @@ namespace eosio::testing {
       }
       controller::config vcfg;
 
-      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full, bool is_savanna = false) {
-         this->is_savanna = is_savanna;
-
+      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full) {
          auto def_conf = default_config(tempdir);
 
          vcfg = def_conf.first;
@@ -704,8 +721,7 @@ namespace eosio::testing {
       }
 
       template <typename Lambda>
-      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
-         this->is_savanna = false;
+      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
          auto def_conf = default_config(tempdir);
          conf_edit(def_conf.first);
          vcfg = def_conf.first;
@@ -780,17 +796,26 @@ namespace eosio::testing {
       }
    };
 
-   class savanna_validating_tester : public validating_tester {
+   // The behavior of validating_tester_not_transition_to_savanna under setup_policy::full
+   // behaves as the legacy validating_tester: activating all the protocol features but not
+   // transition to Savanna consensus.
+   // If needed, the tester can be transitioned to Savanna by explicitly calling
+   // set_finalizer host function only.
+   class validating_tester_not_transition_to_savanna : public validating_tester {
    public:
-      savanna_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full);
+      validating_tester_not_transition_to_savanna(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full_except_do_not_transition_to_savanna)
+      : validating_tester(trusted_producers, dmlog, p == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : p) {};
+
+      validating_tester_not_transition_to_savanna(const fc::temp_directory& tempdir, bool use_genesis)
+      : validating_tester(tempdir, use_genesis) {};
 
       template <typename Lambda>
-      savanna_validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
-      : validating_tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
-      }
+      validating_tester_not_transition_to_savanna(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : validating_tester(tempdir, conf_edit, use_genesis) {};
    };
 
-   using legacy_validating_tester = validating_tester;
+   using legacy_validating_tester  = validating_tester_not_transition_to_savanna;
+   using savanna_validating_tester = validating_tester;
    using validating_testers = boost::mpl::list<legacy_validating_tester, savanna_validating_tester>;
 
    // -------------------------------------------------------------------------------------
