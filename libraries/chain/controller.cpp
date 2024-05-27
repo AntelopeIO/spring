@@ -4245,12 +4245,8 @@ struct controller_impl {
    }
 
    void update_producers_authority() {
-      // this is not called when hotstuff is activated
-      auto& bb = std::get<building_block>(pending->_block_stage);
-      bb.apply_l<void>([this](building_block::building_block_legacy& legacy_header) {
-         pending_block_header_state_legacy& pbhs = legacy_header.pending_block_header_state;
-         const auto& producers = pbhs.active_schedule.producers;
 
+      auto update_producers_auth = [&](const vector<producer_authority>& producers) {
          auto update_permission = [&](auto& permission, auto threshold) {
             auto auth = authority(threshold, {}, {});
             for (auto& p : producers) {
@@ -4282,7 +4278,11 @@ struct controller_impl {
             calculate_threshold(1, 3) /* more than one-third */);
 
          // TODO: Add tests
-      });
+      };
+
+      // this is not called when hotstuff is activated
+      auto& bb = std::get<building_block>(pending->_block_stage);
+      update_producers_auth(bb.active_producers().producers);
    }
 
    void create_block_summary(const block_id_type& id) {

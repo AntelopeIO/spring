@@ -1,4 +1,5 @@
 #include <eosio/chain/global_property_object.hpp>
+#include <eosio/chain/authorization_manager.hpp>
 #include <eosio/testing/tester.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -26,11 +27,24 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
       const uint32_t check_duration = 100; // number of blocks
       bool scheduled_changed_to_new = false;
       for (uint32_t i = 0; i < check_duration; ++i) {
-         const auto current_schedule = control->active_producers();
-         if (new_prod_schd == current_schedule.producers) {
+         const auto current_schedule = control->active_producers().producers;
+         if (new_prod_schd == current_schedule) {
             scheduled_changed_to_new = true;
             if (expected_block_num != 0)
                BOOST_TEST(control->head_block_num() == expected_block_num);
+
+            // verify eosio.prods updated
+            const name usr = config::producers_account_name;
+            const name active_permission = config::active_name;
+            const auto* perm = control->db().template find<permission_object, by_owner>(boost::make_tuple(usr, active_permission));
+            for (auto account : perm->auth.accounts) {
+               auto act = account.permission.actor;
+               auto itr = std::find_if( current_schedule.begin(), current_schedule.end(), [&](const auto& p) {
+                  return p.producer_name == act;
+               });
+               bool found = itr != current_schedule.end();
+               BOOST_TEST(found);
+            }
          }
 
          auto b = produce_block();
@@ -38,7 +52,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
 
          // Check if the producer is the same as what we expect
          const auto block_time = control->head_block_time();
-         const auto& expected_producer = get_expected_producer(current_schedule.producers, block_time);
+         const auto& expected_producer = get_expected_producer(current_schedule, block_time);
          BOOST_TEST(control->head_block_producer() == expected_producer);
 
          if (scheduled_changed_to_new)
