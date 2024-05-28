@@ -36,8 +36,6 @@ jobs:
         - name: Build
           id: build
           run: |
-            # https://github.com/actions/runner/issues/2033
-            chown -R $(id -u):$(id -g) $PWD
             cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_SPRING_DEV_DEB=On ${SPRING_PLATFORM_HAS_EXTRAS_CMAKE:+-C /extras.cmake} -GNinja
             cmake --build build
             tar -pc --exclude "*.o" build | zstd --long -T0 -9 > build.tar.zst

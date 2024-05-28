@@ -152,8 +152,6 @@ jobs:
           name: ${{matrix.cfg.builddir}}-build
       - name: Run Parallel Tests
         run: |
-          # https://github.com/actions/runner/issues/2033  -- need this because of full version label test looking at git revs
-          chown -R $(id -u):$(id -g) $PWD
           zstdcat build.tar.zst | tar x
           cd build
           ctest --output-on-failure -j $(nproc) -LE "(nonparallelizable_tests|long_running_tests)" --timeout 420
