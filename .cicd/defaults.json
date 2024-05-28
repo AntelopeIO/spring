@@ -4,6 +4,6 @@
        "prerelease":true
     },
     "referencecontracts":{
-       "ref":"main"
+       "ref":"fix_failures_by_default_tester"
     }
  }
