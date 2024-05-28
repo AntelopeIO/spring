@@ -1,4 +1,5 @@
 #include <eosio/chain/global_property_object.hpp>
+#include <eosio/chain/authorization_manager.hpp>
 #include <eosio/testing/tester.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -31,6 +32,18 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
          const auto current_schedule = control->active_producers().producers;
          if (new_prod_schd == current_schedule) {
             scheduled_changed_to_new = true;
+            // verify eosio.prods updated
+            const name usr = config::producers_account_name;
+            const name active_permission = config::active_name;
+            const auto* perm = control->db().template find<permission_object, by_owner>(boost::make_tuple(usr, active_permission));
+            for (auto account : perm->auth.accounts) {
+               auto act = account.permission.actor;
+               auto itr = std::find_if( current_schedule.begin(), current_schedule.end(), [&](const auto& p) {
+                  return p.producer_name == act;
+               });
+               bool found = itr != current_schedule.end();
+               BOOST_TEST(found);
+            }
          }
 
          // Produce block

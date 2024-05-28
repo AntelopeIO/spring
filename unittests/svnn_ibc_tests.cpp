@@ -755,7 +755,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // since heavy_proof_4 requires finalizer policy generation #2, we cannot prove it yet.
       try {
-         cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
+         cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4);
       }
       catch(const eosio_assert_message_exception& e){
          last_action_failed = true;
