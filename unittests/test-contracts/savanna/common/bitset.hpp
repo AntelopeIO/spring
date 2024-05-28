@@ -9,7 +9,7 @@ namespace savanna {
 
     public:
 
-        // Static function to compare two bitsets
+        // compare two bitsets
         static std::pair<savanna::bitset, savanna::bitset> compare(const savanna::bitset& bs1, const savanna::bitset& bs2) {
             check(bs1.size() == bs2.size(), "bitsets must be of the same size");
 

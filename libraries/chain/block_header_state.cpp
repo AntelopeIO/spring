@@ -50,6 +50,7 @@ digest_type block_header_state::compute_finality_digest() const {
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
+      .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
       .finality_tree_digest                    = finality_mroot(),
       .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };

@@ -4,17 +4,37 @@
 
 /*****
 
-   The proof_test_cluster class inherits from finality_test_cluster and serves to generate finality proofs in the context of IBC and finality violation.
+   The proof_test_cluster class inherits from finality_test_cluster and serves to generate finality proofs for the purpose of IBC and proving finality violations.
 
-   It has its own high-level produce_block function, which hides all the internal finality details, and returns an extended struct containing data relevant for proof generation.
+   It has its own high-level produce_block function, which hides all the internal consensus details, and returns an extended struct containing data relevant for proof generation.
 
-   It doesn't support forks or rollbacks, and always assumes the happy path in finality progression, which is sufficient for the purpose of generating finality proofs.
+   It doesn't support forks or rollbacks, and always assumes the happy path in finality progression, which is sufficient for the purpose of generating finality proofs for testing.
    
-   It also assumes a single producer pre-transition, resulting in only 2 transition blocks.
+   It also assumes a single producer pre-transition, resulting in only 2 transition blocks when IF is activated.
 
 *****/
 
+using mvo = mutable_variant_object;
+
 namespace finality_proof {
+
+
+   // data relevant to IBC
+   struct ibc_block_data_t {
+      signed_block_ptr block;
+      action_trace onblock_trace;
+      finality_data_t finality_data;
+      digest_type action_mroot;
+      digest_type base_digest;
+      digest_type active_finalizer_policy_digest;
+      digest_type last_pending_finalizer_policy_digest;
+      digest_type last_proposed_finalizer_policy_digest;
+      digest_type finality_digest;
+      digest_type computed_finality_digest;
+      digest_type afp_base_digest;
+      digest_type finality_leaf;
+      digest_type finality_root;
+   };
 
    //generate a proof of inclusion for a node at index from a list of leaves
    static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
@@ -78,26 +98,57 @@ namespace finality_proof {
 
    }
 
+   static mvo get_finality_proof(const ibc_block_data_t target_block, 
+                                 const ibc_block_data_t qc_block, 
+                                 const uint32_t target_block_finalizer_policy_generation, 
+                                 const uint32_t qc_block_finalizer_policy_generation, 
+                                 const uint32_t target_node_index, 
+                                 const uint32_t last_node_index, 
+                                 const std::string signature, 
+                                 const std::string bitset,
+                                 const std::vector<digest_type> proof_of_inclusion){
+
+      mutable_variant_object proof = mvo()
+            ("finality_proof", mvo()
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", qc_block_finalizer_policy_generation)
+                  ("witness_hash", qc_block.afp_base_digest)
+                  ("finality_mroot", qc_block.finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", signature)
+                  ("finalizers", bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", target_node_index)
+               ("last_node_index", last_node_index)
+               ("target",  mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", target_block_finalizer_policy_generation)
+                     ("witness_hash", target_block.afp_base_digest)
+                     ("finality_mroot", target_block.finality_root)
+                  )
+                  ("dynamic_data", mvo() 
+                     ("block_num", target_block.block->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", target_block.action_mroot)
+                  )
+               )
+               ("merkle_branches", proof_of_inclusion)
+            );
+
+      return proof;
+
+   }
+
    template<size_t NUM_NODES>
    class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
    public:
-
-      // data relevant to IBC
-      struct ibc_block_data_t {
-         signed_block_ptr block;
-         action_trace onblock_trace;
-         finality_data_t finality_data;
-         digest_type action_mroot;
-         digest_type base_digest;
-         digest_type active_finalizer_policy_digest;
-         digest_type last_pending_finalizer_policy_digest;
-         digest_type last_proposed_finalizer_policy_digest;
-         digest_type finality_digest;
-         digest_type computed_finality_digest;
-         digest_type afp_base_digest;
-         digest_type finality_leaf;
-         digest_type finality_root;
-      };
 
       // cache last proposed, last pending and currently active finalizer policies + digests
       eosio::chain::finalizer_policy last_proposed_finalizer_policy;
@@ -229,10 +280,12 @@ namespace finality_proof {
          return(process_result(result));
       }
 
-      void produce_blocks(const uint32_t count){
+      ibc_block_data_t produce_blocks(const uint32_t count){
+         ibc_block_data_t result;
          for (uint32_t i = 0 ; i < count ; i++){
-            produce_block();
-         } 
+            result=produce_block();
+         }
+         return result; //return last produced block
       }
 
       proof_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = false})
