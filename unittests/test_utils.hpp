@@ -135,26 +135,34 @@ void activate_protocol_features_set_bios_contract(appbase::scoped_app& app, chai
             auto preactivate_feature_digest = pfm.get_builtin_digest(builtin_protocol_feature_t::preactivate_feature);
             BOOST_CHECK( preactivate_feature_digest );
             chain_plug->chain().preactivate_feature( *preactivate_feature_digest, false );
-            std::vector<builtin_protocol_feature_t> pfs{
-               builtin_protocol_feature_t::only_link_to_existing_permission,
-               builtin_protocol_feature_t::replace_deferred,
-               builtin_protocol_feature_t::no_duplicate_deferred_id,
-               builtin_protocol_feature_t::fix_linkauth_restriction,
-               builtin_protocol_feature_t::disallow_empty_producer_schedule,
-               builtin_protocol_feature_t::restrict_action_to_self,
-               builtin_protocol_feature_t::only_bill_first_authorizer,
-               builtin_protocol_feature_t::forward_setcode,
-               builtin_protocol_feature_t::get_sender,
-               builtin_protocol_feature_t::ram_restrictions,
-               builtin_protocol_feature_t::webauthn_key,
-               builtin_protocol_feature_t::wtmsig_block_signatures,
-               builtin_protocol_feature_t::bls_primitives,
-               builtin_protocol_feature_t::action_return_value,
-               builtin_protocol_feature_t::savanna};
-            for (const auto t : pfs) {
-               auto feature_digest = pfm.get_builtin_digest(t);
-               BOOST_CHECK( feature_digest );
-               chain_plug->chain().preactivate_feature( *feature_digest, false );
+
+            vector<digest_type> feature_digests;
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_link_to_existing_permission));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::replace_deferred));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::no_duplicate_deferred_id));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::fix_linkauth_restriction));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disallow_empty_producer_schedule));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::restrict_action_to_self));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_bill_first_authorizer));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::forward_setcode));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_sender));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::ram_restrictions));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::configurable_wasm_limits));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_code_hash));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::crypto_primitives));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_block_num));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::bls_primitives));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_1));
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_2));
+            // savanna
+            feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::savanna));
+
+            for (const auto feature_digest : feature_digests) {
+               chain_plug->chain().preactivate_feature( feature_digest, false );
             }
             *feature_set = true;
             return;
