@@ -9,6 +9,8 @@
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple_io.hpp>
 
+#include <eosio/testing/bls_utils.hpp>
+
 #include <iosfwd>
 #include <optional>
 
@@ -57,7 +59,7 @@ namespace boost { namespace test_tools { namespace tt_detail {
 
 } } }
 
-namespace eosio { namespace testing {
+namespace eosio::testing {
    enum class setup_policy {
       none,
       old_bios_only,
@@ -142,6 +144,12 @@ namespace eosio { namespace testing {
       };
    }
 
+   struct produce_block_result_t {
+      signed_block_ptr                   block;
+      transaction_trace_ptr              onblock_trace;
+      std::vector<transaction_trace_ptr> unapplied_transaction_traces; // only traces of any unapplied transactions
+   };
+
    /**
     *  @class tester
     *  @brief provides utility function to simplify the creation of unit tests
@@ -154,8 +162,11 @@ namespace eosio { namespace testing {
 
          static const uint32_t DEFAULT_BILLED_CPU_TIME_US = 2000;
          static const fc::microseconds abi_serializer_max_time;
+         static constexpr fc::microseconds default_skip_time = fc::milliseconds(config::block_interval_ms);
 
-         virtual ~base_tester() {};
+         virtual ~base_tester() {
+            lib_connection.disconnect();
+         };
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
@@ -176,15 +187,22 @@ namespace eosio { namespace testing {
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
-         virtual signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) = 0;
-         virtual signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) = 0;
-         virtual signed_block_ptr finish_block() = 0;
+         // `produce_block_ex` does the same thing as produce_block, but returns a struct including
+         // the transaction traces in addition to the `signed_block_ptr`.
+         virtual produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time,
+                                                          bool no_throw = false) = 0;
+
+         virtual signed_block_ptr       produce_block( fc::microseconds skip_time = default_skip_time,
+                                                       bool no_throw = false) = 0;
+         virtual signed_block_ptr       produce_empty_block( fc::microseconds skip_time = default_skip_time ) = 0;
+         virtual signed_block_ptr       finish_block() = 0;
+
          // produce one block and return traces for all applied transactions, both failed and executed
-         signed_block_ptr     produce_block( std::vector<transaction_trace_ptr>& traces );
-         void                 produce_blocks( uint32_t n = 1, bool empty = false );
+         signed_block_ptr     produce_blocks( uint32_t n = 1, bool empty = false );
          void                 produce_blocks_until_end_of_round();
          void                 produce_blocks_for_n_rounds(const uint32_t num_of_rounds = 1);
-         // Produce minimal number of blocks as possible to spend the given time without having any producer become inactive
+         // Produce minimal number of blocks as possible to spend the given time without having any
+         // producer become inactive
          void                 produce_min_num_of_blocks_to_spend_time_wo_inactive_prod(const fc::microseconds target_elapsed_time = fc::microseconds());
          void                 push_block(signed_block_ptr b);
 
@@ -253,20 +271,6 @@ namespace eosio { namespace testing {
          transaction_trace_ptr       set_producer_schedule(const vector<producer_authority>& schedule);
          transaction_trace_ptr       set_producers_legacy(const vector<account_name>& producer_names);
 
-         // libtester uses 1 as weight of each of the finalizer, sets (2/3 finalizers + 1)
-         // as threshold, and makes all finalizers vote QC
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>>
-         set_finalizers(std::span<const account_name> finalizer_names);
-
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>>
-         set_finalizers(const std::vector<account_name>& names) {
-            return set_finalizers(std::span{names.begin(), names.end()});
-         }
-
-         void set_node_finalizers(std::span<const account_name> finalizer_names);
-
-         std::vector<fc::crypto::blslib::bls_public_key> set_active_finalizers(std::span<const account_name> finalizer_names);
-
          // Finalizer policy input to set up a test: weights, threshold and local finalizers
          // which participate voting.
          struct finalizer_policy_input {
@@ -279,7 +283,32 @@ namespace eosio { namespace testing {
             uint64_t                    threshold {0};
             std::vector<account_name>   local_finalizers;
          };
-         std::pair<transaction_trace_ptr, std::vector<fc::crypto::blslib::bls_private_key>> set_finalizers(const finalizer_policy_input& input);
+
+         struct set_finalizers_output_t {
+            transaction_trace_ptr        setfinalizer_trace;
+            std::vector<bls_private_key> privkeys;  // private keys of **local** finalizers
+            std::vector<bls_public_key>  pubkeys;   // public keys of all finalizers in the policy
+         };
+
+         set_finalizers_output_t set_finalizers(const finalizer_policy_input& input);
+
+         void set_node_finalizers(std::span<const account_name> finalizer_names);
+
+         set_finalizers_output_t set_active_finalizers(std::span<const account_name> finalizer_names);
+
+         // Useful when using a single node.
+         // Set a finalizer policy with a few finalizers, all local to the current node.
+         // All have weight == 1, threshold is `num_finalizers * 2 / 3 + 1`
+         // -----------------------------------------------------------------------------
+         set_finalizers_output_t set_finalizers(std::span<const account_name> finalizer_names);
+
+         // Useful when using a single node.
+         // Set a finalizer policy with a few finalizers, all local to the current node.
+         // All have weight == 1, threshold is `num_finalizers * 2 / 3 + 1`
+         // -----------------------------------------------------------------------------
+         set_finalizers_output_t set_finalizers(const std::vector<account_name>& names) {
+            return set_finalizers(std::span{names.begin(), names.end()});
+         }
 
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
             return control->active_finalizer_policy(id);
@@ -467,14 +496,34 @@ namespace eosio { namespace testing {
             return {cfg, gen};
          }
 
-      protected:
-         signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
-         signed_block_ptr _produce_block( fc::microseconds skip_time, bool skip_pending_trxs,
-                                          bool no_throw, std::vector<transaction_trace_ptr>& traces );
+         // checks that the active `finalizer_policy` for `block` matches the
+         // passed `generation` and `keys_span`.
+         // -----------------------------------------------------------------
+         void check_head_finalizer_policy(uint32_t generation,
+                                          std::span<const bls_public_key> keys_span) {
+            BOOST_REQUIRE_EQUAL(control->head_sanity_check(), true);
+            auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
+            BOOST_REQUIRE(!!finpol);
+            BOOST_REQUIRE_EQUAL(finpol->generation, generation);
+            BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
+            std::vector<bls_public_key> keys {keys_span.begin(), keys_span.end() };
+            std::sort(keys.begin(), keys.end());
 
-         void             _start_block(fc::time_point block_time);
-         signed_block_ptr _finish_block();
-         void             _wait_for_vote_if_needed(controller& c);
+            std::vector<bls_public_key> active_keys;
+            for (const auto& auth : finpol->finalizers)
+               active_keys.push_back(auth.public_key);
+            std::sort(active_keys.begin(), active_keys.end());
+            for (size_t i=0; i<keys.size(); ++i)
+               BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
+         }
+
+      protected:
+         signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
+         produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
+
+         transaction_trace_ptr  _start_block(fc::time_point block_time);
+         signed_block_ptr       _finish_block();
+         void                   _wait_for_vote_if_needed(controller& c);
 
       // Fields:
       protected:
@@ -491,18 +540,24 @@ namespace eosio { namespace testing {
 
       public:
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
+         signed_block_ptr                              lib_block; // updated via irreversible_block signal
+         block_id_type                                 lib_id;    // updated via irreversible_block signal
+         bool                                          is_savanna{false};
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
+         boost::signals2::connection             lib_connection;
    };
 
    class tester : public base_tester {
    public:
-      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}) {
+      tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{}, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
-      tester(controller::config config, const genesis_state& genesis) {
+      tester(controller::config config, const genesis_state& genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          init(std::move(config), genesis);
       }
 
@@ -514,7 +569,8 @@ namespace eosio { namespace testing {
          init(std::move(config), std::move(pfs), genesis);
       }
 
-      tester(const fc::temp_directory& tempdir, bool use_genesis) {
+      tester(const fc::temp_directory& tempdir, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
 
@@ -527,7 +583,8 @@ namespace eosio { namespace testing {
       }
 
       template <typename Lambda>
-      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
+      tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
          auto def_conf = default_config(tempdir);
          cfg = def_conf.first;
          conf_edit(cfg);
@@ -545,11 +602,15 @@ namespace eosio { namespace testing {
 
       using base_tester::produce_block;
 
-      signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-         return _produce_block(skip_time, false);
+      produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         return _produce_block(skip_time, false, no_throw);
       }
 
-      signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+      signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         return _produce_block(skip_time, false, no_throw).block;
+      }
+
+      signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time ) override {
          unapplied_transactions.add_aborted( control->abort_block() );
          return _produce_block(skip_time, true);
       }
@@ -559,7 +620,23 @@ namespace eosio { namespace testing {
       }
 
       bool validate() { return true; }
+
    };
+
+   class savanna_tester : public tester {
+   public:
+      savanna_tester(setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
+      savanna_tester(controller::config config, const genesis_state& genesis);
+      savanna_tester(const fc::temp_directory& tempdir, bool use_genesis);
+
+      template <typename Lambda>
+      savanna_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
+      }
+   };
+
+   using legacy_tester = tester;
+   using testers = boost::mpl::list<legacy_tester, savanna_tester>;
 
    class tester_no_disable_deferred_trx : public tester {
    public:
@@ -585,7 +662,9 @@ namespace eosio { namespace testing {
       }
       controller::config vcfg;
 
-      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full) {
+      validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full, bool is_savanna = false) {
+         this->is_savanna = is_savanna;
+
          auto def_conf = default_config(tempdir);
 
          vcfg = def_conf.first;
@@ -619,14 +698,14 @@ namespace eosio { namespace testing {
 
          if (use_genesis) {
             init(def_conf.first, def_conf.second);
-         }
-         else {
+         } else {
             init(def_conf.first);
          }
       }
 
       template <typename Lambda>
-      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis) {
+      validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis, bool is_savanna = false) {
+         this->is_savanna = false;
          auto def_conf = default_config(tempdir);
          conf_edit(def_conf.first);
          vcfg = def_conf.first;
@@ -635,20 +714,23 @@ namespace eosio { namespace testing {
 
          if (use_genesis) {
             init(def_conf.first, def_conf.second);
-         }
-         else {
+         }  else {
             init(def_conf.first);
          }
       }
 
-      signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-         auto sb = _produce_block(skip_time, false);
-         validate_push_block(sb);
-         return sb;
+      produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         auto produce_block_result = _produce_block(skip_time, false, no_throw);
+         validate_push_block(produce_block_result.block);
+         return produce_block_result;
       }
 
-      signed_block_ptr produce_block_no_validation( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) ) {
-         return _produce_block(skip_time, false);
+      signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false ) override {
+         return produce_block_ex(skip_time, no_throw).block;
+      }
+
+      signed_block_ptr produce_block_no_validation( fc::microseconds skip_time = default_skip_time ) {
+         return _produce_block(skip_time, false, false).block;
       }
 
       void validate_push_block(const signed_block_ptr& sb) {
@@ -658,7 +740,7 @@ namespace eosio { namespace testing {
          _wait_for_vote_if_needed(*validating_node);
       }
 
-      signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+      signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
          unapplied_transactions.add_aborted( control->abort_block() );
          auto sb = _produce_block(skip_time, true);
          validate_push_block(sb);
@@ -670,8 +752,6 @@ namespace eosio { namespace testing {
       }
 
       bool validate() {
-
-
         const auto& hbh = control->head_block_header();
         const auto& vn_hbh = validating_node->head_block_header();
         bool ok = control->head_block_id() == validating_node->head_block_id() &&
@@ -689,9 +769,9 @@ namespace eosio { namespace testing {
         return ok;
       }
 
-      unique_ptr<controller>   validating_node;
-      uint32_t                 num_blocks_to_producer_before_shutdown = 0;
-      bool                     skip_validate = false;
+      unique_ptr<controller>      validating_node;
+      uint32_t                    num_blocks_to_producer_before_shutdown = 0;
+      bool                        skip_validate = false;
    };
 
    class validating_tester_no_disable_deferred_trx : public validating_tester {
@@ -699,6 +779,141 @@ namespace eosio { namespace testing {
       validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_except_do_not_disable_deferred_trx) {
       }
    };
+
+   class savanna_validating_tester : public validating_tester {
+   public:
+      savanna_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full);
+
+      template <typename Lambda>
+      savanna_validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : validating_tester(tempdir, conf_edit, use_genesis, true) { // true for is_savanna
+      }
+   };
+
+   using legacy_validating_tester = validating_tester;
+   using validating_testers = boost::mpl::list<legacy_validating_tester, savanna_validating_tester>;
+
+   // -------------------------------------------------------------------------------------
+   // creates and manages a set of `bls_public_key` used for finalizers voting and policies
+   // Supports initial transition to Savanna.
+   // -------------------------------------------------------------------------------------
+   template <class Tester>
+   struct finalizer_keys {
+      explicit finalizer_keys(Tester& t, size_t num_keys = 0, size_t finalizer_policy_size = 0) : t(t) {
+         if (num_keys)
+            init_keys(num_keys, finalizer_policy_size);
+      }
+
+      void init_keys( size_t num_keys = 50, size_t finalizer_policy_size = 21) {
+         fin_policy_size = finalizer_policy_size;
+         key_names.clear(); pubkeys.clear(); privkeys.clear();
+         key_names.reserve(num_keys);
+         pubkeys.reserve(num_keys);
+         privkeys.reserve(num_keys);
+         for (size_t i=0; i<num_keys; ++i) {
+            account_name name { std::string("finalizer") + (char)('a' + i/26) + (char)('a' + i%26) };
+            key_names.push_back(name);
+
+            auto [privkey, pubkey, pop] = get_bls_key(name);
+            pubkeys.push_back(pubkey);
+            privkeys.push_back(privkey);
+         }
+      }
+
+      // configures local node finalizers - should be done only once.
+      // different nodes should use different keys
+      // OK to configure keys not used in a finalizer_policy
+      // -------------------------------------------------------------
+      void set_node_finalizers(size_t first_key, size_t num_keys) {
+         t.set_node_finalizers({&key_names.at(first_key), num_keys});
+      }
+
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
+      // ----------------------------------------------------------------------------------
+      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key) {
+         return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
+      }
+
+      base_tester::set_finalizers_output_t  set_finalizer_policy(std::span<const size_t> indices) {
+         assert(indices.size() == fin_policy_size);
+         vector<account_name> names;
+         names.reserve(fin_policy_size);
+         for (auto idx : indices)
+            names.push_back(key_names.at(idx));
+         return t.set_active_finalizers({names.begin(), fin_policy_size});
+      }
+
+      // Produce blocks until the transition to Savanna is completed.
+      // This assumes `set_finalizer_policy` was called immediately
+      // before this.
+      // This should be done only once.
+      // -----------------------------------------------------------
+      finalizer_policy transition_to_savanna(const std::function<void(const signed_block_ptr&)>& block_callback = {}) {
+         auto produce_block = [&]() {
+            auto b = t.produce_block();
+            if (block_callback)
+               block_callback(b);
+            return b;
+         };
+
+         // `genesis_block` is the first block where set_finalizers() was executed.
+         // It is the genesis block.
+         // It will include the first header extension for the instant finality.
+         // -----------------------------------------------------------------------
+         auto genesis_block = produce_block();
+
+         // Do some sanity checks on the genesis block
+         // ------------------------------------------
+         const auto& ext = genesis_block->template extract_header_extension<instant_finality_extension>();
+         const auto& fin_policy_diff = ext.new_finalizer_policy_diff;
+         BOOST_TEST(!!fin_policy_diff);
+         BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == fin_policy_size);
+         BOOST_TEST(fin_policy_diff->generation == 1u);
+         BOOST_TEST(fin_policy_diff->threshold == (fin_policy_size * 2) / 3 + 1);
+
+         // wait till the genesis_block becomes irreversible.
+         // The critical block is the block that makes the genesis_block irreversible
+         // -------------------------------------------------------------------------
+         signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
+         auto genesis_block_num = genesis_block->block_num();
+         while(genesis_block_num > t.lib_block->block_num())
+            critical_block = produce_block();
+
+         // Blocks after the critical block are proper IF blocks.
+         // -----------------------------------------------------
+         auto first_proper_block = produce_block();
+         BOOST_REQUIRE(first_proper_block->is_proper_svnn_block());
+
+         // wait till the first proper block becomes irreversible. Transition will be done then
+         // -----------------------------------------------------------------------------------
+         signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
+         while(first_proper_block->block_num() > t.lib_block->block_num()) {
+            pt_block = produce_block();
+            BOOST_REQUIRE(pt_block->is_proper_svnn_block());
+         }
+
+         // lib must advance after 3 blocks
+         // -------------------------------
+         for (size_t i=0; i<3; ++i)
+            auto b = produce_block();
+
+         BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
+         return finalizer_policy{}.apply_diff(*fin_policy_diff);
+      }
+
+      void activate_savanna(size_t first_key_idx) {
+         set_node_finalizers(first_key_idx, pubkeys.size());
+         set_finalizer_policy(first_key_idx);
+         transition_to_savanna();
+      }
+
+      Tester&                 t;
+      vector<account_name>    key_names;
+      vector<bls_public_key>  pubkeys;
+      vector<bls_private_key> privkeys;
+      size_t                  fin_policy_size {0};
+   };
+
 
    /**
     * Utility predicate to check whether an fc::exception message is equivalent to a given string
@@ -802,4 +1017,4 @@ namespace eosio { namespace testing {
      string expected;
   };
 
-} } /// eosio::testing
+} /// eosio::testing

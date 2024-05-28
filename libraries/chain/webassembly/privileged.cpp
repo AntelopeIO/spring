@@ -44,7 +44,6 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    int64_t set_proposed_producers_common( apply_context& context, vector<producer_authority> && producers, bool validate_keys ) {
-      EOS_ASSERT(producers.size() <= config::max_producers, wasm_execution_error, "Producer schedule exceeds the maximum producer count for this chain");
       EOS_ASSERT( producers.size() > 0
                   || !context.control.is_builtin_activated( builtin_protocol_feature_t::disallow_empty_producer_schedule ),
                   wasm_execution_error,
@@ -86,7 +85,7 @@ namespace eosio { namespace chain { namespace webassembly {
       }
       EOS_ASSERT( producers.size() == unique_producers.size(), wasm_execution_error, "duplicate producer name in producer schedule" );
 
-      return context.control.set_proposed_producers( std::move(producers) );
+      return context.control.set_proposed_producers( context.trx_context, std::move(producers) );
    }
 
    uint32_t interface::get_wasm_parameters_packed( span<char> packed_parameters, uint32_t max_version ) const {
@@ -206,7 +205,7 @@ namespace eosio { namespace chain { namespace webassembly {
                   "and less than or equal to the sum of the weights",
                   ("t", finpol.threshold)("w", weight_sum) );
 
-      context.control.set_proposed_finalizers( std::move(finpol) );
+      context.trx_context.set_proposed_finalizers( std::move(finpol) );
    }
 
    uint32_t interface::get_blockchain_parameters_packed( legacy_span<char> packed_blockchain_parameters ) const {

@@ -53,7 +53,7 @@ controller::config copy_config_and_files(const controller::config& config, int o
 class snapshotted_tester : public base_tester {
 public:
    enum config_file_handling { dont_copy_config_files, copy_config_files };
-   snapshotted_tester(controller::config config, const snapshot_reader_ptr& snapshot, int ordinal,
+   snapshotted_tester(const controller::config& config, const snapshot_reader_ptr& snapshot, int ordinal,
            config_file_handling copy_files_from_config = config_file_handling::dont_copy_config_files) {
       FC_ASSERT(config.blocks_dir.filename().generic_string() != "."
                 && config.state_dir.filename().generic_string() != ".", "invalid path names in controller::config");
@@ -64,11 +64,15 @@ public:
       init(copied_config, snapshot);
    }
 
-   signed_block_ptr produce_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
-      return _produce_block(skip_time, false);
+   produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
+      return _produce_block(skip_time, false, no_throw);
    }
 
-   signed_block_ptr produce_empty_block( fc::microseconds skip_time = fc::milliseconds(config::block_interval_ms) )override {
+   signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
+      return produce_block_ex(skip_time, no_throw).block;
+   }
+
+   signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
       control->abort_block();
       return _produce_block(skip_time, true);
    }
@@ -182,9 +186,10 @@ namespace {
    }
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot_suites)
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void exhaustive_snapshot_test()
 {
-   tester chain;
+   TESTER chain;
 
    // Create 2 accounts
    chain.create_accounts({"snapshot"_n, "snapshot1"_n});
@@ -248,9 +253,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot
    }
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapshot_suites)
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_exhaustive_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   exhaustive_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   exhaustive_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void replay_over_snapshot_test()
+{
+   TESTER chain;
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -343,9 +355,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapsho
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *from_block_log_chain.control);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapshot_suites)
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_replay_over_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   replay_over_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   replay_over_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void chain_id_in_snapshot_test()
+{
+   TESTER chain;
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -365,6 +384,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapsho
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
 }
 
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapshot_suites)
+{
+   chain_id_in_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   chain_id_in_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
 static auto get_extra_args() {
    bool save_snapshot = false;
    bool generate_log = false;
@@ -382,7 +407,8 @@ static auto get_extra_args() {
    return std::make_tuple(save_snapshot, generate_log);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_compatible_versions, SNAPSHOT_SUITE, snapshot_suites)
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void compatible_versions_test()
 {
    const uint32_t legacy_default_max_inline_action_size = 4 * 1024;
    bool save_snapshot = false;
@@ -393,7 +419,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_compatible_versions, SNAPSHOT_SUITE, snapshot
    if (generate_log) {
       ///< Begin deterministic code to generate blockchain for comparison
 
-      tester chain(setup_policy::none, db_read_mode::HEAD, {legacy_default_max_inline_action_size});
+      TESTER chain(setup_policy::none, db_read_mode::HEAD, {legacy_default_max_inline_action_size});
       chain.create_account("snapshot"_n);
       chain.produce_blocks(1);
       chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
@@ -419,7 +445,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_compatible_versions, SNAPSHOT_SUITE, snapshot
    std::filesystem::create_directories(config.blocks_dir);
    std::filesystem::copy(source_log_dir / "blocks.log", config.blocks_dir / "blocks.log");
    std::filesystem::copy(source_log_dir / "blocks.index", config.blocks_dir / "blocks.index");
-   tester base_chain(config, *genesis);
+   TESTER base_chain(config, *genesis);
 
    std::string current_version = "v7";
 
@@ -455,15 +481,24 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_compatible_versions, SNAPSHOT_SUITE, snapshot
    //    now the test should pass.
    // 5. add the 3 new snapshot files in git.
    // -------------------------------------------------------------------------------------------------------------
-   if (save_snapshot)
-   {
-      // create a latest snapshot
-      auto latest_writer = SNAPSHOT_SUITE::get_writer();
-      base_chain.control->write_snapshot(latest_writer);
-      auto latest = SNAPSHOT_SUITE::finalize(latest_writer);
+   // Only want to save one snapshot, use Savanna as that is the latest
+   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+      if (save_snapshot)
+      {
+         // create a latest snapshot
+         auto latest_writer = SNAPSHOT_SUITE::get_writer();
+         base_chain.control->write_snapshot(latest_writer);
+         auto latest = SNAPSHOT_SUITE::finalize(latest_writer);
 
-      SNAPSHOT_SUITE::write_to_file("snap_" + current_version, latest);
+         SNAPSHOT_SUITE::write_to_file("snap_" + current_version, latest);
+      }
    }
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_compatible_versions, SNAPSHOT_SUITE, snapshot_suites)
+{
+   compatible_versions_test<legacy_tester, SNAPSHOT_SUITE>();
+   compatible_versions_test<savanna_tester, SNAPSHOT_SUITE>();
 }
 
 /*
@@ -480,7 +515,8 @@ The fix is to save block.log and its corresponding snapshot with infight
 schedule changes, load the snapshot and replay the block.log on the new
 version, and verify their integrity.
 */
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_pending_schedule_snapshot, SNAPSHOT_SUITE, snapshot_suites)
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void pending_schedule_snapshot_test()
 {
    static_assert(chain_snapshot_header::minimum_compatible_version <= 2, "version 2 unit test is no longer needed.  Please clean up data files");
 
@@ -495,7 +531,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_pending_schedule_snapshot, SNAPSHOT_SUITE, sn
    std::filesystem::create_directories(config.blocks_dir);
    std::filesystem::copy(source_log_dir / "blocks.log", config.blocks_dir / "blocks.log");
    std::filesystem::copy(source_log_dir / "blocks.index", config.blocks_dir / "blocks.index");
-   tester blockslog_chain(config, *genesis);
+   TESTER blockslog_chain(config, *genesis);
 
    // consruct a chain by loading the saved snapshot
    auto ordinal = 0;
@@ -518,9 +554,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_pending_schedule_snapshot, SNAPSHOT_SUITE, sn
    verify_integrity_hash<SNAPSHOT_SUITE>(*blockslog_chain.control, *latest_chain.control);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_block_log, SNAPSHOT_SUITE, snapshot_suites)
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_pending_schedule_snapshot, SNAPSHOT_SUITE, snapshot_suites)
 {
-   tester chain;
+   pending_schedule_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   pending_schedule_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void restart_with_existing_state_and_truncated_block_log_test()
+{
+   TESTER chain;
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
@@ -602,10 +645,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_blo
 
 }
 
-BOOST_AUTO_TEST_CASE(json_snapshot_validity_test)
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_restart_with_existing_state_and_truncated_block_log, SNAPSHOT_SUITE, snapshot_suites)
+{
+   restart_with_existing_state_and_truncated_block_log_test<legacy_tester, SNAPSHOT_SUITE>();
+   restart_with_existing_state_and_truncated_block_log_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE( json_snapshot_validity_test, TESTER, testers )
 {
    auto ordinal = 0;
-   tester chain;
+   TESTER chain;
 
    // prep the chain
    chain.create_account("snapshot"_n);
@@ -666,12 +715,13 @@ BOOST_AUTO_TEST_CASE(json_snapshot_validity_test)
    remove(json_snap_path);
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(jumbo_row, SNAPSHOT_SUITE, snapshot_suites)
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void jumbo_row_test()
 {
    fc::temp_directory tempdir;
    auto config = tester::default_config(tempdir);
    config.first.state_size = 64*1024*1024;
-   tester chain(config.first, config.second);
+   TESTER chain(config.first, config.second);
    chain.execute_setup_policy(setup_policy::full);
 
    chain.create_accounts({"jumbo"_n});
@@ -697,6 +747,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(jumbo_row, SNAPSHOT_SUITE, snapshot_suites)
    auto snapshot = SNAPSHOT_SUITE::finalize(writer);
 
    snapshotted_tester sst(chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), 0);
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(jumbo_row, SNAPSHOT_SUITE, snapshot_suites)
+{
+   jumbo_row_test<legacy_tester, SNAPSHOT_SUITE>();
+   jumbo_row_test<savanna_tester, SNAPSHOT_SUITE>();
 }
 
 BOOST_AUTO_TEST_SUITE_END()

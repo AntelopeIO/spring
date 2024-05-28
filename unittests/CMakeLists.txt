@@ -110,8 +110,14 @@ set(ctest_tests "'${ctest_tests}' -j8") # surround test list string in apostroph
 # The following tests are known to take the longest, bump up their cost (priority) so that they'll run first
 # even on fresh first time test runs before ctest auto-detects costs
 foreach(RUNTIME ${EOSIO_WASM_RUNTIMES})
-   set_tests_properties(api_unit_test_${RUNTIME} PROPERTIES COST 5000)
-   set_tests_properties(wasm_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(api_part1_unit_test_${RUNTIME} PROPERTIES COST 5000)
+   set_tests_properties(api_part2_unit_test_${RUNTIME} PROPERTIES COST 5000)
+   set_tests_properties(api_part3_unit_test_${RUNTIME} PROPERTIES COST 5000)
+   set_tests_properties(wasm_part1_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(wasm_part2_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(wasm_config_part1_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(wasm_config_part2_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(wasm_config_part3_unit_test_${RUNTIME} PROPERTIES COST 4000)
    set_tests_properties(delay_unit_test_${RUNTIME} PROPERTIES COST 3000)
 endforeach()
 

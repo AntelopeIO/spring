@@ -16,7 +16,7 @@ using namespace eosio::testing;
 
 using mvo = fc::mutable_variant_object;
 
-template<class Tester = validating_tester>
+template<class Tester>
 class whitelist_blacklist_tester {
    public:
       whitelist_blacklist_tester() {}
@@ -83,6 +83,13 @@ class whitelist_blacklist_tester {
       bool                              shutdown_called = false;
 };
 
+using whitelist_blacklist_validating_testers =
+   boost::mpl::list<whitelist_blacklist_tester<legacy_validating_tester>,
+                    whitelist_blacklist_tester<savanna_validating_tester>>;
+using whitelist_blacklist_testers =
+   boost::mpl::list<whitelist_blacklist_tester<legacy_tester>,
+                    whitelist_blacklist_tester<savanna_tester>>;
+
 struct transfer_args {
    account_name from;
    account_name to;
@@ -95,8 +102,9 @@ FC_REFLECT( transfer_args, (from)(to)(quantity)(memo) )
 
 BOOST_AUTO_TEST_SUITE(whitelist_blacklist_tests)
 
-BOOST_AUTO_TEST_CASE( actor_whitelist ) { try {
-   whitelist_blacklist_tester<> test;
+BOOST_AUTO_TEST_CASE_TEMPLATE( actor_whitelist, T, whitelist_blacklist_validating_testers ) { try {
+
+   T test;
    test.actor_whitelist = {config::system_account_name, "eosio.token"_n, "alice"_n};
    test.init();
 
@@ -128,8 +136,8 @@ BOOST_AUTO_TEST_CASE( actor_whitelist ) { try {
    test.chain->produce_blocks();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( actor_blacklist ) { try {
-   whitelist_blacklist_tester<> test;
+BOOST_AUTO_TEST_CASE_TEMPLATE( actor_blacklist, T, whitelist_blacklist_validating_testers ) { try {
+   T test;
    test.actor_blacklist = {"bob"_n};
    test.init();
 
@@ -162,8 +170,8 @@ BOOST_AUTO_TEST_CASE( actor_blacklist ) { try {
    test.chain->produce_blocks();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( contract_whitelist ) { try {
-   whitelist_blacklist_tester<> test;
+BOOST_AUTO_TEST_CASE_TEMPLATE( contract_whitelist, T, whitelist_blacklist_validating_testers ) { try {
+   T test;
    test.contract_whitelist = {config::system_account_name, "eosio.token"_n, "bob"_n};
    test.init();
 
@@ -211,8 +219,8 @@ BOOST_AUTO_TEST_CASE( contract_whitelist ) { try {
    test.chain->produce_blocks();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( contract_blacklist ) { try {
-   whitelist_blacklist_tester<> test;
+BOOST_AUTO_TEST_CASE_TEMPLATE( contract_blacklist, T, whitelist_blacklist_validating_testers ) { try {
+   T test;
    test.contract_blacklist = {"charlie"_n};
    test.init();
 
@@ -260,8 +268,8 @@ BOOST_AUTO_TEST_CASE( contract_blacklist ) { try {
    test.chain->produce_blocks();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( action_blacklist ) { try {
-   whitelist_blacklist_tester<> test;
+BOOST_AUTO_TEST_CASE_TEMPLATE( action_blacklist, T, whitelist_blacklist_validating_testers ) { try {
+   T test;
    test.contract_whitelist = {config::system_account_name, "eosio.token"_n, "bob"_n, "charlie"_n};
    test.action_blacklist = {{"charlie"_n, "create"_n}};
    test.init();
@@ -299,8 +307,8 @@ BOOST_AUTO_TEST_CASE( action_blacklist ) { try {
    test.chain->produce_blocks();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( blacklist_eosio ) { try {
-   whitelist_blacklist_tester<tester> tester1;
+BOOST_AUTO_TEST_CASE_TEMPLATE( blacklist_eosio, T, whitelist_blacklist_testers ) { try {
+   T tester1;
    tester1.init();
    tester1.chain->produce_blocks();
    tester1.chain->set_code(config::system_account_name, test_contracts::eosio_token_wasm() );
@@ -309,7 +317,7 @@ BOOST_AUTO_TEST_CASE( blacklist_eosio ) { try {
    tester1.contract_blacklist = {config::system_account_name};
    tester1.init(false);
 
-   whitelist_blacklist_tester<tester> tester2;
+   T tester2;
    tester2.init(false);
 
    while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
@@ -378,8 +386,8 @@ BOOST_AUTO_TEST_CASE( deferred_blacklist_failure ) { try {
 } FC_LOG_AND_RETHROW() }
 
 
-BOOST_AUTO_TEST_CASE( blacklist_onerror ) { try {
-   whitelist_blacklist_tester<validating_tester> tester1;
+BOOST_AUTO_TEST_CASE_TEMPLATE( blacklist_onerror, T, whitelist_blacklist_validating_testers ) { try {
+   T tester1;
    tester1.init();
    tester1.chain->execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
    tester1.chain->preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
@@ -716,7 +724,7 @@ BOOST_AUTO_TEST_CASE( blacklist_sender_bypass ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( greylist_limit_tests ) { try {
+BOOST_AUTO_TEST_CASE_TEMPLATE( greylist_limit_tests, T, testers ) { try {
    fc::temp_directory tempdir;
    auto conf_genesis = tester::default_config( tempdir );
 
@@ -733,7 +741,7 @@ BOOST_AUTO_TEST_CASE( greylist_limit_tests ) { try {
    cfg.min_transaction_cpu_usage  = 100; // Empty blocks (consisting of only onblock) would be below the target.
    // But all it takes is one transaction in the block to be above the target.
 
-   tester c( conf_genesis.first, conf_genesis.second );
+   T c( conf_genesis.first, conf_genesis.second );
    c.execute_setup_policy( setup_policy::full );
 
    const resource_limits_manager& rm = c.control->get_resource_limits_manager();

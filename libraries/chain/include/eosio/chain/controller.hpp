@@ -40,6 +40,8 @@ namespace eosio::chain {
    using chainbase::pinnable_mapped_file;
    using boost::signals2::signal;
 
+   class transaction_context;
+   struct trx_block_context;
    class dynamic_global_property_object;
    class global_property_object;
    class permission_object;
@@ -141,12 +143,13 @@ namespace eosio::chain {
 
          /**
           * Starts a new pending block session upon which new transactions can be pushed.
+          * returns the trace for the on_block action
           */
-         void start_block( block_timestamp_type time,
-                           uint16_t confirm_block_count,
-                           const vector<digest_type>& new_protocol_feature_activations,
-                           block_status bs,
-                           const fc::time_point& deadline = fc::time_point::maximum() );
+         transaction_trace_ptr start_block( block_timestamp_type time,
+                                            uint16_t confirm_block_count,
+                                            const vector<digest_type>& new_protocol_feature_activations,
+                                            block_status bs,
+                                            const fc::time_point& deadline = fc::time_point::maximum() );
 
          /**
           * @return transactions applied in aborted block
@@ -239,6 +242,7 @@ namespace eosio::chain {
          account_name         head_block_producer()const;
          const block_header&  head_block_header()const;
          const signed_block_ptr& head_block()const;
+         bool                 head_sanity_check()const;
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,
@@ -327,10 +331,11 @@ namespace eosio::chain {
 
          bool is_known_unexpired_transaction( const transaction_id_type& id) const;
 
-         int64_t set_proposed_producers( vector<producer_authority> producers );
+         // called by host function
+         int64_t set_proposed_producers( transaction_context& trx_context, vector<producer_authority> producers );
 
-         // called by host function set_finalizers
-         void set_proposed_finalizers( finalizer_policy&& fin_pol );
+         void apply_trx_block_context( trx_block_context& trx_blk_context );
+
          // called from net threads
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing

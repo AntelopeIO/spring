@@ -170,8 +170,6 @@ R apply_l(const block_handle& bh, F&& f) {
 struct completed_block {
    block_handle bsp;
 
-   bool is_legacy() const { return std::holds_alternative<block_state_legacy_ptr>(bsp.internal()); }
-
    deque<transaction_metadata_ptr> extract_trx_metas() {
       return apply<deque<transaction_metadata_ptr>>(bsp, [](auto& bsp) { return bsp->extract_trxs_metas(); });
    }
@@ -257,8 +255,6 @@ struct assembled_block {
    };
 
    std::variant<assembled_block_legacy, assembled_block_if> v;
-
-   bool is_legacy() const { return std::holds_alternative<assembled_block_legacy>(v); }
 
    template <class R, class F>
    R apply_legacy(F&& f) {
@@ -398,6 +394,7 @@ struct building_block {
       deque<transaction_receipt>          pending_trx_receipts;
       checksum_or_digests                 trx_mroot_or_receipt_digests {digests_t{}};
       action_digests_t                    action_receipt_digests;
+      trx_block_context                   trx_blk_context;
 
       building_block_common(const vector<digest_type>& new_protocol_feature_activations,
                             action_digests_t::store_which_t store_which) :
@@ -492,7 +489,7 @@ struct building_block {
 
       // returns the next proposer schedule version if producers should be proposed in block
       // if producers is not different then returns empty optional
-      std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+      std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
@@ -506,7 +503,7 @@ struct building_block {
 
          const producer_authority_schedule& lhs = get_next_sched();
          auto v = lhs.version;
-         if (!std::equal(lhs.producers.begin(), lhs.producers.end(), producers.begin(), producers.end())) {
+         if (lhs.producers != producers) {
             ++v;
             return std::optional<uint32_t>{v};
          }
@@ -529,8 +526,6 @@ struct building_block {
       v(building_block_if(prev, input, action_digests_t::store_which_t::savanna))
    {}
 
-   bool is_legacy() const { return std::holds_alternative<building_block_legacy>(v); }
-
    // apply legacy, building_block_legacy
    template <class R, class F>
    R apply_l(F&& f) {
@@ -550,6 +545,16 @@ struct building_block {
       else
          return std::visit(overloaded{[&](building_block_legacy& bb) -> R { return std::forward<F>(f)(bb); },
                                       [&](building_block_if& bb)     -> R { return std::forward<F>(f)(bb); }}, v);
+   }
+
+   template <class R, class F, class S>
+   R apply(F&& f, S&& s) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit(overloaded{[&](building_block_legacy& bb) { std::forward<F>(f)(bb); },
+                               [&](building_block_if& bb)     { std::forward<S>(s)(bb); }}, v);
+      else
+         return std::visit(overloaded{[&](building_block_legacy& bb) -> R { return std::forward<F>(f)(bb); },
+                                      [&](building_block_if& bb)     -> R { return std::forward<S>(s)(bb); }}, v);
    }
 
    deque<transaction_metadata_ptr> extract_trx_metas() {
@@ -596,7 +601,7 @@ struct building_block {
                         v);
    }
 
-   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
       return std::visit(
          overloaded{[](const building_block_legacy&) -> std::optional<uint32_t> { return std::nullopt; },
                     [&](const building_block_if& bb) -> std::optional<uint32_t> {
@@ -663,18 +668,6 @@ struct building_block {
                         v);
    }
 
-   void update_finalizer_policy_generation(finalizer_policy& new_finalizer_policy) {
-      apply<void>(
-         overloaded{
-            [&](building_block::building_block_legacy& bb_legacy) -> void {
-               new_finalizer_policy.generation = 1;
-            },
-            [&](building_block::building_block_if& bb_savanna) -> void {
-               new_finalizer_policy.generation = bb_savanna.parent.finalizer_policy_generation + 1;
-            }
-         });
-   }
-
    qc_data_t get_qc_data(fork_database& fork_db, const block_state& parent) {
       // find most recent ancestor block that has a QC by traversing fork db
       // branch from parent
@@ -706,7 +699,7 @@ struct building_block {
    assembled_block assemble_block(boost::asio::io_context& ioc,
                                   const protocol_feature_set& pfs,
                                   fork_database& fork_db,
-                                  std::unique_ptr<proposer_policy> new_proposer_policy,
+                                  std::optional<proposer_policy> new_proposer_policy,
                                   std::optional<finalizer_policy> new_finalizer_policy,
                                   bool validating,
                                   std::optional<qc_data_t> validating_qc_data,
@@ -881,8 +874,6 @@ struct pending_state {
       _db_session.push();
    }
 
-   bool is_legacy() const { return std::visit([](const auto& stage) { return stage.is_legacy(); }, _block_stage); }
-   
    const block_signing_authority& pending_block_signing_authority() const {
       return std::visit(
          [](const auto& stage) -> const block_signing_authority& { return stage.pending_block_signing_authority(); },
@@ -907,7 +898,7 @@ struct pending_state {
          _block_stage);
    }
 
-   std::optional<uint32_t> get_next_proposer_schedule_version(const shared_vector<shared_producer_authority>& producers) const {
+   std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
       return std::visit(overloaded{
                            [&](const building_block& stage) -> std::optional<uint32_t> {
                               return stage.get_next_proposer_schedule_version(producers);
@@ -994,7 +985,6 @@ struct controller_impl {
                                       });
                                    }};
 
-   int64_t set_proposed_producers( vector<producer_authority> producers );
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
 
    protocol_feature_activation_set_ptr head_activated_protocol_features() const {
@@ -1698,7 +1688,9 @@ struct controller_impl {
 
          auto pending_head = forkdb.pending_head();
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog( "fork database head ${h}, root ${r}", ("h", pending_head->block_num())( "r", forkdb.root()->block_num() ) );
+            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
+                 ("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
@@ -2942,6 +2934,8 @@ struct controller_impl {
            handle_exception(wrapper);
          }
 
+         // this code is hit if an exception was thrown, and handled by `handle_exception`
+         // ------------------------------------------------------------------------------
          if (!trx->is_transient()) {
             dmlog_applied_transaction(trace);
             emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
@@ -2956,12 +2950,12 @@ struct controller_impl {
       } FC_CAPTURE_AND_RETHROW((trace))
    } /// push_transaction
 
-   void start_block( block_timestamp_type when,
-                     uint16_t confirm_block_count,
-                     const vector<digest_type>& new_protocol_feature_activations,
-                     controller::block_status s,
-                     const std::optional<block_id_type>& producer_block_id,
-                     const fc::time_point& deadline )
+   transaction_trace_ptr start_block( block_timestamp_type when,
+                                      uint16_t confirm_block_count,
+                                      const vector<digest_type>& new_protocol_feature_activations,
+                                      controller::block_status s,
+                                      const std::optional<block_id_type>& producer_block_id,
+                                      const fc::time_point& deadline )
    {
       EOS_ASSERT( !pending, block_validate_exception, "pending block already exists" );
 
@@ -2999,6 +2993,8 @@ struct controller_impl {
       pending->_producer_block_id = producer_block_id;
 
       auto& bb = std::get<building_block>(pending->_block_stage);
+
+      transaction_trace_ptr onblock_trace;
 
       // block status is either ephemeral or incomplete. Modify state of speculative block only if we are building a
       // speculative incomplete block (otherwise we need clean state for head mode, ephemeral block)
@@ -3106,10 +3102,11 @@ struct controller_impl {
                   in_trx_requiring_checks = old_value;
                });
             in_trx_requiring_checks = true;
-            auto trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
-                                           gpo.configuration.min_transaction_cpu_usage, true, 0 );
-            if( trace->except ) {
-               wlog("onblock ${block_num} is REJECTING: ${entire_trace}",("block_num", chain_head.block_num() + 1)("entire_trace", trace));
+            onblock_trace = push_transaction( onbtrx, fc::time_point::maximum(), fc::microseconds::maximum(),
+                                      gpo.configuration.min_transaction_cpu_usage, true, 0 );
+            if( onblock_trace->except ) {
+               wlog("onblock ${block_num} is REJECTING: ${entire_trace}",
+                    ("block_num", chain_head.block_num() + 1)("entire_trace", onblock_trace));
             }
          } catch( const std::bad_alloc& e ) {
             elog( "on block transaction failed due to a std::bad_alloc" );
@@ -3132,6 +3129,7 @@ struct controller_impl {
       }
 
       guard_pending.cancel();
+      return onblock_trace;
    } /// start_block
 
    void assemble_block(bool validating, std::optional<qc_data_t> validating_qc_data, const block_state_ptr& validating_bsp)
@@ -3157,55 +3155,36 @@ struct controller_impl {
             );
          resource_limits.process_block_usage(bb.block_num());
 
-         // Any proposer policy?
-         auto process_new_proposer_policy = [&](auto&) -> std::unique_ptr<proposer_policy> {
-            std::unique_ptr<proposer_policy> new_proposer_policy;
-            const auto& gpo = db.get<global_property_object>();
-            if (gpo.proposed_schedule_block_num) {
-               std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(gpo.proposed_schedule.producers);
-               if (version) {
-                  new_proposer_policy                    = std::make_unique<proposer_policy>();
-                  new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp());
-                  new_proposer_policy->proposer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
-                  new_proposer_policy->proposer_schedule.version = *version;
-                  ilog("Scheduling proposer schedule change at ${t}: ${s}",
-                       ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+         // Any proposer policy or finalizer policy?
+         std::optional<finalizer_policy> new_finalizer_policy;
+         std::optional<proposer_policy> new_proposer_policy;
+         bb.apply<void>(
+            overloaded{
+               [&](building_block::building_block_legacy& bb) -> void {
+                  // Make sure new_finalizer_policy is set only once in Legacy
+                  if (bb.trx_blk_context.proposed_fin_pol_block_num && !bb.pending_block_header_state.is_if_transition_block()) {
+                     new_finalizer_policy = std::move(bb.trx_blk_context.proposed_fin_pol);
+                     new_finalizer_policy->generation = 1;
+                  }
+               },
+               [&](building_block::building_block_if& bb) -> void {
+                  if (bb.trx_blk_context.proposed_fin_pol_block_num) {
+                     new_finalizer_policy = std::move(bb.trx_blk_context.proposed_fin_pol);
+                     new_finalizer_policy->generation = bb.parent.finalizer_policy_generation + 1;
+                  }
+                  if (bb.trx_blk_context.proposed_schedule_block_num) {
+                     std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(bb.trx_blk_context.proposed_schedule.producers);
+                     if (version) {
+                        new_proposer_policy.emplace();
+                        new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp);
+                        new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
+                        new_proposer_policy->proposer_schedule.version = *version;
+                        ilog("Scheduling proposer schedule change at ${t}: ${s}",
+                             ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+                     }
+                  }
                }
-
-               db.modify( gpo, [&]( auto& gp ) {
-                  gp.proposed_schedule_block_num = std::optional<block_num_type>();
-                  gp.proposed_schedule.version = 0;
-                  gp.proposed_schedule.producers.clear();
-               });
-            }
-            return new_proposer_policy;
-         };
-         auto new_proposer_policy = apply_s<std::unique_ptr<proposer_policy>>(chain_head, process_new_proposer_policy);
-
-         // Any finalizer policy?
-         std::optional<finalizer_policy> new_finalizer_policy = std::nullopt;
-         const auto& gpo = db.get<global_property_object>();
-         if (gpo.proposed_fin_pol_block_num.has_value()) {
-            new_finalizer_policy = gpo.proposed_fin_pol;
-
-            db.modify( gpo, [&]( auto& gp ) {
-               gp.proposed_fin_pol_block_num = std::nullopt;
-               gp.proposed_fin_pol.generation = 0;
-               gp.proposed_fin_pol.finalizers.clear();
             });
-         }
-
-         // Make sure new_finalizer_policy is set only once in Legacy
-         bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
-            if (bl.pending_block_header_state.is_if_transition_block()) {
-               new_finalizer_policy = std::nullopt;
-            }
-         });
-
-         // Update generation
-         if (new_finalizer_policy.has_value()) {
-            bb.update_finalizer_policy_generation(*new_finalizer_policy);
-         }
 
          auto assembled_block =
             bb.assemble_block(thread_pool.get_executor(),
@@ -3245,6 +3224,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
+                  vote_processor.notify_new_block();
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3327,32 +3307,30 @@ struct controller_impl {
       pending->push();
    }
 
-   void set_proposed_finalizers(finalizer_policy&& fin_pol) {
+   void apply_trx_block_context(trx_block_context& trx_blk_context) {
       assert(pending); // has to exist and be building_block since called from host function
       assert(std::holds_alternative<building_block>(pending->_block_stage));
       auto& bb = std::get<building_block>(pending->_block_stage);
 
-      // Use global_property_object instead of building_block so that if the
-      // transaction fails it will be rolledback.
-      auto cur_block_num = chain_head.block_num() + 1;
-      auto& gpo = db.get<global_property_object>();
-      db.modify( gpo, [&]( auto& gp ) {
-         gp.proposed_fin_pol_block_num = cur_block_num;
-         gp.proposed_fin_pol = std::move(fin_pol);
-      });
+      // Savanna uses new algorithm for proposer schedule change
+      // Prevent any in-flight legacy proposer schedule changes when finalizers are first proposed
+      if (trx_blk_context.proposed_fin_pol_block_num) {
+         bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
+            const auto& gpo = db.get<global_property_object>();
+            if (gpo.proposed_schedule_block_num) {
+               db.modify(gpo, [&](auto& gp) {
+                  gp.proposed_schedule_block_num = std::optional<block_num_type>();
+                  gp.proposed_schedule.version   = 0;
+                  gp.proposed_schedule.producers.clear();
+               });
+            }
+            bl.new_pending_producer_schedule = {};
+            bl.pending_block_header_state.prev_pending_schedule.schedule.producers.clear();
+         });
+      }
 
-      bb.apply_l<void>([&](building_block::building_block_legacy& bl) {
-         // Savanna uses new algorithm for proposer schedule change, prevent any in-flight legacy proposer schedule changes
-         const auto& gpo = db.get<global_property_object>();
-         if (gpo.proposed_schedule_block_num) {
-            db.modify(gpo, [&](auto& gp) {
-               gp.proposed_schedule_block_num = std::optional<block_num_type>();
-               gp.proposed_schedule.version   = 0;
-               gp.proposed_schedule.producers.clear();
-            });
-         }
-         bl.new_pending_producer_schedule = {};
-         bl.pending_block_header_state.prev_pending_schedule.schedule.producers.clear();
+      bb.apply<void>([&](auto& b) {
+         b.trx_blk_context.apply(std::move(trx_blk_context));
       });
    }
 
@@ -4938,11 +4916,11 @@ void controller::validate_protocol_features( const vector<digest_type>& features
                                 features_to_activate );
 }
 
-void controller::start_block( block_timestamp_type when,
-                              uint16_t confirm_block_count,
-                              const vector<digest_type>& new_protocol_feature_activations,
-                              block_status bs,
-                              const fc::time_point& deadline )
+transaction_trace_ptr controller::start_block( block_timestamp_type when,
+                                               uint16_t confirm_block_count,
+                                               const vector<digest_type>& new_protocol_feature_activations,
+                                               block_status bs,
+                                               const fc::time_point& deadline )
 {
    validate_db_available_size();
 
@@ -4952,8 +4930,8 @@ void controller::start_block( block_timestamp_type when,
 
    EOS_ASSERT( bs == block_status::incomplete || bs == block_status::ephemeral, block_validate_exception, "speculative block type required" );
 
-   my->start_block( when, confirm_block_count, new_protocol_feature_activations,
-                    bs, std::optional<block_id_type>(), deadline );
+   return my->start_block( when, confirm_block_count, new_protocol_feature_activations,
+                           bs, std::optional<block_id_type>(), deadline );
 }
 
 void controller::assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback ) {
@@ -5103,6 +5081,10 @@ block_state_legacy_ptr controller::head_block_state_legacy()const {
    return apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
+}
+
+bool controller::head_sanity_check()const {
+   return apply<bool>(my->chain_head, [](const auto& head) { return head->sanity_check(); });
 }
 
 const signed_block_ptr& controller::head_block()const {
@@ -5261,40 +5243,21 @@ bool controller::is_writing_snapshot() const {
    return my->writing_snapshot.load(std::memory_order_acquire);
 }
 
-int64_t controller::set_proposed_producers( vector<producer_authority> producers ) {
+int64_t controller::set_proposed_producers( transaction_context& trx_context, vector<producer_authority> producers ) {
    assert(my->pending);
-   if (my->pending->is_legacy()) {
-      return my->set_proposed_producers_legacy(std::move(producers));
-   } else {
-      return my->set_proposed_producers(std::move(producers));
-   }
-}
-
-int64_t controller_impl::set_proposed_producers( vector<producer_authority> producers ) {
-   // Savanna sets the global_property_object.proposed_schedule similar to legacy, but it is only set during the building of the block.
-   // global_property_object is used instead of building_block so that if the transaction fails it is rolledback.
-
-   if (producers.empty())
-      return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
-
-   assert(pending);
-
-   producer_authority_schedule sch;
-   // sch.version is set in assemble_block
-   sch.producers = std::move(producers);
-
-   // store schedule in gpo so it will be rolledback if transaction fails
-   auto cur_block_num = chain_head.block_num() + 1;
-   auto& gpo = db.get<global_property_object>();
-   db.modify( gpo, [&]( auto& gp ) {
-      gp.proposed_schedule_block_num = cur_block_num;
-      gp.proposed_schedule = sch;
-   });
-
-   return std::numeric_limits<uint32_t>::max();
+   assert(std::holds_alternative<building_block>(my->pending->_block_stage));
+   auto& bb = std::get<building_block>(my->pending->_block_stage);
+   return bb.apply<int64_t>([&](building_block::building_block_legacy&) {
+                               return my->set_proposed_producers_legacy(std::move(producers));
+                            },
+                            [&](building_block::building_block_if&) {
+                               return trx_context.set_proposed_producers(std::move(producers));
+                            });
 }
 
 int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authority> producers ) {
+   EOS_ASSERT(producers.size() <= config::max_producers, wasm_execution_error,
+              "Producer schedule exceeds the maximum producer count for this chain");
    const auto& gpo = db.get<global_property_object>();
    auto cur_block_num = chain_head.block_num() + 1;
 
@@ -5340,7 +5303,7 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
       // The check for if there is a finalizer policy set is required because
       // is_if_transition_block() is set in assemble_block so it is not set
       // for the if genesis block.
-      return bl.pending_block_header_state.is_if_transition_block() || gpo.proposed_fin_pol_block_num.has_value();
+      return bl.pending_block_header_state.is_if_transition_block() || bl.trx_blk_context.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
       return -1;
@@ -5358,8 +5321,8 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    return version;
 }
 
-void controller::set_proposed_finalizers( finalizer_policy&& fin_pol ) {
-   my->set_proposed_finalizers(std::move(fin_pol));
+void controller::apply_trx_block_context(trx_block_context& trx_blk_context) {
+   my->apply_trx_block_context(trx_blk_context);
 }
 
 // called from net threads

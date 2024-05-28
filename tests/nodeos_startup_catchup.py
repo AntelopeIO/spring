@@ -57,9 +57,20 @@ try:
     cluster.setWalletMgr(walletMgr)
 
     Print("Stand up cluster")
-    if cluster.launch(prodCount=prodCount, activateIF=activateIF, onlyBios=False, pnodes=pnodes, totalNodes=totalNodes, totalProducers=pnodes*prodCount,
-                      unstartedNodes=catchupCount, loadSystemContract=True,
-                      maximumP2pPerHost=totalNodes+trxGeneratorCnt) is False:
+    specificExtraNodeosArgs = {}
+    specificExtraNodeosArgs[pnodes+1] = f' --sync-fetch-span 1 '
+    specificExtraNodeosArgs[pnodes+2] = f' --sync-fetch-span 5 '
+    specificExtraNodeosArgs[pnodes+3] = f' --sync-fetch-span 21 '
+    specificExtraNodeosArgs[pnodes+4] = f' --sync-fetch-span 89 '
+    specificExtraNodeosArgs[pnodes+5] = f' --sync-fetch-span 377 '
+    specificExtraNodeosArgs[pnodes+6] = f' --sync-fetch-span 1597 '
+    specificExtraNodeosArgs[pnodes+7] = f' --sync-fetch-span 1597 '
+    specificExtraNodeosArgs[pnodes+8] = f' --sync-fetch-span 6765 '
+    specificExtraNodeosArgs[pnodes+9] = f' --sync-fetch-span 28657 '
+    specificExtraNodeosArgs[pnodes+10] = f' --sync-fetch-span 89 '
+    if cluster.launch(prodCount=prodCount, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF, onlyBios=False,
+                      pnodes=pnodes, totalNodes=totalNodes, totalProducers=pnodes*prodCount, unstartedNodes=catchupCount,
+                      loadSystemContract=True, maximumP2pPerHost=totalNodes+trxGeneratorCnt) is False:
         Utils.errorExit("Failed to stand up eos cluster.")
 
     Print("Create test wallet")

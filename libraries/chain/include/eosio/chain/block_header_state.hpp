@@ -26,7 +26,7 @@ struct finality_digest_data_v1 {
    uint32_t    minor_version{light_header_protocol_version_minor};
    uint32_t    active_finalizer_policy_generation {0};
    digest_type finality_tree_digest;
-   digest_type active_finalizer_policy_and_base_digest;
+   digest_type last_pending_finalizer_policy_and_base_digest;
 
 };
 
@@ -46,8 +46,8 @@ struct finality_digest_data_v1 {
 // ------------------------------------------------------------------------------------------
 struct finalizer_policy_tracker {
    enum class state_t { proposed = 0, pending };
-   state_t               state;
-   finalizer_policy_ptr  policy;
+   state_t                    state;
+   finalizer_policy_ptr       policy;
 };
 
 struct building_block_input {
@@ -61,7 +61,7 @@ struct building_block_input {
 // this struct can be extracted from a building block
 struct block_header_state_input : public building_block_input {
    digest_type                       transaction_mroot;    // Comes from std::get<checksum256_type>(building_block::trx_mroot_or_receipt_digests)
-   std::shared_ptr<proposer_policy>  new_proposer_policy;  // Comes from building_block::new_proposer_policy
+   std::optional<proposer_policy>    new_proposer_policy;  // Comes from building_block::new_proposer_policy
    std::optional<finalizer_policy>   new_finalizer_policy; // Comes from building_block::new_finalizer_policy
    qc_claim_t                        most_recent_ancestor_with_qc; // Comes from traversing branch from parent and calling get_best_qc()
    digest_type                       finality_mroot_claim;
@@ -95,6 +95,10 @@ struct block_header_state {
    // It matches the finalizer policy generation most recently included in this block's `if_extension` or its ancestors
    uint32_t                            finalizer_policy_generation{1};
 
+   // digest of the finalizer policy (which includes the generation number in it) with the greatest generation number
+   // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
+   digest_type                         last_pending_finalizer_policy_digest;
+
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
 
@@ -119,6 +123,10 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
+   // Returns true if the block is a Savanna Genesis Block.
+   // This method is applicable to any transition block which is re-classified as a Savanna block.
+   bool is_savanna_genesis_block() const { return core.is_genesis_block_num(block_num()); }
+
    // Returns true if the block is a Proper Savanna Block
    bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
@@ -127,8 +135,14 @@ struct block_header_state {
       return qc_claim > core.latest_qc_claim();
    }
 
+   bool sanity_check() const; // does sanity check of block_header_state, returns true if successful
+
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+
+   const finalizer_policy& get_last_proposed_finalizer_policy() const;
+   const finalizer_policy& get_last_pending_finalizer_policy() const;
+   const proposer_policy& get_last_proposed_proposer_policy() const;
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
@@ -142,6 +156,6 @@ FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(proposer_policies)(finalizer_policies)
-            (finalizer_policy_generation)(header_exts))
+            (finalizer_policy_generation)(last_pending_finalizer_policy_digest)(header_exts))
 
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(active_finalizer_policy_and_base_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(last_pending_finalizer_policy_and_base_digest) )

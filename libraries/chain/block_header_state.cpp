@@ -43,17 +43,15 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   assert(active_finalizer_policy);
-   auto active_finalizer_policy_digest = fc::sha256::hash(*active_finalizer_policy);
    auto base_digest = compute_base_digest();
+   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
+   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
 
-   std::pair<const digest_type&, const digest_type&> active_and_base{ active_finalizer_policy_digest, base_digest };
-   auto afp_base_digest = fc::sha256::hash(active_and_base);
-
+   assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .finality_tree_digest                    = finality_mroot(),
-      .active_finalizer_policy_and_base_digest = afp_base_digest
+      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
 
    return fc::sha256::hash(finality_digest_data);
@@ -67,6 +65,54 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
    return detail::get_new_protocol_feature_activations(header_exts);
 }
 
+// The last proposed finalizer policy if none proposed or pending then the active finalizer policy
+const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy() const {
+   if (!finalizer_policies.empty()) {
+      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+         if (ritr->second.state == finalizer_policy_tracker::state_t::proposed)
+            return *ritr->second.policy;
+      }
+      return *finalizer_policies.rbegin()->second.policy;
+   }
+   return *active_finalizer_policy;
+}
+
+// The last pending finalizer policy if none pending then the active finalizer policy
+// Used to populate last_pending_finalizer_policy_digest which is expected to be the highest generation pending
+const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() const {
+   if (!finalizer_policies.empty()) {
+      // lambda only used when asserts enabled
+      [[maybe_unused]] auto highest_pending_generation = [this]() {
+         finalizer_policy_ptr highest;
+         for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+            if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
+               if (!highest || highest->generation < ritr->second.policy->generation)
+                  highest = ritr->second.policy;
+            }
+         }
+         return highest;
+      };
+      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
+         if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
+            assert(highest_pending_generation() == ritr->second.policy);
+            return *ritr->second.policy;
+         }
+      }
+   }
+   return *active_finalizer_policy;
+}
+
+// The last proposed proposer policy, if none proposed then the active proposer policy
+const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
+   if (proposer_policies.empty()) {
+      assert(active_proposer_policy);
+      return *active_proposer_policy;
+   }
+   auto it = proposer_policies.rbegin();
+   assert(it != proposer_policies.rend());
+   return *it->second;
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or instant_finality_extension) applicable to this
@@ -78,7 +124,8 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 instant_finality_extension if_ext) {
+                 instant_finality_extension if_ext,
+                 bool log) { // only log on assembled blocks, to avoid double logging
    // activated protocol features
    // ---------------------------
    if (!new_protocol_feature_activations.empty()) {
@@ -103,10 +150,14 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (if_ext.new_proposer_policy) {
+   std::optional<proposer_policy> new_proposer_policy;
+   if (if_ext.new_proposer_policy_diff) {
+      new_proposer_policy = prev.get_last_proposed_proposer_policy().apply_diff(*if_ext.new_proposer_policy_diff);
+   }
+   if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies[if_ext.new_proposer_policy->active_time] =
-         std::move(if_ext.new_proposer_policy);
+      next_header_state.proposer_policies[new_proposer_policy->active_time] =
+         std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
    }
 
    // finality_core
@@ -131,6 +182,8 @@ void finish_next(const block_header_state& prev,
          // ---------------------------------------------------------------------------
          next_header_state.finalizer_policies = prev.finalizer_policies;
       } else {
+         auto next_block_num = next_header_state.block_num();
+
          while (it != prev.finalizer_policies.end() && it->first <= lib) {
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
@@ -139,11 +192,33 @@ void finish_next(const block_header_state& prev,
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
-               // block where finalizer_policy was proposed became final. The finalizer policy will
-               // become active when next block becomes final.
+
+               // The block where finalizer_policy was proposed has became final. The finalizer
+               // policy will become active when `next_block_num` becomes final.
+               //
+               // So `tracker.policy` should become `pending` at `next_block_num`.
+               //
+               // Either insert a new `finalizer_policy_tracker` value, or update the `pending`
+               // policy if there is already one  at `next_block_num` (which can happen when
+               // finality advances multiple block at a time, and more than one policy move from
+               // proposed to pending.
+               //
+               // Since we iterate finalizer_policies which is a multimap sorted by block number,
+               // the last one we add will be for the highest block number, which is what we want.
                // ---------------------------------------------------------------------------------
-               finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
-               next_header_state.finalizer_policies.emplace(next_header_state.block_num(), std::move(t));
+               auto range = next_header_state.finalizer_policies.equal_range(next_block_num);
+               auto itr = range.first;
+               for (; itr != range.second; ++itr) {
+                  if (itr->second.state == finalizer_policy_tracker::state_t::pending) {
+                     itr->second.policy = tracker.policy;
+                     break;
+                  }
+               }
+               if (itr == range.second) {
+                  // there wasn't already a pending one for `next_block_num`, add a new tracker
+                  finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
+                  next_header_state.finalizer_policies.emplace(next_block_num, std::move(t));
+               }
             }
             ++it;
          }
@@ -156,20 +231,24 @@ void finish_next(const block_header_state& prev,
       }
    }
 
-   if (if_ext.new_finalizer_policy) {
+   next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
+
+   if (if_ext.new_finalizer_policy_diff) {
+      finalizer_policy new_finalizer_policy = prev.get_last_proposed_finalizer_policy().apply_diff(*if_ext.new_finalizer_policy_diff);
+
       // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
       // block's header extensions.
       // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
       // increment the generation number, and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
-      dlog("New finalizer policy proposed in block ${id}: ${pol}",
-           ("id", prev.block_id)("pol", *if_ext.new_finalizer_policy));
-      next_header_state.finalizer_policy_generation = if_ext.new_finalizer_policy->generation;
+      if (log)
+         dlog("New finalizer policy proposed in block ${id}..: ${pol}",
+              ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
+      next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
       next_header_state.finalizer_policies.emplace(
          next_header_state.block_num(),
          finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(*if_ext.new_finalizer_policy))});
-
+                                  std::make_shared<finalizer_policy>(std::move(new_finalizer_policy))});
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
@@ -182,9 +261,11 @@ void finish_next(const block_header_state& prev,
    // -----------------------------------------------------------------
    if (next_header_state.active_finalizer_policy != prev.active_finalizer_policy) {
       const auto& act = next_header_state.active_finalizer_policy;
-      ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
-           ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
-      ilog("New finalizer policy becoming active in block ${id}: ${pol}",("id", next_header_state.block_id)("pol", *act));
+      if (log) {
+         ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
+              ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
+         ilog("New finalizer policy becoming active in block ${id}: ${pol}",("id", next_header_state.block_id)("pol", *act));
+      }
    }
 }
    
@@ -205,9 +286,17 @@ block_header_state block_header_state::next(block_header_state_input& input) con
 
    // finality extension
    // ------------------
+   std::optional<finalizer_policy_diff> new_finalizer_policy_diff;
+   if (input.new_finalizer_policy) {
+      new_finalizer_policy_diff = get_last_proposed_finalizer_policy().create_diff(*input.new_finalizer_policy);
+   }
+   std::optional<proposer_policy_diff> new_proposer_policy_diff;
+   if (input.new_proposer_policy) {
+      new_proposer_policy_diff = get_last_proposed_proposer_policy().create_diff(*input.new_proposer_policy);
+   }
    instant_finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
-                                           std::move(input.new_finalizer_policy),
-                                           std::move(input.new_proposer_policy) };
+                                           std::move(new_finalizer_policy_diff),
+                                           std::move(new_proposer_policy_diff) };
 
    uint16_t if_ext_id = instant_finality_extension::extension_id();
    emplace_extension(next_header_state.header.header_extensions, if_ext_id, fc::raw::pack(new_if_ext));
@@ -223,7 +312,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext));
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext), true);
 
    return next_header_state;
 }
@@ -280,9 +369,41 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
                  ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext);
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext, false);
 
    return next_header_state;
+}
+
+// -------------------------------------------------------------------------------
+// do some sanity checks on block_header_state
+// -------------------------------------------------------------------------------
+bool block_header_state::sanity_check() const {
+   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
+   // for any block number
+   // -----------------------------------------------------------------------------
+   block_num_type block_num(0);
+   bool pending{false}, proposed{false};
+
+   for (auto it = finalizer_policies.begin(); it != finalizer_policies.end(); ++it) {
+      if (block_num != it->first) {
+         pending = proposed = false;
+         block_num = it->first;
+      }
+      const auto& tracker = it->second;
+      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
+         if (proposed)
+            return false;
+         else
+            proposed = true;
+      }
+      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
+         if (pending)
+            return false;
+         else
+            pending = true;
+      }
+   }
+   return true;
 }
 
 } // namespace eosio::chain
