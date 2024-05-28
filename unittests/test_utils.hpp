@@ -149,8 +149,7 @@ void activate_protocol_features_set_bios_contract(appbase::scoped_app& app, chai
                builtin_protocol_feature_t::webauthn_key,
                builtin_protocol_feature_t::wtmsig_block_signatures,
                builtin_protocol_feature_t::bls_primitives,
-               builtin_protocol_feature_t::action_return_value,
-               builtin_protocol_feature_t::instant_finality};
+               builtin_protocol_feature_t::action_return_value};
             for (const auto t : pfs) {
                auto feature_digest = pfm.get_builtin_digest(t);
                BOOST_CHECK( feature_digest );
