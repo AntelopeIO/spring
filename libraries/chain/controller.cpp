@@ -1258,7 +1258,7 @@ struct controller_impl {
       set_activation_handler<builtin_protocol_feature_t::crypto_primitives>();
       set_activation_handler<builtin_protocol_feature_t::bls_primitives>();
       set_activation_handler<builtin_protocol_feature_t::disable_deferred_trxs_stage_2>();
-      set_activation_handler<builtin_protocol_feature_t::instant_finality>();
+      set_activation_handler<builtin_protocol_feature_t::savanna>();
 
       irreversible_block.connect([this](const block_signal_params& t) {
          const auto& [ block, id] = t;
@@ -5886,7 +5886,7 @@ void controller_impl::on_activation<builtin_protocol_feature_t::disable_deferred
 }
 
 template<>
-void controller_impl::on_activation<builtin_protocol_feature_t::instant_finality>() {
+void controller_impl::on_activation<builtin_protocol_feature_t::savanna>() {
    db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_finalizers" );
    } );
