@@ -42,12 +42,19 @@ digest_type block_header_state::compute_base_digest() const {
    return enc.result();
 }
 
+digest_type block_header_state::encode_num_in_digest(const digest_type& original_digest, const uint32_t num) const{
+   block_id_type result = original_digest;
+   result._hash[0] &= 0xffffffff00000000;
+   result._hash[0] += fc::endian_reverse_u32(num);
+   return result;
+}
+
 digest_type block_header_state::compute_finality_digest() const {
    auto base_digest = compute_base_digest();
    std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
    auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
-
    assert(active_finalizer_policy);
+
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
