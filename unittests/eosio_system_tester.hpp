@@ -21,7 +21,7 @@ class eosio_system_tester : public T {
 public:
 
    eosio_system_tester()
-   : eosio_system_tester([](legacy_validating_tester& ) {}){}
+   : eosio_system_tester([](validating_tester& ) {}){}
 
    template<typename Lambda>
    eosio_system_tester(Lambda setup) {
@@ -540,7 +540,7 @@ public:
       }
       T::produce_blocks( 250);
 
-      auto trace_auth = legacy_validating_tester::push_action(config::system_account_name, updateauth::get_name(), config::system_account_name, mvo()
+      auto trace_auth = validating_tester::push_action(config::system_account_name, updateauth::get_name(), config::system_account_name, mvo()
                                             ("account", name(config::system_account_name).to_string())
                                             ("permission", name(config::active_name).to_string())
                                             ("parent", name(config::owner_name).to_string())
