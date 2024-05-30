@@ -398,4 +398,36 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
+   validating_tester chain;
+
+   const std::vector<account_name> accounts = { "aliceaccount"_n, "bobbyaccount"_n, "carolaccount"_n, "emilyaccount"_n };
+   chain.create_accounts( accounts );
+   chain.produce_block();
+
+   // activate instant_finality
+   chain.set_finalizers(accounts);
+   chain.set_producers( accounts );
+   chain.produce_block();
+
+   // looping less than 20 did not reproduce the `producer_double_confirm: Producer is double confirming known range` error
+   for (size_t i = 0; i < 20; ++i) {
+      chain.set_producers( { "aliceaccount"_n, "bobbyaccount"_n } );
+      chain.produce_block();
+
+      chain.set_producers( { "bobbyaccount"_n, "aliceaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( accounts );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( { "carolaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+   }
+
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -13,8 +13,8 @@ BOOST_AUTO_TEST_SUITE(get_producers_tests)
 using namespace eosio::testing;
 
 // this test verifies the exception case of get_producer, where it is populated by the active schedule of producers
-BOOST_AUTO_TEST_CASE( get_producers) { try {
-      tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( get_producers, T, testers ) { try {
+      T chain;
 
       eosio::chain_apis::read_only plugin(*(chain.control), {}, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
       eosio::chain_apis::read_only::get_producers_params params = { .json = true, .lower_bound = "", .limit = 21 };
@@ -46,8 +46,8 @@ BOOST_AUTO_TEST_CASE( get_producers) { try {
    } FC_LOG_AND_RETHROW() }
 
 // this test verifies the normal case of get_producer, where the contents of the system contract's producers table is used
-BOOST_AUTO_TEST_CASE( get_producers_from_table) { try {
-      eosio_system::eosio_system_tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( get_producers_from_table, T, eosio_system::eosio_system_testers ) { try {
+      T chain;
 
       // ensure that enough voting is occurring so that producer1111 is elected as the producer
       chain.cross_15_percent_threshold();
