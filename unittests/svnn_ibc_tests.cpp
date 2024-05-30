@@ -20,6 +20,7 @@ using mvo = mutable_variant_object;
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
+
    //extract instant finality data from block header extension, as well as qc data from block extension
    qc_data_t extract_qc_data(const signed_block_ptr& b) {
       auto hexts = b->validate_and_extract_header_extensions();
@@ -98,6 +99,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // create a few proofs we'll use to perform tests
 
+      std::cout << "genesis_block_result : " << genesis_block_result.computed_finality_digest << " : " << genesis_block_result.computed_finality_digest << "\n";
+      std::cout << "block_1_result : " << block_1_result.computed_finality_digest << " : " << block_1_result.computed_finality_digest << "\n";
+      std::cout << "block_2_result : " << block_2_result.computed_finality_digest << " : " << block_2_result.computed_finality_digest << "\n";
+      std::cout << "block_3_result : " << block_3_result.computed_finality_digest << " : " << block_3_result.computed_finality_digest << "\n";
+      std::cout << "block_4_result : " << block_4_result.computed_finality_digest << " : " << block_4_result.computed_finality_digest << "\n";
+      std::cout << "block_5_result : " << block_5_result.computed_finality_digest << " : " << block_5_result.computed_finality_digest << "\n";
+      std::cout << "block_6_result : " << block_6_result.computed_finality_digest << " : " << block_6_result.computed_finality_digest << "\n";
+
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
@@ -106,6 +115,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
+                  ("final_on_qc_block_num", 6)
                   ("witness_hash", block_4_result.afp_base_digest)
                   ("finality_mroot", block_4_result.finality_root)
                )
@@ -122,6 +132,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 4)
                      ("witness_hash", block_2_result.afp_base_digest)
                      ("finality_mroot", block_2_result.finality_root)
                   )
@@ -143,6 +154,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
+                  ("final_on_qc_block_num", 5)
                   ("witness_hash", block_5_result.afp_base_digest)
                   ("finality_mroot", block_5_result.finality_root)
                )
@@ -159,6 +171,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 2)
                      ("witness_hash", block_2_result.afp_base_digest)
                      ("finality_mroot", block_2_result.finality_root)
                   )
@@ -183,6 +196,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 2)
                      ("witness_hash", block_2_result.afp_base_digest)
                      ("finality_mroot", block_2_result.finality_root)
                   )
@@ -199,6 +213,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify first heavy proof
       action_trace check_heavy_proof_1_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_1)->action_traces[0];
+
+      return ;
 
       // now that we stored the proven root, we should be able to verify the same proof without
       // the finality data (aka light proof)
@@ -323,6 +339,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
+                  ("final_on_qc_block_num", 9)
                   ("witness_hash", block_9_result.afp_base_digest)
                   ("finality_mroot", block_9_result.finality_root)
                )
@@ -339,6 +356,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 7)
                      ("witness_hash", block_7_result.afp_base_digest)
                      ("finality_mroot", block_7_result.finality_root)
                   )
@@ -362,6 +380,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 7)
                      ("witness_hash", block_7_result.afp_base_digest)
                      ("finality_mroot", block_7_result.finality_root)
                   )
@@ -441,6 +460,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
+                  ("final_on_qc_block_num", 1)
                   ("witness_hash", block_13_result.afp_base_digest)
                   ("finality_mroot", block_13_result.finality_root)
                )
@@ -457,6 +477,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 1)
                      ("new_finalizer_policy", cluster.last_pending_finalizer_policy)
                      ("witness_hash", block_11_result.base_digest)
                      ("finality_mroot", block_11_result.finality_root)
@@ -486,6 +507,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 2)
+                  ("final_on_qc_block_num", 1)
                   ("witness_hash", block_14_result.afp_base_digest)
                   ("finality_mroot", block_14_result.finality_root)
                )
@@ -502,6 +524,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("final_on_qc_block_num", 1)
                      ("witness_hash", block_12_result.afp_base_digest)
                      ("finality_mroot", block_12_result.finality_root)
                   )

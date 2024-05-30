@@ -703,7 +703,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       // The initial finality violation must necessarily have occured while this last common policy was in force, as two conflicting chains cannot have a 
       // different active policy at the same height unless a finality violation has already occured before.
 
-      // user1 is necessarily aware of a QC signed by the last common policy on the fake chain which makes a certain block final. The must also exist one QC
+      // user1 is necessarily aware of a QC signed by the last common policy on the fake chain which makes a certain block final. 
+
+      // ** Note : With the current implementation, user1 doesn't store information indicating which block is made final. The only piece of information they
+      // record about this is the finality merkle root at that block height, which is useless without the surrounding chain data and history (which we assume
+      // has been erased). However, if we expand the finality digest commitments to include the final 
+      // on qc block number, we can compare
+
+      // There must also exist one QC
       // which makes a different block at the same height become final on the real chain.
  
       // user1 can then find the QC on the real chain that made a conflicting block with the same number final.

@@ -75,6 +75,24 @@ namespace savanna {
       return output;
    }
 
+   checksum256 encode_num_in_digest(const checksum256& digest, const uint32_t num) { 
+
+      uint8_t fullraw[32] = {0};
+
+      uint32_t r_num = reverse_bytes(num);
+
+      std::array<uint8_t, 32> db = digest.extract_as_byte_array();
+
+      memcpy(&fullraw[0], (uint8_t *)&r_num, 4);
+
+      for (int i = 4; i <32; i++){
+         memcpy(&fullraw[i], (uint8_t *)&db[i], 1);
+      }
+
+      return checksum256(fullraw);
+
+   }
+
    checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
       std::array<uint8_t, 32> arr1 = p.first.extract_as_byte_array();
       std::array<uint8_t, 32> arr2 = p.second.extract_as_byte_array();
@@ -191,7 +209,7 @@ namespace savanna {
 
    struct authseq {
       name account;
-      uint64_t sequence;
+      uint64_t sequence = 0;
 
       EOSLIB_SERIALIZE( authseq, (account)(sequence) )
 
@@ -271,8 +289,8 @@ namespace savanna {
 
    struct action_proof_of_inclusion {
 
-      uint64_t target_node_index;
-      uint64_t last_node_index;
+      uint64_t target_node_index = 0;
+      uint64_t last_node_index = 0;
 
       action_data target;
 
@@ -290,7 +308,7 @@ namespace savanna {
    struct dynamic_data_v0 {
 
       //block_num is always present
-      uint32_t block_num;
+      uint32_t block_num = 0;
 
       //can include any number of action_proofs and / or state_proofs pertaining to a given block
       //all action_proofs must resolve to the same action_mroot
@@ -316,13 +334,15 @@ namespace savanna {
    struct block_finality_data {
       
       //major_version for this block
-      uint32_t major_version;
+      uint32_t major_version = 1;
 
       //minor_version for this block
-      uint32_t minor_version;
+      uint32_t minor_version = 0;
 
       //finalizer_policy_generation for this block
-      uint32_t finalizer_policy_generation;
+      uint32_t finalizer_policy_generation = 0;
+
+      uint32_t final_on_qc_block_num = 0;
 
       std::optional<finalizer_policy_input> new_finalizer_policy;
 
@@ -350,7 +370,9 @@ namespace savanna {
          memcpy(&result[0], (uint8_t *)&major_version, 4);
          memcpy(&result[4], (uint8_t *)&minor_version, 4);
          memcpy(&result[8], (uint8_t *)&finalizer_policy_generation, 4);
-         std::array<uint8_t, 32> arr1 = finality_mroot.extract_as_byte_array();
+         checksum256 encoded_finality_mroot = encode_num_in_digest(finality_mroot, final_on_qc_block_num);
+         print("encoded_finality_mroot : ", encoded_finality_mroot, "\n");
+         std::array<uint8_t, 32> arr1 = encoded_finality_mroot.extract_as_byte_array();
          std::array<uint8_t, 32> arr2 = resolve_witness().extract_as_byte_array();
          std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 12);
          std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 44);
@@ -387,8 +409,8 @@ namespace savanna {
 
    struct block_proof_of_inclusion {
 
-      uint64_t target_node_index;
-      uint64_t last_node_index;
+      uint64_t target_node_index = 0;
+      uint64_t last_node_index = 0;
 
       block_data target;
 
