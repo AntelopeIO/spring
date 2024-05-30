@@ -20,6 +20,7 @@ inline account_name get_expected_producer(const vector<producer_authority>& sche
 
 } // anonymous namespace
 
+// Use legacy_validating_tester because it transitions to savanna as part of the test.
 BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activation, legacy_validating_tester ) try {
 
    // Utility function to ensure that producer schedule work as expected
@@ -399,7 +400,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
-   validating_tester chain;
+   legacy_validating_tester chain;
 
    const std::vector<account_name> accounts = { "aliceaccount"_n, "bobbyaccount"_n, "carolaccount"_n, "emilyaccount"_n };
    chain.create_accounts( accounts );
