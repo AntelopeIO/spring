@@ -31,9 +31,10 @@ void test_snapshot_information() {
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
    chain.produce_blocks(1);
 
+   constexpr uint32_t savanna_base_block_num = 9;
    auto block = chain.produce_block();
    if constexpr (std::is_same_v<TESTER, savanna_tester>) {
-      BOOST_REQUIRE_EQUAL(block->block_num(), 15u); // ensure that test setup stays consistent with original snapshot setup
+      BOOST_REQUIRE_EQUAL(block->block_num(), 6u + savanna_base_block_num); // ensure that test setup stays consistent with original snapshot setup
    } else {
       BOOST_REQUIRE_EQUAL(block->block_num(), 6u); // ensure that test setup stays consistent with original snapshot setup
    }
@@ -42,7 +43,7 @@ void test_snapshot_information() {
 
    auto block2 = chain.produce_block();
    if constexpr (std::is_same_v<TESTER, savanna_tester>) {
-      BOOST_REQUIRE_EQUAL(block2->block_num(), 16u); // ensure that test setup stays consistent with original snapshot setup
+      BOOST_REQUIRE_EQUAL(block2->block_num(), 7u + savanna_base_block_num); // ensure that test setup stays consistent with original snapshot setup
    } else {
       BOOST_REQUIRE_EQUAL(block2->block_num(), 7u); // ensure that test setup stays consistent with original snapshot setup
    }
@@ -71,7 +72,7 @@ void test_snapshot_information() {
    pending_snapshot pending{ block2->previous, next, pending_path.generic_string(), final_path.generic_string() };
    test_snap_info = pending.finalize(*chain.control);
    if constexpr (std::is_same_v<TESTER, savanna_tester>) {
-      BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 15u);
+      BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 6u + savanna_base_block_num);
    } else {
       BOOST_REQUIRE_EQUAL(test_snap_info.head_block_num, 6u);
    }
