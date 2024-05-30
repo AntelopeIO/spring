@@ -953,6 +953,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_pass_tests, T, validating_testers)  { tr
    BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(api_part2_tests)
+
 template<class T, typename Tester>
 void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu_usage_ms, uint32_t max_block_cpu_ms,
               bool explicit_bill, std::vector<char> payload = {}, name account = "testapi"_n, transaction_metadata::trx_type trx_type = transaction_metadata::trx_type::input ) {
@@ -1426,10 +1430,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_start, T, validating_testers) try {
                           deadline_exception, is_deadline_exception );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(api_part2_tests)
-
 /*************************************************************************************
  * transaction_tests common function
  *************************************************************************************/
@@ -1703,6 +1703,10 @@ BOOST_AUTO_TEST_CASE(deferred_inline_action_limit) { try {
    }
 
 } FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(api_part3_tests)
 
 BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable_deferred_trx) { try {
    produce_blocks(2);
@@ -2592,10 +2596,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(memory_tests, T, validating_testers) {
    pushit("memset"_n, name());
 }
 
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(api_part3_tests)
-
 static const char cstr_wast[] = R"======(
 (module
  (import "env" "eosio_assert" (func $eosio_assert (param i32 i32)))
@@ -2960,6 +2960,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(resource_limits_tests, T, validating_testers) {
    chain.set_code("rlimits"_n, get_resource_limits_null_cpu_wast);
    BOOST_CHECK_THROW(pushit(), wasm_exception);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(api_part4_tests)
 
 BOOST_AUTO_TEST_CASE( set_producers_legacy ) { try {
    fc::temp_directory tempdir;
