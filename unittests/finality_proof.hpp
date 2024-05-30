@@ -243,14 +243,13 @@ namespace finality_proof {
             // one-time genesis finality digest computation
             finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = 1,
-               .finality_tree_digest                    = encode_num_in_digest(digest_type(), result.block->block_num()), //nothing to finalize yet
+               .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
+               .finality_tree_digest                    = digest_type(), //nothing to finalize yet
                .last_pending_finalizer_policy_and_base_digest = afp_base_digest
             });
          }
          else finality_digest = this->node0.control->get_strong_digest_by_id(block->calculate_id());
 
-         std::cout << "finality proof -> finality_digest : " << finality_digest << "\n";
-         
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
             .block_num = block->block_num(),
@@ -267,6 +266,7 @@ namespace finality_proof {
          // compute digest for verification purposes
          digest_type computed_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = active_finalizer_policy.generation,
+               .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = is_genesis ? digest_type() : finality_root,
                .last_pending_finalizer_policy_and_base_digest = afp_base_digest
             });

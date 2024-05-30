@@ -75,24 +75,6 @@ namespace savanna {
       return output;
    }
 
-   checksum256 encode_num_in_digest(const checksum256& digest, const uint32_t num) { 
-
-      uint8_t fullraw[32] = {0};
-
-      uint32_t r_num = reverse_bytes(num);
-
-      std::array<uint8_t, 32> db = digest.extract_as_byte_array();
-
-      memcpy(&fullraw[0], (uint8_t *)&r_num, 4);
-
-      for (int i = 4; i <32; i++){
-         memcpy(&fullraw[i], (uint8_t *)&db[i], 1);
-      }
-
-      return checksum256(fullraw);
-
-   }
-
    checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
       std::array<uint8_t, 32> arr1 = p.first.extract_as_byte_array();
       std::array<uint8_t, 32> arr2 = p.second.extract_as_byte_array();
@@ -366,17 +348,17 @@ namespace savanna {
 
       //returns hash of major_version + minor_version + finalizer_policy_generation + resolve_witness() + finality_mroot
       checksum256 finality_digest() const {
-         std::array<uint8_t, 76> result;
+         std::array<uint8_t, 80> result;
          memcpy(&result[0], (uint8_t *)&major_version, 4);
          memcpy(&result[4], (uint8_t *)&minor_version, 4);
          memcpy(&result[8], (uint8_t *)&finalizer_policy_generation, 4);
-         checksum256 encoded_finality_mroot = encode_num_in_digest(finality_mroot, final_on_qc_block_num);
-         print("encoded_finality_mroot : ", encoded_finality_mroot, "\n");
-         std::array<uint8_t, 32> arr1 = encoded_finality_mroot.extract_as_byte_array();
+         memcpy(&result[12], (uint8_t *)&final_on_qc_block_num, 4);
+         std::array<uint8_t, 32> arr1 = finality_mroot.extract_as_byte_array();
          std::array<uint8_t, 32> arr2 = resolve_witness().extract_as_byte_array();
-         std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 12);
-         std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 44);
-         checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 76);
+         std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 16);
+         std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 48);
+         checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 80);
+         print("finality_digest ", hash, "\n");
          return hash;
       };
 
