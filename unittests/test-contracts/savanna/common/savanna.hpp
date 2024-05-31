@@ -358,7 +358,6 @@ namespace savanna {
          std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 16);
          std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 48);
          checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 80);
-         print("finality_digest ", hash, "\n");
          return hash;
       };
 
