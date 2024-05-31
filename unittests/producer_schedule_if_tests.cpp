@@ -20,6 +20,7 @@ inline account_name get_expected_producer(const vector<producer_authority>& sche
 
 } // anonymous namespace
 
+// Use legacy_validating_tester because it transitions to savanna as part of the test.
 BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activation, legacy_validating_tester ) try {
 
    // Utility function to ensure that producer schedule work as expected
@@ -394,6 +395,38 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
 
    { // unknown account in proposer policy
       BOOST_CHECK_THROW( set_producers({"carol"_n}), wasm_execution_error );
+   }
+
+} FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
+   legacy_validating_tester chain;
+
+   const std::vector<account_name> accounts = { "aliceaccount"_n, "bobbyaccount"_n, "carolaccount"_n, "emilyaccount"_n };
+   chain.create_accounts( accounts );
+   chain.produce_block();
+
+   // activate instant_finality
+   chain.set_finalizers(accounts);
+   chain.set_producers( accounts );
+   chain.produce_block();
+
+   // looping less than 20 did not reproduce the `producer_double_confirm: Producer is double confirming known range` error
+   for (size_t i = 0; i < 20; ++i) {
+      chain.set_producers( { "aliceaccount"_n, "bobbyaccount"_n } );
+      chain.produce_block();
+
+      chain.set_producers( { "bobbyaccount"_n, "aliceaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( accounts );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( { "carolaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
    }
 
 } FC_LOG_AND_RETHROW()

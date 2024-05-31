@@ -108,19 +108,20 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( verify_producers, legacy_validating_tester ) try {
+BOOST_AUTO_TEST_CASE_TEMPLATE(verify_producers, T, validating_testers) try {
+   T chain;
 
    vector<account_name> valid_producers = {
       "inita"_n, "initb"_n, "initc"_n, "initd"_n, "inite"_n, "initf"_n, "initg"_n,
       "inith"_n, "initi"_n, "initj"_n, "initk"_n, "initl"_n, "initm"_n, "initn"_n,
       "inito"_n, "initp"_n, "initq"_n, "initr"_n, "inits"_n, "initt"_n, "initu"_n
    };
-   create_accounts(valid_producers);
-   set_producers(valid_producers);
+   chain.create_accounts(valid_producers);
+   chain.set_producers(valid_producers);
 
    // account initz does not exist
    vector<account_name> nonexisting_producer = { "initz"_n };
-   BOOST_CHECK_THROW(set_producers(nonexisting_producer), wasm_execution_error);
+   BOOST_CHECK_THROW(chain.set_producers(nonexisting_producer), wasm_execution_error);
 
    // replace initg with inita, inita is now duplicate
    vector<account_name> invalid_producers = {
@@ -129,7 +130,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producers, legacy_validating_tester ) try {
       "inito"_n, "initp"_n, "initq"_n, "initr"_n, "inits"_n, "initt"_n, "initu"_n
    };
 
-   BOOST_CHECK_THROW(set_producers(invalid_producers), wasm_execution_error);
+   BOOST_CHECK_THROW(chain.set_producers(invalid_producers), wasm_execution_error);
 
 } FC_LOG_AND_RETHROW()
 
@@ -261,9 +262,9 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
+BOOST_AUTO_TEST_CASE_TEMPLATE(empty_producer_schedule_has_no_effect, T, validating_testers) try {
    fc::temp_directory tempdir;
-   legacy_validating_tester c( tempdir, true );
+   T c( tempdir, true );
    c.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
@@ -346,6 +347,36 @@ BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, c.control->active_producers() ) );
 
    BOOST_REQUIRE_EQUAL( c.validate(), true );
+} FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
+   validating_tester chain;
+
+   const std::vector<account_name> accounts = { "aliceaccount"_n, "bobbyaccount"_n, "carolaccount"_n, "emilyaccount"_n };
+   chain.create_accounts( accounts );
+   chain.produce_block();
+
+   chain.set_producers( accounts );
+   chain.produce_block();
+
+   // looping less than 20 did not reproduce the `producer_double_confirm: Producer is double confirming known range` error
+   for (size_t i = 0; i < 20; ++i) {
+      chain.set_producers( { "aliceaccount"_n, "bobbyaccount"_n } );
+      chain.produce_block();
+
+      chain.set_producers( { "bobbyaccount"_n, "aliceaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( accounts );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( { "carolaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+   }
+
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
@@ -470,27 +501,31 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_one_of_n_test, legacy_validating_tester ) try {
-   create_accounts( {"alice"_n,"bob"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE(producer_one_of_n_test, T, validating_testers) try {
+   T chain;
+
+   chain.create_accounts( {"alice"_n,"bob"_n} );
+   chain.produce_block();
 
    vector<producer_authority> sch1 = {
                                  producer_authority{"alice"_n, block_signing_authority_v0{1, {{get_public_key("alice"_n, "bs1"), 1}, {get_public_key("alice"_n, "bs2"), 1}}}},
                                  producer_authority{"bob"_n,   block_signing_authority_v0{1, {{get_public_key("bob"_n,   "bs1"), 1}, {get_public_key("bob"_n,   "bs2"), 1}}}}
                                };
 
-   auto res = set_producer_schedule( sch1 );
-   block_signing_private_keys.emplace(get_public_key("alice"_n, "bs1"), get_private_key("alice"_n, "bs1"));
-   block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs1"), get_private_key("bob"_n,   "bs1"));
+   auto res = chain.set_producer_schedule( sch1 );
+   chain.block_signing_private_keys.emplace(get_public_key("alice"_n, "bs1"), get_private_key("alice"_n, "bs1"));
+   chain.block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs1"), get_private_key("bob"_n,   "bs1"));
 
-   BOOST_REQUIRE(produce_until_blocks_from(*this, {"alice"_n, "bob"_n}, 300));
+   BOOST_REQUIRE(produce_until_blocks_from(chain, {"alice"_n, "bob"_n}, 300));
 
-   BOOST_REQUIRE_EQUAL( validate(), true );
+   BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( producer_m_of_n_test, legacy_validating_tester ) try {
-   create_accounts( {"alice"_n,"bob"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE(producer_m_of_n_test, T, validating_testers) try {
+   T chain;
+
+   chain.create_accounts( {"alice"_n,"bob"_n} );
+   chain.produce_block();
 
 
    vector<producer_authority> sch1 = {
@@ -498,20 +533,21 @@ BOOST_FIXTURE_TEST_CASE( producer_m_of_n_test, legacy_validating_tester ) try {
                                  producer_authority{"bob"_n,   block_signing_authority_v0{2, {{get_public_key("bob"_n,   "bs1"), 1}, {get_public_key("bob"_n,   "bs2"), 1}}}}
                                };
 
-   auto res = set_producer_schedule( sch1 );
-   block_signing_private_keys.emplace(get_public_key("alice"_n, "bs1"), get_private_key("alice"_n, "bs1"));
-   block_signing_private_keys.emplace(get_public_key("alice"_n, "bs2"), get_private_key("alice"_n, "bs2"));
-   block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs1"), get_private_key("bob"_n,   "bs1"));
-   block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs2"), get_private_key("bob"_n,   "bs2"));
+   auto res = chain.set_producer_schedule( sch1 );
+   chain.block_signing_private_keys.emplace(get_public_key("alice"_n, "bs1"), get_private_key("alice"_n, "bs1"));
+   chain.block_signing_private_keys.emplace(get_public_key("alice"_n, "bs2"), get_private_key("alice"_n, "bs2"));
+   chain.block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs1"), get_private_key("bob"_n,   "bs1"));
+   chain.block_signing_private_keys.emplace(get_public_key("bob"_n,   "bs2"), get_private_key("bob"_n,   "bs2"));
 
-   BOOST_REQUIRE(produce_until_blocks_from(*this, {"alice"_n, "bob"_n}, 300));
+   BOOST_REQUIRE(produce_until_blocks_from(chain, {"alice"_n, "bob"_n}, 300));
 
-   BOOST_REQUIRE_EQUAL( validate(), true );
+   BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( satisfiable_msig_test, legacy_validating_tester ) try {
-   create_accounts( {"alice"_n,"bob"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE(satisfiable_msig_test, T, validating_testers) try {
+   T chain;
+   chain.create_accounts( {"alice"_n,"bob"_n} );
+   chain.produce_block();
 
    vector<producer_authority> sch1 = {
            producer_authority{"alice"_n, block_signing_authority_v0{2, {{get_public_key("alice"_n, "bs1"), 1}}}}
@@ -519,17 +555,19 @@ BOOST_FIXTURE_TEST_CASE( satisfiable_msig_test, legacy_validating_tester ) try {
 
    // ensure that the entries in a wtmsig schedule are rejected if not satisfiable
    BOOST_REQUIRE_EXCEPTION(
-      set_producer_schedule( sch1 ), wasm_execution_error,
+      chain.set_producer_schedule( sch1 ), wasm_execution_error,
       fc_exception_message_is( "producer schedule includes an unsatisfiable authority for alice" )
    );
 
-   BOOST_REQUIRE_EQUAL( false, control->proposed_producers_legacy().has_value() );
+   BOOST_REQUIRE_EQUAL( false, chain.control->proposed_producers_legacy().has_value() );
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_FIXTURE_TEST_CASE( duplicate_producers_test, legacy_validating_tester ) try {
-   create_accounts( {"alice"_n} );
-   produce_block();
+BOOST_AUTO_TEST_CASE_TEMPLATE(duplicate_producers_test, T, validating_testers) try {
+   T chain;
+
+   chain.create_accounts( {"alice"_n} );
+   chain.produce_block();
 
    vector<producer_authority> sch1 = {
            producer_authority{"alice"_n, block_signing_authority_v0{1, {{get_public_key("alice"_n, "bs1"), 1}}}},
@@ -538,11 +576,11 @@ BOOST_FIXTURE_TEST_CASE( duplicate_producers_test, legacy_validating_tester ) tr
 
    // ensure that the schedule is rejected if it has duplicate producers in it
    BOOST_REQUIRE_EXCEPTION(
-      set_producer_schedule( sch1 ), wasm_execution_error,
+      chain.set_producer_schedule( sch1 ), wasm_execution_error,
       fc_exception_message_is( "duplicate producer name in producer schedule" )
    );
 
-   BOOST_REQUIRE_EQUAL( false, control->proposed_producers_legacy().has_value() );
+   BOOST_REQUIRE_EQUAL( false, chain.control->proposed_producers_legacy().has_value() );
 
 } FC_LOG_AND_RETHROW()
 
