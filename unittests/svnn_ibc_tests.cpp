@@ -96,17 +96,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       if (raw_bitset.size() % 2)
          raw_bitset.insert(0, "0");
 
-      std::cout << "raw_bitset : " << raw_bitset << "\n";
-
       // create a few proofs we'll use to perform tests
-
-      std::cout << "genesis_block_result : " << genesis_block_result.computed_finality_digest << " : " << genesis_block_result.computed_finality_digest << "\n";
-      std::cout << "block_1_result : " << block_1_result.computed_finality_digest << " : " << block_1_result.computed_finality_digest << "\n";
-      std::cout << "block_2_result : " << block_2_result.computed_finality_digest << " : " << block_2_result.computed_finality_digest << "\n";
-      std::cout << "block_3_result : " << block_3_result.computed_finality_digest << " : " << block_3_result.computed_finality_digest << "\n";
-      std::cout << "block_4_result : " << block_4_result.computed_finality_digest << " : " << block_4_result.computed_finality_digest << "\n";
-      std::cout << "block_5_result : " << block_5_result.computed_finality_digest << " : " << block_5_result.computed_finality_digest << "\n";
-      std::cout << "block_6_result : " << block_6_result.computed_finality_digest << " : " << block_6_result.computed_finality_digest << "\n";
 
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
@@ -128,7 +118,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
                ("last_node_index", 2)
-               ("target",  mvo() //target block #2
+               ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -141,7 +131,41 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("block_num", block_2_result.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", block_2_result.action_mroot)
-                  )
+                  )}
+               )
+               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(2), 2))
+            )
+         );
+
+      // heavy proof #1 again, this time using simple_block_data variant type 
+      mutable_variant_object simple_heavy_proof_1 = mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo() //proves finality of block #2
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("final_on_qc_block_num", 6)
+                  ("witness_hash", block_4_result.afp_base_digest)
+                  ("finality_mroot", block_4_result.finality_root)
+               )
+               ("qc", mvo()
+                  ("signature", qc_b_5.qc.value().data.sig.to_string())
+                  ("finalizers", raw_bitset) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_node_index", 2)
+               ("last_node_index", 2)
+               ("target", fc::variants{"simple_block_data", mvo() //target block #2
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finality_digest", block_2_result.finality_digest)
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_2_result.block->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_2_result.action_mroot)
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(2), 2))
             )
@@ -167,7 +191,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
                ("last_node_index", 3)
-               ("target", mvo() //target block #2
+               ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -180,7 +204,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("block_num", block_2_result.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", block_2_result.action_mroot)
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(3), 2))
             )
@@ -192,7 +216,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 2)
                ("last_node_index", 2)
-               ("target", mvo() 
+               ("target", fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -205,7 +229,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("block_num", block_2_result.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", block_2_result.action_mroot)
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(2), 2))
             )
@@ -242,6 +266,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       BOOST_CHECK(computed_action_mroot == block_7_result.action_mroot);
 
+      // verify same heavy proof we verified before, this time with simple_block_data as target
+      action_trace check_simple_heavy_proof_1_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, simple_heavy_proof_1)->action_traces[0];
+
       // we now test a finalizer policy change
       auto indices1 = cluster.fin_policy_indices_0;  // start from original set of indices
       indices1[0] = 1;                       // update key used for node0 in policy, which will result in a new policy
@@ -274,8 +301,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // At this stage, we can prove the inclusion of actions into block #7.
 
       // first, we create action proofs to verify inclusion of some actions
-
-      return;
 
       // onblock action proof
       mutable_variant_object onblock_action_proof = mvo()
@@ -352,7 +377,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 7)
                ("last_node_index", 7)
-               ("target",  mvo() //target block #2
+               ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -364,7 +389,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("dynamic_data", mvo() 
                      ("block_num", block_7_result.block->block_num())
                      ("action_proofs", fc::variants({onblock_action_proof}))
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(7), 7))
             )
@@ -376,7 +401,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 7)
                ("last_node_index", 7)
-               ("target", mvo() 
+               ("target", fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -388,7 +413,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("dynamic_data", mvo() 
                      ("block_num", block_7_result.block->block_num())
                      ("action_proofs", fc::variants({action_proof_1, action_proof_2}))
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(7), 7))
             )
@@ -396,7 +421,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // action proof verification
       action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
+      BOOST_TEST(true);
+
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
+      BOOST_TEST(true);
       
       // At this stage, we can test the change in pending policy.
 
@@ -473,7 +501,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 11)
                ("last_node_index", 11)
-               ("target",  mvo() 
+               ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -487,7 +515,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("block_num", block_11_result.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", block_11_result.action_mroot)
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(11), 11))
             )
@@ -520,7 +548,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_node_index", 12)
                ("last_node_index", 12)
-               ("target",  mvo() 
+               ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -533,7 +561,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("block_num", block_12_result.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", block_12_result.action_mroot)
-                  )
+                  )}
                )
                ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(12), 12))
             )
@@ -585,7 +613,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify action has failed, as expected
       BOOST_CHECK(last_action_failed); 
-
 
    } FC_LOG_AND_RETHROW() }
 

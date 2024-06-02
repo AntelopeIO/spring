@@ -57,7 +57,7 @@ namespace savanna {
             finalizer_authority_internal fai{f.description, f.weight, vector_key};
             finalizers_i.push_back(fai);
          }
-         finalizer_policy_internal internal{generation, threshold, finalizers_i};
+         finalizer_policy_internal internal{generation, threshold, std::move(finalizers_i)};
          return internal.digest();
       }
 
@@ -120,15 +120,8 @@ namespace savanna {
 
        check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
        for (int i = 0 ; i < proof_nodes.size() ; i++){
-
            const checksum256 node = proof_nodes[i];
-           std::array<uint8_t, 32> arr = node.extract_as_byte_array();
-           if (proof_path[i] == false){
-               hash = hash_pair(std::make_pair(hash, node));
-           }
-           else {
-               hash = hash_pair(std::make_pair(node, hash));
-           }
+           hash = hash_pair(proof_path[i] ? std::make_pair(node, hash) : std::make_pair(hash, node));
        }
        return hash;
    }
@@ -284,11 +277,15 @@ namespace savanna {
       std::optional<checksum256> action_mroot;
 
       checksum256 get_action_mroot() const {
-         if (action_mroot.has_value()) return action_mroot.value();
+         if (action_mroot.has_value()) {
+            check(action_mroot.value() != checksum256(), "cannot provide empty hash");
+            return action_mroot.value();
+         }
          else {
             check(action_proofs.size()>0, "must have at least one action proof");
             checksum256 root = checksum256();
             for (auto ap : action_proofs){
+               check(ap.root() != checksum256(), "cannot provide action proof that resolves to empty hash");
                if (root == checksum256()) root = ap.root();
                else check(ap.root() == root, "all action proofs must resolve to the same merkle root");
             }
@@ -326,6 +323,7 @@ namespace savanna {
             return base_fpolicy_digest;
          }
          else {
+            check(witness_hash!=checksum256(), "witness hash cannot be null");
             return witness_hash;
          }
       }; 
@@ -350,23 +348,26 @@ namespace savanna {
 
    };
 
-   struct block_data {
+   struct extended_block_data {
       
       //finality data
       block_finality_data finality_data;
+
 
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
 
    };
 
-   struct block_data_internal : block_data {
+   struct extended_block_data_internal : extended_block_data {
 
       checksum256 resolved_finality_digest;
       checksum256 resolved_action_mroot;
 
-      block_data_internal(const block_data& base) : block_data(base){
+      extended_block_data_internal(const extended_block_data& base) : extended_block_data(base){
+         
          resolved_finality_digest = block_finality_data_internal(base.finality_data).finality_digest();
+
          resolved_action_mroot = base.dynamic_data.get_action_mroot();
       }
 
@@ -376,22 +377,59 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_finality_digest)(resolved_action_mroot))
+      EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_finality_digest)(resolved_action_mroot))
 
    };
+
+   struct simple_block_data {
+      
+      uint32_t major_version = 0 ;
+      uint32_t minor_version = 0 ;
+
+      checksum256 finality_digest;
+
+      //dynamic_data to be verified
+      dynamic_data_v0 dynamic_data;
+
+   };
+
+   struct simple_block_data_internal : simple_block_data {
+
+      checksum256 resolved_action_mroot;
+
+      simple_block_data_internal(const simple_block_data& base) : simple_block_data(base){
+         
+         resolved_action_mroot = base.dynamic_data.get_action_mroot();
+      }
+
+      checksum256 finality_leaf() const {
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
+         return hash;
+      }
+
+      EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(finality_digest)(resolved_action_mroot))
+
+   };
+
+   using block_data_type = std::variant<simple_block_data, extended_block_data>;
 
    struct block_proof_of_inclusion {
 
       uint64_t target_node_index = 0;
       uint64_t last_node_index = 0;
 
-      block_data target;
+      block_data_type target;
 
       std::vector<checksum256> merkle_branches;
 
       //returns the merkle root obtained by hashing target.finality_leaf() with merkle_branches
       checksum256 root() const {
-         checksum256 finality_leaf = block_data_internal(target).finality_leaf();
+         checksum256 finality_leaf;
+
+         if (std::holds_alternative<extended_block_data>(target)) finality_leaf = extended_block_data_internal(std::get<extended_block_data>(target)).finality_leaf();
+         else if (std::holds_alternative<simple_block_data>(target)) finality_leaf = simple_block_data_internal(std::get<simple_block_data>(target)).finality_leaf();
+
          checksum256 root = _compute_root(merkle_branches, finality_leaf, target_node_index, last_node_index);
          return root;
       }; 

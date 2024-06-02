@@ -102,7 +102,15 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
     uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
-    _maybe_add_proven_root(target_block_proof_of_inclusion.target.dynamic_data.block_num + offset, finality_proof.qc_block.finality_mroot);
+
+    dynamic_data_v0 d_data;
+
+    if (std::holds_alternative<extended_block_data>(target_block_proof_of_inclusion.target)) d_data = std::get<extended_block_data>(target_block_proof_of_inclusion.target).dynamic_data;
+    else if (std::holds_alternative<simple_block_data>(target_block_proof_of_inclusion.target)) d_data = std::get<simple_block_data>(target_block_proof_of_inclusion.target).dynamic_data;
+    else check(false, "invalid block data");
+
+    _maybe_add_proven_root(d_data.block_num + offset, finality_proof.qc_block.finality_mroot);
+
 }
 
 void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
@@ -118,9 +126,16 @@ void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion&
         auto itr = merkle_index.find(finality_mroot);
         check(itr!= merkle_index.end(), "proof of inclusion is invalid");
     }
-    //block_data target_block = std::get<ibc::block_data>(proof.target);
-    if (proof.target.finality_data.new_finalizer_policy.has_value()){
-        _maybe_set_finalizer_policy(proof.target.finality_data.new_finalizer_policy.value(), proof.target.dynamic_data.block_num);
+
+
+    if (std::holds_alternative<extended_block_data>(proof.target)){
+
+        auto target = std::get<extended_block_data>(proof.target);
+
+        if (target.finality_data.new_finalizer_policy.has_value()){
+            _maybe_set_finalizer_policy(target.finality_data.new_finalizer_policy.value(), target.dynamic_data.block_num);
+        }
+
     }
 }
 

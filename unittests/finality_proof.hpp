@@ -36,12 +36,12 @@ namespace finality_proof {
       digest_type finality_root;
    };
 
-   static digest_type encode_num_in_digest(const digest_type& original_digest, const uint32_t num) {
+/*   static digest_type encode_num_in_digest(const digest_type& original_digest, const uint32_t num) {
       block_id_type result = original_digest;
       result._hash[0] &= 0xffffffff00000000;
       result._hash[0] += fc::endian_reverse_u32(num);
       return result;
-   }
+   }*/
 
    //generate a proof of inclusion for a node at index from a list of leaves
    static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
