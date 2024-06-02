@@ -76,13 +76,8 @@ namespace savanna {
    }
 
    checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
-      std::array<uint8_t, 32> arr1 = p.first.extract_as_byte_array();
-      std::array<uint8_t, 32> arr2 = p.second.extract_as_byte_array();
-      std::array<uint8_t, 64> result;
-      std::copy (arr1.cbegin(), arr1.cend(), result.begin());
-      std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 32);
-      checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 64);
-      return hash;
+      auto result = eosio::pack(p);
+      return sha256(result.data(), result.size());
    }
 
    time_point add_time(const time_point& time, const uint32_t seconds ){
@@ -222,13 +217,7 @@ namespace savanna {
          std::copy (serialized_data.cbegin(), serialized_data.cend(), h1_result.begin());
          std::copy (serialized_output.cbegin(), serialized_output.cend(), h1_result.begin() + action_input_size);
          hashes[1] = sha256(reinterpret_cast<char*>(h1_result.data()), rhs_size);
-         std::array<uint8_t, 32> arr1 = hashes[0].extract_as_byte_array();
-         std::array<uint8_t, 32> arr2 = hashes[1].extract_as_byte_array();
-         std::array<uint8_t, 64> result;
-         std::copy (arr1.cbegin(), arr1.cend(), result.begin());
-         std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 32);
-         checksum256 final_hash = sha256(reinterpret_cast<char*>(result.data()), 64);
-         return final_hash;
+         return hash_pair(std::make_pair(hashes[0], hashes[1]));
       }
 
       EOSLIB_SERIALIZE( action, (account)(name)(authorization)(data)(return_value))
@@ -243,29 +232,24 @@ namespace savanna {
 
       checksum256          witness_hash;
 
+   };
+
+
+   struct action_data_internal : action_data {
+
+      checksum256 resolved_action_digest;
+
+      action_data_internal(const action_data& base) : action_data(base){
+         resolved_action_digest = base.action.digest();
+      }
+
       checksum256 digest() const {
-
-         //4x uint64_t + 2x checksum256
-         std::vector<char> result(8 + 8 + 8 + 8 + 32 + 32);
-
-         const auto serialized_receiver = pack(receiver); //uint64_t
-         const auto serialized_recv_sequence = pack(recv_sequence); //uint64_t
-         const auto serialized_account = pack(action.account); //uint64_t
-         const auto serialized_name = pack(action.name); //uint64_t
-         const auto serialized_act_digest = pack(action.digest()); //checksum256
-         const auto serialized_witness_hash = pack(witness_hash); //checksum256
-
-         std::copy (serialized_receiver.cbegin(), serialized_receiver.cend(), result.begin());
-         std::copy (serialized_recv_sequence.cbegin(), serialized_recv_sequence.cend(), result.begin() + 8);
-         std::copy (serialized_account.cbegin(), serialized_account.cend(), result.begin() + 16);
-         std::copy (serialized_name.cbegin(), serialized_name.cend(), result.begin() + 24);
-         std::copy (serialized_act_digest.cbegin(), serialized_act_digest.cend(), result.begin() + 32);
-         std::copy (serialized_witness_hash.cbegin(), serialized_witness_hash.cend(), result.begin() + 64);
-
-         checksum256 final_hash = sha256(result.data(), 96);
-         return final_hash;
-
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
+         return hash;
       };
+
+      EOSLIB_SERIALIZE( action_data_internal, (receiver)(recv_sequence)(action.account)(action.name)(resolved_action_digest)(witness_hash))
 
    };
 
@@ -280,7 +264,7 @@ namespace savanna {
 
       //returns the merkle root obtained by hashing target.digest() with merkle_branches
       checksum256 root() const {
-         checksum256 digest = target.digest();
+         checksum256 digest = action_data_internal(target).digest();
          checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
          return root;
       }; 
@@ -312,17 +296,17 @@ namespace savanna {
          }
       }; 
    };
-         
+
    struct block_finality_data {
       
       //major_version for this block
-      uint32_t major_version = 1;
+      uint32_t major_version;
 
       //minor_version for this block
-      uint32_t minor_version = 0;
+      uint32_t minor_version;
 
       //finalizer_policy_generation for this block
-      uint32_t finalizer_policy_generation = 0;
+      uint32_t finalizer_policy_generation;
 
       uint32_t final_on_qc_block_num = 0;
 
@@ -333,7 +317,7 @@ namespace savanna {
 
       //final_on_qc for this block
       checksum256 finality_mroot;
-
+      
       //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
       checksum256 resolve_witness() const {
          if (new_finalizer_policy.has_value()){
@@ -346,20 +330,23 @@ namespace savanna {
          }
       }; 
 
-      //returns hash of major_version + minor_version + finalizer_policy_generation + resolve_witness() + finality_mroot
+   };
+
+   struct block_finality_data_internal : block_finality_data {
+
+      checksum256 resolved_witness_hash;
+
+      block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
+         resolved_witness_hash = base.resolve_witness();
+      }
+
       checksum256 finality_digest() const {
-         std::array<uint8_t, 80> result;
-         memcpy(&result[0], (uint8_t *)&major_version, 4);
-         memcpy(&result[4], (uint8_t *)&minor_version, 4);
-         memcpy(&result[8], (uint8_t *)&finalizer_policy_generation, 4);
-         memcpy(&result[12], (uint8_t *)&final_on_qc_block_num, 4);
-         std::array<uint8_t, 32> arr1 = finality_mroot.extract_as_byte_array();
-         std::array<uint8_t, 32> arr2 = resolve_witness().extract_as_byte_array();
-         std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 16);
-         std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 48);
-         checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 80);
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
          return hash;
-      };
+      }
+
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_qc_block_num)(finality_mroot)(resolved_witness_hash))
 
    };
 
@@ -371,21 +358,26 @@ namespace savanna {
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
 
-      //returns hash of finality_digest() and dynamic_data_digest()
-      checksum256 digest() const {
-         checksum256 finality_digest = finality_data.finality_digest();
-         checksum256 action_mroot = dynamic_data.get_action_mroot();
-         std::array<uint8_t, 76> result;
-         memcpy(&result[0], (uint8_t *)&finality_data.major_version, 4);
-         memcpy(&result[4], (uint8_t *)&finality_data.minor_version, 4);
-         memcpy(&result[8], (uint8_t *)&dynamic_data.block_num, 4);
-         std::array<uint8_t, 32> arr1 = finality_digest.extract_as_byte_array();
-         std::array<uint8_t, 32> arr2 = action_mroot.extract_as_byte_array();
-         std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 12);
-         std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 44);
-         checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 76);
+   };
+
+   struct block_data_internal : block_data {
+
+      checksum256 resolved_finality_digest;
+      checksum256 resolved_action_mroot;
+
+      block_data_internal(const block_data& base) : block_data(base){
+         resolved_finality_digest = block_finality_data_internal(base.finality_data).finality_digest();
+         resolved_action_mroot = base.dynamic_data.get_action_mroot();
+      }
+
+      checksum256 finality_leaf() const {
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
          return hash;
-      };
+      }
+
+      EOSLIB_SERIALIZE(block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_finality_digest)(resolved_action_mroot))
+
    };
 
    struct block_proof_of_inclusion {
@@ -397,10 +389,10 @@ namespace savanna {
 
       std::vector<checksum256> merkle_branches;
 
-      //returns the merkle root obtained by hashing target.digest() with merkle_branches
+      //returns the merkle root obtained by hashing target.finality_leaf() with merkle_branches
       checksum256 root() const {
-         checksum256 digest = target.digest();
-         checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
+         checksum256 finality_leaf = block_data_internal(target).finality_leaf();
+         checksum256 root = _compute_root(merkle_branches, finality_leaf, target_node_index, last_node_index);
          return root;
       }; 
 
