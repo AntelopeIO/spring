@@ -69,6 +69,8 @@ BOOST_AUTO_TEST_SUITE(test_state_history)
 
 class table_deltas_tester : public legacy_tester {
 public:
+   // Use leacy_tester temporarily until https://github.com/AntelopeIO/spring/issues/179
+   // is resolved.
    using legacy_tester::legacy_tester;
    using deltas_vector = vector<eosio::state_history::table_delta>;
 

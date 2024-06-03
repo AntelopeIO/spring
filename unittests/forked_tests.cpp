@@ -15,6 +15,8 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
+// Tests in this file are for Legacy only. Savanna forked tests will be done 
+// by https://github.com/AntelopeIO/spring/issues/196
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
 BOOST_AUTO_TEST_CASE( irrblock ) try {
