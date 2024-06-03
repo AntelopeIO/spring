@@ -4,7 +4,7 @@
 #include <contracts.hpp>
 #include <test_contracts.hpp>
 #include <eosio/state_history/create_deltas.hpp>
-#include <eosio/state_history/log.hpp>
+#include <eosio/state_history/log_catalog.hpp>
 #include <eosio/state_history/trace_converter.hpp>
 #include <eosio/testing/tester.hpp>
 #include <fc/io/json.hpp>
@@ -613,20 +613,19 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
       BOOST_CHECK(std::any_of(partial_txns.begin(), partial_txns.end(), contains_transaction_extensions));
    }
 
-
 struct state_history_tester_logs  {
-   state_history_tester_logs(const std::filesystem::path& dir, const eosio::state_history_log_config& config)
-      : traces_log("trace_history",dir, config) , chain_state_log("chain_state_history", dir, config) {}
+   state_history_tester_logs(const std::filesystem::path& dir, const eosio::state_history::state_history_log_config& config)
+      : traces_log(dir, config, "trace_history") , chain_state_log(dir, config, "chain_state_history") {}
 
-   eosio::state_history_log traces_log;
-   eosio::state_history_log chain_state_log;
+   eosio::state_history::log_catalog traces_log;
+   eosio::state_history::log_catalog chain_state_log;
    eosio::state_history::trace_converter trace_converter;
 };
 
 struct state_history_tester : state_history_tester_logs, legacy_tester {
 
 
-   state_history_tester(const std::filesystem::path& dir, const eosio::state_history_log_config& config)
+   state_history_tester(const std::filesystem::path& dir, const eosio::state_history::state_history_log_config& config)
    : state_history_tester_logs(dir, config), legacy_tester ([this](eosio::chain::controller& control) {
       control.applied_transaction().connect(
        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> t) {
@@ -635,15 +634,12 @@ struct state_history_tester : state_history_tester_logs, legacy_tester {
 
       control.accepted_block().connect([&](block_signal_params t) {
          const auto& [ block, id ] = t;
-         eosio::state_history_log_header header{.magic        = eosio::ship_magic(eosio::ship_current_version, 0),
-                                                .block_id     = id,
-                                                .payload_size = 0};
 
-         traces_log.pack_and_write_entry(header, block->previous, [this, &block](auto&& buf) {
+         traces_log.pack_and_write_entry(id, block->previous, [this, &block](auto&& buf) {
             trace_converter.pack(buf, false, block);
          });
 
-         chain_state_log.pack_and_write_entry(header, block->previous, [&control](auto&& buf) {
+         chain_state_log.pack_and_write_entry(id, block->previous, [&control](auto&& buf) {
             eosio::state_history::pack_deltas(buf, control.db(), true);
          });
       });
@@ -654,22 +650,19 @@ struct state_history_tester : state_history_tester_logs, legacy_tester {
    }) {}
 };
 
-static std::vector<char> get_decompressed_entry(eosio::state_history_log& log, block_num_type block_num) {
-   auto result = log.create_locked_decompress_stream();
-   log.get_unpacked_entry(block_num, result);
+static std::vector<char> get_decompressed_entry(eosio::state_history::log_catalog& log, block_num_type block_num) {
+   std::optional<eosio::state_history::ship_log_entry> entry = log.get_entry(block_num);
+   if(!entry) //existing tests expect failure to find a block returns an empty vector here
+      return {};
+
    namespace bio = boost::iostreams;
-   return std::visit(eosio::chain::overloaded{ [](std::vector<char>& bytes) {
-                                                 return bytes;
-                                              },
-                                               [](std::unique_ptr<bio::filtering_istreambuf>& strm) {
-                                                  std::vector<char> bytes;
-                                                  bio::copy(*strm, bio::back_inserter(bytes));
-                                                  return bytes;
-                                               } },
-                     result.buf);
+   bio::filtering_istreambuf istream = entry->get_stream();
+   std::vector<char> bytes;
+   bio::copy(istream, bio::back_inserter(bytes));
+   return bytes;
 }
 
-static std::vector<eosio::ship_protocol::transaction_trace> get_traces(eosio::state_history_log& log,
+static std::vector<eosio::ship_protocol::transaction_trace> get_traces(eosio::state_history::log_catalog& log,
                                                                        block_num_type            block_num) {
    auto                                                          entry = get_decompressed_entry(log, block_num);
    std::vector<eosio::ship_protocol::transaction_trace>          traces;

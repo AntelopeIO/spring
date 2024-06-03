@@ -2,9 +2,9 @@
 #include <eosio/chain/config.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
-#include <eosio/state_history/compression.hpp>
 #include <eosio/state_history/create_deltas.hpp>
-#include <eosio/state_history/log.hpp>
+#include <eosio/state_history/log_config.hpp>
+#include <eosio/state_history/log_catalog.hpp>
 #include <eosio/state_history/serialization.hpp>
 #include <eosio/state_history/trace_converter.hpp>
 #include <eosio/state_history_plugin/session.hpp>
@@ -48,9 +48,9 @@ auto catch_and_log(F f) {
 struct state_history_plugin_impl {
 private:
    chain_plugin*                    chain_plug = nullptr;
-   std::optional<state_history_log> trace_log;
-   std::optional<state_history_log> chain_state_log;
-   std::optional<state_history_log> finality_data_log;
+   std::optional<log_catalog>       trace_log;
+   std::optional<log_catalog>       chain_state_log;
+   std::optional<log_catalog>       finality_data_log;
    uint32_t                         first_available_block = 0;
    bool                             trace_debug_mode = false;
    std::optional<scoped_connection> applied_transaction_connection;
@@ -182,10 +182,7 @@ public:
       if(!trace_log)
          return;
 
-      state_history_log_header header{.magic        = ship_magic(ship_current_version, 0),
-                                      .block_id     = id,
-                                      .payload_size = 0};
-      trace_log->pack_and_write_entry(header, block->previous, [this, &block](auto&& buf) {
+      trace_log->pack_and_write_entry(id, block->previous, [this, &block](bio::filtering_ostreambuf& buf) {
          trace_converter.pack(buf, trace_debug_mode, block);
       });
    }
@@ -197,9 +194,7 @@ public:
       if(fresh)
          fc_ilog(_log, "Placing initial state in block ${n}", ("n", block_num));
 
-      state_history_log_header header{
-         .magic = ship_magic(ship_current_version, 0), .block_id = id, .payload_size = 0};
-      chain_state_log->pack_and_write_entry(header, previous_id, [this, fresh](auto&& buf) {
+      chain_state_log->pack_and_write_entry(id, previous_id, [this, fresh](bio::filtering_ostreambuf& buf) {
          pack_deltas(buf, chain_plug->chain().db(), fresh);
       });
    } // store_chain_state
@@ -212,9 +207,7 @@ public:
       if(!finality_data.has_value())
          return;
 
-      state_history_log_header header{
-         .magic = ship_magic(ship_current_version, 0), .block_id = id, .payload_size = 0};
-      finality_data_log->pack_and_write_entry(header, previous_id, [finality_data](auto&& buf) {
+      finality_data_log->pack_and_write_entry(id, previous_id, [finality_data](bio::filtering_ostreambuf& buf) {
          fc::datastream<boost::iostreams::filtering_ostreambuf&> ds{buf};
          fc::raw::pack(ds, *finality_data);
       });
@@ -255,9 +248,7 @@ void state_history_plugin::set_program_options(options_description& cli, options
    options("state-history-unix-socket-path", bpo::value<string>(),
            "the path (relative to data-dir) to create a unix socket upon which to listen for incoming connections.");
    options("trace-history-debug-mode", bpo::bool_switch()->default_value(false), "enable debug mode for trace history");
-
-   if(cfile::supports_hole_punching())
-      options("state-history-log-retain-blocks", bpo::value<uint32_t>(), "if set, periodically prune the state history files to store only configured number of most recent blocks");
+   options("state-history-log-retain-blocks", bpo::value<uint32_t>(), "if set, periodically prune the state history files to store only configured number of most recent blocks");
 }
 
 void state_history_plugin_impl::plugin_initialize(const variables_map& options) {
@@ -317,7 +308,7 @@ void state_history_plugin_impl::plugin_initialize(const variables_map& options) 
 
       state_history_log_config ship_log_conf;
       if(options.count("state-history-log-retain-blocks")) {
-         auto& ship_log_prune_conf = ship_log_conf.emplace<state_history::prune_config>();
+         state_history::prune_config& ship_log_prune_conf = ship_log_conf.emplace<state_history::prune_config>();
          ship_log_prune_conf.prune_blocks = options.at("state-history-log-retain-blocks").as<uint32_t>();
          //the arbitrary limit of 1000 here is mainly so that there is enough buffer for newly applied forks to be delivered to clients
          // before getting pruned out. ideally pruning would have been smart enough to know not to prune reversible blocks
@@ -325,7 +316,7 @@ void state_history_plugin_impl::plugin_initialize(const variables_map& options) 
          EOS_ASSERT(!has_state_history_partition_options, plugin_exception, "state-history-log-retain-blocks cannot be used together with state-history-retained-dir,"
                   " state-history-archive-dir, state-history-stride or max-retained-history-files");
       } else if(has_state_history_partition_options){
-         auto& config  = ship_log_conf.emplace<state_history::partition_config>();
+         state_history::partition_config& config = ship_log_conf.emplace<state_history::partition_config>();
          if(options.count("state-history-retained-dir"))
             config.retained_dir       = options.at("state-history-retained-dir").as<std::filesystem::path>();
          if(options.count("state-history-archive-dir"))
@@ -337,11 +328,11 @@ void state_history_plugin_impl::plugin_initialize(const variables_map& options) 
       }
 
       if(options.at("trace-history").as<bool>())
-         trace_log.emplace("trace_history", state_history_dir , ship_log_conf);
+         trace_log.emplace(state_history_dir, ship_log_conf, "trace_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
       if(options.at("chain-state-history").as<bool>())
-         chain_state_log.emplace("chain_state_history", state_history_dir, ship_log_conf);
+         chain_state_log.emplace(state_history_dir, ship_log_conf, "chain_state_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
       if(options.at("finality-data-history").as<bool>())
-         finality_data_log.emplace("finality_data_history", state_history_dir, ship_log_conf);
+         finality_data_log.emplace(state_history_dir, ship_log_conf, "finality_data_history", [this](chain::block_num_type bn) {return get_block_id(bn);});
    }
    FC_LOG_AND_RETHROW()
 } // state_history_plugin::plugin_initialize
