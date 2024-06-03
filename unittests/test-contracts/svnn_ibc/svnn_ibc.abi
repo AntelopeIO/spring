@@ -110,6 +110,10 @@
                     "type": "uint32"
                 },
                 {
+                    "name": "final_on_qc_block_num",
+                    "type": "uint32"
+                },
+                {
                     "name": "new_finalizer_policy",
                     "type": "finalizer_policy_input?"
                 },
