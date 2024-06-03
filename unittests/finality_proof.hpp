@@ -161,7 +161,9 @@ namespace finality_proof {
       digest_type active_finalizer_policy_digest;
 
       // counter to (optimistically) track internal policy changes
-      uint32_t blocks_since_proposed_policy = 0;
+      //uint32_t blocks_since_proposed_policy = 0;
+
+      std::unordered_map<digest_type, uint32_t> blocks_since_proposed_policy;
 
       //node0 always produce blocks. This vector determines if votes from node1, node2, etc. are propagated
       std::vector<bool> vote_propagation;
@@ -185,6 +187,21 @@ namespace finality_proof {
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
+         //skip this part on genesis
+         if (!is_genesis){
+            // after 3 more QCs (6 total since the policy was proposed) the pending policy becomes active
+            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy[last_pending_finalizer_policy_digest] == 6){
+               active_finalizer_policy = last_pending_finalizer_policy;
+               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
+            }
+
+            // after 3 QCs, the proposed policy becomes pending
+            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] == 3){
+               last_pending_finalizer_policy = last_proposed_finalizer_policy;
+               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
+            }
+         }
+
          // if we have policy diffs, process them
          if (has_finalizer_policy_diffs(block)){
 
@@ -196,29 +213,18 @@ namespace finality_proof {
                last_pending_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
                active_finalizer_policy = last_proposed_finalizer_policy;
                active_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
+               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = 0;
             }
             else {
                // if block is not genesis, the new policy is proposed
-               last_proposed_finalizer_policy = update_finalizer_policy(block, active_finalizer_policy);
+               last_proposed_finalizer_policy = update_finalizer_policy(block, last_proposed_finalizer_policy);
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
-               blocks_since_proposed_policy = 0;
+               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = 0;
             }
 
          }
 
-         // after 3 QCs, the proposed policy becomes pending
-         if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy == 3){
-            last_pending_finalizer_policy = last_proposed_finalizer_policy;
-            last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
-         }
-
-         // after 3 more QCs (6 total since the policy was proposed) the pending policy becomes active
-         if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy == 6){
-            active_finalizer_policy = last_pending_finalizer_policy;
-            active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
-         }
-
-         blocks_since_proposed_policy++;
+         for (auto& p : blocks_since_proposed_policy) p.second++;
 
          //process votes and collect / compute the IBC-relevant data
 

@@ -570,12 +570,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       bool last_action_failed = false;
 
       // since heavy_proof_4 requires finalizer policy generation #2, we cannot prove it yet.
-      try {
-         cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4);
-      }
-      catch(const eosio_assert_message_exception& e){
-         last_action_failed = true;
-      }
+      try { cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4); }
+      catch(const eosio_assert_message_exception& e){ last_action_failed = true; }
 
       // checkproof action has failed, as expected.
       BOOST_CHECK(last_action_failed); 
@@ -604,12 +600,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // Since garbage collection was previously triggered for the merkle root of block #2 which this
       // proof attempts to link to, action will now fail
-      try {
-         cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
-      }
-      catch(const eosio_assert_message_exception& e){
-         last_action_failed = true;
-      }
+      try {cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);}
+      catch(const eosio_assert_message_exception& e){last_action_failed = true;}
 
       // verify action has failed, as expected
       BOOST_CHECK(last_action_failed); 
