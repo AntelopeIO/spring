@@ -307,6 +307,8 @@ CONTRACT svnn_ibc : public contract {
          //finalizer_policy_generation for this block
          uint32_t finalizer_policy_generation;
 
+         uint32_t final_on_qc_block_num = 0;
+
          std::optional<finalizer_policy_input> new_finalizer_policy;
 
          //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
@@ -329,15 +331,16 @@ CONTRACT svnn_ibc : public contract {
 
          //returns hash of major_version + minor_version + finalizer_policy_generation + resolve_witness() + finality_mroot
          checksum256 finality_digest() const {
-            std::array<uint8_t, 76> result;
+            std::array<uint8_t, 80> result;
             memcpy(&result[0], (uint8_t *)&major_version, 4);
             memcpy(&result[4], (uint8_t *)&minor_version, 4);
             memcpy(&result[8], (uint8_t *)&finalizer_policy_generation, 4);
+            memcpy(&result[12], (uint8_t *)&final_on_qc_block_num, 4);
             std::array<uint8_t, 32> arr1 = finality_mroot.extract_as_byte_array();
             std::array<uint8_t, 32> arr2 = resolve_witness().extract_as_byte_array();
-            std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 12);
-            std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 44);
-            checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 76);
+            std::copy (arr1.cbegin(), arr1.cend(), result.begin() + 16);
+            std::copy (arr2.cbegin(), arr2.cend(), result.begin() + 48);
+            checksum256 hash = sha256(reinterpret_cast<char*>(result.data()), 80);
             return hash;
          };
 

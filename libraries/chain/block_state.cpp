@@ -355,8 +355,9 @@ finality_data_t block_state::get_finality_data() {
    }
 
    return {
-      // other fields take the default values set by finality_data_t definition
+      // major_version and minor_version take the default values set by finality_data_t definition
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
+      .final_on_strong_qc_block_num       = core.final_on_strong_qc_block_num,
       .action_mroot                       = action_mroot,
       .base_digest                        = *base_digest,
       .proposed_finalizer_policy          = std::move(proposed_finalizer_policy)
