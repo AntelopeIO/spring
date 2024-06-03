@@ -1481,9 +1481,15 @@ struct controller_impl {
                   break;
                }
             }
-         } catch( std::exception& ) {
-            if( root_id != forkdb.root()->id() ) {
-               forkdb.advance_root( root_id );
+         } catch( const std::exception& e ) {
+            try {
+               if (root_id != forkdb.root()->id()) {
+                  forkdb.advance_root(root_id);
+               }
+            } catch( const fc::exception& e2 ) {
+               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.to_detail_string())("e", e.what()));
+            } catch( const std::exception& e2 ) {
+               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.what())("e", e.what()));
             }
             throw;
          }
