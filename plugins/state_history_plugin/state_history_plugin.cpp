@@ -69,7 +69,7 @@ private:
          return std::to_address(lhs) < std::to_address(rhs);
       }
    };
-   boost::asio::strand<boost::asio::io_context::executor_type> connection_set_strand = boost::asio::make_strand(thread_pool.get_executor());
+   //connections must only be touched by the main thread because on_accepted_block() will iterate over it
    std::set<std::unique_ptr<session_base>, connection_map_key_less> connections; //gcc 11+ required for unordered_set
 
 public:
@@ -107,7 +107,7 @@ public:
    template <typename Protocol>
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
-      fc::create_listener<Protocol>(connection_set_strand, _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
+      fc::create_listener<Protocol>(app().get_io_service(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
          catch_and_log([this, &socket]() {
             connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
                                             trace_log, chain_state_log, finality_data_log,
@@ -118,7 +118,7 @@ public:
                                                return get_block(block_num);
                                             },
                                             [this](session_base* conn) {
-                                               boost::asio::post(connection_set_strand, [conn, this]() {
+                                               boost::asio::post(app().get_io_service(), [conn, this]() {
                                                   connections.erase(connections.find(conn));
                                                });
                                             }, _log));
