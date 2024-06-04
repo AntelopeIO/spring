@@ -1,4 +1,5 @@
 #include <eosio/chain/global_property_object.hpp>
+#include <eosio/chain/authorization_manager.hpp>
 #include <eosio/testing/tester.hpp>
 
 #include <boost/test/unit_test.hpp>
@@ -31,6 +32,18 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, validating_tester ) try {
          const auto current_schedule = control->active_producers().producers;
          if (new_prod_schd == current_schedule) {
             scheduled_changed_to_new = true;
+            // verify eosio.prods updated
+            const name usr = config::producers_account_name;
+            const name active_permission = config::active_name;
+            const auto* perm = control->db().template find<permission_object, by_owner>(boost::make_tuple(usr, active_permission));
+            for (auto account : perm->auth.accounts) {
+               auto act = account.permission.actor;
+               auto itr = std::find_if( current_schedule.begin(), current_schedule.end(), [&](const auto& p) {
+                  return p.producer_name == act;
+               });
+               bool found = itr != current_schedule.end();
+               BOOST_TEST(found);
+            }
          }
 
          // Produce block
@@ -333,6 +346,36 @@ BOOST_AUTO_TEST_CASE( empty_producer_schedule_has_no_effect ) try {
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, c.control->active_producers() ) );
 
    BOOST_REQUIRE_EQUAL( c.validate(), true );
+} FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
+   validating_tester chain;
+
+   const std::vector<account_name> accounts = { "aliceaccount"_n, "bobbyaccount"_n, "carolaccount"_n, "emilyaccount"_n };
+   chain.create_accounts( accounts );
+   chain.produce_block();
+
+   chain.set_producers( accounts );
+   chain.produce_block();
+
+   // looping less than 20 did not reproduce the `producer_double_confirm: Producer is double confirming known range` error
+   for (size_t i = 0; i < 20; ++i) {
+      chain.set_producers( { "aliceaccount"_n, "bobbyaccount"_n } );
+      chain.produce_block();
+
+      chain.set_producers( { "bobbyaccount"_n, "aliceaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( accounts );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+
+      chain.set_producers( { "carolaccount"_n } );
+      chain.produce_block();
+      chain.produce_block( fc::hours(1) );
+   }
+
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
