@@ -4127,6 +4127,7 @@ struct controller_impl {
             try {
                apply_block( br, new_head, s, trx_lookup );
             } catch ( const std::exception& e ) {
+               wlog("Exception during apply block: ${e}", ("e", e.what()));
                forkdb.remove( new_head->id() );
                throw;
             }
