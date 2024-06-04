@@ -1324,15 +1324,13 @@ struct controller_impl {
             block_state_legacy_ptr legacy = forkdb_l.get_block(bsp->id());
             fork_db.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
             fc::scoped_exit<std::function<void()>> e([&]{fork_db.switch_to(fork_database::in_use_t::both);});
-            if (apply_block(br, legacy, controller::block_status::complete, trx_meta_cache_lookup{})) {
-               // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
-               assert(legacy->action_mroot_savanna);
-               block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
-               assert(prev);
-               transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
-               return true;
-            }
-            return false;
+            bool applied = apply_block(br, legacy, controller::block_status::complete, trx_meta_cache_lookup{});
+            // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
+            assert(!applied || legacy->action_mroot_savanna);
+            block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
+            assert(prev);
+            transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
+            return applied;
          });
       }
    }
@@ -1352,7 +1350,7 @@ struct controller_impl {
 
    void transition_to_savanna() {
       assert(chain_head.header().contains_header_extension(instant_finality_extension::extension_id()));
-      // copy head branch branch from legacy forkdb legacy to savanna forkdb
+      // copy head branch from legacy forkdb legacy to savanna forkdb
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
@@ -1487,9 +1485,9 @@ struct controller_impl {
                   forkdb.advance_root(root_id);
                }
             } catch( const fc::exception& e2 ) {
-               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.to_detail_string())("e", e.what()));
+               wlog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.to_detail_string())("e", e.what()));
             } catch( const std::exception& e2 ) {
-               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.what())("e", e.what()));
+               wlog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.what())("e", e.what()));
             }
             throw;
          }
@@ -4127,7 +4125,7 @@ struct controller_impl {
             try {
                apply_block( br, new_head, s, trx_lookup );
             } catch ( const std::exception& e ) {
-               wlog("Exception during apply block: ${e}", ("e", e.what()));
+               dlog("Exception during apply block: ${e}", ("e", e.what()));
                forkdb.remove( new_head->id() );
                throw;
             }
