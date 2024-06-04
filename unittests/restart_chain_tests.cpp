@@ -54,14 +54,10 @@ FC_REFLECT(cf_action, (payload)(cfd_idx))
 #define DUMMY_ACTION_DEFAULT_B 0xab11cd1244556677
 #define DUMMY_ACTION_DEFAULT_C 0x7451ae12
 
-template <typename T>
 class replay_tester : public base_tester {
  public:
    template <typename OnAppliedTrx>
    replay_tester(controller::config config, const genesis_state& genesis, OnAppliedTrx&& on_applied_trx) {
-      if constexpr (std::is_same_v<T, savanna_tester>) {
-         is_savanna = true;
-      }
       cfg = config;
       base_tester::open(make_protocol_feature_set(), genesis.compute_chain_id(), [&genesis,&control=this->control, &on_applied_trx]() {
          control->applied_transaction().connect(on_applied_trx);
@@ -218,7 +214,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, 
    remove_existing_states(copied_config);
    transaction_trace_ptr other_trace;
 
-   replay_tester<T> from_block_log_chain(copied_config, *genesis,
+   replay_tester from_block_log_chain(copied_config, *genesis,
                                        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
                                           auto& t = std::get<0>(x);
                                           if (t && t->id == trace->id) {

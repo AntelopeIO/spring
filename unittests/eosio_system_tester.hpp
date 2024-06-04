@@ -16,7 +16,7 @@ using mvo = fc::mutable_variant_object;
 
 namespace eosio_system {
 
-template <typename T>
+template<typename T>
 class eosio_system_tester : public T {
 public:
 
