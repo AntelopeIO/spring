@@ -511,7 +511,7 @@ namespace eosio::chain {
 
    template<class BSP>
    BSP fork_database_impl<BSP>::search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const {
-      if( include_root == include_root_t::yes && root->id() == h ) {
+      if( include_root == include_root_t::yes && root->id() == h && root->block_num() == block_num ) {
          return root;
       }
 
