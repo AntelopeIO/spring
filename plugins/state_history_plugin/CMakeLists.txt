@@ -9,6 +9,3 @@ target_include_directories( state_history_plugin PUBLIC "${CMAKE_CURRENT_SOURCE_
 if( CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11 )
    target_compile_options( state_history_plugin PRIVATE "-fcoroutines" )
 endif()
-
-#TODO: revisit
-#add_subdirectory(tests)
