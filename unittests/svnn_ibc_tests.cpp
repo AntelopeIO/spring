@@ -282,7 +282,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_CHECK_EQUAL(genesis_block_result.block->block_num(), 4u);
       
       BOOST_CHECK_EQUAL(cluster.active_finalizer_policy.finalizers.size(), cluster.num_nodes);
-      BOOST_CHECK_EQUAL(cluster.active_finalizer_policy.generation, 1);
+      BOOST_CHECK_EQUAL(cluster.active_finalizer_policy.generation, 1u);
 
       // create the ibc account and deploy the ibc contract to it 
       cluster.node0.create_account( "ibc"_n );

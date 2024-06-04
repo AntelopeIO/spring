@@ -2002,8 +2002,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_parameters_packed_test, T, testers) { try {
                        c.error("alice does not have permission to call this API"));
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_1_no_op_test, T, testers) { try {
-   T c(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
+   tester_no_disable_deferred_trx c;
 
    c.produce_block();
    c.create_accounts( {"alice"_n, "bob"_n, "test"_n, "payloadless"_n} );
@@ -2124,8 +2124,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_1_no_op_test, T, teste
 
 // verify a deferred transaction can be retired as expired at any time regardless of
 // whether its delay_until or expiration have been reached
-BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_1_retire_test, T, testers) { try {
-   T c(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
+   tester_no_disable_deferred_trx c;
 
    c.produce_block();
    c.create_accounts( {"alice"_n, "test"_n} );
@@ -2189,8 +2189,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_1_retire_test, T, test
    BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage_before );
 } FC_LOG_AND_RETHROW() } /// disable_deferred_trxs_stage_1_retire_test
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_2_test, T, testers) { try {
-   T c(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
+   tester_no_disable_deferred_trx c;
 
    c.produce_block();
    c.create_accounts( {"alice"_n, "bob"_n, "test"_n} );
@@ -2256,8 +2256,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_2_test, T, testers) { 
    BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "bob"_n ), bob_ram_usage_before );
 } FC_LOG_AND_RETHROW() } /// disable_deferred_trxs_stage_2_test
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_2_dependency_test, T, testers) { try {
-   T c(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_dependency_test ) { try {
+   tester_no_disable_deferred_trx c;
 
    c.produce_block();
 
@@ -2272,9 +2272,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(disable_deferred_trxs_stage_2_dependency_test, T, 
 
 // Verify a block containing delayed transactions is validated
 // before DISABLE_DEFERRED_TRXS_STAGE_1 is activated
-BOOST_AUTO_TEST_CASE_TEMPLATE(block_validation_before_stage_1_test, T, testers) { try {
-   T tester1(setup_policy::full_except_do_not_disable_deferred_trx);
-   T tester2(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( block_validation_before_stage_1_test ) { try {
+   tester_no_disable_deferred_trx tester1;
+   tester_no_disable_deferred_trx tester2;
 
    tester1.create_accounts( {"payloadless"_n} );
    tester1.set_code( "payloadless"_n, test_contracts::payloadless_wasm() );
@@ -2291,8 +2291,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(block_validation_before_stage_1_test, T, testers) 
 
 // Verify a block containing delayed transactions is not validated
 // after DISABLE_DEFERRED_TRXS_STAGE_1 is activated
-BOOST_AUTO_TEST_CASE_TEMPLATE(block_validation_after_stage_1_test, T, testers) { try {
-   T tester1(setup_policy::full_except_do_not_disable_deferred_trx);
+BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
+   tester_no_disable_deferred_trx tester1;
 
    // Activate DISABLE_DEFERRED_TRXS_STAGE_1 such that tester1
    // matches tester2 below
@@ -2327,16 +2327,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(block_validation_after_stage_1_test, T, testers) {
    copy_b->transaction_mroot = calculate_merkle_legacy( std::move(trx_digests) );
 
    // Re-sign the block
-   if constexpr (std::is_same_v<T, savanna_tester>) {
-      copy_b->producer_signature = tester1.get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
-   } else {
-      auto header_bmroot = digest_type::hash( std::make_pair( copy_b->digest(), tester1.control->head_block_state_legacy()->blockroot_merkle.get_root() ) );
-      auto sig_digest = digest_type::hash( std::make_pair(header_bmroot, tester1.control->head_block_state_legacy()->pending_schedule.schedule_hash) );
-      copy_b->producer_signature = tester1.get_private_key(config::system_account_name, "active").sign(sig_digest);
-   }
+   auto header_bmroot = digest_type::hash( std::make_pair( copy_b->digest(), tester1.control->head_block_state_legacy()->blockroot_merkle.get_root() ) );
+   auto sig_digest = digest_type::hash( std::make_pair(header_bmroot, tester1.control->head_block_state_legacy()->pending_schedule.schedule_hash) );
+   copy_b->producer_signature = tester1.get_private_key(config::system_account_name, "active").sign(sig_digest);
 
    // Create the second chain
-   T tester2(setup_policy::full_except_do_not_disable_deferred_trx);
+   tester_no_disable_deferred_trx tester2;
    // Activate DISABLE_DEFERRED_TRXS_STAGE_1 on the second chain
    const auto& pfm2 = tester2.control->get_protocol_feature_manager();
    auto d2 = pfm2.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_1 );
