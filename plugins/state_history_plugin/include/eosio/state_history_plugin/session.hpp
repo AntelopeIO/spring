@@ -336,7 +336,7 @@ private:
    GetBlock                          get_block;
 
    ///these items might be used on either the strand or main thread
-   std::atomic_flag                  has_logged_exception;  //TODO, this doesn't get used on anything but the strand now
+   std::atomic_flag                  has_logged_exception;  //as is right now, this doesn't get used on anything but the strand
    OnDone                            on_done;
    fc::logger&                       logger;
    const std::string                 remote_endpoint_string;
