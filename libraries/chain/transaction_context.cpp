@@ -833,7 +833,7 @@ namespace eosio::chain {
 
    int64_t transaction_context::set_proposed_producers(vector<producer_authority> producers) {
       if (producers.empty())
-         return -1; // INSTANT_FINALITY depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
+         return -1; // SAVANNA depends on DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
       EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
                  "Producer schedule exceeds the maximum proposer count for this chain");
