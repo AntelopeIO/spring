@@ -1139,7 +1139,7 @@ struct controller_impl {
 
    std::optional<block_id_type> fetch_block_id_on_head_branch_by_num(uint32_t block_num) const {
       return fork_db.apply<std::optional<block_id_type>>([&](const auto& forkdb) -> std::optional<block_id_type> {
-         auto bsp = forkdb.search_on_head_branch(block_num, include_root_t::yes);
+         auto bsp = forkdb.search_on_head_branch(block_num);
          if (bsp) return bsp->id();
          return {};
       });
