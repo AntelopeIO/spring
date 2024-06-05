@@ -1353,6 +1353,8 @@ struct controller_impl {
    void transition_to_savanna() {
       assert(chain_head.header().contains_header_extension(instant_finality_extension::extension_id()));
       // copy head branch from legacy forkdb legacy to savanna forkdb
+      if (check_shutdown())
+         return;
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
