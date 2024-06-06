@@ -269,6 +269,9 @@ private:
                   ++self.next_block_cursor;
                   --self.send_credits;
                }
+
+               if(status_requests.size())
+                  current_status_result = fill_current_status_result();
                co_return;
             }, boost::asio::use_awaitable);
 
@@ -277,9 +280,6 @@ private:
                co_await wake_timer.async_wait();
                continue;
             }
-
-            if(status_requests.size())
-               current_status_result = fill_current_status_result();
 
             //send replies to all send status requests first
             for(const bool status_request_is_v1 : status_requests) {
