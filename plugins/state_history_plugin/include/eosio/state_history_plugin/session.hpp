@@ -33,6 +33,7 @@ public:
 };
 
 template<typename SocketType, typename Executor, typename GetBlockID, typename GetBlock, typename OnDone>
+requires std::is_same_v<SocketType, boost::asio::ip::tcp::socket> || std::is_same_v<SocketType, boost::asio::local::stream_protocol::socket>
 class session final : public session_base {
    using coro_throwing_stream = boost::asio::use_awaitable_t<>::as_default_on_t<boost::beast::websocket::stream<SocketType>>;
    using coro_nonthrowing_steadytimer = boost::asio::as_tuple_t<boost::asio::use_awaitable_t<>>::as_default_on_t<boost::asio::steady_timer>;
