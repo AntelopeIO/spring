@@ -146,10 +146,13 @@ def getBlockNumInfo(testNode):
     head = None
     lib = None
 
+    retries = 20
     while True:
         info = testNode.getInfo()
 
-        if not info:
+        if not info and retries > 0:
+            time.sleep(0.5)
+            retries -= 1
             continue
 
         try:
