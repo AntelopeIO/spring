@@ -20,24 +20,6 @@ using mvo = mutable_variant_object;
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
-
-   //extract instant finality data from block header extension, as well as qc data from block extension
-   qc_data_t extract_qc_data(const signed_block_ptr& b) {
-      auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
-
-         // get the matching qc extension if present
-         auto exts = b->validate_and_extract_extensions();
-         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
-            auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
-            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
-         }
-         return qc_data_t{ {}, if_ext.qc_claim };
-      }
-      return {};
-   }
-
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
@@ -69,25 +51,22 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // Proper IF Block. From now on, finalizers must vote.
       // Moving forward, the header action_mroot field is reconverted to provide the finality_mroot.
       // The action_mroot is instead provided via the finality data
-
       auto block_2_result = cluster.produce_block(); //block num : 6
+      
       // block_3 contains a QC over block_2
       auto block_3_result = cluster.produce_block(); //block num : 7
-      // block_4 contains a QC over block_3
 
+      // block_4 contains a QC over block_3
       auto block_4_result = cluster.produce_block(); //block num : 8
+
       // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
       // serves as a proof of finality for it
       auto block_5_result = cluster.produce_block(); //block num : 9
       auto block_6_result = cluster.produce_block(); //block num : 10
 
-      qc_data_t qc_b_4 = extract_qc_data(block_4_result.block);
-      qc_data_t qc_b_5 = extract_qc_data(block_5_result.block);
-      qc_data_t qc_b_6 = extract_qc_data(block_6_result.block);
-
-      BOOST_TEST(qc_b_4.qc.has_value());
-      BOOST_TEST(qc_b_5.qc.has_value());
-      BOOST_TEST(qc_b_6.qc.has_value());
+      BOOST_TEST(block_4_result.qc_data.qc.has_value());
+      BOOST_TEST(block_5_result.qc_data.qc.has_value());
+      BOOST_TEST(block_6_result.qc_data.qc.has_value());
 
       std::stringstream sstream;
       sstream << std::hex << (1 << 3) - 1; // we expect a quorum of finalizers to vote
@@ -111,13 +90,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_5.qc.value().data.sig.to_string())
+                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 2)
-               ("last_node_index", 2)
+               ("target_block_index", 2)
+               ("final_block_index", 2)
                ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -150,13 +129,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_5.qc.value().data.sig.to_string())
+                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 2)
-               ("last_node_index", 2)
+               ("target_block_index", 2)
+               ("final_block_index", 2)
                ("target", fc::variants{"simple_block_data", mvo() //target block #2
                   ("major_version", 1)
                   ("minor_version", 0)
@@ -184,13 +163,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_5_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_6.qc.value().data.sig.to_string())
+                  ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 2)
-               ("last_node_index", 3)
+               ("target_block_index", 2)
+               ("final_block_index", 3)
                ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -214,8 +193,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       mutable_variant_object light_proof_1 = mvo()
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 2)
-               ("last_node_index", 2)
+               ("target_block_index", 2)
+               ("final_block_index", 2)
                ("target", fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -290,13 +269,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_10_result = cluster.produce_block();
 
       // verify we have all the QCs up to this point
-      qc_data_t qc_b_8 = extract_qc_data(block_8_result.block);
-      qc_data_t qc_b_9 = extract_qc_data(block_9_result.block);
-      qc_data_t qc_b_10 = extract_qc_data(block_10_result.block);
-
-      BOOST_TEST(qc_b_8.qc.has_value());
-      BOOST_TEST(qc_b_9.qc.has_value());
-      BOOST_TEST(qc_b_10.qc.has_value());
+      BOOST_TEST(block_8_result.qc_data.qc.has_value());
+      BOOST_TEST(block_9_result.qc_data.qc.has_value());
+      BOOST_TEST(block_10_result.qc_data.qc.has_value());
 
       // At this stage, we can prove the inclusion of actions into block #7.
 
@@ -304,8 +279,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // onblock action proof
       mutable_variant_object onblock_action_proof = mvo()
-         ("target_node_index", 0)
-         ("last_node_index", 3)
+         ("target_block_index", 0)
+         ("final_block_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", block_7_result.onblock_trace.act.account)
@@ -323,8 +298,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // first action proof (check_heavy_proof_1)
       mutable_variant_object action_proof_1 = mvo()
-         ("target_node_index", 1)
-         ("last_node_index", 3)
+         ("target_block_index", 1)
+         ("final_block_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", check_heavy_proof_1_trace.act.account)
@@ -341,8 +316,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // second action proof (check_light_proof_1)
       mutable_variant_object action_proof_2 = mvo()
-         ("target_node_index", 2)
-         ("last_node_index", 3)
+         ("target_block_index", 2)
+         ("final_block_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", check_light_proof_1_trace.act.account)
@@ -370,13 +345,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_10.qc.value().data.sig.to_string())
+                  ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
+               ("target_block_index", 7)
+               ("final_block_index", 7)
                ("target", fc::variants{"extended_block_data", mvo() //target block #2
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -399,8 +374,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       mutable_variant_object action_light_proof = mvo()
          ("proof", mvo() 
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
+               ("target_block_index", 7)
+               ("final_block_index", 7)
                ("target", fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -455,21 +430,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
-      qc_data_t qc_b_11 = extract_qc_data(block_11_result.block);
-      qc_data_t qc_b_12 = extract_qc_data(block_12_result.block);
-      qc_data_t qc_b_13 = extract_qc_data(block_13_result.block);
-      qc_data_t qc_b_14 = extract_qc_data(block_14_result.block);
-      qc_data_t qc_b_15 = extract_qc_data(block_15_result.block);
-      qc_data_t qc_b_16 = extract_qc_data(block_16_result.block);
-      qc_data_t qc_b_17 = extract_qc_data(block_17_result.block);
-
-      BOOST_TEST(qc_b_11.qc.has_value());
-      BOOST_TEST(qc_b_12.qc.has_value());
-      BOOST_TEST(qc_b_13.qc.has_value());
-      BOOST_TEST(qc_b_14.qc.has_value());
-      BOOST_TEST(qc_b_15.qc.has_value());
-      BOOST_TEST(qc_b_16.qc.has_value());
-      BOOST_TEST(qc_b_17.qc.has_value());
+      BOOST_TEST(block_11_result.qc_data.qc.has_value());
+      BOOST_TEST(block_12_result.qc_data.qc.has_value());
+      BOOST_TEST(block_13_result.qc_data.qc.has_value());
+      BOOST_TEST(block_14_result.qc_data.qc.has_value());
+      BOOST_TEST(block_15_result.qc_data.qc.has_value());
+      BOOST_TEST(block_16_result.qc_data.qc.has_value());
+      BOOST_TEST(block_17_result.qc_data.qc.has_value());
 
       // heavy proof #3. 
       
@@ -494,13 +461,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_13_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_14.qc.value().data.sig.to_string())
+                  ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 11)
-               ("last_node_index", 11)
+               ("target_block_index", 11)
+               ("final_block_index", 11)
                ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -541,13 +508,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_14_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", qc_b_15.qc.value().data.sig.to_string())
+                  ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", raw_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 12)
-               ("last_node_index", 12)
+               ("target_block_index", 12)
+               ("final_block_index", 12)
                ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)

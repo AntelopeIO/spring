@@ -20,23 +20,6 @@ using mvo = mutable_variant_object;
 
 BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
-   //extract instant finality data from block header extension, as well as qc data from block extension
-   qc_data_t extract_qc_data(const signed_block_ptr& b) {
-      auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
-
-         // get the matching qc extension if present
-         auto exts = b->validate_and_extract_extensions();
-         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
-            auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
-            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
-         }
-         return qc_data_t{ {}, if_ext.qc_claim };
-      }
-      return {};
-   }
-
    BOOST_AUTO_TEST_CASE(two_chains_test) { try {
 
       // setup the fake chain. node3 doesn't receive votes on the fake chain
@@ -89,11 +72,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       real_chain.node0.push_action("eosio.token"_n, "issue"_n, "eosio"_n, issue_action);
       real_chain.node0.push_action("eosio.token"_n, "transfer"_n, "eosio"_n, initial_transfer);
 
-      auto indices_policy_B = fake_chain.fin_policy_indices_0;  
-      auto indices_policy_C = fake_chain.fin_policy_indices_0;  
-      auto indices_policy_D = fake_chain.fin_policy_indices_0;  
-      auto indices_policy_E = fake_chain.fin_policy_indices_0;  
-      auto indices_policy_F = fake_chain.fin_policy_indices_0;  
+      auto indices_policy_B = fake_chain.fin_policy_indices_0;
+      auto indices_policy_C = fake_chain.fin_policy_indices_0;
+      auto indices_policy_D = fake_chain.fin_policy_indices_0;
+      auto indices_policy_E = fake_chain.fin_policy_indices_0;
+      auto indices_policy_F = fake_chain.fin_policy_indices_0;
+      auto indices_policy_G = fake_chain.fin_policy_indices_0;
+      auto indices_policy_H = fake_chain.fin_policy_indices_0;
 
       indices_policy_B[0] = 3;
       indices_policy_B[1] = 13;
@@ -109,6 +94,12 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       indices_policy_F[0] = 7;
       indices_policy_F[1] = 17;
+
+      indices_policy_G[0] = 8;
+      indices_policy_G[1] = 18;
+
+      indices_policy_H[0] = 9;
+      indices_policy_H[1] = 19;
 
       // produce the IF genesis block on both chains
       auto fake_genesis_block_result = fake_chain.produce_block();
@@ -148,33 +139,30 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_10_result = fake_chain.produce_block();
       auto real_block_10_result = real_chain.produce_block();
 
-      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_E);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_B);
       auto fake_block_11_result = fake_chain.produce_block();
-
-      real_chain.node0.finkeys.set_finalizer_policy(indices_policy_B);
       auto real_block_11_result = real_chain.produce_block();
 
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_C);
       auto fake_block_12_result = fake_chain.produce_block();
       auto real_block_12_result = real_chain.produce_block();
 
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_D);
       auto fake_block_13_result = fake_chain.produce_block();
       auto real_block_13_result = real_chain.produce_block();
 
-      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_C);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_E);
       auto fake_block_14_result = fake_chain.produce_block();
-
-      real_chain.node0.finkeys.set_finalizer_policy(indices_policy_C);
       auto real_block_14_result = real_chain.produce_block();
 
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_F);
       auto fake_block_15_result = fake_chain.produce_block();
       auto real_block_15_result = real_chain.produce_block();
 
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_G);
       auto fake_block_16_result = fake_chain.produce_block();
-
-      real_chain.node0.finkeys.set_finalizer_policy(indices_policy_D);
       auto real_block_16_result = real_chain.produce_block();
 
-      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_F);
       auto fake_block_17_result = fake_chain.produce_block();
       auto real_block_17_result = real_chain.produce_block();
 
@@ -187,128 +175,286 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_20_result = fake_chain.produce_block();
       auto real_block_20_result = real_chain.produce_block();
 
+      auto fake_block_21_result = fake_chain.produce_block();
+      auto real_block_21_result = real_chain.produce_block();
+
+      auto fake_block_22_result = fake_chain.produce_block();
+      auto real_block_22_result = real_chain.produce_block();
+      
+      auto fake_block_23_result = fake_chain.produce_block();
+      auto real_block_23_result = real_chain.produce_block();
+      
+      auto fake_block_24_result = fake_chain.produce_block();
+      auto real_block_24_result = real_chain.produce_block();
+      
+      auto fake_block_25_result = fake_chain.produce_block();
+      auto real_block_25_result = real_chain.produce_block();
+      
+      auto fake_block_26_result = fake_chain.produce_block();
+      auto real_block_26_result = real_chain.produce_block();
+
+      mvo proof_fake_11 = finality_proof::get_finality_proof(real_block_11_result, 
+                                    real_block_13_result, 
+                                    11, 
+                                    11, 
+                                    real_block_14_result.qc_data.qc.value().data.sig.to_string(), 
+                                    real_bitset,
+                                    finality_proof::generate_proof_of_inclusion(real_chain.get_finality_leaves(11), 11));
+
       std::cout << "\n*** Block 10 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_10_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_10_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_10_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_10_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_10_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_10_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_10_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_10_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_10_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_10_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_10_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_10_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 11 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_11_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_11_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_11_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_11_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_11_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_11_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_11_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_11_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_11_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_11_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_11_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_11_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 12 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_12_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_12_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_12_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_12_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_12_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_12_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_12_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_12_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_12_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_12_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_12_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_12_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 13 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_13_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_13_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_13_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_13_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_13_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_13_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_13_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_13_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_13_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_13_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_13_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_13_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 14 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_14_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_14_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_14_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_14_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_14_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_14_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_14_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_14_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_14_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_14_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_14_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_14_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 15 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_15_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_15_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_15_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_15_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_15_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_15_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_15_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_15_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_15_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_15_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_15_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_15_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 16 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_16_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_16_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_16_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_16_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_16_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_16_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_16_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_16_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_16_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_16_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_16_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_16_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 17 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_17_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_17_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_17_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_17_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_17_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_17_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_17_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_17_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_17_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_17_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_17_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_17_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 18 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_18_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_18_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_18_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_18_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_18_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_18_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_18_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_18_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_18_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_18_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_18_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_18_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 19 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_19_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_19_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_19_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_19_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_19_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_19_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_19_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_19_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_19_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_19_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_19_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_19_result.active_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 20 ***" << "\n";
-      std::cout << "  Fake Chain : " << "\n";
+      std::cout << "  Fake Chain : " << fake_block_20_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_20_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_20_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << fake_block_20_result.last_proposed_finalizer_policy_digest << 
                                           "->" << fake_block_20_result.last_pending_finalizer_policy_digest << 
                                           "->" << fake_block_20_result.active_finalizer_policy_digest << "\n";
 
-      std::cout << "  Real Chain : " << "\n";
+      std::cout << "  Real Chain : " << real_block_20_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_20_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_20_result.active_finalizer_policy_generation << "\n";
       std::cout << "    Prop -> Pend -> Act :" << real_block_20_result.last_proposed_finalizer_policy_digest << 
                                           "->" << real_block_20_result.last_pending_finalizer_policy_digest << 
                                           "->" << real_block_20_result.active_finalizer_policy_digest << "\n";
 
+      std::cout << "\n*** Block 21 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_21_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_21_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_21_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_21_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_21_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_21_result.active_finalizer_policy_digest << "\n";
 
+      std::cout << "  Real Chain : " << real_block_21_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_21_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_21_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_21_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_21_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_21_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "\n*** Block 22 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_22_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_22_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_22_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_22_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_22_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_22_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "  Real Chain : " << real_block_22_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_22_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_22_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_22_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_22_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_22_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "\n*** Block 23 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_23_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_23_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_23_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_23_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_23_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_23_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "  Real Chain : " << real_block_23_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_23_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_23_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_23_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_23_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_23_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "\n*** Block 24 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_24_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_24_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_24_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_24_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_24_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_24_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "  Real Chain : " << real_block_24_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_24_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_24_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_24_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_24_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_24_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "\n*** Block 25 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_25_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_25_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_25_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_25_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_25_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_25_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "  Real Chain : " << real_block_25_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_25_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_25_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_25_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_25_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_25_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "\n*** Block 26 ***" << "\n";
+      std::cout << "  Fake Chain : " << fake_block_26_result.last_proposed_finalizer_policy_generation << 
+                                   " " << fake_block_26_result.last_pending_finalizer_policy_generation << 
+                                   " " << fake_block_26_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << fake_block_26_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << fake_block_26_result.last_pending_finalizer_policy_digest << 
+                                          "->" << fake_block_26_result.active_finalizer_policy_digest << "\n";
+
+      std::cout << "  Real Chain : " << real_block_26_result.last_proposed_finalizer_policy_generation << 
+                                   " " << real_block_26_result.last_pending_finalizer_policy_generation << 
+                                   " " << real_block_26_result.active_finalizer_policy_generation << "\n";
+      std::cout << "    Prop -> Pend -> Act :" << real_block_26_result.last_proposed_finalizer_policy_digest << 
+                                          "->" << real_block_26_result.last_pending_finalizer_policy_digest << 
+                                          "->" << real_block_26_result.active_finalizer_policy_digest << "\n";
 
    } FC_LOG_AND_RETHROW() }
 
@@ -421,27 +567,18 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(fake_block_5_result.finality_leaf==real_block_5_result.finality_leaf);
       BOOST_TEST(fake_block_6_result.finality_leaf==real_block_6_result.finality_leaf);
 
-      qc_data_t fake_qc_b_4 = extract_qc_data(fake_block_4_result.block);
-      qc_data_t real_qc_b_4 = extract_qc_data(real_block_4_result.block);
-
-      qc_data_t fake_qc_b_5 = extract_qc_data(fake_block_5_result.block);
-      qc_data_t real_qc_b_5 = extract_qc_data(real_block_5_result.block);
-
-      qc_data_t fake_qc_b_6 = extract_qc_data(fake_block_6_result.block);
-      qc_data_t real_qc_b_6 = extract_qc_data(real_block_6_result.block);
-
       // verify QCs on block #4 and onward for both chains
-      BOOST_TEST(fake_qc_b_4.qc.has_value());
-      BOOST_TEST(real_qc_b_4.qc.has_value());
-      BOOST_TEST(fake_qc_b_5.qc.has_value());
-      BOOST_TEST(real_qc_b_5.qc.has_value());
-      BOOST_TEST(fake_qc_b_6.qc.has_value());
-      BOOST_TEST(real_qc_b_6.qc.has_value());
+      BOOST_TEST(fake_block_4_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_4_result.qc_data.qc.has_value());
+      BOOST_TEST(fake_block_5_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_5_result.qc_data.qc.has_value());
+      BOOST_TEST(fake_block_6_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_6_result.qc_data.qc.has_value());
 
       // verify that the signatures on QCs are different on both chains
-      BOOST_TEST(fake_qc_b_4.qc.value().data.sig.to_string() != real_qc_b_4.qc.value().data.sig.to_string());
-      BOOST_TEST(fake_qc_b_5.qc.value().data.sig.to_string() != real_qc_b_5.qc.value().data.sig.to_string());
-      BOOST_TEST(fake_qc_b_6.qc.value().data.sig.to_string() != real_qc_b_6.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_4_result.qc_data.qc.value().data.sig.to_string() != real_block_4_result.qc_data.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_5_result.qc_data.qc.value().data.sig.to_string() != real_block_5_result.qc_data.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_6_result.qc_data.qc.value().data.sig.to_string() != real_block_6_result.qc_data.qc.value().data.sig.to_string());
       
       // user1 pushes an important transaction to the fake chain.
       // user1 wants to preserve sufficient information about this transfer so they can construct a finality violation proof if/when they discover the real chain.
@@ -474,11 +611,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_10_result = fake_chain.produce_block();
       auto real_block_10_result = real_chain.produce_block();
 
-      qc_data_t fake_qc_b_10 = extract_qc_data(fake_block_10_result.block);
-      qc_data_t real_qc_b_10 = extract_qc_data(real_block_10_result.block);
-
-      BOOST_TEST(fake_qc_b_10.qc.has_value());
-      BOOST_TEST(real_qc_b_10.qc.has_value());
+      BOOST_TEST(fake_block_10_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_10_result.qc_data.qc.has_value());
 
       // At this stage, user1 has enough information to :
       // 1) prove the inclusion of the important action into a block (the important block) AND
@@ -496,13 +630,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                   ("finality_mroot", fake_block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", fake_qc_b_10.qc.value().data.sig.to_string())
+                  ("signature", fake_block_10_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", fake_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
+               ("target_block_index", 7)
+               ("final_block_index", 7)
                ("target", fc::variants{"extended_block_data", mvo()
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -545,13 +679,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                   ("finality_mroot", real_block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", real_qc_b_10.qc.value().data.sig.to_string())
+                  ("signature", real_block_10_result.qc_data.qc.value().data.sig.to_string())
                   ("finalizers", real_bitset) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", 7)
-               ("last_node_index", 7)
+               ("target_block_index", 7)
+               ("final_block_index", 7)
                ("target",  fc::variants{"extended_block_data", mvo()
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -635,7 +769,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       internal_state user1_state;
       internal_state real_chain_state;
-
 
       // setup the fake chain. node3 doesn't receive votes on the fake chain
       finality_proof::proof_test_cluster<4> fake_chain;
@@ -724,21 +857,16 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto real_block_3_result = real_chain.produce_block();
 
       //at this stage, we have enough data to create a proof of finality for the genesis block and the initial finalizer policy
-      qc_data_t fake_qc_b_3 = extract_qc_data(fake_block_3_result.block);
-      qc_data_t real_qc_b_3 = extract_qc_data(real_block_3_result.block);
+      BOOST_TEST(fake_block_3_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_3_result.qc_data.qc.has_value());
 
-      BOOST_TEST(fake_qc_b_3.qc.has_value());
-      BOOST_TEST(real_qc_b_3.qc.has_value());
-
-      BOOST_TEST(fake_qc_b_3.qc.value().data.sig.to_string() != real_qc_b_3.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_3_result.qc_data.qc.value().data.sig.to_string() != real_block_3_result.qc_data.qc.value().data.sig.to_string());
 
       mvo proof_fake_gen_1 = finality_proof::get_finality_proof(fake_genesis_block_result, 
                                     fake_block_2_result, 
-                                    fake_chain.active_finalizer_policy.generation, 
-                                    fake_chain.active_finalizer_policy.generation, 
                                     0, 
                                     0, 
-                                    fake_qc_b_3.qc.value().data.sig.to_string(), 
+                                    fake_block_3_result.qc_data.qc.value().data.sig.to_string(), 
                                     fake_bitset,
                                     finality_proof::generate_proof_of_inclusion(fake_chain.get_finality_leaves(0), 0));
 
@@ -747,11 +875,9 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       mvo proof_real_gen_1 = finality_proof::get_finality_proof(real_genesis_block_result, 
                                     real_block_2_result, 
-                                    real_chain.active_finalizer_policy.generation, 
-                                    real_chain.active_finalizer_policy.generation, 
                                     0, 
                                     0, 
-                                    real_qc_b_3.qc.value().data.sig.to_string(), 
+                                    real_block_3_result.qc_data.qc.value().data.sig.to_string(), 
                                     real_bitset,
                                     finality_proof::generate_proof_of_inclusion(real_chain.get_finality_leaves(0), 0));
 
@@ -776,21 +902,15 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(fake_block_5_result.finality_leaf==real_block_5_result.finality_leaf);
       BOOST_TEST(fake_block_6_result.finality_leaf==real_block_6_result.finality_leaf);
 
-      qc_data_t fake_qc_b_5 = extract_qc_data(fake_block_5_result.block);
-      qc_data_t real_qc_b_5 = extract_qc_data(real_block_5_result.block);
-
-      qc_data_t fake_qc_b_6 = extract_qc_data(fake_block_6_result.block);
-      qc_data_t real_qc_b_6 = extract_qc_data(real_block_6_result.block);
-
       // verify QCs on block #5 and onward for both chains
-      BOOST_TEST(fake_qc_b_5.qc.has_value());
-      BOOST_TEST(real_qc_b_5.qc.has_value());
-      BOOST_TEST(fake_qc_b_6.qc.has_value());
-      BOOST_TEST(real_qc_b_6.qc.has_value());
+      BOOST_TEST(fake_block_5_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_5_result.qc_data.qc.has_value());
+      BOOST_TEST(fake_block_6_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_6_result.qc_data.qc.has_value());
 
       // verify that the signatures on QCs are different on both chains
-      BOOST_TEST(fake_qc_b_5.qc.value().data.sig.to_string() != real_qc_b_5.qc.value().data.sig.to_string());
-      BOOST_TEST(fake_qc_b_6.qc.value().data.sig.to_string() != real_qc_b_6.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_5_result.qc_data.qc.value().data.sig.to_string() != real_block_5_result.qc_data.qc.value().data.sig.to_string());
+      BOOST_TEST(fake_block_6_result.qc_data.qc.value().data.sig.to_string() != real_block_6_result.qc_data.qc.value().data.sig.to_string());
       
       // verify we still have the same chain on both sides at this stage
       BOOST_TEST(fake_chain.produce_blocks(6).finality_leaf == real_chain.produce_blocks(6).finality_leaf);
@@ -815,19 +935,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_10_result = fake_chain.produce_block(); // qc on fake block #3, making fake block #1 final
       auto real_block_10_result = real_chain.produce_block(); // qc on fake block #3, making real block #1 final
 
-      qc_data_t fake_qc_b_10 = extract_qc_data(fake_block_10_result.block);
-      qc_data_t real_qc_b_10 = extract_qc_data(real_block_10_result.block);
-
-      BOOST_TEST(fake_qc_b_10.qc.has_value());
-      BOOST_TEST(real_qc_b_10.qc.has_value());
+      BOOST_TEST(fake_block_10_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_10_result.qc_data.qc.has_value());
 
       mvo proof_fake_gen_2 = finality_proof::get_finality_proof(fake_block_7_result, 
                                     fake_block_9_result, 
-                                    fake_chain.active_finalizer_policy.generation, 
-                                    fake_chain.active_finalizer_policy.generation, 
                                     7, 
                                     7, 
-                                    fake_qc_b_10.qc.value().data.sig.to_string(), 
+                                    fake_block_10_result.qc_data.qc.value().data.sig.to_string(), 
                                     fake_bitset,
                                     finality_proof::generate_proof_of_inclusion(fake_chain.get_finality_leaves(7), 7));
 
@@ -855,19 +970,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_16_result = fake_chain.produce_block();
       auto real_block_16_result = real_chain.produce_block();
 
-      qc_data_t fake_qc_b_16 = extract_qc_data(fake_block_16_result.block);
-      qc_data_t real_qc_b_16 = extract_qc_data(real_block_16_result.block);
-
-      BOOST_TEST(fake_qc_b_16.qc.has_value());
-      BOOST_TEST(real_qc_b_16.qc.has_value());
+      BOOST_TEST(fake_block_16_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_16_result.qc_data.qc.has_value());
 
       mvo proof_real_gen_2 = finality_proof::get_finality_proof(real_block_13_result, 
                                     real_block_15_result, 
-                                    real_chain.active_finalizer_policy.generation, 
-                                    real_chain.active_finalizer_policy.generation, 
                                     13, 
                                     13, 
-                                    real_qc_b_16.qc.value().data.sig.to_string(), 
+                                    real_block_16_result.qc_data.qc.value().data.sig.to_string(), 
                                     real_bitset,
                                     finality_proof::generate_proof_of_inclusion(real_chain.get_finality_leaves(13), 13));
 
@@ -892,11 +1002,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_20_result = fake_chain.produce_block();
       auto real_block_20_result = real_chain.produce_block();
 
-      qc_data_t fake_qc_b_20 = extract_qc_data(fake_block_20_result.block);
-      qc_data_t real_qc_b_20 = extract_qc_data(real_block_20_result.block);
-
-      BOOST_TEST(fake_qc_b_20.qc.has_value());
-      BOOST_TEST(real_qc_b_20.qc.has_value());
+      BOOST_TEST(fake_block_20_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_20_result.qc_data.qc.has_value());
 
       fake_chain.produce_blocks(2);
       real_chain.produce_blocks(2);
@@ -904,11 +1011,9 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       // user1 stores the 3rd policy
       mvo proof_fake_gen_3 = finality_proof::get_finality_proof(fake_block_17_result, 
                                     fake_block_19_result, 
-                                    fake_chain.active_finalizer_policy.generation, 
-                                    fake_chain.active_finalizer_policy.generation, 
                                     17, 
                                     17, 
-                                    fake_qc_b_20.qc.value().data.sig.to_string(), 
+                                    fake_block_20_result.qc_data.qc.value().data.sig.to_string(), 
                                     fake_bitset,
                                     finality_proof::generate_proof_of_inclusion(fake_chain.get_finality_leaves(17), 17));
 
@@ -927,21 +1032,16 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto fake_block_24_result = fake_chain.produce_block();
       auto real_block_24_result = real_chain.produce_block();
 
-      qc_data_t fake_qc_b_24 = extract_qc_data(fake_block_24_result.block);
-      qc_data_t real_qc_b_24 = extract_qc_data(real_block_24_result.block);
-
-      BOOST_TEST(fake_qc_b_24.qc.has_value());
-      BOOST_TEST(real_qc_b_24.qc.has_value());
+      BOOST_TEST(fake_block_24_result.qc_data.qc.has_value());
+      BOOST_TEST(real_block_24_result.qc_data.qc.has_value());
 
       // user1 always keeps the last block with a QC. For brevity, we only compute the proof on the final block of this test.
       // In production, a light client would generate a proof of finality for each block, and discard it when it has a proof of finality of a more recent block
       user1_state.last_proof_of_finality = finality_proof::get_finality_proof(fake_block_21_result, 
-                                    real_block_23_result, 
-                                    fake_chain.active_finalizer_policy.generation, 
-                                    fake_chain.active_finalizer_policy.generation, 
+                                    fake_block_23_result, 
                                     21, 
                                     21, 
-                                    fake_qc_b_24.qc.value().data.sig.to_string(), 
+                                    fake_block_24_result.qc_data.qc.value().data.sig.to_string(), 
                                     fake_bitset,
                                     finality_proof::generate_proof_of_inclusion(fake_chain.get_finality_leaves(21), 21));
 

@@ -22,8 +22,12 @@ namespace finality_proof {
    // data relevant to IBC
    struct ibc_block_data_t {
       signed_block_ptr block;
+      qc_data_t qc_data;
       action_trace onblock_trace;
       finality_data_t finality_data;
+      uint32_t active_finalizer_policy_generation;
+      uint32_t last_pending_finalizer_policy_generation;
+      uint32_t last_proposed_finalizer_policy_generation;
       digest_type action_mroot;
       digest_type base_digest;
       digest_type active_finalizer_policy_digest;
@@ -70,6 +74,24 @@ namespace finality_proof {
       return merkle_branches;
    }
 
+   //extract instant finality data from block header extension, as well as qc data from block extension
+   static qc_data_t extract_qc_data(const signed_block_ptr& b) {
+      auto hexts = b->validate_and_extract_header_extensions();
+      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
+         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
+
+         // get the matching qc extension if present
+         auto exts = b->validate_and_extract_extensions();
+         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+            auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
+            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+         }
+         return qc_data_t{ {}, if_ext.qc_claim };
+      }
+      return {};
+   }
+
+
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
       return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
    }
@@ -97,13 +119,10 @@ namespace finality_proof {
       return active_finalizer_policy;
 
    }
-
    static mvo get_finality_proof(const ibc_block_data_t target_block, 
                                  const ibc_block_data_t qc_block, 
-                                 const uint32_t target_block_finalizer_policy_generation, 
-                                 const uint32_t qc_block_finalizer_policy_generation, 
-                                 const uint32_t target_node_index, 
-                                 const uint32_t last_node_index, 
+                                 const uint32_t target_block_index, 
+                                 const uint32_t final_block_index, 
                                  const std::string signature, 
                                  const std::string bitset,
                                  const std::vector<digest_type> proof_of_inclusion){
@@ -113,7 +132,7 @@ namespace finality_proof {
                ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
-                  ("finalizer_policy_generation", qc_block_finalizer_policy_generation)
+                  ("finalizer_policy_generation", qc_block.active_finalizer_policy_generation)
                   ("witness_hash", qc_block.afp_base_digest)
                   ("finality_mroot", qc_block.finality_root)
                )
@@ -123,16 +142,12 @@ namespace finality_proof {
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_node_index", target_node_index)
-               ("last_node_index", last_node_index)
+               ("target_block_index", target_block_index)
+               ("final_block_index", final_block_index)
                ("target",  mvo() 
-                  ("finality_data", mvo() 
-                     ("major_version", 1)
-                     ("minor_version", 0)
-                     ("finalizer_policy_generation", target_block_finalizer_policy_generation)
-                     ("witness_hash", target_block.afp_base_digest)
-                     ("finality_mroot", target_block.finality_root)
-                  )
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finality_digest", target_block.finality_digest)
                   ("dynamic_data", mvo() 
                      ("block_num", target_block.block->block_num())
                      ("action_proofs", fc::variants())
@@ -145,6 +160,11 @@ namespace finality_proof {
       return proof;
 
    }
+
+   struct policy_count {
+      finalizer_policy policy;
+      int32_t blocks_since_proposed;
+   };
 
    template<size_t NUM_NODES>
    class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
@@ -161,16 +181,14 @@ namespace finality_proof {
       digest_type active_finalizer_policy_digest;
 
       // counter to (optimistically) track internal policy changes
-      //uint32_t blocks_since_proposed_policy = 0;
-
-      std::unordered_map<digest_type, uint32_t> blocks_since_proposed_policy;
+      std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
       //node0 always produce blocks. This vector determines if votes from node1, node2, etc. are propagated
       std::vector<bool> vote_propagation;
       
       // internal flag to indicate whether or not block is the IF genesis block
       bool is_genesis = true;
-
+      // internal flag to indicate whether or not the transition is complete
       bool is_transition = true;
 
       // returns finality leaves for construction of merkle proofs
@@ -187,10 +205,12 @@ namespace finality_proof {
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
+         for (auto& p : blocks_since_proposed_policy) p.second.blocks_since_proposed++;
+
          //skip this part on genesis
          if (!is_genesis){
             // after 3 more QCs (6 total since the policy was proposed) the pending policy becomes active
-            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy[last_pending_finalizer_policy_digest] == 6){
+/*            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy[last_pending_finalizer_policy_digest] == 6){
                active_finalizer_policy = last_pending_finalizer_policy;
                active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
             }
@@ -199,7 +219,30 @@ namespace finality_proof {
             if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] == 3){
                last_pending_finalizer_policy = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
+            }*/
+            /*
+            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest ){
+
+               active_finalizer_policy = last_pending_finalizer_policy;
+               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
             }
+
+            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest){
+               last_pending_finalizer_policy = last_proposed_finalizer_policy;
+               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
+            }*/
+
+            for (auto& p : blocks_since_proposed_policy){
+               if (p.second.blocks_since_proposed == 6){
+                  active_finalizer_policy = p.second.policy;
+                  active_finalizer_policy_digest = p.first;
+               }
+               else if (p.second.blocks_since_proposed == 3){
+                  last_pending_finalizer_policy = p.second.policy;
+                  last_pending_finalizer_policy_digest = p.first;
+               }
+            }
+
          }
 
          // if we have policy diffs, process them
@@ -213,18 +256,16 @@ namespace finality_proof {
                last_pending_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
                active_finalizer_policy = last_proposed_finalizer_policy;
                active_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
-               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = 0;
+               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {active_finalizer_policy, 0};
             }
             else {
                // if block is not genesis, the new policy is proposed
                last_proposed_finalizer_policy = update_finalizer_policy(block, last_proposed_finalizer_policy);
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
-               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = 0;
+               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
             }
 
          }
-
-         for (auto& p : blocks_since_proposed_policy) p.second++;
 
          //process votes and collect / compute the IBC-relevant data
 
@@ -276,8 +317,14 @@ namespace finality_proof {
          if (is_transition && !is_genesis) is_transition = false; // if we are no longer in transition mode, set to false
          if (is_genesis) is_genesis = false; // if IF genesis block, set to false 
 
+         qc_data_t qc_data = extract_qc_data(block);
+
+         if (qc_data.qc.has_value()) {
+             std::cout << "qc claim  : " << qc_data.qc_claim.block_num << " , sig : " << qc_data.qc.value().data.sig.to_string() << "\n";
+         }
+
          // return relevant IBC information
-         return {block, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
+         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
 
       }
 

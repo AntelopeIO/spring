@@ -67,11 +67,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_node_index",
+                    "name": "target_block_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "last_node_index",
+                    "name": "final_block_index",
                     "type": "uint64"
                 },
                 {
@@ -141,11 +141,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_node_index",
+                    "name": "target_block_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "last_node_index",
+                    "name": "final_block_index",
                     "type": "uint64"
                 },
                 {

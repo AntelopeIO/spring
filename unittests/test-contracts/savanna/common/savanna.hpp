@@ -114,9 +114,9 @@ namespace savanna {
    }
 
    //compute the merkle root of target node and vector of merkle branches
-   checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_index, const uint64_t last_node_index){
+   checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
        checksum256 hash = target;
-       std::vector<bool> proof_path = _get_proof_path(target_index, last_node_index+1);
+       std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
 
        check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
        for (int i = 0 ; i < proof_nodes.size() ; i++){
@@ -248,8 +248,8 @@ namespace savanna {
 
    struct action_proof_of_inclusion {
 
-      uint64_t target_node_index = 0;
-      uint64_t last_node_index = 0;
+      uint64_t target_block_index = 0;
+      uint64_t final_block_index = 0;
 
       action_data target;
 
@@ -258,7 +258,7 @@ namespace savanna {
       //returns the merkle root obtained by hashing target.digest() with merkle_branches
       checksum256 root() const {
          checksum256 digest = action_data_internal(target).digest();
-         checksum256 root = _compute_root(merkle_branches, digest, target_node_index, last_node_index);
+         checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
          return root;
       }; 
 
@@ -416,8 +416,8 @@ namespace savanna {
 
    struct block_proof_of_inclusion {
 
-      uint64_t target_node_index = 0;
-      uint64_t last_node_index = 0;
+      uint64_t target_block_index = 0;
+      uint64_t final_block_index = 0;
 
       block_data_type target;
 
@@ -430,7 +430,7 @@ namespace savanna {
          if (std::holds_alternative<extended_block_data>(target)) finality_leaf = extended_block_data_internal(std::get<extended_block_data>(target)).finality_leaf();
          else if (std::holds_alternative<simple_block_data>(target)) finality_leaf = simple_block_data_internal(std::get<simple_block_data>(target)).finality_leaf();
 
-         checksum256 root = _compute_root(merkle_branches, finality_leaf, target_node_index, last_node_index);
+         checksum256 root = _compute_root(merkle_branches, finality_leaf, target_block_index, final_block_index);
          return root;
       }; 
 

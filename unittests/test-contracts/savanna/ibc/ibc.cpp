@@ -101,7 +101,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
     
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
-    uint64_t offset = target_block_proof_of_inclusion.last_node_index - target_block_proof_of_inclusion.target_node_index;
+    uint64_t offset = target_block_proof_of_inclusion.final_block_index - target_block_proof_of_inclusion.target_block_index;
 
     dynamic_data_v0 d_data;
 
