@@ -354,18 +354,19 @@ namespace eosio::chain {
          EOS_RETHROW_EXCEPTIONS( fork_database_exception, "serialized fork database is incompatible with configured protocol features" )
       }
 
-      if (mark_valid == mark_valid_t::yes)
-         bs_accessor_t::set_valid(*n, true);
-
       auto inserted = index.insert(n);
-      if( !inserted.second ) {
-         if( ignore_duplicate == ignore_duplicate_t::yes ) return;
-         EOS_THROW( fork_database_exception, "duplicate block added", ("id", n->id()) );
+      if( !inserted.second && ignore_duplicate != ignore_duplicate_t::yes ) {
+         EOS_THROW(fork_database_exception, "duplicate block added", ("id", n->id()));
       }
 
-      auto candidate = index.template get<by_best_branch>().begin();
-      if( bs_accessor_t::is_valid(**candidate) ) {
-         head = *candidate;
+      if (mark_valid == mark_valid_t::yes) {
+         mark_valid_impl(n);
+         // mark_valid_impl updates head
+      } else {
+         auto candidate = index.template get<by_best_branch>().begin();
+         if( bs_accessor_t::is_valid(**candidate) ) {
+            head = *candidate;
+         }
       }
    }
 
