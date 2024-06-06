@@ -76,13 +76,6 @@ public:
    void plugin_startup();
    void plugin_shutdown();
 
-   signed_block_ptr get_block(block_num_type block_num) const {
-      try {
-         return chain_plug->chain().fetch_block_by_number(block_num);
-      } catch(...) {}
-      return nullptr;
-   }
-
    std::optional<chain::block_id_type> get_block_id(block_num_type block_num) {
       if(trace_log) {
          if(std::optional<block_id_type> id = trace_log->get_block_id(block_num))
@@ -114,7 +107,7 @@ public:
                                                return get_block_id(block_num);
                                             },
                                             [this](const chain::block_num_type block_num) {
-                                               return get_block(block_num);
+                                               return chain_plug->chain().fetch_block_by_number(block_num);
                                             },
                                             [this](session_base* conn) {
                                                boost::asio::post(app().get_io_service(), [conn, this]() {
