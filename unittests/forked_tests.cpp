@@ -288,17 +288,17 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    wlog("set producer schedule to [dan,sam,pam,scott]");
-   c.produce_blocks(50);
+
+   // run until the producers are installed and its the start of "dan's" round
+   BOOST_REQUIRE( produce_until_transition( c, "scott"_n, "dan"_n ) );
 
    legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
    push_blocks(c, c2);
 
-   // fork happen after block 61
-   BOOST_REQUIRE_EQUAL(61u, c.control->head_block_num());
-   BOOST_REQUIRE_EQUAL(61u, c2.control->head_block_num());
-
+   // fork happen after block `fork_num`
    uint32_t fork_num = c.control->head_block_num();
+   BOOST_REQUIRE_EQUAL(fork_num, c2.control->head_block_num());
 
    auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
       auto head_time = c.control->head_block_time();
@@ -306,10 +306,15 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       return c.control->active_producers().get_scheduled_producer(next_time).producer_name;
    };
 
+   // turn off voting to allow long branches to be created in Savanna (otherwise lib advances every 3 blocks)
+   c.allow_voting(false);
+   c2.allow_voting(false);
+
+   // create the two forks in c and c2.
    // fork c: 2 producers: dan, sam
    // fork c2: 1 producer: scott
    int skip1 = 1, skip2 = 1;
-   for (int i = 0; i < 50; ++i) {
+   for (int i = 0; i < 48; ++i) {
       account_name next1 = nextproducer(c, skip1);
       if (next1 == "dan"_n || next1 == "sam"_n) {
          c.produce_block(fc::milliseconds(config::block_interval_ms * skip1)); skip1 = 1;
@@ -322,8 +327,8 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       else ++skip2;
    }
 
-   BOOST_REQUIRE_EQUAL(87u, c.control->head_block_num());
-   BOOST_REQUIRE_EQUAL(73u, c2.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());  // dan and sam each produced 12 blocks
+   BOOST_REQUIRE_EQUAL(fork_num + 12u, c2.control->head_block_num()); // only scott produced its 12 blocks
 
    // push fork from c2 => c
    size_t p = fork_num;
@@ -333,7 +338,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       c.push_block(fb);
    }
 
-   BOOST_REQUIRE_EQUAL(73u, c.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());
 
 } FC_LOG_AND_RETHROW()
 
