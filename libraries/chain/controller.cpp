@@ -1332,6 +1332,7 @@ struct controller_impl {
                transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
                return true;
             }
+            fork_db.switch_to(fork_database::in_use_t::legacy);
             return false;
          });
       }
