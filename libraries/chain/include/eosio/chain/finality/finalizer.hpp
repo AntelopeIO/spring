@@ -63,6 +63,8 @@ namespace eosio::chain {
 
       vote_result  decide_vote(const block_state_ptr& bsp);
       vote_message_ptr maybe_vote(const bls_public_key& pub_key, const block_state_ptr& bsp, const digest_type& digest);
+      // finalizer has voted strong, update fsi if it does not already contain vote or better
+      bool maybe_update_fsi(const block_state_ptr& bsp);
    };
 
    // ----------------------------------------------------------------------------------------
@@ -118,6 +120,8 @@ namespace eosio::chain {
                std::forward<F>(process_vote)(vote);
          }
       }
+
+      void maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc);
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe

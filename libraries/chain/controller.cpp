@@ -3962,6 +3962,8 @@ struct controller_impl {
          // is actually valid as it simply is used as a network message for this data.
          const auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
          set_if_irreversible_block_id(final_on_strong_qc_block_ref.block_id);
+         // Update finalizer safety information based on vote evidence
+         my_finalizers.maybe_update_fsi(claimed, received_qc);
       }
    }
 
