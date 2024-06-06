@@ -1460,8 +1460,10 @@ struct controller_impl {
             auto it = v.begin();
 
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-               if (!apply_irreversible_block(forkdb, *bitr))
+               if (!apply_irreversible_block(forkdb, *bitr)) {
+                  root_id = forkdb.root()->id();
                   break;
+               }
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
 
