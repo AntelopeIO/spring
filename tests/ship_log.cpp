@@ -207,8 +207,15 @@ BOOST_DATA_TEST_CASE(basic_prune_test, bdata::xrange(2) * bdata::xrange(2) * bda
       t.check_range_present(4, 7);
    });
 
-   //undo 6 & 7 and reapply new 6 & 7
+   //undo 6 & 7 and reapply 6
    t.add(6, payload_size, 'G', 'D');
+   t.check_n_bounce([&]() {
+      t.check_not_present(2);
+      t.check_not_present(3);
+      t.check_not_present(7);
+      t.check_range_present(4, 6);
+   });
+
    t.add(7, payload_size, 'H', 'G');
    t.check_n_bounce([&]() {
       t.check_not_present(2);
@@ -223,8 +230,14 @@ BOOST_DATA_TEST_CASE(basic_prune_test, bdata::xrange(2) * bdata::xrange(2) * bda
       t.check_range_present(7, 10);
    });
 
-   //undo back to the first stored block and then add back a new fork
+   //undo back to the first stored block
    t.add(7, payload_size, 'L', 'G');
+   t.check_n_bounce([&]() {
+      t.check_range_present(7, 7);
+      t.check_not_present(6);
+      t.check_not_present(8);
+   });
+
    t.add(8, payload_size, 'M', 'L');
    t.add(9, payload_size, 'N', 'M');
    t.add(10, payload_size, 'O', 'N');
@@ -235,11 +248,8 @@ BOOST_DATA_TEST_CASE(basic_prune_test, bdata::xrange(2) * bdata::xrange(2) * bda
       t.check_not_present(7);
    });
 
-   //pile up a lot
-   t.add(9, payload_size, 'T', 'M');
-   t.add(10, payload_size, 'U', 'T');
-   t.add(11, payload_size, 'V', 'U');
-   t.add(12, payload_size, 'W', 'V');
+   //pile up more
+   t.add(12, payload_size, 'W', 'P');
    t.add(13, payload_size, 'X', 'W');
    t.add(14, payload_size, 'Y', 'X');
    t.add(15, payload_size, 'Z', 'Y');
@@ -991,7 +1001,7 @@ BOOST_DATA_TEST_CASE(basic_split, boost::unit_test::data::make({5u, 6u, 7u, 8u, 
    //TODO: *is* the above checked?
 } FC_LOG_AND_RETHROW();
 
-BOOST_AUTO_TEST_CASE(split_forks) try {
+BOOST_DATA_TEST_CASE(split_forks, bdata::xrange(1u, 6u), fork_size) try {
    const fc::temp_directory tmpdir;
 
    state_history::partition_config conf = {
@@ -1052,32 +1062,78 @@ BOOST_AUTO_TEST_CASE(split_forks) try {
    const size_t before_41to50_log_size = std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log"));
    const size_t before_41to50_index_size = std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("index"));
 
+   const unsigned start_fork_at = end-fork_size;
    {
       eosio::state_history::log_catalog lc(tmpdir.path(), conf, "logz");
       BOOST_REQUIRE_EQUAL(lc.block_range().first, start);
       BOOST_REQUIRE_EQUAL(lc.block_range().second, end);
 
-      //start a fork at block 37
-      const unsigned bnum = 37;
-      lc.pack_and_write_entry(fake_blockid_for_num(bnum, 0xdeadUL), fake_blockid_for_num(bnum-1), [&](bio::filtering_ostreambuf& obuf) {
+      lc.pack_and_write_entry(fake_blockid_for_num(start_fork_at, 0xdeadUL), fake_blockid_for_num(start_fork_at-1), [&](bio::filtering_ostreambuf& obuf) {
          bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, mt_random()%1024*1024));
          bio::copy(hashed_randomness, obuf);
-         wrote_data_for_blocknum[bnum] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         wrote_data_for_blocknum[start_fork_at] = hashed_randomness.component<sha256_filter>(0)->enc->result();
       });
+   }
 
-      //check sizes of everything: all index sizes should remain equal; 31to40 log must have grown
+   if(fork_size == 1) {
+      //in this case we're just overwriting the last block
+      //all indexes should remain the same size
       BOOST_REQUIRE_EQUAL(before_head_index_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("index")));
       BOOST_REQUIRE_EQUAL(before_31to40_index_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("index")));
       BOOST_REQUIRE_EQUAL(before_41to50_index_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("index")));
-      BOOST_REQUIRE_EQUAL(before_head_log_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
+      //all logs should remain the same size, except the head log which will have grown
+      BOOST_REQUIRE_EQUAL(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
       BOOST_REQUIRE_EQUAL(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
-      BOOST_REQUIRE_LT(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
+      BOOST_REQUIRE_LT(before_head_log_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
+   }
+   else if(start_fork_at >= 51) {
+      //in this case only the head log will have been modified
+      //retained indexes will remain the same size
+      BOOST_REQUIRE_EQUAL(before_31to40_index_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("index")));
+      BOOST_REQUIRE_EQUAL(before_41to50_index_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("index")));
+      //head index will be smaller
+      BOOST_REQUIRE_GT(before_head_index_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("index")));
+      //retained logs will remain the same size, except head block which will have grown
+      BOOST_REQUIRE_EQUAL(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
+      BOOST_REQUIRE_EQUAL(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
+      BOOST_REQUIRE_LT(before_head_log_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
+   }
+   else {
+      //in this case we will have "unrotated" a retained log
+      //check that 31-40 log and index remains unchanged
+      BOOST_REQUIRE_EQUAL(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
+      BOOST_REQUIRE_EQUAL(before_31to40_index_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("index")));
+      if(start_fork_at == 50) {
+         //if the fork was at 50, we actually both unrotated and then rotated
+         //so check that index size for 41-50 is the same, and that its log is larger
+         BOOST_REQUIRE_LT(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
+         BOOST_REQUIRE_EQUAL(before_41to50_index_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("index")));
+         //and only empty head log is present
+         BOOST_REQUIRE_EQUAL(0u, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
+         BOOST_REQUIRE_EQUAL(0u, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("index")));
+      }
+      else {
+         //check that the 41-50 index and log do not exist
+         BOOST_REQUIRE(!std::filesystem::exists(std::filesystem::path(path_41to50).replace_extension("log")));
+         BOOST_REQUIRE(!std::filesystem::exists(std::filesystem::path(path_41to50).replace_extension("index")));
+         //check that the head index is smaller than what 41-50 index previously was
+         BOOST_REQUIRE_GT(before_41to50_index_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("index")));
+         //and that the head log is larger than what 41-50 log previously was
+         BOOST_REQUIRE_LT(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
+      }
+   }
 
-      //continue on with blocks 38 through 52
+   //reopen the log while we're in this shortened fork state
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), conf, "logz");
       BOOST_REQUIRE_EQUAL(lc.block_range().first, start);
-      BOOST_REQUIRE_EQUAL(lc.block_range().second, end);
+      BOOST_REQUIRE_EQUAL(lc.block_range().second, start_fork_at+1);
+   }
 
-      for(unsigned i = 38; i < 52+1; ++i)
+   //continue on writing to the log replacing all blocks after the fork block
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), conf, "logz");
+      for(unsigned i = start_fork_at+1; i < end; ++i)
          lc.pack_and_write_entry(fake_blockid_for_num(i, 0xdeadUL), fake_blockid_for_num(i-1, 0xdeadUL), [&](bio::filtering_ostreambuf& obuf) {
             bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, mt_random()%1024*1024));
             bio::copy(hashed_randomness, obuf);
@@ -1088,13 +1144,16 @@ BOOST_AUTO_TEST_CASE(split_forks) try {
       BOOST_REQUIRE_EQUAL(lc.block_range().second, end);
    }
 
-   //check sizes of everything: all index sizes should remain equal; logs would have grown
+   //check sizes of everything: all index sizes should have been the same as we originally started with
    BOOST_REQUIRE_EQUAL(before_head_index_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("index")));
    BOOST_REQUIRE_EQUAL(before_31to40_index_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("index")));
    BOOST_REQUIRE_EQUAL(before_41to50_index_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("index")));
    BOOST_REQUIRE_LT(before_head_log_size, std::filesystem::file_size(std::filesystem::path(head_log_path).replace_extension("log")));
-   BOOST_REQUIRE_LT(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
-   BOOST_REQUIRE_LT(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
+   if(start_fork_at >= 51)
+      BOOST_REQUIRE_EQUAL(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
+   //don't do this else for now: randomness in the data written may cause this to fail
+   //else BOOST_REQUIRE_LT(before_41to50_log_size, std::filesystem::file_size(std::filesystem::path(path_41to50).replace_extension("log")));
+   BOOST_REQUIRE_EQUAL(before_31to40_log_size, std::filesystem::file_size(std::filesystem::path(path_31to40).replace_extension("log")));
 
    //read through all the blocks and validate contents
    {

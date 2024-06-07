@@ -46,8 +46,6 @@ class log_catalog {
 
    const state_history_log::non_local_get_block_id_func non_local_get_block_id;
 
-   //cache not just an optimization: when a log file is opened the last block in its log file is used as a determination of the log's end block,
-   // so we don't want to close an old log file while it's being written to during a fork event otherwise we'd effectively corrupt the catalog state
    struct by_mru {};
    typedef multi_index_container<
      catalogued_log_file,
@@ -124,20 +122,31 @@ public:
    void pack_and_write_entry(const chain::block_id_type& id, const chain::block_id_type& prev_id, F&& pack_to) {
       const uint32_t block_num = chain::block_header::num_from_id(id);
 
-      //we need this check for the case where the retained catalog has, say, 1000-4999, the head log is empty, and block 70 is to be written.
-      // call_for_log() will refer us to the empty head log since 50 is not in the retained catalog range but we don't want to add there, obviously.
-      // whereas for block 5000 in this case we do want to act on the empty head log.
-      if(!retained_log_files.empty())
-          EOS_ASSERT(block_num >= retained_log_files.begin()->begin_block_num, chain::plugin_exception,
+      if(!retained_log_files.empty()) {
+         //always make sure we are going to write to at least the very first block in the catalog
+         EOS_ASSERT(block_num >= retained_log_files.begin()->begin_block_num, chain::plugin_exception,
                      "block ${b} is before first block ${s} of ${name}.log",
                      ("b", block_num)("s", retained_log_files.begin()->begin_block_num)("name", retained_log_files.begin()->path_and_basename.string()));
 
-      call_for_log(block_num, [&](state_history_log&& l) {
-         l.pack_and_write_entry(id, prev_id, pack_to);
-      });
+         //need to consider "unrotating" the logs. ex: split logs with 234 56789 ABC. "ABC" log is the head log. Any block that is prior to A must result in the removal
+         // of the ABC log (this does _not_ invalidate ship_log_entrys from that log!) and then the replacement of 56789 as the head log. If the new block is in the range of 5
+         // through 9, we write here to this head log. If the new block is prior to block 5 we unrotate again. Keep performing the unrotation as long as there are retained logs
+         // to pull from
+         //what's a little annoying is that we maintain an empty head log after rotation, so we can also have 234 56789 (empty), and here we want to unrotate if writing 9
+         while(!retained_log_files.empty()) {
+            if(!head_log->empty() && (block_num < head_log->block_range().first))
+               unrotate_log();
+            else if(head_log->empty() && (block_num <= retained_log_files.rbegin()->end_block_num-1))
+               unrotate_log();
+            else
+               break;
+         }
+      }
 
-      //don't look at the just written block_num here since we might have not written to the head log, just consider the state of the head log
-      if(!head_log->empty() && (head_log->block_range().second-1) % log_rotation_stride == 0)
+      //at this point the head log is certainly the log we want to insert in to
+      head_log->pack_and_write_entry(id, prev_id, pack_to);
+
+      if(block_num % log_rotation_stride == 0)
          rotate_logs();
    }
 
@@ -200,19 +209,50 @@ private:
          return f(std::forward<state_history_log>(*head_log));
    }
 
+   void unrotate_log() {
+      catalog_t::node_type last_catalogued_file = retained_log_files.extract(std::prev(retained_log_files.end()));
+
+      for(const char* ext : {"log", "index"}) {
+         std::filesystem::path fp = std::filesystem::path(head_log_path_and_basename).replace_extension(ext);
+         if(std::filesystem::exists(fp))
+            std::filesystem::remove(fp);
+      }
+
+      rename_bundle(last_catalogued_file.value().path_and_basename, head_log_path_and_basename);
+      head_log = std::move(last_catalogued_file.value().log); //don't reopen the log, if we can avoid it
+      if(!head_log)
+         open_head_log();
+   }
+
    void rotate_logs() {
       const auto [begin, end] = head_log->block_range();
       std::filesystem::path new_log_basenamepath = retained_dir / head_log_path_and_basename.stem();
       new_log_basenamepath += "-" + std::to_string(begin) + "-" + std::to_string(end-1);
-      head_log.reset();
-      //try and make sure we don't leave head_log unset if something throws below. any throw below should cause the node to
-      // stop, but during teardown of everything something might access head_log which is assumed to always be set elsewhere
-      // TODO: only close the old log once the new log is opened to avoid problems when opening throws too
-      auto reopen_head_log = fc::make_scoped_exit([this]() {
-         open_head_log();
-      });
 
+      state_history_log old_head_log = std::move(*head_log);
       rename_bundle(head_log_path_and_basename, new_log_basenamepath);
+      try {
+         //this one is "risky enough" to attempt to roll back if it fails (too many file descriptors open would be top concern)
+         open_head_log();
+      } catch(std::bad_alloc&) {
+         throw;
+      } catch(std::exception& e) {
+         wlog("Failed to rotate log ${pbn}", ("pbn", head_log_path_and_basename.string()));
+         //remove any potentially created new head log files
+         for(const char* ext : {"log", "index"}) {
+            std::filesystem::path fp = std::filesystem::path(head_log_path_and_basename).replace_extension(ext);
+            if(std::filesystem::exists(fp))
+               std::filesystem::remove(fp);
+         }
+         //rename old logs back, restore head_log instance that was never closed, and don't continue with rotation
+         rename_bundle(new_log_basenamepath, head_log_path_and_basename);
+         head_log = std::move(old_head_log);
+         return;
+      }
+
+      //it looks like ought to move the old_head_log in to this new catalogued_log_file instance. unfortunately, currently the log file cache
+      // is only pruned on accesses which means that if there were never any ship clients to access the logs the cache would grow indefinitely
+      // if we moved an open log in to the cache here
       retained_log_files.emplace(begin, end, new_log_basenamepath);
 
       while(retained_log_files.size() > max_retained_files) {

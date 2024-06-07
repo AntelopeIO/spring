@@ -261,10 +261,12 @@ private:
          _index_begin_block = _begin_block = block_num;
       else if(block_num < _begin_block)        //the log wasn't empty, but this block is before the first available block in a pruned log: reset the beginning
          _begin_block = _end_block = block_num;
-      if(was_empty || block_num == _end_block || block_num == _end_block-1) //update last_block_id for appending or overwriting last block
-         last_block_id = header.block_id;
-      if(was_empty || block_num == _end_block)
-         _end_block    = block_num + 1;
+
+      if(block_num < _end_block-1) //writing a block num less than previous head; truncate index to avoid mixup on re-open where index would indicate more blocks than really exist
+         index.resize((block_num-_index_begin_block)*sizeof(uint64_t));
+
+      last_block_id = header.block_id;
+      _end_block    = block_num + 1;
 
       index.pack_to((uint64_t)log_insert_pos, (block_num-_index_begin_block)*sizeof(uint64_t));
 
@@ -398,9 +400,13 @@ private:
             header = log.unpack_from<decltype(header)>(logpos);
             EOS_ASSERT(is_ship(header.magic) && is_ship_supported_version(header.magic), chain::plugin_exception, "corrupt ${name}, unknown header magic", ("name", log.display_path()));
 
-            const uint64_t index_offset_for_bnum = (chain::block_header::num_from_id(header.block_id) - _index_begin_block)*sizeof(uint64_t);
-            if(index.unpack_from<uint64_t>(index_offset_for_bnum) == 0)  //don't overwrite newer blocks for a given blocknum
-               index.pack_to(logpos, index_offset_for_bnum);
+            const uint32_t read_block_num = chain::block_header::num_from_id(header.block_id);
+            //may need to skip blocks if log was closed when a shorter fork has been applied; ex: log contains 2345675 (begin=2, end=6, but we see block 7 and 6 when reading)
+            if(read_block_num < _end_block) {
+               const uint64_t index_offset_for_bnum = (read_block_num - _index_begin_block)*sizeof(uint64_t);
+               if(index.unpack_from<uint64_t>(index_offset_for_bnum) == 0)  //don't overwrite newer blocks for a given blocknum, for example 234564567 only take first (from end) 6, 5, 4 blocks
+                  index.pack_to(logpos, index_offset_for_bnum);
+            }
 
             next_logpos = logpos - sizeof(uint64_t);
             if (!(chain::block_header::num_from_id(header.block_id) % 10000))
