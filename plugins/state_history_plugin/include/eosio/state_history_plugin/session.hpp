@@ -27,7 +27,7 @@ public:
    session_base(const session_base&) = delete;
    session_base& operator=(const session_base&) = delete;
 
-   virtual void block_applied(const chain::block_num_type block_num) = 0;
+   virtual void block_applied(const chain::block_num_type applied_block_num) = 0;
 
    virtual ~session_base() = default;
 };
@@ -50,10 +50,10 @@ public:
       boost::asio::co_spawn(strand, read_loop(), [&](std::exception_ptr e) {check_coros_done(e);});
    }
 
-   void block_applied(const chain::block_num_type block_num) {
+   void block_applied(const chain::block_num_type applied_block_num) {
       //indicates a fork being applied for already-sent blocks; rewind the cursor
-      if(block_num < next_block_cursor)
-         next_block_cursor = block_num;
+      if(applied_block_num < next_block_cursor)
+         next_block_cursor = applied_block_num;
       awake_if_idle();
    }
 
@@ -142,9 +142,11 @@ private:
             co_await stream.async_read(b);
             const state_request req = fc::raw::unpack<std::remove_const_t<decltype(req)>>(static_cast<const char*>(b.cdata().data()), b.size());
 
-            //TODO: how can set main thread priority on this?
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
             co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+               /**
+                * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
+                */
                std::visit(chain::overloaded {
                   [&self]<typename GetStatusRequestV0orV1, typename = std::enable_if_t<std::is_base_of_v<get_status_request_v0, GetStatusRequestV0orV1>>>(const GetStatusRequestV0orV1&) {
                      self.queued_status_requests.emplace_back(std::is_same_v<GetStatusRequestV0orV1, get_status_request_v1>);
@@ -237,9 +239,11 @@ private:
             std::deque<bool>             status_requests;
             std::optional<block_package> block_to_send;
 
-            ///TODO: How to set main thread priority?
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
             co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+               /**
+                * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
+                */
                status_requests = std::move(self.queued_status_requests);
 
                //decide what block -- if any -- to send out

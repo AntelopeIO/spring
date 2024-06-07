@@ -136,6 +136,7 @@ struct get_blocks_result_v1 : get_blocks_result_v0 {
    std::optional<bytes>          finality_data;
 };
 
+// remember to add new request & result messages to end so binary numbering remains fixed for clients that don't consume the given current ABI
 using state_request = std::variant<get_status_request_v0, get_blocks_request_v0, get_blocks_ack_request_v0, get_blocks_request_v1, get_status_request_v1>;
 using state_result  = std::variant<get_status_result_v0, get_blocks_result_v0, get_blocks_result_v1, get_status_result_v1>;
 using get_blocks_request = std::variant<get_blocks_request_v0, get_blocks_request_v1>;
