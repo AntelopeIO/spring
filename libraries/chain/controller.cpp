@@ -1323,15 +1323,17 @@ struct controller_impl {
          return fork_db.apply_l<bool>([&](const auto& forkdb_l) {
             block_state_legacy_ptr legacy = forkdb_l.get_block(bsp->id());
             fork_db.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
+            block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
+            assert(prev);
             if( apply_block(br, legacy, controller::block_status::complete, trx_meta_cache_lookup{}) ) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
-               block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
-               assert(prev);
                transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
                return true;
             }
+            // add to forkdb as it expects root != head
+            transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
             fork_db.switch_to(fork_database::in_use_t::legacy);
             return false;
          });
