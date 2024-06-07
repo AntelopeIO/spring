@@ -45,6 +45,10 @@ There is a another important interaction between random_access_file and the read
 
 size(), resize(), and punch_hole() may be called from multiple threads simultaneously. Other threads performing reads or writes on affected
  ranges will give undefined results.
+
+random_access_file isn't copyable, but it is movable. Any calls on a moved-from random_access_file are undefined. Any existing datastreams
+ and devices from before the move continue to remain valid. is_valid() can be used to determine if a random_access_file is in the invalid
+ moved-from state
 */
 
 namespace fc {
@@ -387,6 +391,11 @@ public:
 
    explicit random_access_file(const std::filesystem::path& path) : ctx(new impl::random_access_file_context(path)) {}
 
+   random_access_file(const random_access_file&) = delete;
+   random_access_file& operator=(const random_access_file&) = delete;
+   random_access_file(random_access_file&&) = default;
+   random_access_file& operator=(random_access_file&&) = default;
+
    template<typename T>
    T unpack_from(const ssize_t offset) {
       T t;
@@ -447,6 +456,10 @@ public:
 
    boost::interprocess::mapping_handle_t get_mapping_handle() const {
       return {native_handle(), false};
+   }
+
+   bool is_valid() const {
+      return !!ctx;
    }
 
    std::filesystem::path display_path() const {
