@@ -17,5 +17,9 @@ CONTRACT finality_violation : public contract {
       // The first one is the intersection of the two sets (guilty nodes), and the second one is the symmetric difference of the two sets (innocent nodes)
       [[eosio::action]]
       std::pair<std::string, std::string> addviolation(const finalizer_policy_input& finalizer_policy, const proof& proof1, const proof& proof2 );
+      
+      [[eosio::action]]
+      void inclusion(const finalizer_policy_input& finalizer_policy, const proof& proof);
+
 
 };

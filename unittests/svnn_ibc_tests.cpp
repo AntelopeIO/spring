@@ -52,7 +52,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // Moving forward, the header action_mroot field is reconverted to provide the finality_mroot.
       // The action_mroot is instead provided via the finality data
       auto block_2_result = cluster.produce_block(); //block num : 6
-      
+
       // block_3 contains a QC over block_2
       auto block_3_result = cluster.produce_block(); //block num : 7
 
@@ -253,7 +253,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       indices1[0] = 1;                       // update key used for node0 in policy, which will result in a new policy
 
       // take note of policy digest prior to changes
-      digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
+      digest_type previous_policy_digest = fc::sha256::hash(cluster.active_finalizer_policy);
 
       // change the finalizer policy by rotating the key of node0
       cluster.node0.finkeys.set_finalizer_policy(indices1);
@@ -404,27 +404,27 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // At this stage, we can test the change in pending policy.
 
       // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
-      digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
+      digest_type pending_policy_digest = fc::sha256::hash(cluster.last_pending_finalizer_policy);
 
       // still the same
-      BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
+      BOOST_TEST(pending_policy_digest==fc::sha256::hash(cluster.last_pending_finalizer_policy));
 
       // QC on #10 included in #11 makes #8 final, proposed policy is now pending
       auto block_11_result = cluster.produce_block(); 
 
       // verify that the last pending policy has been updated
-      BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
+      BOOST_TEST(pending_policy_digest!=fc::sha256::hash(cluster.last_pending_finalizer_policy));
 
       auto block_12_result = cluster.produce_block();
       auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
    
       //verify that the current finalizer policy is still in force up to this point    
-      BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
+      BOOST_TEST(previous_policy_digest==fc::sha256::hash(cluster.active_finalizer_policy));
       
       auto block_14_result = cluster.produce_block();
 
       //verify that the new finalizer policy is now in force
-      BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
+      BOOST_TEST(previous_policy_digest!=fc::sha256::hash(cluster.active_finalizer_policy));
 
       auto block_15_result = cluster.produce_block();
       auto block_16_result = cluster.produce_block();

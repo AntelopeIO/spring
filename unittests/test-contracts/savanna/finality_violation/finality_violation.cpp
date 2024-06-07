@@ -51,3 +51,13 @@ std::pair<std::string, std::string> finality_violation::addviolation(const final
     return {result.first.to_string(), result.second.to_string()};
 
 }
+
+void finality_violation::inclusion(const finalizer_policy_input& finalizer_policy, const proof& proof){
+
+    check(proof.finality_proof.has_value(), "proof must include finality proof");
+
+    _check_qc(proof.finality_proof->qc, block_finality_data_internal(proof.finality_proof->qc_block).finality_digest(), finalizer_policy);
+
+    checksum256 finality_mroot = proof.target_block_proof_of_inclusion.root();
+
+}

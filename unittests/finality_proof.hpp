@@ -18,21 +18,17 @@ using mvo = mutable_variant_object;
 
 namespace finality_proof {
 
-
-   // data relevant to IBC
-   struct ibc_block_data_t {
+   // data relevant to finality proofs
+   struct finality_block_data_t {
       signed_block_ptr block;
       qc_data_t qc_data;
       action_trace onblock_trace;
       finality_data_t finality_data;
-      uint32_t active_finalizer_policy_generation;
-      uint32_t last_pending_finalizer_policy_generation;
-      uint32_t last_proposed_finalizer_policy_generation;
       digest_type action_mroot;
       digest_type base_digest;
-      digest_type active_finalizer_policy_digest;
-      digest_type last_pending_finalizer_policy_digest;
-      digest_type last_proposed_finalizer_policy_digest;
+      finalizer_policy active_finalizer_policy;
+      finalizer_policy last_pending_finalizer_policy;
+      finalizer_policy last_proposed_finalizer_policy;
       digest_type finality_digest;
       digest_type computed_finality_digest;
       digest_type afp_base_digest;
@@ -119,8 +115,8 @@ namespace finality_proof {
       return active_finalizer_policy;
 
    }
-   static mvo get_finality_proof(const ibc_block_data_t target_block, 
-                                 const ibc_block_data_t qc_block, 
+   static mvo get_finality_proof(const finality_block_data_t target_block, 
+                                 const finality_block_data_t qc_block, 
                                  const uint32_t target_block_index, 
                                  const uint32_t final_block_index, 
                                  const std::string signature, 
@@ -132,7 +128,8 @@ namespace finality_proof {
                ("qc_block", mvo()
                   ("major_version", 1)
                   ("minor_version", 0)
-                  ("finalizer_policy_generation", qc_block.active_finalizer_policy_generation)
+                  ("finalizer_policy_generation", qc_block.active_finalizer_policy.generation)
+                  ("final_on_qc_block_num", target_block.block->block_num() - (final_block_index-target_block_index) )
                   ("witness_hash", qc_block.afp_base_digest)
                   ("finality_mroot", qc_block.finality_root)
                )
@@ -144,7 +141,7 @@ namespace finality_proof {
             ("target_block_proof_of_inclusion", mvo() 
                ("target_block_index", target_block_index)
                ("final_block_index", final_block_index)
-               ("target",  mvo() 
+               ("target", fc::variants{"simple_block_data", mvo() 
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finality_digest", target_block.finality_digest)
@@ -152,7 +149,7 @@ namespace finality_proof {
                      ("block_num", target_block.block->block_num())
                      ("action_proofs", fc::variants())
                      ("action_mroot", target_block.action_mroot)
-                  )
+                  )}
                )
                ("merkle_branches", proof_of_inclusion)
             );
@@ -166,19 +163,24 @@ namespace finality_proof {
       int32_t blocks_since_proposed;
    };
 
+   struct proof_of_finality {
+      finalizer_policy policy;
+      std::vector<finality_block_data_t> qc_chain;
+      mvo proof;
+      bool replace;
+   };
+
    template<size_t NUM_NODES>
    class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
    public:
 
       // cache last proposed, last pending and currently active finalizer policies + digests
       eosio::chain::finalizer_policy last_proposed_finalizer_policy;
-      digest_type last_proposed_finalizer_policy_digest;
-
       eosio::chain::finalizer_policy last_pending_finalizer_policy;
-      digest_type last_pending_finalizer_policy_digest;
-
       eosio::chain::finalizer_policy active_finalizer_policy;
-      digest_type active_finalizer_policy_digest;
+
+      std::vector<finality_block_data_t> qc_chain;
+      std::vector<proof_of_finality> proofs_of_finality;
 
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
@@ -191,13 +193,17 @@ namespace finality_proof {
       // internal flag to indicate whether or not the transition is complete
       bool is_transition = true;
 
+      uint32_t genesis_block_num = 0;
+      
+      std::string bitset;
+
       // returns finality leaves for construction of merkle proofs
       std::vector<digest_type> get_finality_leaves(const size_t cutoff){
          assert(cutoff>=0 && cutoff<finality_leaves.size());
          return std::vector<digest_type>(finality_leaves.begin(), finality_leaves.begin() + cutoff + 1);
       }
 
-      ibc_block_data_t process_result(eosio::testing::produce_block_result_t result){
+      finality_block_data_t process_result(eosio::testing::produce_block_result_t result){
 
          signed_block_ptr block = result.block;
 
@@ -207,67 +213,36 @@ namespace finality_proof {
 
          for (auto& p : blocks_since_proposed_policy) p.second.blocks_since_proposed++;
 
-         //skip this part on genesis
-         if (!is_genesis){
-            // after 3 more QCs (6 total since the policy was proposed) the pending policy becomes active
-/*            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy[last_pending_finalizer_policy_digest] == 6){
-               active_finalizer_policy = last_pending_finalizer_policy;
-               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
-            }
+         bool replace = true;
 
-            // after 3 QCs, the proposed policy becomes pending
-            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] == 3){
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
-            }*/
-            /*
-            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest ){
-
-               active_finalizer_policy = last_pending_finalizer_policy;
-               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
-            }
-
-            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest){
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
-            }*/
-
+         if (is_genesis){
+            last_proposed_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());;
+            last_pending_finalizer_policy = last_proposed_finalizer_policy;
+            active_finalizer_policy = last_proposed_finalizer_policy;
+            blocks_since_proposed_policy[fc::sha256::hash(last_proposed_finalizer_policy)] = {active_finalizer_policy, 0};
+            genesis_block_num = block->block_num();
+         }
+         else {
             for (auto& p : blocks_since_proposed_policy){
                if (p.second.blocks_since_proposed == 6){
                   active_finalizer_policy = p.second.policy;
-                  active_finalizer_policy_digest = p.first;
+                  //replace = false; //tombstone moment for the previous policy
+                  replace = false;
                }
                else if (p.second.blocks_since_proposed == 3){
                   last_pending_finalizer_policy = p.second.policy;
-                  last_pending_finalizer_policy_digest = p.first;
                }
             }
-
-         }
-
-         // if we have policy diffs, process them
-         if (has_finalizer_policy_diffs(block)){
-
-            if (is_genesis){
-               // if block is genesis, the initial policy is the last proposed, last pending and currently active
-               last_proposed_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());;
-               last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
-               active_finalizer_policy = last_proposed_finalizer_policy;
-               active_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
-               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {active_finalizer_policy, 0};
-            }
-            else {
+               
+            // if we have policy diffs, process them
+            if (has_finalizer_policy_diffs(block)){
                // if block is not genesis, the new policy is proposed
                last_proposed_finalizer_policy = update_finalizer_policy(block, last_proposed_finalizer_policy);
-               last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
-               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
+               blocks_since_proposed_policy[fc::sha256::hash(last_proposed_finalizer_policy)] = {last_proposed_finalizer_policy, 0};
             }
-
          }
 
-         //process votes and collect / compute the IBC-relevant data
+         //process votes and collect / compute the finality-relevant data
 
          if (vote_propagation.size() == 0) this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
          else this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
@@ -275,7 +250,7 @@ namespace finality_proof {
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, base_digest);
+         digest_type afp_base_digest = hash_pair(fc::sha256::hash(last_pending_finalizer_policy), base_digest);
          digest_type finality_digest;
 
          if (is_genesis){
@@ -314,29 +289,49 @@ namespace finality_proof {
          // add finality leaf to the internal list
          finality_leaves.push_back(finality_leaf);
 
-         if (is_transition && !is_genesis) is_transition = false; // if we are no longer in transition mode, set to false
-         if (is_genesis) is_genesis = false; // if IF genesis block, set to false 
+         if (is_transition && !is_genesis) is_transition = false; // if we are no longer in transition mode, set is_transition flag to false
+         if (is_genesis) is_genesis = false; // if this was the genesis block, set is_genesis flag to false 
 
          qc_data_t qc_data = extract_qc_data(block);
 
-         if (qc_data.qc.has_value()) {
-             std::cout << "qc claim  : " << qc_data.qc_claim.block_num << " , sig : " << qc_data.qc.value().data.sig.to_string() << "\n";
+         // relevant finality information
+         finality_block_data_t finality_block_data{block, qc_data, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy, last_pending_finalizer_policy, last_proposed_finalizer_policy, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
+
+         if (qc_chain.size()==4) qc_chain.erase(qc_chain.begin());
+
+         qc_chain.push_back(finality_block_data);
+
+         if (qc_chain.size() == 4){
+
+            uint32_t target_block_num = qc_chain[0].block->block_num() - genesis_block_num;
+
+            auto proof = get_finality_proof( qc_chain[0],    
+                                             qc_chain[2], 
+                                             target_block_num, 
+                                             target_block_num, 
+                                             qc_chain[3].qc_data.qc.value().data.sig.to_string(),
+                                             bitset,
+                                             finality_proof::generate_proof_of_inclusion(get_finality_leaves(target_block_num), target_block_num));
+   
+            if (proofs_of_finality.size()>0 && proofs_of_finality[proofs_of_finality.size()-1].replace) proofs_of_finality.pop_back();
+
+            proofs_of_finality.push_back({active_finalizer_policy, qc_chain, proof, replace});
+
          }
 
-         // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
+         return finality_block_data;
 
       }
 
-      // produce and propagate a block, update internal state as needed, and returns relevant IBC data 
-      ibc_block_data_t produce_block(){
+      // produce and propagate a block, update internal state as needed, and returns relevant finality data 
+      finality_block_data_t produce_block(){
          assert(vote_propagation.size() == 0 || vote_propagation.size() == NUM_NODES-1);
          eosio::testing::produce_block_result_t result = this->produce_and_push_block_ex();
          return(process_result(result));
       }
 
-      ibc_block_data_t produce_blocks(const uint32_t count){
-         ibc_block_data_t result;
+      finality_block_data_t produce_blocks(const uint32_t count){
+         finality_block_data_t result;
          for (uint32_t i = 0 ; i < count ; i++){
             result=produce_block();
          }

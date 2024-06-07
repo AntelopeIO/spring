@@ -241,6 +241,20 @@
             ]
         },
         {
+            "name": "inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "proof",
+                    "type": "proof"
+                }
+            ]
+        },
+        {
             "name": "pair_string_string",
             "base": "",
             "fields": [
@@ -323,6 +337,11 @@
         {
             "name": "addviolation",
             "type": "addviolation",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "inclusion",
+            "type": "inclusion",
             "ricardian_contract": ""
         }
     ],
