@@ -121,7 +121,7 @@ namespace eosio::chain {
 
       explicit fork_database_impl() = default;
 
-      void             open_impl( const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
+      void             open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void             close_impl( std::ofstream& out );
       void             add_impl( const bsp_t& n, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
       bool             is_valid() const;
@@ -153,13 +153,13 @@ namespace eosio::chain {
    fork_database_t<BSP>::~fork_database_t() = default; // close is performed in fork_database::~fork_database()
 
    template<class BSP>
-   void fork_database_t<BSP>::open( const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
+   void fork_database_t<BSP>::open( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
       std::lock_guard g( my->mtx );
-      my->open_impl( fork_db_file, ds, validator );
+      my->open_impl( desc, fork_db_file, ds, validator );
    }
 
    template<class BSP>
-   void fork_database_impl<BSP>::open_impl( const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
+   void fork_database_impl<BSP>::open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
       bsp_t _root = std::make_shared<bs_t>();
       fc::raw::unpack( ds, *_root );
       reset_root_impl( _root );
@@ -182,20 +182,20 @@ namespace eosio::chain {
          if (!head)
             std::filesystem::remove( fork_db_file );
          EOS_ASSERT( head, fork_database_exception,
-                     "could not find head while reconstructing fork database from file; "
+                     "could not find head while reconstructing fork database from file; ${d} "
                      "'${filename}' is likely corrupted and has been removed",
-                     ("filename", fork_db_file) );
+                     ("d", desc)("filename", fork_db_file) );
       }
 
       auto candidate = index.template get<by_best_branch>().begin();
       if( candidate == index.template get<by_best_branch>().end() || !bs_accessor_t::is_valid(**candidate) ) {
          EOS_ASSERT( head->id() == root->id(), fork_database_exception,
-                     "head not set to root despite no better option available; '${filename}' is likely corrupted",
-                     ("filename", fork_db_file) );
+                     "head not set to root despite no better option available; ${d} '${filename}' is likely corrupted",
+                     ("d", desc)("filename", fork_db_file) );
       } else {
          EOS_ASSERT( !first_preferred( **candidate, *head ), fork_database_exception,
-                     "head not set to best available option available; '${filename}' is likely corrupted",
-                     ("filename", fork_db_file) );
+                     "head not set to the best available option available; ${d} '${filename}' is likely corrupted",
+                     ("d", desc)("filename", fork_db_file) );
       }
    }
 
@@ -354,17 +354,21 @@ namespace eosio::chain {
          EOS_RETHROW_EXCEPTIONS( fork_database_exception, "serialized fork database is incompatible with configured protocol features" )
       }
 
-      if (mark_valid == mark_valid_t::yes)
-         bs_accessor_t::set_valid(*n, true);
-
       auto inserted = index.insert(n);
-      if( !inserted.second ) {
-         if( ignore_duplicate == ignore_duplicate_t::yes ) return;
-         EOS_THROW( fork_database_exception, "duplicate block added", ("id", n->id()) );
+      EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
+                 "duplicate block added: ${id}", ("id", n->id()));
+
+      if (mark_valid == mark_valid_t::yes) {
+         // if just inserted and was inserted already valid then no update needed
+         if (!inserted.second || !bs_accessor_t::is_valid(*n)) {
+            index.modify( inserted.first, []( auto& i ) {
+               bs_accessor_t::set_valid(*i, true);
+            } );
+         }
       }
 
       auto candidate = index.template get<by_best_branch>().begin();
-      if( bs_accessor_t::is_valid(**candidate) ) {
+      if (bs_accessor_t::is_valid(**candidate)) {
          head = *candidate;
       }
    }
@@ -786,7 +790,7 @@ namespace eosio::chain {
             {
                // ---------- pre-Savanna format. Just a single fork_database_l ----------------
                in_use = in_use_t::legacy;
-               fork_db_l.open(fork_db_file, ds, validator);
+               fork_db_l.open("legacy", fork_db_file, ds, validator);
                break;
             }
 
@@ -800,13 +804,13 @@ namespace eosio::chain {
                bool legacy_valid { false };
                fc::raw::unpack( ds, legacy_valid );
                if (legacy_valid) {
-                  fork_db_l.open(fork_db_file, ds, validator);
+                  fork_db_l.open("legacy", fork_db_file, ds, validator);
                }
 
                bool savanna_valid { false };
                fc::raw::unpack( ds, savanna_valid );
                if (savanna_valid) {
-                  fork_db_s.open(fork_db_file, ds, validator);
+                  fork_db_s.open("savanna", fork_db_file, ds, validator);
                }
                break;
             }
