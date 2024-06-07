@@ -16,7 +16,7 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(chain_tests)
 
 BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
-   validating_tester tester;
+   legacy_validating_tester tester;
 
    const auto new_key = get_public_key(name("newkey"), config::active_name.to_string());
 

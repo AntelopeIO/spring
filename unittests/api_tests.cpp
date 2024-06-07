@@ -799,7 +799,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_failed, validating_tester_no_disable_deferr
                                  });
    action act({}, test_api_action<TEST_METHOD("test_transaction", "stateful_api")>{});
    trx.context_free_actions.push_back(act);
-   set_transaction_headers(trx, 10, 2);
+   set_transaction_headers(trx, 10);
    trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
 
    BOOST_CHECK_EXCEPTION(push_transaction( trx ), fc::exception,
