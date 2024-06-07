@@ -8,6 +8,7 @@
 #include <eosio/state_history/trace_converter.hpp>
 #include <eosio/testing/tester.hpp>
 #include <fc/io/json.hpp>
+#include <fc/io/cfile.hpp>
 #include <eosio/chain/global_property_object.hpp>
 
 #include "test_cfd_transaction.hpp"

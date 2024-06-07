@@ -6,13 +6,10 @@
 #include <eosio/state_history/log_config.hpp>
 #include <eosio/state_history/counter.hpp>
 
-#include <fc/io/cfile.hpp>
 #include <fc/io/random_access_file.hpp>
 #include <fc/log/logger.hpp>
 #include <fc/log/logger_config.hpp> //set_thread_name
-#include <fc/bitutil.hpp>
 
-#include <boost/asio.hpp>
 #include <boost/iostreams/device/file.hpp>
 #include <boost/iostreams/device/file_descriptor.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
@@ -21,7 +18,6 @@
 #include <boost/iostreams/operations.hpp>
 #include <boost/iostreams/copy.hpp>
 
-#include <fstream>
 #include <cstdint>
 
 namespace eosio::state_history {

@@ -4,6 +4,7 @@
 #include <boost/test/data/monomorphic/generators/xrange.hpp>
 
 #include <fc/io/raw.hpp>
+#include <fc/io/cfile.hpp>
 #include <fc/bitutil.hpp>
 #include <fc/crypto/rand.hpp>
 #include <fc/crypto/sha256.hpp>
