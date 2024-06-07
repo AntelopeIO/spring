@@ -355,9 +355,8 @@ namespace eosio::chain {
       }
 
       auto inserted = index.insert(n);
-      if( !inserted.second && ignore_duplicate != ignore_duplicate_t::yes ) {
-         EOS_THROW(fork_database_exception, "duplicate block added: ${id}", ("id", n->id()));
-      }
+      EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
+                 "duplicate block added: ${id}", ("id", n->id()));
 
       if (mark_valid == mark_valid_t::yes) {
          // if just inserted and was inserted already valid then no update needed
