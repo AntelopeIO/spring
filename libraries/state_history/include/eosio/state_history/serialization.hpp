@@ -83,6 +83,14 @@ datastream<ST>& history_serialize_container(datastream<ST>& ds, const T& v) {
 }
 
 template <typename ST, typename T>
+datastream<ST>& history_serialize_container(datastream<ST>& ds, const std::optional<T>& v) {
+   fc::raw::pack(ds, v.has_value());
+   if (v)
+      ds << make_history_serial_wrapper(*v);
+   return ds;
+}
+
+template <typename ST, typename T>
 datastream<ST>& history_serialize_container(datastream<ST>& ds, const std::vector<std::shared_ptr<T>>& v) {
    fc::raw::pack(ds, unsigned_int(v.size()));
    for (auto& x : v) {
@@ -729,6 +737,34 @@ datastream<ST>& operator<<(datastream<ST>& ds, const eosio::state_history::get_b
    fc::raw::pack(ds, obj.this_block);
    fc::raw::pack(ds, obj.prev_block);
    history_pack_big_bytes(ds, obj.block);
+   return ds;
+}
+
+template <typename ST>
+datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stateless<eosio::chain::finalizer_authority>& obj) {
+   fc::raw::pack(ds, obj.obj.description);
+   fc::raw::pack(ds, obj.obj.weight);
+   fc::raw::pack(ds, obj.obj.public_key.to_string());
+   return ds;
+}
+
+template <typename ST>
+datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stateless<eosio::chain::finalizer_policy>& obj) {
+   fc::raw::pack(ds, obj.obj.generation);
+   fc::raw::pack(ds, obj.obj.threshold);
+   history_serialize_container(ds, obj.obj.finalizers);
+   return ds;
+}
+
+template <typename ST>
+datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stateless<eosio::chain::finality_data_t>& obj) {
+   fc::raw::pack(ds, obj.obj.major_version);
+   fc::raw::pack(ds, obj.obj.minor_version);
+   fc::raw::pack(ds, obj.obj.active_finalizer_policy_generation);
+   fc::raw::pack(ds, obj.obj.final_on_strong_qc_block_num);
+   fc::raw::pack(ds, obj.obj.action_mroot);
+   fc::raw::pack(ds, obj.obj.base_digest);
+   history_serialize_container(ds, obj.obj.proposed_finalizer_policy);
    return ds;
 }
 

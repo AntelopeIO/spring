@@ -287,7 +287,7 @@ public:
          .magic = ship_magic(ship_current_version, 0), .block_id = id, .payload_size = 0};
       finality_data_log->pack_and_write_entry(header, previous_id, [finality_data](auto&& buf) {
          fc::datastream<boost::iostreams::filtering_ostreambuf&> ds{buf};
-         fc::raw::pack(ds, *finality_data);
+         fc::raw::pack(ds, make_history_serial_wrapper(*finality_data));
       });
    }
 
