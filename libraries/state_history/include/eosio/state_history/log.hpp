@@ -100,7 +100,7 @@ public:
    }
 private:
    std::optional<state_history::prune_config> prune_config;
-   const non_local_get_block_id_func          non_local_get_block_id;
+   non_local_get_block_id_func                non_local_get_block_id;
 
    fc::random_access_file       log;
    fc::random_access_file       index;
@@ -109,12 +109,14 @@ private:
    uint32_t                     _end_block         = 0;
    chain::block_id_type         last_block_id;
 
-   const unsigned packed_header_size = fc::raw::pack_size(log_header());
-   const unsigned packed_header_with_sizes_size = fc::raw::pack_size(log_header_with_sizes());
+   inline static const unsigned packed_header_size = fc::raw::pack_size(log_header());
+   inline static const unsigned packed_header_with_sizes_size = fc::raw::pack_size(log_header_with_sizes());
 
  public:
    state_history_log(const state_history_log&) = delete;
    state_history_log& operator=(state_history_log&) = delete;
+   state_history_log(state_history_log&&) = default;
+   state_history_log& operator=(state_history_log&&) = default;
 
    state_history_log(const std::filesystem::path& log_dir_and_stem,
                      non_local_get_block_id_func non_local_get_block_id = no_non_local_get_block_id_func,
@@ -156,6 +158,9 @@ private:
    }
 
    ~state_history_log() {
+      //we're a carcass of a state_history_log that was moved out of
+      if(!log.is_valid() || !index.is_valid())
+         return;
       //nothing to do if log is empty or we aren't pruning
       if(empty())
          return;
