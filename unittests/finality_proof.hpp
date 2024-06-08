@@ -31,7 +31,7 @@ namespace finality_proof {
       finalizer_policy last_proposed_finalizer_policy;
       digest_type finality_digest;
       digest_type computed_finality_digest;
-      digest_type afp_base_digest;
+      digest_type lpfp_base_digest;
       digest_type finality_leaf;
       digest_type finality_root;
    };
@@ -130,7 +130,7 @@ namespace finality_proof {
                   ("minor_version", 0)
                   ("finalizer_policy_generation", qc_block.active_finalizer_policy.generation)
                   ("final_on_qc_block_num", target_block.block->block_num() - (final_block_index-target_block_index) )
-                  ("witness_hash", qc_block.afp_base_digest)
+                  ("witness_hash", qc_block.lpfp_base_digest)
                   ("finality_mroot", qc_block.finality_root)
                )
                ("qc", mvo()
@@ -226,7 +226,6 @@ namespace finality_proof {
             for (auto& p : blocks_since_proposed_policy){
                if (p.second.blocks_since_proposed == 6){
                   active_finalizer_policy = p.second.policy;
-                  //replace = false; //tombstone moment for the previous policy
                   replace = false;
                }
                else if (p.second.blocks_since_proposed == 3){
@@ -250,7 +249,7 @@ namespace finality_proof {
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type afp_base_digest = hash_pair(fc::sha256::hash(last_pending_finalizer_policy), base_digest);
+         digest_type lpfp_base_digest = hash_pair(fc::sha256::hash(last_pending_finalizer_policy), base_digest);
          digest_type finality_digest;
 
          if (is_genesis){
@@ -260,7 +259,7 @@ namespace finality_proof {
                .active_finalizer_policy_generation      = 1,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = digest_type(), //nothing to finalize yet
-               .last_pending_finalizer_policy_and_base_digest = afp_base_digest
+               .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
             });
          }
          else finality_digest = this->node0.control->get_strong_digest_by_id(block->calculate_id());
@@ -283,7 +282,7 @@ namespace finality_proof {
                .active_finalizer_policy_generation      = active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = is_genesis ? digest_type() : finality_root,
-               .last_pending_finalizer_policy_and_base_digest = afp_base_digest
+               .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
             });
 
          // add finality leaf to the internal list
@@ -295,7 +294,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // relevant finality information
-         finality_block_data_t finality_block_data{block, qc_data, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy, last_pending_finalizer_policy, last_proposed_finalizer_policy, finality_digest, computed_finality_digest, afp_base_digest, finality_leaf, finality_root };
+         finality_block_data_t finality_block_data{block, qc_data, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy, last_pending_finalizer_policy, last_proposed_finalizer_policy, finality_digest, computed_finality_digest, lpfp_base_digest, finality_leaf, finality_root };
 
          if (qc_chain.size()==4) qc_chain.erase(qc_chain.begin());
 

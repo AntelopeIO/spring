@@ -156,27 +156,27 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto real_block_10_result = real_chain.produce_block();
 
       //call setfinalizer on the fake chain every block for 6 consecutive blocks
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_B);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_B);
       auto fake_block_11_result = fake_chain.produce_block();
       auto real_block_11_result = real_chain.produce_block();
 
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_C);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_C);
       auto fake_block_12_result = fake_chain.produce_block();
       auto real_block_12_result = real_chain.produce_block();
 
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_D);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_D);
       auto fake_block_13_result = fake_chain.produce_block();
       auto real_block_13_result = real_chain.produce_block();
 
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_E);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_E);
       auto fake_block_14_result = fake_chain.produce_block();
       auto real_block_14_result = real_chain.produce_block();
 
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_F);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_F);
       auto fake_block_15_result = fake_chain.produce_block();
       auto real_block_15_result = real_chain.produce_block();
 
-      //fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_G);
+      fake_chain.node0.finkeys.set_finalizer_policy(indices_policy_G);
       auto fake_block_16_result = fake_chain.produce_block();
       auto real_block_16_result = real_chain.produce_block();
 
@@ -210,6 +210,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       
       auto fake_block_26_result = fake_chain.produce_block();
       auto real_block_26_result = real_chain.produce_block();
+
 
       std::cout << "\nfake chain -> proofs_of_finality count : " << fake_chain.proofs_of_finality.size() << "\n\n";
       for (size_t i = 0 ; i < fake_chain.proofs_of_finality.size() ; i++){
@@ -301,6 +302,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_10_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_10_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_10_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_10_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_10_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_10_result.last_pending_finalizer_policy.generation << 
@@ -309,6 +311,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_10_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_10_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_10_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_10_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 11 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_11_result.last_proposed_finalizer_policy.generation << 
@@ -318,6 +321,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_11_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_11_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_11_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_11_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_11_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_11_result.last_pending_finalizer_policy.generation << 
@@ -326,6 +330,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_11_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_11_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_11_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_11_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 12 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_12_result.last_proposed_finalizer_policy.generation << 
@@ -335,6 +340,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_12_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_12_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_12_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_12_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_12_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_12_result.last_pending_finalizer_policy.generation << 
@@ -343,6 +349,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_12_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_12_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_12_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_12_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 13 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_13_result.last_proposed_finalizer_policy.generation << 
@@ -352,6 +359,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_13_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_13_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_13_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_13_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_13_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_13_result.last_pending_finalizer_policy.generation << 
@@ -360,6 +368,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_13_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_13_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_13_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_13_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 14 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_14_result.last_proposed_finalizer_policy.generation << 
@@ -369,6 +378,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_14_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_14_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_14_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_14_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_14_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_14_result.last_pending_finalizer_policy.generation << 
@@ -377,6 +387,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_14_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_14_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_14_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_14_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 15 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_15_result.last_proposed_finalizer_policy.generation << 
@@ -386,6 +397,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_15_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_15_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_15_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_15_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_15_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_15_result.last_pending_finalizer_policy.generation << 
@@ -394,6 +406,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_15_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_15_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_15_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_15_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 16 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_16_result.last_proposed_finalizer_policy.generation << 
@@ -403,6 +416,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_16_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_16_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_16_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_16_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_16_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_16_result.last_pending_finalizer_policy.generation << 
@@ -411,6 +425,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_16_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_16_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_16_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_16_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 17 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_17_result.last_proposed_finalizer_policy.generation << 
@@ -420,6 +435,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_17_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_17_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_17_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_17_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_17_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_17_result.last_pending_finalizer_policy.generation << 
@@ -428,6 +444,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_17_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_17_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_17_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_17_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 18 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_18_result.last_proposed_finalizer_policy.generation << 
@@ -437,6 +454,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_18_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_18_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_18_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_18_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_18_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_18_result.last_pending_finalizer_policy.generation << 
@@ -445,6 +463,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_18_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_18_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_18_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_18_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 19 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_19_result.last_proposed_finalizer_policy.generation << 
@@ -454,6 +473,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_19_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_19_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_19_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_19_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_19_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_19_result.last_pending_finalizer_policy.generation << 
@@ -462,6 +482,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_19_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_19_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_19_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_19_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 20 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_20_result.last_proposed_finalizer_policy.generation << 
@@ -471,6 +492,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_20_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_20_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_20_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_20_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_20_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_20_result.last_pending_finalizer_policy.generation << 
@@ -479,6 +501,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_20_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_20_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_20_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_20_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 21 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_21_result.last_proposed_finalizer_policy.generation << 
@@ -488,6 +511,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_21_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_21_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_21_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_21_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_21_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_21_result.last_pending_finalizer_policy.generation << 
@@ -496,6 +520,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_21_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_21_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_21_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_21_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 22 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_22_result.last_proposed_finalizer_policy.generation << 
@@ -505,6 +530,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_22_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_22_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_22_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_22_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_22_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_22_result.last_pending_finalizer_policy.generation << 
@@ -513,6 +539,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_22_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_22_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_22_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_22_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 23 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_23_result.last_proposed_finalizer_policy.generation << 
@@ -522,6 +549,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_23_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_23_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_23_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_23_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_23_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_23_result.last_pending_finalizer_policy.generation << 
@@ -530,6 +558,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_23_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_23_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_23_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_23_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 24 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_24_result.last_proposed_finalizer_policy.generation << 
@@ -539,6 +568,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_24_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_24_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_24_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_24_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_24_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_24_result.last_pending_finalizer_policy.generation << 
@@ -547,6 +577,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_24_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_24_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_24_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_24_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 25 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_25_result.last_proposed_finalizer_policy.generation << 
@@ -556,6 +587,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_25_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_25_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_25_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_25_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_25_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_25_result.last_pending_finalizer_policy.generation << 
@@ -564,6 +596,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_25_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_25_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_25_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_25_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "\n*** Block 26 ***" << "\n";
       std::cout << "  Fake Chain : " << fake_block_26_result.last_proposed_finalizer_policy.generation << 
@@ -573,6 +606,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_block_26_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(fake_block_26_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_block_26_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << fake_block_26_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_block_26_result.last_proposed_finalizer_policy.generation << 
                                    " " << real_block_26_result.last_pending_finalizer_policy.generation << 
@@ -581,6 +615,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_block_26_result.last_pending_finalizer_policy) << 
                                           "->" << fc::sha256::hash(real_block_26_result.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_block_26_result.finality_digest << "\n";
+      std::cout << "    Tombstone Policy Digest : " << real_block_26_result.finality_data.tombstone_finalizer_policy_digest << "\n";
 
    } FC_LOG_AND_RETHROW() }
 
@@ -752,7 +787,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_qc_block_num", 11)
-                  ("witness_hash", fake_block_9_result.afp_base_digest)
+                  ("witness_hash", fake_block_9_result.lpfp_base_digest)
                   ("finality_mroot", fake_block_9_result.finality_root)
                )
                ("qc", mvo()
@@ -769,7 +804,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
                      ("final_on_qc_block_num", 9)
-                     ("witness_hash", fake_block_7_result.afp_base_digest)
+                     ("witness_hash", fake_block_7_result.lpfp_base_digest)
                      ("finality_mroot", fake_block_7_result.finality_root)
                   )
                   ("dynamic_data", mvo() 
@@ -801,7 +836,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_qc_block_num", 11)
-                  ("witness_hash", real_block_9_result.afp_base_digest)
+                  ("witness_hash", real_block_9_result.lpfp_base_digest)
                   ("finality_mroot", real_block_9_result.finality_root)
                )
                ("qc", mvo()
@@ -818,7 +853,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
                      ("final_on_qc_block_num", 9)
-                     ("witness_hash", real_block_7_result.afp_base_digest)
+                     ("witness_hash", real_block_7_result.lpfp_base_digest)
                      ("finality_mroot", real_block_7_result.finality_root)
                   )
                   ("dynamic_data", mvo() 

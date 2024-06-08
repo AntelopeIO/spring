@@ -42,13 +42,6 @@ digest_type block_header_state::compute_base_digest() const {
    return enc.result();
 }
 
-digest_type block_header_state::encode_num_in_digest(const digest_type& original_digest, const uint32_t num) const{
-   block_id_type result = original_digest;
-   result._hash[0] &= 0xffffffff00000000;
-   result._hash[0] += fc::endian_reverse_u32(num);
-   return result;
-}
-
 digest_type block_header_state::compute_finality_digest() const {
    auto base_digest = compute_base_digest();
    std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
@@ -58,6 +51,7 @@ digest_type block_header_state::compute_finality_digest() const {
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
+      .tombstone_finalizer_policy_digest       = tombstone_finalizer_policy_digest,
       .finality_tree_digest                    = finality_mroot(),
       .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
@@ -197,6 +191,7 @@ void finish_next(const block_header_state& prev,
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
                // new finalizer_policy becones active
                // -----------------------------------
+               next_header_state.tombstone_finalizer_policy_digest = fc::sha256::hash(*next_header_state.active_finalizer_policy);
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
