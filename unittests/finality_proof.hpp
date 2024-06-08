@@ -22,7 +22,7 @@ namespace finality_proof {
    struct finality_block_data_t {
       signed_block_ptr block;
       qc_data_t qc_data;
-      digest_type qc_policy;
+      digest_type qc_signed_by_policy;
       action_trace onblock_trace;
       finality_data_t finality_data;
       digest_type action_mroot;
@@ -181,7 +181,6 @@ namespace finality_proof {
       eosio::chain::finalizer_policy active_finalizer_policy;
 
       std::vector<finality_block_data_t> qc_chain;
-      std::vector<proof_of_finality> proofs_of_finality;
 
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
@@ -204,6 +203,12 @@ namespace finality_proof {
          return std::vector<digest_type>(finality_leaves.begin(), finality_leaves.begin() + cutoff + 1);
       }
 
+      std::vector<proof_of_finality> get_proofs_of_finality(){
+         std::vector<proof_of_finality> pfs = proofs_of_tombstone_finality;
+         pfs.push_back(last_proof_of_finality);
+         return pfs;
+      }
+
       finality_block_data_t process_result(eosio::testing::produce_block_result_t result){
 
          signed_block_ptr block = result.block;
@@ -211,7 +216,7 @@ namespace finality_proof {
          BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
 
          qc_data_t qc_data = extract_qc_data(block);
-         digest_type qc_policy;
+         digest_type qc_signed_by_policy;
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
@@ -223,10 +228,10 @@ namespace finality_proof {
             active_finalizer_policy = last_proposed_finalizer_policy;
             blocks_since_proposed_policy[fc::sha256::hash(last_proposed_finalizer_policy)] = {active_finalizer_policy, 0};
             genesis_block_num = block->block_num();
-            qc_policy = fc::sha256::hash(active_finalizer_policy);
+            qc_signed_by_policy = fc::sha256::hash(active_finalizer_policy);
          }
          else {
-            qc_policy = fc::sha256::hash(active_finalizer_policy);
+            qc_signed_by_policy = fc::sha256::hash(active_finalizer_policy);
             for (auto& p : blocks_since_proposed_policy){
                if (p.second.blocks_since_proposed == 6){
                   active_finalizer_policy = p.second.policy;
@@ -295,7 +300,7 @@ namespace finality_proof {
          if (is_genesis) is_genesis = false; // if this was the genesis block, set is_genesis flag to false 
 
          // relevant finality information
-         finality_block_data_t finality_block_data{block, qc_data, qc_policy, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy, last_pending_finalizer_policy, last_proposed_finalizer_policy, finality_digest, computed_finality_digest, lpfp_base_digest, finality_leaf, finality_root };
+         finality_block_data_t finality_block_data{block, qc_data, qc_signed_by_policy, onblock_trace, finality_data, action_mroot, base_digest, active_finalizer_policy, last_pending_finalizer_policy, last_proposed_finalizer_policy, finality_digest, computed_finality_digest, lpfp_base_digest, finality_leaf, finality_root };
 
          if (qc_chain.size()==4) qc_chain.erase(qc_chain.begin());
 
@@ -312,16 +317,10 @@ namespace finality_proof {
                                              qc_chain[3].qc_data.qc.value().data.sig.to_string(),
                                              bitset,
                                              finality_proof::generate_proof_of_inclusion(get_finality_leaves(target_block_num), target_block_num));
-      
-            bool is_proof_of_finality_for_genesis_policy = false;
-
-            if (proofs_of_finality.size() == 0){
-               is_proof_of_finality_for_genesis_policy = true;
-            }
-            else if (!proofs_of_finality[proofs_of_finality.size()-1].is_proof_of_finality_for_genesis_policy 
-                     && proofs_of_finality[proofs_of_finality.size()-1].qc_chain[0].finality_data.tombstone_finalizer_policy_digest.empty() ) proofs_of_finality.pop_back();
-
-            proofs_of_finality.push_back({is_proof_of_finality_for_genesis_policy, qc_chain[0].finality_data.tombstone_finalizer_policy_digest, qc_chain, proof});
+         
+            if (proofs_of_tombstone_finality.size() == 0) proofs_of_tombstone_finality.push_back({true, qc_chain[0].finality_data.tombstone_finalizer_policy_digest, qc_chain, proof});
+            else if (!qc_chain[0].finality_data.tombstone_finalizer_policy_digest.empty()) proofs_of_tombstone_finality.push_back({false, qc_chain[0].finality_data.tombstone_finalizer_policy_digest, qc_chain, proof});
+            else last_proof_of_finality = {false, digest_type(), qc_chain, proof};
 
          }
 
@@ -351,6 +350,8 @@ namespace finality_proof {
 
    private:
       std::vector<digest_type> finality_leaves;
+      std::vector<proof_of_finality> proofs_of_tombstone_finality;
+      proof_of_finality last_proof_of_finality;
 
    };
 
