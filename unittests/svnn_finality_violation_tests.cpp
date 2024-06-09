@@ -485,7 +485,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_8.value().generation == 2);
       BOOST_TEST(result_8.value().policy.first == 'B');
 
-
       //test the fastest succession of policies possible
       std::optional<finality_violation_blame> result_9 = perform_test(15, 15,
          {{3, 'B'}, {4, 'C'}, {5, 'D'}, {6, 'E'}, {7, 'F'}, {8, 'G'}, {9, 'H'}, {10, 'I'}},
@@ -497,7 +496,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_9.has_value());
       BOOST_TEST(result_9.value().generation == 1);
       BOOST_TEST(result_9.value().policy.first == 'A');
-
 
       //test the case where a real chain is longer than the fake chain
       std::optional<finality_violation_blame> result_10 = perform_test(15, 25,
@@ -532,7 +530,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_12.has_value());
       BOOST_TEST(result_12.value().generation == 2);
       BOOST_TEST(result_12.value().policy.first == 'B');
-
 
       //test the fastest succession of policies possible
       std::optional<finality_violation_blame> result_13 = perform_test(15, 18,
