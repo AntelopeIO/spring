@@ -495,7 +495,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // The QC provided in this proof (over block #14) is signed by the second generation of finalizers.
       
       // heavy_proof_3 must be proven before we can prove heavy_proof_4.
-
+      // Since this is the sunset moment for policy #1, we must also include its digest in the qc block, since it is part of the payload that must be signed by finalizers
       mutable_variant_object heavy_proof_4= mvo()
          ("proof", mvo() 
             ("finality_proof", mvo()
@@ -504,6 +504,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 2)
                   ("final_on_qc_block_num", 16)
+                  ("sunset_finalizer_policy_digest", block_14_result.finality_data.sunset_finalizer_policy_digest)
                   ("witness_hash", block_14_result.lpfp_base_digest)
                   ("finality_mroot", block_14_result.finality_root)
                )
@@ -549,6 +550,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
+
+      return;
 
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached

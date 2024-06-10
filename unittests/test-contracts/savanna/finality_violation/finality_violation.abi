@@ -123,6 +123,10 @@
                     "type": "uint32"
                 },
                 {
+                    "name": "sunset_finalizer_policy_digest",
+                    "type": "checksum256?"
+                },
+                {
                     "name": "new_finalizer_policy",
                     "type": "finalizer_policy_input?"
                 },

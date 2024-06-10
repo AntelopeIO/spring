@@ -274,6 +274,7 @@ namespace finality_proof {
             finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = 1,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
+               .sunset_finalizer_policy_digest          = finality_data.sunset_finalizer_policy_digest,
                .finality_tree_digest                    = digest_type(), //nothing to finalize yet
                .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
             });
@@ -297,6 +298,7 @@ namespace finality_proof {
          digest_type computed_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
                .active_finalizer_policy_generation      = active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
+               .sunset_finalizer_policy_digest          = finality_data.sunset_finalizer_policy_digest,
                .finality_tree_digest                    = is_genesis ? digest_type() : finality_root,
                .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
             });

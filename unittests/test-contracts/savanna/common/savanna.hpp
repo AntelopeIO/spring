@@ -307,6 +307,8 @@ namespace savanna {
 
       uint32_t final_on_qc_block_num = 0;
 
+      std::optional<checksum256> sunset_finalizer_policy_digest;
+
       std::optional<finalizer_policy_input> new_finalizer_policy;
 
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
@@ -332,9 +334,11 @@ namespace savanna {
 
    struct block_finality_data_internal : block_finality_data {
 
+      checksum256 resolved_sunset_finalizer_policy_digest;
       checksum256 resolved_witness_hash;
 
       block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
+         if (base.sunset_finalizer_policy_digest.has_value()) resolved_sunset_finalizer_policy_digest = base.sunset_finalizer_policy_digest.value();
          resolved_witness_hash = base.resolve_witness();
       }
 
@@ -344,7 +348,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_qc_block_num)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_qc_block_num)(resolved_sunset_finalizer_policy_digest)(finality_mroot)(resolved_witness_hash))
 
    };
 
