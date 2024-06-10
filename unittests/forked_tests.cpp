@@ -19,6 +19,7 @@ using namespace eosio::testing;
 // by https://github.com/AntelopeIO/spring/issues/196
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
+// ---------------------------- irrblock ---------------------------------
 BOOST_AUTO_TEST_CASE( irrblock ) try {
    legacy_tester c;
    c.produce_blocks(10);
@@ -35,6 +36,7 @@ struct fork_tracker {
    incremental_merkle_tree_legacy     block_merkle;
 };
 
+// ---------------------------- fork_with_bad_block ---------------------------------
 BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
    legacy_tester bios;
    bios.produce_block();
@@ -126,6 +128,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
 
 } FC_LOG_AND_RETHROW();
 
+// ---------------------------- forking ---------------------------------
 BOOST_AUTO_TEST_CASE( forking ) try {
    legacy_tester c;
    while (c.control->head_block_num() < 3) {
@@ -269,6 +272,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 } FC_LOG_AND_RETHROW()
 
 
+// ---------------------------- prune_remove_branch ---------------------------------
 /**
  *  This test verifies that the fork-choice rule favors the branch with
  *  the highest last irreversible block over one that is longer.
@@ -331,6 +335,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
 } FC_LOG_AND_RETHROW()
 
 
+// ---------------------------- validator_accepts_valid_blocks ---------------------------------
 /**
  *  Tests that a validating node does not accept a block which is considered invalid by another node.
  */
