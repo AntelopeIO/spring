@@ -122,8 +122,6 @@ struct block_header_state {
    block_header_state next(block_header_state_input& data) const;
    block_header_state next(const signed_block_header& h, validator_t& validator) const;
 
-   digest_type encode_num_in_digest(const digest_type& original_digest, const uint32_t num) const;
-
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
