@@ -334,11 +334,12 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
 /**
  *  Tests that a validating node does not accept a block which is considered invalid by another node.
  */
-BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) try {
+template <class TESTER>
+void test_validator_accepts_valid_blocks() try {
 
-   legacy_tester n1(setup_policy::none);
-   legacy_tester n2(setup_policy::none);
-   legacy_tester n3(setup_policy::none);
+   TESTER n1;
+   TESTER n2;
+   TESTER n3;
 
    n1.produce_block();
 
@@ -369,9 +370,12 @@ BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) try {
    n3.push_block( first_block );
 
    BOOST_CHECK_EQUAL( n3.control->head_block_id(), id );
-
-
 } FC_LOG_AND_RETHROW()
+
+BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) {
+   legacy_tester c;		   test_validator_accepts_valid_blocks<legacy_tester>();
+   test_validator_accepts_valid_blocks<tester>();
+}
 
 BOOST_AUTO_TEST_CASE( read_modes ) try {
    legacy_tester c;
