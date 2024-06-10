@@ -103,9 +103,11 @@ namespace eosio::chain {
          // Would require making sure that only the latest is ever written to the file and that the file access was protected separately.
          std::unique_lock g(mtx);
 
-         if (!enable_voting && bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
-            return;
-         enable_voting = true;
+         if (!enable_voting) { // Avoid extra processing while syncing. Once caught up, consider voting
+            if (bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
+               return;
+            enable_voting = true;
+         }
 
          // first accumulate all the votes
          for (const auto& f : fin_pol.finalizers) {
