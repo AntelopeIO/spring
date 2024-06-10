@@ -322,6 +322,8 @@ private:
    coro_throwing_stream              stream;
    coro_nonthrowing_steadytimer      wake_timer;
    unsigned                          coros_running = 0;
+   std::atomic_flag                  has_logged_exception;  //left as atomic_flag for useful test_and_set() interface
+   OnDone                            on_done;
 
    ///these items must only ever be touched on the main thread
    std::deque<bool>                  queued_status_requests;  //false for v0, true for v1
@@ -341,8 +343,6 @@ private:
    GetBlock                          get_block;
 
    ///these items might be used on either the strand or main thread
-   std::atomic_flag                  has_logged_exception;  //as is right now, this doesn't get used on anything but the strand
-   OnDone                            on_done;
    fc::logger&                       logger;
    const std::string                 remote_endpoint_string;
 };
