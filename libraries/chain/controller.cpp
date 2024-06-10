@@ -1232,7 +1232,7 @@ struct controller_impl {
     chain_id( chain_id ),
     read_mode( cfg.read_mode ),
     thread_pool(),
-    my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
+    my_finalizers(cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -1323,15 +1323,17 @@ struct controller_impl {
          return fork_db.apply_l<bool>([&](const auto& forkdb_l) {
             block_state_legacy_ptr legacy = forkdb_l.get_block(bsp->id());
             fork_db.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
+            block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
+            assert(prev);
             if( apply_block(br, legacy, controller::block_status::complete, trx_meta_cache_lookup{}) ) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
-               block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
-               assert(prev);
                transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
                return true;
             }
+            // add to forkdb as it expects root != head
+            transition_add_to_savanna_fork_db(forkdb, legacy, bsp, prev);
             fork_db.switch_to(fork_database::in_use_t::legacy);
             return false;
          });
@@ -3699,8 +3701,7 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(
-          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
@@ -4612,8 +4613,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-      my_finalizers.set_keys(finalizer_keys);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -5763,8 +5764,8 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-   my->set_node_finalizer_keys(finalizer_keys);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
 }
 
 /// Protocol feature activation handlers:
