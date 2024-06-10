@@ -27,7 +27,7 @@ struct finality_digest_data_v1 {
    uint32_t    minor_version{light_header_protocol_version_minor};
    uint32_t    active_finalizer_policy_generation {0};
    uint32_t    final_on_strong_qc_block_num {0};
-   digest_type tombstone_finalizer_policy_digest;
+   digest_type sunset_finalizer_policy_digest;
    digest_type finality_tree_digest;
    digest_type last_pending_finalizer_policy_and_base_digest;
 
@@ -81,7 +81,7 @@ struct block_header_state {
    finalizer_policy_ptr                active_finalizer_policy; // finalizer set + threshold + generation, supports `digest()`
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
-   digest_type                         tombstone_finalizer_policy_digest;
+   digest_type                         sunset_finalizer_policy_digest;
 
    // block time when proposer_policy will become active
    // current algorithm only two entries possible, for the next,next round and one for block round after that
@@ -163,4 +163,4 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (active_proposer_policy)(proposer_policies)(finalizer_policies)
             (finalizer_policy_generation)(last_pending_finalizer_policy_digest)(header_exts))
 
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(tombstone_finalizer_policy_digest)(finality_tree_digest)(last_pending_finalizer_policy_and_base_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(sunset_finalizer_policy_digest)(finality_tree_digest)(last_pending_finalizer_policy_and_base_digest) )

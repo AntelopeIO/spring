@@ -168,7 +168,7 @@ namespace finality_proof {
 
    struct proof_of_finality {
       bool is_proof_of_finality_for_genesis_policy;
-      digest_type tombstone_for_policy;
+      digest_type sunset_for_policy;
       std::vector<finality_block_data_t> qc_chain;
       mvo proof;
    };
@@ -190,7 +190,7 @@ namespace finality_proof {
       //node0 always produce blocks. This vector determines if votes from node1, node2, etc. are propagated
       std::vector<bool> vote_propagation;
       
-      //indicates if this proof test cluster retains all proofs of finality (real chain), or only genesis, tombstones + last (light client view / fake chain)
+      //indicates if this proof test cluster retains all proofs of finality (real chain), or only genesis, sunsets + last (light client view / fake chain)
       bool fully_discoverable = true;
 
       //if the chain is fully_discoverable, store all proofs of finality
@@ -212,7 +212,7 @@ namespace finality_proof {
       }
 
       std::vector<proof_of_finality> get_light_client_proofs_of_finality(){
-         std::vector<proof_of_finality> pfs = proofs_of_tombstone_finality;
+         std::vector<proof_of_finality> pfs = proofs_of_policy_sunset;
          pfs.push_back(last_regular_proof_of_finality);
          return pfs;
       }
@@ -326,8 +326,8 @@ namespace finality_proof {
                                              bitset,
                                              finality_proof::generate_proof_of_inclusion(get_finality_leaves(target_block_num), target_block_num));
       
-            if (proofs_of_tombstone_finality.size() == 0) proofs_of_tombstone_finality.push_back({true, qc_chain[0].finality_data.tombstone_finalizer_policy_digest, qc_chain, proof});
-            else if (!qc_chain[0].finality_data.tombstone_finalizer_policy_digest.empty()) proofs_of_tombstone_finality.push_back({false, qc_chain[0].finality_data.tombstone_finalizer_policy_digest, qc_chain, proof});
+            if (proofs_of_policy_sunset.size() == 0) proofs_of_policy_sunset.push_back({true, qc_chain[0].finality_data.sunset_finalizer_policy_digest, qc_chain, proof});
+            else if (!qc_chain[0].finality_data.sunset_finalizer_policy_digest.empty()) proofs_of_policy_sunset.push_back({false, qc_chain[0].finality_data.sunset_finalizer_policy_digest, qc_chain, proof});
             else {
                last_regular_proof_of_finality = {false, digest_type(), qc_chain, proof};
                if (fully_discoverable) all_regular_proofs_of_finality.push_back(last_regular_proof_of_finality);
@@ -361,7 +361,7 @@ namespace finality_proof {
 
    private:
       std::vector<digest_type> finality_leaves;
-      std::vector<proof_of_finality> proofs_of_tombstone_finality;
+      std::vector<proof_of_finality> proofs_of_policy_sunset;
       proof_of_finality last_regular_proof_of_finality;
 
    };

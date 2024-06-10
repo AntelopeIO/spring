@@ -592,7 +592,7 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "minor_version", "type": "uint32" },
                 { "name": "active_finalizer_policy_generation", "type": "uint32" },
                 { "name": "final_on_strong_qc_block_num", "type": "uint32" },
-                { "name": "tombstone_finalizer_policy_digest", "type": "checksum256" },
+                { "name": "sunset_finalizer_policy_digest", "type": "checksum256" },
                 { "name": "action_mroot", "type": "checksum256" },
                 { "name": "base_digest", "type": "checksum256" },
                 { "name": "proposed_finalizer_policy", "type": "finalizer_policy?" }

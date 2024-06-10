@@ -40,33 +40,21 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       if (pf.is_proof_of_finality_for_genesis_policy){
          std::cout   << "  block containing the QC that makes IF genesis final " << pf.qc_chain[3].block->block_num() 
                      << " (IF index : "  << pf.qc_chain[3].block->block_num() - chain.genesis_block_num << ")\n";
-         std::cout   << "  No tombstone since this is the proof of IF Genesis finality\n";
+         std::cout   << "  No sunset since this is the proof of IF Genesis finality\n";
       }
-      else if (!pf.qc_chain[0].finality_data.tombstone_finalizer_policy_digest.empty()){
-         std::cout   << "  block containing the QC which finalizes the previous policy tombstone moment : " << pf.qc_chain[3].block->block_num() 
+      else if (!pf.qc_chain[0].finality_data.sunset_finalizer_policy_digest.empty()){
+         std::cout   << "  block containing the QC which finalizes the previous policy sunset moment : " << pf.qc_chain[3].block->block_num() 
                      << " (IF index : " << pf.qc_chain[3].block->block_num() - chain.genesis_block_num << ")\n";
-         std::cout   << "  Tombstone for policy : " << pf.qc_chain[0].finality_data.tombstone_finalizer_policy_digest << "\n";
+         std::cout   << "  sunset for policy : " << pf.qc_chain[0].finality_data.sunset_finalizer_policy_digest << "\n";
       }
       else {
          std::cout   << "  block containing the QC that proves the finality of the last known final block " << pf.qc_chain[3].block->block_num() 
                      << " (IF index : "  << pf.qc_chain[3].block->block_num() - chain.genesis_block_num << ")\n";
-         std::cout   << "  No tombstone proof included in this block\n";
+         std::cout   << "  No sunset proof included in this block\n";
       }
 
       std::cout << "\n";
 
-   }
-
-   bool active_finalizer_policy_digest_comparer(const finality_proof::proof_of_finality& result, const digest_type& digest){
-      return fc::sha256::hash(result.qc_chain[0].active_finalizer_policy) == digest;
-   }
-
-   bool tombstone_comparer(const finality_proof::proof_of_finality& first_result, const finality_proof::proof_of_finality& second_result){
-      return first_result.qc_chain[0].finality_data.tombstone_finalizer_policy_digest == second_result.qc_chain[0].finality_data.tombstone_finalizer_policy_digest;
-   }
-
-   bool block_num_comparer(const finality_proof::proof_of_finality& first_result, const finality_proof::proof_of_finality& second_result){
-      return first_result.qc_chain[0].block->block_num() >= second_result.qc_chain[0].block->block_num();
    }
 
    void print_blocks_comparison(const finality_proof::finality_block_data_t fake_chain_finality_block_data, const finality_proof::finality_block_data_t real_chain_finality_block_data, const uint32_t genesis_block_num){
@@ -84,7 +72,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(fake_chain_finality_block_data.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << fake_chain_finality_block_data.finality_digest << "\n";
       std::cout << "    QC Signed by : " << fake_chain_finality_block_data.qc_signed_by_policy << "\n";
-      std::cout << "    Tombstone Policy Digest : " << fake_chain_finality_block_data.finality_data.tombstone_finalizer_policy_digest << "\n";
+      std::cout << "    sunset Policy Digest : " << fake_chain_finality_block_data.finality_data.sunset_finalizer_policy_digest << "\n";
 
       std::cout << "  Real Chain : " << real_chain_finality_block_data.last_proposed_finalizer_policy.generation << 
                                    " " << real_chain_finality_block_data.last_pending_finalizer_policy.generation << 
@@ -94,8 +82,20 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                           "->" << fc::sha256::hash(real_chain_finality_block_data.active_finalizer_policy) << "\n";
       std::cout << "    Finality Digest : " << real_chain_finality_block_data.finality_digest << "\n";
       std::cout << "    QC Signed by : " << real_chain_finality_block_data.qc_signed_by_policy << "\n";
-      std::cout << "    Tombstone Policy Digest : " << real_chain_finality_block_data.finality_data.tombstone_finalizer_policy_digest << "\n";
+      std::cout << "    sunset Policy Digest : " << real_chain_finality_block_data.finality_data.sunset_finalizer_policy_digest << "\n";
 
+   }
+
+   bool active_finalizer_policy_digest_eq_comparer(const finality_proof::proof_of_finality& result, const digest_type& digest){
+      return fc::sha256::hash(result.qc_chain[0].active_finalizer_policy) == digest;
+   }
+
+   bool sunset_finalizer_policy_digest_eq_comparer(const finality_proof::proof_of_finality& first_result, const finality_proof::proof_of_finality& second_result){
+      return first_result.qc_chain[0].finality_data.sunset_finalizer_policy_digest == second_result.qc_chain[0].finality_data.sunset_finalizer_policy_digest;
+   }
+
+   bool block_num_geq_comparer(const finality_proof::proof_of_finality& first_result, const finality_proof::proof_of_finality& second_result){
+      return first_result.qc_chain[0].block->block_num() >= second_result.qc_chain[0].block->block_num();
    }
 
    struct finality_violation_blame {
@@ -112,7 +112,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                          const std::vector<uint32_t> fake_chain_vote_propagation_flips, 
                                                          const std::vector<uint32_t> real_chain_vote_propagation_flips){
 
-      std::cout << "New Finality Violation Test\n";
+      //std::cout << "New Finality Violation Test\n";
 
       assert(fake_blocks_to_produce>0);
       assert(real_blocks_to_produce>0);
@@ -214,9 +214,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             : real_chain.vote_propagation = real_chain_vote_propagation_default;
 
          }
-         std::cout << "real_blocks_to_produce " << i <<"\n";
          real_block_results.push_back(real_chain.produce_block());
-         std::cout << "produced real block " << i <<"\n";
 
 
          if (r_pc_itr!=real_chain_policy_changes.end()){
@@ -230,10 +228,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          }
 
          if (i == 0 ){
-            //if block is IF genesis, verify we have the same initial state
-            //BOOST_TEST(fake_chain.genesis_block_num == real_chain.genesis_block_num);
-            //BOOST_TEST(fc::sha256::hash(fake_chain.active_finalizer_policy) == fc::sha256::hash(real_chain.active_finalizer_policy));
-
             std::cout << "\nGenesis finalizer policy generation : 1 -> A (" << fc::sha256::hash(real_chain.active_finalizer_policy) 
                                                                   << ") on both chain\n";
 
@@ -261,9 +255,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             : fake_chain.vote_propagation = fake_chain_vote_propagation_default;
          }
 
-         std::cout << "fake_blocks_to_produce " << i <<"\n";
          fake_block_results.push_back(fake_chain.produce_block());
-         std::cout << "produced fake block " << i <<"\n";
 
          if (f_pc_itr!=fake_chain_policy_changes.end()){
             std::cout   << "Proposed finalizer policy generation : " 
@@ -275,13 +267,9 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       }
 
-      return std::nullopt;
-
       std::vector<finality_proof::proof_of_finality> fake_chain_proofs_of_finality = fake_chain.get_light_client_proofs_of_finality();
       std::vector<finality_proof::proof_of_finality> real_chain_proofs_of_finality = real_chain.get_light_client_proofs_of_finality();
-
-      return std::nullopt;
-      
+/*
       std::cout << "\nfake chain -> get_light_client_proofs_of_finality() count : " << fake_chain_proofs_of_finality.size() << "\n\n";
       for (size_t i = 0 ; i < fake_chain_proofs_of_finality.size() ; i++){
          print_proof_of_finality(fake_chain_proofs_of_finality[i], fake_chain);
@@ -291,8 +279,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       for (size_t i = 0 ; i < real_chain_proofs_of_finality.size() ; i++){
          print_proof_of_finality(real_chain_proofs_of_finality[i], real_chain);
       }
- 
-      return std::nullopt;
+ */
 
       auto f_fp_itr = fake_chain_proofs_of_finality.rbegin();
 
@@ -308,22 +295,20 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       while (f_fp_itr!=fake_chain_proofs_of_finality.rend()){
 
-         //std::cout << "Iteration " << count << "\n";
-
-         if (f_fp_itr->qc_chain[0].finality_data.tombstone_finalizer_policy_digest.empty()){
-            std::cout << "Looking for common active policy : " << fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy) << "\n";
-            r_fp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_comparer, std::placeholders::_1, fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy)));
+         if (f_fp_itr->qc_chain[0].finality_data.sunset_finalizer_policy_digest.empty()){
+            //std::cout << "Looking for common active policy : " << fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy) << "\n";
+            r_fp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_eq_comparer, std::placeholders::_1, fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy)));
          }
          else {
-            std::cout << "Looking for common policy tombstone digest : " << f_fp_itr->qc_chain[0].finality_data.tombstone_finalizer_policy_digest << "\n";
-            r_fp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(tombstone_comparer, std::placeholders::_1, *f_fp_itr));
+            //std::cout << "Looking for common policy sunset digest : " << f_fp_itr->qc_chain[0].finality_data.sunset_finalizer_policy_digest << "\n";
+            r_fp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(sunset_finalizer_policy_digest_eq_comparer, std::placeholders::_1, *f_fp_itr));
 
          }
 
          if (r_fp_itr!=real_chain_proofs_of_finality.end()){
 
             if (r_fp_itr->is_proof_of_finality_for_genesis_policy){
-               std::cout << "last common policy is IF genesis policy\n";
+               //std::cout << "last common policy is IF genesis policy\n";
                r_common_policy = r_fp_itr;
                f_common_policy = f_fp_itr;
                r_next_policy = ++r_fp_itr;
@@ -331,17 +316,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                break;
             }
 
-            auto f_afp_itr = std::find_if(fake_chain_proofs_of_finality.begin(), fake_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_comparer, std::placeholders::_1, fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy)));
-            auto r_afp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_comparer, std::placeholders::_1, fc::sha256::hash(r_fp_itr->qc_chain[0].active_finalizer_policy)));
+            auto f_afp_itr = std::find_if(fake_chain_proofs_of_finality.begin(), fake_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_eq_comparer, std::placeholders::_1, fc::sha256::hash(f_fp_itr->qc_chain[0].active_finalizer_policy)));
+            auto r_afp_itr = std::find_if(real_chain_proofs_of_finality.begin(), real_chain_proofs_of_finality.end(), std::bind(active_finalizer_policy_digest_eq_comparer, std::placeholders::_1, fc::sha256::hash(r_fp_itr->qc_chain[0].active_finalizer_policy)));
 
             assert(f_afp_itr!=fake_chain_proofs_of_finality.end());
             assert(r_afp_itr!=real_chain_proofs_of_finality.end());
 
-            //std::cout << "f_afp_itr->qc_chain[0].finality_digest : " << f_afp_itr->qc_chain[0].finality_digest << "\n";
-            //std::cout << "r_afp_itr->qc_chain[0].finality_digest : " << r_afp_itr->qc_chain[0].finality_digest << "\n";
-            
             if (f_afp_itr->qc_chain[0].finality_digest==r_afp_itr->qc_chain[0].finality_digest){
-               std::cout << "last common policy found\n";
+               //std::cout << "last common policy found\n";
                r_common_policy = r_fp_itr;
                f_common_policy = f_fp_itr;
                r_next_policy = ++r_fp_itr;
@@ -363,13 +345,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       auto using_r_policy = r_next_policy == real_chain_proofs_of_finality.end() ? r_common_policy : r_next_policy;
       auto using_f_policy = f_next_policy == fake_chain_proofs_of_finality.end() ? --f_common_policy.base() : f_next_policy;
 
-      std::cout << "found last common policy\n";
+/*      std::cout << "found last common policy\n";
       std::cout << "last common policy is : " << fc::sha256::hash(r_common_policy->qc_chain[0].active_finalizer_policy) << "\n";
       std::cout << "\n";
-
+*/
       //if the digest of the last recorded proof of finality for the last common policy is the same for both chains, no finality violation occurred
       if(using_r_policy->qc_chain[0].finality_digest==using_f_policy->qc_chain[0].finality_digest ) {
-         std::cout << "No finality violation detected\n\n\n";
+         //std::cout << "No finality violation detected\n\n\n";
          return std::nullopt;
       }
       else {
@@ -378,7 +360,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          bool finality_violation_occurred = false;
 
          if (using_r_policy->qc_chain[0].block->block_num() <= using_f_policy->qc_chain[0].block->block_num() ){
-            std::cout << "same or lower block number on the real chain\n";
+            //std::cout << "same or lower block number on the real chain\n";
             //if the block num for the last proof of finality of this policy on the real chain is less or equal to the block num on the fake chain, a finality violation has occurred 
             finality_violation_occurred = true;
          }
@@ -386,10 +368,10 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //if the real chain is longer than the fake chain, we look through its history for the proof of finality for the block at the same height than the last one we recorded on 
             //the fake chain
 
-            std::cout << "higher block number on the real chain\n";
+            //std::cout << "higher block number on the real chain\n";
             std::vector<finality_proof::proof_of_finality> all_regular_proofs_of_finality = real_chain.all_regular_proofs_of_finality;
 
-            auto itr = std::find_if(all_regular_proofs_of_finality.begin(), all_regular_proofs_of_finality.end(),  std::bind(block_num_comparer, std::placeholders::_1, *using_f_policy));
+            auto itr = std::find_if(all_regular_proofs_of_finality.begin(), all_regular_proofs_of_finality.end(), std::bind(block_num_geq_comparer, std::placeholders::_1, *using_f_policy));
 
             BOOST_REQUIRE(itr!=all_regular_proofs_of_finality.end());
 
@@ -408,7 +390,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
          if (finality_violation_occurred) {
 
-            std::cout << "*** Finality violation detected *** \n\n";
+/*            std::cout << "*** Finality violation detected *** \n\n";
             std::cout << "Conflicting blocks signed by " << fc::sha256::hash(r_common_policy->qc_chain[0].active_finalizer_policy) << " were both made final : \n\n";
             std::cout << "  fake chain : QC in -> block_num " << using_f_policy->qc_chain[3].block->block_num() 
                    << " (IF index : " << using_f_policy->qc_chain[3].block->block_num() - fake_chain.genesis_block_num << ")"
@@ -423,14 +405,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                    << " (IF index : " << using_r_policy->qc_chain[2].block->block_num() - real_chain.genesis_block_num << ")"
                    << " making target block final : " << using_r_policy->qc_chain[0].block->block_num() 
                    << " (IF index : " << using_r_policy->qc_chain[0].block->block_num() - real_chain.genesis_block_num << ")"
-                   << "  -> target finality digest : " << using_r_policy->qc_chain[0].finality_digest << "\n";
+                   << "  -> target finality digest : " << using_r_policy->qc_chain[0].finality_digest << "\n";*/
 
             
              return finality_violation_blame{ r_common_policy->qc_chain[0].active_finalizer_policy.generation, 
                                           real_chain_proposed_policies[r_common_policy->qc_chain[0].active_finalizer_policy.generation]} ;
          }
          else {
-            std::cout << "No finality violation detected\n\n\n";
+            //std::cout << "No finality violation detected\n\n\n";
             return std::nullopt;
          }
 
@@ -445,7 +427,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
    BOOST_AUTO_TEST_CASE(two_chains_tests) { try {
 
-/*      //test same history on both fake and real chains
+      //test same history on both fake and real chains
       std::optional<finality_violation_blame> result_1 = perform_test(12, 12,
          {},
          {},
@@ -457,7 +439,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       //verify this doesn't trigger finality violation
       BOOST_TEST(result_1.has_value() == false);
 
-      //test a setfinalizer on the fake chain with sufficient blocks to capture a proof of finality on policy tombstone
+      //test a setfinalizer on the fake chain with sufficient blocks to capture a proof of finality on policy sunset
       std::optional<finality_violation_blame> result_2 = perform_test(7, 7,
          {{3, 'B'}},
          {},
@@ -471,7 +453,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_2.value().generation == 1);
       BOOST_TEST(result_2.value().policy.first == 'A'); 
 
-      //test a setfinalizer on the fake chain without enough blocks to capture a proof of finality on policy tombstone
+      //test a setfinalizer on the fake chain without enough blocks to capture a proof of finality on policy sunset
       std::optional<finality_violation_blame> result_3 = perform_test(6, 6,
          {{3, 'B'}},
          {},
@@ -481,7 +463,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {});
 
       //verify that this is not enough to prove a finality violation
-      //todo : discuss. this implies a gap of 1 block between what can be made final as per the protocol versus what can be proven using the tombstone method
+      //todo : discuss. this implies a gap of 1 block between what can be made final as per the protocol versus what can be proven using the sunset method
       BOOST_TEST(result_3.has_value() == false);
 
       //test identical setfinalizer calls on both chains, but with a transfer action forking the fake chain
@@ -498,7 +480,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_5.value().generation == 3);
       BOOST_TEST(result_5.value().policy.first == 'C'); 
 
-      //test a different setfinalizer on the block before the tombstone moment for finalizer policy A
+      //test a different setfinalizer on the block before the sunset moment for finalizer policy A
       std::optional<finality_violation_blame> result_6 = perform_test(14, 14,
          {{3, 'B'}, {9, 'C'}, {10, 'D'}, {11, 'E'}, {12, 'F'}, {13, 'G'}, {14, 'H'}},
          {{3, 'B'}, {9, 'J'}, {10, 'D'}, {11, 'E'}, {12, 'F'}, {13, 'G'}, {14, 'H'}},
@@ -512,7 +494,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       BOOST_TEST(result_6.value().generation == 1);
       BOOST_TEST(result_6.value().policy.first == 'A'); 
 
-      //test a different setfinalizer on the tombstone block for finalizer policy A
+      //test a different setfinalizer on the sunset block for finalizer policy A
       std::optional<finality_violation_blame> result_7 = perform_test(15, 15,
          {{3, 'B'}, {10, 'C'}, {11, 'D'}, {12, 'E'}, {13, 'F'}, {14, 'G'}, {15, 'H'}},
          {{3, 'B'}, {10, 'J'}, {11, 'D'}, {12, 'E'}, {13, 'F'}, {14, 'G'}, {15, 'H'}},
@@ -617,16 +599,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {});
 
       BOOST_TEST(!result_14.has_value());
-*/
-      std::optional<finality_violation_blame> result_15 = perform_test(20, 20,
-         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
-         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
-         {},
-         {},
-         {5},
-         {});
-
-      BOOST_TEST(!result_15.has_value());
 
    } FC_LOG_AND_RETHROW() }
 
