@@ -118,9 +118,9 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
    }
 
    // make sure we can still produce a blocks until irreversibility moves
-   auto lib = bios.control->head_block_state_legacy()->dpos_irreversible_blocknum;
+   auto lib = bios.lib_block->block_num();
    size_t tries = 0;
-   while (bios.control->head_block_state_legacy()->dpos_irreversible_blocknum == lib && ++tries < 10000) {
+   while (bios.lib_block->block_num() == lib && ++tries < 10000) {
       bios.produce_block();
    }
 
@@ -138,13 +138,13 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    wdump((fc::json::to_pretty_string(res)));
    wlog("set producer schedule to [dan,sam,pam]");
-   c.produce_blocks(30);
+   c.produce_blocks(30); // legacy: 0..2 by eosio, 3..7 by dan, 8..19 by sam, 20..29 by pam, pam still has 2 to produce
 
    auto r2 = c.create_accounts( {"eosio.token"_n} );
    wdump((fc::json::to_pretty_string(r2)));
    c.set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
    c.set_abi( "eosio.token"_n, test_contracts::eosio_token_abi() );
-   c.produce_blocks(10);
+   c.produce_blocks(10); // 0..1 by pam, 2..9 by dan, dan still has 4 to produce
 
 
    auto cr = c.push_action( "eosio.token"_n, "create"_n, "eosio.token"_n, mutable_variant_object()
@@ -172,14 +172,11 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    wlog( "end push c1 blocks to c2" );
 
    wlog( "c1 blocks:" );
-   c.produce_blocks(3);
-   signed_block_ptr b = c.produce_block();
-   account_name expected_producer = "dan"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   signed_block_ptr b = c.produce_blocks(4);
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
 
    b = c.produce_block();
-   expected_producer = "sam"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
    c.produce_blocks(10);
    c.create_accounts( {"cam"_n} );
    c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"cam"_n} );
@@ -200,15 +197,13 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    wlog( "c2 blocks:" );
    c2.produce_blocks(12); // pam produces 12 blocks
    b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // sam skips over dan's blocks
-   expected_producer = "sam"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
    c2.produce_blocks(11 + 12);
 
 
    wlog( "c1 blocks:" );
    b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // dan skips over pam's blocks
-   expected_producer = "dan"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
    c.produce_blocks(11);
 
    // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
@@ -224,12 +219,10 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    c.produce_blocks(24);
 
    b = c.produce_block(); // Switching active schedule to version 2 happens in this block.
-   expected_producer = "pam"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "pam"_n.to_string() );
 
    b = c.produce_block();
-   expected_producer = "cam"_n;
-//   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+//   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "cam"_n.to_string() );
    c.produce_blocks(10);
 
    wlog( "push c1 blocks to c2" );
@@ -288,17 +281,17 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
    wlog("set producer schedule to [dan,sam,pam,scott]");
-   c.produce_blocks(50);
+
+   // run until the producers are installed and its the start of "dan's" round
+   BOOST_REQUIRE( produce_until_transition( c, "scott"_n, "dan"_n ) );
 
    legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
    push_blocks(c, c2);
 
-   // fork happen after block 61
-   BOOST_REQUIRE_EQUAL(61u, c.control->head_block_num());
-   BOOST_REQUIRE_EQUAL(61u, c2.control->head_block_num());
-
+   // fork happen after block fork_num
    uint32_t fork_num = c.control->head_block_num();
+   BOOST_REQUIRE_EQUAL(fork_num, c2.control->head_block_num());
 
    auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
       auto head_time = c.control->head_block_time();
@@ -309,7 +302,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    // fork c: 2 producers: dan, sam
    // fork c2: 1 producer: scott
    int skip1 = 1, skip2 = 1;
-   for (int i = 0; i < 50; ++i) {
+   for (int i = 0; i < 48; ++i) {
       account_name next1 = nextproducer(c, skip1);
       if (next1 == "dan"_n || next1 == "sam"_n) {
          c.produce_block(fc::milliseconds(config::block_interval_ms * skip1)); skip1 = 1;
@@ -322,8 +315,8 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       else ++skip2;
    }
 
-   BOOST_REQUIRE_EQUAL(87u, c.control->head_block_num());
-   BOOST_REQUIRE_EQUAL(73u, c2.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());  // dan and sam each produced 12 blocks
+   BOOST_REQUIRE_EQUAL(fork_num + 12u, c2.control->head_block_num()); // only scott produced its 12 blocks
 
    // push fork from c2 => c
    size_t p = fork_num;
@@ -333,7 +326,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       c.push_block(fb);
    }
 
-   BOOST_REQUIRE_EQUAL(73u, c.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());
 
 } FC_LOG_AND_RETHROW()
 
