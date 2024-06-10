@@ -377,8 +377,10 @@ BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) {
    test_validator_accepts_valid_blocks<tester>();
 }
 
-BOOST_AUTO_TEST_CASE( read_modes ) try {
-   legacy_tester c;
+// ---------------------------- read_modes ---------------------------------
+template <class TESTER>
+void test_read_modes() try {
+   TESTER c;
    c.produce_block();
    c.produce_block();
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -388,19 +390,24 @@ BOOST_AUTO_TEST_CASE( read_modes ) try {
    auto head_block_num = c.control->head_block_num();
    auto last_irreversible_block_num = c.control->last_irreversible_block_num();
 
-   legacy_tester head(setup_policy::none, db_read_mode::HEAD);
+   TESTER head(setup_policy::none, db_read_mode::HEAD);
    push_blocks(c, head);
    BOOST_CHECK_EQUAL(head_block_num, head.control->fork_db_head_block_num());
    BOOST_CHECK_EQUAL(head_block_num, head.control->head_block_num());
 
-   legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
+   TESTER irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
    push_blocks(c, irreversible);
    BOOST_CHECK_EQUAL(head_block_num, irreversible.control->fork_db_head_block_num());
    BOOST_CHECK_EQUAL(last_irreversible_block_num, irreversible.control->head_block_num());
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE( read_modes ) {
+   test_read_modes<legacy_tester>();
+   test_read_modes<tester>();
+}
 
+// ---------------------------- irreversible_mode ---------------------------------
 BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    auto does_account_exist = []( const tester& t, account_name n ) {
       const auto& db = t.control->db();
