@@ -79,6 +79,9 @@ try:
 
     producerNode.kill(signal.SIGTERM)
 
+    # wait for all blocks to arrive and be processed by irrNode
+    time.sleep(3)
+
     # Create the snapshot and rename it to avoid name conflict later on
     res = irrNode.createSnapshot()
     beforeShutdownSnapshotPath = res["payload"]["snapshot_name"]

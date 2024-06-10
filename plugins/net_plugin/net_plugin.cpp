@@ -2393,8 +2393,10 @@ namespace eosio {
                      ("ne", sync_next_expected_num)("id", id.str().substr( 8, 16 )) );
          }
          auto chain_info = my_impl->get_chain_info();
-         if( sync_state == lib_catchup || num < chain_info.lib_num )
+         if( sync_state == lib_catchup || num < chain_info.lib_num ) {
+            c->send_handshake();
             return false;
+         }
          set_state( head_catchup );
          {
             fc::lock_guard g_conn( c->conn_mtx );

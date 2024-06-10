@@ -28,7 +28,7 @@ struct finality_node_t : public eosio::testing::tester {
    eosio::testing::finalizer_keys<tester>  finkeys;
    size_t                                  cur_key{0}; // index of key used in current policy
 
-   finality_node_t() : finkeys(*this) {}
+   finality_node_t() : eosio::testing::tester(eosio::testing::setup_policy::full_except_do_not_transition_to_savanna),  finkeys(*this) {}
 
    size_t last_vote_index() const {
       assert(!votes.empty());
