@@ -3,20 +3,24 @@
 
 #include <eosio/chain/fork_database.hpp>
 
-#include <fc/variant_object.hpp>
-
 #include <boost/test/unit_test.hpp>
-
-#include <contracts.hpp>
-#include <test_contracts.hpp>
 
 #include "fork_test_utilities.hpp"
 
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-// Tests in this file are for Legacy only. Savanna forked tests will be done 
-// by https://github.com/AntelopeIO/spring/issues/196
+// ---------------------------------------------------
+// Following tests in this file are for Legacy only:
+//    - fork_with_bad_block
+//    - forking
+//    - prune_remove_branch
+//    - irreversible_mode
+//    - push_block_returns_forked_transactions
+//
+// Similar Savanna tests are in: `forked_tests_if.cpp`
+// ---------------------------------------------------
+
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
 // ---------------------------- irrblock ---------------------------------
@@ -142,32 +146,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    wdump((fc::json::to_pretty_string(res)));
    wlog("set producer schedule to [dan,sam,pam]");
    c.produce_blocks(30); // legacy: 0..2 by eosio, 3..7 by dan, 8..19 by sam, 20..29 by pam, pam still has 2 to produce
-
-   auto r2 = c.create_accounts( {"eosio.token"_n} );
-   wdump((fc::json::to_pretty_string(r2)));
-   c.set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
-   c.set_abi( "eosio.token"_n, test_contracts::eosio_token_abi() );
    c.produce_blocks(10); // 0..1 by pam, 2..9 by dan, dan still has 4 to produce
-
-
-   auto cr = c.push_action( "eosio.token"_n, "create"_n, "eosio.token"_n, mutable_variant_object()
-              ("issuer",       "eosio" )
-              ("maximum_supply", core_from_string("10000000.0000"))
-      );
-
-   cr = c.push_action( "eosio.token"_n, "issue"_n, config::system_account_name, mutable_variant_object()
-              ("to",       "eosio" )
-              ("quantity", core_from_string("100.0000"))
-              ("memo", "")
-      );
-
-   cr = c.push_action( "eosio.token"_n, "transfer"_n, config::system_account_name, mutable_variant_object()
-              ("from",     "eosio")
-              ("to",       "dan" )
-              ("quantity", core_from_string("100.0000"))
-              ("memo", "")
-      );
-
 
    legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
