@@ -519,8 +519,10 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
-   legacy_tester c1;
+// ---------------------------- reopen_forkdb ---------------------------------
+template <class TESTER>
+void test_reopen_forkdb() try {
+   TESTER c1;
 
    c1.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
    c1.produce_block();
@@ -529,13 +531,11 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
 
    c1.produce_blocks(2);
 
-   BOOST_REQUIRE_EQUAL( c1.control->active_producers().version, 1u );
-
    produce_until_transition( c1, "carol"_n, "alice"_n );
    c1.produce_block();
    produce_until_transition( c1, "carol"_n, "alice"_n );
 
-   legacy_tester c2(setup_policy::none);
+   TESTER c2(setup_policy::none);
 
    push_blocks( c1, c2 );
 
@@ -573,6 +573,12 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) try {
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_AUTO_TEST_CASE( reopen_forkdb ) {
+   test_reopen_forkdb<legacy_tester>();
+   test_reopen_forkdb<tester>();
+}
+
+// ---------------------------- push_block_returns_forked_transactions ---------------------------------
 BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    legacy_tester c1;
    while (c1.control->head_block_num() < 3) {
@@ -582,7 +588,8 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    c1.produce_block();
    auto res = c1.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
    wlog("set producer schedule to [dan,sam,pam]");
-   c1.produce_blocks(40);
+   BOOST_REQUIRE( produce_until_transition( c1, "dan"_n, "sam"_n ) );
+   c1.produce_blocks(32);
 
    legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
@@ -593,12 +600,10 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    c1.produce_blocks(3);
    signed_block_ptr b;
    cb = b = c1.produce_block();
-   account_name expected_producer = "dan"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
 
    b = c1.produce_block();
-   expected_producer = "sam"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
    c1.produce_blocks(10);
    c1.create_accounts( {"cam"_n} );
    c1.set_producers( {"dan"_n,"sam"_n,"pam"_n,"cam"_n} );
@@ -618,10 +623,13 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
 
    signed_block_ptr c2b;
    wlog( "c2 blocks:" );
-   c2.produce_blocks(12); // pam produces 12 blocks
+   // pam produces 12 blocks
+   for (size_t i=0; i<12; ++i) {
+      b = c2.produce_block();
+      BOOST_REQUIRE_EQUAL( b->producer.to_string(), "pam"_n.to_string() );
+   }
    b = c2b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // sam skips over dan's blocks
-   expected_producer = "sam"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
    // save blocks for verification of forking later
    std::vector<signed_block_ptr> c2blocks;
    for( size_t i = 0; i < 11 + 12; ++i ) {
@@ -631,8 +639,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
 
    wlog( "c1 blocks:" );
    b = c1.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // dan skips over pam's blocks
-   expected_producer = "dan"_n;
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), expected_producer.to_string() );
+   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
    // create accounts on c1 which will be forked out
    c1.produce_block();
 
