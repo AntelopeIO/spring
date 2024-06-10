@@ -3701,8 +3701,7 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(
-          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 

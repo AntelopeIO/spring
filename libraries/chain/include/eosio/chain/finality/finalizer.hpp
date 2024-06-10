@@ -78,6 +78,7 @@ namespace eosio::chain {
       fsi_map                           inactive_safety_info;  // loaded at startup, not mutated afterwards
       fsi_t                             default_fsi = fsi_t::unset_fsi(); // default provided at spring startup
       mutable bool                      inactive_safety_info_written{false};
+      bool                              enable_voting = false;
 
    public:
       explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
@@ -85,13 +86,13 @@ namespace eosio::chain {
       {}
 
       template<class F> // thread safe
-      void maybe_vote(const finalizer_policy& fin_pol,
-                      const block_state_ptr& bsp,
-                      const digest_type& digest,
-                      F&& process_vote) {
+      void maybe_vote(const block_state_ptr& bsp, F&& process_vote) {
 
          if (finalizers.empty())
             return;
+
+         assert(bsp->active_finalizer_policy);
+         const auto& fin_pol = *bsp->active_finalizer_policy;
 
          std::vector<vote_message_ptr> votes;
          votes.reserve(finalizers.size());
@@ -100,10 +101,14 @@ namespace eosio::chain {
          // Would require making sure that only the latest is ever written to the file and that the file access was protected separately.
          std::unique_lock g(mtx);
 
+         if (!enable_voting && bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
+            return;
+         enable_voting = true;
+
          // first accumulate all the votes
          for (const auto& f : fin_pol.finalizers) {
             if (auto it = finalizers.find(f.public_key); it != finalizers.end()) {
-               vote_message_ptr vote_msg = it->second.maybe_vote(it->first, bsp, digest);
+               vote_message_ptr vote_msg = it->second.maybe_vote(it->first, bsp, bsp->strong_digest);
                if (vote_msg)
                   votes.push_back(std::move(vote_msg));
             }
