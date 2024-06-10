@@ -71,7 +71,6 @@ namespace eosio::chain {
       using fsi_map = std::map<bls_public_key, fsi_t>;
 
    private:
-      const block_timestamp_type        t_startup;             // nodeos startup time, used for default safety_information
       const std::filesystem::path       persist_file_path;     // where we save the safety data
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
@@ -81,9 +80,8 @@ namespace eosio::chain {
       mutable bool                      inactive_safety_info_written{false};
 
    public:
-      my_finalizers_t(block_timestamp_type startup_time, const std::filesystem::path& persist_file_path)
-         : t_startup(startup_time)
-         , persist_file_path(persist_file_path)
+      explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
+         : persist_file_path(persist_file_path)
       {}
 
       template<class F> // thread safe
