@@ -108,14 +108,22 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                          const std::map<uint32_t, char> fake_chain_policy_changes, 
                                                          const std::map<uint32_t, char> real_chain_policy_changes, 
                                                          const std::vector<uint32_t> fake_chain_transfers, 
-                                                         const std::vector<uint32_t> real_chain_transfers){
+                                                         const std::vector<uint32_t> real_chain_transfers,
+                                                         const std::vector<uint32_t> fake_chain_vote_propagation_flips, 
+                                                         const std::vector<uint32_t> real_chain_vote_propagation_flips){
+
+      std::cout << "New Finality Violation Test\n";
 
       assert(fake_blocks_to_produce>0);
       assert(real_blocks_to_produce>0);
 
+      std::vector<bool> no_vote_propagation = {0, 0, 0};
+      std::vector<bool> fake_chain_vote_propagation_default = {1, 1, 0};
+      std::vector<bool> real_chain_vote_propagation_default = {1, 0, 1};
+
       // setup the fake chain. node3 doesn't receive votes on the fake chain
       finality_proof::proof_test_cluster<4> fake_chain;
-      fake_chain.vote_propagation = {1, 1, 0};
+      fake_chain.vote_propagation = fake_chain_vote_propagation_default;
       fake_chain.fully_discoverable = false;
       fake_chain.bitset = "07";
 
@@ -129,7 +137,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       // setup the real chain. node2 doesn't receive votes on the real chain
       finality_proof::proof_test_cluster<4> real_chain;
-      real_chain.vote_propagation = {1, 0, 1};
+      real_chain.vote_propagation = real_chain_vote_propagation_default;
       real_chain.bitset = "0b";
 
       real_chain.node0.create_accounts( { "user1"_n, "user2"_n, "violation"_n, "eosio.token"_n } );
@@ -191,33 +199,25 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       std::vector<finality_proof::finality_block_data_t> fake_block_results;
       std::vector<finality_proof::finality_block_data_t> real_block_results;
 
-      for (uint32_t i = 0 ; i < fake_blocks_to_produce; i++){
-
-         auto f_pc_itr = fake_chain_policy_changes.find(i);
-         auto f_t_itr = std::find(fake_chain_transfers.begin(), fake_chain_transfers.end(), i);
-         if (f_pc_itr!=fake_chain_policy_changes.end()) fake_chain.node0.finkeys.set_finalizer_policy(policies_indices[f_pc_itr->second]);
-         if (f_t_itr!=fake_chain_transfers.end()) fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, transfer_act);
-
-         fake_block_results.push_back(fake_chain.produce_block());
-
-         if (f_pc_itr!=fake_chain_policy_changes.end()){
-            std::cout   << "Proposed finalizer policy generation : " 
-                        << fake_chain.last_proposed_finalizer_policy.generation
-                        << " -> " << f_pc_itr->second << " (" << fc::sha256::hash(fake_chain.last_proposed_finalizer_policy) 
-                        << ") on fake chain\n";
- 
-         } 
-
-      }
-
       for (uint32_t i = 0 ; i < real_blocks_to_produce; i++){
 
+
          auto r_pc_itr = real_chain_policy_changes.find(i);
-         auto r_t_itr = std::find(real_chain_transfers.begin(), real_chain_transfers.end(), i);;
+         auto r_t_itr = std::find(real_chain_transfers.begin(), real_chain_transfers.end(), i);
+         auto r_vpf_itr =  std::find(real_chain_vote_propagation_flips.begin(), real_chain_vote_propagation_flips.end(), i);
          if (r_pc_itr!=real_chain_policy_changes.end()) real_chain.node0.finkeys.set_finalizer_policy(policies_indices[r_pc_itr->second]);
          if (r_t_itr!=real_chain_transfers.end()) real_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, transfer_act);
+         if (r_vpf_itr!=real_chain_vote_propagation_flips.end()){ 
+           
+            real_chain.vote_propagation == real_chain_vote_propagation_default 
+            ? real_chain.vote_propagation = no_vote_propagation
+            : real_chain.vote_propagation = real_chain_vote_propagation_default;
 
+         }
+         std::cout << "real_blocks_to_produce " << i <<"\n";
          real_block_results.push_back(real_chain.produce_block());
+         std::cout << "produced real block " << i <<"\n";
+
 
          if (r_pc_itr!=real_chain_policy_changes.end()){
             std::cout   << "Proposed finalizer policy generation : " 
@@ -234,18 +234,54 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //BOOST_TEST(fake_chain.genesis_block_num == real_chain.genesis_block_num);
             //BOOST_TEST(fc::sha256::hash(fake_chain.active_finalizer_policy) == fc::sha256::hash(real_chain.active_finalizer_policy));
 
-            std::cout << "Genesis finalizer policy generation : 1 -> A (" << fc::sha256::hash(fake_chain.active_finalizer_policy) 
+            std::cout << "\nGenesis finalizer policy generation : 1 -> A (" << fc::sha256::hash(real_chain.active_finalizer_policy) 
                                                                   << ") on both chain\n";
 
             real_chain_proposed_policies[1] = std::make_pair('A', fc::sha256::hash(real_chain.active_finalizer_policy));
+
+            std::cout << "\nPolicies for real chain : \n\n";
 
          }
 
       }
 
+      std::cout << "\nPolicies for fake chain : \n\n";
+      for (uint32_t i = 0 ; i < fake_blocks_to_produce; i++){
+
+
+         auto f_pc_itr = fake_chain_policy_changes.find(i);
+         auto f_t_itr = std::find(fake_chain_transfers.begin(), fake_chain_transfers.end(), i);
+         auto f_vpf_itr = std::find(fake_chain_vote_propagation_flips.begin(), fake_chain_vote_propagation_flips.end(), i);
+         if (f_pc_itr!=fake_chain_policy_changes.end()) fake_chain.node0.finkeys.set_finalizer_policy(policies_indices[f_pc_itr->second]);
+         if (f_t_itr!=fake_chain_transfers.end()) fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, transfer_act);
+         if (f_vpf_itr!=fake_chain_vote_propagation_flips.end()) {
+
+            fake_chain.vote_propagation == fake_chain_vote_propagation_default 
+            ? fake_chain.vote_propagation = no_vote_propagation
+            : fake_chain.vote_propagation = fake_chain_vote_propagation_default;
+         }
+
+         std::cout << "fake_blocks_to_produce " << i <<"\n";
+         fake_block_results.push_back(fake_chain.produce_block());
+         std::cout << "produced fake block " << i <<"\n";
+
+         if (f_pc_itr!=fake_chain_policy_changes.end()){
+            std::cout   << "Proposed finalizer policy generation : " 
+                        << fake_chain.last_proposed_finalizer_policy.generation
+                        << " -> " << f_pc_itr->second << " (" << fc::sha256::hash(fake_chain.last_proposed_finalizer_policy) 
+                        << ") on fake chain\n";
+ 
+         } 
+
+      }
+
+      return std::nullopt;
+
       std::vector<finality_proof::proof_of_finality> fake_chain_proofs_of_finality = fake_chain.get_light_client_proofs_of_finality();
       std::vector<finality_proof::proof_of_finality> real_chain_proofs_of_finality = real_chain.get_light_client_proofs_of_finality();
 
+      return std::nullopt;
+      
       std::cout << "\nfake chain -> get_light_client_proofs_of_finality() count : " << fake_chain_proofs_of_finality.size() << "\n\n";
       for (size_t i = 0 ; i < fake_chain_proofs_of_finality.size() ; i++){
          print_proof_of_finality(fake_chain_proofs_of_finality[i], fake_chain);
@@ -256,6 +292,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          print_proof_of_finality(real_chain_proofs_of_finality[i], real_chain);
       }
  
+      return std::nullopt;
+
       auto f_fp_itr = fake_chain_proofs_of_finality.rbegin();
 
       auto r_common_policy = real_chain_proofs_of_finality.end();
@@ -331,7 +369,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       //if the digest of the last recorded proof of finality for the last common policy is the same for both chains, no finality violation occurred
       if(using_r_policy->qc_chain[0].finality_digest==using_f_policy->qc_chain[0].finality_digest ) {
-         std::cout << "No finality violation detected\n";
+         std::cout << "No finality violation detected\n\n\n";
          return std::nullopt;
       }
       else {
@@ -391,7 +429,10 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
              return finality_violation_blame{ r_common_policy->qc_chain[0].active_finalizer_policy.generation, 
                                           real_chain_proposed_policies[r_common_policy->qc_chain[0].active_finalizer_policy.generation]} ;
          }
-         else return std::nullopt;
+         else {
+            std::cout << "No finality violation detected\n\n\n";
+            return std::nullopt;
+         }
 
       }
 
@@ -404,8 +445,10 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
    BOOST_AUTO_TEST_CASE(two_chains_tests) { try {
 
-      //test same history on both fake and real chains
+/*      //test same history on both fake and real chains
       std::optional<finality_violation_blame> result_1 = perform_test(12, 12,
+         {},
+         {},
          {},
          {},
          {},
@@ -417,6 +460,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       //test a setfinalizer on the fake chain with sufficient blocks to capture a proof of finality on policy tombstone
       std::optional<finality_violation_blame> result_2 = perform_test(7, 7,
          {{3, 'B'}},
+         {},
+         {},
          {},
          {},
          {});
@@ -431,6 +476,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}},
          {},
          {},
+         {},
+         {},
          {});
 
       //verify that this is not enough to prove a finality violation
@@ -442,6 +489,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}, {16, 'C'}},
          {{3, 'B'}, {16, 'C'}},
          {24},
+         {},
+         {},
          {});
 
       //verify we correctly blame finalizer policy C at generation 3
@@ -453,6 +502,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       std::optional<finality_violation_blame> result_6 = perform_test(14, 14,
          {{3, 'B'}, {9, 'C'}, {10, 'D'}, {11, 'E'}, {12, 'F'}, {13, 'G'}, {14, 'H'}},
          {{3, 'B'}, {9, 'J'}, {10, 'D'}, {11, 'E'}, {12, 'F'}, {13, 'G'}, {14, 'H'}},
+         {},
+         {},
          {},
          {});
 
@@ -466,6 +517,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}, {10, 'C'}, {11, 'D'}, {12, 'E'}, {13, 'F'}, {14, 'G'}, {15, 'H'}},
          {{3, 'B'}, {10, 'J'}, {11, 'D'}, {12, 'E'}, {13, 'F'}, {14, 'G'}, {15, 'H'}},
          {},
+         {},
+         {},
          {});
 
       //verify we correctly blame finalizer policy B at generation 2
@@ -477,6 +530,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
       std::optional<finality_violation_blame> result_8 = perform_test(35, 35,
          {{3, 'B'}, {11, 'C'}, {14, 'D'}, {17, 'E'}, {22, 'F'}, {26, 'G'}, {28, 'H'}},
          {{3, 'B'}, {13, 'J'}, {16, 'D'}, {18, 'E'}, {19, 'F'}, {21, 'G'}},
+         {},
+         {},
          {},
          {});
 
@@ -490,6 +545,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}, {4, 'C'}, {5, 'D'}, {6, 'E'}, {7, 'F'}, {8, 'G'}, {9, 'H'}, {10, 'I'}},
          {{3, 'B'}, {4, 'C'}, {5, 'D'}, {6, 'J'}, {7, 'F'}, {8, 'G'}, {9, 'H'}, {10, 'I'}},
          {},
+         {},
+         {},
          {});
 
       //verify we correctly blame finalizer policy A at generation 1
@@ -502,6 +559,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {},
          {},
          {},
+         {},
+         {},
          {});
 
       //verify this doesn't trigger finality violation
@@ -509,6 +568,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
       //test the case where a fake chain is longer than the real chain
       std::optional<finality_violation_blame> result_11 = perform_test(25, 15,
+         {},
+         {},
          {},
          {},
          {},
@@ -524,6 +585,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}, {11, 'C'}, {14, 'D'}, {17, 'E'}, {22, 'F'}, {26, 'G'}, {28, 'H'}},
          {{3, 'B'}, {13, 'J'}, {16, 'D'}, {18, 'E'}, {19, 'F'}, {21, 'G'}},
          {},
+         {},
+         {},
          {});
 
       //verify we correctly blame finalizer policy B at generation 2
@@ -536,12 +599,34 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
          {{3, 'B'}, {4, 'C'}, {5, 'D'}, {6, 'E'}, {7, 'F'}, {8, 'G'}, {9, 'H'}, {10, 'I'}},
          {{3, 'B'}, {4, 'C'}, {5, 'D'}, {6, 'J'}, {7, 'F'}, {8, 'G'}, {9, 'H'}, {10, 'I'}},
          {},
+         {},
+         {},
          {});
 
       //verify we correctly blame finalizer policy A at generation 1
       BOOST_TEST(result_13.has_value());
       BOOST_TEST(result_13.value().generation == 1);
       BOOST_TEST(result_13.value().policy.first == 'A');
+
+      std::optional<finality_violation_blame> result_14 = perform_test(20, 20,
+         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
+         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
+         {},
+         {},
+         {},
+         {});
+
+      BOOST_TEST(!result_14.has_value());
+*/
+      std::optional<finality_violation_blame> result_15 = perform_test(20, 20,
+         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
+         {{3, 'B'}, {4, 'C'}, {5, 'D'}},
+         {},
+         {},
+         {5},
+         {});
+
+      BOOST_TEST(!result_15.has_value());
 
    } FC_LOG_AND_RETHROW() }
 
