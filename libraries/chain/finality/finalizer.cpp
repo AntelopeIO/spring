@@ -136,6 +136,10 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_q
    if (finalizers.empty())
       return;
 
+   // once we have voted, no reason to continue evaluating incoming QCs
+   if (has_voted.load(std::memory_order::relaxed))
+      return;
+
    assert(bsp->active_finalizer_policy);
 
    // see comment on possible optimization in maybe_vote

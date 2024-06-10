@@ -74,6 +74,7 @@ namespace eosio::chain {
 
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
+      std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
       std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
@@ -121,6 +122,7 @@ namespace eosio::chain {
          if (!votes.empty()) {
             save_finalizer_safety_info();
             g.unlock();
+            has_voted.store(true, std::memory_order::relaxed);
             for (const auto& vote : votes)
                std::forward<F>(process_vote)(vote);
          }
