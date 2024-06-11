@@ -63,6 +63,8 @@ namespace eosio::chain {
 
       vote_result  decide_vote(const block_state_ptr& bsp);
       vote_message_ptr maybe_vote(const bls_public_key& pub_key, const block_state_ptr& bsp, const digest_type& digest);
+      // finalizer has voted strong, update fsi if it does not already contain vote or better
+      bool maybe_update_fsi(const block_state_ptr& bsp);
    };
 
    // ----------------------------------------------------------------------------------------
@@ -72,6 +74,7 @@ namespace eosio::chain {
 
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
+      std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
       std::atomic<bool>                 enable_voting{false};
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
@@ -119,10 +122,13 @@ namespace eosio::chain {
          if (!votes.empty()) {
             save_finalizer_safety_info();
             g.unlock();
+            has_voted.store(true, std::memory_order::relaxed);
             for (const auto& vote : votes)
                std::forward<F>(process_vote)(vote);
          }
       }
+
+      void maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc);
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
