@@ -2705,6 +2705,9 @@ namespace eosio {
    }
 
    void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
+      if (my_impl->sync_master->syncing_from_peer())
+         return;
+
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
