@@ -418,6 +418,7 @@ private:
    }
 
    uint64_t get_pos(uint32_t block_num) {
+      assert(block_num >= _begin_block && block_num < _end_block);
       return index.unpack_from<uint64_t>((block_num - _index_begin_block) * sizeof(uint64_t));
    }
 
