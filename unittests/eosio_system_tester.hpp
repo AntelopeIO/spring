@@ -27,12 +27,12 @@ public:
    eosio_system_tester(Lambda setup) {
       setup(*this);
 
-      T::produce_blocks( 2 );
+      T::produce_block();
 
       T::create_accounts({ "eosio.token"_n, "eosio.ram"_n, "eosio.ramfee"_n, "eosio.stake"_n,
                "eosio.bpay"_n, "eosio.vpay"_n, "eosio.saving"_n, "eosio.names"_n, "eosio.rex"_n });
 
-      T::produce_blocks( 100 );
+      T::produce_block();
 
       T::set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
       T::set_abi( "eosio.token"_n, test_contracts::eosio_token_abi() );
@@ -63,7 +63,7 @@ public:
          abi_ser.set_abi(std::move(abi), abi_serializer::create_yield_function( T::abi_serializer_max_time ));
       }
 
-      T::produce_blocks();
+      T::produce_block();
 
       create_account_with_resources( "alice1111111"_n, config::system_account_name, core_from_string("1.0000"), false );
       create_account_with_resources( "bob111111111"_n, config::system_account_name, core_from_string("0.4500"), false );
@@ -510,7 +510,7 @@ public:
          T::set_code( "eosio.msig"_n, test_contracts::eosio_msig_wasm() );
          T::set_abi( "eosio.msig"_n, test_contracts::eosio_msig_abi() );
 
-         T::produce_blocks();
+         T::produce_block();
          const auto& accnt = T::control->db().template get<account_object,by_name>( "eosio.msig"_n );
          abi_def msig_abi;
          BOOST_REQUIRE_EQUAL(abi_serializer::to_abi(accnt.abi, msig_abi), true);
@@ -538,7 +538,8 @@ public:
             BOOST_REQUIRE_EQUAL( T::success(), regproducer(p) );
          }
       }
-      T::produce_blocks( 250);
+      T::produce_block();
+      T::produce_block(fc::seconds(1000));
 
       auto trace_auth = validating_tester::push_action(config::system_account_name, updateauth::get_name(), config::system_account_name, mvo()
                                             ("account", name(config::system_account_name).to_string())
@@ -564,7 +565,8 @@ public:
                              )
          );
       }
-      T::produce_blocks( 250 );
+      T::produce_block();
+      T::produce_block(fc::seconds(1000));
 
       auto producer_keys = T::control->active_producers().producers;
       BOOST_REQUIRE_EQUAL( 21u, producer_keys.size() );

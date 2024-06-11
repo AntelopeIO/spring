@@ -26,10 +26,10 @@ void test_snapshot_information() {
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    auto block = chain.produce_block();
    const uint32_t base_block_num = block->block_num();

@@ -79,7 +79,7 @@ BOOST_AUTO_TEST_SUITE(read_only_trx_tests)
 BOOST_AUTO_TEST_CASE_TEMPLATE( newaccount_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    action act = {
       {},
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( newaccount_test, T, read_only_trx_testers ) { try
 BOOST_AUTO_TEST_CASE_TEMPLATE( setcode_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    std::vector<uint8_t> code(10);
    action act = {
@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( setcode_test, T, read_only_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( setabi_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    std::vector<uint8_t> abi(10);
    action act = {
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( setabi_test, T, read_only_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( updateauth_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    auto auth = authority( chain.get_public_key( "alice"_n, "test" ) );
    action act = {
@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( updateauth_test, T, read_only_trx_testers ) { try
 BOOST_AUTO_TEST_CASE_TEMPLATE( deleteauth_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    name account = "alice"_n;
    name permission = "active"_n;
@@ -158,7 +158,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( deleteauth_test, T, read_only_trx_testers ) { try
 BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    name account = "alice"_n;
    name code = "eosio_token"_n;
@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_test, T, read_only_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( unlinkauth_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    name account = "alice"_n;
    name code = "eosio_token"_n;
@@ -191,7 +191,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( unlinkauth_test, T, read_only_trx_testers ) { try
 BOOST_AUTO_TEST_CASE_TEMPLATE( canceldelay_test, T, read_only_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    permission_level canceling_auth { config::system_account_name,config::active_name };
    transaction_id_type trx_id { "0718886aa8a3895510218b523d3d694280d1dbc1f6d30e173a10b2039fc894f1" };
