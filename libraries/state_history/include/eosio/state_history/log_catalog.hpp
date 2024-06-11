@@ -75,43 +75,8 @@ public:
             open_head_log(prune);
          },
          [this, &log_dir, &log_name](const state_history::partition_config& partition_config) {
-            retained_dir = make_absolute_dir(log_dir, partition_config.retained_dir.empty() ? log_dir : partition_config.retained_dir);
-            if(!partition_config.archive_dir.empty())
-               archive_dir = make_absolute_dir(log_dir, partition_config.archive_dir);
-            max_retained_files = partition_config.max_retained_files;
-            log_rotation_stride = partition_config.stride;
-
-            const std::regex retained_logfile_regex("^" + log_name + R"(-\d+-\d+\.log$)");
-
-            for(const std::filesystem::directory_entry& dir_entry : std::filesystem::directory_iterator(retained_dir)) {
-               if(!dir_entry.is_regular_file())
-                  continue;
-               if(!std::regex_search(dir_entry.path().filename().string(), retained_logfile_regex))
-                  continue;
-
-               const std::filesystem::path path_and_basename = dir_entry.path().parent_path() / dir_entry.path().stem();
-
-               state_history_log log(path_and_basename, [](chain::block_num_type) {return std::nullopt;});
-               if(log.empty())
-                  continue;
-               const auto [begin_bnum, end_bnum] = log.block_range();
-               retained_log_files.emplace(begin_bnum, end_bnum, path_and_basename);
-            }
-
-            if(retained_log_files.size() > 1)
-               for(catalog_t::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it)
-                  EOS_ASSERT(it->end_block_num == std::next(it)->begin_block_num, chain::plugin_exception,
-                             "retained log file ${sf}.log has block range ${sb}-${se} but ${ef}.log has range ${eb}-${ee} which results in a hole",
-                             ("sf", it->path_and_basename.native())("sb", it->begin_block_num)("se", it->end_block_num-1)
-                             ("ef", std::next(it)->path_and_basename.native())("eb", std::next(it)->begin_block_num)("ee", std::next(it)->end_block_num-1));
-
-
             open_head_log();
-            if(!retained_log_files.empty() && !head_log->empty())
-               EOS_ASSERT(retained_log_files.rbegin()->end_block_num == head_log->block_range().first, chain::plugin_exception,
-                          "retained log file ${sf}.log has block range ${sb}-${se} but head log has range ${eb}-${ee} which results in a hole",
-                          ("sf", retained_log_files.rbegin()->path_and_basename.native())("sb", retained_log_files.rbegin()->begin_block_num)("se", retained_log_files.rbegin()->end_block_num-1)
-                          ("eb", head_log->block_range().first)("ee", head_log->block_range().second-1));
+            setup_retained_logs_on_init(log_dir, log_name, partition_config);
          }
       }, config);
 
@@ -207,6 +172,44 @@ private:
       }
       else
          return f(std::forward<state_history_log>(*head_log));
+   }
+
+   void setup_retained_logs_on_init(const std::filesystem::path& log_dir, const std::string& log_name, const state_history::partition_config& partition_config) {
+      retained_dir = make_absolute_dir(log_dir, partition_config.retained_dir.empty() ? log_dir : partition_config.retained_dir);
+      if(!partition_config.archive_dir.empty())
+         archive_dir = make_absolute_dir(log_dir, partition_config.archive_dir);
+      max_retained_files = partition_config.max_retained_files;
+      log_rotation_stride = partition_config.stride;
+
+      const std::regex retained_logfile_regex("^" + log_name + R"(-\d+-\d+\.log$)");
+
+      for(const std::filesystem::directory_entry& dir_entry : std::filesystem::directory_iterator(retained_dir)) {
+         if(!dir_entry.is_regular_file())
+            continue;
+         if(!std::regex_search(dir_entry.path().filename().string(), retained_logfile_regex))
+            continue;
+
+         const std::filesystem::path path_and_basename = dir_entry.path().parent_path() / dir_entry.path().stem();
+
+         state_history_log log(path_and_basename, [](chain::block_num_type) {return std::nullopt;});
+         if(log.empty())
+            continue;
+         const auto [begin_bnum, end_bnum] = log.block_range();
+         retained_log_files.emplace(begin_bnum, end_bnum, path_and_basename);
+      }
+
+      if(retained_log_files.size() > 1)
+         for(catalog_t::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it)
+            EOS_ASSERT(it->end_block_num == std::next(it)->begin_block_num, chain::plugin_exception,
+                       "retained log file ${sf}.log has block range ${sb}-${se} but ${ef}.log has range ${eb}-${ee} which results in a hole",
+                       ("sf", it->path_and_basename.native())("sb", it->begin_block_num)("se", it->end_block_num-1)
+                       ("ef", std::next(it)->path_and_basename.native())("eb", std::next(it)->begin_block_num)("ee", std::next(it)->end_block_num-1));
+
+      if(!retained_log_files.empty() && !head_log->empty())
+         EOS_ASSERT(retained_log_files.rbegin()->end_block_num == head_log->block_range().first, chain::plugin_exception,
+                    "retained log file ${sf}.log has block range ${sb}-${se} but head log has range ${eb}-${ee} which results in a hole",
+                    ("sf", retained_log_files.rbegin()->path_and_basename.native())("sb", retained_log_files.rbegin()->begin_block_num)("se", retained_log_files.rbegin()->end_block_num-1)
+                    ("eb", head_log->block_range().first)("ee", head_log->block_range().second-1));
    }
 
    void unrotate_log() {
