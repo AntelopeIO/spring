@@ -75,13 +75,13 @@ namespace eosio::chain {
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
       std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
+      std::atomic<bool>                 enable_voting{false};
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
       std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
       fsi_map                           inactive_safety_info;  // loaded at startup, not mutated afterwards
       fsi_t                             default_fsi = fsi_t::unset_fsi(); // default provided at spring startup
       mutable bool                      inactive_safety_info_written{false};
-      bool                              enable_voting = false;
 
    public:
       explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
@@ -94,6 +94,12 @@ namespace eosio::chain {
          if (finalizers.empty())
             return;
 
+         if (!enable_voting.load(std::memory_order_relaxed)) { // Avoid extra processing while syncing. Once caught up, consider voting
+            if (bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
+               return;
+            enable_voting.store(true, std::memory_order_relaxed);
+         }
+
          assert(bsp->active_finalizer_policy);
          const auto& fin_pol = *bsp->active_finalizer_policy;
 
@@ -103,12 +109,6 @@ namespace eosio::chain {
          // Possible improvement in the future, look at locking only individual finalizers and releasing the lock for writing the file.
          // Would require making sure that only the latest is ever written to the file and that the file access was protected separately.
          std::unique_lock g(mtx);
-
-         if (!enable_voting) { // Avoid extra processing while syncing. Once caught up, consider voting
-            if (bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
-               return;
-            enable_voting = true;
-         }
 
          // first accumulate all the votes
          for (const auto& f : fin_pol.finalizers) {
