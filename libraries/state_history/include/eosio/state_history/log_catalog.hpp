@@ -97,7 +97,9 @@ public:
          // of the ABC log (this does _not_ invalidate ship_log_entrys from that log!) and then the replacement of 56789 as the head log. If the new block is in the range of 5
          // through 9, we write here to this head log. If the new block is prior to block 5 we unrotate again. Keep performing the unrotation as long as there are retained logs
          // to pull from
-         //what's a little annoying is that we maintain an empty head log after rotation, so we can also have 234 56789 (empty), and here we want to unrotate if writing 9
+         //what's a little annoying is that we maintain an empty head log after rotation, so we can also have 234 56789 (empty), and here we also want to unrotate when writing
+         // anything <=9 but not for 10. 9 in this case is actually especially interesting since we'll first unrotate the logs giving 234 56789, overwrite block 9, and then rotate
+         // the logs again yielding 234 56789 (empty).
          while(!retained_log_files.empty()) {
             if(!head_log->empty() && (block_num < head_log->block_range().first))
                unrotate_log();

@@ -425,8 +425,8 @@ private:
     * A pruned log will have a gap where data has been erased (via "poking holes"). for example,
     * _index_begin_block=1, _begin_block=5, _end_block=9
     * index:  1|2|3|4|5|6|7|8
-    * log:    Hxxxxxx|5|6|7|8  (H is the just the header)
-    * Pruning will collapse the gap resulting in a non-pruned log and index:
+    * log:    Hxxxxxx|5|6|7|8𝑡  (H is a stub log header, 𝑡 is the pruned-log-specific trailer)
+    * Vacuuming will collapse the gap resulting in a non-pruned log and index:
     * _index_begin_block=5, _begin_block=5, _end_block=9
     * index:  5|6|7|8
     * log:    5|6|7|8
