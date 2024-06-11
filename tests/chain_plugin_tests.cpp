@@ -36,7 +36,7 @@ static auto get_account_full = [](chain_apis::read_only& plugin,
 BOOST_AUTO_TEST_SUITE(chain_plugin_tests)
 
 BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
-   produce_blocks(2);
+   produce_block();
 
    create_accounts( {"asserter"_n} );
    produce_block();
@@ -44,7 +44,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
    // setup contract and abi
    set_code( "asserter"_n, test_contracts::asserter_wasm() );
    set_abi( "asserter"_n, test_contracts::asserter_abi() );
-   produce_blocks(1);
+   produce_block();
 
    auto resolver = [&,this]( const account_name& name ) -> std::optional<abi_serializer> {
       try {
@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
 } FC_LOG_AND_RETHROW() //get_consensus_parameters
 
 BOOST_FIXTURE_TEST_CASE( get_account, validating_tester ) try {
-   produce_blocks(2);
+   produce_block();
 
    std::vector<account_name> accs{{ "alice"_n, "bob"_n, "cindy"_n}};
    create_accounts(accs, false, false);

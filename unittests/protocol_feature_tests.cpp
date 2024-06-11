@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(activate_and_restart, T, testers) try {
 
    // Activate PREACTIVATE_FEATURE.
    c.schedule_protocol_features_wo_preactivation({ *d });
-   c.produce_blocks(2);
+   c.produce_block();
 
    auto head_block_num = c.control->head_block_num();
 
@@ -699,10 +699,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(fix_linkauth_restriction, T, testers) { try {
 
    const auto& tester_account = "tester"_n;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("currency"_n);
    chain.create_account(tester_account);
-   chain.produce_blocks();
+   chain.produce_block();
 
    chain.push_action(config::system_account_name, updateauth::get_name(), tester_account, fc::mutable_variant_object()
            ("account", name(tester_account).to_string())
@@ -857,7 +857,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
    const auto& tester_account = "tester"_n;
    const auto& tester_account2 = "tester2"_n;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account(tester_account);
    chain.create_account(tester_account2);
 
@@ -875,7 +875,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
 
    const resource_limits_manager& mgr = chain.control->get_resource_limits_manager();
 
-   chain.produce_blocks();
+   chain.produce_block();
 
    {
       action act;
@@ -920,7 +920,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
    BOOST_REQUIRE( d );
 
    chain.preactivate_protocol_features( {*d} );
-   chain.produce_blocks();
+   chain.produce_block();
 
    {
       action act;
@@ -1575,7 +1575,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, tester
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // sync a remote node into this chain
    T remote( setup_policy::none );
@@ -1684,7 +1684,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_legacy_test, T, test
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // activate the feature, and start an in-flight producer schedule change with the legacy format
    c.preactivate_protocol_features( {*d} );
@@ -1715,7 +1715,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_extension_test, T, t
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // activate the feature
    c.preactivate_protocol_features( {*d} );

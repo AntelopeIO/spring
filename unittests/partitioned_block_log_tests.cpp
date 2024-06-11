@@ -40,14 +40,14 @@ struct restart_from_block_log_tester : T {
    restart_from_block_log_tester() {
       using namespace eosio::chain;
       chain.create_account("replay1"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.create_account("replay2"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.create_account("replay3"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       auto cutoff_block = chain.produce_block();
       cutoff_block_num  = cutoff_block->block_num();
-      chain.produce_blocks(10);
+      chain.produce_block();
 
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
