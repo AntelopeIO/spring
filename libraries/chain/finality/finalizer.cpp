@@ -200,7 +200,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 }
 
 // ----------------------------------------------------------------------------------------
-void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys) {
+void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting) {
    if (finalizer_keys.empty())
       return;
 
@@ -226,6 +226,8 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 
    // now only inactive finalizers remain in safety_info => move it to inactive_safety_info
    inactive_safety_info = std::move(safety_info);
+
+   enable_voting = enable_immediate_voting;
 }
 
 

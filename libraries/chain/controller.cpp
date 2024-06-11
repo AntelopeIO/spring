@@ -1232,7 +1232,7 @@ struct controller_impl {
     chain_id( chain_id ),
     read_mode( cfg.read_mode ),
     thread_pool(),
-    my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
+    my_finalizers(cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -3701,8 +3701,7 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(
-          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
@@ -4612,8 +4611,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-      my_finalizers.set_keys(finalizer_keys);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -5763,8 +5762,8 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-   my->set_node_finalizer_keys(finalizer_keys);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
 }
 
 /// Protocol feature activation handlers:
