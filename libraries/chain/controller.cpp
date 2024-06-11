@@ -3274,9 +3274,11 @@ struct controller_impl {
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
             if (!my_finalizers.empty()) {
                apply_s<void>(chain_head, [&](const auto& head) {
-                  boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
-                     create_and_send_vote_msg(head);
-                  });
+                  if (head->is_recent() || my_finalizers.is_active()) {
+                     boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                        create_and_send_vote_msg(head);
+                     });
+                  }
                });
             }
          }
@@ -3963,6 +3965,8 @@ struct controller_impl {
          // is actually valid as it simply is used as a network message for this data.
          const auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
          set_if_irreversible_block_id(final_on_strong_qc_block_ref.block_id);
+         // Update finalizer safety information based on vote evidence
+         my_finalizers.maybe_update_fsi(claimed, received_qc);
       }
    }
 
@@ -3976,18 +3980,20 @@ struct controller_impl {
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
       if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
-         if (use_thread_pool == use_thread_pool_t::yes) {
-            boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+         if (bsp->is_recent() || my_finalizers.is_active()) {
+            if (use_thread_pool == use_thread_pool_t::yes) {
+               boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+                  const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+                  if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+                     create_and_send_vote_msg(bsp);
+                  }
+               });
+            } else {
+               // bsp can be used directly instead of copy needed for post
                const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
                if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
-            });
-         } else {
-            // bsp can be used directly instead of copy needed for post
-            const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-            if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
-               create_and_send_vote_msg(bsp);
             }
          }
       }

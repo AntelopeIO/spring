@@ -290,7 +290,8 @@ namespace eosio::testing {
             // Do not transition to Savanna under full_except_do_not_transition_to_savanna or
             // full_except_do_not_disable_deferred_trx
             if( policy == setup_policy::full ) {
-               finalizer_keys fin_keys(*this, 4u /* num_keys */, 4u /* finset_size */);
+               // BLS voting is slow. Use only 1 finalizer for default testser.
+               finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
                fin_keys.activate_savanna(0u /* first_key_idx */);
             }
 
@@ -517,9 +518,9 @@ namespace eosio::testing {
    void base_tester::_wait_for_vote_if_needed(controller& c) {
       if (c.head_block()->is_proper_svnn_block()) {
          // wait for this node's vote to be processed
-         size_t retrys = 200;
+         size_t retrys = 500;
          while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
          }
          FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
       }

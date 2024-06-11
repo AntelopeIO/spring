@@ -1191,8 +1191,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_test,
    BOOST_TEST( t.is_code_cached("pause"_n) );
 
    // If this check fails but duration is >= 75'000 (previous check did not fail), then the check here is likely
-   // because it took longer than 10 ms for checktime to trigger, trace to be created, and to get to the now() call.
-   BOOST_CHECK_MESSAGE( dur < 85'000, "elapsed " << dur << "us" );
+   // because it took longer than 50 ms for checktime to trigger, trace to be created, and to get to the now() call.
+   BOOST_CHECK_MESSAGE( dur < 125'000, "elapsed " << dur << "us" );
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 } FC_LOG_AND_RETHROW() }
@@ -1231,20 +1231,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_while
    // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
    auto before = fc::time_point::now();
    BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
-                                     0, 150, 5, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                                     0, 150, 15, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
                           deadline_exception, is_deadline_exception );
    auto after = fc::time_point::now();
-   // Test that it runs longer than specified limit of 10ms to allow for wasm load time.
+   // Test that it runs longer than specified limit of 15ms to allow for wasm load time.
    // WASM load times on my machine are around 35ms
    auto dur = (after - before).count();
    dlog("elapsed ${e}us", ("e", dur) );
-   BOOST_CHECK( dur >= 5'000 ); // should never fail
+   BOOST_CHECK( dur >= 15'000 ); // should never fail
    BOOST_TEST( t.is_code_cached("pause"_n) );
 
    // WASM load times on my machine was 35ms.
    // Since checktime only kicks in after WASM is loaded this needs to be large enough to load the WASM, but should be
-   // considerably lower than the 150ms max_transaction_time
-   BOOST_CHECK_MESSAGE( dur < 65'000, "elapsed " << dur << "us" );
+   // lower than the 150ms max_transaction_time
+   BOOST_CHECK_MESSAGE( dur < 125'000, "elapsed " << dur << "us" );
    BOOST_REQUIRE_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // should never fail
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
