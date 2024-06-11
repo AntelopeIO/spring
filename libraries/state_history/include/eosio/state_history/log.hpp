@@ -106,7 +106,7 @@ private:
    fc::random_access_file       index;
    uint32_t                     _begin_block       = 0;  //always tracks the first block available even after pruning
    uint32_t                     _index_begin_block = 0;  //the first block of the file; even after pruning. it's what index 0 in the index file points to
-   uint32_t                     _end_block         = 0;
+   uint32_t                     _end_block         = 0;  //one-past-the-last block of the file
    chain::block_id_type         last_block_id;
 
    inline static const unsigned packed_header_size = fc::raw::pack_size(log_header());
@@ -133,8 +133,8 @@ private:
          prune_config->prune_threshold = ~(prune_config->prune_threshold-1);
       }
 
-      open_log();
-      open_index();
+      check_log_on_init();
+      check_index_on_init();
 
       //check for conversions to/from pruned log, as long as log contains something
       if(!empty()) {
@@ -293,7 +293,7 @@ private:
          return;
 
       const uint32_t prune_to_num = _end_block - prune_config->prune_blocks;
-      ///TODO: we need to cap this to the lowest position there are any active entries reading from
+      ///TODO: we should cap this to the lowest position there are any active entries reading from, see https://github.com/AntelopeIO/spring/pull/237
       uint64_t prune_to_pos = get_pos(prune_to_num);
       log.punch_hole(fc::raw::pack_size(log_header()), prune_to_pos);
 
@@ -304,11 +304,12 @@ private:
    bool discover_and_check_last_block_ok(bool is_pruned) {
       try {
          //fetch the last block header from the log solely using the log (i.e. not the index: so don't use get_pos()). This is a sanity check.
-         log_header last_header = log.unpack_from<decltype(last_header)>(log.unpack_from<uint64_t>(log.size() - sizeof(uint64_t) - (is_pruned ? sizeof(uint32_t) : 0)));
+         const uint64_t last_header_pos = log.unpack_from<std::decay_t<decltype(last_header_pos)>>(log.size() - sizeof(uint64_t) - (is_pruned ? sizeof(uint32_t) : 0));
+         log_header last_header = log.unpack_from<decltype(last_header)>(last_header_pos);
          FC_ASSERT(is_ship(last_header.magic) && is_ship_supported_version(last_header.magic), "Unexpected header magic on last block");
          _end_block    = chain::block_header::num_from_id(last_header.block_id) + 1;
          last_block_id = last_header.block_id;
-         FC_ASSERT(_begin_block < _end_block, "Block numbers from head and tail of log are not expected");
+         FC_ASSERT(_begin_block < _end_block, "Block number ${hbn} from head and block number ${tbn} from tail of log are not expected", ("hbn", _begin_block)("tbn", _end_block-1));
       }
       catch(const std::bad_alloc&) {
          throw;
@@ -347,11 +348,11 @@ private:
             ilog("${num_found} blocks found, log pos = ${pos}", ("num_found", num_found)("pos", pos));
          }
       }
+      ilog("recovery of ${fn} complete, ${b} blocks found in ${bytes} bytes", ("fn", log.display_path())("b", num_found)("bytes", pos));
       log.resize(pos);
    }
 
-   // only called from constructor
-   void open_log() {
+   void check_log_on_init() {
       if(log.size() == 0)
          return;
 
@@ -378,8 +379,7 @@ private:
       } EOS_RETHROW_EXCEPTIONS(chain::plugin_exception, "${name} is corrupted and cannot be repaired", ("name", log.display_path()));
    }
 
-   // only called from constructor
-   void open_index() {
+   void check_index_on_init() {
       const uint64_t expected_index_size = (_end_block - _index_begin_block) * sizeof(uint64_t);
       if(index.size() == expected_index_size)
          return;
@@ -413,13 +413,24 @@ private:
                ilog("${r} blocks remaining, log pos = ${pos}", ("r", chain::block_header::num_from_id(header.block_id) - _begin_block)("pos", logpos));
          } while(chain::block_header::num_from_id(header.block_id) != _begin_block);
       }
+
+      ilog("${name} regeneration complete", ("name", index.display_path()));
    }
 
    uint64_t get_pos(uint32_t block_num) {
       return index.unpack_from<uint64_t>((block_num - _index_begin_block) * sizeof(uint64_t));
    }
 
-
+   /*
+    * A pruned log will have a gap where data has been erased (via "poking holes"). for example,
+    * _index_begin_block=1, _begin_block=5, _end_block=9
+    * index:  1|2|3|4|5|6|7|8
+    * log:    Hxxxxxx|5|6|7|8  (H is the just the header)
+    * Pruning will collapse the gap resulting in a non-pruned log and index:
+    * _index_begin_block=5, _begin_block=5, _end_block=9
+    * index:  5|6|7|8
+    * log:    5|6|7|8
+    */
    void vacuum() {
       //a completely empty log should have nothing on disk; don't touch anything
       if(empty())

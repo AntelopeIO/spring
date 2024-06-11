@@ -8,7 +8,7 @@
 namespace eosio::state_history {
 
 struct prune_config {
-   uint32_t                prune_blocks;                  //number of blocks to prune to when doing a prune
+   uint32_t                prune_blocks;                  //when pruning, the number of most recent blocks to remain available in the log
    size_t                  prune_threshold = 4*1024*1024; //(approximately) how many bytes need to be added before a prune is performed
    std::optional<size_t>   vacuum_on_close;               //when set, a vacuum is performed on dtor if log contains less than this many bytes
 };

@@ -148,7 +148,7 @@ struct random_access_file_context {
       do {
          r = ftruncate(fd, static_cast<off_t>(size));
       } while(r == -1 && errno == EINTR);
-      FC_ASSERT(r == 0, "ftruncate failure on file ${fn}: ${e}", ("fn", display_path)("e", strerror(errno)));
+      FC_ASSERT(r == 0, "failed to resize file ${fn} to ${sz} bytes: ${e}", ("fn", display_path)("sz", size)("e", strerror(errno)));
    }
 
    void punch_hole(size_t begin, size_t end) {

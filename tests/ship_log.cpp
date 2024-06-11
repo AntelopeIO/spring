@@ -162,7 +162,7 @@ private:
    }
 };
 
-//historically can only punch holes on filesystem block boundaries. not true any longer, but let's make sure the entries we add are larger than that anyways
+//can only punch holes on filesystem block boundaries. let's make sure the entries we add are larger than that
 static size_t larger_than_tmpfile_blocksize() {
    fc::temp_cfile tf;
    auto& cf = tf.file();

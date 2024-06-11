@@ -70,7 +70,7 @@ public:
       std::visit(chain::overloaded {
          [this](const std::monostate&) {
             open_head_log();
-         }, //nothing needed
+         },
          [this](const state_history::prune_config& prune) {
             open_head_log(prune);
          },
@@ -99,7 +99,7 @@ public:
             }
 
             if(retained_log_files.size() > 1)
-               for(decltype(retained_log_files)::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it)
+               for(catalog_t::iterator it = retained_log_files.begin(); it != std::prev(retained_log_files.end()); ++it)
                   EOS_ASSERT(it->end_block_num == std::next(it)->begin_block_num, chain::plugin_exception,
                              "retained log file ${sf}.log has block range ${sb}-${se} but ${ef}.log has range ${eb}-${ee} which results in a hole",
                              ("sf", it->path_and_basename.native())("sb", it->begin_block_num)("se", it->end_block_num-1)
