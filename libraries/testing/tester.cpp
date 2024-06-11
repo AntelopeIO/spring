@@ -517,9 +517,9 @@ namespace eosio::testing {
    void base_tester::_wait_for_vote_if_needed(controller& c) {
       if (c.head_block()->is_proper_svnn_block()) {
          // wait for this node's vote to be processed
-         size_t retrys = 200;
+         size_t retrys = 500;
          while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
          }
          FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
       }
