@@ -86,6 +86,19 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 }
 
 // ----------------------------------------------------------------------------------------
+// finalizer has voted strong on bsp, update finalizer safety info if more recent than the current lock
+bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
+   auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+   if (final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
+      fsi.lock = { final_on_strong_qc_block_ref.block_id, final_on_strong_qc_block_ref.timestamp };
+      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
+      fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
+      return true;
+   }
+   return false;
+}
+
+// ----------------------------------------------------------------------------------------
 vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
                                        const block_state_ptr& bsp,
                                        const digest_type& digest) {
@@ -105,6 +118,45 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
 }
 
 // ----------------------------------------------------------------------------------------
+inline bool has_voted_strong(const std::vector<finalizer_authority>& active_finalizers, const valid_quorum_certificate& qc, const bls_public_key& key) {
+   assert(qc.is_strong());
+   auto it = std::find_if(active_finalizers.begin(),
+                          active_finalizers.end(),
+                          [&](const auto& finalizer) { return finalizer.public_key == key; });
+
+   if (it != active_finalizers.end()) {
+      auto index = std::distance(active_finalizers.begin(), it);
+      assert(qc.strong_votes);
+      return qc.strong_votes->test(index);
+   }
+   return false;
+}
+
+void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc) {
+   if (finalizers.empty())
+      return;
+
+   // once we have voted, no reason to continue evaluating incoming QCs
+   if (has_voted.load(std::memory_order::relaxed))
+      return;
+
+   assert(bsp->active_finalizer_policy);
+
+   // see comment on possible optimization in maybe_vote
+   std::lock_guard g(mtx);
+
+   bool updated = false;
+   for (auto& f : finalizers) {
+      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc, f.first)) {
+         updated |= f.second.maybe_update_fsi(bsp);
+      }
+   }
+
+   if (updated) {
+      save_finalizer_safety_info();
+   }
+}
+
 void my_finalizers_t::save_finalizer_safety_info() const {
 
    if (!persist_file.is_open()) {
