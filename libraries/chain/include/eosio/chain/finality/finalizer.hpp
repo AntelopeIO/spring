@@ -95,7 +95,7 @@ namespace eosio::chain {
             return;
 
          if (!enable_voting.load(std::memory_order_relaxed)) { // Avoid extra processing while syncing. Once caught up, consider voting
-            if (bsp->timestamp() < fc::time_point::now() - fc::seconds(30))
+            if (!bsp->is_recent())
                return;
             enable_voting.store(true, std::memory_order_relaxed);
          }
@@ -132,6 +132,7 @@ namespace eosio::chain {
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
+      bool    is_active() const { return !empty() && enable_voting.load(std::memory_order_relaxed); } // thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe

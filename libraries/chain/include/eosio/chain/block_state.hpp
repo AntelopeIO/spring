@@ -111,6 +111,11 @@ public:
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
    void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
 
+   // heuristic for determination if we are syncing or replaying for optimizations
+   bool is_recent() const {
+      return timestamp() > fc::time_point::now() - fc::seconds(30);
+   }
+
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
    uint32_t               last_qc_block_num() const { return core.latest_qc_claim().block_num; }
    uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
