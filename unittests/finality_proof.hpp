@@ -2,22 +2,9 @@
 
 #include "finality_test_cluster.hpp"
 
-/*****
-
-   The proof_test_cluster class inherits from finality_test_cluster and serves to generate finality proofs for the purpose of IBC and proving finality violations.
-
-   It has its own high-level produce_block function, which hides all the internal consensus details, and returns an extended struct containing data relevant for proof generation.
-
-   It doesn't support forks or rollbacks, and always assumes the happy path in finality progression, which is sufficient for the purpose of generating finality proofs for testing.
-   
-   It also assumes a single producer pre-transition, resulting in only 2 transition blocks when IF is activated.
-
-*****/
-
 using mvo = mutable_variant_object;
 
 namespace finality_proof {
-
 
    // data relevant to IBC
    struct ibc_block_data_t {
@@ -119,47 +106,6 @@ namespace finality_proof {
       return active_finalizer_policy;
 
    }
-   static mvo get_finality_proof(const ibc_block_data_t target_block, 
-                                 const ibc_block_data_t qc_block, 
-                                 const uint32_t target_block_index, 
-                                 const uint32_t final_block_index, 
-                                 const std::string signature, 
-                                 const std::string bitset,
-                                 const std::vector<digest_type> proof_of_inclusion){
-
-      mutable_variant_object proof = mvo()
-            ("finality_proof", mvo()
-               ("qc_block", mvo()
-                  ("major_version", 1)
-                  ("minor_version", 0)
-                  ("finalizer_policy_generation", qc_block.active_finalizer_policy_generation)
-                  ("witness_hash", qc_block.afp_base_digest)
-                  ("finality_mroot", qc_block.finality_root)
-               )
-               ("qc", mvo()
-                  ("signature", signature)
-                  ("finalizers", bitset) 
-               )
-            )
-            ("target_block_proof_of_inclusion", mvo() 
-               ("target_block_index", target_block_index)
-               ("final_block_index", final_block_index)
-               ("target",  mvo() 
-                  ("major_version", 1)
-                  ("minor_version", 0)
-                  ("finality_digest", target_block.finality_digest)
-                  ("dynamic_data", mvo() 
-                     ("block_num", target_block.block->block_num())
-                     ("action_proofs", fc::variants())
-                     ("action_mroot", target_block.action_mroot)
-                  )
-               )
-               ("merkle_branches", proof_of_inclusion)
-            );
-
-      return proof;
-
-   }
 
    struct policy_count {
       finalizer_policy policy;
@@ -170,6 +116,18 @@ namespace finality_proof {
    class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
    public:
 
+      /*****
+
+         The proof_test_cluster class inherits from finality_test_cluster and serves to generate finality proofs for the purpose of IBC and proving finality violations.
+
+         It has its own high-level produce_block function, which hides all the internal consensus details, and returns an extended struct containing data relevant for proof generation.
+
+         It doesn't support forks or rollbacks, and always assumes the happy path in finality progression, which is sufficient for the purpose of generating finality proofs for testing.
+         
+         It also assumes a single producer pre-transition, resulting in only 2 transition blocks when IF is activated.
+
+      *****/
+         
       // cache last proposed, last pending and currently active finalizer policies + digests
       eosio::chain::finalizer_policy last_proposed_finalizer_policy;
       digest_type last_proposed_finalizer_policy_digest;
@@ -209,29 +167,6 @@ namespace finality_proof {
 
          //skip this part on genesis
          if (!is_genesis){
-            // after 3 more QCs (6 total since the policy was proposed) the pending policy becomes active
-/*            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest && blocks_since_proposed_policy[last_pending_finalizer_policy_digest] == 6){
-               active_finalizer_policy = last_pending_finalizer_policy;
-               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
-            }
-
-            // after 3 QCs, the proposed policy becomes pending
-            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest && blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] == 3){
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
-            }*/
-            /*
-            if (active_finalizer_policy_digest!= last_pending_finalizer_policy_digest ){
-
-               active_finalizer_policy = last_pending_finalizer_policy;
-               active_finalizer_policy_digest = fc::sha256::hash(active_finalizer_policy);
-            }
-
-            if (last_pending_finalizer_policy_digest!= last_proposed_finalizer_policy_digest){
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = fc::sha256::hash(last_pending_finalizer_policy);
-            }*/
-
             for (auto& p : blocks_since_proposed_policy){
                if (p.second.blocks_since_proposed == 6){
                   active_finalizer_policy = p.second.policy;
@@ -242,7 +177,6 @@ namespace finality_proof {
                   last_pending_finalizer_policy_digest = p.first;
                }
             }
-
          }
 
          // if we have policy diffs, process them
@@ -268,7 +202,6 @@ namespace finality_proof {
          }
 
          //process votes and collect / compute the IBC-relevant data
-
          if (vote_propagation.size() == 0) this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
          else this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
 
