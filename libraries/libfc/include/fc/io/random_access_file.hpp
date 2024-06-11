@@ -80,6 +80,10 @@ struct random_access_file_context {
       if(flags != -1)
          fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
 #endif
+      struct stat st;
+      file_block_size = 4096;
+      if(fstat(fd, &st) == 0)
+         file_block_size = st.st_blksize;
    }
 
    template<typename MutableBufferSequence>
@@ -176,6 +180,7 @@ struct random_access_file_context {
    native_handle_type    fd = -1;
    std::atomic_flag      one_hole_punch_warning_is_enough;
    std::filesystem::path display_path;
+   size_t                file_block_size = 4096;
 };
 #else
 #warning WIN32 impl of random_access_file_context has some failing tests
@@ -186,7 +191,12 @@ struct random_access_file_context {
    using native_handle_type = HANDLE;
 
    explicit random_access_file_context(const std::filesystem::path& path) : display_path(path), file(local_ctx, path.generic_string().c_str(),
-                                                                   boost::asio::random_access_file::create | boost::asio::random_access_file::read_write) {}
+                                                                   boost::asio::random_access_file::create | boost::asio::random_access_file::read_write) {
+      //TODO: is this right?
+      FILE_STORAGE_INFO file_storage_info;
+      if(GetFileInformationByHandleEx(native_handle(), FileStorageInfo, &file_storage_info, sizeof(file_storage_info)))
+         file_block_size = file_storage_info.FileSystemEffectivePhysicalBytesPerSectorForAtomicity;
+   }
 
    template<typename MutableBufferSequence>
    ssize_t read_from(const MutableBufferSequence& mbs, ssize_t offs) {
@@ -238,10 +248,11 @@ struct random_access_file_context {
       return file.native_handle();
    }
 
-   boost::asio::io_context local_ctx;
-   std::filesystem::path display_path;
+   boost::asio::io_context         local_ctx;
+   std::filesystem::path           display_path;
    boost::asio::random_access_file file;
-   std::atomic_flag one_hole_punch_warning_is_enough;
+   std::atomic_flag                one_hole_punch_warning_is_enough;
+   size_t                          file_block_size = 4096;
 };
 #endif
 
@@ -444,6 +455,14 @@ public:
    void punch_hole(size_t begin, size_t end) {
       FC_ASSERT(begin <= std::numeric_limits<off_t>::max(), "start of hole punch out of range for ${fn}", ("fn", ctx->display_path));
       FC_ASSERT(end <= std::numeric_limits<off_t>::max(), "end of hole punch out of range for ${fn}", ("fn", ctx->display_path));
+
+      //some OS really want the hole punching to be aligned to FS block size
+      if(begin % ctx->file_block_size) {
+         begin &= ~(ctx->file_block_size-1);
+         begin += ctx->file_block_size;
+      }
+      end &= ~(ctx->file_block_size-1);
+
       if(begin >= end)
          return;
 
