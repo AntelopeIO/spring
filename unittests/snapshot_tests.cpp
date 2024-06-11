@@ -195,25 +195,25 @@ void exhaustive_snapshot_test()
    chain.create_accounts({"snapshot"_n, "snapshot1"_n});
 
    // Set code and increment the first account
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.push_action("snapshot"_n, "increment"_n, "snapshot"_n, mutable_variant_object()
          ( "value", 1 )
    );
 
    // Set code and increment the second account
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot1"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot1"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
    // increment the test contract
    chain.push_action("snapshot1"_n, "increment"_n, "snapshot1"_n, mutable_variant_object()
          ( "value", 1 )
    );
 
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.control->abort_block();
 
@@ -266,10 +266,10 @@ void replay_over_snapshot_test()
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.control->abort_block();
 
    static const int pre_snapshot_block_count = 12;
@@ -368,10 +368,10 @@ void chain_id_in_snapshot_test()
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.control->abort_block();
 
    // create a new snapshot child
@@ -421,16 +421,16 @@ void compatible_versions_test()
 
       TESTER chain(setup_policy::none, db_read_mode::HEAD, {legacy_default_max_inline_action_size});
       chain.create_account("snapshot"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
       chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.control->abort_block();
 
       // continue until all the above blocks are in the blocks.log
       auto head_block_num = chain.control->head_block_num();
       while (chain.control->last_irreversible_block_num() < head_block_num) {
-         chain.produce_blocks(1);
+         chain.produce_block();
       }
 
       auto source = chain.get_config().blocks_dir / "blocks.log";
@@ -567,10 +567,10 @@ void restart_with_existing_state_and_truncated_block_log_test()
    const std::filesystem::path parent_path = chain.get_config().blocks_dir.parent_path();
 
    chain.create_account("snapshot"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.control->abort_block();
 
    static const int pre_snapshot_block_count = 12;
@@ -658,10 +658,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( json_snapshot_validity_test, TESTER, testers )
 
    // prep the chain
    chain.create_account("snapshot"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
    chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.control->abort_block();
 
    auto pid_string = std::to_string(getpid());
@@ -726,7 +726,7 @@ void jumbo_row_test()
 
    chain.create_accounts({"jumbo"_n});
    chain.set_code("jumbo"_n, set_jumbo_row_wast);
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    signed_transaction trx;
    action act;
@@ -738,7 +738,7 @@ void jumbo_row_test()
    chain.set_transaction_headers(trx);
    trx.sign(tester::get_private_key("jumbo"_n, "active"), chain.control->get_chain_id());
    chain.push_transaction(trx);
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.control->abort_block();
 

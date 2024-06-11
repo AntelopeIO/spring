@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
    const auto new_owner_priv_key = chain.get_private_key(name("alice"), "new_owner");
    const auto new_owner_pub_key = new_owner_priv_key.get_public_key();
    chain.set_authority(name("alice"), name("owner"), authority(new_owner_pub_key), {});
-   chain.produce_blocks();
+   chain.produce_block();
 
    // Ensure the permission is updated
    permission_object::id_type owner_id;
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
    const auto new_active_pub_key = new_active_priv_key.get_public_key();
    chain.set_authority(name("alice"), name("active"), authority(new_active_pub_key), name("owner"),
                        { permission_level{name("alice"), name("active")} }, { chain.get_private_key(name("alice"), "active") });
-   chain.produce_blocks();
+   chain.produce_block();
 
    {
       auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("active")));
@@ -166,7 +166,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
    // Create new spending auth
    chain.set_authority(name("alice"), name("spending"), authority(spending_pub_key), name("active"),
                        { permission_level{name("alice"), name("active")} }, { new_active_priv_key });
-   chain.produce_blocks();
+   chain.produce_block();
    {
       auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
       BOOST_TEST(obj != nullptr);
@@ -189,7 +189,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
       auto obj = chain.template find<permission_object, by_owner>(boost::make_tuple(name("alice"), name("spending")));
       BOOST_TEST(obj == nullptr);
    }
-   chain.produce_blocks();
+   chain.produce_block();
 
    // Create new trading auth
    chain.set_authority(name("alice"), name("trading"), authority{trading_pub_key}, name("active"),
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
    // Recreate spending auth again, however this time, it's under trading instead of owner
    chain.set_authority(name("alice"), name("spending"), authority{spending_pub_key}, name("trading"),
                        { permission_level{name("alice"), name("trading")} }, { trading_priv_key });
-   chain.produce_blocks();
+   chain.produce_block();
 
    // Verify correctness of trading and spending
    {
@@ -244,7 +244,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auth_unknown_private_key, TESTER, validati
       fc::crypto::public_key new_owner_pub_key(std::move(shim));
 
       chain.set_authority(name("alice"), name("owner"), authority(new_owner_pub_key), {});
-      chain.produce_blocks();
+      chain.produce_block();
 
       // Ensure the permission is updated
       permission_object::id_type owner_id;
@@ -323,7 +323,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( link_then_update_auth, TESTER, validating_testers
    chain.link_authority(name("alice"), name("eosio"), name("first"), name("reqauth"));
    chain.push_reqauth(name("alice"), { permission_level{"alice"_n, name("first")} }, { first_priv_key });
 
-   chain.produce_blocks(13); // Wait at least 6 seconds for first push_reqauth transaction to expire.
+   chain.produce_block();
+   chain.produce_block(fc::seconds(6)); // Wait at least 6 seconds for first push_reqauth transaction to expire.
 
    // Update "first" auth public key
    chain.set_authority(name("alice"), name("first"), authority{second_pub_key}, name("active"));
@@ -525,13 +526,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_special, TESTER, validating_testers ) { 
    const auto& tester_account = "tester"_n;
    std::vector<transaction_id_type> ids;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("currency"_n);
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("tester"_n);
    chain.create_account("tester2"_n);
-   chain.produce_blocks();
+   chain.produce_block();
 
    chain.push_action(config::system_account_name, updateauth::get_name(), tester_account, fc::mutable_variant_object()
            ("account", "tester")
@@ -565,17 +566,17 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
 
    const auto& tester_account = "tester"_n;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("eosio.token"_n);
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
    chain.set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("tester"_n);
    chain.create_account("tester2"_n);
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    transaction_trace_ptr trace;
 
@@ -606,7 +607,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
            ("requirement", "first"));
 
    // create CUR token
-   chain.produce_blocks();
+   chain.produce_block();
    chain.push_action("eosio.token"_n, "create"_n, "eosio.token"_n, mutable_variant_object()
            ("issuer", "eosio.token" )
            ("maximum_supply", "9000000.0000 CUR" )
@@ -628,7 +629,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
    );
    BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
 
-   chain.produce_blocks();
+   chain.produce_block();
 
    auto liquid_balance = chain.get_currency_balance("eosio.token"_n, symbol(SY(4,CUR)), "eosio.token"_n);
    BOOST_REQUIRE_EQUAL(asset::from_string("999900.0000 CUR"), liquid_balance);
@@ -676,7 +677,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
 
    BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
 
-   chain.produce_blocks(1);;
+   chain.produce_block();;
 
    trace = chain.push_action("eosio.token"_n, name("transfer"), "tester"_n, fc::mutable_variant_object()
        ("from", "tester")
@@ -686,7 +687,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( delete_auth, TESTER, validating_testers ) { try {
    );
    BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
 
-   chain.produce_blocks();
+   chain.produce_block();
 
    liquid_balance = chain.get_currency_balance("eosio.token"_n, symbol(SY(4,CUR)), "tester"_n);
    BOOST_REQUIRE_EQUAL(asset::from_string("96.0000 CUR"), liquid_balance);

@@ -393,7 +393,7 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
 
    chain.create_accounts({ "eosio.token"_n, "eosio.ram"_n, "eosio.ramfee"_n, "eosio.stake"_n, "eosio.rex"_n});
 
-   chain.produce_blocks( 100 );
+   chain.produce_block();
 
    chain.set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
    chain.set_abi( "eosio.token"_n, test_contracts::eosio_token_abi() );
@@ -411,7 +411,7 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
       ("memo", "for stuff")
    );
 
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    chain.set_code( config::system_account_name, test_contracts::eosio_system_wasm() );
    chain.set_abi( config::system_account_name, test_contracts::eosio_system_abi() );
@@ -504,7 +504,7 @@ BOOST_AUTO_TEST_CASE(test_deltas_resources_history) {
       chain.set_code("tester"_n, test_contracts::get_table_test_wasm());
       chain.set_abi("tester"_n, test_contracts::get_table_test_abi());
 
-      chain.produce_blocks(2);
+      chain.produce_block();
 
       auto trace = chain.push_action("tester"_n, "addhashobj"_n, "tester"_n, mutable_variant_object()("hashinput", "hello"));
       BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);

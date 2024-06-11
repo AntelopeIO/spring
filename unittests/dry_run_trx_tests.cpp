@@ -81,7 +81,7 @@ BOOST_AUTO_TEST_SUITE(dry_run_trx_tests)
 BOOST_AUTO_TEST_CASE_TEMPLATE( require_authorization, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    action act = {
       {}, // no authorization provided: vector<permission_level>{{config::system_account_name,config::active_name}},
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( require_authorization, T, dry_run_trx_testers ) {
 BOOST_AUTO_TEST_CASE_TEMPLATE( newaccount_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    action act = {
       vector<permission_level>{{config::system_account_name,config::active_name}},
@@ -123,14 +123,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( newaccount_test, T, dry_run_trx_testers ) { try {
    chain.send_action(act, false); // should not throw
    chain.send_action(act, true); // should not throw
    BOOST_CHECK_THROW(chain.control->get_account("alice"_n), fc::exception); // not actually created
-   chain.produce_blocks( 1 );
+   chain.produce_block();
    BOOST_CHECK_THROW(chain.control->get_account("alice"_n), fc::exception); // not actually created
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( setcode_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_accounts( {"setcodetest"_n} );
 
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( setcode_test, T, dry_run_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( setabi_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_accounts( {"setabitest"_n} );
 
@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( setabi_test, T, dry_run_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( updateauth_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_accounts( {"alice"_n} );
 
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( updateauth_test, T, dry_run_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( deleteauth_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_accounts( {"alice"_n} );
 
@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( deleteauth_test, T, dry_run_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_account("eosio.token"_n);
    chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
@@ -252,7 +252,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( linkauth_test, T, dry_run_trx_testers ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE( unlinkauth_test, T, dry_run_trx_testers ) { try {
    T chain;
 
-   chain.produce_blocks( 1 );
+   chain.produce_block();
 
    chain.create_account("eosio.token"_n);
    chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
