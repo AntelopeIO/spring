@@ -83,12 +83,14 @@ namespace eosio::chain {
       );
    }
 
-   void deep_mind_handler::on_accepted_block_v2(block_num_type lib, const signed_block_ptr& b, const finality_data_t& fd)
+   void deep_mind_handler::on_accepted_block_v2(const block_id_type& id, block_num_type lib, const signed_block_ptr& b,
+                                                const finality_data_t& fd)
    {
       auto packed_blk = fc::raw::pack(*b);
       auto finality_data = fc::raw::pack(fd);
 
-      fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${num} ${lib} ${blk} ${fd}",
+      fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${id} ${num} ${lib} ${blk} ${fd}",
+         ("id", id)
          ("num", b->block_num())
          ("lib", lib)
          ("blk", fc::to_hex(packed_blk))
