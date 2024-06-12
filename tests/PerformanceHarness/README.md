@@ -569,11 +569,11 @@ Performance Test Basic Base:
   --read-only-read-window-time-us READ_ONLY_READ_WINDOW_TIME_US
                         Time in microseconds the read window lasts.
   --http-max-in-flight-requests HTTP_MAX_IN_FLIGHT_REQUESTS
-                        Maximum number of requests http_plugin should use for processing http requests. 429 error response when exceeded. -1 for unlimited
+                        Maximum number of requests http_plugin should use for processing http requests. 503 error response when exceeded. -1 for unlimited
   --http-max-response-time-ms HTTP_MAX_RESPONSE_TIME_MS
                         Maximum time for processing a request, -1 for unlimited
   --http-max-bytes-in-flight-mb HTTP_MAX_BYTES_IN_FLIGHT_MB
-                        Maximum size in megabytes http_plugin should use for processing http requests. -1 for unlimited. 429 error response when exceeded.
+                        Maximum size in megabytes http_plugin should use for processing http requests. -1 for unlimited. 503 error response when exceeded.
   --del-perf-logs       Whether to delete performance test specific logs.
   --del-report          Whether to delete overarching performance run report.
   --save-state          Whether to save node state. (Warning: large disk usage)
@@ -726,11 +726,11 @@ Performance Test Basic Base:
                         The number of milliseconds early the last block of a production round should
                         be produced.
   --http-max-in-flight-requests HTTP_MAX_IN_FLIGHT_REQUESTS
-                        Maximum number of requests http_plugin should use for processing http requests. 429 error response when exceeded. -1 for unlimited (default: -1)
+                        Maximum number of requests http_plugin should use for processing http requests. 503 error response when exceeded. -1 for unlimited (default: -1)
   --http-max-response-time-ms HTTP_MAX_RESPONSE_TIME_MS
                         Maximum time for processing a request, -1 for unlimited (default: -1)
   --http-max-bytes-in-flight-mb HTTP_MAX_BYTES_IN_FLIGHT_MB
-                        Maximum size in megabytes http_plugin should use for processing http requests. -1 for unlimited. 429 error response when exceeded. (default: -1)
+                        Maximum size in megabytes http_plugin should use for processing http requests. -1 for unlimited. 503 error response when exceeded. (default: -1)
   --del-perf-logs       Whether to delete performance test specific logs. (default: False)
   --del-report          Whether to delete overarching performance run report. (default: False)
   --save-state          Whether to save node state. (Warning: large disk usage)
