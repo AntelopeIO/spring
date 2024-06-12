@@ -411,13 +411,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_symbol, T, validating_testers ) try {
 } FC_LOG_AND_RETHROW() /// test_symbol
 
 BOOST_FIXTURE_TEST_CASE( test_proxy_deferred, pre_disable_deferred_trx_currency_tester ) try {
-   produce_blocks(2);
-
    create_accounts( {"alice"_n, "proxy"_n} );
    produce_block();
 
    set_code("proxy"_n, test_contracts::proxy_wasm());
-   produce_blocks(1);
+   produce_block();
 
    abi_serializer proxy_abi_ser(json::from_string(test_contracts::proxy_abi()).as<abi_def>(), abi_serializer::create_yield_function( abi_serializer_max_time ));
 

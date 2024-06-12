@@ -81,7 +81,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
    set_transaction_headers(trx);
    trx.sign( get_private_key( "asserter"_n, "active" ), control->get_chain_id() );
    push_transaction( trx );
-   produce_blocks(1);
+   produce_block();
 
    // retrieve block num
    uint32_t headnum = this->control->head_block_num();
@@ -106,7 +106,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
    BOOST_TEST(pos != std::string::npos);
    abi2.replace(pos, 4, "xxxx");
    set_abi("asserter"_n, abi2.c_str());
-   produce_blocks(1);
+   produce_block();
 
    // resolving the invalid abi result in exception
    BOOST_CHECK_THROW(resolver("asserter"_n), invalid_type_inside_abi);
@@ -132,7 +132,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
 
 BOOST_AUTO_TEST_CASE( get_consensus_parameters ) try {
    tester t{setup_policy::old_wasm_parser};
-   t.produce_blocks(1);
+   t.produce_block();
 
    chain_apis::read_only plugin(*(t.control), {}, fc::microseconds::maximum(), fc::microseconds::maximum(), nullptr);
 

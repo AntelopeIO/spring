@@ -612,7 +612,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_duplicate_deferred_id_test, T, testers) try {
    trace1 = nullptr;
 
    // Retire the delayed eosio::reqauth transaction.
-   c.produce_blocks(5);
+   c.produce_blocks(4, true);
+   c.produce_block();
    BOOST_REQUIRE( trace1 );
    BOOST_REQUIRE_EQUAL(0u, index.size());
 

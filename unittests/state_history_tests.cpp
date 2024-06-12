@@ -687,12 +687,14 @@ BOOST_AUTO_TEST_CASE(test_splitted_log) {
    };
 
    state_history_tester chain(state_history_dir.path(), config);
-   chain.produce_blocks(50);
+   chain.produce_block();
+   chain.produce_blocks(49, true);
 
    deploy_test_api(chain);
    auto cfd_trace = push_test_cfd_transaction(chain);
 
-   chain.produce_blocks(100);
+   chain.produce_block();
+   chain.produce_blocks(99, true);
 
    auto log_dir = state_history_dir.path();
    auto archive_dir  = log_dir / "archive";
@@ -768,24 +770,25 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    };
 
    state_history_tester chain1(state_history_dir.path(), config);
-   chain1.produce_blocks(2);
+   chain1.produce_blocks(2, true);
 
    chain1.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
    chain1.produce_block();
    chain1.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
-   chain1.produce_blocks(30);
+   chain1.produce_block();
+   chain1.produce_blocks(30, true);
 
    tester chain2(setup_policy::none);
    push_blocks(chain1, chain2);
 
    auto fork_block_num = chain1.control->head_block_num();
 
-   chain1.produce_blocks(12);
+   chain1.produce_blocks(12, true);
    auto create_account_traces = chain2.create_accounts( {"adam"_n} );
    auto create_account_trace_id = create_account_traces[0]->id;
 
    auto b = chain2.produce_block();
-   chain2.produce_blocks(11+12);
+   chain2.produce_blocks(11+12, true);
 
    for( uint32_t start = fork_block_num + 1, end = chain2.control->head_block_num(); start <= end; ++start ) {
       auto fb = chain2.control->fetch_block_by_number( start );
@@ -828,7 +831,8 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
    };
 
    state_history_tester chain(state_history_dir.path(), config);
-   chain.produce_blocks(50);
+   chain.produce_block();
+   chain.produce_blocks(49, true);
    chain.close();
 
    // write a few random bytes to block log indicating the last block entry is incomplete
@@ -841,7 +845,8 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
    std::filesystem::remove_all(chain.get_config().blocks_dir/"reversible");
 
    state_history_tester new_chain(state_history_dir.path(), config);
-   new_chain.produce_blocks(50);
+   new_chain.produce_block();
+   new_chain.produce_blocks(49, true);
 
    BOOST_CHECK(get_traces(new_chain.traces_log, 10).size());
    BOOST_CHECK(get_decompressed_entry(new_chain.chain_state_log,10).size());

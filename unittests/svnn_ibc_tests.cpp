@@ -796,7 +796,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // so subsequent calls with the same action data will fail
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
 
-      cluster.produce_blocks(1); //advance 1 block to avoid duplicate transaction
+      cluster.produce_block(); //advance 1 block to avoid duplicate transaction
 
       last_action_failed = false;
 
