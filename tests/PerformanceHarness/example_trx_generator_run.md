@@ -18,7 +18,7 @@ ${BUILD_TEST_DIR}/trx_generator/trx_generator --generator-id $GENERATORID \
 ```
 
 ## Output
-Why is this 0us 
+Why is this 0us
 ```
 info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main                 ] Initializing accounts. Attempt to create name for purplepurple
 info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main                 ] Initializing accounts. Attempt to create name for orangeorange
@@ -26,24 +26,24 @@ info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main      
 info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main                 ] Initializing accounts. Attempt to create name for blueblue1111
 info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main                 ] Initializing accounts. Attempt to create name for yellowyellow
 info  2024-06-12T21:14:31.379 trx_gener main.cpp:128                  main                 ] Initializing accounts. Attempt to create name for greengreen11
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JXGAqZCp12N8a1z1JZzJe1kKhho9K7GTh3YbijU9HTuyzSjjgp
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5Kfr2g9ZfTaj1xChRn8K35ZacgmV9s4qXM5Mg76BJSjtXjoZZ28
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JXGAqZCp12N8a1z1JZzJe1kKhho9K7GTh3YbijU9HTuyzSjjgp
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5Kfr2g9ZfTaj1xChRn8K35ZacgmV9s4qXM5Mg76BJSjtXjoZZ28
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JtAYS2NMwFTAgg9Ngu4tW2s6PdB2t35gxngQtsuo81aDQU1QF8
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JS76EC5nBtdozC7d5otoA7KPxDNUiXSFs34VqkGuD2kAnhqFN9
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JXGAqZCp12N8a1z1JZzJe1kKhho9K7GTh3YbijU9HTuyzSjjgp
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5Kfr2g9ZfTaj1xChRn8K35ZacgmV9s4qXM5Mg76BJSjtXjoZZ28
-info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JtAYS2NMwFTAgg9Ngu4tW2s6PdB2t35gxngQtsuo81aDQU1QF8
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JS76EC5nBtdozC7d5otoA7KPxDNUiXSFs34VqkGuD2kAnhqFN9
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JvLiQZLRC6pMpGkWb4AtPhrJpynoyZhjuc67PHDzutLtSBV1qY
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5KGAFTisyJvYnScs5JXKQkPbgxmtqTfCKXp1gtChJXXjA1UCWrs
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JXGAqZCp12N8a1z1JZzJe1kKhho9K7GTh3YbijU9HTuyzSjjgp
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5Kfr2g9ZfTaj1xChRn8K35ZacgmV9s4qXM5Mg76BJSjtXjoZZ28
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JtAYS2NMwFTAgg9Ngu4tW2s6PdB2t35gxngQtsuo81aDQU1QF8
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JS76EC5nBtdozC7d5otoA7KPxDNUiXSFs34VqkGuD2kAnhqFN9
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JvLiQZLRC6pMpGkWb4AtPhrJpynoyZhjuc67PHDzutLtSBV1qY
-info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5KGAFTisyJvYnScs5JXKQkPbgxmtqTfCKXp1gtChJXXjA1UCWrs
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.379 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
+info  2024-06-12T21:14:31.380 trx_gener main.cpp:141                  main                 ] Initializing private keys. Attempt to create private_key for 5JX...ZZZ : gen key 5JX...ZZZ
 info  2024-06-12T21:14:31.380 trx_gener main.cpp:189                  main                 ] Initial Trx Generator config:  generator id: 0 chain id: b836a453e919f3dc7be91cd60cb949c625af7dc0f0a1f129f84763238d8bbc50 contract owner account: eosio trx expiration seconds: 3600 lib id: 0010f26923a1c9b094a778c2e58a19808af8ebaaa4346d72e1d3d19842fa5d2c log dir: /bigata1/log/trx_generator stop on trx failed: 1
 info  2024-06-12T21:14:31.380 trx_gener main.cpp:190                  main                 ] Initial Provider config: Provider base config endpoint type: p2p peer_endpoint: p2p.spring-beta2.jungletestnet.io port: 9898 api endpoint: /v1/chain/send_transaction2
 info  2024-06-12T21:14:31.380 trx_gener main.cpp:191                  main                 ] Initial Accounts config: Accounts Specified: accounts: [ purplepurple, orangeorange, pinkpink1111, blueblue1111, yellowyellow, greengreen11 ] keys: [ 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ, 5JX...ZZZ ]
