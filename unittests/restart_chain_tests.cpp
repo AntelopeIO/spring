@@ -143,11 +143,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_from_block_log, T, testers ) {
    T chain;
 
    chain.create_account("replay1"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("replay2"_n);
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("replay3"_n);
-   chain.produce_blocks(1); // replay3 will be in fork_db.dat
+   chain.produce_block(); // replay3 will be in fork_db.dat
 
    BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
    BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));

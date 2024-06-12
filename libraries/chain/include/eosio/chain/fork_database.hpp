@@ -46,7 +46,7 @@ namespace eosio::chain {
       explicit fork_database_t();
       ~fork_database_t();
 
-      void open( const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
+      void open( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void close( std::ofstream& out );
 
       bsp_t get_block( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;

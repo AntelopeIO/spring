@@ -316,7 +316,9 @@ public:
                 BOOST_CHECK_EQUAL( success(), regproducer(p) );
             }
         }
-        produce_blocks( 250);
+        produce_block();
+        produce_block(fc::seconds(1000));
+        produce_block();
 
         auto trace_auth = validating_tester::push_action(config::system_account_name, updateauth::get_name(), config::system_account_name, mvo()
                 ("account", name(config::system_account_name).to_string())
@@ -342,7 +344,9 @@ public:
             )
             );
         }
-        produce_blocks( 250 );
+        produce_block();
+        produce_block(fc::seconds(1000));
+        produce_block();
 
         auto producer_keys = control->active_producers().producers;
         BOOST_CHECK_EQUAL( 21u, producer_keys.size() );
@@ -366,9 +370,9 @@ BOOST_AUTO_TEST_SUITE(test_chain_plugin_tests)
 
 BOOST_FIXTURE_TEST_CASE(account_results_total_resources_test, chain_plugin_tester) { try {
 
-    produce_blocks(10);
+    produce_block();
     setup_system_accounts();
-    produce_blocks();
+    produce_block();
     create_account_with_resources("alice1111111"_n, config::system_account_name);
     //stake more than 15% of total EOS supply to activate chain
     transfer( name("eosio"), name("alice1111111"), core_from_string("650000000.0000"), name("eosio") );
@@ -383,9 +387,9 @@ BOOST_FIXTURE_TEST_CASE(account_results_total_resources_test, chain_plugin_teste
 
 BOOST_FIXTURE_TEST_CASE(account_results_self_delegated_bandwidth_test, chain_plugin_tester) { try {
 
-    produce_blocks(10);
+    produce_block();
     setup_system_accounts();
-    produce_blocks();
+    produce_block();
     const asset nstake = core_from_string("1.0000");
     const asset cstake = core_from_string("2.0000");
     create_account_with_resources("alice1111111"_n, config::system_account_name, core_from_string("1.0000"), false);
@@ -413,9 +417,9 @@ BOOST_FIXTURE_TEST_CASE(account_results_self_delegated_bandwidth_test, chain_plu
 
 BOOST_FIXTURE_TEST_CASE(account_results_refund_request_test, chain_plugin_tester) { try {
 
-    produce_blocks(10);
+    produce_block();
     setup_system_accounts();
-    produce_blocks();
+    produce_block();
 
     setup_producer_accounts({"producer1111"_n});
     regproducer("producer1111"_n);
@@ -469,7 +473,7 @@ BOOST_FIXTURE_TEST_CASE(account_results_refund_request_test, chain_plugin_tester
 
 BOOST_FIXTURE_TEST_CASE(account_results_voter_info_test, chain_plugin_tester) { try {
 
-    produce_blocks(10);
+    produce_block();
     setup_system_accounts();
 
     create_account_with_resources("alice1111111"_n, config::system_account_name, core_from_string("1.0000"), false);
@@ -484,7 +488,7 @@ BOOST_FIXTURE_TEST_CASE(account_results_voter_info_test, chain_plugin_tester) { 
 
 BOOST_FIXTURE_TEST_CASE(account_results_rex_info_test, chain_plugin_tester) { try {
 
-    produce_blocks(10);
+    produce_block();
     setup_system_accounts();
 
     create_account_with_resources("alice1111111"_n, config::system_account_name, core_from_string("1.0000"), false);

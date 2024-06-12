@@ -5,6 +5,9 @@ extern const char* const state_history_plugin_abi = R"({
             "name": "get_status_request_v0", "fields": []
         },
         {
+            "name": "get_status_request_v1", "fields": []
+        },
+        {
             "name": "block_position", "fields": [
                 { "name": "block_num", "type": "uint32" },
                 { "name": "block_id", "type": "checksum256" }
@@ -19,6 +22,19 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "chain_state_begin_block", "type": "uint32" },
                 { "name": "chain_state_end_block", "type": "uint32" },
                 { "name": "chain_id", "type": "checksum256$" }
+            ]
+        },
+        {
+            "name": "get_status_result_v1", "fields": [
+                { "name": "head", "type": "block_position" },
+                { "name": "last_irreversible", "type": "block_position" },
+                { "name": "trace_begin_block", "type": "uint32" },
+                { "name": "trace_end_block", "type": "uint32" },
+                { "name": "chain_state_begin_block", "type": "uint32" },
+                { "name": "chain_state_end_block", "type": "uint32" },
+                { "name": "chain_id", "type": "checksum256" },
+                { "name": "finality_data_begin_block", "type": "uint32" },
+                { "name": "finality_data_end_block", "type": "uint32" }
             ]
         },
         {
@@ -573,12 +589,28 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
+            "name": "finalizer_authority", "fields": [
+                { "name": "description", "type": "string" },
+                { "name": "weight", "type": "uint64" },
+                { "name": "public_key", "type": "bytes" }
+            ]
+        },
+        {
+            "name": "finalizer_policy", "fields": [
+                { "name": "generation", "type": "uint32" },
+                { "name": "threshold", "type": "uint64" },
+                { "name": "finalizers", "type": "finalizer_authority[]" }
+            ]
+        },
+        {
             "name": "finality_data", "fields": [
                 { "name": "major_version", "type": "uint32" },
                 { "name": "minor_version", "type": "uint32" },
                 { "name": "active_finalizer_policy_generation", "type": "uint32" },
+                { "name": "final_on_strong_qc_block_num", "type": "uint32" },
                 { "name": "action_mroot", "type": "checksum256" },
-                { "name": "base_digest", "type": "checksum256" }
+                { "name": "base_digest", "type": "checksum256" },
+                { "name": "proposed_finalizer_policy", "type": "finalizer_policy?" }
             ]
         }
     ],
@@ -586,8 +618,8 @@ extern const char* const state_history_plugin_abi = R"({
         { "new_type_name": "transaction_id", "type": "checksum256" }
     ],
     "variants": [
-        { "name": "request", "types": ["get_status_request_v0", "get_blocks_request_v0", "get_blocks_ack_request_v0", "get_blocks_request_v1"] },
-        { "name": "result", "types": ["get_status_result_v0", "get_blocks_result_v0", "get_blocks_result_v1"] },
+        { "name": "request", "types": ["get_status_request_v0", "get_blocks_request_v0", "get_blocks_ack_request_v0", "get_blocks_request_v1", "get_status_request_v1"] },
+        { "name": "result", "types": ["get_status_result_v0", "get_blocks_result_v0", "get_blocks_result_v1", "get_status_result_v1"] },
 
         { "name": "action_receipt", "types": ["action_receipt_v0"] },
         { "name": "action_trace", "types": ["action_trace_v0", "action_trace_v1"] },
