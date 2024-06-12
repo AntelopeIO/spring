@@ -529,8 +529,13 @@ namespace eosio::testing {
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
       if( empty ) {
-         for( uint32_t i = 0; i < n; ++i )
+         for( uint32_t i = 0; i < n; ++i ) {
+            if (n > 3 && i < n - 3) // for performance, only vote on the last three to move finality
+               control->allow_voting(false);
             res = produce_empty_block();
+            if (n > 3 && i >= n - 3)
+               control->allow_voting(true);
+         }
       } else {
          for( uint32_t i = 0; i < n; ++i )
             res = produce_block();
