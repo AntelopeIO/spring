@@ -3282,19 +3282,20 @@ struct controller_impl {
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
-            auto fd = head_finality_data();
             apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                              auto fd = head_finality_data();
                               assert(fd);
-                              dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                              dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, head->id(), *fd);
                            } else {
                               dm_logger->on_accepted_block(head);
                            }
                         },
                         [&](const block_state_ptr& head) {
+                           auto fd = head_finality_data();
                            assert(fd);
-                           dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                           dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, head->id(), *fd);
                         });
          }
 
