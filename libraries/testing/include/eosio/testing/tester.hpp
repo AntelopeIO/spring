@@ -518,6 +518,8 @@ namespace eosio::testing {
                BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
          }
 
+         void set_produce_block_callback(std::function<void(const signed_block_ptr&)> cb) { _produce_block_callback = std::move(cb); }
+
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
@@ -528,6 +530,8 @@ namespace eosio::testing {
 
       // Fields:
       protected:
+         std::function<void(const signed_block_ptr&)> _produce_block_callback; // if set, called every time a block is produced
+
          // tempdir field must come before control so that during destruction the tempdir is deleted only after controller finishes
          fc::temp_directory                            tempdir;
       public:

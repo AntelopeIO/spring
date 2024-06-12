@@ -440,6 +440,10 @@ namespace eosio::testing {
       res.block = _finish_block();
 
       onblock_trace = _start_block( next_time + fc::microseconds(config::block_interval_us));
+
+      if (_produce_block_callback)
+         _produce_block_callback(res.block);
+
       return res;
    }
 
