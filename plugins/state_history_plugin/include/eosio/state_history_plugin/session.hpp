@@ -1,5 +1,4 @@
 #pragma once
-#include <eosio/state_history/compression.hpp>
 #include <eosio/state_history/log.hpp>
 #include <eosio/state_history/serialization.hpp>
 #include <eosio/state_history/types.hpp>
@@ -14,12 +13,9 @@
 #include <boost/beast/websocket.hpp>
 #include <memory>
 
-
 extern const char* const state_history_plugin_abi;
 
-namespace eosio {
-
-using namespace state_history;
+namespace eosio::state_history {
 
 class session_base {
 public:
@@ -40,7 +36,7 @@ class session final : public session_base {
 
 public:
    session(SocketType&& s, Executor&& st, chain::controller& controller,
-              std::optional<state_history_log>& trace_log, std::optional<state_history_log>& chain_state_log, std::optional<state_history_log>& finality_data_log,
+              std::optional<log_catalog>& trace_log, std::optional<log_catalog>& chain_state_log, std::optional<log_catalog>& finality_data_log,
               GetBlockID&& get_block_id, GetBlock&& get_block, OnDone&& on_done, fc::logger& logger) :
     strand(std::move(st)), stream(std::move(s)), wake_timer(strand), controller(controller),
     trace_log(trace_log), chain_state_log(chain_state_log), finality_data_log(finality_data_log),
@@ -193,30 +189,24 @@ private:
       return ret;
    }
 
-   boost::asio::awaitable<void> write_log_entry(std::optional<locked_decompress_stream>& log_stream, std::optional<state_history_log>& log, chain::block_num_type block_num) {
-      uint64_t unpacked_size = 0;
-
-      if(log_stream) //will be unset if either request did not ask for this log entry, or the log isn't enabled
-         unpacked_size = log->get_unpacked_entry(block_num, *log_stream); //will return 0 if log does not include the block num asked for
-
-      if(unpacked_size) {
-         char buff[1024*1024];
-         fc::datastream<char*> ds(buff, sizeof(buff));
-         fc::raw::pack(ds, true);
-         history_pack_varuint64(ds, unpacked_size);
-         co_await stream.async_write_some(false, boost::asio::buffer(buff, ds.tellp()));
-
-         ///TODO: why is there an uncompressed option in the variant?! Shouldn't it always be compressed? was this for old unit tests?
-         bio::filtering_istreambuf& decompression_stream = *std::get<std::unique_ptr<bio::filtering_istreambuf>>(log_stream->buf);
-         std::streamsize red = 0;
-         while((red = bio::read(decompression_stream, buff, sizeof(buff))) != -1) {
-            if(red == 0)
-               continue;
-            co_await stream.async_write_some(false, boost::asio::buffer(buff, red));
-         }
-      }
-      else {
+   boost::asio::awaitable<void> write_log_entry(std::optional<ship_log_entry>& log_stream) {
+      if(!log_stream) { //will be unset if either request did not ask for this log entry, or the log isn't enabled
          co_await stream.async_write_some(false, boost::asio::buffer(fc::raw::pack(false)));
+         co_return;
+      }
+
+      char buff[1024*1024];
+      fc::datastream<char*> ds(buff, sizeof(buff));
+      fc::raw::pack(ds, true);
+      history_pack_varuint64(ds, log_stream->get_uncompressed_size());
+      co_await stream.async_write_some(false, boost::asio::buffer(buff, ds.tellp()));
+
+      bio::filtering_istreambuf decompression_stream = log_stream->get_stream();
+      std::streamsize red = 0;
+      while((red = bio::read(decompression_stream, buff, sizeof(buff))) != -1) {
+         if(red == 0)
+            continue;
+         co_await stream.async_write_some(false, boost::asio::buffer(buff, red));
       }
    }
 
@@ -226,10 +216,9 @@ private:
          struct block_package {
             get_blocks_result_base blocks_result_base;
             bool is_v1_request = false;
-            chain::block_num_type this_block_num = 0; //this shouldn't be needed post log de-mutexing
-            std::optional<locked_decompress_stream> trace_stream;
-            std::optional<locked_decompress_stream> state_stream;
-            std::optional<locked_decompress_stream> finality_stream;
+            std::optional<ship_log_entry> trace_entry;
+            std::optional<ship_log_entry> state_entry;
+            std::optional<ship_log_entry> finality_entry;
          };
 
          while(true) {
@@ -255,8 +244,7 @@ private:
                         .head = {self.controller.head_block_num(), self.controller.head_block_id()},
                         .last_irreversible = {self.controller.last_irreversible_block_num(), self.controller.last_irreversible_block_id()}
                      },
-                     .is_v1_request = self.current_blocks_request_v1_finality.has_value(),
-                     .this_block_num = self.next_block_cursor
+                     .is_v1_request = self.current_blocks_request_v1_finality.has_value()
                   });
                   if(const std::optional<chain::block_id_type> this_block_id = self.get_block_id(self.next_block_cursor)) {
                      block_to_send->blocks_result_base.this_block  = {self.current_blocks_request.start_block_num, *this_block_id};
@@ -265,11 +253,11 @@ private:
                      if(chain::signed_block_ptr sbp = get_block(self.next_block_cursor); sbp && self.current_blocks_request.fetch_block)
                          block_to_send->blocks_result_base.block = fc::raw::pack(*sbp);
                      if(self.current_blocks_request.fetch_traces && self.trace_log)
-                        block_to_send->trace_stream.emplace(self.trace_log->create_locked_decompress_stream());
+                        block_to_send->trace_entry = self.trace_log->get_entry(self.next_block_cursor);
                      if(self.current_blocks_request.fetch_deltas && self.chain_state_log)
-                        block_to_send->state_stream.emplace(self.chain_state_log->create_locked_decompress_stream());
+                        block_to_send->state_entry = self.chain_state_log->get_entry(self.next_block_cursor);
                      if(block_to_send->is_v1_request && *self.current_blocks_request_v1_finality && self.finality_data_log)
-                        block_to_send->finality_stream.emplace(self.finality_data_log->create_locked_decompress_stream());
+                        block_to_send->finality_entry = self.finality_data_log->get_entry(self.next_block_cursor);
                   }
                   ++self.next_block_cursor;
                   --self.send_credits;
@@ -302,13 +290,10 @@ private:
                co_await stream.async_write_some(false, boost::asio::buffer(fc::raw::pack(get_blocks_result_variant_index)));
                co_await stream.async_write_some(false, boost::asio::buffer(fc::raw::pack(block_to_send->blocks_result_base)));
 
-               //accessing the _logs here violates the rule that those should only be accessed on the main thread. However, we're
-               // only calling get_unpacked_entry() on it which assumes the mutex is held by the locked_decompress_stream. So this is
-               // "safe" in some aspects but can deadlock
-               co_await write_log_entry(block_to_send->trace_stream, trace_log, block_to_send->this_block_num);
-               co_await write_log_entry(block_to_send->state_stream, chain_state_log, block_to_send->this_block_num);
+               co_await write_log_entry(block_to_send->trace_entry);
+               co_await write_log_entry(block_to_send->state_entry);
                if(block_to_send->is_v1_request)
-                  co_await write_log_entry(block_to_send->finality_stream, finality_data_log, block_to_send->this_block_num);
+                  co_await write_log_entry(block_to_send->finality_entry);
 
                co_await stream.async_write_some(true, boost::asio::const_buffer());
             }
@@ -334,9 +319,9 @@ private:
    chain::block_num_type&            next_block_cursor = current_blocks_request.start_block_num;
 
    chain::controller&                controller;
-   std::optional<state_history_log>& trace_log;
-   std::optional<state_history_log>& chain_state_log;
-   std::optional<state_history_log>& finality_data_log;
+   std::optional<log_catalog>&       trace_log;
+   std::optional<log_catalog>&       chain_state_log;
+   std::optional<log_catalog>&       finality_data_log;
 
    GetBlockID                        get_block_id;
    GetBlock                          get_block;
