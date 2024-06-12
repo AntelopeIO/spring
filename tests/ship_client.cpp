@@ -77,6 +77,7 @@ int main(int argc, char* argv[]) {
                 eosio::from_json<eosio::abi_def>(token_stream);
             eosio::convert(abidef, abi);
          }
+         stream.binary(true);
 
          std::cerr << "{\n   \"status\": \"set_abi\",\n   \"time\": " << time(NULL) << "\n},\n";
 
@@ -87,12 +88,20 @@ int main(int argc, char* argv[]) {
          uint32_t first_block_num = 0;
          uint32_t last_block_num = 0;
 
+         struct {
+            std::string get_status_request;
+            std::string get_status_result;
+         } request_result_types[] = {
+            {"get_status_request_v0", "get_status_result_v0"},
+            {"get_status_request_v1", "get_status_result_v1"},
+         };
+
          while(num_requests--) {
             rapidjson::StringBuffer request_sb;
             rapidjson::PrettyWriter<rapidjson::StringBuffer> request_writer(request_sb);
 
             request_writer.StartArray();
-               request_writer.String("get_status_request_v0");
+               request_writer.String(request_result_types[num_requests%2].get_status_request.c_str());
                request_writer.StartObject();
                request_writer.EndObject();
             request_writer.EndArray();
@@ -109,7 +118,7 @@ int main(int argc, char* argv[]) {
             eosio::check(!result_document.HasParseError(),                                      "Failed to parse result JSON from abieos");
             eosio::check(result_document.IsArray(),                                             "result should have been an array (variant) but it's not");
             eosio::check(result_document.Size() == 2,                                           "result was an array but did not contain 2 items like a variant should");
-            eosio::check(std::string(result_document[0].GetString()) == "get_status_result_v0", "result type doesn't look like get_status_result_v0");
+            eosio::check(std::string(result_document[0].GetString()) == request_result_types[num_requests%2].get_status_result, "result type doesn't look like expected get_status_result_vX");
             eosio::check(result_document[1].IsObject(),                                         "second item in result array is not an object");
             eosio::check(result_document[1].HasMember("head"),                                  "cannot find 'head' in result");
             eosio::check(result_document[1]["head"].IsObject(),                                 "'head' is not an object");

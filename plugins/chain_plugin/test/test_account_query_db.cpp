@@ -42,7 +42,7 @@ BOOST_FIXTURE_TEST_CASE(newaccount_test, validating_tester) { try {
         aq_db.commit_block( block );
    });
 
-   produce_blocks(10);
+   produce_block();
 
    account_name tester_account = "tester"_n;
    const auto trace_ptr =  create_account(tester_account);
@@ -68,7 +68,7 @@ BOOST_FIXTURE_TEST_CASE(updateauth_test, validating_tester) { try {
         aq_db.commit_block( block );
     });
 
-    produce_blocks(10);
+    produce_block();
 
    const auto& tester_account = "tester"_n;
    const string role = "first";
@@ -103,7 +103,7 @@ BOOST_FIXTURE_TEST_CASE(updateauth_test_multi_threaded, validating_tester) { try
       aq_db.commit_block( block );
    });
 
-   produce_blocks(10);
+   produce_block();
 
    const auto tester_account = "tester"_n;
    const string role = "first";

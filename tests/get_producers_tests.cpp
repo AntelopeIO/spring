@@ -29,12 +29,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_producers, T, testers ) { try {
       BOOST_REQUIRE(row.contains("producer_authority"));
 
 
-      chain.produce_blocks(2);
+      chain.produce_block();
 
       chain.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
       chain.produce_block();
       chain.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
-      chain.produce_blocks(30);
+      chain.produce_block();
+      chain.produce_block(fc::seconds(1000));
+      chain.produce_block();
 
       results = plugin.get_producers(params, fc::time_point::maximum());
       BOOST_REQUIRE_EQUAL(results.rows.size(), 3u);

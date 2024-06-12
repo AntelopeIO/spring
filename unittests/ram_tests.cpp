@@ -31,12 +31,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
    const auto table_allocation_bytes = 12000;
    BOOST_REQUIRE_MESSAGE(table_allocation_bytes > increment_contract_bytes, "increment_contract_bytes must be less than table_allocation_bytes for this test setup to work");
    chain.buyrambytes(config::system_account_name, config::system_account_name, 70000);
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.create_account_with_resources("testram11111"_n,config::system_account_name, init_request_bytes + 40);
    chain.create_account_with_resources("testram22222"_n,config::system_account_name, init_request_bytes + 1190);
-   chain.produce_blocks(10);
+   chain.produce_block();
    BOOST_REQUIRE_EQUAL( chain.success(), chain.stake( name("eosio.stake"), name("testram11111"), core_from_string("10.0000"), core_from_string("5.0000") ) );
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    for (auto i = 0; i < 10; ++i) {
       try {
@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
          chain.buyrambytes(config::system_account_name, "testram22222"_n, increment_contract_bytes);
       }
    }
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    for (auto i = 0; i < 10; ++i) {
       try {
@@ -60,10 +60,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
          chain.buyrambytes(config::system_account_name, "testram22222"_n, increment_contract_bytes);
       }
    }
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.set_code( "testram22222"_n, test_contracts::test_ram_limit_wasm() );
    chain.set_abi( "testram22222"_n, test_contracts::test_ram_limit_abi() );
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    auto total = chain.get_total_stake( "testram11111"_n );
    const auto init_bytes =  total["ram_bytes"].as_uint64();
@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 1)
                         ("to", 10)
                         ("size", 1780 /*1910*/));
-   chain.produce_blocks(1);
+   chain.produce_block();
    auto ram_usage = rlm.get_account_ram_usage("testram11111"_n);
 
    total = chain.get_total_stake( "testram11111"_n );
@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
    wlog("ram_tests 2    %%%%%%");
-   chain.produce_blocks(1);
+   chain.produce_block();
    BOOST_REQUIRE_EQUAL(ram_usage, rlm.get_account_ram_usage("testram11111"_n));
 
    // update the entries with smaller allocations so that we can verify space is freed and new allocations can be made
@@ -112,7 +112,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 1)
                         ("to", 10)
                         ("size", 1680/*1810*/));
-   chain.produce_blocks(1);
+   chain.produce_block();
    BOOST_REQUIRE_EQUAL(ram_usage - 1000, rlm.get_account_ram_usage("testram11111"_n));
 
    // verify the added entry is beyond the allocation bytes limit
@@ -124,7 +124,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1680/*1810*/)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
    BOOST_REQUIRE_EQUAL(ram_usage - 1000, rlm.get_account_ram_usage("testram11111"_n));
 
    // verify the new entry's bytes minus the freed up bytes for existing entries still exceeds the allocation bytes limit
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1760)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
    BOOST_REQUIRE_EQUAL(ram_usage - 1000, rlm.get_account_ram_usage("testram11111"_n));
 
    // verify the new entry's bytes minus the freed up bytes for existing entries are under the allocation bytes limit
@@ -145,12 +145,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 1)
                         ("to", 11)
                         ("size", 1600/*1720*/));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    tester->push_action( "testram11111"_n, "rmentry"_n, "testram11111"_n, mvo()
                         ("from", 3)
                         ("to", 3));
-   chain.produce_blocks(1);
+   chain.produce_block();
    
    // verify that the new entry will exceed the allocation bytes limit
    BOOST_REQUIRE_EXCEPTION(
@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1780)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that the new entry is under the allocation bytes limit
    tester->push_action( "testram11111"_n, "setentry"_n, "testram11111"_n, mvo()
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 12)
                         ("to", 12)
                         ("size", 1620/*1720*/));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that anoth new entry will exceed the allocation bytes limit, to setup testing of new payer
    BOOST_REQUIRE_EXCEPTION(
@@ -180,7 +180,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1660)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that the new entry is under the allocation bytes limit
    tester->push_action( "testram11111"_n, "setentry"_n, {"testram11111"_n,"testram22222"_n}, mvo()
@@ -188,7 +188,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 12)
                         ("to", 12)
                         ("size", 1720));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that another new entry that is too big will exceed the allocation bytes limit, to setup testing of new payer
    BOOST_REQUIRE_EXCEPTION(
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1900)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram11111 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    wlog("ram_tests 18    %%%%%%");
    // verify that the new entry is under the allocation bytes limit, because entry 12 is now charged to testram22222
@@ -208,7 +208,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 13)
                         ("to", 13)
                         ("size", 1720));
-   chain.produce_blocks(1);
+   chain.produce_block();
    
    // verify that new entries for testram22222 exceed the allocation bytes limit
    BOOST_REQUIRE_EXCEPTION(
@@ -219,7 +219,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1930)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram22222 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that new entries for testram22222 are under the allocation bytes limit
    tester->push_action( "testram11111"_n, "setentry"_n, {"testram11111"_n,"testram22222"_n}, mvo()
@@ -227,7 +227,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 12)
                         ("to", 21)
                         ("size", 1910));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that new entry for testram22222 exceed the allocation bytes limit
    BOOST_REQUIRE_EXCEPTION(
@@ -238,12 +238,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                            ("size", 1910)),
                            ram_usage_exceeded,
                            fc_exception_message_starts_with("account testram22222 has insufficient ram"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    tester->push_action( "testram11111"_n, "rmentry"_n, "testram11111"_n, mvo()
                         ("from", 20)
                         ("to", 20));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // verify that new entry for testram22222 are under the allocation bytes limit
    tester->push_action( "testram11111"_n, "setentry"_n, {"testram11111"_n,"testram22222"_n}, mvo()
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( ram_tests, T, eosio_system_testers ) { try {
                         ("from", 22)
                         ("to", 22)
                         ("size", 1910));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
 } FC_LOG_AND_RETHROW() }
 
