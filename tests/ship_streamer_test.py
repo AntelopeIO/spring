@@ -7,7 +7,7 @@ import shutil
 import signal
 import sys
 
-from TestHarness import Cluster, TestHelper, Utils, WalletMgr
+from TestHarness import Account, Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.TestHelper import AppArgs
 
 ###############################################################
@@ -97,20 +97,26 @@ try:
     cluster.biosNode.kill(signal.SIGTERM)
 
     Print("Create a jumbo row")
+    jumboAcc = Account("itsjumbotime")
+    jumboAcc.ownerPublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+    jumboAcc.activePublicKey = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+    nonProdNode.createAccount(jumboAcc, cluster.eosioAccount)
+
     contract = "jumborow"
     contractDir = "unittests/contracts/%s" % (contract)
     wasmFile = "%s.wasm" % (contract)
     abiFile = "%s.abi" % (contract)
 
-    nonProdNode.publishContract(cluster.defproducerbAccount, contractDir, wasmFile, abiFile)
+    nonProdNode.publishContract(jumboAcc, contractDir, wasmFile, abiFile)
     jumbotxn = {
 
-        "actions": [{"account": "defproducerb","name": "jumbotime",
-                     "authorization": [{"actor": "defproducerb","permission": "active"}],
+        "actions": [{"account": "itsjumbotime","name": "jumbotime",
+                     "authorization": [{"actor": "itsjumbotime","permission": "active"}],
                      "data": "",
                      "compression": "none"}]
     }
-    nonProdNode.pushTransaction(jumbotxn)
+    results = nonProdNode.pushTransaction(jumbotxn)
+    assert(results[0])
 
     Print("Configure and launch txn generators")
     targetTpsPerGenerator = 10
