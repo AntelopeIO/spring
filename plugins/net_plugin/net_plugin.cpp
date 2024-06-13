@@ -3309,12 +3309,10 @@ namespace eosio {
       uint32_t lib_num = 0, head_num = 0, fork_head_num = 0;
       {
          fc::lock_guard g( chain_info_mtx );
-         chain_info.lib_num = lib_num = block_header::num_from_id(lib);
          chain_info.lib_id = lib;
-         chain_info.head_id = cc.fork_db_head_block_id();
+         chain_info.lib_num = lib_num = block_header::num_from_id(lib);
+         chain_info.head_id = cc.head_block_id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);
-         chain_info.fork_head_id = cc.fork_db_head_block_id();
-         chain_info.fork_head_num = head_num = block_header::num_from_id(chain_info.fork_head_id);
          chain_info.fork_head_id = cc.fork_db_head_block_id();
          chain_info.fork_head_num = fork_head_num = block_header::num_from_id(chain_info.fork_head_id);
       }
