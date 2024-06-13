@@ -530,15 +530,18 @@ namespace eosio::testing {
       signed_block_ptr res;
       if( empty ) {
          for( uint32_t i = 0; i < n; ++i ) {
-            if (n > 3 && i < n - 3) // for performance, only vote on the last three to move finality
-               control->allow_voting(false);
+            // for performance, only vote on the last four to move finality
+            // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
+            if (n > 4)
+               control->allow_voting(i >= n - 4);
             res = produce_empty_block();
-            if (n > 3 && i >= n - 3)
-               control->allow_voting(true);
          }
       } else {
-         for( uint32_t i = 0; i < n; ++i )
+         for( uint32_t i = 0; i < n; ++i ) {
+            if (n > 4)
+               control->allow_voting(i >= n - 4);
             res = produce_block();
+         }
       }
       return res;
    }
