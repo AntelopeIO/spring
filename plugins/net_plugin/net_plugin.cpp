@@ -2148,13 +2148,6 @@ namespace eosio {
       fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, fhead: ${h}, lib: ${lib}",
                ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_req_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
 
-      if( chain_info.fork_head_num + sync_req_span < sync_last_requested_num && sync_source && sync_source->current() ) {
-         fc_dlog( logger, "ignoring request, fhead is ${h} last req = ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, source connection ${c}",
-                  ("h", chain_info.fork_head_num)("r", sync_last_requested_num)("e", sync_next_expected_num)
-                  ("k", sync_known_lib_num)("s", sync_req_span)("c", sync_source->connection_id) );
-         return;
-      }
-
       if (conn) {
          // p2p_high_latency_test.py test depends on this exact log statement.
          peer_ilog(conn, "Catching up with chain, our last req is ${cc}, theirs is ${t}, next expected ${n}, fhead ${h}",
