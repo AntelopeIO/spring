@@ -25,17 +25,31 @@ namespace savanna_cluster {
    class cluster_t;
 
    // ----------------------------------------------------------------------------
-   struct node_t : public tester {
+   class node_t : public tester {
       uint32_t                prev_lib_num{0};
-      std::mutex              votes_mtx;
       size_t                  node_idx;
       cluster_t&              cluster;
       finalizer_keys<tester>  finkeys;
       size_t                  cur_key{0}; // index of key used in current policy
+      std::mutex              votes_mtx;
 
+   public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
 
-      void set_node_finalizers(size_t keys_per_node, size_t num_nodes);
+      void set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
+         finkeys.init_keys(keys_per_node * num_nodes, num_nodes);
+
+         size_t first_node_key = node_idx * keys_per_node;
+         cur_key               = first_node_key;
+         finkeys.set_node_finalizers(first_node_key, keys_per_node);
+      }
+
+      std::pair<std::vector<bls_public_key>, eosio::chain::finalizer_policy>
+      transition_to_savanna(std::span<const size_t> indices) {
+         auto pubkeys = finkeys.set_finalizer_policy(indices).pubkeys;
+         auto policy  = finkeys.transition_to_savanna();
+         return { pubkeys, policy };
+      }
 
       // returns true if LIB advances on this node since we last checked
       bool lib_advancing() {
@@ -109,11 +123,10 @@ namespace savanna_cluster {
             _fin_policy_indices_0[i] = i * keys_per_node;
             _nodes[i].set_node_finalizers(keys_per_node, num_nodes);
          }
-         _fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(_fin_policy_indices_0).pubkeys;
 
          // do the transition to Savanna on node0. Blocks will be propagated to the other nodes.
          // ------------------------------------------------------------------------------------
-         _fin_policy_0 = node0.finkeys.transition_to_savanna();
+         auto [_fin_policy_pubkeys_0, _fin_policy_0] = node0.transition_to_savanna(_fin_policy_indices_0);
 
          // at this point, node0 has a QC to include in next block.
          // Produce that block and push it, but don't process votes so that
@@ -185,14 +198,14 @@ namespace savanna_cluster {
    private:
       friend node_t;
 
-      void dispatch_vote(size_t node_idx, const vote_message_ptr& msg) {
+      void dispatch_vote_to_peers(size_t node_idx, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
          for_each_peer(node_idx, [&](node_t& n) {
             n.control->process_vote_message(++connection_id, msg);
          });
       }
 
-      void push_block(size_t node_idx, const signed_block_ptr& b) {
+      void push_block_to_peers(size_t node_idx, const signed_block_ptr& b) {
          for_each_peer(node_idx, [&](node_t& n) {
             n.push_block(b);
          });

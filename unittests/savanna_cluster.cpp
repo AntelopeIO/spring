@@ -12,18 +12,10 @@ node_t::node_t(size_t _node_idx, cluster_t& _cluster, setup_policy policy)
       std::lock_guard g(votes_mtx);
       vote_status     status = std::get<1>(v);
       if (status == vote_status::success)
-         cluster.dispatch_vote(node_idx, std::get<2>(v));
+         cluster.dispatch_vote_to_peers(node_idx, std::get<2>(v));
    });
 
-   set_produce_block_callback([&](const signed_block_ptr& b) { cluster.push_block(node_idx, b); });
-}
-
-void node_t::set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
-   finkeys.init_keys(keys_per_node * num_nodes, num_nodes);
-
-   size_t first_node_key = node_idx * keys_per_node;
-   cur_key               = first_node_key;
-   finkeys.set_node_finalizers(first_node_key, keys_per_node);
+   set_produce_block_callback([&](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, b); });
 }
 
 }
