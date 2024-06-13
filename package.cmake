@@ -55,7 +55,7 @@ if(ENABLE_SPRING_DEV_DEB)
    list(APPEND CPACK_COMPONENTS_ALL "dev")
 endif()
 
-#enable per component packages for .deb; ensure main package is just "spring", not "spring-base", and make the dev package have "spring-dev" at the front not the back
+#enable per component packages for .deb; ensure main package is just "antelope-spring", not "antelope-spring-base", and make the dev package have "antelope-spring-dev" at the front not the back
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_BASE_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_DEBIAN_BASE_FILE_NAME "${CPACK_DEBIAN_FILE_NAME}.deb")
