@@ -46,7 +46,7 @@ jobs:
           password: ${{github.token}}
       - run: echo "REPOSITORY_OWNER_LOWER=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_ENV}"
       - name: Build and push antelope-spring-experimental-binaries
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           push: true
           tags: ghcr.io/${{env.REPOSITORY_OWNER_LOWER}}/antelope-spring-experimental-binaries:${{github.ref_name}}
