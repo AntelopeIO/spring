@@ -2199,6 +2199,7 @@ namespace eosio {
       if( !request_sent ) {
          sync_source.reset();
          fc_wlog(logger, "Unable to request range, sending handshakes to everyone");
+         set_state( in_sync ); // need to be out of lib_catchup so start_sync will work
          send_handshakes();
       }
    }
