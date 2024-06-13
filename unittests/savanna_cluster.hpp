@@ -89,15 +89,14 @@ namespace savanna_cluster {
                     "this is needed for some tests (conflicting_votes_strong_first for example)");
 
       cluster_t()
-         : nodes{
+         : _nodes{
                {{0, *this, setup_policy::full_except_do_not_transition_to_savanna}, {1, *this}, {2, *this}, {3, *this}}
       } {
          // make sure we push node0 initialization (full_except_do_not_transition_to_savanna) to
          // the other nodes.
          // ------------------------------------------------------------------------------------
-         for (size_t i = 0; i < nodes.size(); ++i)
-            node0.push_blocks(nodes[i]);
-
+         for (size_t i = 0; i < _nodes.size(); ++i)
+            node0.push_blocks(_nodes[i]);
 
          // from now on, propagation of blocks and votes happens automatically.
          // Set one finalizer per node (keys at indices { 0, 10, 20, 30}) and create initial
@@ -106,15 +105,15 @@ namespace savanna_cluster {
 
          // set initial finalizer policy
          // ----------------------------
-         for (size_t i = 0; i < nodes.size(); ++i) {
-            fin_policy_indices_0[i] = i * keys_per_node;
-            nodes[i].set_node_finalizers(keys_per_node, num_nodes);
+         for (size_t i = 0; i < _nodes.size(); ++i) {
+            _fin_policy_indices_0[i] = i * keys_per_node;
+            _nodes[i].set_node_finalizers(keys_per_node, num_nodes);
          }
-         fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(fin_policy_indices_0).pubkeys;
+         _fin_policy_pubkeys_0 = node0.finkeys.set_finalizer_policy(_fin_policy_indices_0).pubkeys;
 
          // do the transition to Savanna on node0. Blocks will be propagated to the other nodes.
          // ------------------------------------------------------------------------------------
-         fin_policy_0 = node0.finkeys.transition_to_savanna();
+         _fin_policy_0 = node0.finkeys.transition_to_savanna();
 
          // at this point, node0 has a QC to include in next block.
          // Produce that block and push it, but don't process votes so that
@@ -132,7 +131,7 @@ namespace savanna_cluster {
       // return the pending new producer.
       // -----------------------------------------------------------------------------------
       account_name set_producers(size_t node_idx, const std::vector<account_name>& producers) {
-         node_t& n = nodes[node_idx];
+         node_t& n = _nodes[node_idx];
          n.create_accounts(producers);
          n.set_producers(producers);
          account_name pending;
@@ -150,32 +149,38 @@ namespace savanna_cluster {
       // within each of the two partitions, nodes are still fully connected
       // -----------------------------------------------------------------------------------------
       void set_partition(std::vector<size_t> indices) {
-         partition = std::move(indices);
+         _partition = std::move(indices);
+      }
+
+      void push_blocks(node_t& node, const std::vector<size_t> &indices,
+                       uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
+         for (auto i : indices)
+            node.push_blocks(_nodes[i], block_num_limit);
       }
 
       // returns the number of nodes on which `lib` advanced since we last checked
       // -------------------------------------------------------------------------
       size_t num_lib_advancing() {
-         return std::count_if(nodes.begin(), nodes.end(), [](node_t& n) { return n.lib_advancing(); });
+         return std::count_if(_nodes.begin(), _nodes.end(), [](node_t& n) { return n.lib_advancing(); });
       }
 
-      void reset_lib() { for (auto& n : nodes) n.reset_lib();  }
+      void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
    public:
-      std::array<node_t, num_nodes>  nodes;
+      std::array<node_t, num_nodes>  _nodes;
 
-      node_t& node0 = nodes[0];
-      node_t& node1 = nodes[1];
-      node_t& node2 = nodes[2];
-      node_t& node3 = nodes[3];
+      node_t& node0 = _nodes[0];
+      node_t& node1 = _nodes[1];
+      node_t& node2 = _nodes[2];
+      node_t& node3 = _nodes[3];
 
-      std::vector<size_t> partition;
+      std::vector<size_t> _partition;
 
       // Used for transition to Savanna
       // ------------------------------
-      std::optional<eosio::chain::finalizer_policy> fin_policy_0;         // policy used to transition to Savanna
-      std::array<size_t, num_nodes>                 fin_policy_indices_0; // set of key indices used for transition
-      std::vector<bls_public_key>                   fin_policy_pubkeys_0; // set of public keys used for transition
+      std::optional<eosio::chain::finalizer_policy> _fin_policy_0;         // policy used to transition to Savanna
+      std::array<size_t, num_nodes>                 _fin_policy_indices_0; // set of key indices used for transition
+      std::vector<bls_public_key>                   _fin_policy_pubkeys_0; // set of public keys used for transition
 
    private:
       friend node_t;
@@ -193,22 +198,20 @@ namespace savanna_cluster {
          });
       }
 
-      bool in_partition(size_t node_idx) const {
-         assert(!partition.empty());
-         return std::any_of(partition.begin(), partition.end(), [&](auto i) { return i == node_idx; });
-      }
-
       template<class CB>
       void for_each_peer(size_t node_idx, const CB& cb) {
-         if (partition.empty()) {
+         if (_partition.empty()) {
             for (size_t i=0; i<num_nodes; ++i)
                if (i != node_idx)
-                  cb(nodes[i]);
+                  cb(_nodes[i]);
          } else {
+            auto in_partition = [&](size_t node_idx) {
+               return std::any_of(_partition.begin(), _partition.end(), [&](auto i) { return i == node_idx; });
+            };
             bool in = in_partition(node_idx);
             for (size_t i=0; i<num_nodes; ++i)
                if (i != node_idx && in == in_partition(i))
-                  cb(nodes[i]);
+                  cb(_nodes[i]);
          }
       }
 
