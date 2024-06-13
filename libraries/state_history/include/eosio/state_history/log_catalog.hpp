@@ -93,6 +93,12 @@ public:
                      "block ${b} is before first block ${s} of ${name}.log",
                      ("b", block_num)("s", retained_log_files.begin()->begin_block_num)("name", retained_log_files.begin()->path_and_basename.string()));
 
+         //if re-writing an existing block_num (which could be due to a fork or replay/resync), check if the blockid is equal and simply return. otherwise we
+         // risk unrotating and blowing away existing log files for the latter case of replaying or resyncing
+         if(block_num < block_range().second)
+            if(get_block_id(block_num) == id)
+               return;
+
          //need to consider "unrotating" the logs. ex: split logs with 234 56789 ABC. "ABC" log is the head log. Any block that is prior to A must result in the removal
          // of the ABC log (this does _not_ invalidate ship_log_entrys from that log!) and then the replacement of 56789 as the head log. If the new block is in the range of 5
          // through 9, we write here to this head log. If the new block is prior to block 5 we unrotate again. Keep performing the unrotation as long as there are retained logs
