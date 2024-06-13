@@ -516,7 +516,7 @@ namespace eosio::testing {
    }
 
    void base_tester::_wait_for_vote_if_needed(controller& c) {
-      if (c.head_block()->is_proper_svnn_block()) {
+      if (c.can_vote_on(c.head_block())) {
          // wait for this node's vote to be processed
          size_t retrys = 500;
          while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
@@ -528,12 +528,12 @@ namespace eosio::testing {
 
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
-      if( empty ) {
-         for( uint32_t i = 0; i < n; ++i )
-            res = produce_empty_block();
-      } else {
-         for( uint32_t i = 0; i < n; ++i )
-            res = produce_block();
+      for (uint32_t i = 0; i < n; ++i) {
+         // for performance, only vote on the last four to move finality
+         // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
+         if (n > 4)
+            control->allow_voting(i >= n - 4);
+         res = empty ? produce_empty_block() : produce_block();
       }
       return res;
    }

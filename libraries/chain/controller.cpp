@@ -957,6 +957,7 @@ struct controller_impl {
    named_thread_pool<chain>        thread_pool;
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
+   bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
@@ -3698,9 +3699,13 @@ struct controller_impl {
       });
    }
 
+   bool can_vote_on(const signed_block_ptr& b) {
+      return allow_voting && b->is_proper_svnn_block();
+   }
+
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!bsp->block->is_proper_svnn_block())
+      if (!can_vote_on(bsp->block))
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
@@ -4969,6 +4974,14 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
 void controller::commit_block(block_report& br) {
    validate_db_available_size();
    my->commit_block(br, block_status::incomplete);
+}
+
+void controller::allow_voting(bool val) {
+   my->allow_voting = val;
+}
+
+bool controller::can_vote_on(const signed_block_ptr& b) {
+   return my->can_vote_on(b);
 }
 
 void controller::maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
