@@ -1175,7 +1175,6 @@ BOOST_DATA_TEST_CASE(split_forks, bdata::xrange(1u, 6u), fork_size) try {
 
 //(manually) fabricate a leap 3.x ship log format and make sure it's readable
 BOOST_AUTO_TEST_CASE(old_log_format) try {
-   //just opens and closes an empty log a few times
    const temp_directory tmpdir;
 
    const unsigned begin_block = 2;
