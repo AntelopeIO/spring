@@ -1,5 +1,21 @@
 # Performance Harness
 
+## Notes and Overview
+
+### Protocol
+HTTP connection recommended as we can get back more information. P2P will not have the same robust information. P2P will handle more troughput.
+
+#### HTTPS Support
+Currently no support for HTTPS.
+
+### Generating Load
+Use the `TestHarness/TransactionGeneratorLancher.py` to spin up many transactions generators to generate lots of load.
+
+### Responsibilities
+PerformanceHarness generate loads against an existing network, and generate reports on that network.
+PerformanceHarness delegates setup of nodoes instances and cluster to the TestHarness
+PerformanceHarness can toggle and tweak config settings in test harness
+
 The Performance Harness is a module which provides the framework and utilities to run performance load tests on node infrastructure.
 
 `PerformanceHarnessScenarioRunner.py` is currently the main entry point and provides the utility to configure and run such tests.  It also serves as an example of how one can import the `PerformanceHarness` module to configure and run performance tests.  The `PerformanceHarnessScenarioRunner` currently provides two options for running performance tests.  The first `findMax` uses the `PerformanceTest` class to run a suite of `PerformanceTestBasic` test run to zero in on a max performance (see section on `PerformanceTest` following.).  The second is `singleTest` which allows a user to run a single `PerformanceTestBasic` and see the results of a single configuration (see `PerformanceTestBasic` section following).

@@ -148,7 +148,7 @@ class TestHelper(object):
         Utils.Print("EOS Client version: %s" % (clientVersion))
         Utils.Print("Processor: %s" % (platform.processor()))
         Utils.Print("OS name: %s" % (platform.platform()))
-    
+
     @staticmethod
     def shutdown(cluster, walletMgr, testSuccessful=True, dumpErrorDetails=False):
         """Cluster and WalletMgr shutdown and cleanup."""

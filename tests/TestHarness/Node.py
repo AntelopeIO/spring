@@ -33,6 +33,7 @@ class KeyStrings(object):
 
 # pylint: disable=too-many-public-methods
 class Node(Transactions):
+    """Python Representation of a Node. Tracks nodes you use on a cluser"""
     # Node number is used as an addend to determine the node listen ports.
     # This value extends that pattern to all nodes, not just the numbered nodes.
     biosNodeId = -100
@@ -538,7 +539,7 @@ class Node(Transactions):
 
     def scheduleSnapshot(self):
         return self.processUrllibRequest("producer", "schedule_snapshot")
-    
+
     def scheduleSnapshotAt(self, sbn):
         param = { "start_block_num": sbn, "end_block_num": sbn }
         return self.processUrllibRequest("producer", "schedule_snapshot", param)
