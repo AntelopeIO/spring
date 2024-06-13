@@ -2556,23 +2556,13 @@ namespace eosio {
                }
             }
 
-            // use chain head instead of fork head so we do not get too far ahead of applied blocks
-            uint32_t head = my_impl->get_chain_head_num();
-            if (head + sync_req_span > sync_last_requested_num) { // don't allow to get too far head (one sync_req_span)
-               if (sync_next_expected_num > sync_last_requested_num && sync_last_requested_num < sync_known_lib_num) {
-                  fc_dlog(logger, "Requesting range ahead, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} sync_last_requested_num: ${lrn}",
-                          ("h", head)("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
-                  request_next_chunk();
-                  return;
-               }
-            }
-
             if (!blk_applied && blk_num >= c->sync_last_requested_block) {
                // block was not applied, possibly because we already have the block
                // We didn't request the next chunk of blocks, request them anyway because we might need them to resolve a fork
-               fc_dlog(logger, "Requesting blocks, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} "
+               fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                       ("h", head)("bn", blk_num)("nen", sync_next_expected_num)
+                       ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                       ("bn", blk_num)("nen", sync_next_expected_num)
                        ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
                request_next_chunk();
             }
