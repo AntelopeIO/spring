@@ -1173,4 +1173,52 @@ BOOST_DATA_TEST_CASE(split_forks, bdata::xrange(1u, 6u), fork_size) try {
    }
 } FC_LOG_AND_RETHROW();
 
+//(manually) fabricate a leap 3.x ship log format and make sure it's readable
+BOOST_AUTO_TEST_CASE(old_log_format) try {
+   //just opens and closes an empty log a few times
+   const temp_directory tmpdir;
+
+   const unsigned begin_block = 2;
+   const unsigned end_block = 45;
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+
+   {
+      random_access_file file(tmpdir.path() / "old.log");
+      for(unsigned blocknum = begin_block; blocknum < end_block; ++blocknum) {
+         const size_t insertpos = file.size();
+         std::pair<state_history::log_header, uint32_t> legacy_header = {};
+         legacy_header.first.block_id = fake_blockid_for_num(blocknum);
+
+         bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 128*1024));
+         bio::filtering_ostreambuf output(bio::zlib_compressor() | eosio::detail::counter() | bio::restrict(file.seekable_device(), insertpos + raw::pack_size(legacy_header)));
+         bio::copy(hashed_randomness, output);
+         wrote_data_for_blocknum[blocknum] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         legacy_header.first.payload_size = output.component<eosio::detail::counter>(1)->characters() + sizeof(decltype(legacy_header.second));
+
+         file.pack_to(legacy_header, insertpos);
+         file.pack_to_end(insertpos);
+      }
+   }
+
+   {
+      //will regenerate index too
+      eosio::state_history::log_catalog lc(tmpdir.path(), std::monostate(), "old");
+
+      BOOST_REQUIRE_EQUAL(begin_block, lc.block_range().first);
+      BOOST_REQUIRE_EQUAL(end_block, lc.block_range().second);
+
+      for(unsigned i = begin_block; i < end_block; ++i) {
+         std::optional<state_history::ship_log_entry> entry = lc.get_entry(i);
+         BOOST_REQUIRE(!!entry);
+
+         bio::filtering_ostreambuf hashed_null(sha256_filter() | bio::null_sink());
+         bio::filtering_istreambuf log_stream = entry->get_stream();
+         bio::copy(log_stream, hashed_null);
+         BOOST_REQUIRE_EQUAL(hashed_null.component<sha256_filter>(0)->enc->result(), wrote_data_for_blocknum[i]);
+      }
+   }
+
+} FC_LOG_AND_RETHROW();
+
 BOOST_AUTO_TEST_SUITE_END()
