@@ -2240,7 +2240,8 @@ namespace eosio {
          set_state( lib_catchup );
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
-         sync_next_expected_num = std::max( chain_info.lib_num + 1, sync_next_expected_num );
+         peer_dlog(c, "already syncing, start sync ignored");
+         return;
       }
 
       request_next_chunk( c );
