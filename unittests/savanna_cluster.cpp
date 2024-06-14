@@ -38,13 +38,14 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
       BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes);  // check that lib advances on all nodes
       BOOST_REQUIRE_EQUAL(node3.lib_num(), node3_lib + 2);  // check that each produced block advances lib by one
 
-      auto prod = set_producers(0,  {"a"_n, "b"_n, "c"_n}); // set new producers and produce blocks until the switch is pending
-      auto sb = node3.produce_block();                      // now the next block produced on any node
-      BOOST_REQUIRE_EQUAL(sb->producer, prod);              // should be produced by the producer returned by `set_producers`
+      const vector<account_name> producers {"a"_n, "b"_n, "c"_n};
 
-      std::this_thread::sleep_for(vote_delay);              // because vote_processor asynchronous
+      auto prod = set_producers(0, producers);              // set new producers and produce blocks until the switch is pending
+      auto sb = node3.produce_block();                      // now the next block produced on any node
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);   // should be produced by the producer returned by `set_producers`
 
       // and memorize lib at this point
+      // ------------------------------
       auto node0_lib = node0.lib_num();
       node3_lib      = node3.lib_num();
       BOOST_REQUIRE_EQUAL(node0_lib, node3_lib);

@@ -11,6 +11,7 @@
 #include <eosio/testing/tester.hpp>
 
 namespace savanna_cluster {
+   namespace ranges = std::ranges;
 
    using vote_message_ptr = eosio::chain::vote_message_ptr;
    using vote_status      = eosio::chain::vote_status;
@@ -141,20 +142,21 @@ namespace savanna_cluster {
 
       // Create accounts and updates producers on node node_idx (producer updates will be
       // propagated to connected nodes), and wait until one of the new producers is pending.
-      // return the pending new producer.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
       // -----------------------------------------------------------------------------------
-      account_name set_producers(size_t node_idx, const std::vector<account_name>& producers) {
+      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers) {
          node_t& n = _nodes[node_idx];
          n.create_accounts(producers);
          n.set_producers(producers);
          account_name pending;
+         signed_block_ptr sb;
          while (1) {
-            n.produce_block();
+            sb = n.produce_block();
             pending = n.control->pending_block_producer();
-            if (std::any_of(producers.begin(), producers.end(), [&](auto a) { return a == pending; }))
+            if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
                break;
          }
-         return pending;
+         return ranges::find(producers, pending) - producers.begin();
       }
 
       // provide a set of node indices wgich will be disconnected from other nodes of the network,
@@ -174,7 +176,7 @@ namespace savanna_cluster {
       // returns the number of nodes on which `lib` advanced since we last checked
       // -------------------------------------------------------------------------
       size_t num_lib_advancing() {
-         return std::count_if(_nodes.begin(), _nodes.end(), [](node_t& n) { return n.lib_advancing(); });
+         return ranges::count_if(_nodes, [](node_t& n) { return n.lib_advancing(); });
       }
 
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
@@ -219,7 +221,7 @@ namespace savanna_cluster {
                   cb(_nodes[i]);
          } else {
             auto in_partition = [&](size_t node_idx) {
-               return std::any_of(_partition.begin(), _partition.end(), [&](auto i) { return i == node_idx; });
+               return ranges::any_of(_partition, [&](auto i) { return i == node_idx; });
             };
             bool in = in_partition(node_idx);
             for (size_t i=0; i<num_nodes; ++i)
