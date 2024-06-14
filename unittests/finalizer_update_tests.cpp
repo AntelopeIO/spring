@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
 // at the same time.
 // ---------------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
-   // Do not transition to Savanna at constrution. Transition explicitly later.
+   // Do not transition to Savanna at construction. Transition explicitly later.
    legacy_validating_tester t;
    size_t num_keys    = 50u;
    size_t finset_size = 21u;
@@ -101,7 +101,8 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    auto pubkeys2 = fin_keys.set_finalizer_policy(2u).pubkeys;
    t.produce_block();
    t.check_head_finalizer_policy(1u, pubkeys0); // new policy should only be active until after two 3-chains
-   t.produce_blocks(5);
+   t.produce_blocks(3);
+   t.produce_blocks(2);
    t.check_head_finalizer_policy(1u, pubkeys0); // new policy should only be active until after two 3-chains
    t.produce_block();
    t.check_head_finalizer_policy(2u, pubkeys2); // two 3-chain - new policy pubkeys2 *should* be active

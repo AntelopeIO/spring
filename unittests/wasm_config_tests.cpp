@@ -188,7 +188,7 @@ static const char one_data[] =  "(data (i32.const 0))";
 
 template<typename T>
 void test_max_section_elements(T& chain, int32_t n_elements, int32_t oversize, const char* wast, const char* one_element) {
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"section"_n});
    chain.produce_block();
 
@@ -238,7 +238,7 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_sectio
 // must be unique and apply must be one of the exports.
 template<typename T>
 void test_max_section_elements_export(T& chain, int32_t n_elements, int32_t oversize) {
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"section"_n});
    chain.produce_block();
 
@@ -298,7 +298,7 @@ static const char max_linear_memory_wast[] = R"=====(
 
 template<typename T>
 void test_max_linear_memory_init(T& chain, int32_t n_init, int32_t oversize) {
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"initdata"_n});
    chain.produce_block();
 
@@ -346,7 +346,7 @@ static const std::vector<std::tuple<int, int, bool, bool>> func_local_params = {
 
 template<typename T>
 void test_max_func_local_bytes(T& chain, int32_t n_params, int32_t n_locals, int32_t n_stack, int32_t set_high, int32_t expect_success) {
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"stackz"_n});
    chain.produce_block();
 
@@ -403,7 +403,7 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_func_l
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_func_local_bytes_mixed, T, wasm_config_testers ) {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"stackz"_n});
    chain.produce_block();
 
@@ -447,7 +447,7 @@ static const std::vector<std::tuple<int, int, bool>> old_func_local_params = {
 };
 
 BOOST_DATA_TEST_CASE_F(old_wasm_tester, max_func_local_bytes_old, data::make({0, 8192, 16384}) * data::make(old_func_local_params), n_stack, n_params, n_locals, expect_success) {
-   produce_blocks(2);
+   produce_block();
    create_accounts({"stackz"_n});
    produce_block();
 
@@ -481,7 +481,7 @@ BOOST_DATA_TEST_CASE_F(old_wasm_tester, max_func_local_bytes_old, data::make({0,
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_stack, T, wasm_config_testers ) {
    T chain;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_accounts({"stackz"_n});
    chain.produce_block();
    std::string code;
@@ -530,7 +530,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_stack, T, wasm_config_testers ) {
 }
 
 BOOST_FIXTURE_TEST_CASE(max_stack_old, old_wasm_tester) {
-   produce_blocks();
+   produce_block();
    create_accounts({"stackz"_n});
    produce_block();
    std::string code;
@@ -566,7 +566,7 @@ BOOST_FIXTURE_TEST_CASE(max_stack_old, old_wasm_tester) {
 }
 
 BOOST_FIXTURE_TEST_CASE(max_func_local_bytes_mixed_old, old_wasm_tester) {
-   produce_blocks(2);
+   produce_block();
    create_accounts({"stackz"_n});
    produce_block();
 
@@ -723,7 +723,7 @@ static const char max_symbol_table_wast[] = R"=====(
 
 template<typename T>
 void test_max_symbol_bytes_export(T& chain, int32_t n_symbol, int32_t oversize, const char* wast) {
-   chain.produce_blocks(2);
+   chain.produce_block();
 
    chain.create_accounts({"bigname"_n});
 
@@ -771,7 +771,7 @@ static const char max_symbol_import_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_symbol_bytes_import, T, wasm_config_testers ) {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"bigname"_n});
 
    constexpr int n_symbol = 33;
@@ -816,7 +816,7 @@ static const std::vector<uint8_t> small_contract_wasm{
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_module_bytes, T, wasm_config_testers ) {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"bigmodule"_n});
 
    const int n_module = small_contract_wasm.size();
@@ -839,7 +839,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_module_bytes, T, wasm_config_testers ) {
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_code_bytes, T, wasm_config_testers ) {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_accounts({"bigcode"_n});
 
    constexpr int n_code = 224;
@@ -883,7 +883,7 @@ static const char intrinsic_biggest_memory_wast[] = R"=====(
 BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
 
    chain.create_accounts( { "bigmem"_n, "accessmem"_n, "intrinsicmem"_n } );
    chain.set_code("accessmem"_n, access_biggest_memory_wast);
@@ -899,7 +899,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
                                                        "MAX_WASM_PAGES", params.max_pages - 1));
 
       chain.set_code("bigmem"_n, biggest_memory_wast_f.c_str());
-      chain.produce_blocks(1);
+      chain.produce_block();
 
       auto pushit = [&](uint64_t extra_pages) {
          action act;
@@ -947,7 +947,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
       pushit(1);
       checkaccess(max_pages - 1);
       pushintrinsic(max_pages);
-      chain.produce_blocks(1);
+      chain.produce_block();
 
       // Increase memory limit
       ++params.max_pages;

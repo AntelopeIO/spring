@@ -22,15 +22,15 @@ class eosio_token_tester : public T {
 public:
 
    eosio_token_tester() {
-      T::produce_blocks( 2 );
+      T::produce_block();
 
       T::create_accounts( { "alice"_n, "bob"_n, "carol"_n, "eosio.token"_n } );
-      T::produce_blocks( 2 );
+      T::produce_block();
 
       T::set_code( "eosio.token"_n, test_contracts::eosio_token_wasm() );
       T::set_abi( "eosio.token"_n, test_contracts::eosio_token_abi() );
 
-      T::produce_blocks();
+      T::produce_block();
 
       const auto& accnt = T::control->db().template get<account_object,by_name>( "eosio.token"_n );
       abi_def abi;
@@ -112,7 +112,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( create_tests, T, eosio_token_testers ) try {
       ("max_supply", "1000.000 TKN")
       ("issuer", "alice")
    );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
 } FC_LOG_AND_RETHROW()
 
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( symbol_already_exists, T, eosio_token_testers ) t
       ("max_supply", "100 TKN")
       ("issuer", "alice")
    );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    BOOST_REQUIRE_EQUAL( chain.wasm_assert_msg( "token with symbol already exists" ),
                         chain.create( "alice"_n, asset::from_string("100 TKN"))
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( create_max_supply, T, eosio_token_testers ) try {
       ("max_supply", "4611686018427387903 TKN")
       ("issuer", "alice")
    );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    asset max(10, symbol(SY(0, NKT)));
    share_type amount = 4611686018427387904;
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( create_max_decimals, T, eosio_token_testers ) try
       ("max_supply", "1.000000000000000000 TKN")
       ("issuer", "alice")
    );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    asset max(10, symbol(SY(0, NKT)));
    //1.0000000000000000000 => 0x8ac7230489e80000L
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( issue_tests, T, eosio_token_testers ) try {
    T chain;
 
    auto token = chain.create( "alice"_n, asset::from_string("1000.000 TKN"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.issue( "alice"_n, "alice"_n, asset::from_string("500.000 TKN"), "hola" );
 
@@ -234,7 +234,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( transfer_tests, T, eosio_token_testers ) try {
    T chain;
 
    auto token = chain.create( "alice"_n, asset::from_string("1000 CERO"));
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.issue( "alice"_n, "alice"_n, asset::from_string("1000 CERO"), "hola" );
 

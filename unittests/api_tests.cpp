@@ -301,10 +301,10 @@ uint32_t last_fnc_err = 0;
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_receipt_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "test"_n );
    chain.set_code( "test"_n, test_contracts::payloadless_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    auto call_doit_and_check = [&]( account_name contract, account_name signer, auto&& checker ) {
       signed_transaction trx;
@@ -367,7 +367,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_receipt_tests, T, validating_testers) { try
       BOOST_CHECK_EQUAL( m.begin()->second, base_test_auth_seq_num + 3 );
    } );
 
-   chain.produce_blocks(1); // Added to avoid the last doit transaction from being considered a duplicate.
+   chain.produce_block(); // Added to avoid the last doit transaction from being considered a duplicate.
    // Adding a block also retires an onblock action which increments both the global sequence number
    // and the recv and auth sequences numbers for the system account.
 
@@ -409,18 +409,18 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_receipt_tests, T, validating_testers) { try
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(2);
-	chain.create_account( "testapi"_n );
-	chain.create_account( "acc1"_n );
-	chain.create_account( "acc2"_n );
-	chain.create_account( "acc3"_n );
-	chain.create_account( "acc4"_n );
-	chain.produce_blocks(10);
-	chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-	chain.produce_blocks(1);
+   chain.produce_block();
+   chain.create_account("testapi"_n);
+   chain.create_account("acc1"_n);
+   chain.create_account("acc2"_n);
+   chain.create_account("acc3"_n);
+   chain.create_account("acc4"_n);
+   chain.produce_block();
+   chain.set_code("testapi"_n, test_contracts::test_api_wasm());
+   chain.produce_block();
 
    // test assert_true
-	CALL_TEST_FUNCTION( chain, "test_action", "assert_true", {});
+   CALL_TEST_FUNCTION(chain, "test_action", "assert_true", {});
 
    //test assert_false
    BOOST_CHECK_EXCEPTION( CALL_TEST_FUNCTION( chain, "test_action", "assert_false", {} ),
@@ -564,13 +564,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(require_notice_tests, T, validating_testers) { try {
       T chain;
 
-      chain.produce_blocks(2);
+      chain.produce_block();
       chain.create_account( "testapi"_n );
       chain.create_account( "acc5"_n );
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
       chain.set_code( "acc5"_n, test_contracts::test_api_wasm() );
-      chain.produce_blocks(1);
+      chain.produce_block();
 
       // test require_notice
       signed_transaction trx;
@@ -593,14 +593,14 @@ BOOST_AUTO_TEST_CASE(ram_billing_in_notify_tests) { try {
    chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::action_return_value} );
    chain.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
    chain.create_account( "testapi2"_n );
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code( "testapi2"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    BOOST_CHECK_EXCEPTION( CALL_TEST_FUNCTION( chain, "test_action", "test_ram_billing_in_notify",
                                               fc::raw::pack( ((unsigned __int128)"testapi2"_n.to_uint64_t() << 64) | "testapi"_n.to_uint64_t() ) ),
@@ -622,12 +622,12 @@ BOOST_AUTO_TEST_CASE(ram_billing_in_notify_tests) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(cf_action_tests, T, validating_testers) { try {
       T chain;
 
-      chain.produce_blocks(2);
+      chain.produce_block();
       chain.create_account( "testapi"_n );
       chain.create_account( "dummy"_n );
-      chain.produce_blocks(10);
+      chain.produce_block();
       chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-      chain.produce_blocks(1);
+      chain.produce_block();
       cf_action cfa;
       signed_transaction trx;
       chain.set_transaction_headers(trx);
@@ -752,7 +752,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(cfa_stateful_api, T, validating_testers)  try {
    T chain;
 
    chain.create_account( "testapi"_n );
-	chain.produce_blocks(1);
+	chain.produce_block();
 	chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
 
    account_name a = "testapi2"_n;
@@ -782,7 +782,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(cfa_stateful_api, T, validating_testers)  try {
 BOOST_FIXTURE_TEST_CASE(deferred_cfa_failed, validating_tester_no_disable_deferred_trx)  try {
 
    create_account( "testapi"_n );
-	produce_blocks(1);
+	produce_block();
 	set_code( "testapi"_n, test_contracts::test_api_wasm() );
 
    account_name a = "testapi2"_n;
@@ -807,7 +807,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_failed, validating_tester_no_disable_deferr
          return expect_assert_message(e, "only context free api's can be used in this context");
       });
 
-   produce_blocks(10);
+   produce_block();
 
    // CFA failed, testapi2 not created
    create_account( "testapi2"_n );
@@ -818,7 +818,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_failed, validating_tester_no_disable_deferr
 BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_deferred_trx)  try {
 
    create_account( "testapi"_n );
-	produce_blocks(1);
+	produce_block();
 	set_code( "testapi"_n, test_contracts::test_api_wasm() );
 
    account_name a = "testapi2"_n;
@@ -833,7 +833,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
                                  });
    action act({}, test_api_action<TEST_METHOD("test_transaction", "context_free_api")>{});
    trx.context_free_actions.push_back(act);
-   set_transaction_headers(trx, 10, 2);
+   set_transaction_headers(trx, 10, 1);
    trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
    auto trace = push_transaction( trx );
    BOOST_REQUIRE(trace != nullptr);
@@ -841,7 +841,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_cfa_success, validating_tester_no_disable_defer
       BOOST_REQUIRE_EQUAL(transaction_receipt_header::status_enum::delayed, trace->receipt->status);
       BOOST_REQUIRE_EQUAL(1, trace->action_traces.size());
    }
-   produce_blocks(10);
+   produce_blocks(3);
 
    // CFA success, testapi2 created
    BOOST_CHECK_EXCEPTION(create_account( "testapi2"_n ), fc::exception,
@@ -941,11 +941,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(light_validation_skip_cfa, T, testers)  try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_pass_tests, T, validating_testers)  { try {
    T chain;
 
-	chain.produce_blocks(2);
+	chain.produce_block();
 	chain.create_account( "testapi"_n );
-	chain.produce_blocks(10);
+	chain.produce_block();
 	chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-	chain.produce_blocks(1);
+	chain.produce_block();
 
    // test checktime_pass
    CALL_TEST_FUNCTION( chain, "test_checktime", "checktime_pass", {});
@@ -998,14 +998,14 @@ void call_test(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cp
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_fail_tests, T, validating_testers ) { try {
    T t;
-   t.produce_blocks(2);
+   t.produce_block();
 
    ilog( "create account" );
    t.create_account( "testapi"_n );
    ilog( "set code" );
    t.set_code( "testapi"_n, test_contracts::test_api_wasm() );
    ilog( "produce block" );
-   t.produce_blocks(1);
+   t.produce_block();
 
    int64_t x; int64_t net; int64_t cpu;
    t.control->get_resource_limits_manager().get_account_limits( "testapi"_n, x, net, cpu );
@@ -1054,10 +1054,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_max_trx_cpu_extended_test, T, tes
       return;
    }
    t.execute_setup_policy( setup_policy::full );
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account( "pause"_n );
    t.set_code( "pause"_n, test_contracts::test_api_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
 
    int64_t ram_bytes; int64_t net; int64_t cpu;
    auto& rl = t.control->get_resource_limits_manager();
@@ -1120,10 +1120,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_max_trx_extended_test, T, testers
       return;
    }
    t.execute_setup_policy( setup_policy::full );
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account( "pause"_n );
    t.set_code( "pause"_n, test_contracts::test_api_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
 
    // Test deadline is extended when max_transaction_time is the limiting factor
 
@@ -1168,10 +1168,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_test,
       return;
    }
    t.execute_setup_policy( setup_policy::full );
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account( "pause"_n );
    t.set_code( "pause"_n, test_contracts::test_api_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
 
    // Test block deadline is not extended when it is the limiting factor
    // Specify large enough time so that WASM is completely loaded.
@@ -1191,8 +1191,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_test,
    BOOST_TEST( t.is_code_cached("pause"_n) );
 
    // If this check fails but duration is >= 75'000 (previous check did not fail), then the check here is likely
-   // because it took longer than 10 ms for checktime to trigger, trace to be created, and to get to the now() call.
-   BOOST_CHECK_MESSAGE( dur < 85'000, "elapsed " << dur << "us" );
+   // because it took longer than 50 ms for checktime to trigger, trace to be created, and to get to the now() call.
+   BOOST_CHECK_MESSAGE( dur < 125'000, "elapsed " << dur << "us" );
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 } FC_LOG_AND_RETHROW() }
@@ -1215,10 +1215,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_while
       return;
    }
    t.execute_setup_policy( setup_policy::full );
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account( "pause"_n );
    t.set_code( "pause"_n, test_contracts::test_api_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
 
    // Test block deadline is not extended when it is the limiting factor
    // This test is different from the previous in that not enough time is provided to load the WASM.
@@ -1231,20 +1231,20 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_while
    // First call to contract which should cause the WASM to load and trx_context.pause_billing_timer() to be called.
    auto before = fc::time_point::now();
    BOOST_CHECK_EXCEPTION( call_test( t, test_pause_action<TEST_METHOD("test_checktime", "checktime_failure")>{},
-                                     0, 150, 5, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
+                                     0, 150, 15, fc::raw::pack(10000000000000000000ULL), "pause"_n ),
                           deadline_exception, is_deadline_exception );
    auto after = fc::time_point::now();
-   // Test that it runs longer than specified limit of 10ms to allow for wasm load time.
+   // Test that it runs longer than specified limit of 15ms to allow for wasm load time.
    // WASM load times on my machine are around 35ms
    auto dur = (after - before).count();
    dlog("elapsed ${e}us", ("e", dur) );
-   BOOST_CHECK( dur >= 5'000 ); // should never fail
+   BOOST_CHECK( dur >= 15'000 ); // should never fail
    BOOST_TEST( t.is_code_cached("pause"_n) );
 
    // WASM load times on my machine was 35ms.
    // Since checktime only kicks in after WASM is loaded this needs to be large enough to load the WASM, but should be
-   // considerably lower than the 150ms max_transaction_time
-   BOOST_CHECK_MESSAGE( dur < 65'000, "elapsed " << dur << "us" );
+   // lower than the 150ms max_transaction_time
+   BOOST_CHECK_MESSAGE( dur < 125'000, "elapsed " << dur << "us" );
    BOOST_REQUIRE_MESSAGE( dur < 150'000, "elapsed " << dur << "us" ); // should never fail
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
@@ -1253,12 +1253,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_block_deadline_not_extended_while
 BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_intrinsic, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(2);
-	chain.create_account( "testapi"_n );
-	chain.produce_blocks(10);
+   chain.produce_block();
+   chain.create_account("testapi"_n);
+   chain.produce_block();
 
-        std::stringstream ss;
-        ss << R"CONTRACT(
+   std::stringstream ss;
+   ss << R"CONTRACT(
 (module
   (type $FUNCSIG$vij (func (param i32 i64)))
   (type $FUNCSIG$j (func  (result i64)))
@@ -1296,7 +1296,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_intrinsic, T, validating_testers) { try 
         }
         ss<< "))";
 	chain.set_code( "testapi"_n, ss.str().c_str() );
-	chain.produce_blocks(1);
+	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
 
@@ -1316,12 +1316,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_intrinsic, T, validating_testers) { try 
 BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_grow_memory, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(2);
-	chain.create_account( "testapi"_n );
-	chain.produce_blocks(10);
+   chain.produce_block();
+   chain.create_account("testapi"_n);
+   chain.produce_block();
 
-        std::stringstream ss;
-        ss << R"CONTRACT(
+   std::stringstream ss;
+   ss << R"CONTRACT(
 (module
   (memory 1)
 
@@ -1337,7 +1337,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_grow_memory, T, validating_testers) { tr
         }
         ss<< "))";
 	chain.set_code( "testapi"_n, ss.str().c_str() );
-	chain.produce_blocks(1);
+	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
 
@@ -1357,11 +1357,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_grow_memory, T, validating_testers) { tr
 BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(2);
+	chain.produce_block();
 	chain.create_account( "testapi"_n );
-	chain.produce_blocks(10);
+	chain.produce_block();
 	chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-	chain.produce_blocks(1);
+	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
 
@@ -1419,11 +1419,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_start, T, validating_testers) try {
  (start $start)
 )
 )=====";
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.set_code( "testapi"_n, checktime_start_wast );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    BOOST_CHECK_EXCEPTION( call_test( chain, test_api_action<TEST_METHOD("doesn't matter", "doesn't matter")>{},
                                      5000, 3, 3 ),
@@ -1435,11 +1435,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_start, T, validating_testers) try {
  *************************************************************************************/
 template<typename T>
 void transaction_tests(T& chain) {
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
-   chain.produce_blocks(100);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // test for zero auth
    {
@@ -1492,7 +1492,7 @@ void transaction_tests(T& chain) {
          );
 
       {
-         chain.produce_blocks(10);
+         chain.produce_block();
          transaction_trace_ptr trace;
          auto c = chain.control->applied_transaction().connect([&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
             auto& t = std::get<0>(x);
@@ -1644,9 +1644,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( inline_action_with_over_4k_limit, T, testers ) { 
 BOOST_AUTO_TEST_CASE_TEMPLATE( inline_action_objective_limit, T, testers ) { try {
    const uint32_t _4k = 4 * 1024;
    T chain(setup_policy::full, db_read_mode::HEAD, {_4k});
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
-   chain.produce_blocks(100);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
    chain.produce_block();
 
@@ -1709,11 +1709,11 @@ BOOST_AUTO_TEST_SUITE_END()
 BOOST_AUTO_TEST_SUITE(api_part3_tests)
 
 BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable_deferred_trx) { try {
-   produce_blocks(2);
+   produce_block();
    create_accounts( {"testapi"_n, "testapi2"_n, "alice"_n} );
    set_code( "testapi"_n, test_contracts::test_api_wasm() );
    set_code( "testapi2"_n, test_contracts::test_api_wasm() );
-   produce_blocks(1);
+   produce_block();
 
    //schedule
    {
@@ -1735,7 +1735,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       c.disconnect();
    }
 
-   produce_blocks(10);
+   produce_block();
 
    //schedule twice without replace_existing flag (second deferred transaction should replace first one)
    {
@@ -1761,7 +1761,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       c.disconnect();
    }
 
-   produce_blocks(10);
+   produce_block();
 
    //schedule twice with replace_existing flag (second deferred transaction should replace first one)
    {
@@ -1788,7 +1788,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       c.disconnect();
    }
 
-   produce_blocks(10);
+   produce_block();
 
    //schedule and cancel
    {
@@ -1804,14 +1804,14 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       c.disconnect();
    }
 
-   produce_blocks(10);
+   produce_block();
 
    //cancel_deferred() return zero if no scheduled transaction found
    {
       CALL_TEST_FUNCTION(*this, "test_transaction", "cancel_deferred_transaction_not_found", {});
    }
 
-   produce_blocks(10);
+   produce_block();
 
    //repeated deferred transactions
    {
@@ -1832,7 +1832,7 @@ BOOST_FIXTURE_TEST_CASE(deferred_transaction_tests, validating_tester_no_disable
       BOOST_CHECK_EQUAL( traces.size(), 5 );
    }
 
-   produce_blocks(10);
+   produce_block();
 
    {
       // Trigger a tx which in turn sends a deferred tx with payer != receiver
@@ -1979,7 +1979,7 @@ BOOST_AUTO_TEST_CASE(more_deferred_transaction_tests) { try {
    BOOST_REQUIRE_EQUAL(1, index.size());
    print_deferred();
 
-   chain.produce_blocks(2);
+   chain.produce_block();
 
    chain.push_action( contract_account, "delayedcall"_n, test_account, fc::mutable_variant_object()
       ("payer",     test_account)
@@ -2080,7 +2080,7 @@ BOOST_AUTO_TEST_CASE(more_deferred_transaction_tests) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(chain_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
 
    chain.create_account( "testapi"_n );
 
@@ -2111,7 +2111,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(chain_tests, T, validating_testers) { try {
    chain.set_producers (producers );
 
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(100);
+   chain.produce_block();
+   chain.produce_block(fc::seconds(1000));
+   chain.produce_block();
 
    vector<account_name> prods( chain.control->active_producers().producers.size() );
    for ( uint32_t i = 0; i < prods.size(); i++ ) {
@@ -2129,15 +2131,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(chain_tests, T, validating_testers) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(db_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(2);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
    chain.create_account( "testapi2"_n );
-   chain.produce_blocks(10);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_db_wasm() );
    chain.set_abi(  "testapi"_n, test_contracts::test_api_db_abi() );
    chain.set_code( "testapi2"_n, test_contracts::test_api_db_wasm() );
    chain.set_abi(  "testapi2"_n, test_contracts::test_api_db_abi() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.push_action( "testapi"_n, "pg"_n,  "testapi"_n, mutable_variant_object() ); // primary_i64_general
    chain.push_action( "testapi"_n, "pl"_n,  "testapi"_n, mutable_variant_object() ); // primary_i64_lowerbound
@@ -2294,12 +2296,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(db_notify_tests, T, validating_testers) {
 BOOST_AUTO_TEST_CASE_TEMPLATE(multi_index_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_multi_index_wasm() );
    chain.set_abi( "testapi"_n, test_contracts::test_api_multi_index_abi() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    auto check_failure = [&chain]( action_name a, const char* expected_error_msg ) {
       BOOST_CHECK_EXCEPTION(  chain.push_action( "testapi"_n, a, "testapi"_n, {} ),
@@ -2629,13 +2631,13 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(cstr_tests, T, validating_testers) {
 BOOST_AUTO_TEST_CASE_TEMPLATE(print_tests, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(2);
-	chain.create_account("testapi"_n );
-	chain.produce_blocks(1000);
+   chain.produce_block();
+   chain.create_account("testapi"_n);
+   chain.produce_block();
 
-	chain.set_code("testapi"_n, test_contracts::test_api_wasm() );
-	chain.produce_blocks(1000);
-	string captured = "";
+   chain.set_code("testapi"_n, test_contracts::test_api_wasm());
+   chain.produce_block();
+   string captured = "";
 
 	// test prints
    auto tx1_trace = CALL_TEST_FUNCTION( chain, "test_print", "test_prints", {} );
@@ -2757,16 +2759,16 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(print_tests, T, validating_testers) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(types_tests, T, validating_testers) { try {
    T chain;
 
-	chain.produce_blocks(1000);
-	chain.create_account( "testapi"_n );
+   chain.produce_block();
+   chain.create_account("testapi"_n);
 
-	chain.produce_blocks(1000);
-	chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-	chain.produce_blocks(1000);
+   chain.produce_block();
+   chain.set_code("testapi"_n, test_contracts::test_api_wasm());
+   chain.produce_block();
 
-	CALL_TEST_FUNCTION( chain, "test_types", "types_size", {});
-	CALL_TEST_FUNCTION( chain, "test_types", "char_to_symbol", {});
-	CALL_TEST_FUNCTION( chain, "test_types", "string_to_name", {});
+   CALL_TEST_FUNCTION(chain, "test_types", "types_size", {});
+   CALL_TEST_FUNCTION(chain, "test_types", "char_to_symbol", {});
+   CALL_TEST_FUNCTION(chain, "test_types", "string_to_name", {});
 
    BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW() }
@@ -2777,12 +2779,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(types_tests, T, validating_testers) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(permission_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account( "testapi"_n );
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    auto get_result_int64 = [&]() -> int64_t {
       const auto& db = chain.control->db();
@@ -3009,11 +3011,11 @@ BOOST_AUTO_TEST_CASE( set_producers_legacy ) { try {
 BOOST_AUTO_TEST_CASE_TEMPLATE(datastream_tests, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1000);
+   chain.produce_block();
    chain.create_account("testapi"_n );
-   chain.produce_blocks(1000);
+   chain.produce_block();
    chain.set_code("testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1000);
+   chain.produce_block();
 
    CALL_TEST_FUNCTION( chain, "test_datastream", "test_basic", {} );
 
@@ -3049,7 +3051,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(permission_usage_tests, T, validating_testers) { t
                                      })
    ), eosio_assert_message_exception );
 
-   chain.produce_blocks(5);
+   chain.produce_block();
 
    chain.set_authority( "bob"_n, "perm1"_n, authority( chain.get_private_key("bob"_n, "perm1").get_public_key() ) );
 
@@ -3062,7 +3064,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(permission_usage_tests, T, validating_testers) { t
 
    auto permission_creation_time = chain.control->pending_block_time();
 
-   chain.produce_blocks(5);
+   chain.produce_block();
 
    CALL_TEST_FUNCTION( chain, "test_permission", "test_permission_last_used",
                        fc::raw::pack(test_permission_last_used_action{
@@ -3071,7 +3073,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(permission_usage_tests, T, validating_testers) { t
                                      })
    );
 
-   chain.produce_blocks(5);
+   chain.produce_block();
 
    chain.push_reqauth( "bob"_n, {{"bob"_n, "perm1"_n}}, {chain.get_private_key("bob"_n, "perm1")} );
 
@@ -3118,7 +3120,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(account_creation_time_tests, T, validating_testers
    chain.create_account( "alice"_n );
    auto alice_creation_time = chain.control->pending_block_time();
 
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    CALL_TEST_FUNCTION( chain, "test_permission", "test_account_creation_time",
                        fc::raw::pack(test_permission_last_used_action{
@@ -3201,7 +3203,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(eosio_assert_code_tests, T, validating_testers) { 
    auto var = fc::json::from_string(abi_string);
    abi_serializer abis(var.as<abi_def>(), abi_serializer::create_yield_function( chain.abi_serializer_max_time ));
 
-   chain.produce_blocks(10);
+   chain.produce_block();
 
    BOOST_CHECK_EXCEPTION( CALL_TEST_FUNCTION( chain, "test_action", "test_assert_code", fc::raw::pack((uint64_t)42) ),
                           eosio_assert_code_exception, eosio_assert_code_is(42)                                        );
@@ -3256,22 +3258,22 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(eosio_assert_code_tests, T, validating_testers) { 
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_test, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("testapi"_n );
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("bob"_n );
    chain.set_code( "bob"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("charlie"_n );
    chain.set_code( "charlie"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("david"_n );
    chain.set_code( "david"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("erin"_n );
    chain.set_code( "erin"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    // prove act digest
    auto pad = [](const digest_type& expected_act_digest, const action& act, const vector<char>& act_output)
@@ -3440,25 +3442,25 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_test, T, validating_testers) { try 
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest1, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("testapi"_n );
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("bob"_n );
    chain.set_code( "bob"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("charlie"_n );
    chain.set_code( "charlie"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("david"_n );
    chain.set_code( "david"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("erin"_n );
    chain.set_code( "erin"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.create_account("fail1"_n ); // <- make first action fails in the middle
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    transaction_trace_ptr txn_trace =
       CALL_TEST_FUNCTION_NO_THROW( chain, "test_action", "test_action_ordinal1", {});
@@ -3509,25 +3511,25 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest1, T, validating_testers) {
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest2, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("testapi"_n );
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("bob"_n );
    chain.set_code( "bob"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("charlie"_n );
    chain.set_code( "charlie"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("david"_n );
    chain.set_code( "david"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("erin"_n );
    chain.set_code( "erin"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.create_account("fail3"_n ); // <- make action 3 fails in the middle
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    transaction_trace_ptr txn_trace =
       CALL_TEST_FUNCTION_NO_THROW( chain, "test_action", "test_action_ordinal1", {});
@@ -3631,25 +3633,25 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest2, T, validating_testers) {
 BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest3, T, validating_testers) { try {
    T chain;
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("testapi"_n );
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("bob"_n );
    chain.set_code( "bob"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("charlie"_n );
    chain.set_code( "charlie"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("david"_n );
    chain.set_code( "david"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
    chain.create_account("erin"_n );
    chain.set_code( "erin"_n, test_contracts::test_api_wasm() );
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    chain.create_account("failnine"_n ); // <- make action 9 fails in the middle
-   chain.produce_blocks(1);
+   chain.produce_block();
 
    transaction_trace_ptr txn_trace =
       CALL_TEST_FUNCTION_NO_THROW( chain, "test_action", "test_action_ordinal1", {});
@@ -3785,10 +3787,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_ordinal_failtest3, T, validating_testers) {
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( action_results_tests, T, validating_testers ) { try {
    T t;
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account( "test"_n );
    t.set_code( "test"_n, test_contracts::action_results_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
 
    auto call_autoresret_and_check = [&]( account_name contract, account_name signer, action_name action, auto&& checker ) {
       signed_transaction trx;
@@ -3808,7 +3810,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( action_results_tests, T, validating_testers ) { t
       BOOST_REQUIRE_EQUAL( fc::raw::unpack<int>(atrace[0].return_value), 10 );
    } );
 
-   t.produce_blocks(1);
+   t.produce_block();
 
    call_autoresret_and_check( "test"_n, "test"_n, "retlim"_n, [&]( const transaction_trace_ptr& res ) {
       BOOST_CHECK_EQUAL( res->receipt->status, transaction_receipt::executed );
@@ -3825,15 +3827,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( action_results_tests, T, validating_testers ) { t
                                        expected_vec.end() );
    } );
 
-   t.produce_blocks(1);
+   t.produce_block();
    BOOST_REQUIRE_THROW(call_autoresret_and_check( "test"_n, "test"_n, "retoverlim"_n, [&]( auto res ) {}),
                        action_return_value_exception);
-   t.produce_blocks(1);
+   t.produce_block();
    BOOST_REQUIRE_THROW(call_autoresret_and_check( "test"_n, "test"_n, "ret1overlim"_n, [&]( auto res ) {}),
                        action_return_value_exception);
-   t.produce_blocks(1);
+   t.produce_block();
    t.set_code( config::system_account_name, test_contracts::action_results_wasm() );
-   t.produce_blocks(1);
+   t.produce_block();
    call_autoresret_and_check( config::system_account_name,
                               config::system_account_name,
                               "retmaxlim"_n,
@@ -3850,7 +3852,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( action_results_tests, T, validating_testers ) { t
                                                                   expected_vec.begin(),
                                                                   expected_vec.end() );
                               } );
-   t.produce_blocks(1);
+   t.produce_block();
    BOOST_REQUIRE_THROW(call_autoresret_and_check( config::system_account_name,
                                                   config::system_account_name,
                                                   "setliminv"_n,
@@ -3894,11 +3896,11 @@ static const char get_code_hash_wast[] = R"=====(
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( get_code_hash_tests, T, validating_testers ) { try {
    T t;
-   t.produce_blocks(2);
+   t.produce_block();
    t.create_account("gethash"_n);
    t.create_account("test"_n);
    t.set_code("gethash"_n, get_code_hash_wast);
-   t.produce_blocks(1);
+   t.produce_block();
 
    auto check = [&](account_name acc, uint64_t expected_seq) {
       fc::sha256 expected_code_hash;

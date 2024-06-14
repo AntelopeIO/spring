@@ -957,6 +957,7 @@ struct controller_impl {
    named_thread_pool<chain>        thread_pool;
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
+   bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
@@ -1232,7 +1233,7 @@ struct controller_impl {
     chain_id( chain_id ),
     read_mode( cfg.read_mode ),
     thread_pool(),
-    my_finalizers(fc::time_point::now(), cfg.finalizers_dir / "safety.dat"),
+    my_finalizers(cfg.finalizers_dir / "safety.dat"),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -3274,27 +3275,30 @@ struct controller_impl {
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
             if (!my_finalizers.empty()) {
                apply_s<void>(chain_head, [&](const auto& head) {
-                  boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
-                     create_and_send_vote_msg(head);
-                  });
+                  if (head->is_recent() || my_finalizers.is_active()) {
+                     boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                        create_and_send_vote_msg(head);
+                     });
+                  }
                });
             }
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
-            auto fd = head_finality_data();
             apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                              auto fd = head_finality_data(); // for transition blocks
                               assert(fd);
-                              dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block, *fd);
                            } else {
                               dm_logger->on_accepted_block(head);
                            }
                         },
                         [&](const block_state_ptr& head) {
+                           auto fd = head_finality_data();
                            assert(fd);
-                           dm_logger->on_accepted_block_v2(fork_db_root_block_num(), head->block, *fd);
+                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block, *fd);
                         });
          }
 
@@ -3695,14 +3699,17 @@ struct controller_impl {
       });
    }
 
+   bool can_vote_on(const signed_block_ptr& b) {
+      return allow_voting && b->is_proper_svnn_block();
+   }
+
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!bsp->block->is_proper_svnn_block())
+      if (!can_vote_on(bsp->block))
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(
-          *bsp->active_finalizer_policy, bsp, bsp->strong_digest, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
@@ -3964,6 +3971,8 @@ struct controller_impl {
          // is actually valid as it simply is used as a network message for this data.
          const auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
          set_if_irreversible_block_id(final_on_strong_qc_block_ref.block_id);
+         // Update finalizer safety information based on vote evidence
+         my_finalizers.maybe_update_fsi(claimed, received_qc);
       }
    }
 
@@ -3977,18 +3986,20 @@ struct controller_impl {
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
       if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
-         if (use_thread_pool == use_thread_pool_t::yes) {
-            boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+         if (bsp->is_recent() || my_finalizers.is_active()) {
+            if (use_thread_pool == use_thread_pool_t::yes) {
+               boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
+                  const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+                  if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+                     create_and_send_vote_msg(bsp);
+                  }
+               });
+            } else {
+               // bsp can be used directly instead of copy needed for post
                const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
                if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
-            });
-         } else {
-            // bsp can be used directly instead of copy needed for post
-            const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-            if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
-               create_and_send_vote_msg(bsp);
             }
          }
       }
@@ -4612,8 +4623,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-      my_finalizers.set_keys(finalizer_keys);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -4963,6 +4974,14 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
 void controller::commit_block(block_report& br) {
    validate_db_available_size();
    my->commit_block(br, block_status::incomplete);
+}
+
+void controller::allow_voting(bool val) {
+   my->allow_voting = val;
+}
+
+bool controller::can_vote_on(const signed_block_ptr& b) {
+   return my->can_vote_on(b);
 }
 
 void controller::maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
@@ -5763,8 +5782,8 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
-   my->set_node_finalizer_keys(finalizer_keys);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
+   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
 }
 
 /// Protocol feature activation handlers:

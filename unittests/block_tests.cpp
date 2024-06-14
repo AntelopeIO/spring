@@ -262,7 +262,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( broadcasted_block_test, T, testers )
  */
 BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
 
-      produce_blocks(2);
+      produce_block();
       signed_transaction trx;
 
       account_name a = "newco"_n;
@@ -300,7 +300,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
                                  return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                               }) ;
 
-      produce_blocks(1);
+      produce_block();
 
    } FC_LOG_AND_RETHROW() }
 
@@ -309,7 +309,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
  */
 BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { try {
 
-      produce_blocks(2);
+      produce_block();
       signed_transaction trx;
 
       account_name a = "newco"_n;

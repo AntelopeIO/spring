@@ -182,6 +182,8 @@ namespace eosio::chain {
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block(block_report& br);
+         void allow_voting(bool val);
+         bool can_vote_on(const signed_block_ptr& b);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
@@ -410,7 +412,7 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
-      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
+      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting = false);
 
       private:
          friend class apply_context;

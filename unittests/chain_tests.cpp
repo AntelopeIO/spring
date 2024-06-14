@@ -187,7 +187,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_validated_blocks, T, testers ) try {
       validated_id = id;
    });
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    validator.push_block(accepted_block);
 
    chain.create_account("hello"_n);

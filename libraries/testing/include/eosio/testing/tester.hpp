@@ -442,6 +442,10 @@ namespace eosio::testing {
             return true;
          }
 
+         void allow_voting(bool val) {
+            control->allow_voting(val);
+         }
+
          const controller::config& get_config() const {
             return cfg;
          }
@@ -673,8 +677,6 @@ namespace eosio::testing {
             return;
          }
          try {
-            if( num_blocks_to_producer_before_shutdown > 0 )
-               produce_blocks( num_blocks_to_producer_before_shutdown );
             if (!skip_validate && std::uncaught_exceptions() == 0)
                BOOST_CHECK_EQUAL( validate(), true );
          } catch( const fc::exception& e ) {
@@ -788,7 +790,6 @@ namespace eosio::testing {
       }
 
       unique_ptr<controller>      validating_node;
-      uint32_t                    num_blocks_to_producer_before_shutdown = 0;
       bool                        skip_validate = false;
    };
 

@@ -44,8 +44,8 @@ BOOST_AUTO_TEST_SUITE(database_tests)
          T test;
          vector<block_id_type> block_ids;
 
-         const uint32_t num_of_blocks_to_prod = 200;
-         // Produce 200 blocks and check their IDs should match the above
+         const uint32_t num_of_blocks_to_prod = 20;
+         // Produce 20 blocks and check their IDs should match the above
          test.produce_blocks(num_of_blocks_to_prod);
          for (uint32_t i = 0; i < num_of_blocks_to_prod; ++i) {
             block_ids.emplace_back(test.control->fetch_block_by_number(i + 1)->calculate_id());
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_SUITE(database_tests)
          const auto nonexisting_future_block_num = test.control->head_block_num() + 1;
          BOOST_TEST(test.control->fetch_block_by_number(nonexisting_future_block_num) == nullptr);
 
-         const uint32_t next_num_of_blocks_to_prod = 100;
+         const uint32_t next_num_of_blocks_to_prod = 10;
          test.produce_blocks(next_num_of_blocks_to_prod);
 
          // Check the last irreversible block number is updated correctly

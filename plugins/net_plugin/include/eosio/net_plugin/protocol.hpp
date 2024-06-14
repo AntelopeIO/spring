@@ -34,8 +34,8 @@ namespace eosio {
       string                     p2p_address;
       uint32_t                   last_irreversible_block_num = 0;
       block_id_type              last_irreversible_block_id;
-      uint32_t                   head_num = 0;
-      block_id_type              head_id;
+      uint32_t                   fork_head_num = 0;
+      block_id_type              fork_head_id;
       string                     os;
       string                     agent;
       int16_t                    generation = 0;
@@ -155,7 +155,7 @@ FC_REFLECT( eosio::handshake_message,
             (network_version)(chain_id)(node_id)(key)
             (time)(token)(sig)(p2p_address)
             (last_irreversible_block_num)(last_irreversible_block_id)
-            (head_num)(head_id)
+            (fork_head_num)(fork_head_id)
             (os)(agent)(generation) )
 FC_REFLECT( eosio::go_away_message, (reason)(node_id) )
 FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )

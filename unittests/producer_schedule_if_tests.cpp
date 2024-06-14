@@ -174,7 +174,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
                                };
 
    // start a round of production
-   produce_blocks(config::producer_repetitions-1);
+   produce_blocks(config::producer_repetitions-1, true);
 
    // sch1 cannot become active before one round of production
    BOOST_CHECK_EQUAL( 0u, control->active_producers().version );
@@ -199,13 +199,13 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    verify_block_if_ext_producer(b, 3u, "alice"_n);
 
    // another round
-   produce_blocks(config::producer_repetitions-2); // -2, already produced tow of the round above
+   produce_blocks(config::producer_repetitions-2, true); // -2, already produced tow of the round above
 
    // sch1  must become active no later than 2 rounds but sch2 cannot become active yet
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
    BOOST_CHECK_EQUAL( true, compare_schedules( alice_sch, control->active_producers() ) );
 
-   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions, true);
 
    // sch3 becomes active, version should be 3 even though sch2 was replaced by sch3
    BOOST_CHECK_EQUAL( 3u, control->active_producers().version );
@@ -223,8 +223,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    std::optional<proposer_policy_diff> policy_diff = std::get<instant_finality_extension>(*ext).new_proposer_policy_diff;
    BOOST_TEST_REQUIRE(!policy_diff); // no diff
 
-   produce_blocks(config::producer_repetitions-1);
-   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions-1, true);
+   produce_blocks(config::producer_repetitions, true);
    BOOST_CHECK_EQUAL( 3u, control->active_producers().version ); // should be 3 as not different so no change
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
@@ -253,16 +253,17 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers_force({"bob"_n,"carol"_n} );
    b = produce_block();
    verify_block_if_ext_producer(b, 6u, "carol"_n);
-   produce_blocks(config::producer_repetitions-2);
-   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions-2, true);
+   produce_blocks(config::producer_repetitions, true);
    BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol now active
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
    // test change in same block where there is no change
    set_producers( {"bob"_n,"alice"_n} );
    set_producers_force({"bob"_n,"carol"_n} ); // put back, no change expected
-   produce_blocks(config::producer_repetitions);
-   produce_blocks(config::producer_repetitions);
+   produce_block();
+   produce_blocks(config::producer_repetitions-1, true);
+   produce_blocks(config::producer_repetitions, true);
    BOOST_CHECK_EQUAL( 6u, control->active_producers().version ); // should be 6 now as bob,carol is still active
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
@@ -277,7 +278,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    //      propose P3 in B3, active in D1, replaces P2
    produce_block();
    set_producers({"alice"_n}); // A2, P1
-   produce_blocks(config::producer_repetitions-1); // A12
+   produce_block();
+   produce_blocks(config::producer_repetitions-2, true); // A12
    produce_block();
    set_producers({"bob"_n,"carol"_n}); // B2
    b = produce_block();
@@ -285,11 +287,11 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers({"bob"_n, "alice"_n} ); // P3
    b = produce_block();
    verify_block_if_ext_producer(b, 9u, "alice"_n);
-   produce_blocks(config::producer_repetitions-3); // B12
+   produce_blocks(config::producer_repetitions-3, true); // B12
    produce_block(); // C1
    BOOST_CHECK_EQUAL( 7u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( alice_sch, control->active_producers() ) );
-   produce_blocks(config::producer_repetitions); // D1
+   produce_blocks(config::producer_repetitions, true); // D1
    BOOST_CHECK_EQUAL( 9u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_alice_sch, control->active_producers() ) );
 
@@ -306,7 +308,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers({"bob"_n,"carol"_n}); // A2, P1
    b = produce_block();
    verify_block_if_ext_producer(b, 10u, "carol"_n);
-   produce_blocks(config::producer_repetitions-2); // A12
+   produce_blocks(config::producer_repetitions-2, true); // A12
    produce_block();
    set_producers({"alice"_n}); // B2
    b = produce_block();
@@ -314,11 +316,11 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers({"bob"_n,"carol"_n}); // P3 == P1
    b = produce_block();
    verify_block_if_ext_producer(b, 12u, "bob"_n);
-   produce_blocks(config::producer_repetitions-3); // B12
+   produce_blocks(config::producer_repetitions-3, true); // B12
    produce_block(); // C1
    BOOST_CHECK_EQUAL( 10u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
-   produce_blocks(config::producer_repetitions); // D1
+   produce_blocks(config::producer_repetitions, true); // D1
    BOOST_CHECK_EQUAL( 12u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
@@ -344,7 +346,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers({"bob"_n,"carol"_n});
    b = produce_block();
    verify_block_if_ext_producer(b, 17u, "bob"_n);
-   produce_blocks(config::producer_repetitions-7);
+   produce_blocks(config::producer_repetitions-7, true);
    set_producers({"bob"_n});
    produce_block(); // 2
    set_producers({"bob"_n,"carol"_n});
@@ -358,10 +360,10 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    set_producers({"bob"_n,"carol"_n});
    b = produce_block();
    verify_block_if_ext_producer(b, 22u, "bob"_n);
-   produce_blocks(config::producer_repetitions-6); // B12
+   produce_blocks(config::producer_repetitions-6, true); // B12
    BOOST_CHECK_EQUAL( 17u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
-   produce_blocks(config::producer_repetitions);
+   produce_blocks(config::producer_repetitions, true);
    BOOST_CHECK_EQUAL( 22u, control->active_producers().version );
    BOOST_CHECK_EQUAL( true, compare_schedules( bob_carol_sch, control->active_producers() ) );
 
@@ -384,7 +386,8 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
       set_producers( {"alice"_n} );
       set_producers( {"bob"_n} );
 
-      produce_blocks(2 * config::producer_repetitions);
+      produce_block();
+      produce_blocks((2 * config::producer_repetitions) - 1, true);
 
       vector<producer_authority> sch = {
          producer_authority{"bob"_n, block_signing_authority_v0{1, {{get_public_key("bob"_n, "active"), 1}}}}
