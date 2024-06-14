@@ -13,23 +13,23 @@ jobs:
       packages: write
       actions: read
     steps:
-      - name: Get ubuntu20 spring-dev.deb
+      - name: Get ubuntu20 antelope-spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'antelope-spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu20-amd64
+          artifact-name: antelope-spring-dev-ubuntu20-amd64
           wait-for-exact-target: true
-      - name: Get ubuntu22 spring-dev.deb
+      - name: Get ubuntu22 antelope-spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'antelope-spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu22-amd64
+          artifact-name: antelope-spring-dev-ubuntu22-amd64
           wait-for-exact-target: true
       - name: Create Dockerfile
         run: |
