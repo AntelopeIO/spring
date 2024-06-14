@@ -17,17 +17,12 @@ using namespace eosio::testing;
 // Similar Legacy tests are in: `forked_tests.cpp`
 // ---------------------------------------------------
 
-static digest_type hash_pair(const digest_type& a, const digest_type& b) {
-   return digest_type::hash(std::pair<const digest_type&, const digest_type&>(a, b));
-}
-
 BOOST_AUTO_TEST_SUITE(forked_tests_if)
 
 // ---------------------------- fork_with_bad_block ---------------------------------
 BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try {
    struct fork_tracker {
       vector<signed_block_ptr>           blocks;
-      incremental_merkle_tree_legacy     block_merkle;
    };
 
    node0.produce_block();
@@ -58,12 +53,14 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // create 7 forks of 7 blocks, each with a corrupred block
    // -------------------------------------------------------
    vector<fork_tracker> forks(7);
-   auto offset = fc::milliseconds(config::block_interval_ms * 13);
-   auto prod2 = prod < producers.size() - 1 ? prod+1 : 0;
+   auto                 offset    = fc::milliseconds(config::block_interval_ms * 13);
+   auto                 prod2_idx = prod < producers.size() - 1 ? prod + 1 : 0;
+   auto                 prod2     = producers[prod2_idx];
+   auto                 pk        = node3.get_private_key(prod2, "active");
 
    for (size_t i = 0; i < 7; i ++) {
       auto b = node3.produce_block(offset);
-      BOOST_REQUIRE_EQUAL(b->producer, producers[prod2]);
+      BOOST_REQUIRE_EQUAL(b->producer, prod2);
 
       for (size_t j = 0; j < 7; j ++) {
          auto& fork = forks.at(j);
@@ -72,7 +69,6 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
             auto copy_b = std::make_shared<signed_block>(b->clone());
             if (j == i) {
                // corrupt this block
-               fork.block_merkle = node3.control->head_block_state_legacy()->blockroot_merkle;
                copy_b->action_mroot._hash[0] ^= 0x1ULL;
             } else if (j < i) {
                // link to a corrupted chain
@@ -80,12 +76,9 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
             }
 
             // re-sign the block
-            auto header_bmroot = hash_pair(copy_b->digest(), fork.block_merkle.get_root()));
-            auto sig_digest = hash_pair(header_bmroot, node3.control->head_block_state_legacy()->pending_schedule.schedule_hash);
-            copy_b->producer_signature = node3.get_private_key("b"_n, "active").sign(sig_digest);
+            copy_b->producer_signature = pk.sign(copy_b->calculate_id());
 
             // add this new block to our corrupted block merkle
-            fork.block_merkle.append(copy_b->calculate_id());
             fork.blocks.emplace_back(copy_b);
          } else {
             fork.blocks.emplace_back(b);
@@ -95,7 +88,32 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
       offset = fc::milliseconds(config::block_interval_ms);
    }
 
+   // go from most corrupted fork to least
+   for (size_t i = 0; i < forks.size(); i++) {
+      BOOST_TEST_CONTEXT("Testing Fork: " << i) {
+         const auto& fork = forks.at(i);
+         // push the fork to the original node
+         for (size_t fidx = 0; fidx < fork.blocks.size() - 1; fidx++) {
+            const auto& b = fork.blocks.at(fidx);
+            // push the block only if its not known already
+            if (!node0.control->fetch_block_by_id(b->calculate_id())) {
+               node0.push_block(b);
+            }
+         }
 
+         // push the block which should attempt the corrupted fork and fail
+         BOOST_REQUIRE_EXCEPTION( node0.push_block(fork.blocks.back()), fc::exception,
+                                  fc_exception_message_starts_with( "Block ID does not match" )
+         );
+      }
+   }
+
+   // make sure we can still produce blocks until irreversibility moves
+   auto lib = node0.lib_block->block_num();
+   size_t tries = 0;
+   while (node0.lib_block->block_num() == lib && ++tries < 10) {
+      node0.produce_block();
+   }
 
 } FC_LOG_AND_RETHROW();
 
