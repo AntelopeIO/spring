@@ -69,6 +69,7 @@ namespace finality_proof {
 
    //extract instant finality data from block header extension, as well as qc data from block extension
    static qc_data_t extract_qc_data(const signed_block_ptr& b) {
+      assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
       if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
          auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
@@ -93,7 +94,7 @@ namespace finality_proof {
 
    }
 
-   static finalizer_policy update_finalizer_policy(const signed_block_ptr block, finalizer_policy current_policy){
+   static finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
 
       // extract new finalizer policy
       instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
@@ -109,7 +110,7 @@ namespace finality_proof {
 
    struct policy_count {
       finalizer_policy policy;
-      int32_t blocks_since_proposed;
+      int32_t blocks_since_proposed = 0;
    };
 
    template<size_t NUM_NODES>
@@ -141,9 +142,6 @@ namespace finality_proof {
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
-      //node0 always produce blocks. This vector determines if votes from node1, node2, etc. are propagated
-      std::vector<bool> vote_propagation;
-      
       // internal flag to indicate whether or not block is the IF genesis block
       bool is_genesis = true;
       // internal flag to indicate whether or not the transition is complete
@@ -167,11 +165,13 @@ namespace finality_proof {
 
          //skip this part on genesis
          if (!is_genesis){
-            for (auto& p : blocks_since_proposed_policy){
+            for (const auto& p : blocks_since_proposed_policy){
+               //under the happy path with strong QCs in every block, a policy becomes active 6 blocks after being proposed
                if (p.second.blocks_since_proposed == 6){
                   active_finalizer_policy = p.second.policy;
                   active_finalizer_policy_digest = p.first;
                }
+               //under the happy path with strong QCs in every block, a policy becomes pending 3 blocks after being proposed
                else if (p.second.blocks_since_proposed == 3){
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
@@ -189,7 +189,7 @@ namespace finality_proof {
                last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
                active_finalizer_policy               = last_proposed_finalizer_policy;
                active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
-               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {active_finalizer_policy, 0};
+               blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
             } else {
                // if block is not genesis, the new policy is proposed
                last_proposed_finalizer_policy        = update_finalizer_policy(block, last_proposed_finalizer_policy);
@@ -199,8 +199,7 @@ namespace finality_proof {
          }
 
          //process votes and collect / compute the IBC-relevant data
-         if (vote_propagation.size() == 0) this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
-         else this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
+         this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
 
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
@@ -248,7 +247,6 @@ namespace finality_proof {
 
       // produce and propagate a block, update internal state as needed, and returns relevant IBC data 
       ibc_block_data_t produce_block(){
-         assert(vote_propagation.size() == 0 || vote_propagation.size() == NUM_NODES-1);
          eosio::testing::produce_block_result_t result = this->produce_and_push_block_ex();
          return(process_result(result));
       }
