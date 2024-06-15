@@ -4,6 +4,8 @@
 
 using mvo = mutable_variant_object;
 
+using namespace eosio::chain;
+
 namespace finality_proof {
 
    // data relevant to IBC
@@ -27,6 +29,10 @@ namespace finality_proof {
       digest_type finality_root;
    };
 
+   static digest_type hash_pair(const digest_type& a, const digest_type& b) {
+      return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
+   }
+   
    //generate a proof of inclusion for a node at index from a list of leaves
    static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
       auto _leaves = leaves;
@@ -56,7 +62,7 @@ namespace finality_proof {
 
             }
          }
-         _leaves = new_level;
+         _leaves = std::move(new_level);
       }
       return merkle_branches;
    }
@@ -78,11 +84,6 @@ namespace finality_proof {
       return {};
    }
 
-
-   static digest_type hash_pair(const digest_type& a, const digest_type& b) {
-      return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
-   }
-
    static bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
@@ -93,14 +94,14 @@ namespace finality_proof {
 
    }
 
-   static eosio::chain::finalizer_policy update_finalizer_policy(const signed_block_ptr block, eosio::chain::finalizer_policy current_policy){
+   static finalizer_policy update_finalizer_policy(const signed_block_ptr block, finalizer_policy current_policy){
 
       // extract new finalizer policy
       instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
 
       assert(if_ext.new_finalizer_policy_diff.has_value());
 
-      eosio::chain::finalizer_policy active_finalizer_policy =
+      finalizer_policy active_finalizer_policy =
          current_policy.apply_diff(if_ext.new_finalizer_policy_diff.value());
 
       return active_finalizer_policy;
@@ -129,13 +130,13 @@ namespace finality_proof {
       *****/
          
       // cache last proposed, last pending and currently active finalizer policies + digests
-      eosio::chain::finalizer_policy last_proposed_finalizer_policy;
+      finalizer_policy last_proposed_finalizer_policy;
       digest_type last_proposed_finalizer_policy_digest;
 
-      eosio::chain::finalizer_policy last_pending_finalizer_policy;
+      finalizer_policy last_pending_finalizer_policy;
       digest_type last_pending_finalizer_policy_digest;
 
-      eosio::chain::finalizer_policy active_finalizer_policy;
+      finalizer_policy active_finalizer_policy;
       digest_type active_finalizer_policy_digest;
 
       // counter to (optimistically) track internal policy changes
@@ -184,7 +185,7 @@ namespace finality_proof {
 
             if (is_genesis){
                // if block is genesis, the initial policy is the last proposed, last pending and currently active
-               last_proposed_finalizer_policy = update_finalizer_policy(block, eosio::chain::finalizer_policy());;
+               last_proposed_finalizer_policy = update_finalizer_policy(block, finalizer_policy());;
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
                last_pending_finalizer_policy = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
@@ -214,7 +215,7 @@ namespace finality_proof {
          if (is_genesis){
 
             // one-time genesis finality digest computation
-            finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
+            finality_digest = fc::sha256::hash(finality_digest_data_v1{
                .active_finalizer_policy_generation      = 1,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = digest_type(), //nothing to finalize yet
@@ -237,7 +238,7 @@ namespace finality_proof {
          if (!is_transition) finality_root = block->action_mroot;
 
          // compute digest for verification purposes
-         digest_type computed_finality_digest = fc::sha256::hash(eosio::chain::finality_digest_data_v1{
+         digest_type computed_finality_digest = fc::sha256::hash(finality_digest_data_v1{
                .active_finalizer_policy_generation      = active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = is_genesis ? digest_type() : finality_root,
