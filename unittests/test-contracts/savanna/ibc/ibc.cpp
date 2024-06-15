@@ -103,11 +103,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     //if the finality_mroot we just proven is more recent than the last root we have stored, store it
     uint64_t offset = target_block_proof_of_inclusion.final_block_index - target_block_proof_of_inclusion.target_block_index;
 
-    dynamic_data_v0 d_data;
-
-    if (std::holds_alternative<extended_block_data>(target_block_proof_of_inclusion.target)) d_data = std::get<extended_block_data>(target_block_proof_of_inclusion.target).dynamic_data;
-    else if (std::holds_alternative<simple_block_data>(target_block_proof_of_inclusion.target)) d_data = std::get<simple_block_data>(target_block_proof_of_inclusion.target).dynamic_data;
-    else check(false, "invalid block data");
+    dynamic_data_v0 d_data = std::visit([&](const auto& bd) { return bd.dynamic_data; }, target_block_proof_of_inclusion.target);
 
     _maybe_add_proven_root(d_data.block_num + offset, finality_proof.qc_block.finality_mroot);
 

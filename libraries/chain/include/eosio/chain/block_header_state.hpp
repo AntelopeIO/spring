@@ -20,7 +20,6 @@ namespace detail { struct schedule_info; };
 constexpr uint32_t light_header_protocol_version_major = 1;
 constexpr uint32_t light_header_protocol_version_minor = 0;
 
-
 // data for finality_digest
 struct finality_digest_data_v1 {
    uint32_t    major_version{light_header_protocol_version_major};
@@ -29,7 +28,6 @@ struct finality_digest_data_v1 {
    uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest;
    digest_type last_pending_finalizer_policy_and_base_digest;
-
 };
 
 // ------------------------------------------------------------------------------------------
