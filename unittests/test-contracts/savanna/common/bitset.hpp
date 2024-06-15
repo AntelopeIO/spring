@@ -42,13 +42,13 @@ namespace savanna {
         }
 
         // Clear a bit (set to 0)
-        void clear(word_t index) {
+        void clear(size_t index) {
             check_bounds(index);
             data[index / num_bits] &= ~(1UL << (index % num_bits));
         }
 
         // Check if a bit is set
-        bool test(word_t index) const {
+        bool test(size_t index) const {
             check_bounds(index);
             return (data[index / num_bits] & (1UL << (index % num_bits))) != 0;
         }
@@ -73,7 +73,7 @@ namespace savanna {
         std::vector<word_t> data;
 
         // Check if the index is within bounds
-        void check_bounds(word_t index) const {
+        void check_bounds(size_t index) const {
             check(index < size(), "bitset index out of bounds");
         }
     };
