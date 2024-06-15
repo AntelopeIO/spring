@@ -55,7 +55,18 @@ digest_type block_header_state::compute_finality_digest() const {
       .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
 
-   return fc::sha256::hash(finality_digest_data);
+   digest_type finality_digest = fc::sha256::hash(finality_digest_data);
+
+   wlog("cfd : ${block_num} : ${final_on_strong_qc_block_num} ${last_pending_finalizer_policy_digest} ${base_digest} ${lpfp_base_digest} ${finality_mroot} ${finality_digest} \n",
+              ("block_num", block_num())
+              ("final_on_strong_qc_block_num", core.final_on_strong_qc_block_num)
+              ("last_pending_finalizer_policy_digest", last_pending_finalizer_policy_digest)
+              ("base_digest", base_digest)
+              ("lpfp_base_digest", lpfp_base_digest)
+              ("finality_mroot", finality_mroot())
+              ("finality_digest", finality_digest));
+  
+   return  finality_digest;
 }
 
 const producer_authority& block_header_state::get_scheduled_producer(block_timestamp_type t) const {

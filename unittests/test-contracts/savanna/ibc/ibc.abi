@@ -101,7 +101,7 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "final_on_qc_block_num",
+                    "name": "final_on_strong_qc_block_num",
                     "type": "uint32"
                 },
                 {

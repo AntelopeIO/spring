@@ -305,14 +305,18 @@ namespace savanna {
       //finalizer_policy_generation for this block
       uint32_t finalizer_policy_generation;
 
-      uint32_t final_on_qc_block_num = 0;
+      //if a valid qc is obtained over the digest generated from hashing the content of this message, it is a proof of finality for the block number recorded here
+      uint32_t final_on_strong_qc_block_num = 0;
 
+      //if a new finalizer policy is promoted to last pending status, it could (but is not guaranteed to) become active.
+      //Therefore, we provide a mechanism to include finalizer policies into a proof of finality.
+      //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
 
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
-      //final_on_qc for this block
+      //finality merkle root for final_on_strong_qc_block_num
       checksum256 finality_mroot;
       
       //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
@@ -344,7 +348,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_qc_block_num)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_mroot)(resolved_witness_hash))
 
    };
 

@@ -94,7 +94,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     //attempt to retrieve the stored policy with the correct generation number
     finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.finalizer_policy_generation);
 
-    //verify QC. If QC is valid, it means that we have reaced finality on the block referenced by the finality_mroot
+    //verify QC. If QC is valid, it means that we have reached finality on the block referenced by the finality_mroot
     _check_qc(finality_proof.qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy);
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
@@ -126,7 +126,6 @@ void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion&
         auto itr = merkle_index.find(finality_mroot);
         check(itr!= merkle_index.end(), "proof of inclusion is invalid");
     }
-
 
     if (std::holds_alternative<extended_block_data>(proof.target)){
 
