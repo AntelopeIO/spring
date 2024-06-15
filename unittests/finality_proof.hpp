@@ -32,7 +32,7 @@ namespace finality_proof {
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
       return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
    }
-   
+
    //generate a proof of inclusion for a node at index from a list of leaves
    static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
       auto _leaves = leaves;
@@ -49,7 +49,7 @@ namespace finality_proof {
                // Normal case: both children exist and are not at the end or are even
                digest_type right = _leaves[i+1];
 
-               new_level.push_back(fc::sha256::hash(std::pair<digest_type, digest_type>(left, right)));
+               new_level.push_back(hash_pair(left, right));
                if (_index == i || _index == i + 1) {
                  merkle_branches.push_back(_index == i ? right : left);
                  _index = i / 2; // Update index for next level
@@ -89,8 +89,7 @@ namespace finality_proof {
       // extract new finalizer policy
       instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
 
-      if (if_ext.new_finalizer_policy_diff.has_value()) return true;
-      else return false;
+      return if_ext.new_finalizer_policy_diff.has_value();
 
    }
 
@@ -153,7 +152,7 @@ namespace finality_proof {
       // returns finality leaves for construction of merkle proofs
       std::vector<digest_type> get_finality_leaves(const size_t cutoff){
          assert(cutoff>=0 && cutoff<finality_leaves.size());
-         return std::vector<digest_type>(finality_leaves.begin(), finality_leaves.begin() + cutoff + 1);
+         return {finality_leaves.begin(), finality_leaves.begin() + cutoff + 1};
       }
 
       ibc_block_data_t process_result(eosio::testing::produce_block_result_t result){
@@ -182,24 +181,21 @@ namespace finality_proof {
 
          // if we have policy diffs, process them
          if (has_finalizer_policy_diffs(block)){
-
-            if (is_genesis){
+            if (is_genesis) {
                // if block is genesis, the initial policy is the last proposed, last pending and currently active
-               last_proposed_finalizer_policy = update_finalizer_policy(block, finalizer_policy());;
+               last_proposed_finalizer_policy        = update_finalizer_policy(block, eosio::chain::finalizer_policy());
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
-               last_pending_finalizer_policy = last_proposed_finalizer_policy;
-               last_pending_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
-               active_finalizer_policy = last_proposed_finalizer_policy;
-               active_finalizer_policy_digest = last_proposed_finalizer_policy_digest;
+               last_pending_finalizer_policy         = last_proposed_finalizer_policy;
+               last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
+               active_finalizer_policy               = last_proposed_finalizer_policy;
+               active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {active_finalizer_policy, 0};
-            }
-            else {
+            } else {
                // if block is not genesis, the new policy is proposed
-               last_proposed_finalizer_policy = update_finalizer_policy(block, last_proposed_finalizer_policy);
+               last_proposed_finalizer_policy        = update_finalizer_policy(block, last_proposed_finalizer_policy);
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
             }
-
          }
 
          //process votes and collect / compute the IBC-relevant data
