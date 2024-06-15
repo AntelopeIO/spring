@@ -46,8 +46,8 @@ digest_type block_header_state::compute_finality_digest() const {
    auto base_digest = compute_base_digest();
    std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
    auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
-   assert(active_finalizer_policy);
 
+   assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation      = active_finalizer_policy->generation,
       .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
@@ -55,18 +55,7 @@ digest_type block_header_state::compute_finality_digest() const {
       .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
    };
 
-   digest_type finality_digest = fc::sha256::hash(finality_digest_data);
-
-   wlog("cfd : ${block_num} : ${final_on_strong_qc_block_num} ${last_pending_finalizer_policy_digest} ${base_digest} ${lpfp_base_digest} ${finality_mroot} ${finality_digest} \n",
-              ("block_num", block_num())
-              ("final_on_strong_qc_block_num", core.final_on_strong_qc_block_num)
-              ("last_pending_finalizer_policy_digest", last_pending_finalizer_policy_digest)
-              ("base_digest", base_digest)
-              ("lpfp_base_digest", lpfp_base_digest)
-              ("finality_mroot", finality_mroot())
-              ("finality_digest", finality_digest));
-  
-   return  finality_digest;
+   return fc::sha256::hash(finality_digest_data);
 }
 
 const producer_authority& block_header_state::get_scheduled_producer(block_timestamp_type t) const {
