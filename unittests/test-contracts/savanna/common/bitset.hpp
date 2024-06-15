@@ -17,29 +17,28 @@ namespace savanna {
             std::vector<word_t> intersection_data(bs1.data.size());
             std::vector<word_t> symmetric_difference_data(bs1.data.size());
 
+            savanna::bitset intersection(size);
+            savanna::bitset symmetric_difference(size);
             for (size_t i = 0; i < bs1.data.size(); ++i) {
-                intersection_data[i] = bs1.data[i] & bs2.data[i];
-                symmetric_difference_data[i] = bs1.data[i] ^ bs2.data[i];
+                intersection.data[i]         = bs1.data[i] & bs2.data[i];
+                symmetric_difference.data[i] = bs1.data[i] ^ bs2.data[i];
             }
-
-            savanna::bitset intersection(size, intersection_data);
-            savanna::bitset symmetric_difference(size, symmetric_difference_data);
 
             return {intersection, symmetric_difference};
         }
 
-        bitset(word_t size) 
+        bitset(size_t size) 
             : data(round_up(size), 0) {}
         
-        bitset(word_t size, const std::vector<word_t> raw_bitset)
+         bitset(size_t size, const std::vector<word_t>& raw_bitset)
            : data(raw_bitset) {
                check(raw_bitset.size() == round_up(size), "invalid raw bitset size");
            }
 
         // Set a bit to 1
-        void set(word_t index) {
+        void set(size_t index) {
             check_bounds(index);
-            data[index / 32] |= (1UL << (index % num_bits));
+            data[index / num_bits] |= (1UL << (index % num_bits));
         }
 
         // Clear a bit (set to 0)
@@ -55,17 +54,17 @@ namespace savanna {
         }
 
         // Size of the bitset
-        word_t size() const {
-            return num_bits;
+        size_t size() const {
+            return num_bits * data.size();
         }
         
         std::string to_string() const {
             const char* hex_chars = "0123456789abcdef";
             std::string result;
             result.reserve(data.size() * 2); // Each byte will be represented by two hex characters
-            for (const auto& byte : data) {
-                result.push_back(hex_chars[(byte >> 4) & 0x0F]);
+            for (auto byte : data) {
                 result.push_back(hex_chars[byte & 0x0F]);
+                result.push_back(hex_chars[(byte >> 4) & 0x0F]);
             }
             return result;
         }
@@ -75,7 +74,7 @@ namespace savanna {
 
         // Check if the index is within bounds
         void check_bounds(word_t index) const {
-            check(index < num_bits, "bitset index out of bounds");
+            check(index < size(), "bitset index out of bounds");
         }
     };
 
