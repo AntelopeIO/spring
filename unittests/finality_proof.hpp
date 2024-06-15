@@ -23,6 +23,7 @@ namespace finality_proof {
       digest_type last_pending_finalizer_policy_digest;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
+      //digest_type computed_finality_digest;
       digest_type afp_base_digest;
       digest_type finality_leaf;
       digest_type finality_root;
@@ -33,7 +34,7 @@ namespace finality_proof {
    }
 
    //generate a proof of inclusion for a node at index from a list of leaves
-   static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type> leaves, const size_t index) {
+   static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type>& leaves, const size_t index) {
       auto _leaves = leaves;
       auto _index = index;
 
@@ -44,7 +45,7 @@ namespace finality_proof {
          for (size_t i = 0 ; i < _leaves.size() ; i+=2){
             digest_type left = _leaves[i];
 
-            if (i + 1 < _leaves.size() && (i + 1 != _leaves.size() - 1 || _leaves.size() % 2 == 0)){
+            if (i + 1 < _leaves.size() ){
                // Normal case: both children exist and are not at the end or are even
                digest_type right = _leaves[i+1];
 
@@ -205,19 +206,21 @@ namespace finality_proof {
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
          digest_type afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, base_digest);
-         digest_type finality_digest;
+         //digest_type finality_digest;
 
-         if (is_genesis){
+         // during IF transition, finality_root is always set to an empty digest
+         digest_type finality_root = digest_type();
 
-            // one-time genesis finality digest computation
-            finality_digest = fc::sha256::hash(finality_digest_data_v1{
-               .active_finalizer_policy_generation      = 1,
+         // after transition, finality_root can be obtained from the action_mroot field of the block header
+         if (!is_transition) finality_root = block->action_mroot;
+
+         // compute digest for verification purposes
+         digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
+               .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
-               .finality_tree_digest                    = digest_type(), //nothing to finalize yet
+               .finality_tree_digest                    = finality_root,
                .last_pending_finalizer_policy_and_base_digest = afp_base_digest
             });
-         }
-         else finality_digest = this->node0.control->get_strong_digest_by_id(block->calculate_id());
 
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
@@ -225,12 +228,6 @@ namespace finality_proof {
             .finality_digest = finality_digest,
             .action_mroot = action_mroot
          });
-
-         // during IF transition, finality_root is always set to an empty digest
-         digest_type finality_root = digest_type();
-
-         // after transition, finality_root can be obtained from the action_mroot field of the block header
-         if (!is_transition) finality_root = block->action_mroot;
 
          // add finality leaf to the internal list
          finality_leaves.push_back(finality_leaf);
