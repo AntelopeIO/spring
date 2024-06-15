@@ -13,7 +13,9 @@ using namespace eosio;
 namespace savanna {
 
    struct quorum_certificate {
+       //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
        std::vector<uint8_t>   finalizers;
+       //string representation of a BLS signature
        std::string            signature;
    };
    
@@ -24,7 +26,6 @@ namespace savanna {
    };
 
    struct finalizer_policy_internal {
-
       uint32_t                         generation = 0; ///< sequentially incrementing version number
       uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
       std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
@@ -33,7 +34,6 @@ namespace savanna {
           std::vector<char> serialized = pack(*this);
           return sha256(serialized.data(), serialized.size());
       }
-
    };
 
    struct finalizer_authority_input {
@@ -43,7 +43,6 @@ namespace savanna {
    };
 
    struct finalizer_policy_input {
-
       uint32_t                         generation = 0; ///< sequentially incrementing version number
       uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
       std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
@@ -54,13 +53,11 @@ namespace savanna {
          for (auto f : finalizers){
             std::array<char,96> decoded_key = decode_bls_public_key_to_g1(f.public_key);
             std::vector<uint8_t> vector_key(decoded_key.begin(), decoded_key.end());
-            finalizer_authority_internal fai{f.description, f.weight, vector_key};
-            finalizers_i.push_back(fai);
+            finalizers_i.push_back({f.description, f.weight, vector_key});
          }
          finalizer_policy_internal internal{generation, threshold, std::move(finalizers_i)};
          return internal.digest();
       }
-
    };
 
    //Compute the maximum number of layers of a merkle tree for a given number of leaves
@@ -89,35 +86,25 @@ namespace savanna {
 
    //compute proof path
    std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
-
       uint64_t leaf_index = c_leaf_index;
       uint64_t leaf_count = c_leaf_count;
-
       std::vector<bool> proof_path;
-
       uint64_t layers_depth = calculate_max_depth(c_leaf_count) -1;
-
       for (uint64_t i = 0; i < layers_depth; i++) {
          bool isLeft = leaf_index % 2;
          uint64_t pairIndex = isLeft ? leaf_index - 1 :
                         (leaf_index == leaf_count ? leaf_index : leaf_index + 1);
-
-
-         if (pairIndex<leaf_count) proof_path.push_back(isLeft);
-
+         if (pairIndex < leaf_count) proof_path.push_back(isLeft);
          leaf_count/=2;
          leaf_index/=2;
       }
-
       return proof_path;
-
    }
 
    //compute the merkle root of target node and vector of merkle branches
    checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
-
        check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
        for (int i = 0 ; i < proof_nodes.size() ; i++){
            const checksum256 node = proof_nodes[i];
@@ -133,16 +120,15 @@ namespace savanna {
       return r;
    }
 
-   void _verify(const std::string& public_key, const std::string& signature, const std::string& message){
-      check(bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message), "signature verification failed");
+   bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
+      return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
    }
    
    //verify that the quorum certificate over the finality digest is valid
    void _check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
-
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
-      size_t finalizer_count = std::distance(fa_itr, fa_end_itr);
+      size_t finalizer_count = finalizer_policy.finalizers.size();
       savanna::bitset b(finalizer_count, qc.finalizers);
 
       bool first = true;
@@ -173,29 +159,25 @@ namespace savanna {
 
       std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
       //verify signature validity
-      _verify(s_agg_pub_key, qc.signature, message);
+      check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
    }
 
 
    struct authseq {
       name account;
       uint64_t sequence = 0;
-
       EOSLIB_SERIALIZE( authseq, (account)(sequence) )
-
    };
 
    struct action_base {
       name             account;
       name             name;
       std::vector<permission_level> authorization;
-
    };
 
    struct action :  action_base {
       std::vector<char>    data;
       std::vector<char>    return_value;
-
       checksum256 digest() const {
          checksum256 hashes[2];
          const action_base* base = this;
@@ -212,24 +194,18 @@ namespace savanna {
          hashes[1] = sha256(reinterpret_cast<char*>(h1_result.data()), rhs_size);
          return hash_pair(std::make_pair(hashes[0], hashes[1]));
       }
-
       EOSLIB_SERIALIZE( action, (account)(name)(authorization)(data)(return_value))
-
    };
 
    struct action_data {
-
       action               action; //antelope action
       name                 receiver;
       uint64_t             recv_sequence   = 0;
-
       checksum256          witness_hash;
-
    };
 
 
    struct action_data_internal : action_data {
-
       checksum256 resolved_action_digest;
 
       action_data_internal(const action_data& base) : action_data(base){
@@ -243,11 +219,9 @@ namespace savanna {
       };
 
       EOSLIB_SERIALIZE( action_data_internal, (receiver)(recv_sequence)(action.account)(action.name)(resolved_action_digest)(witness_hash))
-
    };
 
    struct action_proof_of_inclusion {
-
       uint64_t target_block_index = 0;
       uint64_t final_block_index = 0;
 
@@ -261,11 +235,9 @@ namespace savanna {
          checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
          return root;
       }; 
-
    };
 
    struct dynamic_data_v0 {
-
       //block_num is always present
       uint32_t block_num = 0;
 
@@ -295,7 +267,6 @@ namespace savanna {
    };
 
    struct block_finality_data {
-      
       //major_version for this block
       uint32_t major_version;
 
@@ -331,11 +302,9 @@ namespace savanna {
             return witness_hash;
          }
       }; 
-
    };
 
    struct block_finality_data_internal : block_finality_data {
-
       checksum256 resolved_witness_hash;
 
       block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
@@ -349,22 +318,18 @@ namespace savanna {
       }
 
       EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_mroot)(resolved_witness_hash))
-
    };
 
    struct extended_block_data {
-      
       //finality data
       block_finality_data finality_data;
 
 
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
-
    };
 
    struct extended_block_data_internal : extended_block_data {
-
       checksum256 resolved_finality_digest;
       checksum256 resolved_action_mroot;
 
@@ -382,11 +347,9 @@ namespace savanna {
       }
 
       EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_finality_digest)(resolved_action_mroot))
-
    };
 
    struct simple_block_data {
-      
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
 
@@ -394,11 +357,9 @@ namespace savanna {
 
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
-
    };
 
    struct simple_block_data_internal : simple_block_data {
-
       checksum256 resolved_action_mroot;
 
       simple_block_data_internal(const simple_block_data& base) : simple_block_data(base){
@@ -413,13 +374,11 @@ namespace savanna {
       }
 
       EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(finality_digest)(resolved_action_mroot))
-
    };
 
    using block_data_type = std::variant<simple_block_data, extended_block_data>;
 
    struct block_proof_of_inclusion {
-
       uint64_t target_block_index = 0;
       uint64_t final_block_index = 0;
 
@@ -437,27 +396,22 @@ namespace savanna {
          checksum256 root = _compute_root(merkle_branches, finality_leaf, target_block_index, final_block_index);
          return root;
       }; 
-
    };
 
    struct finality_proof {
-
       //block finality data over which we validate a QC
       block_finality_data qc_block;
 
       //signature over finality_digest() of qc_block. 
       quorum_certificate qc;
-
    };
 
    struct proof {
-
       //valid configurations :
       //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the final_on_strong_qc block represented by the finality_mroot present in header
       //2) only a proof_of_inclusion of a target block, which must be included in a merkle tree represented by a root stored in the contract's RAM
       std::optional<finality_proof> finality_proof;
       block_proof_of_inclusion target_block_proof_of_inclusion;
-
    };
 
 }
