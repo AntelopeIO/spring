@@ -101,12 +101,12 @@ jobs:
           zstdcat build.tar.zst | tar x
           cd build
           cpack
-          ../tools/tweak-deb.sh spring_*.deb
+          ../tools/tweak-deb.sh antelope-spring_*.deb
       - name: Install dev package
         if: matrix.platform != 'reproducible'
         run: |
           apt-get update && apt-get upgrade -y
-          apt-get install -y ./build/spring_*.deb ./build/spring-dev*.deb
+          apt-get install -y ./build/antelope-spring_*.deb ./build/antelope-spring-dev*.deb
       - name: Test using TestHarness
         if: matrix.platform != 'reproducible'
         run: |
@@ -115,15 +115,15 @@ jobs:
         uses: actions/upload-artifact@v4
         if: matrix.platform != 'reproducible'
         with:
-          name: spring-dev-${{matrix.platform}}-amd64
-          path: build/spring-dev*.deb
+          name: antelope-spring-dev-${{matrix.platform}}-amd64
+          path: build/antelope-spring-dev*.deb
           compression-level: 0
       - name: Upload spring package
         uses: actions/upload-artifact@v4
         if: matrix.platform == 'reproducible'
         with:
-          name: spring-deb-amd64
-          path: build/spring_*.deb
+          name: antelope-spring-deb-amd64
+          path: build/antelope-spring_*.deb
           compression-level: 0
 
   tests:
@@ -298,12 +298,12 @@ jobs:
         run: |
           rm -r *
       - if: ${{ matrix.test == 'deb-install' }}
-        name: Download spring-dev
+        name: Download antelope-spring-dev
         uses: actions/download-artifact@v4
         with:
-          name: spring-dev-${{matrix.platform}}-amd64
+          name: antelope-spring-dev-${{matrix.platform}}-amd64
       - if: ${{ matrix.test == 'deb-install' }}
-        name: Install spring-dev Package
+        name: Install antelope-spring-dev Package
         run: |
           apt-get install -y ./*.deb
           rm ./*.deb

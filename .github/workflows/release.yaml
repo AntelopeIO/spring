@@ -13,29 +13,29 @@ jobs:
       packages: write
       actions: read
     steps:
-      - name: Get ubuntu20 spring-dev.deb
+      - name: Get ubuntu20 antelope-spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'antelope-spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu20-amd64
+          artifact-name: antelope-spring-dev-ubuntu20-amd64
           wait-for-exact-target: true
-      - name: Get ubuntu22 spring-dev.deb
+      - name: Get ubuntu22 antelope-spring-dev.deb
         uses: AntelopeIO/asset-artifact-download-action@v3
         with:
           owner: ${{github.repository_owner}}
           repo: ${{github.event.repository.name}}
-          file: 'spring-dev.*amd64.deb'
+          file: 'antelope-spring-dev.*amd64.deb'
           target: ${{github.sha}}
-          artifact-name: spring-dev-ubuntu22-amd64
+          artifact-name: antelope-spring-dev-ubuntu22-amd64
           wait-for-exact-target: true
       - name: Create Dockerfile
         run: |
           cat <<EOF > Dockerfile
           FROM scratch
-          LABEL org.opencontainers.image.description="A collection of experimental Leap and Spring binary packages"
+          LABEL org.opencontainers.image.description="A collection of experimental Spring binary packages"
           COPY *.deb /
           EOF
       - name: Login to ghcr
@@ -45,9 +45,9 @@ jobs:
           username: ${{github.repository_owner}}
           password: ${{github.token}}
       - run: echo "REPOSITORY_OWNER_LOWER=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_ENV}"
-      - name: Build and push experimental-binaries
-        uses: docker/build-push-action@v3
+      - name: Build and push antelope-spring-experimental-binaries
+        uses: docker/build-push-action@v5
         with:
           push: true
-          tags: ghcr.io/${{env.REPOSITORY_OWNER_LOWER}}/experimental-binaries:${{github.ref_name}}
+          tags: ghcr.io/${{env.REPOSITORY_OWNER_LOWER}}/antelope-spring-experimental-binaries:${{github.ref_name}}
           context: .
