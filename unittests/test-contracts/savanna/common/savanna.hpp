@@ -64,7 +64,7 @@ namespace savanna {
    uint64_t calculate_max_depth(uint64_t node_count) {
       if(node_count <= 1)
          return node_count;
-      return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1))));
+      return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1)))); //instead of std::bit_ceil available in C++ 20 
    }
 
    uint32_t reverse_bytes(const uint32_t input){
