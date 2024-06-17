@@ -114,6 +114,132 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
    return *it->second;
 }
 
+bool is_finalizer_policies_valid(const flat_multimap<block_num_type, finalizer_policy_tracker>& fin_policies) {
+   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
+   // for at most one block number,
+   // and at most *one* pending `finalizer_policy` for `fin_policies`.
+   // -----------------------------------------------------------------------------
+   block_num_type block_num(0);
+   block_num_type prev_block_num(0);
+   bool pending{false}, proposed{false};
+   uint32_t pending_total{0};
+
+   for (auto it = fin_policies.begin(); it != fin_policies.end(); ++it) {
+      if (prev_block_num > it->first) // in ascending order
+         return false;
+      else
+         prev_block_num = it->first;
+      if (block_num != it->first) {
+         pending = proposed = false;
+         block_num = it->first;
+      }
+      const auto& tracker = it->second;
+      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
+         if (proposed)
+            return false;
+         else
+            proposed = true;
+      }
+      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
+         ++pending_total;
+         if (pending_total == 2)
+            return false;
+
+         if (pending)
+            return false;
+         else
+            pending = true;
+      }
+   }
+   return true;
+}
+
+void build_next_finalizer_policies(const block_header_state& prev,
+                                   block_header_state& next_header_state) {
+   assert(!prev.finalizer_policies.empty());
+   assert(is_finalizer_policies_valid(prev.finalizer_policies));
+
+   auto lib = next_header_state.core.last_final_block_num();
+
+   if (prev.finalizer_policies.begin()->first > lib) {
+      // we have at least one `finalizer_policy` in our map, but none of these is
+      // due to become active of this block because lib has not advanced enough, so
+      // we just copy the multimap and keep using the same `active_finalizer_policy`
+      // ---------------------------------------------------------------------------
+      next_header_state.finalizer_policies = prev.finalizer_policies;
+      return;
+   }
+
+   auto itr = prev.finalizer_policies.begin();
+   auto pending_itr = prev.finalizer_policies.end(); // existing pending policy
+   auto first_policy_after_lib_itr = prev.finalizer_policies.end(); // first policy whose associated block number is greater than LIB
+
+   while (itr != prev.finalizer_policies.end()) {
+      if (itr->second.state == finalizer_policy_tracker::state_t::pending) {
+         // found the existing pending policy
+         assert(pending_itr == prev.finalizer_policies.end()); // Can have only one pending
+         pending_itr = itr;
+      }
+
+      if (itr->first > lib && first_policy_after_lib_itr == prev.finalizer_policies.end()) {
+         // found the first policy whose associated block number is greater than LIB
+         first_policy_after_lib_itr = itr;
+      }
+
+      if (pending_itr != prev.finalizer_policies.end() && first_policy_after_lib_itr != prev.finalizer_policies.end() ) {
+         // both pending_itr and first_policy_after_lib_itr are found. no need to continue
+         break;
+      }
+
+      ++itr;
+   }
+
+   // A pending spot is available if no current pending policy exists or
+   // current pending policy becomes active
+   bool pending_spot_open = true;
+   if (pending_itr != prev.finalizer_policies.end()) { // pending policy exists
+      assert(pending_itr->second.state == finalizer_policy_tracker::state_t::pending);
+
+      if (pending_itr->first <= lib) {
+         // it is time to become active, pending spot becomes available
+         next_header_state.active_finalizer_policy.reset(new finalizer_policy(*pending_itr->second.policy));
+      } else {
+         // it is not due to become active. no spot available
+         pending_spot_open = false;
+      }
+   }
+
+   // find the target proposed policy whose associated block number  is the largest block number is
+   // less than or eqaul to LIB. start from the end of finalizer_policies
+   // as it is sorted by ascending order of assoiciated block numbers
+   auto ritr = prev.finalizer_policies.rbegin();
+   while (ritr != prev.finalizer_policies.rend()) {
+      if (ritr->first <= lib && ritr->second.state == finalizer_policy_tracker::state_t::proposed) {
+         if (pending_spot_open) {
+            finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending,
+                                         ritr->second.policy };
+            auto next_block_num = next_header_state.block_num();
+            next_header_state.finalizer_policies.emplace(next_block_num, std::move(t));
+         } else {
+            next_header_state.finalizer_policies.emplace(*ritr);
+         }
+
+         break;
+      }
+
+      ++ritr;
+   }
+
+   if (first_policy_after_lib_itr != prev.finalizer_policies.end()) {
+      // copy remainder of proposed policies
+      next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
+                                                  first_policy_after_lib_itr,
+                                                  prev.finalizer_policies.end());
+   }
+
+   assert(is_finalizer_policies_valid(next_header_state.finalizer_policies));
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or instant_finality_extension) applicable to this
@@ -174,62 +300,7 @@ void finish_next(const block_header_state& prev,
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
 
    if (!prev.finalizer_policies.empty()) {
-      auto lib = next_header_state.core.last_final_block_num();
-      auto it = prev.finalizer_policies.begin();
-      if (it->first > lib) {
-         // we have at least one `finalizer_policy` in our map, but none of these is
-         // due to become active of this block because lib has not advanced enough, so
-         // we just copy the multimap and keep using the same `active_finalizer_policy`
-         // ---------------------------------------------------------------------------
-         next_header_state.finalizer_policies = prev.finalizer_policies;
-      } else {
-         auto next_block_num = next_header_state.block_num();
-
-         while (it != prev.finalizer_policies.end() && it->first <= lib) {
-            const finalizer_policy_tracker& tracker = it->second;
-            if (tracker.state == finalizer_policy_tracker::state_t::pending) {
-               // new finalizer_policy becones active
-               // -----------------------------------
-               next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
-            } else {
-               assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
-
-               // The block where finalizer_policy was proposed has became final. The finalizer
-               // policy will become active when `next_block_num` becomes final.
-               //
-               // So `tracker.policy` should become `pending` at `next_block_num`.
-               //
-               // Either insert a new `finalizer_policy_tracker` value, or update the `pending`
-               // policy if there is already one  at `next_block_num` (which can happen when
-               // finality advances multiple block at a time, and more than one policy move from
-               // proposed to pending.
-               //
-               // Since we iterate finalizer_policies which is a multimap sorted by block number,
-               // the last one we add will be for the highest block number, which is what we want.
-               // ---------------------------------------------------------------------------------
-               auto range = next_header_state.finalizer_policies.equal_range(next_block_num);
-               auto itr = range.first;
-               for (; itr != range.second; ++itr) {
-                  if (itr->second.state == finalizer_policy_tracker::state_t::pending) {
-                     itr->second.policy = tracker.policy;
-                     break;
-                  }
-               }
-               if (itr == range.second) {
-                  // there wasn't already a pending one for `next_block_num`, add a new tracker
-                  finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
-                  next_header_state.finalizer_policies.emplace(next_block_num, std::move(t));
-               }
-            }
-            ++it;
-         }
-         if (it != prev.finalizer_policies.end()) {
-            // copy remainder of pending finalizer_policy changes
-            // --------------------------------------------------
-            next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
-                                                        it, prev.finalizer_policies.end());
-         }
-      }
+      build_next_finalizer_policies(prev, next_header_state);
    }
 
    next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
@@ -379,32 +450,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
 // do some sanity checks on block_header_state
 // -------------------------------------------------------------------------------
 bool block_header_state::sanity_check() const {
-   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
-   // for any block number
-   // -----------------------------------------------------------------------------
-   block_num_type block_num(0);
-   bool pending{false}, proposed{false};
-
-   for (auto it = finalizer_policies.begin(); it != finalizer_policies.end(); ++it) {
-      if (block_num != it->first) {
-         pending = proposed = false;
-         block_num = it->first;
-      }
-      const auto& tracker = it->second;
-      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
-         if (proposed)
-            return false;
-         else
-            proposed = true;
-      }
-      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
-         if (pending)
-            return false;
-         else
-            pending = true;
-      }
-   }
-   return true;
+   return is_finalizer_policies_valid(finalizer_policies);
 }
 
 } // namespace eosio::chain
