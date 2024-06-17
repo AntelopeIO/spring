@@ -68,8 +68,7 @@ namespace savanna {
    }
 
    uint32_t reverse_bytes(const uint32_t input){
-      uint32_t output = (input>>24 & 0xff)|(input>>8 & 0xff00)|(input<<8 & 0xff0000)|(input<<24 & 0xff000000);
-      return output;
+      return __builtin_bswap32(input);
    }
 
    checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
@@ -85,20 +84,25 @@ namespace savanna {
    }
 
    //compute proof path
-   std::vector<bool> _get_proof_path(const uint64_t c_leaf_index, uint64_t const c_leaf_count) {
-      uint64_t leaf_index = c_leaf_index;
-      uint64_t leaf_count = c_leaf_count;
-      std::vector<bool> proof_path;
-      uint64_t layers_depth = calculate_max_depth(c_leaf_count) -1;
-      for (uint64_t i = 0; i < layers_depth; i++) {
-         bool isLeft = leaf_index % 2;
-         uint64_t pairIndex = isLeft ? leaf_index - 1 :
-                        (leaf_index == leaf_count ? leaf_index : leaf_index + 1);
-         if (pairIndex < leaf_count) proof_path.push_back(isLeft);
-         leaf_count/=2;
-         leaf_index/=2;
-      }
-      return proof_path;
+   std::vector<bool> _get_proof_path(uint64_t leaf_index, const uint64_t leaf_count) {
+       std::vector<bool> proof_path;
+       uint64_t current_leaf_count = leaf_count;
+       uint64_t current_index = leaf_index;
+       uint64_t layers_depth = calculate_max_depth(leaf_count) - 1;
+
+       for (uint64_t i = 0; i < layers_depth; ++i) {
+           bool is_right = current_index % 2 == 1;
+           uint64_t pair_index = is_right ? current_index - 1 : current_index + 1;
+
+           if (pair_index < current_leaf_count) {
+               proof_path.push_back(is_right);
+           }
+
+           current_leaf_count = (current_leaf_count + 1) / 2;
+           current_index /= 2;
+       }
+
+       return proof_path;
    }
 
    //compute the merkle root of target node and vector of merkle branches
