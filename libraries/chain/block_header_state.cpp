@@ -165,7 +165,8 @@ void finish_next(const block_header_state& prev,
    // -------------
    block_ref parent_block {
       .block_id  = prev.block_id,
-      .timestamp = prev.timestamp()
+      .timestamp = prev.timestamp(),
+      .finalizer_policy_generation = prev.active_finalizer_policy->generation
    };
    next_header_state.core = prev.core.next(parent_block, if_ext.qc_claim);
 
@@ -188,9 +189,13 @@ void finish_next(const block_header_state& prev,
          while (it != prev.finalizer_policies.end() && it->first <= lib) {
             const finalizer_policy_tracker& tracker = it->second;
             if (tracker.state == finalizer_policy_tracker::state_t::pending) {
-               // new finalizer_policy becones active
+               // new finalizer_policy becomes active
                // -----------------------------------
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
+               // new finalizer policy generation
+               parent_block.finalizer_policy_generation = next_header_state.active_finalizer_policy->generation;
+               // re-calculate core with the correct finalizer policy generation
+               next_header_state.core = prev.core.next(parent_block, if_ext.qc_claim);
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
 
