@@ -50,7 +50,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 
    // Produce forks on node3
    // skip producer prod with time delay (13 blocks)
-   // create 7 forks of 7 blocks, each with a corrupred block
+   // create 7 forks of 7 blocks, each with a corrupted block
    // -------------------------------------------------------
    vector<fork_tracker> forks(7);
    auto                 offset    = fc::milliseconds(config::block_interval_ms * 13);
@@ -68,10 +68,10 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
          if (j <= i) {
             auto copy_b = std::make_shared<signed_block>(b->clone());
             if (j == i) {
-               // corrupt this block
+               // corrupt this block (forks[j].blocks[j] is corrupted)
                copy_b->action_mroot._hash[0] ^= 0x1ULL;
             } else if (j < i) {
-               // link to a corrupted chain
+               // link to a corrupted chain (fork.blocks[j] was corrupted)
                copy_b->previous = fork.blocks.back()->calculate_id();
             }
 
@@ -103,7 +103,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 
          // push the block which should attempt the corrupted fork and fail
          BOOST_REQUIRE_EXCEPTION( node0.push_block(fork.blocks.back()), fc::exception,
-                                  fc_exception_message_starts_with( "Block ID does not match" )
+                                  fc_exception_message_starts_with( "finality_mroot does not match" )
          );
       }
    }
