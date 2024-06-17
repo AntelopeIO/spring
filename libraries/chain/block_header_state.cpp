@@ -192,10 +192,6 @@ void finish_next(const block_header_state& prev,
                // new finalizer_policy becomes active
                // -----------------------------------
                next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
-               // new finalizer policy generation
-               parent_block.finalizer_policy_generation = next_header_state.active_finalizer_policy->generation;
-               // re-calculate core with the correct finalizer policy generation
-               next_header_state.core = prev.core.next(parent_block, if_ext.qc_claim);
             } else {
                assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
 
