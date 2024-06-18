@@ -28,7 +28,6 @@ struct finality_digest_data_v1 {
    uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest;
    digest_type last_pending_finalizer_policy_and_base_digest;
-
 };
 
 // ------------------------------------------------------------------------------------------
