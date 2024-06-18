@@ -153,6 +153,6 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(proposer_policies)(proposed_finalizer_policies)
             (pending_finalizer_policy)(finalizer_policy_generation)
-            (last_pending_finalizer_policy_digest)(header_exts))
+            (last_pending_finalizer_policy_digest))
 
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(last_pending_finalizer_policy_and_base_digest) )
