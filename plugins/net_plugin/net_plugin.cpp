@@ -2148,13 +2148,6 @@ namespace eosio {
       fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, fhead: ${h}, lib: ${lib}",
                ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_req_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
 
-      if( chain_info.fork_head_num + sync_req_span < sync_last_requested_num && sync_source && sync_source->current() ) {
-         fc_dlog( logger, "ignoring request, fhead is ${h} last req = ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, source connection ${c}",
-                  ("h", chain_info.fork_head_num)("r", sync_last_requested_num)("e", sync_next_expected_num)
-                  ("k", sync_known_lib_num)("s", sync_req_span)("c", sync_source->connection_id) );
-         return;
-      }
-
       if (conn) {
          // p2p_high_latency_test.py test depends on this exact log statement.
          peer_ilog(conn, "Catching up with chain, our last req is ${cc}, theirs is ${t}, next expected ${n}, fhead ${h}",
@@ -2199,6 +2192,7 @@ namespace eosio {
       if( !request_sent ) {
          sync_source.reset();
          fc_wlog(logger, "Unable to request range, sending handshakes to everyone");
+         set_state( in_sync ); // need to be out of lib_catchup so start_sync will work
          send_handshakes();
       }
    }
@@ -2240,7 +2234,8 @@ namespace eosio {
          set_state( lib_catchup );
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
-         sync_next_expected_num = std::max( chain_info.lib_num + 1, sync_next_expected_num );
+         peer_dlog(c, "already syncing, start sync ignored");
+         return;
       }
 
       request_next_chunk( c );
@@ -2523,7 +2518,8 @@ namespace eosio {
       } else if( state == lib_catchup ) {
          fc::unique_lock g_sync( sync_mtx );
          if( blk_applied && blk_num >= sync_known_lib_num ) {
-            peer_dlog( c, "All caught up with last known last irreversible block resending handshake" );
+            peer_dlog(c, "All caught up ${b} with last known lib ${l} resending handshake",
+                      ("b", blk_num)("l", sync_known_lib_num));
             set_state( head_catchup );
             g_sync.unlock();
             send_handshakes();
@@ -2553,29 +2549,31 @@ namespace eosio {
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                }
-            }
 
-            // use chain head instead of fork head so we do not get too far ahead of applied blocks
-            uint32_t head = my_impl->get_chain_head_num();
-            if (head + sync_req_span > sync_last_requested_num) { // don't allow to get too far head (one sync_req_span)
-               if (sync_next_expected_num > sync_last_requested_num && sync_last_requested_num < sync_known_lib_num) {
-                  fc_dlog(logger, "Requesting range ahead, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} sync_last_requested_num: ${lrn}",
-                          ("h", head)("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
+               // use chain head instead of fork head so we do not get too far ahead of applied blocks
+               uint32_t head = my_impl->get_chain_head_num();
+               // do not allow to get too far ahead (one sync_req_span) of chain head
+               if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
+                  // block was not applied, possibly because we already have the block
+                  fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                          ("bn", blk_num)("nen", sync_next_expected_num)
+                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
                   request_next_chunk();
-                  return;
+               }
+            } else { // blk_applied
+               if (blk_num >= sync_last_requested_num) {
+                  // should not reach as should have hit the above when the block was received but not applied, but
+                  // if we do then request blocks as we are still in lib_catchup
+                  fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                          ("bn", blk_num)("nen", sync_next_expected_num)
+                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                  request_next_chunk();
                }
             }
-
-            if (!blk_applied && blk_num >= c->sync_last_requested_block) {
-               // block was not applied, possibly because we already have the block
-               // We didn't request the next chunk of blocks, request them anyway because we might need them to resolve a fork
-               fc_dlog(logger, "Requesting blocks, head: ${h} blk_num: ${bn} sync_next_expected_num ${nen} "
-                               "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                       ("h", head)("bn", blk_num)("nen", sync_next_expected_num)
-                       ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-               request_next_chunk();
-            }
-
          }
       } else {
          send_handshakes_if_synced(blk_latency);

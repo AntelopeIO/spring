@@ -64,6 +64,17 @@ block_num_type finality_core::last_final_block_num() const
 /**
  *  @pre this->links.empty() == false
  *  @post none
+ *  @returns last final block timestamp in respect to the core
+ */
+block_time_type finality_core::last_final_block_timestamp() const
+{
+   return get_block_reference(last_final_block_num()).timestamp;
+}
+
+
+/**
+ *  @pre this->links.empty() == false
+ *  @post none
  *  @returns latest qc_claim made by the core
  */
 qc_claim_t finality_core::latest_qc_claim() const
@@ -79,7 +90,20 @@ qc_claim_t finality_core::latest_qc_claim() const
  *  @returns timestamp of latest qc_claim made by the core
  */
 block_time_type finality_core::latest_qc_block_timestamp() const {
+   assert(!links.empty()); // Satisfied by invariant 1.
+
    return get_block_reference(links.back().target_block_num).timestamp;
+}
+
+/**
+ *  @pre  all finality_core invariants
+ *  @post same
+ *  @returns finalizer_policy_generation of latest qc_claim made by the core
+ */
+uint32_t finality_core::latest_qc_block_finalizer_policy_generation() const {
+   assert(!links.empty()); // Satisfied by invariant 1.
+
+   return get_block_reference(links.back().target_block_num).finalizer_policy_generation;
 }
 
 /**
@@ -262,6 +286,7 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
    
    assert(refs.empty() || (refs.back().block_num() + 1 == current_block.block_num())); // Satisfied by precondition 2.
    assert(refs.empty() || (refs.back().timestamp < current_block.timestamp)); // Satisfied by precondition 2.
+   assert(refs.empty() || (refs.back().finalizer_policy_generation <= current_block.finalizer_policy_generation)); // Satisfied by precondition 2.
 
    assert(most_recent_ancestor_with_qc.block_num <= current_block_num()); // Satisfied by precondition 3.
 

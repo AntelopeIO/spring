@@ -245,6 +245,13 @@ public:
       return num_voting_nodes + start_idx;
    }
 
+   // propagate votes to node1, node2, etc. according to their ordinal position in the bool vector (shifted by one to account for node0)
+   void process_finalizer_votes(const std::vector<bool> votes) {
+      assert(votes.size() == num_nodes-1);
+      for (size_t i = 1; i<num_nodes; i++)
+         if (votes[i-1]) process_vote(i, -1, vote_mode::strong, false);
+   }
+
    void clear_votes_and_reset_lib() {
       for (auto& n : nodes)
          n.clear_votes_and_reset_lib();

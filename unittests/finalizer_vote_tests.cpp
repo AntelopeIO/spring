@@ -76,14 +76,14 @@ bsp make_bsp(const proposal_t& p, const bsp& previous, finalizer_policy_ptr finp
 
    if (p.block_num() == 0) {
       // special case of genesis block
-      block_ref ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
+      block_ref ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}, finpol->generation};
       bhs new_bhs { ref.block_id, block_header{ref.timestamp}, {},
                     finality_core::create_core_for_genesis_block(0), std::move(finpol) };
       return makeit(std::move(new_bhs));
    }
 
    assert(claim);
-   block_ref ref{previous->id(), previous->timestamp()};
+   block_ref ref{previous->id(), previous->timestamp(), previous->finalizer_policy_generation};
    bhs new_bhs { p.calculate_id(), block_header{p.block_timestamp, {}, {}, previous->id()}, {}, previous->core.next(ref, *claim),
                  std::move(finpol) };
    return makeit(std::move(new_bhs));
@@ -117,7 +117,8 @@ struct simulator_t {
       my_finalizer(keys.privkey) {
 
       finalizer_policy fin_policy;
-      fin_policy.threshold = 0;
+      fin_policy.threshold = 1;
+      fin_policy.generation = 1;
       fin_policy.finalizers.push_back({"n0", 1, keys.pubkey});
       finpol = std::make_shared<finalizer_policy>(fin_policy);
 
@@ -125,7 +126,7 @@ struct simulator_t {
       bsp_vec.push_back(genesis);
       forkdb.reset_root(genesis);
 
-      block_ref genesis_ref(genesis->id(), genesis->timestamp());
+      block_ref genesis_ref(genesis->id(), genesis->timestamp(), 1);
       my_finalizer.fsi = fsi_t{block_timestamp_type(0), genesis_ref, genesis_ref};
    }
 

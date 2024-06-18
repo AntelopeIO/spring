@@ -12,6 +12,7 @@ struct block_ref
 {
    block_id_type    block_id;
    block_time_type  timestamp;
+   uint32_t         finalizer_policy_generation = 0;
 
    bool           empty() const { return block_id.empty(); }
    block_num_type block_num() const; // Extract from block_id.
@@ -92,6 +93,13 @@ struct finality_core
    /**
     *  @pre this->links.empty() == false
     *  @post none
+    *  @returns last final block timestamp in respect to the core
+    */
+   block_time_type last_final_block_timestamp() const;
+
+   /**
+    *  @pre this->links.empty() == false
+    *  @post none
     *  @returns latest qc_claim made by the core
     */
    qc_claim_t latest_qc_claim() const;
@@ -102,6 +110,13 @@ struct finality_core
     *  @returns timestamp of latest qc_claim made by the core
     */
    block_time_type latest_qc_block_timestamp() const;
+
+   /**
+    *  @pre  all finality_core invariants
+    *  @post same
+    *  @returns finalizer_policy_generation of latest qc_claim made by the core
+    */
+   uint32_t latest_qc_block_finalizer_policy_generation() const;
 
    /**
     *  @pre  all finality_core invariants
@@ -186,7 +201,7 @@ namespace std {
    }
 }
 
-FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp) )
+FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finalizer_policy_generation) )
 FC_REFLECT( eosio::chain::qc_link, (source_block_num)(target_block_num)(is_link_strong) )
 FC_REFLECT( eosio::chain::qc_claim_t, (block_num)(is_strong_qc) )
 FC_REFLECT( eosio::chain::core_metadata, (last_final_block_num)(final_on_strong_qc_block_num)(latest_qc_claim_block_num))

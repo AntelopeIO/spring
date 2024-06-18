@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.16 )
 
-project( spring )
+project( antelope-spring )
 include(CTest) # suppresses DartConfiguration.tcl error
 enable_testing()
 
