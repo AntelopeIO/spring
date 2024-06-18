@@ -1,7 +1,12 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
     "version": "eosio::abi/1.2",
-    "types": [],
+    "types": [
+        {
+            "new_type_name": "block_data_type",
+            "type": "variant_simple_block_data_extended_block_data"
+        }
+    ],
     "structs": [
         {
             "name": "action",
@@ -62,11 +67,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_node_index",
+                    "name": "target_block_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "last_node_index",
+                    "name": "final_block_index",
                     "type": "uint64"
                 },
                 {
@@ -76,20 +81,6 @@
                 {
                     "name": "merkle_branches",
                     "type": "checksum256[]"
-                }
-            ]
-        },
-        {
-            "name": "block_data",
-            "base": "",
-            "fields": [
-                {
-                    "name": "finality_data",
-                    "type": "block_finality_data"
-                },
-                {
-                    "name": "dynamic_data",
-                    "type": "dynamic_data_v0"
                 }
             ]
         },
@@ -110,7 +101,7 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "final_on_qc_block_num",
+                    "name": "final_on_strong_qc_block_num",
                     "type": "uint32"
                 },
                 {
@@ -132,16 +123,16 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_node_index",
+                    "name": "target_block_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "last_node_index",
+                    "name": "final_block_index",
                     "type": "uint64"
                 },
                 {
                     "name": "target",
-                    "type": "block_data"
+                    "type": "block_data_type"
                 },
                 {
                     "name": "merkle_branches",
@@ -156,10 +147,6 @@
                 {
                     "name": "proof",
                     "type": "proof"
-                },
-                {
-                    "name": "assert",
-                    "type": "bool"
                 }
             ]
         },
@@ -178,6 +165,20 @@
                 {
                     "name": "action_mroot",
                     "type": "checksum256?"
+                }
+            ]
+        },
+        {
+            "name": "extended_block_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "finality_data",
+                    "type": "block_finality_data"
+                },
+                {
+                    "name": "dynamic_data",
+                    "type": "dynamic_data_v0"
                 }
             ]
         },
@@ -306,6 +307,28 @@
             ]
         },
         {
+            "name": "simple_block_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "major_version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "minor_version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "dynamic_data",
+                    "type": "dynamic_data_v0"
+                }
+            ]
+        },
+        {
             "name": "storedpolicy",
             "base": "finalizer_policy_input",
             "fields": [
@@ -349,6 +372,11 @@
         }
     ],
     "ricardian_clauses": [],
-    "variants": [],
+    "variants": [
+        {
+            "name": "variant_simple_block_data_extended_block_data",
+            "types": ["simple_block_data","extended_block_data"]
+        }
+    ],
     "action_results": []
 }
