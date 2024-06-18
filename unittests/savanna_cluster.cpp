@@ -29,8 +29,6 @@ BOOST_AUTO_TEST_SUITE(savanna_cluster_tests)
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
-      auto vote_delay {std::chrono::milliseconds(100)};
-
       reset_lib();
       auto node3_lib = node3.lib_num();                     // store initial lib (after Savanna transtion)
       node0.produce_block();                                // blocks & votes are propagated to all connected peers.
@@ -67,8 +65,6 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
 
       set_partition({});                                    // reunite the two partitions
       push_blocks(node0, partition);                        // push the blocks that node0 produced to the other nodes which will vote
-      std::this_thread::sleep_for(vote_delay);              // because vote_processor asynchronous
-
       node0.produce_block();                                // produce one block so the newly produced QC propagates.
                                                             // this is needed because we don't advance lib when receiving votes.
 
