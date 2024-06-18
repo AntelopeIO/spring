@@ -140,7 +140,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
       if (prev.pending_finalizer_policy->first <= lib) {
          // The block associated with the policy has become final,
          // promote it to active
-         next_header_state.active_finalizer_policy.reset(new finalizer_policy(*prev.pending_finalizer_policy->second));
+         next_header_state.active_finalizer_policy = prev.pending_finalizer_policy->second;
       } else {
          // Copy to next_header_state
          next_header_state.pending_finalizer_policy = prev.pending_finalizer_policy;
