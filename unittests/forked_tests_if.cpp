@@ -41,28 +41,16 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
                                                          // at this point, each node has a QC to include into
                                                          // the next block it produces which will advance lib.
 
-   // First produce 6 blocks on node0
-   // -------------------------------
-   for (size_t i=0; i<6; ++i) {
-      sb = node0.produce_block();
-      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // these will be produced by the producer returned by `set_producers`
-   }
+   const size_t num_forks {3}; // shouldn't be greater than 5 otherwise production will span more than 1 producer
+   vector<fork_tracker> forks(num_forks);
+   auto                 pk        = node3.get_private_key(producers[prod], "active");
 
-   // Produce forks on node3
-   // skip producer prod with time delay (13 blocks)
-   // create 7 forks of 7 blocks, each with a corrupted block
-   // -------------------------------------------------------
-   vector<fork_tracker> forks(7);
-   auto                 offset    = fc::milliseconds(config::block_interval_ms * 13);
-   auto                 prod2_idx = prod < producers.size() - 1 ? prod + 1 : 0;
-   auto                 prod2     = producers[prod2_idx];
-   auto                 pk        = node3.get_private_key(prod2, "active");
+   // create 3 forks of 3 blocks, each with a corrupted block
+   auto produce_and_store_block_on_node3_forks = [&](size_t i, int offset) {
+      auto b = node3.produce_block(fc::milliseconds(offset * config::block_interval_ms));
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);
 
-   for (size_t i = 0; i < 7; i ++) {
-      auto b = node3.produce_block(offset);
-      BOOST_REQUIRE_EQUAL(b->producer, prod2);
-
-      for (size_t j = 0; j < 7; j ++) {
+      for (size_t j = 0; j < num_forks; j ++) {
          auto& fork = forks.at(j);
 
          if (j <= i) {
@@ -84,9 +72,31 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
             fork.blocks.emplace_back(b);
          }
       }
+   };
 
-      offset = fc::milliseconds(config::block_interval_ms);
+   // First produce forks of 2 blocks on node3, so the fork switch will happen when we produce the
+   // third block which will have a newer timestamp than the last block of node0's branch.
+   // Finality progress is haltes as the network is split, so the timestamp criteria decides the best fork.
+   //
+   // Skip producer prod with time delay (13 blocks)
+   // -----------------------------------------------------------------------------------------------------
+   for (size_t i = 0; i < num_forks-1; ++i) {
+      produce_and_store_block_on_node3_forks(i, 1);
    }
+
+   // then produce 3 blocks on node0. This will be the default branch before we attempt to push the
+   // forks from node3.
+   // ---------------------------------------------------------------------------------------------
+
+   for (size_t i = 0; i < num_forks; ++i) {
+      auto sb = node0.produce_block(fc::milliseconds(config::block_interval_ms * (i==0 ? num_forks : 1)));
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // these will be produced by the producer returned by `set_producers`
+   }
+
+   // Produce the last block of node3's forks, with a later timestamp than all 3 blocks of node0.
+   // When pushed to node0, It will cause a fork switch as it will be more recent than node0's head.
+   // -------------------------------------------------------
+   produce_and_store_block_on_node3_forks(num_forks-1, num_forks * 2);
 
    // go from most corrupted fork to least
    for (size_t i = 0; i < forks.size(); i++) {
