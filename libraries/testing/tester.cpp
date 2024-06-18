@@ -191,37 +191,44 @@ namespace eosio::testing {
       cfg = def_conf.first;
 
       open(def_conf.second);
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
       execute_setup_policy(policy);
    }
 
    void base_tester::init(controller::config config, const snapshot_reader_ptr& snapshot) {
       cfg = std::move(config);
       open(snapshot);
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, const genesis_state& genesis) {
       cfg = std::move(config);
       open(genesis);
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config) {
       cfg = std::move(config);
       open(default_genesis().compute_chain_id());
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot) {
       cfg = std::move(config);
       open(std::move(pfs), snapshot);
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs, const genesis_state& genesis) {
       cfg = std::move(config);
       open(std::move(pfs), genesis);
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs) {
       cfg = std::move(config);
       open(std::move(pfs), default_genesis().compute_chain_id());
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::execute_setup_policy(const setup_policy policy) {
@@ -522,14 +529,14 @@ namespace eosio::testing {
    }
 
    void base_tester::_wait_for_vote_if_needed(controller& c, const signed_block_ptr& b) {
-      if (c.can_vote_on(b)) {
+      if (0 && c.can_vote_on(b)) {
          // wait for this node's vote to be processed
-         size_t retrys = 500;
+         size_t retrys = 50;
          auto block_id = b->calculate_id();
          while (!c.node_has_voted_if_finalizer(block_id) && --retrys) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
          }
-         //FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
+         FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
       }
    }
 

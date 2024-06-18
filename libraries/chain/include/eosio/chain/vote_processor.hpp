@@ -197,7 +197,7 @@ public:
 
    /// called from net threads and controller's thread pool
    /// msg is ignored vote_processor not start()ed
-   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg) {
+   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg, bool disable_async = false) {
       if (stopped)
          return;
       assert(msg);
@@ -205,7 +205,8 @@ public:
       if (msg_block_num <= lib.load(std::memory_order_relaxed))
          return;
       ++queued_votes;
-      boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
+
+      auto process_vote =  [this, connection_id, msg] {
          if (stopped)
             return;
          auto num_queued_votes = --queued_votes;
@@ -243,7 +244,12 @@ public:
             }
          }
 
-      });
+      };
+
+      if (disable_async)
+         process_vote();
+      else
+         boost::asio::post(thread_pool.get_executor(), process_vote);
    }
 
 };

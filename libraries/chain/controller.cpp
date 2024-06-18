@@ -958,6 +958,7 @@ struct controller_impl {
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
    bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
+   bool                            disable_async_voting = false; // by default we post `create_and_send_vote_msg()` calls
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
@@ -3276,9 +3277,11 @@ struct controller_impl {
             if (!my_finalizers.empty()) {
                apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || my_finalizers.is_active()) {
-                     boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                     if (disable_async_voting)
                         create_and_send_vote_msg(head);
-                     });
+                     else
+                        boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                           create_and_send_vote_msg(head); });
                   }
                });
             }
@@ -3666,7 +3669,7 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
-      vote_processor.process_vote_message(connection_id, vote);
+      vote_processor.process_vote_message(connection_id, vote, disable_async_voting);
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {
@@ -3987,7 +3990,7 @@ struct controller_impl {
 
       if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
          if (bsp->is_recent() || my_finalizers.is_active()) {
-            if (use_thread_pool == use_thread_pool_t::yes) {
+            if (use_thread_pool == use_thread_pool_t::yes && !disable_async_voting) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
                   const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
                   if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
@@ -4979,6 +4982,12 @@ void controller::commit_block(block_report& br) {
 void controller::allow_voting(bool val) {
    my->allow_voting = val;
 }
+
+void controller::disable_async_voting(bool val) {
+   my->disable_async_voting = val;
+}
+
+
 
 bool controller::can_vote_on(const signed_block_ptr& b) {
    return my->can_vote_on(b);
