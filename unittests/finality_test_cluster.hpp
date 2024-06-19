@@ -22,7 +22,6 @@ struct finality_node_t : public eosio::testing::tester {
    };
 
    uint32_t                                prev_lib_num{0};
-   std::mutex                              votes_mtx;
    std::vector<vote_message_ptr>           votes;
    eosio::chain::vote_message_ptr          orig_vote;
    eosio::testing::finalizer_keys<tester>  finkeys;
@@ -53,7 +52,6 @@ struct finality_node_t : public eosio::testing::tester {
 
    // Restore node's original vote
    void restore_to_original_vote(size_t idx) {
-      std::lock_guard g(votes_mtx);
       assert(!votes.empty());
 
       if (idx == (size_t)-1)
@@ -65,7 +63,6 @@ struct finality_node_t : public eosio::testing::tester {
    }
 
    void clear_votes_and_reset_lib() {
-      std::lock_guard g(votes_mtx);
       votes.clear();
       prev_lib_num = lib_num();
    }
@@ -286,12 +283,9 @@ private:
    }
 
    vote_status wait_on_vote(uint32_t connection_id, bool duplicate)  {
-      // wait for this node's vote to be processed
       // duplicates are not signaled
-      size_t retrys = 200;
-      while ( (last_connection_vote != connection_id) && --retrys) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-      }
+      // no wait is needed because controller is set in tester (via `disable_async_voting(true)`)
+      // to vote (and emit the `voted_block` signal) synchronously.
       if (!duplicate && last_connection_vote != connection_id) {
          FC_ASSERT(false, "Never received vote");
       } else if (duplicate && last_connection_vote == connection_id) {
