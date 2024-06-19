@@ -521,6 +521,11 @@ void test_reopen_forkdb() try {
 
    TESTER c2(setup_policy::none);
 
+   if constexpr (std::is_same_v<TESTER, tester>) {
+      c1.do_check_for_votes(false);
+      c2.do_check_for_votes(false);
+   }
+
    push_blocks( c1, c2 );
 
    auto fork1_lib_before = c1.control->last_irreversible_block_num();
