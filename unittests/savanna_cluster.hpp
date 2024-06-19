@@ -139,6 +139,10 @@ namespace savanna_cluster {
          reset_lib();
       }
 
+      ~cluster_t() {
+         _shutting_down = true;
+      }
+
       // Create accounts and updates producers on node node_idx (producer updates will be
       // propagated to connected nodes), and wait until one of the new producers is pending.
       // return the index of the pending new producer (we assume no duplicates in producer list)
@@ -183,12 +187,10 @@ namespace savanna_cluster {
    public:
       std::array<node_t, num_nodes>  _nodes;
 
-      node_t& node0 = _nodes[0];
-      node_t& node1 = _nodes[1];
-      node_t& node2 = _nodes[2];
-      node_t& node3 = _nodes[3];
-
-      std::vector<size_t> _partition;
+      node_t&                        node0 = _nodes[0];
+      node_t&                        node1 = _nodes[1];
+      node_t&                        node2 = _nodes[2];
+      node_t&                        node3 = _nodes[3];
 
       // Used for transition to Savanna
       // ------------------------------
@@ -197,6 +199,9 @@ namespace savanna_cluster {
       std::vector<bls_public_key>                   _fin_policy_pubkeys_0; // set of public keys used for transition
 
    private:
+      std::vector<size_t>            _partition;
+      bool                           _shutting_down {false};
+
       friend node_t;
 
       void dispatch_vote_to_peers(size_t node_idx, const vote_message_ptr& msg) {
@@ -214,6 +219,9 @@ namespace savanna_cluster {
 
       template<class CB>
       void for_each_peer(size_t node_idx, const CB& cb) {
+         if (_shutting_down)
+            return;
+
          if (_partition.empty()) {
             for (size_t i=0; i<num_nodes; ++i)
                if (i != node_idx)
