@@ -402,7 +402,7 @@ namespace eosio::testing {
       if (itr == last_produced_block.end() || b->block_num() > block_header::num_from_id(itr->second)) {
          last_produced_block[b->producer] = b->calculate_id();
       }
-      _wait_for_vote_if_needed(*control, b);
+      _check_for_vote_if_needed(*control, b);
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {
@@ -523,20 +523,19 @@ namespace eosio::testing {
       signed_block_ptr sb = control->head_block();
       last_produced_block[producer_name] = sb->calculate_id();
 
-      _wait_for_vote_if_needed(*control, sb);
+      _check_for_vote_if_needed(*control, sb);
 
       return sb;
    }
 
-   void base_tester::_wait_for_vote_if_needed(controller& c, const signed_block_ptr& b) {
-      if (0 && c.can_vote_on(b)) {
-         // wait for this node's vote to be processed
-         size_t retrys = 50;
+   void base_tester::_check_for_vote_if_needed(controller& c, const signed_block_ptr& b) {
+      if (_expect_votes && c.can_vote_on(b)) {
+         // _do_check_for_votes should be true *only* when we expect an active finalizer to vote
+         // on every block. This is not the case for tests with forks, so for these tests
+         // `base_tester::do_check_for_votes(false)` should be called.
+         // ------------------------------------------------------------------------------------
          auto block_id = b->calculate_id();
-         while (!c.node_has_voted_if_finalizer(block_id) && --retrys) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-         }
-         FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
+         FC_ASSERT(c.node_has_voted_if_finalizer(block_id), "Missing expected vote");
       }
    }
 
