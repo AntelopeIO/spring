@@ -3240,7 +3240,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
-                  vote_processor.notify_new_block();
+                  vote_processor.notify_new_block(disable_async_voting);
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3876,7 +3876,7 @@ struct controller_impl {
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
-            vote_processor.notify_new_block();
+            vote_processor.notify_new_block(disable_async_voting);
       }
 
       return block_handle{bsp};

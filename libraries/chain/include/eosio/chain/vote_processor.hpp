@@ -185,14 +185,19 @@ public:
    }
 
    // called from net threads
-   void notify_new_block() {
+   void notify_new_block(bool disable_async = false) {
       if (stopped)
          return;
-      // would require a mtx lock to check if index is empty, post check to thread_pool
-      boost::asio::post(thread_pool.get_executor(), [this] {
+      auto process_any_queued = [this] {
          std::unique_lock g(mtx);
          process_any_queued_for_later(g);
-      });
+      };
+      if (disable_async)
+         process_any_queued();
+      else {
+         // would require a mtx lock to check if index is empty, post check to thread_pool
+         boost::asio::post(thread_pool.get_executor(), process_any_queued);
+      }
    }
 
    /// called from net threads and controller's thread pool
