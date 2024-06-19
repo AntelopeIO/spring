@@ -32,7 +32,6 @@ namespace savanna_cluster {
       cluster_t&              cluster;
       finalizer_keys<tester>  finkeys;
       size_t                  cur_key{0}; // index of key used in current policy
-      std::mutex              votes_mtx;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);

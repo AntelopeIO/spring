@@ -9,7 +9,9 @@ node_t::node_t(size_t _node_idx, cluster_t& _cluster, setup_policy policy)
    , finkeys(*this) {
 
    control->voted_block().connect([&](const eosio::chain::vote_signal_params& v) {
-      std::lock_guard g(votes_mtx);
+      // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
+      // to vote (and emit the `voted_block` signal) synchronously.
+      // --------------------------------------------------------------------------------------
       vote_status     status = std::get<1>(v);
       if (status == vote_status::success)
          cluster.dispatch_vote_to_peers(node_idx, std::get<2>(v));
