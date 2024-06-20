@@ -142,7 +142,7 @@ public:
       }
 
       // node0's votes
-      node0.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      node0.control->aggregated_vote().connect( [&]( const eosio::chain::vote_signal_params& v ) {
          last_vote_status = std::get<1>(v);
          last_connection_vote = std::get<0>(v);
       });
@@ -278,14 +278,19 @@ private:
       static uint32_t connection_id = 0;
       node0.control->process_vote_message( ++connection_id, vote );
       if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.lib_num())
-         return wait_on_vote(connection_id, duplicate);
+         return wait_on_aggregate_vote(connection_id, duplicate);
       return vote_status::unknown_block;
    }
 
-   vote_status wait_on_vote(uint32_t connection_id, bool duplicate)  {
+   vote_status wait_on_aggregate_vote(uint32_t connection_id, bool duplicate)  {
+      // wait for this node's vote to be processed
       // duplicates are not signaled
       // no wait is needed because controller is set in tester (via `disable_async_voting(true)`)
       // to vote (and emit the `voted_block` signal) synchronously.
+      size_t retrys = 200;
+      while ( (last_connection_vote != connection_id) && --retrys) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
       if (!duplicate && last_connection_vote != connection_id) {
          FC_ASSERT(false, "Never received vote");
       } else if (duplicate && last_connection_vote == connection_id) {

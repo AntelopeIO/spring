@@ -390,8 +390,11 @@ namespace eosio::chain {
          signal<void(const block_signal_params&)>&  accepted_block();
          signal<void(const block_signal_params&)>&  irreversible_block();
          signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& applied_transaction();
-         // Unlike other signals, voted_block is signaled from other threads than the main thread.
+
+         // Unlike other signals, voted_block and aggregated_vote may be signaled from other
+         // threads than the main thread.
          vote_signal_t&                             voted_block();
+         vote_signal_t&                             aggregated_vote();
 
          const apply_handler* find_apply_handler( account_name contract, scope_name scope, action_name act )const;
          wasm_interface& get_wasm_interface();

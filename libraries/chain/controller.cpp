@@ -978,9 +978,10 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   vote_signal_t                             voted_block;
+   vote_signal_t                             voted_block;     // emited when a local finalizer votes on a block
+   vote_signal_t                             aggregated_vote; // emited when a vote received from the network is aggregated
 
-   vote_processor_t vote_processor{voted_block,
+   vote_processor_t vote_processor{aggregated_vote,
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
                                          return forkdb.get_block(id);
@@ -5661,7 +5662,8 @@ signal<void(const block_signal_params&)>&  controller::accepted_block_header() {
 signal<void(const block_signal_params&)>&  controller::accepted_block() { return my->accepted_block; }
 signal<void(const block_signal_params&)>&  controller::irreversible_block() { return my->irreversible_block; }
 signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& controller::applied_transaction() { return my->applied_transaction; }
-vote_signal_t&                             controller::voted_block() { return my->voted_block; }
+vote_signal_t&                             controller::voted_block()     { return my->voted_block; }
+vote_signal_t&                             controller::aggregated_vote() { return my->aggregated_vote; }
 
 chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    chain_snapshot_header header;
