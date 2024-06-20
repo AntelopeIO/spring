@@ -429,7 +429,7 @@ namespace eosio::chain {
    }; // controller
 
    /**
-    *  Plugins / observers listening to signals emited might trigger
+    *  Plugins / observers listening to signals emitted might trigger
     *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
     *  cause a node to fork.
     *

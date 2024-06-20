@@ -979,8 +979,8 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   vote_signal_t                             voted_block;     // emited when a local finalizer votes on a block
-   vote_signal_t                             aggregated_vote; // emited when a vote received from the network is aggregated
+   vote_signal_t                             voted_block;     // emitted when a local finalizer votes on a block
+   vote_signal_t                             aggregated_vote; // emitted when a vote received from the network is aggregated
 
    vote_processor_t vote_processor{aggregated_vote,
                                    [this](const block_id_type& id) -> block_state_ptr {
