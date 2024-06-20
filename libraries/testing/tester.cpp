@@ -191,44 +191,37 @@ namespace eosio::testing {
       cfg = def_conf.first;
 
       open(def_conf.second);
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
       execute_setup_policy(policy);
    }
 
    void base_tester::init(controller::config config, const snapshot_reader_ptr& snapshot) {
       cfg = std::move(config);
       open(snapshot);
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, const genesis_state& genesis) {
       cfg = std::move(config);
       open(genesis);
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config) {
       cfg = std::move(config);
       open(default_genesis().compute_chain_id());
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot) {
       cfg = std::move(config);
       open(std::move(pfs), snapshot);
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs, const genesis_state& genesis) {
       cfg = std::move(config);
       open(std::move(pfs), genesis);
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::init(controller::config config, protocol_feature_set&& pfs) {
       cfg = std::move(config);
       open(std::move(pfs), default_genesis().compute_chain_id());
-      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
    }
 
    void base_tester::execute_setup_policy(const setup_policy policy) {
@@ -359,6 +352,9 @@ namespace eosio::testing {
               }
           }
       });
+
+      control->disable_async_voting(true); // vote synchronously so we don't have to wait for votes;
+      control->disable_async_aggregation(true);
 
       lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;

@@ -959,6 +959,7 @@ struct controller_impl {
    bool                            okay_to_print_integrity_hash_on_stop = false;
    bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
    bool                            disable_async_voting = false; // by default we post `create_and_send_vote_msg()` calls
+   bool                            disable_async_aggregation = false; // by default we process incoming votes async.
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
@@ -3241,7 +3242,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
-                  vote_processor.notify_new_block(disable_async_voting);
+                  vote_processor.notify_new_block(disable_async_aggregation);
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3670,7 +3671,7 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
-      vote_processor.process_vote_message(connection_id, vote, disable_async_voting);
+      vote_processor.process_vote_message(connection_id, vote, disable_async_aggregation);
    }
 
    bool node_has_voted_if_finalizer(const block_id_type& id) const {
@@ -3877,7 +3878,7 @@ struct controller_impl {
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
-            vote_processor.notify_new_block(disable_async_voting);
+            vote_processor.notify_new_block(disable_async_aggregation);
       }
 
       return block_handle{bsp};
@@ -4986,6 +4987,10 @@ void controller::allow_voting(bool val) {
 
 void controller::disable_async_voting(bool val) {
    my->disable_async_voting = val;
+}
+
+void controller::disable_async_aggregation(bool val) {
+   my->disable_async_aggregation = val;
 }
 
 bool controller::can_vote_on(const signed_block_ptr& b) {
