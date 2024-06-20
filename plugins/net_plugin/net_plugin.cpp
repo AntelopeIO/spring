@@ -4508,15 +4508,13 @@ namespace eosio {
             my->on_irreversible_block( id, block->block_num() );
          } );
 
-         cc.aggregated_vote().connect( [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
+         auto broadcast_vote =  [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
             auto& [connection_id, status, msg] = vote_signal;
             my->broadcast_vote_message(connection_id, status, msg);
-         } );
+         };
 
-         cc.voted_block().connect( [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
-            auto& [connection_id, status, msg] = vote_signal;
-            my->broadcast_vote_message(connection_id, status, msg);
-         } );
+         cc.aggregated_vote().connect( broadcast_vote );
+         cc.voted_block().connect( broadcast_vote );
       }
 
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(
