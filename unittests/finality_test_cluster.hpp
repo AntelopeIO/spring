@@ -141,12 +141,13 @@ public:
          nodes[i].setup(i * split, split);
       }
 
-      // node0's votes
+      // check that node0 aggregates votes correctly, and that after receiving a vote from another
+      // node, that vote is aggregated into a QC (which we check in wait_on_aggregate_vote).
+      // -----------------------------------------------------------------------------------------
       node0.control->aggregated_vote().connect( [&]( const eosio::chain::vote_signal_params& v ) {
          last_vote_status = std::get<1>(v);
          last_connection_vote = std::get<0>(v);
       });
-
 
       // set initial finalizer policy
       // ----------------------------
@@ -285,8 +286,9 @@ private:
    vote_status wait_on_aggregate_vote(uint32_t connection_id, bool duplicate)  {
       // wait for this node's vote to be processed
       // duplicates are not signaled
-      // no wait is needed because controller is set in tester (via `disable_async_voting(true)`)
-      // to vote (and emit the `voted_block` signal) synchronously.
+      // This wait is not strictly necessary since the controller is set (via `disable_async_aggregation(true)`)
+      // to aggregate votes (and emit the `aggregated_vote` signal) synchronously.
+      // -------------------------------------------------------------------------------------------------------
       size_t retrys = 200;
       while ( (last_connection_vote != connection_id) && --retrys) {
          std::this_thread::sleep_for(std::chrono::milliseconds(5));
