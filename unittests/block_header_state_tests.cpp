@@ -1,6 +1,5 @@
+#include "finality_test_cluster.hpp"
 #include <eosio/chain/block_header_state.hpp>
-#include <eosio/testing/tester.hpp>
-#include <boost/test/unit_test.hpp>
 
 using namespace eosio::chain;
 
@@ -177,7 +176,7 @@ BOOST_AUTO_TEST_CASE(no_proposed_promotion_no_pending_promotion_1_test) try {
    prev.proposed_finalizer_policies = {
      {3u, nullptr},  // garbage collected
      {4u, nullptr},  // garbage collected
-     {5u, nullptr},  // kept as  pending
+     {5u, nullptr},  // kept as proposed
      {6u, nullptr}   // kept as proposed
    };
 
@@ -272,6 +271,151 @@ BOOST_AUTO_TEST_CASE(pending_promoted_proposed_not_promoted_test) try {
 
    BOOST_REQUIRE(!next_header_state.pending_finalizer_policy.has_value());
    BOOST_REQUIRE(next_header_state.active_finalizer_policy->generation == 10u);
+} FC_LOG_AND_RETHROW();
+
+// finalizer_policies_change_edge_case_strong_qc_test and
+// finalizer_policies_change_edge_case_weak_qc_test are for demonstrating
+// the finalizer policy change edge cases have been resolved
+// (https://github.com/AntelopeIO/spring/issues/292).
+//
+// Denote active finalizer policy as A, and two proposed finalizer policies as B and C.
+// In the previous implementation:
+//   * in the branch in which the strong QC claim was made,
+//     B is immediately promoted to the active finalizer policy, and then B
+//     votes for enough blocks to advance finality to the first block of that
+//     fork past the fork point.
+//   * At the same time, in the branch in which the weak QC claim was made,
+//     B is never promoted to the active finalizer policy. Instead a couple of
+//     blocks in which A is the finalizer policy are produced and voted on, which
+//     then allows the block after that to promote C to the active finalizer
+//     policy. Then C can vote on enough new blocks after that to advance finality
+//     to a block in that branch which has C as an active finalizer policy.
+//
+// finalizer_policies_change_edge_case_strong_qc_test simulates the case of strong QC claim,
+// and finalizer_policies_change_edge_case_strong_qc_test the case of weak QC claim.
+// Both verifies the same sequence of finalizer policy promotions.
+//
+// Run under the previous implementation, finalizer_policies_change_edge_case_weak_qc_test
+// fails as it skips B.
+//
+// Run under new implementation, finalizer_policies_change_edge_case_strong_qc_test
+// and finalizer_policies_change_edge_case_weak_qc_test succeed,
+// and both show the same sequence of finalizer policy promotions.
+//
+BOOST_FIXTURE_TEST_CASE(finalizer_policies_change_edge_case_strong_qc_test, finality_test_cluster<4>) try {
+   // The test cluster consists of 4 nodes. node0 is both a producer and a finalizer.
+   // node1, node2, and node3 are only finalizers.
+   // The cluster has transitioned to Savanna after startup.
+
+   // fin_policy_0 is the active finalizer policy
+   BOOST_REQUIRE(fin_policy_0);
+
+   // fin_policy_indices_0 is the set of indices used in active finalizer policy
+   // to indicate which key of a node is used in the policy
+   auto key_indices = fin_policy_indices_0;
+   BOOST_REQUIRE(key_indices[0] == 0u);  // index 0 for node0 was used in active policy
+
+   constexpr size_t node1_index = 1;
+   constexpr size_t policy_a_generation = 1;
+   constexpr size_t policy_b_generation = 2;
+   constexpr size_t policy_c_generation = 3;
+
+   // Propose Policy B by changing the index of the key used by node0 to 1
+   key_indices[0] = 1;
+   auto policy_b_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
+   produce_and_push_block();
+
+   // all `num_nodes - 1` non-producing nodes vote strong
+   process_votes(node1_index, num_nodes - 1); // starting from node1_index
+   node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // active finalizer policy not changed yet
+
+   // Propose Policy C by changing the index of the key used by node0 to 2
+   key_indices[0] = 2;
+   auto policy_c_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
+
+   // We did produce_and_push_block() after proposing Policy B; need 5 more rounds
+   // of strong QC to make two 3-chains for Policy B to be activated.
+   for (size_t i=0; i<5; ++i) {
+      produce_and_push_block();
+      process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
+      node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
+   }
+
+   // we just completed the two 3-chains, so the next block we produce will have
+   // Policy B activated
+   produce_and_push_block();
+   node0.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
+   node1.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
+
+   // Under Policy B, LIB advances and Policy is promoted to active.
+   BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
+   node0.check_head_finalizer_policy(policy_c_generation, policy_c_pubkeys);
+   node1.check_head_finalizer_policy(policy_c_generation, policy_c_pubkeys);
+} FC_LOG_AND_RETHROW();
+
+BOOST_FIXTURE_TEST_CASE(finalizer_policies_change_edge_case_weak_qc_test, finality_test_cluster<4>) try {
+   // The test cluster consists of 4 nodes. node0 is both a producer and a finalizer.
+   // node1, node2, and node3 are only finalizers.
+   // The cluster has transitioned to Savanna after startup.
+
+   // fin_policy_0 is the active finalizer policy
+   BOOST_REQUIRE(fin_policy_0);
+
+   // fin_policy_indices_0 is the set of indices used in active finalizer policy
+   // to indicate which key of a node is used in the policy
+   auto key_indices = fin_policy_indices_0;
+   BOOST_REQUIRE(key_indices[0] == 0u);
+
+   constexpr size_t node1_index = 1;
+   constexpr size_t node2_index = 2;
+   constexpr size_t policy_a_generation = 1;
+   constexpr size_t policy_b_generation = 2;
+   constexpr size_t policy_c_generation = 3;
+
+   // Propose Policy B by changing the index of the key used by node0 to 1
+   key_indices[0] = 1;
+   auto policy_b_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
+   produce_and_push_block();
+
+   // all `num_nodes - 1` non-producing nodes vote strong
+   process_votes(node1_index, num_nodes - 1);  // starting from node1_index
+   node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // active finalizer policy not changed yet
+
+   // Propose Policy C by changing the index of the key used by node0 to 2
+   key_indices[0] = 2;
+   auto policy_c_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
+
+   // Produce 4 rounds; all the votes are strong votes.
+   for (size_t i=0; i<4; ++i) {
+      produce_and_push_block();
+      process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
+      node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
+   }
+
+   produce_and_push_block();
+   // node1 votes strong
+   process_vote(node1_index);
+   // node2 votes weak
+   process_vote(node2_index, (size_t)-1 /*not used*/, vote_mode::weak); // node2 votes weak
+   // active policy should still stay at Policy A as LIB has not advanced due to weak vote
+   node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0);
+
+   // produce 2 rounds of strong QC blocks
+   for (size_t i=0; i<2; ++i) {
+      produce_and_push_block();
+      process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
+      node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
+   }
+
+   // Now a weak-strong-strong chain is formed. LIB advances. Policy B becomes active.
+   produce_and_push_block();
+   node0.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
+   node1.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
+
+   // Under Policy B, LIB advances and Policy C is promoted to active
+   BOOST_REQUIRE(produce_blocks_and_verify_lib_advancing());
+   node0.check_head_finalizer_policy(policy_c_generation, policy_c_pubkeys);
+   node1.check_head_finalizer_policy(policy_c_generation, policy_c_pubkeys);
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_SUITE_END()
