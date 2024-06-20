@@ -389,10 +389,10 @@ namespace eosio::testing {
 
    void base_tester::push_block(signed_block_ptr b) {
       auto block_id = b->calculate_id();
-      auto btf = control->create_block_handle_future(block_id, b);
+      auto bhf = control->create_block_handle_future(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );
       controller::block_report br;
-      control->push_block( br, btf.get(), [this]( const transaction_metadata_ptr& trx ) {
+      control->push_block( br, bhf.get(), [this]( const transaction_metadata_ptr& trx ) {
          unapplied_transactions.add_forked( trx );
       }, [this]( const transaction_id_type& id ) {
          return unapplied_transactions.get_trx( id );
@@ -400,7 +400,7 @@ namespace eosio::testing {
 
       auto itr = last_produced_block.find(b->producer);
       if (itr == last_produced_block.end() || b->block_num() > block_header::num_from_id(itr->second)) {
-         last_produced_block[b->producer] = b->calculate_id();
+         last_produced_block[b->producer] = block_id;
       }
       _check_for_vote_if_needed(*control, b);
    }
@@ -530,10 +530,11 @@ namespace eosio::testing {
 
    void base_tester::_check_for_vote_if_needed(controller& c, const signed_block_ptr& b) {
       if (_expect_votes && c.can_vote_on(b)) {
-         // _do_check_for_votes should be true *only* when we expect an active finalizer to vote
-         // on every block. This is not the case for tests with forks, so for these tests
-         // `base_tester::do_check_for_votes(false)` should be called.
-         // ------------------------------------------------------------------------------------
+         // `_expect_votes` should be true *only* when we expect an active finalizer to
+         // vote on every block.
+         // This is not the case for tests with forks, so for these tests we should set
+         // `_expect_votes` to false by calling `base_tester::do_check_for_votes(false)`
+         // ----------------------------------------------------------------------------
          auto block_id = b->calculate_id();
          FC_ASSERT(c.node_has_voted_if_finalizer(block_id), "Missing expected vote");
       }

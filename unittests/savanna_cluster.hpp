@@ -17,6 +17,7 @@ namespace savanna_cluster {
    using vote_status      = eosio::chain::vote_status;
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using account_name     = eosio::chain::account_name;
+   using finalizer_policy = eosio::chain::finalizer_policy;
    using tester           = eosio::testing::tester;
    using setup_policy     = eosio::testing::setup_policy;
    using bls_public_key   = fc::crypto::blslib::bls_public_key;
@@ -107,7 +108,7 @@ namespace savanna_cluster {
                {{0, *this, setup_policy::full_except_do_not_transition_to_savanna}, {1, *this}, {2, *this}, {3, *this}}
       } {
          // make sure we push node0 initialization (full_except_do_not_transition_to_savanna) to
-         // the other nodes.
+         // the other nodes. Needed because the tester was initialized before `node_t`.
          // ------------------------------------------------------------------------------------
          for (size_t i = 0; i < _nodes.size(); ++i)
             node0.push_blocks(_nodes[i]);
@@ -185,22 +186,22 @@ namespace savanna_cluster {
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
    public:
-      std::array<node_t, num_nodes>  _nodes;
+      std::array<node_t, num_nodes>   _nodes;
 
-      node_t&                        node0 = _nodes[0];
-      node_t&                        node1 = _nodes[1];
-      node_t&                        node2 = _nodes[2];
-      node_t&                        node3 = _nodes[3];
+      node_t&                         node0 = _nodes[0];
+      node_t&                         node1 = _nodes[1];
+      node_t&                         node2 = _nodes[2];
+      node_t&                         node3 = _nodes[3];
 
       // Used for transition to Savanna
       // ------------------------------
-      std::optional<eosio::chain::finalizer_policy> _fin_policy_0;         // policy used to transition to Savanna
-      std::array<size_t, num_nodes>                 _fin_policy_indices_0; // set of key indices used for transition
-      std::vector<bls_public_key>                   _fin_policy_pubkeys_0; // set of public keys used for transition
+      std::optional<finalizer_policy> _fin_policy_0;         // policy used to transition to Savanna
+      std::array<size_t, num_nodes>   _fin_policy_indices_0; // set of key indices used for transition
+      std::vector<bls_public_key>     _fin_policy_pubkeys_0; // set of public keys used for transition
 
    private:
-      std::vector<size_t>            _partition;
-      bool                           _shutting_down {false};
+      std::vector<size_t>             _partition;
+      bool                            _shutting_down {false};
 
       friend node_t;
 

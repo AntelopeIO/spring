@@ -28,24 +28,32 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    node0.produce_block();
 
    const vector<account_name> producers {"a"_n, "b"_n, "c"_n, "d"_n, "e"_n};
-   auto prod = set_producers(0, producers);              // set new producers and produce blocks until the switch is pending
+   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
-   auto sb = node0.produce_block();                      // now the next block produced on any node
-   BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);   // should be produced by the producer returned by `set_producers`
+   auto sb = node0.produce_block();           // now the next block produced on any node
+   BOOST_REQUIRE_EQUAL(sb->producer,
+                       producers[prod]);      // should be produced by the producer returned by `set_producers`
 
-                                                         // split the network. Finality will stop advancing as
-                                                         // votes and blocks are not propagated.
+                                              // split the network. Finality will stop advancing as
+                                              // votes and blocks are not propagated.
    const std::vector<size_t> partition {2, 3};
-   set_partition(partition);                             // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
+   set_partition(partition);                  // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
 
-                                                         // at this point, each node has a QC to include into
-                                                         // the next block it produces which will advance lib.
+                                              // at this point, each node has a QC to include into
+                                              // the next block it produces which will advance lib.
 
-   const size_t num_forks {3}; // shouldn't be greater than 5 otherwise production will span more than 1 producer
+   const size_t num_forks {3};                // shouldn't be greater than 5 otherwise production will span
+                                              // more than 1 producer
    vector<fork_tracker> forks(num_forks);
-   auto                 pk        = node3.get_private_key(producers[prod], "active");
+   auto pk = node3.get_private_key(producers[prod], "active");
 
-   // create 3 forks of 3 blocks, each with a corrupted block
+   // Create 3 forks of 3 blocks, each with a corrupted block.
+   // We will create the last block of each fork with a higher timestamp than the blocks of node0,
+   // so that when blocks are pushed from node3 to node0, the fork_switch will happen only when
+   // the last block is pushed, according to the Savanna fork-choice rules.
+   // (see `fork_database::by_best_branch_if_t`).
+   // So we need a lambda to produce (and possibly corrupt) a block on node3 with a specified offset.
+   // -----------------------------------------------------------------------------------------------
    auto produce_and_store_block_on_node3_forks = [&](size_t i, int offset) {
       auto b = node3.produce_block(fc::milliseconds(offset * config::block_interval_ms));
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);
@@ -76,7 +84,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 
    // First produce forks of 2 blocks on node3, so the fork switch will happen when we produce the
    // third block which will have a newer timestamp than the last block of node0's branch.
-   // Finality progress is haltes as the network is split, so the timestamp criteria decides the best fork.
+   // Finality progress is halted as the network is split, so the timestamp criteria decides the best fork.
    //
    // Skip producer prod with time delay (13 blocks)
    // -----------------------------------------------------------------------------------------------------
@@ -87,10 +95,9 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // then produce 3 blocks on node0. This will be the default branch before we attempt to push the
    // forks from node3.
    // ---------------------------------------------------------------------------------------------
-
    for (size_t i = 0; i < num_forks; ++i) {
       auto sb = node0.produce_block(fc::milliseconds(config::block_interval_ms * (i==0 ? num_forks : 1)));
-      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // these will be produced by the producer returned by `set_producers`
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // produced by the producer returned by `set_producers`
    }
 
    // Produce the last block of node3's forks, with a later timestamp than all 3 blocks of node0.
@@ -98,7 +105,12 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // -------------------------------------------------------
    produce_and_store_block_on_node3_forks(num_forks-1, num_forks * 2);
 
-   // go from most corrupted fork to least
+   // Now we push each fork (going from most corrupted fork to least) from node3 to node0.
+   // Blocks are correct enough to be pushed and inserted into fork_db, but will fail validation
+   // (when apply_block is called on the corrupted block). This will happen when the fork switch occurs,
+   // and all blocks from the forks are validated, which is why we expect an exception when the last
+   // block of the fork is pushed.
+   // -------------------------------------------------------------------------------------------------
    for (size_t i = 0; i < forks.size(); i++) {
       BOOST_TEST_CONTEXT("Testing Fork: " << i) {
          const auto& fork = forks.at(i);
@@ -119,6 +131,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    }
 
    // make sure we can still produce blocks until irreversibility moves
+   // -----------------------------------------------------------------
    auto lib = node0.lib_block->block_num();
    size_t tries = 0;
    while (node0.lib_block->block_num() == lib && ++tries < 10) {

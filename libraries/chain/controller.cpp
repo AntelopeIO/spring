@@ -4987,8 +4987,6 @@ void controller::disable_async_voting(bool val) {
    my->disable_async_voting = val;
 }
 
-
-
 bool controller::can_vote_on(const signed_block_ptr& b) {
    return my->can_vote_on(b);
 }
