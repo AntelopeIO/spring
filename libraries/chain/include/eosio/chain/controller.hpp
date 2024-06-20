@@ -345,6 +345,9 @@ namespace eosio::chain {
          // thread safe, for testing
          bool node_has_voted_if_finalizer(const block_id_type& id) const;
 
+         // for testing
+         vote_info_vec get_votes(const block_id_type& id) const;
+
          // thread safe, for testing
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const;
 

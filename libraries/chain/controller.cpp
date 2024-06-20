@@ -3695,6 +3695,15 @@ struct controller_impl {
       return !voted || *voted;
    }
 
+   vote_info_vec get_votes(const block_id_type& id) const {
+       return fork_db.apply_s<vote_info_vec>([&](auto& forkdb) -> vote_info_vec {
+          auto bsp = forkdb.get_block(id);
+          if (bsp)
+             return bsp->get_votes();
+          return {};
+       });
+   }
+
    std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
       return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
          auto bsp = forkdb.get_block(id);
@@ -5374,6 +5383,10 @@ void controller::process_vote_message( uint32_t connection_id, const vote_messag
 
 bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
    return my->node_has_voted_if_finalizer(id);
+}
+
+vote_info_vec controller::get_votes(const block_id_type& id) const {
+   return my->get_votes(id);
 }
 
 std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {

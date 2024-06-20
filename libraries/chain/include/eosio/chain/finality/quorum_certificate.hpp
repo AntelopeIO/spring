@@ -88,6 +88,14 @@ namespace eosio::chain {
          bool has_voted(size_t index) const;
 
          vote_status add_vote(size_t index, const bls_signature& sig);
+
+         template<class CB>
+         void visit_bitset(const CB& cb) const {
+            for (size_t i = 0; i < bitset.size(); ++i) {
+               if (bitset[i])
+                  cb(i);
+            }
+         }
       };
 
       pending_quorum_certificate();
@@ -112,6 +120,14 @@ namespace eosio::chain {
 
       // thread safe
       bool has_voted(size_t index) const;
+
+      // for debugging, thread safe
+      template<class CB>
+      void visit_votes(const CB& cb) const {
+         std::lock_guard g(*_mtx);
+         strong_votes.visit_bitset([&](size_t idx) { cb(idx, true); });
+         weak_votes.visit_bitset([&](size_t idx)   { cb(idx, false); });
+      }
 
       state_t state() const { std::lock_guard g(*_mtx); return pending_state; };
 

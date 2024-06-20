@@ -207,6 +207,14 @@ bool block_state::has_voted(const bls_public_key& key) const {
    return false;
 }
 
+vote_info_vec block_state::get_votes() const {
+   const auto& finalizers = active_finalizer_policy->finalizers;
+   vote_info_vec res;
+   res.reserve(finalizers.size());
+   pending_qc.visit_votes([&](size_t idx, bool strong) { res.emplace_back(finalizers[idx].public_key, strong); });
+   return res;
+}
+
 // Called from net threads
 void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    const auto& finalizers = active_finalizer_policy->finalizers;
@@ -215,6 +223,7 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    // utility to accumulate voted weights
    auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
       uint64_t sum = 0;
+      assert(num_finalizers == votes_bitset.size());
       auto n = std::min(num_finalizers, votes_bitset.size());
       for (auto i = 0u; i < n; ++i) {
          if( votes_bitset[i] ) { // ith finalizer voted
