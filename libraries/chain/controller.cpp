@@ -1401,8 +1401,8 @@ struct controller_impl {
          auto lib_block   = chain_head;
          my_finalizers.set_default_safety_information(
             finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                          .last_vote = {start_block.id(), start_block.block_time()},
-                                          .lock      = {lib_block.id(),   lib_block.block_time()} });
+                                          .last_vote = {start_block.id(), start_block.block_time(), 1},
+                                          .lock      = {lib_block.id(),   lib_block.block_time(),   1} });
       }
    }
 
@@ -1595,8 +1595,8 @@ struct controller_impl {
                         auto lib_block   = chain_head;
                         my_finalizers.set_default_safety_information(
                            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = {start_block.id(), start_block.block_time()},
-                                                         .lock      = {lib_block.id(),   lib_block.block_time()} });
+                                                         .last_vote = {start_block.id(), start_block.block_time(), 1},
+                                                         .lock      = {lib_block.id(),   lib_block.block_time(),   1} });
                      }
                   }
                });
@@ -1959,7 +1959,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                                                .lock      = {lib->id(), lib->timestamp(), 1} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -1969,7 +1969,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                                                .lock      = {lib->id(), lib->timestamp(), 1} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
