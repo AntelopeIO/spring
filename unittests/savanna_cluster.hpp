@@ -113,7 +113,9 @@ namespace savanna_cluster {
          for (size_t i = 0; i < _nodes.size(); ++i)
             node0.push_blocks(_nodes[i]);
 
-         // from now on, propagation of blocks and votes happens automatically.
+         // from now on, propagation of blocks and votes happens automatically (thanks to the
+         // callbacks registered in `node_t` constructor).
+         //
          // Set one finalizer per node (keys at indices { 0, 10, 20, 30}) and create initial
          // `finalizer_policy` using these indices.
          // -----------------------------------------------------------------------------------
@@ -163,7 +165,7 @@ namespace savanna_cluster {
          return ranges::find(producers, pending) - producers.begin();
       }
 
-      // provide a set of node indices wgich will be disconnected from other nodes of the network,
+      // provide a set of node indices which will be disconnected from other nodes of the network,
       // creating two separate networks.
       // within each of the two partitions, nodes are still fully connected
       // -----------------------------------------------------------------------------------------
