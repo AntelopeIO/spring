@@ -1079,6 +1079,11 @@ struct controller_impl {
          [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->irreversible_blocknum(); });
    }
 
+   signed_block_ptr fork_db_head_block() const {
+      return fork_db.apply<signed_block_ptr>(
+         [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->block; });
+   }
+
    // --------------- access fork_db root ----------------------------------------------------------------------
    bool fork_db_has_root() const {
       return fork_db.apply<bool>([&](const auto& forkdb) { return !!forkdb.has_root(); });
@@ -5148,6 +5153,10 @@ std::optional<finality_data_t> controller::head_finality_data() const {
 
 uint32_t controller::fork_db_head_block_num()const {
    return my->fork_db_head_block_num();
+}
+
+signed_block_ptr controller::fork_db_head_block() const {
+   return my->fork_db_head_block();
 }
 
 block_id_type controller::fork_db_head_block_id()const {

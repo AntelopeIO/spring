@@ -360,6 +360,8 @@ namespace eosio::testing {
          const auto& [ block, id ] = t;
          lib_block = block;
          lib_id    = id;
+         assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
+         lib_number = lib_block->block_num();
       });
    }
 

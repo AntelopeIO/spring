@@ -148,9 +148,10 @@ namespace savanna_cluster {
       // propagated to connected nodes), and wait until one of the new producers is pending.
       // return the index of the pending new producer (we assume no duplicates in producer list)
       // -----------------------------------------------------------------------------------
-      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers) {
+      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers, bool create_accounts = true) {
          node_t& n = _nodes[node_idx];
-         n.create_accounts(producers);
+         if (create_accounts)
+            n.create_accounts(producers);
          n.set_producers(producers);
          account_name pending;
          signed_block_ptr sb;
@@ -185,6 +186,21 @@ namespace savanna_cluster {
 
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
+      void push_block(size_t dst_idx, const signed_block_ptr& sb) {
+         push_block_to_peers(dst_idx, false, sb);
+      }
+
+      // push new blocks from src_idx node to all nodes in partition of dst_idx.
+      void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
+         auto& src = _nodes[src_idx];
+         auto head_num = src.control->fork_db_head_block_num();
+
+         for (uint32_t i=start_block_num; i<=head_num; ++i) {
+            auto sb = src.control->fetch_block_by_number(i);
+            push_block(dst_idx, sb);
+         }
+      }
+
    public:
       std::array<node_t, num_nodes>   _nodes;
 
@@ -205,27 +221,27 @@ namespace savanna_cluster {
 
       friend node_t;
 
-      void dispatch_vote_to_peers(size_t node_idx, const vote_message_ptr& msg) {
+      void dispatch_vote_to_peers(size_t node_idx, bool skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
-         for_each_peer(node_idx, [&](node_t& n) {
+         for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.control->process_vote_message(++connection_id, msg);
          });
       }
 
-      void push_block_to_peers(size_t node_idx, const signed_block_ptr& b) {
-         for_each_peer(node_idx, [&](node_t& n) {
+      void push_block_to_peers(size_t node_idx, bool skip_self, const signed_block_ptr& b) {
+         for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.push_block(b);
          });
       }
 
       template<class CB>
-      void for_each_peer(size_t node_idx, const CB& cb) {
+      void for_each_peer(size_t node_idx, bool skip_self, const CB& cb) {
          if (_shutting_down)
             return;
 
          if (_partition.empty()) {
             for (size_t i=0; i<num_nodes; ++i)
-               if (i != node_idx)
+               if (!skip_self || i != node_idx)
                   cb(_nodes[i]);
          } else {
             auto in_partition = [&](size_t node_idx) {
@@ -233,7 +249,7 @@ namespace savanna_cluster {
             };
             bool in = in_partition(node_idx);
             for (size_t i=0; i<num_nodes; ++i)
-               if (i != node_idx && in == in_partition(i))
+               if ((!skip_self || i != node_idx) && in == in_partition(i))
                   cb(_nodes[i]);
          }
       }

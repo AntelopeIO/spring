@@ -554,6 +554,7 @@ namespace eosio::testing {
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
          signed_block_ptr                              lib_block; // updated via irreversible_block signal
          block_id_type                                 lib_id;    // updated via irreversible_block signal
+         uint32_t                                      lib_number {0}; // updated via irreversible_block signal
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
