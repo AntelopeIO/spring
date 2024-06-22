@@ -958,8 +958,8 @@ struct controller_impl {
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
    bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
-   bool                            disable_async_voting = false; // by default we post `create_and_send_vote_msg()` calls
-   bool                            disable_async_aggregation = false; // by default we process incoming votes async.
+   bool                            disable_async_voting = false; // by default we post `create_and_send_vote_msg()` calls, used in tester
+   bool                            disable_async_aggregation = false; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
