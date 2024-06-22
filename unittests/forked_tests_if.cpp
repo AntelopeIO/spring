@@ -19,7 +19,20 @@ using namespace eosio::testing;
 
 BOOST_AUTO_TEST_SUITE(forked_tests_if)
 
-// ---------------------------- fork_with_bad_block ---------------------------------
+// ---------------------------- fork_with_bad_block -------------------------------------
+// - split the network (so finality doesn't advance) and create 3 forks on a node,
+//   each fork containing 3 blocks, each having a different block corrupted (first
+//   second or third block of the fork).
+// - blocks are corrupted by changing action_mroot, which allows them to be inserted
+//   in fork_db, but they won't validate.
+// - make sure that the first two blocks of each fork have a timestamp earlier that the
+//   blocks of node0's fork, and that the last block of each fork has a timestamp later
+//   than the blocks of node0's fork (so the fork swith happens when the last block of the
+//   fork is pushed, according to Savanna's fork choice rules).
+// - push forks to other node, most corrupted fork first (causing multiple fork switches).
+//   Verify that we get an exception when the last block of the fork is pushed.
+// - produce blocks and verify that finality still advances.
+// ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try {
    struct fork_tracker {
       vector<signed_block_ptr>           blocks;
