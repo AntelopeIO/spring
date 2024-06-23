@@ -244,7 +244,6 @@ namespace eosio::chain {
          account_name         head_block_producer()const;
          const block_header&  head_block_header()const;
          const signed_block_ptr& head_block()const;
-         bool                 head_sanity_check()const;
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,

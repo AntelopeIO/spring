@@ -91,21 +91,6 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
    return *it->second;
 }
 
-bool proposed_finalizer_policies_valid(const std::vector<std::pair<block_num_type, finalizer_policy_ptr>>& proposed_fin_policies) {
-   // check that proposed_finalizer_policies is sorted in ascending order without
-   // repeations; this also implies at most *one* proposed finalizer policy exists
-   // for one block number.
-   block_num_type prev_block_num(0);
-
-   for (auto it = proposed_fin_policies.begin(); it != proposed_fin_policies.end(); ++it) {
-      if (it->first < prev_block_num) // must be in strictly ascending order
-         return false;
-      else
-         prev_block_num = it->first;
-   }
-   return true;
-}
-
 // This function evaluates possible promotions from pending to active
 // (removing any pending policies that are known at that time to never become active)
 // and from proposed to pending (removing any proposed policies that are known at that
@@ -129,8 +114,6 @@ bool proposed_finalizer_policies_valid(const std::vector<std::pair<block_num_typ
 //
 void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
                                                block_header_state& next_header_state) {
-   assert(proposed_finalizer_policies_valid(prev.proposed_finalizer_policies));
-
    auto lib = next_header_state.core.last_final_block_num();
 
    // Promote pending to active if it is time to do so, otherwise keep
@@ -202,8 +185,6 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
          first_policy_after_lib_itr,
          prev.proposed_finalizer_policies.end());
    }
-
-   assert(proposed_finalizer_policies_valid(next_header_state.proposed_finalizer_policies));
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -408,13 +389,6 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext, false);
 
    return next_header_state;
-}
-
-// -------------------------------------------------------------------------------
-// do some sanity checks on block_header_state
-// -------------------------------------------------------------------------------
-bool block_header_state::sanity_check() const {
-   return proposed_finalizer_policies_valid(proposed_finalizer_policies);
 }
 
 } // namespace eosio::chain
