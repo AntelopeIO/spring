@@ -92,7 +92,6 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
 }
 
 // This function evaluates possible promotions from pending to active
-// (removing any pending policies that are known at that time to never become active)
 // and from proposed to pending (removing any proposed policies that are known at that
 // time to never become pending)
 //
