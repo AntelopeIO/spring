@@ -208,14 +208,14 @@ BOOST_AUTO_TEST_CASE(no_proposed_promotion_no_pending_promotion_1_test) try {
      {5u, nullptr},  // kept as proposed
      {6u, nullptr}   // kept as proposed
    };
-   prev.pending_finalizer_policy = std::make_pair(6u, nullptr); // does NOT become active as block num (6) greater than lib (5)
+   prev.pending_finalizer_policy = std::make_pair(7u, nullptr); // does NOT become active as block num (7) greater than lib (5)
 
    evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
    BOOST_REQUIRE(next_header_state.proposed_finalizer_policies.size() == 2u);
    BOOST_REQUIRE(next_header_state.proposed_finalizer_policies.front().first == 5u);
    BOOST_REQUIRE(next_header_state.proposed_finalizer_policies.back().first == 6u);
-   BOOST_REQUIRE(next_header_state.pending_finalizer_policy->first == 6u); // kept the same
+   BOOST_REQUIRE(next_header_state.pending_finalizer_policy->first == 7u); // kept the same
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE(no_proposed_promotion_no_pending_promotion_2_test) try {
