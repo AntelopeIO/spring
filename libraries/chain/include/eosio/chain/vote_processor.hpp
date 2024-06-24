@@ -185,14 +185,14 @@ public:
    }
 
    // called from net threads
-   void notify_new_block(bool disable_async = false) {
+   void notify_new_block(async_t async) {
       if (stopped)
          return;
       auto process_any_queued = [this] {
          std::unique_lock g(mtx);
          process_any_queued_for_later(g);
       };
-      if (disable_async)
+      if (async == async_t::no)
          process_any_queued();
       else {
          // would require a mtx lock to check if index is empty, post check to thread_pool
@@ -202,7 +202,7 @@ public:
 
    /// called from net threads and controller's thread pool
    /// msg is ignored vote_processor not start()ed
-   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg, bool disable_async = false) {
+   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg, async_t async) {
       if (stopped)
          return;
       assert(msg);
@@ -251,7 +251,7 @@ public:
 
       };
 
-      if (disable_async)
+      if (async == async_t::no)
          process_vote();
       else
          boost::asio::post(thread_pool.get_executor(), process_vote);
