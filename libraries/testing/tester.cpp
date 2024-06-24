@@ -353,8 +353,8 @@ namespace eosio::testing {
           }
       });
 
-      control->disable_async_voting(true);      // vote synchronously so we don't have to wait for votes
-      control->disable_async_aggregation(true); // aggregate votes synchronously for `_check_for_vote_if_needed`
+      control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
+      control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
       lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
