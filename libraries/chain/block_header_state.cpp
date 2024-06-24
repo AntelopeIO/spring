@@ -108,82 +108,69 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
 //       less than or equal to the new LIB number (call this the target proposed policy).
 //  ii.  Remove any proposed policies with an associated block number less than that of
 //       the target proposed policy.
-//  iii. If there is no pending policy, promote that target proposed policy to pending.
+//  iii. If the pending slot is open, promote that target proposed policy to pending.
 //       Otherwise, leave the target proposed policy (and any other proposed policies with
 //       greater associated block numbers) alone in the proposed policy queue.
 //
 void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
                                                block_header_state& next_header_state) {
-   auto lib = next_header_state.core.last_final_block_num();
+   // Common case: if no pending policy and no proposed_finalizer_policies to evaluate,
+   //              just return
+   if (!prev.pending_finalizer_policy.has_value() && prev.proposed_finalizer_policies.empty() ) {
+      return;
+   }
 
-   // Promote pending to active if it is time to do so, otherwise keep
-   // pending as is by copying it to next_header_state
+   auto lib = next_header_state.core.last_final_block_num();
+   const auto& prev_pending = prev.pending_finalizer_policy;
+   const auto& prev_proposed = prev.proposed_finalizer_policies;
+   auto& next_pending = next_header_state.pending_finalizer_policy;
+   auto& next_proposed = next_header_state.proposed_finalizer_policies;
+
+   // Evaluate pending first.
    bool pending_slot_open = true;
-   if (prev.pending_finalizer_policy.has_value()) {
-      if (prev.pending_finalizer_policy->first <= lib) {
-         // The block associated with the policy has become final,
-         // promote it to active
-         next_header_state.active_finalizer_policy = prev.pending_finalizer_policy->second;
+   if (prev_pending.has_value()) {
+      if (prev_pending->first <= lib) {
+         // The block associated with the pending has become final, promote pending to active
+         next_header_state.active_finalizer_policy = prev_pending->second;
       } else {
-         // Copy to next_header_state
-         next_header_state.pending_finalizer_policy = prev.pending_finalizer_policy;
+         // Pending not yet to become final, copy it to next_header_state
+         next_pending = prev_pending;
          pending_slot_open = false;  // no slot openned up
       }
    }
 
    // Nothing more to do if existing proposed_finalizer_policies is empty
-   if (prev.proposed_finalizer_policies.empty()) {
+   if (prev_proposed.empty()) {
       return;
    }
 
-   // * Find the target proposed policy (a policy whose associated block number is
-   //   the largest block number is less than or eqaul to LIB.
-   // * Find the first policy whose associated block number is greater than LIB;
-   //   this is used to garbage collecting proposed policies that will never become
-   //   pending.
-   auto itr = prev.proposed_finalizer_policies.begin();
-   auto target_policy_itr = prev.proposed_finalizer_policies.end();
-   auto first_policy_after_lib_itr = prev.proposed_finalizer_policies.end();
-   while (itr != prev.proposed_finalizer_policies.end()) {
-      if (itr->first <= lib) {
-         // proposed_finalizer_policies is sorted in the order of block_num
-         assert(target_policy_itr == prev.proposed_finalizer_policies.end() ||
-                target_policy_itr->first < itr->first);
-
-         target_policy_itr = itr;
-      } else {
-         // first_policy_after_lib_itr can  be set only once
-         assert(first_policy_after_lib_itr == prev.proposed_finalizer_policies.end());
-
-         first_policy_after_lib_itr = itr;
-         break;
-      }
-
-      ++itr;
-   }
+   // Find the target proposed policy which is the proposed policy with the greatest
+   // associated block number that is less than or equal to the new LIB number
+   auto first_reversible = std::ranges::find_if(prev_proposed, [&](const auto& p) { return p.first > lib; });
+   auto target = first_reversible > prev_proposed.begin() ? first_reversible - 1 : prev_proposed.end();
 
    // Promote target policy to pending if the pending slot is available, otherwise
-   // copy it to next_header_state.proposed_finalizer_policies
-   if (target_policy_itr != prev.proposed_finalizer_policies.end()) {
+   // copy it to next_proposed
+   if (target != prev_proposed.end()) {
       if (pending_slot_open) {
-         // When the block with `block_num` becomes final, the pending polilcy is promoted
-         // to active
+         // promote the target to pending
+         // https://github.com/AntelopeIO/spring/issues/306 will update generation properly
          auto block_num = next_header_state.block_num();
-         next_header_state.pending_finalizer_policy.emplace(block_num, target_policy_itr->second);
+         next_pending.emplace(block_num, target->second);
       } else {
-         next_header_state.proposed_finalizer_policies.emplace_back(*target_policy_itr);
+         // leave the target alone in the proposed policies
+         next_proposed.emplace_back(*target);
       }
-   }
 
-   // copy remainder of proposed policies
-   if (first_policy_after_lib_itr != prev.proposed_finalizer_policies.end()) {
-      assert(next_header_state.proposed_finalizer_policies.empty() ||
-             next_header_state.proposed_finalizer_policies.back().first < first_policy_after_lib_itr->first);
-
-      next_header_state.proposed_finalizer_policies.insert(
-         next_header_state.proposed_finalizer_policies.end(),
-         first_policy_after_lib_itr,
-         prev.proposed_finalizer_policies.end());
+      if (first_reversible != prev_proposed.end()) {
+         // Copy proposed policies with an associated block number greater than that of the target
+         // proposed policy (implictly remove any proposed policies with an associated block
+         // number less than that of the target proposed policy)
+         next_proposed.insert( next_proposed.end(), first_reversible, prev_proposed.end());
+      }
+   } else {
+      // No target proposed policy exists, just copy the previous proposed policies to next
+      next_proposed = prev_proposed;
    }
 }
 
