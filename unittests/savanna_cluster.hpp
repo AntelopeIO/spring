@@ -67,6 +67,8 @@ namespace savanna_cluster {
 
       uint32_t head_num() const { return control->fork_db_head_block_num(); }
 
+      signed_block_ptr head() const { return control->fork_db_head_block(); }
+
       void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          while (to.head_num() < std::min(head_num(), block_num_limit)) {
             auto sb = control->fetch_block_by_number(to.control->fork_db_head_block_num() + 1);

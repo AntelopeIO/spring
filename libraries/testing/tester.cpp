@@ -385,7 +385,7 @@ namespace eosio::testing {
       });
    }
 
-   void base_tester::push_block(signed_block_ptr b) {
+   void base_tester::push_block(const signed_block_ptr& b) {
       auto block_id = b->calculate_id();
       auto bhf = control->create_block_handle_future(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );

@@ -153,7 +153,16 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 
 } FC_LOG_AND_RETHROW();
 
-// ---------------------------- forking ---------------------------------
+// ---------------------------- forking ---------------------------------------------------------
+// - on a network of 4 nodes, set a producer schedule { "dan"_n, "sam"_n, "pam"_n }
+// - split the network into two partitions P0 and P1
+// - produce 10 blocks on P0 and verify lib doesn't advance on either partition
+// - and on partition P0 update the schedule to { "dan"_n, "sam"_n, "pam"_n, "cam"_n }
+// - on P1, produce a block with a later timestamp than the last P0 block and push it to P0.
+// - verify that the fork switch happens on P0 because of the later timestamp.
+// - produce more blocks on P1, push them on P0, verify fork switch happens and head blocks match.
+//
+// -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
    while (node0.control->head_block_num() < 3) {
       node0.produce_block();
@@ -169,9 +178,17 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
                                               // at this point, each node has a QC to include into
                                               // the next block it produces which will advance lib.
 
-   // now that the network is split, produce 10 blocks on node0
-   sb = node0.produce_blocks(10);
+   // process in-flight QC and reset lib
+   node0.produce_block();
+   node3.produce_block();
+   reset_lib();
+
+   // now that the network is split, produce 9 blocks on node0
+   sb = node0.produce_blocks(9);
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
+
+   // verify that lib doesn't advance
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // set new producers and produce blocks until the switch is pending
    node0.create_accounts( {"cam"_n} );
@@ -182,141 +199,28 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
    BOOST_REQUIRE_GT(new_prod, prod);
    BOOST_REQUIRE_EQUAL(new_prod, 1);
-   printf("prod=%zu prod0=%zu\n", prod, new_prod);
 
    node0.produce_blocks(3);                                     // sam produces 3 more blocks
 
    // start producing on node3, skipping ahead by 23 block_interval_ms so that these block timestamps
    // will be ahead of those of node0.
    //
-   // node3 is still having just produced the 1st block by "sam", and with the `producers` schedule.
-   // skip 24 blocks in the future so that "pam" produces
-   auto node3_head = node3.produce_block(fc::milliseconds(23 * config::block_interval_ms));
-   BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);            // should be "sam"'s last block
+   // node3 is still having just produced the 2nd block by "sam", and with the `producers` schedule.
+   // skip 23 blocks in the future so that "pam" produces
+   auto node3_head = node3.produce_block(fc::milliseconds(22 * config::block_interval_ms));
+   BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);    // should be sam's last block
    push_block(0, node3_head);
-   BOOST_REQUIRE_EQUAL(node3_head, node0.control->fork_db_head_block()); // fork switch on 1st block because of later timestamp
+   BOOST_REQUIRE_EQUAL(node3_head, node0.head());              // fork switch on 1st block because of later timestamp
+   BOOST_REQUIRE_EQUAL(node3_head, node1.head());              // push_block() propagated on peer which also fork switched
 
    sb = node3.produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[2]);            // just switched to "pam"
-   sb = node3.produce_blocks(12);                              // should have switched back to "sam"
-   BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);
-   push_blocks(3, 0, node3_head->block_num() + 1);
-   BOOST_REQUIRE_EQUAL(node0.control->fork_db_head_block(), node3.control->fork_db_head_block()); // node0 caught up
-   BOOST_REQUIRE_EQUAL(node1.control->fork_db_head_block(), node3.control->fork_db_head_block()); // node0 peer updated
+   sb = node3.produce_blocks(12);                              // after 12 blocks, should have switched to "dan"
+   BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
-
-
-
-
-
-
-#if 0
-   wdump((fc::json::to_pretty_string(prod)));
-   wlog("set producer schedule to [dan,sam,pam]");
-   c.produce_blocks(30); // legacy: 0..2 by eosio, 3..7 by dan, 8..19 by sam, 20..29 by pam, pam still has 2 to produce
-   c.produce_blocks(10); // 0..1 by pam, 2..9 by dan, dan still has 4 to produce
-
-   legacy_tester c2(setup_policy::none);
-   wlog( "push c1 blocks to c2" );
-   push_blocks(c, c2);
-   wlog( "end push c1 blocks to c2" );
-
-   wlog( "c1 blocks:" );
-   signed_block_ptr b = c.produce_blocks(4);
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
-
-   b = c.produce_block();
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
-   c.produce_blocks(10);
-   c.create_accounts( {"cam"_n} );
-   c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"cam"_n} );
-   wlog("set producer schedule to [dan,sam,pam,cam]");
-   c.produce_block();
-   // The next block should be produced by pam.
-
-   // Sync second chain with first chain.
-   wlog( "push c1 blocks to c2" );
-   push_blocks(c, c2);
-   wlog( "end push c1 blocks to c2" );
-
-   // Now sam and pam go on their own fork while dan is producing blocks by himself.
-
-   wlog( "sam and pam go off on their own fork on c2 while dan produces blocks by himself in c1" );
-   auto fork_block_num = c.control->head_block_num();
-
-   wlog( "c2 blocks:" );
-   c2.produce_blocks(12); // pam produces 12 blocks
-   b = c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // sam skips over dan's blocks
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "sam"_n.to_string() );
-   c2.produce_blocks(11 + 12);
-
-
-   wlog( "c1 blocks:" );
-   b = c.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // dan skips over pam's blocks
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "dan"_n.to_string() );
-   c.produce_blocks(11);
-
-   // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
-   wlog( "push c2 blocks to c1" );
-   for( uint32_t start = fork_block_num + 1, end = c2.control->head_block_num(); start <= end; ++start ) {
-      wdump((start));
-      auto fb = c2.control->fetch_block_by_number( start );
-      c.push_block( fb );
-   }
-   wlog( "end push c2 blocks to c1" );
-
-   wlog( "c1 blocks:" );
-   c.produce_blocks(24);
-
-   b = c.produce_block(); // Switching active schedule to version 2 happens in this block.
-   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "pam"_n.to_string() );
-
-   b = c.produce_block();
-//   BOOST_REQUIRE_EQUAL( b->producer.to_string(), "cam"_n.to_string() );
-   c.produce_blocks(10);
-
-   wlog( "push c1 blocks to c2" );
-   push_blocks(c, c2);
-   wlog( "end push c1 blocks to c2" );
-
-   // Now with four block producers active and two identical chains (for now),
-   // we can test out the case that would trigger the bug in the old fork db code:
-   fork_block_num = c.control->head_block_num();
-   wlog( "cam and dan go off on their own fork on c1 while sam and pam go off on their own fork on c2" );
-   wlog( "c1 blocks:" );
-   c.produce_blocks(12); // dan produces 12 blocks
-   c.produce_block( fc::milliseconds(config::block_interval_ms * 25) ); // cam skips over sam and pam's blocks
-   c.produce_blocks(23); // cam finishes the remaining 11 blocks then dan produces his 12 blocks
-   wlog( "c2 blocks:" );
-   c2.produce_block( fc::milliseconds(config::block_interval_ms * 25) ); // pam skips over dan and sam's blocks
-   c2.produce_blocks(11); // pam finishes the remaining 11 blocks
-   c2.produce_block( fc::milliseconds(config::block_interval_ms * 25) ); // sam skips over cam and dan's blocks
-   c2.produce_blocks(11); // sam finishes the remaining 11 blocks
-
-   wlog( "now cam and dan rejoin sam and pam on c2" );
-   c2.produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // cam skips over pam's blocks (this block triggers a block on this branch to become irreversible)
-   c2.produce_blocks(11); // cam produces the remaining 11 blocks
-   b = c2.produce_block(); // dan produces a block
-
-   // a node on chain 1 now gets all but the last block from chain 2 which should cause a fork switch
-   wlog( "push c2 blocks (except for the last block by dan) to c1" );
-   for( uint32_t start = fork_block_num + 1, end = c2.control->head_block_num() - 1; start <= end; ++start ) {
-      auto fb = c2.control->fetch_block_by_number( start );
-      c.push_block( fb );
-   }
-   wlog( "end push c2 blocks to c1" );
-   wlog( "now push dan's block to c1 but first corrupt it so it is a bad block" );
-   signed_block bad_block = std::move(*b);
-   bad_block.action_mroot = bad_block.previous;
-   auto bad_id = bad_block.calculate_id();
-   auto bad_block_btf = c.control->create_block_handle_future( bad_id, std::make_shared<signed_block>(std::move(bad_block)) );
-   c.control->abort_block();
-   controller::block_report br;
-   BOOST_REQUIRE_EXCEPTION(c.control->push_block( br, bad_block_btf.get(), {}, trx_meta_cache_lookup{} ), fc::exception,
-      [] (const fc::exception &ex)->bool {
-         return ex.to_detail_string().find("block signed by unexpected key") != std::string::npos;
-      });
-#endif
+   push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
+   BOOST_REQUIRE_EQUAL(node0.head(), node3.head());            // node0 caught up
+   BOOST_REQUIRE_EQUAL(node1.head(), node3.head());            // node0 peer was updated as well
 } FC_LOG_AND_RETHROW()
 
 
