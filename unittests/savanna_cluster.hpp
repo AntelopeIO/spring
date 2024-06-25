@@ -122,14 +122,16 @@ namespace savanna_cluster {
 
          // set initial finalizer policy
          // ----------------------------
+         std::array<size_t, num_nodes> indices;
+
          for (size_t i = 0; i < _nodes.size(); ++i) {
-            _fin_policy_indices_0[i] = i * keys_per_node;
+            indices[i] = i * keys_per_node;
             _nodes[i].set_node_finalizers(keys_per_node, num_nodes);
          }
 
          // do the transition to Savanna on node0. Blocks will be propagated to the other nodes.
          // ------------------------------------------------------------------------------------
-         auto [_fin_policy_pubkeys_0, _fin_policy_0] = node0.transition_to_savanna(_fin_policy_indices_0);
+         auto [_fin_policy_pubkeys, fin_policy] = node0.transition_to_savanna(indices);
 
          // at this point, node0 has a QC to include in next block.
          // Produce that block and push it, but don't process votes so that
@@ -195,11 +197,7 @@ namespace savanna_cluster {
       node_t&                         node2 = _nodes[2];
       node_t&                         node3 = _nodes[3];
 
-      // Used for transition to Savanna
-      // ------------------------------
-      std::optional<finalizer_policy> _fin_policy_0;         // policy used to transition to Savanna
-      std::array<size_t, num_nodes>   _fin_policy_indices_0; // set of key indices used for transition
-      std::vector<bls_public_key>     _fin_policy_pubkeys_0; // set of public keys used for transition
+      std::vector<bls_public_key>     _fin_policy_pubkeys; // set of public keys for node finalizers
 
    private:
       std::vector<size_t>             _partition;

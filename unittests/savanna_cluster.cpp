@@ -52,7 +52,7 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
       // because the network is not split, we expect all finalizers to have voted (strong) on the block
       // produced by node3. Check that it is indeed the case.
       auto votes = node0.get_votes(sb->calculate_id());
-      for (const auto& k : _fin_policy_pubkeys_0) {
+      for (const auto& k : _fin_policy_pubkeys) {
          auto it = std::ranges::find_if(votes, [&](const vote_info& v) { return v.finalizer == k; });
          BOOST_REQUIRE(it != votes.end());
          BOOST_REQUIRE_EQUAL(it->strong, true);
