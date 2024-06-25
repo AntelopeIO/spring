@@ -44,12 +44,6 @@ struct finality_digest_data_v1 {
 //
 // When this current block itself becomes final, the policy becomes active.
 // ------------------------------------------------------------------------------------------
-struct finalizer_policy_tracker {
-   enum class state_t { proposed = 0, pending };
-   state_t                    state;
-   finalizer_policy_ptr       policy;
-};
-
 struct building_block_input {
    block_id_type                     parent_id;
    block_timestamp_type              parent_timestamp;
@@ -86,10 +80,15 @@ struct block_header_state {
    //   If proposed in B1, B2, .. B12 becomes active in D1
    flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
 
-   // track in-flight finalizer policies. This is a `multimap` because the same block number
-   // can hold a `proposed` and a `pending` finalizer_policy. When that block becomes final, the
-   // `pending` becomes active, and the `proposed` becomes `pending` (for a different block number).
-   flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
+   // Track in-flight proposed finalizer policies.
+   // When the block associated with a proposed finalizer policy becomes final,
+   // it becomes pending.
+   std::vector<std::pair<block_num_type, finalizer_policy_ptr>> proposed_finalizer_policies;
+   // Track in-flight pending finalizer policy. At most one pending
+   // finalizer policy at any moment.
+   // When the block associated with the pending finalizer policy becomes final,
+   // it becomes active.
+   std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
 
    // generation increases by one each time a new finalizer_policy is proposed in a block
    // It matches the finalizer policy generation most recently included in this block's `if_extension` or its ancestors
@@ -135,8 +134,6 @@ struct block_header_state {
       return qc_claim > core.latest_qc_claim();
    }
 
-   bool sanity_check() const; // does sanity check of block_header_state, returns true if successful
-
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
 
@@ -149,13 +146,10 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 }
 
-FC_REFLECT_ENUM( eosio::chain::finalizer_policy_tracker::state_t, (proposed)(pending))
-
-FC_REFLECT( eosio::chain::finalizer_policy_tracker, (state)(policy))
-
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
-            (active_proposer_policy)(proposer_policies)(finalizer_policies)
-            (finalizer_policy_generation)(last_pending_finalizer_policy_digest)(header_exts))
+            (active_proposer_policy)(proposer_policies)(proposed_finalizer_policies)
+            (pending_finalizer_policy)(finalizer_policy_generation)
+            (last_pending_finalizer_policy_digest))
 
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(last_pending_finalizer_policy_and_base_digest) )
