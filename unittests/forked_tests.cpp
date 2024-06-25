@@ -112,12 +112,13 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
       }
    }
 
-   // make sure we can still produce a blocks until irreversibility moves
+   // make sure we can still produce blocks until irreversibility moves
    auto lib = bios.lib_block->block_num();
    size_t tries = 0;
    while (bios.lib_block->block_num() == lib && ++tries < 10000) {
       bios.produce_block();
    }
+   BOOST_REQUIRE_GT(bios.lib_block->block_num(), lib);
 
 } FC_LOG_AND_RETHROW();
 
