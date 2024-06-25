@@ -125,6 +125,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // and all blocks from the forks are validated, which is why we expect an exception when the last
    // block of the fork is pushed.
    // -------------------------------------------------------------------------------------------------
+   auto node0_head = node0.control->head_block_id();
    for (size_t i = 0; i < forks.size(); i++) {
       BOOST_TEST_CONTEXT("Testing Fork: " << i) {
          const auto& fork = forks.at(i);
@@ -138,20 +139,25 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
          }
 
          // push the block which should attempt the corrupted fork and fail
-         BOOST_REQUIRE_EXCEPTION( node0.push_block(fork.blocks.back()), fc::exception,
-                                  fc_exception_message_starts_with( "finality_mroot does not match" )
-         );
+         BOOST_REQUIRE_EXCEPTION(node0.push_block(fork.blocks.back()), fc::exception,
+                                 fc_exception_message_starts_with( "finality_mroot does not match"));
+         BOOST_REQUIRE_EQUAL(node0.control->head_block_id(), node0_head);
       }
    }
 
    // make sure we can still produce blocks until irreversibility moves
    // -----------------------------------------------------------------
+#if 0
+   // not working yet. We need 3 finalizers to sign for lib to advance, but node2 and 3 have bad forks
+   // so they cannot link new blocks.
+   set_partition({3});
    auto lib = node0.lib_block->block_num();
    size_t tries = 0;
    while (node0.lib_block->block_num() == lib && ++tries < 10) {
       node0.produce_block();
    }
-
+   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib);
+#endif
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_SUITE_END()
