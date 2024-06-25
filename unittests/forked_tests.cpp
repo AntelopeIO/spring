@@ -349,7 +349,7 @@ void test_validator_accepts_valid_blocks() try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) {
-   legacy_tester c;		   test_validator_accepts_valid_blocks<legacy_tester>();
+   test_validator_accepts_valid_blocks<legacy_tester>();
    test_validator_accepts_valid_blocks<tester>();
 }
 
