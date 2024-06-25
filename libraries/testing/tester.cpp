@@ -519,7 +519,7 @@ namespace eosio::testing {
 
       control->commit_block(br);
       signed_block_ptr sb = control->head_block();
-      last_produced_block[producer_name] = sb->calculate_id();
+      last_produced_block[producer_name] = control->head_block_id();
 
       _check_for_vote_if_needed(*control, sb);
 

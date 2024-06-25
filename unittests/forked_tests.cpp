@@ -23,18 +23,7 @@ using namespace eosio::testing;
 
 BOOST_AUTO_TEST_SUITE(forked_tests)
 
-// ---------------------------- irrblock ---------------------------------
-BOOST_AUTO_TEST_CASE( irrblock ) try {
-   legacy_tester c;
-   c.produce_blocks(10);
-   auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
-   auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
-
-   wlog("set producer schedule to [dan,sam,pam]");
-   c.produce_blocks(50);
-
-} FC_LOG_AND_RETHROW()
-
+// ---------------------------- fork_tracker ----------------------------------------
 struct fork_tracker {
    vector<signed_block_ptr>           blocks;
    incremental_merkle_tree_legacy     block_merkle;
@@ -123,12 +112,13 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
       }
    }
 
-   // make sure we can still produce a blocks until irreversibility moves
+   // make sure we can still produce blocks until irreversibility moves
    auto lib = bios.lib_block->block_num();
    size_t tries = 0;
    while (bios.lib_block->block_num() == lib && ++tries < 10000) {
       bios.produce_block();
    }
+   BOOST_REQUIRE_GT(bios.lib_block->block_num(), lib);
 
 } FC_LOG_AND_RETHROW();
 
@@ -266,7 +256,9 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    wlog("set producer schedule to [dan,sam,pam,scott]");
 
    // run until the producers are installed and its the start of "dan's" round
-   BOOST_REQUIRE( produce_until_transition( c, "scott"_n, "dan"_n ) );
+   BOOST_REQUIRE( produce_until_transition( c, "dan"_n, "sam"_n ) );
+   c.produce_block(); // after `push_blocks`, both c and c2 will have seen all of dan's blocks
+                      // and one block by sam, so finality will advance again when a new producer produces
 
    legacy_tester c2(setup_policy::none);
    wlog( "push c1 blocks to c2" );
@@ -274,6 +266,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
 
    // fork happen after block fork_num
    uint32_t fork_num = c.control->head_block_num();
+
    BOOST_REQUIRE_EQUAL(fork_num, c2.control->head_block_num());
 
    auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
@@ -309,7 +302,7 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       c.push_block(fb);
    }
 
-   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 12u, c.control->head_block_num());
 
 } FC_LOG_AND_RETHROW()
 
@@ -357,7 +350,7 @@ void test_validator_accepts_valid_blocks() try {
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) {
-   legacy_tester c;		   test_validator_accepts_valid_blocks<legacy_tester>();
+   test_validator_accepts_valid_blocks<legacy_tester>();
    test_validator_accepts_valid_blocks<tester>();
 }
 
