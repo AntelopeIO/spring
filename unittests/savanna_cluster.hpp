@@ -3,11 +3,6 @@
 #include <eosio/chain/finality/finalizer_authority.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
-#pragma GCC diagnostic push
-   #pragma GCC diagnostic ignored "-Wsign-compare"
-   #include <boost/test/unit_test.hpp>
-#pragma GCC diagnostic pop
-
 #include <eosio/testing/tester.hpp>
 
 namespace savanna_cluster {
