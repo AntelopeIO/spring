@@ -175,6 +175,7 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
       node0.produce_block();
    }
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
+   node0.create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb = node0.produce_block();
@@ -200,7 +201,7 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
    // set new producers and produce blocks until the switch is pending
    node0.create_accounts( {"cam"_n} );
    const vector<account_name> new_producers { "dan"_n, "sam"_n, "pam"_n, "cam"_n };
-   auto new_prod = set_producers(0, new_producers, false);      // set new producers and produce blocks until the switch is pending
+   auto new_prod = set_producers(0, new_producers);             // set new producers and produce blocks until the switch is pending
 
    sb = node0.produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
