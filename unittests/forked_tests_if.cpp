@@ -41,6 +41,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    node0.produce_block();
 
    const vector<account_name> producers {"a"_n, "b"_n, "c"_n, "d"_n, "e"_n};
+   node0.create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb = node0.produce_block();           // now the next block can be produced on any node (here node0)

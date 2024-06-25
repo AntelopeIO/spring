@@ -149,7 +149,6 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------------
       size_t set_producers(size_t node_idx, const std::vector<account_name>& producers) {
          node_t& n = _nodes[node_idx];
-         n.create_accounts(producers);
          n.set_producers(producers);
          account_name pending;
          signed_block_ptr sb;

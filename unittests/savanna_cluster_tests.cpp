@@ -18,6 +18,7 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
 
       const vector<account_name> producers {"a"_n, "b"_n, "c"_n};
 
+      node0.create_accounts(producers);
       auto prod = set_producers(0, producers);              // Set new producers and produce blocks until the
                                                             // switch is pending
       auto sb = node3.produce_block();                      // now the next block produced on any node
