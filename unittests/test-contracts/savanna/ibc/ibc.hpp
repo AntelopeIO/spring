@@ -65,4 +65,6 @@ CONTRACT ibc : public contract {
       ACTION setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num); //set finality policy
       ACTION checkproof(const proof& proof);
 
+      ACTION testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector);
+
 };

@@ -575,4 +575,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    } FC_LOG_AND_RETHROW() }
 
+   BOOST_AUTO_TEST_CASE(bitset_tests) { try {
+
+
+   } FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()

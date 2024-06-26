@@ -341,6 +341,20 @@
                     "type": "time_point"
                 }
             ]
+        },
+        {
+            "name": "testbitset",
+            "base": "",
+            "fields": [
+                {
+                    "name": "bitset_string",
+                    "type": "string"
+                },
+                {
+                    "name": "bitset_vector",
+                    "type": "bytes"
+                }
+            ]
         }
     ],
     "actions": [
@@ -352,6 +366,11 @@
         {
             "name": "setfpolicy",
             "type": "setfpolicy",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "testbitset",
+            "type": "testbitset",
             "ricardian_contract": ""
         }
     ],

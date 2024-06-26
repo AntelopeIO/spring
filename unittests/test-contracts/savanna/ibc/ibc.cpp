@@ -168,3 +168,12 @@ ACTION ibc::checkproof(const proof& proof){
     _maybe_remove_from_cache<proofs_table>();
 
 }
+
+ACTION ibc::testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector){
+
+    size_t finalizer_count = bitset_vector.size();
+    savanna::bitset b(finalizer_count, bitset_vector);
+
+    check(b.to_string() == bitset_string, "bitset mismatch");
+    
+}
