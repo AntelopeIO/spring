@@ -38,7 +38,7 @@ namespace savanna_cluster {
          // since we are creating forks, finalizers may be locked on another fork and unable to vote.
          do_check_for_votes(false);
 
-         control->voted_block().connect([&](const eosio::chain::vote_signal_params& v) {
+         control->voted_block().connect([&, node_idx](const eosio::chain::vote_signal_params& v) {
             // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
             // to vote (and emit the `voted_block` signal) synchronously.
             // --------------------------------------------------------------------------------------
