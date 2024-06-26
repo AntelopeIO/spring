@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_SUITE(forked_tests_if)
 //   Verify that we get an exception when the last block of the fork is pushed.
 // - produce blocks and verify that finality still advances.
 // ---------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) try {
    struct fork_tracker {
       vector<signed_block_ptr>           blocks;
    };
