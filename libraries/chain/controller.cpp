@@ -3679,25 +3679,19 @@ struct controller_impl {
       vote_processor.process_vote_message(connection_id, vote, async_aggregation);
    }
 
-   bool node_has_voted_if_finalizer(const block_id_type& id) const {
-      if (my_finalizers.empty())
-         return true;
-
-      std::optional<bool> voted = fork_db.apply_s<std::optional<bool>>([&](auto& forkdb) -> std::optional<bool> {
-         auto bsp = forkdb.get_block(id);
-         if (bsp) {
-            return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
-               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
-               assert(fp);
-               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
-                  return true; // we only care about keys from the active finalizer_policy
-               return bsp->has_voted(k);
-            });
-         }
+   bool is_block_missing_finalizer_votes(const block_handle& bh) const {
+      if (!allow_voting || my_finalizers.empty())
          return false;
-      });
-      // empty optional means legacy forkdb
-      return !voted || *voted;
+
+      return std::visit(
+         overloaded{
+            [&](const block_state_legacy_ptr& bsp) { return false; },
+            [&](const block_state_ptr& bsp) {
+               return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
+                  return bsp->has_voted(k) == vote_status_t::not_voted;
+               });
+            }},
+         bh.internal());
    }
 
    vote_info_vec get_votes(const block_id_type& id) const {
@@ -3718,13 +3712,9 @@ struct controller_impl {
       });
    }
 
-   bool can_vote_on(const signed_block_ptr& b) {
-      return allow_voting && b->is_proper_svnn_block();
-   }
-
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!can_vote_on(bsp->block))
+      if (!allow_voting || !bsp->block->is_proper_svnn_block())
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
@@ -5007,10 +4997,6 @@ void controller::set_async_aggregation(async_t val) {
    my->async_aggregation = val;
 }
 
-bool controller::can_vote_on(const signed_block_ptr& b) {
-   return my->can_vote_on(b);
-}
-
 void controller::maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
    validate_db_available_size();
    my->maybe_switch_forks(cb, trx_lookup);
@@ -5109,6 +5095,10 @@ void controller::set_key_blacklist( const flat_set<public_key_type>& new_key_bla
 
 void controller::set_disable_replay_opts( bool v ) {
    my->conf.disable_replay_opts = v;
+}
+
+block_handle controller::head()const {
+   return my->chain_head;
 }
 
 uint32_t controller::head_block_num()const {
@@ -5390,8 +5380,8 @@ void controller::process_vote_message( uint32_t connection_id, const vote_messag
    my->process_vote_message( connection_id, vote );
 };
 
-bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
-   return my->node_has_voted_if_finalizer(id);
+bool controller::is_block_missing_finalizer_votes(const block_handle& bh) const {
+   return my->is_block_missing_finalizer_votes(bh);
 }
 
 vote_info_vec controller::get_votes(const block_id_type& id) const {

@@ -71,6 +71,8 @@ struct finality_data_t {
    std::optional<finalizer_policy> proposed_finalizer_policy; // finalizer policy, if proposed in the block
 };
 
+enum class vote_status_t { voted, not_voted, irrelevant_finalizer };
+
 struct block_state : public block_header_state {     // block_header_state provides parent link
    // ------ data members -------------------------------------------------------------
    signed_block_ptr           block;
@@ -138,7 +140,7 @@ public:
 
    // connection_id only for logging
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
-   bool has_voted(const bls_public_key& key) const;
+   vote_status_t has_voted(const bls_public_key& key) const;
    vote_info_vec get_votes() const;                          // for testing, returns vote info from pending_qc
    void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
 

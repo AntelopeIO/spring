@@ -19,10 +19,9 @@ namespace savanna_cluster {
    template<class tester>
    using finalizer_keys   = eosio::testing::finalizer_keys<tester>;
 
-   class cluster_t;
-
    // ----------------------------------------------------------------------------
-   class node_t : public tester {
+   template <class cluster_t>
+   class cluster_node_t : public tester {
       uint32_t                prev_lib_num{0};
       size_t                  node_idx;
       cluster_t&              cluster;
@@ -30,7 +29,27 @@ namespace savanna_cluster {
       size_t                  cur_key{0}; // index of key used in current policy
 
    public:
-      node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
+      cluster_node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none)
+         : tester(policy)
+         , node_idx(node_idx)
+         , cluster(cluster)
+         , finkeys(*this) {
+
+         // since we are creating forks, finalizers may be locked on another fork and unable to vote.
+         do_check_for_votes(false);
+
+         control->voted_block().connect([&](const eosio::chain::vote_signal_params& v) {
+            // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
+            // to vote (and emit the `voted_block` signal) synchronously.
+            // --------------------------------------------------------------------------------------
+            vote_status status = std::get<1>(v);
+            if (status == vote_status::success)
+               cluster.dispatch_vote_to_peers(node_idx, true, std::get<2>(v));
+         });
+
+         set_produce_block_callback(
+            [&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, true, b); });
+      }
 
       void set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
          finkeys.init_keys(keys_per_node * num_nodes, num_nodes);
@@ -60,12 +79,12 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
-      uint32_t head_num() const { return control->fork_db_head_block_num(); }
+      uint32_t forkdb_head_num() const { return control->fork_db_head_block_num(); }
 
-      signed_block_ptr head() const { return control->fork_db_head_block(); }
+      signed_block_ptr forkdb_head() const { return control->fork_db_head_block(); }
 
-      void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         while (to.head_num() < std::min(head_num(), block_num_limit)) {
+      void push_blocks(cluster_node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+         while (to.forkdb_head_num() < std::min(forkdb_head_num(), block_num_limit)) {
             auto sb = control->fetch_block_by_number(to.control->fork_db_head_block_num() + 1);
             to.push_block(sb);
          }
@@ -89,16 +108,10 @@ namespace savanna_cluster {
    //
    // It is possible to split the 'virtual' network using `cluster_t::split()`.
    //  --------------------------------------------------------------------------------------
+   template <size_t NUM_NODES, size_t KEYS_PER_NODE = 10> requires (NUM_NODES > 3)
    class cluster_t {
    public:
-      static constexpr size_t num_nodes = 4;
-      static constexpr size_t keys_per_node = 10;
-
-      // actual quorum - 1 since node0 processes its own votes
-      static constexpr size_t num_needed_for_quorum = (num_nodes * 2) / 3;
-
-      static_assert(num_needed_for_quorum < num_nodes,
-                    "this is needed for some tests (conflicting_votes_strong_first for example)");
+      using node_t = cluster_node_t<cluster_t>;
 
       cluster_t()
          : _nodes{
@@ -119,11 +132,11 @@ namespace savanna_cluster {
 
          // set initial finalizer policy
          // ----------------------------
-         std::array<size_t, num_nodes> indices;
+         std::array<size_t, NUM_NODES> indices;
 
          for (size_t i = 0; i < _nodes.size(); ++i) {
-            indices[i] = i * keys_per_node;
-            _nodes[i].set_node_finalizers(keys_per_node, num_nodes);
+            indices[i] = i * KEYS_PER_NODE;
+            _nodes[i].set_node_finalizers(KEYS_PER_NODE, NUM_NODES);
          }
 
          // do the transition to Savanna on node0. Blocks will be propagated to the other nodes.
@@ -200,8 +213,10 @@ namespace savanna_cluster {
          }
       }
 
+      size_t num_nodes() const { return NUM_NODES; }
+
    public:
-      std::array<node_t, num_nodes>   _nodes;
+      std::array<node_t, NUM_NODES>   _nodes;
 
       node_t&                         node0 = _nodes[0];
       node_t&                         node1 = _nodes[1];
@@ -235,7 +250,7 @@ namespace savanna_cluster {
             return;
 
          if (_partition.empty()) {
-            for (size_t i=0; i<num_nodes; ++i)
+            for (size_t i=0; i<NUM_NODES; ++i)
                if (!skip_self || i != node_idx)
                   cb(_nodes[i]);
          } else {
@@ -243,7 +258,7 @@ namespace savanna_cluster {
                return ranges::any_of(_partition, [&](auto i) { return i == node_idx; });
             };
             bool in = in_partition(node_idx);
-            for (size_t i=0; i<num_nodes; ++i)
+            for (size_t i=0; i<NUM_NODES; ++i)
                if ((!skip_self || i != node_idx) && in == in_partition(i))
                   cb(_nodes[i]);
          }

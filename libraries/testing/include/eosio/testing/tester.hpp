@@ -532,7 +532,7 @@ namespace eosio::testing {
 
          transaction_trace_ptr  _start_block(fc::time_point block_time);
          signed_block_ptr       _finish_block();
-         void                   _check_for_vote_if_needed(controller& c, const signed_block_ptr& b);
+         void                   _check_for_vote_if_needed(controller& c, const block_handle& bh);
 
       // Fields:
       protected:
@@ -760,8 +760,9 @@ namespace eosio::testing {
       void validate_push_block(const signed_block_ptr& sb) {
          auto btf = validating_node->create_block_handle_future( sb->calculate_id(), sb );
          controller::block_report br;
-         validating_node->push_block( br, btf.get(), {}, trx_meta_cache_lookup{} );
-         _check_for_vote_if_needed(*validating_node, sb);
+         block_handle bh = btf.get();
+         validating_node->push_block( br, bh, {}, trx_meta_cache_lookup{} );
+         _check_for_vote_if_needed(*validating_node, bh);
       }
 
       signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {

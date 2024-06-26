@@ -33,7 +33,7 @@ BOOST_AUTO_TEST_SUITE(forked_tests_if)
 //   Verify that we get an exception when the last block of the fork is pushed.
 // - produce blocks and verify that finality still advances.
 // ---------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) try {
    struct fork_tracker {
       vector<signed_block_ptr>           blocks;
    };
@@ -170,7 +170,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 // - produce more blocks on P1, push them on P0, verify fork switch happens and head blocks match.
 //
 // -----------------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
+BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    while (node0.control->head_block_num() < 3) {
       node0.produce_block();
    }
@@ -218,8 +218,8 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
    auto node3_head = node3.produce_block(fc::milliseconds(22 * config::block_interval_ms));
    BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);    // should be sam's last block
    push_block(0, node3_head);
-   BOOST_REQUIRE_EQUAL(node3_head, node0.head());              // fork switch on 1st block because of later timestamp
-   BOOST_REQUIRE_EQUAL(node3_head, node1.head());              // push_block() propagated on peer which also fork switched
+   BOOST_REQUIRE_EQUAL(node3_head, node0.forkdb_head());       // fork switch on 1st block because of later timestamp
+   BOOST_REQUIRE_EQUAL(node3_head, node1.forkdb_head());       // push_block() propagated on peer which also fork switched
 
    sb = node3.produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[2]);            // just switched to "pam"
@@ -227,8 +227,8 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
    BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
    push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.head(), node3.head());            // node0 caught up
-   BOOST_REQUIRE_EQUAL(node1.head(), node3.head());            // node0 peer was updated as well
+   BOOST_REQUIRE_EQUAL(node0.forkdb_head(), node3.forkdb_head()); // node0 caught up
+   BOOST_REQUIRE_EQUAL(node1.forkdb_head(), node3.forkdb_head()); // node0 peer was updated as well
 } FC_LOG_AND_RETHROW()
 
 
