@@ -47,7 +47,7 @@ namespace savanna_cluster {
                cluster.dispatch_vote_to_peers(node_idx, std::get<2>(v));
          });
 
-         set_produce_block_callback([&](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, b); });
+         set_produce_block_callback([&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, b); });
       }
 
       void set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
