@@ -18,13 +18,8 @@ digest_type block_header_state::compute_base_digest() const {
    fc::raw::pack( enc, header );
    fc::raw::pack( enc, core );
 
-   for (const auto& fp_pair : finalizer_policies) {
-      fc::raw::pack( enc, fp_pair.first );
-      const finalizer_policy_tracker& tracker = fp_pair.second;
-      fc::raw::pack( enc, tracker.state );
-      assert(tracker.policy);
-      fc::raw::pack( enc, *tracker.policy );
-   }
+   fc::raw::pack( enc, proposed_finalizer_policies );
+   fc::raw::pack( enc, pending_finalizer_policy );
 
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
@@ -68,37 +63,19 @@ const vector<digest_type>& block_header_state::get_new_protocol_feature_activati
 
 // The last proposed finalizer policy if none proposed or pending then the active finalizer policy
 const finalizer_policy& block_header_state::get_last_proposed_finalizer_policy() const {
-   if (!finalizer_policies.empty()) {
-      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
-         if (ritr->second.state == finalizer_policy_tracker::state_t::proposed)
-            return *ritr->second.policy;
-      }
-      return *finalizer_policies.rbegin()->second.policy;
+   if (!proposed_finalizer_policies.empty()) {
+       return *proposed_finalizer_policies.back().second;
+   } else if (pending_finalizer_policy.has_value()) {
+      return *pending_finalizer_policy->second;
    }
    return *active_finalizer_policy;
 }
 
 // The last pending finalizer policy if none pending then the active finalizer policy
-// Used to populate last_pending_finalizer_policy_digest which is expected to be the highest generation pending
+// Used to populate last_pending_finalizer_policy_digest
 const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() const {
-   if (!finalizer_policies.empty()) {
-      // lambda only used when asserts enabled
-      [[maybe_unused]] auto highest_pending_generation = [this]() {
-         finalizer_policy_ptr highest;
-         for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
-            if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
-               if (!highest || highest->generation < ritr->second.policy->generation)
-                  highest = ritr->second.policy;
-            }
-         }
-         return highest;
-      };
-      for (auto ritr = finalizer_policies.rbegin(); ritr != finalizer_policies.rend(); ++ritr) {
-         if (ritr->second.state == finalizer_policy_tracker::state_t::pending) {
-            assert(highest_pending_generation() == ritr->second.policy);
-            return *ritr->second.policy;
-         }
-      }
+   if (pending_finalizer_policy.has_value()) {
+      return *pending_finalizer_policy->second;
    }
    return *active_finalizer_policy;
 }
@@ -112,6 +89,88 @@ const proposer_policy& block_header_state::get_last_proposed_proposer_policy() c
    auto it = proposer_policies.rbegin();
    assert(it != proposer_policies.rend());
    return *it->second;
+}
+
+// This function evaluates possible promotions from pending to active
+// and from proposed to pending (removing any proposed policies that are known at that
+// time to never become pending)
+//
+// In particular,
+// 1. If there is a pending policy, determine whether it should be promoted to active.
+//    If the associated block number is less than or equal to the new LIB number,
+//    the pending policy should be promoted to active. This also means the pending slot
+//    is now open for a possible promotion of a proposed policy to pending.
+//    This guarantees that there will be at most one pending policy at any given time.
+// 2. If there is any proposed policy with an associated block number that is less than
+//    or equal to the new LIB number:
+//  i.   Find the proposed policy with the greatest associated block number that is still
+//       less than or equal to the new LIB number (call this the target proposed policy).
+//  ii.  Remove any proposed policies with an associated block number less than that of
+//       the target proposed policy.
+//  iii. If the pending slot is open, promote that target proposed policy to pending.
+//       Otherwise, leave the target proposed policy (and any other proposed policies with
+//       greater associated block numbers) alone in the proposed policy queue.
+//
+void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
+                                               block_header_state& next_header_state) {
+   // Common case: if no pending policy and no proposed_finalizer_policies to evaluate,
+   //              just return
+   if (!prev.pending_finalizer_policy.has_value() && prev.proposed_finalizer_policies.empty() ) {
+      return;
+   }
+
+   auto lib = next_header_state.core.last_final_block_num();
+   const auto& prev_pending = prev.pending_finalizer_policy;
+   const auto& prev_proposed = prev.proposed_finalizer_policies;
+   auto& next_pending = next_header_state.pending_finalizer_policy;
+   auto& next_proposed = next_header_state.proposed_finalizer_policies;
+
+   // Evaluate pending first.
+   bool pending_slot_open = true;
+   if (prev_pending.has_value()) {
+      if (prev_pending->first <= lib) {
+         // The block associated with the pending has become final, promote pending to active
+         next_header_state.active_finalizer_policy = prev_pending->second;
+      } else {
+         // Pending not yet to become final, copy it to next_header_state
+         next_pending = prev_pending;
+         pending_slot_open = false;  // no slot openned up
+      }
+   }
+
+   // Nothing more to do if existing proposed_finalizer_policies is empty
+   if (prev_proposed.empty()) {
+      return;
+   }
+
+   // Find the target proposed policy which is the proposed policy with the greatest
+   // associated block number that is less than or equal to the new LIB number
+   auto first_reversible = std::ranges::find_if(prev_proposed, [&](const auto& p) { return p.first > lib; });
+   auto target = first_reversible > prev_proposed.begin() ? first_reversible - 1 : prev_proposed.end();
+
+   // Promote target policy to pending if the pending slot is available, otherwise
+   // copy it to next_proposed
+   if (target != prev_proposed.end()) {
+      if (pending_slot_open) {
+         // promote the target to pending
+         // https://github.com/AntelopeIO/spring/issues/306 will update generation properly
+         auto block_num = next_header_state.block_num();
+         next_pending.emplace(block_num, target->second);
+      } else {
+         // leave the target alone in the proposed policies
+         next_proposed.emplace_back(*target);
+      }
+
+      if (first_reversible != prev_proposed.end()) {
+         // Copy proposed policies with an associated block number greater than that of the target
+         // proposed policy (implictly remove any proposed policies with an associated block
+         // number less than that of the target proposed policy)
+         next_proposed.insert( next_proposed.end(), first_reversible, prev_proposed.end());
+      }
+   } else {
+      // No target proposed policy exists, just copy the previous proposed policies to next
+      next_proposed = prev_proposed;
+   }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -174,64 +233,7 @@ void finish_next(const block_header_state& prev,
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
 
-   if (!prev.finalizer_policies.empty()) {
-      auto lib = next_header_state.core.last_final_block_num();
-      auto it = prev.finalizer_policies.begin();
-      if (it->first > lib) {
-         // we have at least one `finalizer_policy` in our map, but none of these is
-         // due to become active of this block because lib has not advanced enough, so
-         // we just copy the multimap and keep using the same `active_finalizer_policy`
-         // ---------------------------------------------------------------------------
-         next_header_state.finalizer_policies = prev.finalizer_policies;
-      } else {
-         auto next_block_num = next_header_state.block_num();
-
-         while (it != prev.finalizer_policies.end() && it->first <= lib) {
-            const finalizer_policy_tracker& tracker = it->second;
-            if (tracker.state == finalizer_policy_tracker::state_t::pending) {
-               // new finalizer_policy becomes active
-               // -----------------------------------
-               next_header_state.active_finalizer_policy.reset(new finalizer_policy(*tracker.policy));
-            } else {
-               assert(tracker.state == finalizer_policy_tracker::state_t::proposed);
-
-               // The block where finalizer_policy was proposed has became final. The finalizer
-               // policy will become active when `next_block_num` becomes final.
-               //
-               // So `tracker.policy` should become `pending` at `next_block_num`.
-               //
-               // Either insert a new `finalizer_policy_tracker` value, or update the `pending`
-               // policy if there is already one  at `next_block_num` (which can happen when
-               // finality advances multiple block at a time, and more than one policy move from
-               // proposed to pending.
-               //
-               // Since we iterate finalizer_policies which is a multimap sorted by block number,
-               // the last one we add will be for the highest block number, which is what we want.
-               // ---------------------------------------------------------------------------------
-               auto range = next_header_state.finalizer_policies.equal_range(next_block_num);
-               auto itr = range.first;
-               for (; itr != range.second; ++itr) {
-                  if (itr->second.state == finalizer_policy_tracker::state_t::pending) {
-                     itr->second.policy = tracker.policy;
-                     break;
-                  }
-               }
-               if (itr == range.second) {
-                  // there wasn't already a pending one for `next_block_num`, add a new tracker
-                  finalizer_policy_tracker t { finalizer_policy_tracker::state_t::pending, tracker.policy };
-                  next_header_state.finalizer_policies.emplace(next_block_num, std::move(t));
-               }
-            }
-            ++it;
-         }
-         if (it != prev.finalizer_policies.end()) {
-            // copy remainder of pending finalizer_policy changes
-            // --------------------------------------------------
-            next_header_state.finalizer_policies.insert(boost::container::ordered_unique_range_t(),
-                                                        it, prev.finalizer_policies.end());
-         }
-      }
-   }
+   evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
    next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
 
@@ -240,17 +242,16 @@ void finish_next(const block_header_state& prev,
 
       // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
       // block's header extensions.
-      // Add this new proposal to the `finalizer_policies` multimap which tracks the in-flight proposals,
-      // increment the generation number, and log that proposal (debug level).
+      // Add this new proposal to the `proposed_finalizer_policies` which tracks the in-flight proposals,
+      // and log that proposal (debug level).
       // ------------------------------------------------------------------------------------------------
       if (log)
          dlog("New finalizer policy proposed in block ${id}..: ${pol}",
               ("id", prev.block_id.str().substr(8,16))("pol", new_finalizer_policy));
       next_header_state.finalizer_policy_generation = new_finalizer_policy.generation;
-      next_header_state.finalizer_policies.emplace(
-         next_header_state.block_num(),
-         finalizer_policy_tracker{finalizer_policy_tracker::state_t::proposed,
-                                  std::make_shared<finalizer_policy>(std::move(new_finalizer_policy))});
+      next_header_state.proposed_finalizer_policies.emplace_back(
+         std::make_pair(next_header_state.block_num(),
+                        std::make_shared<finalizer_policy>(std::move(new_finalizer_policy))));
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
    }
@@ -374,38 +375,6 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext, false);
 
    return next_header_state;
-}
-
-// -------------------------------------------------------------------------------
-// do some sanity checks on block_header_state
-// -------------------------------------------------------------------------------
-bool block_header_state::sanity_check() const {
-   // check that we have at most *one* proposed and *one* pending `finalizer_policy`
-   // for any block number
-   // -----------------------------------------------------------------------------
-   block_num_type block_num(0);
-   bool pending{false}, proposed{false};
-
-   for (auto it = finalizer_policies.begin(); it != finalizer_policies.end(); ++it) {
-      if (block_num != it->first) {
-         pending = proposed = false;
-         block_num = it->first;
-      }
-      const auto& tracker = it->second;
-      if (tracker.state == finalizer_policy_tracker::state_t::proposed) {
-         if (proposed)
-            return false;
-         else
-            proposed = true;
-      }
-      if (tracker.state == finalizer_policy_tracker::state_t::pending) {
-         if (pending)
-            return false;
-         else
-            pending = true;
-      }
-   }
-   return true;
 }
 
 } // namespace eosio::chain
