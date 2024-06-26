@@ -185,7 +185,6 @@ namespace eosio::chain {
          void allow_voting(bool val);
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
-         bool can_vote_on(const signed_block_ptr& b);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
@@ -239,6 +238,7 @@ namespace eosio::chain {
 
          void   set_disable_replay_opts( bool v );
 
+         block_handle         head()const;
          uint32_t             head_block_num()const;
          time_point           head_block_time()const;
          block_timestamp_type head_block_timestamp()const;
@@ -343,7 +343,7 @@ namespace eosio::chain {
          // called from net threads
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
-         bool node_has_voted_if_finalizer(const block_id_type& id) const;
+         bool is_block_missing_finalizer_votes(const block_handle& bh) const;
 
          // for testing
          vote_info_vec get_votes(const block_id_type& id) const;
