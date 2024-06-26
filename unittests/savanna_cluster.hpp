@@ -110,12 +110,6 @@ namespace savanna_cluster {
    public:
       using node_t = cluster_node_t<cluster_t>;
 
-      // actual quorum - 1 since node0 processes its own votes
-      static constexpr size_t num_needed_for_quorum = (NUM_NODES * 2) / 3;
-
-      static_assert(num_needed_for_quorum < NUM_NODES,
-                    "this is needed for some tests (conflicting_votes_strong_first for example)");
-
       cluster_t()
          : _nodes{
                {{0, *this, setup_policy::full_except_do_not_transition_to_savanna}, {1, *this}, {2, *this}, {3, *this}}
