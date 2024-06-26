@@ -3682,12 +3682,8 @@ struct controller_impl {
          overloaded{
             [&](const block_state_legacy_ptr& bsp) { return false; },
             [&](const block_state_ptr& bsp) {
-               return bsp->block->is_proper_svnn_block() && !my_finalizers.all_of_public_keys([&bsp](const auto& k) {
-                  const finalizer_policy_ptr& fp{bsp->active_finalizer_policy};
-                  assert(fp);
-                  if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
-                     return true; // we only care about keys from the active finalizer_policy
-                  return bsp->has_voted(k);
+               return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
+                  return bsp->has_voted(k) == vote_status_t::not_voted;
                });
             }},
          bh.internal());
