@@ -31,7 +31,7 @@ static void ensure_next_block_finalizer_policy(validating_tester& t,
 // to take effect.
 // ---------------------------------------------------------------------
 BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
-   // Do not transition to Savanna at constrution. Transition explicitly later.
+   // Do not transition to Savanna at construction. Transition explicitly later.
    legacy_validating_tester t;
    size_t num_keys    = 22u;
    size_t finset_size = 21u;
@@ -111,50 +111,54 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    // take to become active
    // ------------------------------------------------------------------------------
    auto pubkeys3 = fin_keys.set_finalizer_policy(3u).pubkeys;
-   auto b = t.produce_block();
+   auto b = t.produce_block(); // proposed: pubkeys3
    verify_block_finality_policy_diff(b, 3, pubkeys3.back());
    auto pubkeys4 = fin_keys.set_finalizer_policy(4u).pubkeys;
-   b = t.produce_block();
+   b = t.produce_block(); // proposed: pubkeys3, pubkeys4
    verify_block_finality_policy_diff(b, 4, pubkeys4.back());
-   t.produce_block();
+   t.produce_block();  // proposed: pubkeys3, pubkeys4
    auto pubkeys5 = fin_keys.set_finalizer_policy(5u).pubkeys;
-   b = t.produce_block();
+   b = t.produce_block(); // proposed: pubkeys3, pubkeys4, pubkeys5
    verify_block_finality_policy_diff(b, 5, pubkeys5.back());
-   t.produce_block();
+   t.produce_block();  // pending: pubkeys3, proposed: pubkeys4, pubkeys5
    auto pubkeys6 = fin_keys.set_finalizer_policy(6u).pubkeys;
-   b = t.produce_block();
+   b = t.produce_block(); // pending: pubkeys3, proposed: pubkeys4, pubkeys5, pubkeysr6
    verify_block_finality_policy_diff(b, 6, pubkeys6.back());
    auto pubkeys7 = fin_keys.set_finalizer_policy(7u).pubkeys;
    t.check_head_finalizer_policy(2u, pubkeys2); // 5 blocks after pubkeys3 (b5 - b0), pubkeys2 should still be active
-   b = t.produce_block();
+   b = t.produce_block(); // active: pubkeys3, pending: pubkeys5, proposed: pubkeysr6, pubkeys7 -- pubkeys4 was garbage collected
    verify_block_finality_policy_diff(b, 7, pubkeys7.back());
    auto pubkeys8 = fin_keys.set_finalizer_policy(8u).pubkeys;
    t.check_head_finalizer_policy(3u, pubkeys3); // 6 blocks after pubkeys3 (b6 - b0), pubkeys3 should be active
-   b = t.produce_block();
+   b = t.produce_block(); // pending: pubkeys5, proposed: pubkeysr6, pubkeys7, pubkeys8
    verify_block_finality_policy_diff(b, 8, pubkeys8.back());
    auto pubkeys9 = fin_keys.set_finalizer_policy(9u).pubkeys;
-   t.check_head_finalizer_policy(4u, pubkeys4); // 6 blocks after pubkeys4 (b7 - b1), pubkeys4 should be active
-   b = t.produce_block();
+   t.check_head_finalizer_policy(3u, pubkeys3);
+   b = t.produce_block(); // pending: pubkeys5, proposed: pubkeysr6, pubkeys7, pubkeys8, pubkeys9
    verify_block_finality_policy_diff(b, 9, pubkeys9.back());
    auto pubkeys10 = fin_keys.set_finalizer_policy(10u).pubkeys;
-   t.check_head_finalizer_policy(4u, pubkeys4); // 7 blocks after pubkeys4, pubkeys4 should still be active
-   b = t.produce_block();
+   t.check_head_finalizer_policy(3u, pubkeys3); // 7 blocks after pubkeys4, pubkeys4 should still be active
+   b = t.produce_block(); // active: pubkeys5, pending: pubkeys7, proposed: pubkeys8, pubkeys9
    verify_block_finality_policy_diff(b, 10, pubkeys10.back());
    auto pubkeys11 = fin_keys.set_finalizer_policy(11u).pubkeys;
    t.check_head_finalizer_policy(5u, pubkeys5); // 6 blocks after pubkeys5 (b9 - b3), pubkeys5 should be active
    b = t.produce_block();
    verify_block_finality_policy_diff(b, 11, pubkeys11.back());
    t.produce_block(); // two blocks between 5 & 6 proposals
-   t.check_head_finalizer_policy(6u, pubkeys6); // the rest are all one block apart, tests pending with propsed
+   t.check_head_finalizer_policy(5u, pubkeys5); // the rest are all one block apart, tests pending with propsed
    auto b12 = t.produce_block();
    t.check_head_finalizer_policy(7u, pubkeys7);
    auto b13 = t.produce_block();
-   t.check_head_finalizer_policy(8u, pubkeys8);
+   t.check_head_finalizer_policy(7u, pubkeys7);
    auto b14 = t.produce_block();
-   t.check_head_finalizer_policy(9u, pubkeys9);
+   t.check_head_finalizer_policy(7u, pubkeys7);
    auto b15 = t.produce_block();
    t.check_head_finalizer_policy(10u, pubkeys10);
    auto b16 = t.produce_block();
+   t.check_head_finalizer_policy(10u, pubkeys10);
+
+   // produce sufficient blocks to make pubkeys11 as active policy
+   t.produce_blocks(2);
    t.check_head_finalizer_policy(11u, pubkeys11);
 
    // and no further change
