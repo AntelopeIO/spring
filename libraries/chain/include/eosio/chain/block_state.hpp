@@ -65,7 +65,7 @@ struct finality_data_t {
    uint32_t     final_on_strong_qc_block_num{0};
    digest_type  action_mroot{};
    digest_type  base_digest{};
-   std::optional<finalizer_policy> pending_finalizer_policy; // the finalizer policy, which is promoted from proposed in the block
+   std::optional<finalizer_policy> pending_finalizer_policy; // finalizer policy if one is promoted to pending in the block
 };
 
 struct block_state : public block_header_state {     // block_header_state provides parent link

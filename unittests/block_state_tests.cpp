@@ -394,7 +394,7 @@ BOOST_FIXTURE_TEST_CASE(get_finality_data_test, finality_test_cluster<4>) try {
    // It takes one 3-chain for LIB to advance and 1 LIB proposed finalizer to be promoted to pending.
    for (size_t i=0; i<3; ++i) {
       produce_and_push_block();
-      process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+      process_votes(1, num_nodes - 1); // all non-producing nodes (starting from node1) vote
 
       // We should not see pending_finalizer_policy in finality_data
       finality_data = *node0.control->head_finality_data();
