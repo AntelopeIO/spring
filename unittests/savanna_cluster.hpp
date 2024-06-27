@@ -266,6 +266,8 @@ namespace savanna_cluster {
 
       std::vector<bls_public_key>     _fin_policy_pubkeys; // set of public keys for node finalizers
 
+      static constexpr fc::microseconds _block_interval_us =
+         fc::milliseconds(eosio::chain::config::block_interval_ms);
    private:
       std::vector<size_t>             _partition;
       bool                            _shutting_down {false};

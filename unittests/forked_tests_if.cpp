@@ -69,7 +69,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) t
    // So we need a lambda to produce (and possibly corrupt) a block on node3 with a specified offset.
    // -----------------------------------------------------------------------------------------------
    auto produce_and_store_block_on_node3_forks = [&](size_t i, int offset) {
-      auto b = node3.produce_block(fc::milliseconds(offset * config::block_interval_ms));
+      auto b = node3.produce_block(_block_interval_us * offset);
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);
 
       for (size_t j = 0; j < num_forks; j ++) {
@@ -110,7 +110,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) t
    // forks from node3.
    // ---------------------------------------------------------------------------------------------
    for (size_t i = 0; i < num_forks; ++i) {
-      auto sb = node0.produce_block(fc::milliseconds(config::block_interval_ms * (i==0 ? num_forks : 1)));
+      auto sb = node0.produce_block(_block_interval_us * (i==0 ? num_forks : 1));
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // produced by the producer returned by `set_producers`
    }
 
@@ -169,7 +169,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) t
 // - on P1, produce a block with a later timestamp than the last P0 block and push it to P0.
 // - verify that the fork switch happens on P0 because of the later timestamp.
 // - produce more blocks on P1, push them on P0, verify fork switch happens and head blocks match.
-//
+// - unsplit the network, produce blocks on node0 and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    while (node0.control->head_block_num() < 3) {
@@ -216,11 +216,11 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    //
    // node3 is still having just produced the 2nd block by "sam", and with the `producers` schedule.
    // skip 23 blocks in the future so that "pam" produces
-   auto node3_head = node3.produce_block(fc::milliseconds(22 * config::block_interval_ms));
+   auto node3_head = node3.produce_block(_block_interval_us * 22);
    BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);    // should be sam's last block
    push_block(0, node3_head);
-   BOOST_REQUIRE_EQUAL(node3_head, node0.forkdb_head());       // fork switch on 1st block because of later timestamp
-   BOOST_REQUIRE_EQUAL(node3_head, node1.forkdb_head());       // push_block() propagated on peer which also fork switched
+   BOOST_REQUIRE_EQUAL(node3.head().id(), node0.head().id());  // fork switch on 1st block because of later timestamp
+   BOOST_REQUIRE_EQUAL(node3.head().id(), node1.head().id());  // push_block() propagated on peer which also fork switched
 
    sb = node3.produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[2]);            // just switched to "pam"
@@ -228,19 +228,48 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
    push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.forkdb_head(), node3.forkdb_head()); // node0 caught up
-   BOOST_REQUIRE_EQUAL(node1.forkdb_head(), node3.forkdb_head()); // node0 peer was updated as well
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id()); // node0 caught up
+   BOOST_REQUIRE_EQUAL(node1.head().id(), node3.head().id()); // node0 peer was updated as well
+
+   // unsplit the network
+   set_partition({});
+
+   // produce an even more recent block on node0 so that it will be the uncontested head
+   sb = node0.produce_block(_block_interval_us, true);         // no_throw = true because of expired transaction
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node2.head().id());
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());
+
+   // and verify lib advances.
+   auto lib = node0.lib_block->block_num();
+   size_t tries = 0;
+   while (node0.lib_block->block_num() <= lib + 3 && ++tries < 10) {
+      node0.produce_block();
+   }
+   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
+   BOOST_REQUIRE_EQUAL(node0.lib_block->block_num(), node3.lib_block->block_num());
 } FC_LOG_AND_RETHROW()
 
 
 #if 0
 
 // ---------------------------- prune_remove_branch ---------------------------------
-/**
- *  This test verifies that the fork-choice rule favors the branch with
- *  the highest last irreversible block over one that is longer.
- */
-BOOST_AUTO_TEST_CASE( prune_remove_branch_if ) try {
+// Verify fork choice criteria for Savanna:
+//   last_final_block_num > last_qc_block_num > timestamp
+// ----------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t<4> ) try {
+   while (node0.control->head_block_num() < 3) {
+      node0.produce_block();
+   }
+   const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
+   node0.create_accounts(producers);
+   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+
+   const std::vector<size_t> partition {2, 3};
+   set_partition(partition);                  // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
+                                              // at this point, each node has a QC to include into
+                                              // the next block it produces which will advance lib.
+
+
    legacy_tester c;
    while (c.control->head_block_num() < 11) {
       c.produce_block();
