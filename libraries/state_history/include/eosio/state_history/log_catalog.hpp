@@ -156,6 +156,16 @@ public:
       return first == second;
    }
 
+   void clear() {
+      if(empty())
+         return;
+
+      while(!retained_log_files.empty())
+         delete_bundle(retained_log_files.extract(retained_log_files.begin()).value().path_and_basename);
+      delete_head_log();
+      open_head_log();
+   }
+
 private:
    template<typename F>
    typename std::invoke_result_t<F,state_history_log&&> call_for_log(const uint32_t block_num, F&& f) {
@@ -222,11 +232,7 @@ private:
    void unrotate_log() {
       catalog_t::node_type last_catalogued_file = retained_log_files.extract(std::prev(retained_log_files.end()));
 
-      for(const char* ext : {"log", "index"}) {
-         std::filesystem::path fp = std::filesystem::path(head_log_path_and_basename).replace_extension(ext);
-         if(std::filesystem::exists(fp))
-            std::filesystem::remove(fp);
-      }
+      delete_head_log();
 
       rename_bundle(last_catalogued_file.value().path_and_basename, head_log_path_and_basename);
       head_log = std::move(last_catalogued_file.value().log); //don't reopen the log, if we can avoid it
@@ -249,11 +255,7 @@ private:
       } catch(std::exception& e) {
          wlog("Failed to rotate log ${pbn}", ("pbn", head_log_path_and_basename.string()));
          //remove any potentially created new head log files
-         for(const char* ext : {"log", "index"}) {
-            std::filesystem::path fp = std::filesystem::path(head_log_path_and_basename).replace_extension(ext);
-            if(std::filesystem::exists(fp))
-               std::filesystem::remove(fp);
-         }
+         delete_bundle(head_log_path_and_basename);
          //rename old logs back, restore head_log instance that was never closed, and don't continue with rotation
          rename_bundle(new_log_basenamepath, head_log_path_and_basename);
          head_log = std::move(old_head_log);
@@ -268,18 +270,28 @@ private:
       while(retained_log_files.size() > max_retained_files) {
          const catalog_t::iterator it = retained_log_files.begin();
          std::filesystem::path oldest_log_path_and_basename = it->path_and_basename;
-         if(archive_dir.empty()) {
-            std::filesystem::remove(oldest_log_path_and_basename.replace_extension("log"));
-            std::filesystem::remove(oldest_log_path_and_basename.replace_extension("index"));
-         } else {
+         if(archive_dir.empty())
+            delete_bundle(oldest_log_path_and_basename);
+         else
             rename_bundle(oldest_log_path_and_basename, archive_dir / oldest_log_path_and_basename.filename());
-         }
          retained_log_files.erase(it);
       }
    }
 
    void open_head_log(std::optional<state_history::prune_config> prune_config = std::nullopt) {
       head_log.emplace(head_log_path_and_basename, non_local_get_block_id, prune_config);
+   }
+
+   void delete_head_log() {
+      delete_bundle(head_log_path_and_basename);
+   }
+
+   void delete_bundle(std::filesystem::path path_and_basename) {
+      for(const char* ext : {"log", "index"}) {
+         std::filesystem::path fp = path_and_basename.replace_extension(ext);
+         if(std::filesystem::exists(fp))
+            std::filesystem::remove(fp);
+      }
    }
 
    static std::filesystem::path make_absolute_dir(const std::filesystem::path& base_dir, std::filesystem::path new_dir) {
