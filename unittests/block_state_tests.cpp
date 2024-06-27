@@ -404,14 +404,14 @@ BOOST_FIXTURE_TEST_CASE(get_finality_data_test, finality_test_cluster<4>) try {
    // Produce one more block. The proposed finalizer policy is promoted to pending in this block.
    // We should see pending_finalizer_policy in finality_data
    produce_and_push_block();
-   process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+   process_votes(1, num_nodes - 1); // all non-producing nodes (starting from node1) vote
    finality_data = *node0.control->head_finality_data();
    BOOST_REQUIRE(finality_data.pending_finalizer_policy.has_value());
 
    // Produce another block. We should not see pending_finalizer_policy as
    // no proposed finalizer policy is promoted to pending in this block
    produce_and_push_block();
-   process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+   process_votes(1, num_nodes - 1); // all non-producing nodes (starting from node1) vote
    finality_data = *node0.control->head_finality_data();
    BOOST_REQUIRE(!finality_data.pending_finalizer_policy.has_value());
 } FC_LOG_AND_RETHROW();
