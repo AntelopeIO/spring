@@ -147,17 +147,18 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) t
 
    // make sure we can still produce blocks until irreversibility moves
    // -----------------------------------------------------------------
-#if 0
-   // not working yet. We need 3 finalizers to sign for lib to advance, but node2 and 3 have bad forks
-   // so they cannot link new blocks.
-   set_partition({3});
+   set_partition({});
+   propagate_heads();
+   sb = node0.produce_block();  // produce an even more recent block on node0 so that it will be the uncontested head
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node2.head().id());
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());
+
    auto lib = node0.lib_block->block_num();
    size_t tries = 0;
-   while (node0.lib_block->block_num() == lib && ++tries < 10) {
+   while (node0.lib_block->block_num() <= lib + 3 && ++tries < 10) {
       node0.produce_block();
    }
-   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib);
-#endif
+   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_SUITE_END()

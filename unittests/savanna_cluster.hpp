@@ -4,6 +4,7 @@
 #include <fc/crypto/bls_private_key.hpp>
 
 #include <eosio/testing/tester.hpp>
+#include <ranges>
 
 namespace savanna_cluster {
    namespace ranges = std::ranges;
@@ -13,6 +14,8 @@ namespace savanna_cluster {
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using account_name     = eosio::chain::account_name;
    using finalizer_policy = eosio::chain::finalizer_policy;
+   using digest_type      = eosio::chain::digest_type;
+   using block_header     = eosio::chain::block_header;
    using tester           = eosio::testing::tester;
    using setup_policy     = eosio::testing::setup_policy;
    using bls_public_key   = fc::crypto::blslib::bls_public_key;
@@ -185,6 +188,44 @@ namespace savanna_cluster {
                        uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
          for (auto i : indices)
             node.push_blocks(_nodes[i], block_num_limit);
+      }
+
+      // After creating forks on different nodes on a partitioned network,
+      // make sure that all chain heads of any node are also pushed to all other nodes
+      void propagate_heads() {
+         struct head_track { digest_type id; size_t node_idx; };
+         std::vector<head_track> heads;
+
+         // store all different chain head found in cluster into `heads` vector
+         for (size_t i = 0; i < _nodes.size(); ++i) {
+            auto& n = _nodes[i];
+            auto head = n.head();
+            if (!ranges::any_of(heads, [&](auto& h) { return h.id == head.id(); }))
+               heads.emplace_back(head.id(), i);
+         }
+
+         for (auto& dest : _nodes) {
+            for (auto& h : heads) {
+               if (h.id == dest.head().id())
+                  continue;
+
+               // propagate blocks from `h.node_idx` to `dest`.
+               // We assume all nodes have at least a parent irreversible block in common
+               auto& src = _nodes[h.node_idx];
+               std::vector<signed_block_ptr> push_queue;
+               digest_type id = h.id;
+               while (!dest.control->fetch_block_by_id(id)) {
+                  auto sb = src.control->fetch_block_by_id(id);
+                  assert(sb);
+                  push_queue.push_back(sb);
+                  id = sb->previous;
+               }
+
+               for (auto& b : push_queue | ranges::views::reverse)
+                  dest.push_block(b);
+            }
+         }
+
       }
 
       // returns the number of nodes on which `lib` advanced since we last checked

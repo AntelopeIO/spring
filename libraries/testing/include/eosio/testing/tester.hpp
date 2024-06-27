@@ -501,6 +501,8 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         block_handle head() const { return control->head(); }
+
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
          // -----------------------------------------------------------------
