@@ -1217,6 +1217,235 @@ BOOST_AUTO_TEST_CASE(old_log_format) try {
          BOOST_REQUIRE_EQUAL(hashed_null.component<sha256_filter>(0)->enc->result(), wrote_data_for_blocknum[i]);
       }
    }
+} FC_LOG_AND_RETHROW();
+
+//writes a bunch of a blocks, and then writes a bunch of the same blocks (block ids) all over again. this is similar to
+// what would occur on a replay or loading a snapshot older than what was the prior head.
+const state_history::state_history_log_config log_configs_for_rewrite_same[] = {
+   {std::monostate()},
+   {state_history::partition_config{
+      .retained_dir = "retain here pls",
+      .archive_dir = "archive here pls",
+      .stride = 10
+   }}
+};
+BOOST_DATA_TEST_CASE(rewrite_same, bdata::make(log_configs_for_rewrite_same), config) try {
+   const fc::temp_directory tmpdir;
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+   const unsigned begin_block = 10;
+   const unsigned end_block = 105;
+
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "mr,log");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+            wrote_data_for_blocknum[i] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         });
+   }
+
+   const size_t before_log_size = std::filesystem::file_size(tmpdir.path() / "mr,log.log");
+   const size_t before_index_size = std::filesystem::file_size(tmpdir.path() / "mr,log.index");
+
+   //reopen and write different data for each block id. This should silently be swallowed
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "mr,log");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+         });
+   }
+
+   //read the blocks back, making sure the hash of data is what was originally written and that the size of the log remained equal
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "mr,log");
+      BOOST_REQUIRE_EQUAL(lc.block_range().first, begin_block);
+      BOOST_REQUIRE_EQUAL(lc.block_range().second, end_block);
+
+      for(unsigned i = begin_block; i < end_block; ++i) {
+         std::optional<state_history::ship_log_entry> entry = lc.get_entry(i);
+         BOOST_REQUIRE(!!entry);
+
+         bio::filtering_ostreambuf hashed_null(sha256_filter() | bio::null_sink());
+         bio::filtering_istreambuf log_stream = entry->get_stream();
+         bio::copy(log_stream, hashed_null);
+         BOOST_REQUIRE_EQUAL(hashed_null.component<sha256_filter>(0)->enc->result(), wrote_data_for_blocknum[i]);
+      }
+   }
+   BOOST_REQUIRE_EQUAL(before_log_size, std::filesystem::file_size(tmpdir.path() / "mr,log.log"));
+   BOOST_REQUIRE_EQUAL(before_index_size, std::filesystem::file_size(tmpdir.path() / "mr,log.index"));
+
+} FC_LOG_AND_RETHROW();
+
+//similar to above, but this time configure the logs such that it forgets (prunes/rotates out) early blocks, but then the rewrite of blocks occurs in the range
+// of still "remembered" blocks
+const state_history::state_history_log_config log_configs_for_rewrite_remembered[] = {
+   {state_history::partition_config{.retained_dir = "retain here pls", .archive_dir = "archive here pls", .stride = 10, .max_retained_files = 4}},
+   {state_history::prune_config{.prune_blocks = 40, .prune_threshold = 2}}
+};
+BOOST_DATA_TEST_CASE(rewrite_same_remembered, bdata::make(log_configs_for_rewrite_remembered), config) try {
+   const fc::temp_directory tmpdir;
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+   const unsigned begin_block = 10;
+   const unsigned end_block = 105;
+
+   //fill up blocks 10 through 104, but many of the early blocks are forgotten
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+            wrote_data_for_blocknum[i] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         });
+   }
+
+   const unsigned start_rewrite_block = 70;
+
+   const size_t before_log_size = std::filesystem::file_size(tmpdir.path() / "huh.log");
+   const size_t before_index_size = std::filesystem::file_size(tmpdir.path() / "huh.index");
+
+   //rewrite blocks 70-104
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      for(unsigned i = start_rewrite_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+         });
+   }
+
+   //read the blocks back, making sure the hash of data is what was originally written and that the size of the log remained equal
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      BOOST_REQUIRE_LT(lc.block_range().first, start_rewrite_block);
+      BOOST_REQUIRE_EQUAL(lc.block_range().second, end_block);
+
+      for(unsigned i = start_rewrite_block; i < end_block; ++i) {
+         std::optional<state_history::ship_log_entry> entry = lc.get_entry(i);
+         BOOST_REQUIRE(!!entry);
+
+         bio::filtering_ostreambuf hashed_null(sha256_filter() | bio::null_sink());
+         bio::filtering_istreambuf log_stream = entry->get_stream();
+         bio::copy(log_stream, hashed_null);
+         BOOST_REQUIRE_EQUAL(hashed_null.component<sha256_filter>(0)->enc->result(), wrote_data_for_blocknum[i]);
+      }
+
+      BOOST_REQUIRE_EQUAL(before_log_size, std::filesystem::file_size(tmpdir.path() / "huh.log"));
+      BOOST_REQUIRE_EQUAL(before_index_size, std::filesystem::file_size(tmpdir.path() / "huh.index"));
+   }
+
+} FC_LOG_AND_RETHROW();
+
+//similar to above, but this time configure the logs such that it forgets (rotates out) early blocks, and then rewrite a block in that forgotten range
+BOOST_AUTO_TEST_CASE(rewrite_same_forgotten) try {
+   const fc::temp_directory tmpdir;
+
+   const state_history::state_history_log_config config = {state_history::partition_config{.retained_dir = "retain here pls", .archive_dir = "archive here pls", .stride = 10, .max_retained_files = 4}};
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+   const unsigned begin_block = 10;
+   const unsigned end_block = 105;
+
+   //fill up blocks 10 through 104, but many of the early blocks are forgotten
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+            wrote_data_for_blocknum[i] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         });
+   }
+
+   const unsigned start_rewrite_block = 30;
+
+   //try and rewrite block 30. This is a forgotten block that is before the first block in the catalog, so it will fail
+   eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+   BOOST_REQUIRE_EXCEPTION(lc.pack_and_write_entry(fake_blockid_for_num(start_rewrite_block), fake_blockid_for_num(start_rewrite_block-1), [&](bio::filtering_ostreambuf& obuf) {}), chain::plugin_exception,
+                           [](const chain::plugin_exception& e) {return e.get_log().at(0).get_message().find("is before first block") != std::string::npos;});
+} FC_LOG_AND_RETHROW();
+
+//similar to above, but with pruning. surprise! it's allowed! rewriting pruned blocks is allowed as long as they are after the index's start block (the first block ever written to
+// the log)
+BOOST_AUTO_TEST_CASE(rewrite_same_forgotten_pruned_range) try {
+   const fc::temp_directory tmpdir;
+
+   const state_history::state_history_log_config config = {state_history::prune_config{.prune_blocks = 40, .prune_threshold = 2}};
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+   const unsigned begin_block = 10;
+   const unsigned end_block = 105;
+
+   //fill up blocks 10 through 104, but many of the early blocks are forgotten
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+            wrote_data_for_blocknum[i] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         });
+   }
+
+   const unsigned start_rewrite_block = 30;
+
+   const size_t before_log_size = std::filesystem::file_size(tmpdir.path() / "huh.log");
+   const size_t before_index_size = std::filesystem::file_size(tmpdir.path() / "huh.index");
+
+   //rewrite block 30, and check that the log state seems sane
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      lc.pack_and_write_entry(fake_blockid_for_num(start_rewrite_block), fake_blockid_for_num(start_rewrite_block-1), [&](bio::filtering_ostreambuf& obuf) {});
+      const auto [after_begin_block, after_end_block] = lc.block_range();
+
+      BOOST_REQUIRE_EQUAL(after_begin_block, start_rewrite_block);
+      BOOST_REQUIRE_EQUAL(after_end_block, start_rewrite_block+1u);
+   }
+   //open again just in case
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      const auto [after_begin_block, after_end_block] = lc.block_range();
+      BOOST_REQUIRE_EQUAL(after_begin_block, start_rewrite_block);
+      BOOST_REQUIRE_EQUAL(after_end_block, start_rewrite_block+1u);
+   }
+
+   //and check the file sizes, index should have shrunk, log grown
+   BOOST_REQUIRE_LT(before_log_size, std::filesystem::file_size(tmpdir.path() / "huh.log"));
+   BOOST_REQUIRE_GT(before_index_size, std::filesystem::file_size(tmpdir.path() / "huh.index"));
+
+} FC_LOG_AND_RETHROW();
+
+//similar to above, but this time write a block that is before the first ever block of the pruned log (index_start_block). this isn't allowed
+BOOST_AUTO_TEST_CASE(rewrite_too_old_pruned_block) try {
+   const fc::temp_directory tmpdir;
+
+   const state_history::state_history_log_config config = {state_history::prune_config{.prune_blocks = 40, .prune_threshold = 2}};
+
+   std::map<block_num_type, sha256> wrote_data_for_blocknum;
+   const unsigned begin_block = 10;
+   const unsigned end_block = 105;
+
+   //fill up blocks 10 through 104, but many of the early blocks are forgotten
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+      for(unsigned i = begin_block; i < end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+            bio::filtering_istreambuf hashed_randomness(sha256_filter() | bio::restrict(random_source(), 0, 64*1024));
+            bio::copy(hashed_randomness, obuf);
+            wrote_data_for_blocknum[i] = hashed_randomness.component<sha256_filter>(0)->enc->result();
+         });
+   }
+
+   const unsigned start_rewrite_block = 9;
+
+   eosio::state_history::log_catalog lc(tmpdir.path(), config, "huh");
+   BOOST_REQUIRE_EXCEPTION(lc.pack_and_write_entry(fake_blockid_for_num(start_rewrite_block), fake_blockid_for_num(start_rewrite_block-1), [&](bio::filtering_ostreambuf& obuf) {}), chain::plugin_exception,
+                           [](const chain::plugin_exception& e) {return e.get_log().at(0).get_message().find("is before start block") != std::string::npos;});
 
 } FC_LOG_AND_RETHROW();
 
