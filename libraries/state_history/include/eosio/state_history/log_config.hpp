@@ -4,6 +4,7 @@
 #include <variant>
 #include <optional>
 #include <stdint.h>
+#include <eosio/chain/types.hpp>
 
 namespace eosio::state_history {
 
@@ -21,5 +22,20 @@ struct partition_config {
 };
 
 using state_history_log_config = std::variant<std::monostate, prune_config, partition_config>;
+
+std::ostream& boost_test_print_type(std::ostream& os, const state_history_log_config& conf) {
+   std::visit(chain::overloaded {
+      [&os](const std::monostate&) {
+         os << "flat";
+      },
+      [&os](const prune_config& pc) {
+         os << "prune:" << pc.prune_blocks << "," << pc.prune_threshold << "," << (pc.vacuum_on_close.has_value() ? std::to_string(*pc.vacuum_on_close) : "no");
+      },
+      [&os](const partition_config& pc) {
+         os << "split:" << pc.retained_dir << "," << pc.archive_dir << "," << pc.stride << "," << pc.max_retained_files;
+      }
+   }, conf);
+   return os;
+}
 
 }
