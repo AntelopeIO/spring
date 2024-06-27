@@ -341,18 +341,16 @@ finality_data_t block_state::get_finality_data() {
       base_digest = compute_base_digest(); // cache it
    }
 
-   // Check if there is any proposed finalizer policy in the block
-   std::optional<finalizer_policy> proposed_finalizer_policy;
+   // Check if there is a finalizer policy promoted to pending in the block
+   std::optional<finalizer_policy> pending_fin_pol;
    if (is_savanna_genesis_block()) {
-      // For Genesis Block, use the active finalizer policy which was proposed in the block.
-      proposed_finalizer_policy = *active_finalizer_policy;
-   } else {
-      for (const auto& p: proposed_finalizer_policies) {
-         if (p.first == block_num()) {
-            proposed_finalizer_policy = *p.second;
-            break;
-         }
-      }
+      // For Genesis Block, use the active finalizer policy which went through
+      // proposed to pending to active in the single block.
+      pending_fin_pol = *active_finalizer_policy;
+   } else if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
+      // The `first` element of `pending_finalizer_policy` pair is the block number
+      // when the policy becomes pending
+      pending_fin_pol = *pending_finalizer_policy->second;
    }
 
    return {
@@ -361,7 +359,7 @@ finality_data_t block_state::get_finality_data() {
       .final_on_strong_qc_block_num       = core.final_on_strong_qc_block_num,
       .action_mroot                       = action_mroot,
       .base_digest                        = *base_digest,
-      .proposed_finalizer_policy          = std::move(proposed_finalizer_policy)
+      .pending_finalizer_policy           = std::move(pending_fin_pol)
    };
 }
 
