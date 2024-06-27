@@ -1,4 +1,4 @@
-#include "finality_test_cluster.hpp"
+#include <finality_test_cluster.hpp>
 
 #include <eosio/chain/block_state.hpp>
 #include <eosio/testing/tester.hpp>
