@@ -1406,12 +1406,6 @@ struct controller_impl {
       }
    }
 
-   block_num_type latest_known_lib_num() const {
-      block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
-      return savanna_lib_num > 0 ? savanna_lib_num : fork_db_head_irreversible_blocknum();
-   }
-
    void log_irreversible() {
       EOS_ASSERT( fork_db_has_root(), fork_database_exception, "fork database not properly initialized" );
 
@@ -3310,7 +3304,7 @@ struct controller_impl {
             ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
                  "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
                  ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
-                 ("count", new_b->transactions.size())("lib", latest_known_lib_num())("net", br.total_net_usage)
+                 ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("net", br.total_net_usage)
                  ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)("confs", new_b->confirmed));
          }
 
@@ -3475,7 +3469,7 @@ struct controller_impl {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
               "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
-              ("count", bsp->block->transactions.size())("lib", latest_known_lib_num())
+              ("count", bsp->block->transactions.size())("lib", fork_db_root_block_num())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
               ("elapsed", br.total_elapsed_time)("time", br.total_time)("latency", (now - bsp->timestamp()).count() / 1000));
          const auto& hb_id = chain_head.id();
@@ -3484,7 +3478,7 @@ struct controller_impl {
             ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
                  "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
                  ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-                 ("count", hb->transactions.size())("lib", latest_known_lib_num())
+                 ("count", hb->transactions.size())("lib", fork_db_root_block_num())
                  ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", br.total_time)
                  ("latency", (now - hb->timestamp).count() / 1000));
          }
