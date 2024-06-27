@@ -4,7 +4,6 @@
 #include <fc/variant_object.hpp>
 
 #include <boost/test/unit_test.hpp>
-#include <bitset>
 
 #include <contracts.hpp>
 #include <test_contracts.hpp>
