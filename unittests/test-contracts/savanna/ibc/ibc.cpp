@@ -169,11 +169,9 @@ ACTION ibc::checkproof(const proof& proof){
 
 }
 
-ACTION ibc::testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector){
-
-    size_t finalizer_count = bitset_vector.size();
-    savanna::bitset b(finalizer_count, bitset_vector);
+ACTION ibc::testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector, const size_t finalizers_count){
+    savanna::bitset b(finalizers_count, bitset_vector);
 
     check(b.to_string() == bitset_string, "bitset mismatch");
-    
+
 }

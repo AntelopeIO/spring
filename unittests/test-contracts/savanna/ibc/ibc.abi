@@ -5,6 +5,10 @@
         {
             "new_type_name": "block_data_type",
             "type": "variant_simple_block_data_extended_block_data"
+        },
+        {
+            "new_type_name": "size_t",
+            "type": "uint32"
         }
     ],
     "structs": [
@@ -353,6 +357,10 @@
                 {
                     "name": "bitset_vector",
                     "type": "bytes"
+                },
+                {
+                    "name": "finalizers_count",
+                    "type": "size_t"
                 }
             ]
         }

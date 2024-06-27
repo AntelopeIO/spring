@@ -4,6 +4,7 @@
 #include <fc/variant_object.hpp>
 
 #include <boost/test/unit_test.hpp>
+#include <bitset>
 
 #include <contracts.hpp>
 #include <test_contracts.hpp>
@@ -17,6 +18,49 @@ using namespace eosio::chain;
 using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
+
+std::string bin_to_hex(const std::string& bin) {
+   std::stringstream hexStream;
+   for (size_t i = 0; i < bin.length(); i += 4) {
+       std::string byte = bin.substr(i, 4);
+       while (byte.length() < 4) {
+           byte = "0" + byte; // pad with zeroes if less than 4 bits
+       }
+       std::bitset<4> bits(byte);
+       hexStream << std::hex << bits.to_ulong();
+   }
+   return hexStream.str();
+}
+
+std::string reverse_bytes(const std::string& hex) {
+   std::string reversedHex;
+   for (int i = hex.length() - 2; i >= 0; i -= 2) {
+       reversedHex += hex.substr(i, 2);
+   }
+   return reversedHex;
+}
+
+std::string convert_to_reverse_bytes(const std::string& binary) {
+   std::string hex = bin_to_hex(binary);
+   if (hex.size() % 2)
+     hex.insert(0, "0");
+   std::string reversedHex = reverse_bytes(hex);
+   return reversedHex;
+}
+
+std::string bitset_to_binary(const boost::dynamic_bitset<unsigned char>& bitset) {
+   std::string result;
+   result.reserve(bitset.size());
+   for (std::size_t i = bitset.size(); i > 0; --i) {
+       result += bitset[i - 1] ? '1' : '0';
+   }
+   return result;
+}
+
+std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+   std::string result = bitset_to_binary(bitset);
+   return convert_to_reverse_bytes(result);
+}
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
@@ -68,15 +112,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(block_5_result.qc_data.qc.has_value());
       BOOST_TEST(block_6_result.qc_data.qc.has_value());
 
-      std::stringstream sstream;
-      sstream << std::hex << (1 << 3) - 1; // we expect a quorum of finalizers to vote
-                                                                             // +1 because num_needed_for_quorum excludes node0
-      std::string raw_bitset = sstream.str();
-      if (raw_bitset.size() % 2)
-         raw_bitset.insert(0, "0");
-
       // create a few proofs we'll use to perform tests
-
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
@@ -91,7 +127,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_5_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -130,7 +166,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_5_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -164,7 +200,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_6_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -346,7 +382,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_10_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -462,7 +498,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_14_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -509,7 +545,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", bitset_to_input_string(block_15_result.qc_data.qc.value().data.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -577,6 +613,37 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    BOOST_AUTO_TEST_CASE(bitset_tests) { try {
 
+      savanna_tester chain;
+
+      chain.produce_block();
+
+      chain.create_account( "ibc"_n );
+      chain.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
+      chain.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "70")
+         ("bitset_vector", convert_to_reverse_bytes("0111"))
+         ("finalizers_count", 4)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "f0")
+         ("bitset_vector", convert_to_reverse_bytes("1111"))
+         ("finalizers_count", 4)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "ff")
+         ("bitset_vector", convert_to_reverse_bytes("11111111"))
+         ("finalizers_count", 8)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "1fffff")
+         ("bitset_vector", convert_to_reverse_bytes("111111111111111111111"))
+         ("finalizers_count", 21)
+      );
 
    } FC_LOG_AND_RETHROW() }
 
