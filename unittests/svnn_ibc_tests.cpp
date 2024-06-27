@@ -19,33 +19,30 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-std::string bin_to_hex(const std::string& bin) {
-   std::stringstream hexStream;
-   for (size_t i = 0; i < bin.length(); i += 4) {
-       std::string byte = bin.substr(i, 4);
-       while (byte.length() < 4) {
-           byte = "0" + byte; // pad with zeroes if less than 4 bits
-       }
-       std::bitset<4> bits(byte);
-       hexStream << std::hex << bits.to_ulong();
-   }
-   return hexStream.str();
-}
+std::string binary_to_hex(const std::string& bin) {
+   size_t pad_bin_length = (4 - (bin.length() % 4)) % 4;
 
-std::string reverse_bytes(const std::string& hex) {
-   std::string reversedHex;
-   for (int i = hex.length() - 2; i >= 0; i -= 2) {
-       reversedHex += hex.substr(i, 2);
-   }
-   return reversedHex;
-}
+    std::string padded_bin = std::string(pad_bin_length, '0') + bin;
+    std::stringstream hex_stream;
 
-std::string convert_to_reverse_bytes(const std::string& binary) {
-   std::string hex = bin_to_hex(binary);
-   if (hex.size() % 2)
-     hex.insert(0, "0");
-   std::string reversedHex = reverse_bytes(hex);
-   return reversedHex;
+    for (size_t i = 0; i < padded_bin.length(); i += 4) {
+        std::string segment = padded_bin.substr(i, 4);
+        int value = std::stoi(segment, nullptr, 2);
+        hex_stream << std::hex << value;
+    }
+
+    size_t pad_out_length = (2 - (hex_stream.str().length() % 2)) % 2;
+
+    std::string padded_hex_stream = std::string(pad_out_length, '0') + hex_stream.str();
+    std::string reversed_hex = "";
+
+    for (size_t i = 0; i < padded_hex_stream.length(); i += 2) {
+      std::string byte = padded_hex_stream.substr(i, 2);
+      reversed_hex = byte + reversed_hex;
+    }
+
+    return reversed_hex;
+
 }
 
 std::string bitset_to_binary(const boost::dynamic_bitset<unsigned char>& bitset) {
@@ -59,7 +56,7 @@ std::string bitset_to_binary(const boost::dynamic_bitset<unsigned char>& bitset)
 
 std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
    std::string result = bitset_to_binary(bitset);
-   return convert_to_reverse_bytes(result);
+   return binary_to_hex(result);
 }
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
@@ -615,33 +612,50 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       savanna_tester chain;
 
-      chain.produce_block();
-
       chain.create_account( "ibc"_n );
       chain.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
       chain.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
 
+      std::string bitset_1 = binary_to_hex("0");
+      std::string bitset_2 = binary_to_hex("011");
+      std::string bitset_3 = binary_to_hex("00011101010");
+      std::string bitset_4 = binary_to_hex("11011000100001");
+      std::string bitset_5 = binary_to_hex("111111111111111111111");
+      std::string bitset_6 = binary_to_hex("000000111111111111111");
+
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "70")
-         ("bitset_vector", convert_to_reverse_bytes("0111"))
-         ("finalizers_count", 4)
+         ("bitset_string", "00")
+         ("bitset_vector", bitset_1)
+         ("finalizers_count", 1)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "f0")
-         ("bitset_vector", convert_to_reverse_bytes("1111"))
-         ("finalizers_count", 4)
+         ("bitset_string", "30")
+         ("bitset_vector", bitset_2)
+         ("finalizers_count", 3)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "ff")
-         ("bitset_vector", convert_to_reverse_bytes("11111111"))
-         ("finalizers_count", 8)
+         ("bitset_string", "ae00")
+         ("bitset_vector", bitset_3)
+         ("finalizers_count", 11)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "1fffff")
-         ("bitset_vector", convert_to_reverse_bytes("111111111111111111111"))
+         ("bitset_string", "1263")
+         ("bitset_vector", bitset_4)
+         ("finalizers_count", 14)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "fffff1")
+         ("bitset_vector", bitset_5)
+         ("finalizers_count", 21)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "fff700")
+         ("bitset_vector", bitset_6)
          ("finalizers_count", 21)
       );
 
