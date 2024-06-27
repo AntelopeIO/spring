@@ -5,6 +5,7 @@
 
 #include <eosio/testing/tester.hpp>
 #include <ranges>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace savanna_cluster {
    namespace ranges = std::ranges;
@@ -183,9 +184,41 @@ namespace savanna_cluster {
       // creating two separate networks.
       // within each of the two partitions, nodes are still fully connected
       // -----------------------------------------------------------------------------------------
-      void set_partition(std::vector<size_t> indices) {
-         _partition = std::move(indices);
+      void set_partition(const std::vector<size_t>& indices) {
+         auto inside = [&](size_t node_idx) {
+            return ranges::any_of(indices, [&](auto i) { return i == node_idx; });
+         };
+         std::vector<size_t> complement;
+         for (size_t i = 0; i < _nodes.size(); ++i)
+            if (!inside(i))
+               complement.push_back(i);
+
+         auto set_peers = [&](const std::vector<size_t>& v) { for (auto i : v)  _peers[i] = v; };
+
+         _peers.clear();
+         set_peers(indices);
+         set_peers(complement);
       }
+
+      void set_partitions(std::initializer_list<std::vector<size_t>> l) {
+         auto inside = [&](size_t node_idx) {
+            return ranges::any_of(l, [node_idx](const auto& v) {
+               return ranges::any_of(v, [node_idx](auto i) { return i == node_idx; }); });
+         };
+
+         std::vector<size_t> complement;
+         for (size_t i = 0; i < _nodes.size(); ++i)
+            if (!inside(i))
+               complement.push_back(i);
+
+         auto set_peers = [&](const std::vector<size_t>& v) { for (auto i : v)  _peers[i] = v; };
+
+         _peers.clear();
+         for (const auto& v : l)
+            set_peers(v);
+         set_peers(complement);
+      }
+
 
       void push_blocks(node_t& node, const std::vector<size_t> &indices,
                        uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
@@ -268,8 +301,10 @@ namespace savanna_cluster {
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);
+
    private:
-      std::vector<size_t>             _partition;
+      using peers_t = boost::unordered_flat_map<size_t, std::vector<size_t>>;
+      peers_t                         _peers;
       bool                            _shutting_down {false};
 
       friend node_t;
@@ -292,17 +327,15 @@ namespace savanna_cluster {
          if (_shutting_down)
             return;
 
-         if (_partition.empty()) {
+         if (_peers.empty()) {
             for (size_t i=0; i<NUM_NODES; ++i)
                if (!skip_self || i != node_idx)
                   cb(_nodes[i]);
          } else {
-            auto in_partition = [&](size_t node_idx) {
-               return ranges::any_of(_partition, [&](auto i) { return i == node_idx; });
-            };
-            bool in = in_partition(node_idx);
-            for (size_t i=0; i<NUM_NODES; ++i)
-               if ((!skip_self || i != node_idx) && in == in_partition(i))
+            assert(_peers.find(node_idx) != _peers.end());
+            const auto& peers = _peers[node_idx];
+            for (auto i : peers)
+               if (!skip_self || i != node_idx)
                   cb(_nodes[i]);
          }
       }
