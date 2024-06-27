@@ -1,3 +1,5 @@
+#include "finality_test_cluster.hpp"
+
 #include <eosio/chain/block_state.hpp>
 #include <eosio/testing/tester.hpp>
 
@@ -7,12 +9,12 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace eosio::chain;
+using namespace fc::crypto::blslib;
+
 BOOST_AUTO_TEST_SUITE(block_state_tests)
 
 BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
-   using namespace eosio::chain;
-   using namespace fc::crypto::blslib;
-
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
 
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
@@ -91,9 +93,6 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
                     bool strong,
                     const std::vector<bool>& to_vote,
                     bool expected_quorum) {
-   using namespace eosio::chain;
-   using namespace fc::crypto::blslib;
-
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
    auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
@@ -180,9 +179,6 @@ BOOST_AUTO_TEST_CASE(quorum_test) try {
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_CASE(verify_qc_test) try {
-   using namespace eosio::chain;
-   using namespace fc::crypto::blslib;
-
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
    auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
@@ -375,6 +371,49 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       valid_quorum_certificate qc(strong_votes, weak_votes, sig);
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_is("signature validation failed") );
    }
+} FC_LOG_AND_RETHROW();
+
+BOOST_FIXTURE_TEST_CASE(get_finality_data_test, finality_test_cluster<4>) try {
+   // The test cluster consists of only 4 node -- node0 is both a producer and a finalizer.
+   // It has transitioned to Savanna after startup.
+
+   // fin_policy_0 is the active finalizer policy
+   BOOST_REQUIRE(fin_policy_0);
+
+   // fin_policy_indices_0 is the set of indices used in active finalizer policy
+   // to indicate which key of a node is used in the policy
+   auto key_indices = fin_policy_indices_0;
+   BOOST_REQUIRE(key_indices[0] == 0u);  // index 0 for node0 was used in active policy
+
+   // Propose a finalizer policy by changing the index of the key used by node0 to 1
+   key_indices[0] = 1;
+   node0.finkeys.set_finalizer_policy(key_indices);
+
+   finality_data_t finality_data;
+
+   // It takes one 3-chain for LIB to advance and 1 LIB proposed finalizer to be promoted to pending.
+   for (size_t i=0; i<3; ++i) {
+      produce_and_push_block();
+      process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+
+      // We should not see pending_finalizer_policy in finality_data
+      finality_data = *node0.control->head_finality_data();
+      BOOST_REQUIRE(!finality_data.pending_finalizer_policy.has_value());
+   }
+
+   // Produce one more block. The proposed finalizer policy is promoted to pending in this block.
+   // We should see pending_finalizer_policy in finality_data
+   produce_and_push_block();
+   process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+   finality_data = *node0.control->head_finality_data();
+   BOOST_REQUIRE(finality_data.pending_finalizer_policy.has_value());
+
+   // Produce another block. We should not see pending_finalizer_policy as
+   // no proposed finalizer policy is promoted to pending in this block
+   produce_and_push_block();
+   process_votes(1, num_nodes - 1); // all non-producing nodes (staring from node1) vote
+   finality_data = *node0.control->head_finality_data();
+   BOOST_REQUIRE(!finality_data.pending_finalizer_policy.has_value());
 } FC_LOG_AND_RETHROW();
 
 BOOST_AUTO_TEST_SUITE_END()
