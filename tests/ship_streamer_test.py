@@ -159,17 +159,15 @@ try:
         Print(f"Client {i} started, Ship node head is: {shipNode.getBlockNum()}")
 
     # Generate a fork
+    nonProdNode.waitForProducer("defproducera")
     prodNode3Prod= "defproducerd"
     preKillBlockNum=nonProdNode.getBlockNum()
     preKillBlockProducer=nonProdNode.getBlockProducerByNum(preKillBlockNum)
     forkAtProducer="defproducerb"
     nonProdNode.killNodeOnProducer(producer=forkAtProducer, whereInSequence=1)
     Print(f"Current block producer {preKillBlockProducer} fork will be at producer {forkAtProducer}")
-    prodNode0.waitForProducer("defproducera")
+    prodNode0.waitForProducer("defproducerc")
     prodNode3.waitForProducer(prodNode3Prod)
-    if nonProdNode.verifyAlive():
-        prodNode0.waitForProducer("defproducera")
-        prodNode3.waitForProducer(prodNode3Prod)
     if nonProdNode.verifyAlive():
         Utils.errorExit("Bridge did not shutdown")
     Print("Fork started")
