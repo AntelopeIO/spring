@@ -191,8 +191,10 @@ public:
          return;
 
       std::optional<finality_data_t> finality_data = chain_plug->chain().head_finality_data();
-      if(!finality_data.has_value())
+      if(!finality_data.has_value()) {
+         finality_data_log->clear();
          return;
+      }
 
       finality_data_log->pack_and_write_entry(id, previous_id, [finality_data](bio::filtering_ostreambuf& buf) {
          fc::datastream<boost::iostreams::filtering_ostreambuf&> ds{buf};
