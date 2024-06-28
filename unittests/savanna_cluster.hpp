@@ -275,6 +275,16 @@ namespace savanna_cluster {
          push_block_to_peers(dst_idx, false, sb);
       }
 
+      void verify_lib_advances() {
+         auto lib = node0.lib_block->block_num();
+         size_t tries = 0;
+         while (node0.lib_block->block_num() <= lib + 3 && ++tries < 10) {
+            node0.produce_block();
+         }
+         BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
+      }
+
+
       // Push new blocks from src_idx node to all nodes in partition of dst_idx.
       // This is used when pushing one fork from a node to another node which has
       // another fork, so we can't use `dst.forkdb_head_num() + 1` for start_block_num

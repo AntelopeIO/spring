@@ -29,6 +29,12 @@ inline weak_digest_t create_weak_digest(const digest_type& digest) {
 struct block_state_legacy;
 struct block_state_accessor;
 
+struct core_info_t {
+   uint32_t             last_final_block_num;
+   uint32_t             last_qc_block_num;
+   block_timestamp_type timestamp;
+};
+
 /*
  * Important concepts:
  * 1. A Finality Merkle Tree is a Merkle tree over a sequence of Finality Leaf Nodes,
@@ -115,6 +121,7 @@ public:
    std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
    void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
+   core_info_t            core_info() const { return { last_final_block_num(), last_qc_block_num(), timestamp() }; }
 
    // heuristic for determination if we are syncing or replaying for optimizations
    bool is_recent() const {

@@ -149,16 +149,12 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t<4>) t
    // -----------------------------------------------------------------
    set_partition({});
    propagate_heads();
+
    sb = node0.produce_block();  // produce an even more recent block on node0 so that it will be the uncontested head
    BOOST_REQUIRE_EQUAL(node0.head().id(), node2.head().id());
    BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());
 
-   auto lib = node0.lib_block->block_num();
-   size_t tries = 0;
-   while (node0.lib_block->block_num() <= lib + 3 && ++tries < 10) {
-      node0.produce_block();
-   }
-   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
+   verify_lib_advances();
 } FC_LOG_AND_RETHROW();
 
 // ---------------------------- forking ---------------------------------------------------------
@@ -249,6 +245,13 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    BOOST_REQUIRE_EQUAL(node0.lib_block->block_num(), node3.lib_block->block_num());
 } FC_LOG_AND_RETHROW()
 
+// ---------------------------- prune_remove_branch ---------------------------------
+void print_core(const block_handle& h) {
+   auto core = h.core_info();
+   printf("last_final=%d, last_qc=%d, timestamp=%d\n", core->last_final_block_num,
+          core->last_qc_block_num, core->timestamp.slot);
+
+}
 
 // ---------------------------- prune_remove_branch ---------------------------------
 // Verify fork choice criteria for Savanna:
@@ -263,21 +266,42 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t<4> )
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb_common = node0.produce_blocks(4);
+   auto lib = node0.lib_num();
    BOOST_REQUIRE_EQUAL(sb_common->producer, producers[prod]); // first block produced by producers[prod]
+
 
    const std::vector<size_t> partition {1, 2, 3};
    set_partition(partition);                  // simulate 2 disconnected partitions:
-                                              // P0 (node {0}) and P1 (nodes {1, 2, 3})
-                                              // finality will still advance in p1 because it has 3 finalizers
+                                              // P0 (node {0}) and P1 (nodes {1, 2, 3}).
+                                              // At this point, each node has a QC to include into
+                                              // the next block it produces which will advance lib by one)
+                                              // finality will still advance further in p1 because it has 3 finalizers
 
-   auto node1_head = node1.produce_blocks(2); // produce 2 blocks on node1 finality will advance by 2 blocks
+   node1.produce_blocks(2);                   // produce 2 blocks on node1 finality will advance by 2 blocks
+   auto node1_head = node1.head();
+   BOOST_REQUIRE_EQUAL(node1.lib_num(), lib+2);
 
-   node0.produce_block(_block_interval_us * 12); // produce 2 blocks on node0. finality will advance by 1 block
-   auto node0_head = node0.produce_block();      // but they'll have a later timestamp
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node0_head->calculate_id());
+   node0.produce_block(_block_interval_us * 12); // produce 2 blocks on node0. finality will advance by 1 block only
+   node0.produce_block();                        // but they'll have a later timestamp
+   auto node0_head = node0.head();
+   BOOST_REQUIRE_EQUAL(node0.lib_num(), lib+1);
+
+   // verify assumptions (finality more advanced on node1, but timestamp less)
+   auto core0 = node0_head.core_info();
+   auto core1 = node1_head.core_info();
+   BOOST_REQUIRE_GT(core1->last_final_block_num, core0->last_final_block_num);
+   BOOST_REQUIRE_GT(core1->last_qc_block_num, core0->last_qc_block_num);
+   BOOST_REQUIRE_LT(core1->timestamp, core0->timestamp);
+
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node0_head.id());
 
    push_blocks(1, 0, sb_common->block_num() + 1); // push the 2 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node1_head->calculate_id());
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node1_head.id()); // and check that we fork-switched to node1's head
+
+   set_partition({});
+   propagate_heads();
+   verify_lib_advances();
+
 } FC_LOG_AND_RETHROW()
 
 

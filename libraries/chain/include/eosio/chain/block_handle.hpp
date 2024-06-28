@@ -26,6 +26,14 @@ public:
    const signed_block_ptr& block() const { return std::visit<const signed_block_ptr&>([](const auto& bsp) -> const signed_block_ptr& { return bsp->block; }, _bsp); }
    const block_header&     header() const { return std::visit<const block_header&>([](const auto& bsp) -> const block_header& { return bsp->header; }, _bsp); };
    account_name            producer() const { return std::visit([](const auto& bsp) { return bsp->producer(); }, _bsp); }
+
+   std::optional<core_info_t> core_info() const {
+      return std::visit(overloaded{[](const block_state_legacy_ptr&) -> std::optional<core_info_t> { return {}; },
+                                   [](const block_state_ptr& bsp) -> std::optional<core_info_t> {
+                                      return bsp->core_info();
+                                   }},
+                        _bsp);
+   }
 };
 
 } // namespace eosio::chain
