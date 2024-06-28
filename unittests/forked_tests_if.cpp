@@ -227,7 +227,7 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    sb = node3.produce_blocks(12);                              // after 12 blocks, should have switched to "dan"
    BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
-   push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
+   push_blocks(3, 0);                                         // push the last 13 produced blocks to node0
    BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id()); // node0 caught up
    BOOST_REQUIRE_EQUAL(node1.head().id(), node3.head().id()); // node0 peer was updated as well
 

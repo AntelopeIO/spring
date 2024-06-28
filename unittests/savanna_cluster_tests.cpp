@@ -58,7 +58,7 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t<4>) { try {
       // all 4 blocks produced by node0 will have the same `final_on_strong_qc`, which is node0_lib+2
 
       set_partition({});                                    // Reunite the two partitions
-      push_blocks(node0, partition);                        // Push the blocks that node0 produced to the other
+      push_blocks(0, partition);                            // Push the blocks that node0 produced to the other
                                                             // nodes which will vote
       node0.produce_block();                                // Produce one block so the newly produced QC propagates.
                                                             // this is needed because we don't advance lib when
