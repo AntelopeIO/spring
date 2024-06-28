@@ -227,9 +227,9 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
    sb = node3.produce_blocks(12);                              // after 12 blocks, should have switched to "dan"
    BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
-   push_blocks(3, 0);                                         // push the last 13 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id()); // node0 caught up
-   BOOST_REQUIRE_EQUAL(node1.head().id(), node3.head().id()); // node0 peer was updated as well
+   push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());  // node0 caught up
+   BOOST_REQUIRE_EQUAL(node1.head().id(), node3.head().id());  // node0 peer was updated as well
 
    // unsplit the network
    set_partition({});
@@ -250,8 +250,6 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
 } FC_LOG_AND_RETHROW()
 
 
-#if 0
-
 // ---------------------------- prune_remove_branch ---------------------------------
 // Verify fork choice criteria for Savanna:
 //   last_final_block_num > last_qc_block_num > timestamp
@@ -264,67 +262,26 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t<4> )
    node0.create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);                  // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
-                                              // at this point, each node has a QC to include into
-                                              // the next block it produces which will advance lib.
+   auto sb_common = node0.produce_blocks(4);
+   BOOST_REQUIRE_EQUAL(sb_common->producer, producers[prod]); // first block produced by producers[prod]
 
+   const std::vector<size_t> partition {1, 2, 3};
+   set_partition(partition);                  // simulate 2 disconnected partitions:
+                                              // P0 (node {0}) and P1 (nodes {1, 2, 3})
+                                              // finality will still advance in p1 because it has 3 finalizers
 
-   legacy_tester c;
-   while (c.control->head_block_num() < 11) {
-      c.produce_block();
-   }
-   auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
-   auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
-   wlog("set producer schedule to [dan,sam,pam,scott]");
+   auto node1_head = node1.produce_blocks(2); // produce 2 blocks on node1 finality will advance by 2 blocks
 
-   // run until the producers are installed and its the start of "dan's" round
-   BOOST_REQUIRE( produce_until_transition( c, "scott"_n, "dan"_n ) );
+   node0.produce_block(_block_interval_us * 12); // produce 2 blocks on node0. finality will advance by 1 block
+   auto node0_head = node0.produce_block();      // but they'll have a later timestamp
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node0_head->calculate_id());
 
-   legacy_tester c2(setup_policy::none);
-   wlog( "push c1 blocks to c2" );
-   push_blocks(c, c2);
-
-   // fork happen after block fork_num
-   uint32_t fork_num = c.control->head_block_num();
-   BOOST_REQUIRE_EQUAL(fork_num, c2.control->head_block_num());
-
-   auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
-      auto head_time = c.control->head_block_time();
-      auto next_time = head_time + fc::milliseconds(config::block_interval_ms * skip_interval);
-      return c.control->active_producers().get_scheduled_producer(next_time).producer_name;
-   };
-
-   // fork c: 2 producers: dan, sam
-   // fork c2: 1 producer: scott
-   int skip1 = 1, skip2 = 1;
-   for (int i = 0; i < 48; ++i) {
-      account_name next1 = nextproducer(c, skip1);
-      if (next1 == "dan"_n || next1 == "sam"_n) {
-         c.produce_block(fc::milliseconds(config::block_interval_ms * skip1)); skip1 = 1;
-      }
-      else ++skip1;
-      account_name next2 = nextproducer(c2, skip2);
-      if (next2 == "scott"_n) {
-         c2.produce_block(fc::milliseconds(config::block_interval_ms * skip2)); skip2 = 1;
-      }
-      else ++skip2;
-   }
-
-   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());  // dan and sam each produced 12 blocks
-   BOOST_REQUIRE_EQUAL(fork_num + 12u, c2.control->head_block_num()); // only scott produced its 12 blocks
-
-   // push fork from c2 => c
-   size_t p = fork_num;
-
-   while ( p < c2.control->head_block_num()) {
-      auto fb = c2.control->fetch_block_by_number(++p);
-      c.push_block(fb);
-   }
-
-   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());
-
+   push_blocks(1, 0, sb_common->block_num() + 1); // push the 2 produced blocks to node0
+   BOOST_REQUIRE_EQUAL(node0.head().id(), node1_head->calculate_id());
 } FC_LOG_AND_RETHROW()
+
+
+#if 0
 
 // ---------------------------- irreversible_mode ---------------------------------
 BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
