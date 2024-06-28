@@ -28,7 +28,7 @@ struct finality_node_t : public eosio::testing::tester {
    eosio::testing::finalizer_keys<tester>  finkeys;
    size_t                                  cur_key{0}; // index of key used in current policy
 
-   finality_node_t() : finkeys(*this) {}
+   finality_node_t() : eosio::testing::tester(eosio::testing::setup_policy::full_except_do_not_transition_to_savanna),  finkeys(*this) {}
 
    size_t last_vote_index() const {
       assert(!votes.empty());
@@ -196,6 +196,13 @@ public:
       return b;
    }
 
+   eosio::testing::produce_block_result_t produce_and_push_block_ex() {
+      auto b = node0.produce_block_ex();
+      for (size_t i=1; i<nodes.size(); ++i)
+         nodes[i].push_block(b.block);
+      return b;
+   }
+
    // Produces a number of blocks and returns true if LIB is advancing.
    // This function can be only used at the end of a test as it clears
    // node1 to nodeN votes when starting.
@@ -238,6 +245,13 @@ public:
       return num_voting_nodes + start_idx;
    }
 
+   // propagate votes to node1, node2, etc. according to their ordinal position in the bool vector (shifted by one to account for node0)
+   void process_finalizer_votes(const std::vector<bool> votes) {
+      assert(votes.size() == num_nodes-1);
+      for (size_t i = 1; i<num_nodes; i++)
+         if (votes[i-1]) process_vote(i, -1, vote_mode::strong, false);
+   }
+
    void clear_votes_and_reset_lib() {
       for (auto& n : nodes)
          n.clear_votes_and_reset_lib();
@@ -276,7 +290,7 @@ private:
       // duplicates are not signaled
       size_t retrys = 200;
       while ( (last_connection_vote != connection_id) && --retrys) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (!duplicate && last_connection_vote != connection_id) {
          FC_ASSERT(false, "Never received vote");

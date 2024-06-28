@@ -117,14 +117,17 @@ namespace eosio::chain::snapshot_detail {
       finalizer_policy_ptr                                active_finalizer_policy;
       proposer_policy_ptr                                 active_proposer_policy;
       flat_map<block_timestamp_type, proposer_policy_ptr> proposer_policies;
-      flat_multimap<block_num_type, finalizer_policy_tracker> finalizer_policies;
+      std::vector<std::pair<block_num_type, finalizer_policy_ptr>>   proposed_finalizer_policies;
+      std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
       uint32_t                                            finalizer_policy_generation;
+      digest_type                                         last_pending_finalizer_policy_digest;
 
       // from block_state
       std::optional<valid_t>                              valid;
 
       snapshot_block_state_v7() = default;
 
+      // When adding a member initialization here also update block_state(snapshot_block_state_v7) constructor
       explicit snapshot_block_state_v7(const block_state& bs)
          : block_id(bs.block_id)
          , header(bs.header)
@@ -133,8 +136,10 @@ namespace eosio::chain::snapshot_detail {
          , active_finalizer_policy(bs.active_finalizer_policy)
          , active_proposer_policy(bs.active_proposer_policy)
          , proposer_policies(bs.proposer_policies)
-         , finalizer_policies(bs.finalizer_policies)
+         , proposed_finalizer_policies(bs.proposed_finalizer_policies)
+         , pending_finalizer_policy(bs.pending_finalizer_policy)
          , finalizer_policy_generation(bs.finalizer_policy_generation)
+         , last_pending_finalizer_policy_digest(bs.last_pending_finalizer_policy_digest)
          , valid(bs.valid)
       {}
    };
@@ -213,8 +218,10 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
             (active_finalizer_policy)
             (active_proposer_policy)
             (proposer_policies)
-            (finalizer_policies)
+            (proposed_finalizer_policies)
+            (pending_finalizer_policy)
             (finalizer_policy_generation)
+            (last_pending_finalizer_policy_digest)
             (valid)
    )
 

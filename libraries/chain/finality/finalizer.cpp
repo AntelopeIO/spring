@@ -29,14 +29,22 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
    if (!fsi.lock.empty()) {
       // Liveness check : check if the height of this proposal's justification is higher
       // than the height of the proposal I'm locked on.
+      // Also check if lock_block_timestamp <= last_final_block_timestamp to allow finalizers that were active before
+      // to participate in liveness when they come back into active finalizer policy.
       // This allows restoration of liveness if a replica is locked on a stale proposal
       // -------------------------------------------------------------------------------
-      res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
+      res.liveness_check = bsp->core.latest_qc_block_finalizer_policy_generation() == fsi.lock.finalizer_policy_generation &&
+                           bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
+      if (!res.liveness_check) {
+         // might be locked on an old timestamp if finalizer was active in the past and is now active again
+         res.liveness_check = bsp->core.last_final_block_timestamp() >= fsi.lock.timestamp;
+      }
 
       if (!res.liveness_check) {
-         dlog("liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
+         dlog("liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid} ${lg}, latest_qc_claim: ${qc}",
               ("bn", bsp->block_num())("id", bsp->id())("c", bsp->core.latest_qc_block_timestamp())("l", fsi.lock.timestamp)
-              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)("qc", bsp->core.latest_qc_claim()));
+              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)("lg", fsi.lock.finalizer_policy_generation)
+              ("qc", bsp->core.latest_qc_claim()));
          // Safety check : check if this proposal extends the proposal we're locked on
          res.safety_check = bsp->core.extends(fsi.lock.block_id);
          if (!res.safety_check) {
@@ -55,7 +63,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 
    bool can_vote = res.liveness_check || res.safety_check;
 
-   // Figure out if we can vote and wether our vote will be strong or weak
+   // Figure out if we can vote and whether our vote will be strong or weak
    // If we vote, update `fsi.last_vote` and also `fsi.lock` if we have a newer commit qc
    // -----------------------------------------------------------------------------------
    if (can_vote) {
@@ -68,12 +76,12 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          voting_strong = bsp->core.extends(fsi.last_vote.block_id);
       }
 
-      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
+      fsi.last_vote             = { bsp->id(), bsp->timestamp(), bsp->core.latest_qc_block_finalizer_policy_generation() };
       fsi.last_vote_range_start = p_start;
 
       auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
       if (voting_strong && final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp) {
-         fsi.lock = { final_on_strong_qc_block_ref.block_id, final_on_strong_qc_block_ref.timestamp };
+         fsi.lock = final_on_strong_qc_block_ref;
       }
 
       res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
@@ -83,6 +91,19 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
         ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)("m",res.monotony_check)
         ("can_vote",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
    return res;
+}
+
+// ----------------------------------------------------------------------------------------
+// finalizer has voted strong on bsp, update finalizer safety info if more recent than the current lock
+bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
+   auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
+   if (final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
+      fsi.lock = final_on_strong_qc_block_ref;
+      fsi.last_vote             = { bsp->id(), bsp->timestamp(), bsp->core.latest_qc_block_finalizer_policy_generation() };
+      fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
+      return true;
+   }
+   return false;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -105,6 +126,45 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
 }
 
 // ----------------------------------------------------------------------------------------
+inline bool has_voted_strong(const std::vector<finalizer_authority>& active_finalizers, const valid_quorum_certificate& qc, const bls_public_key& key) {
+   assert(qc.is_strong());
+   auto it = std::find_if(active_finalizers.begin(),
+                          active_finalizers.end(),
+                          [&](const auto& finalizer) { return finalizer.public_key == key; });
+
+   if (it != active_finalizers.end()) {
+      auto index = std::distance(active_finalizers.begin(), it);
+      assert(qc.strong_votes);
+      return qc.strong_votes->test(index);
+   }
+   return false;
+}
+
+void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc) {
+   if (finalizers.empty())
+      return;
+
+   // once we have voted, no reason to continue evaluating incoming QCs
+   if (has_voted.load(std::memory_order::relaxed))
+      return;
+
+   assert(bsp->active_finalizer_policy);
+
+   // see comment on possible optimization in maybe_vote
+   std::lock_guard g(mtx);
+
+   bool updated = false;
+   for (auto& f : finalizers) {
+      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc, f.first)) {
+         updated |= f.second.maybe_update_fsi(bsp);
+      }
+   }
+
+   if (updated) {
+      save_finalizer_safety_info();
+   }
+}
+
 void my_finalizers_t::save_finalizer_safety_info() const {
 
    if (!persist_file.is_open()) {
@@ -200,7 +260,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 }
 
 // ----------------------------------------------------------------------------------------
-void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys) {
+void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting) {
    if (finalizer_keys.empty())
       return;
 
@@ -226,6 +286,8 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 
    // now only inactive finalizers remain in safety_info => move it to inactive_safety_info
    inactive_safety_info = std::move(safety_info);
+
+   enable_voting = enable_immediate_voting;
 }
 
 

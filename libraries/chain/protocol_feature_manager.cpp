@@ -17,7 +17,7 @@ namespace eosio { namespace chain {
          (  builtin_protocol_feature_t::preactivate_feature, builtin_protocol_feature_spec{
             "PREACTIVATE_FEATURE",
             fc::variant("64fe7df32e9b86be2b296b3f81dfd527f84e82b98e363bc97e40bc7a83733310").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: PREACTIVATE_FEATURE
 
@@ -41,7 +41,7 @@ Disallows linking an action to a non-existing permission.
          (  builtin_protocol_feature_t::replace_deferred, builtin_protocol_feature_spec{
             "REPLACE_DEFERRED",
             fc::variant("9908b3f8413c8474ab2a6be149d3f4f6d0421d37886033f27d4759c47a26d944").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: REPLACE_DEFERRED
 
@@ -53,7 +53,7 @@ Also corrects the RAM usage of accounts affected by the replace deferred transac
          (  builtin_protocol_feature_t::no_duplicate_deferred_id, builtin_protocol_feature_spec{
             "NO_DUPLICATE_DEFERRED_ID",
             fc::variant("45967387ee92da70171efd9fefd1ca8061b5efe6f124d269cd2468b47f1575a0").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: NO_DUPLICATE_DEFERRED_ID
 Depends on: REPLACE_DEFERRED
@@ -66,7 +66,7 @@ Also allows a contract to send a deferred transaction in a manner that enables t
          (  builtin_protocol_feature_t::fix_linkauth_restriction, builtin_protocol_feature_spec{
             "FIX_LINKAUTH_RESTRICTION",
             fc::variant("a98241c83511dc86c857221b9372b4aa7cea3aaebc567a48604e1d3db3557050").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: FIX_LINKAUTH_RESTRICTION
 
@@ -78,7 +78,7 @@ updateauth, deleteauth, linkauth, unlinkauth, or canceldelay.
          (  builtin_protocol_feature_t::disallow_empty_producer_schedule, builtin_protocol_feature_spec{
             "DISALLOW_EMPTY_PRODUCER_SCHEDULE",
             fc::variant("2853617cec3eabd41881eb48882e6fc5e81a0db917d375057864b3befbe29acd").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: DISALLOW_EMPTY_PRODUCER_SCHEDULE
 
@@ -89,7 +89,7 @@ Disallows proposing an empty producer schedule.
          (  builtin_protocol_feature_t::restrict_action_to_self, builtin_protocol_feature_spec{
             "RESTRICT_ACTION_TO_SELF",
             fc::variant("e71b6712188391994c78d8c722c1d42c477cf091e5601b5cf1befd05721a57f3").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: RESTRICT_ACTION_TO_SELF
 
@@ -102,7 +102,7 @@ This protocol feature removes that bypass.
          (  builtin_protocol_feature_t::only_bill_first_authorizer, builtin_protocol_feature_spec{
             "ONLY_BILL_FIRST_AUTHORIZER",
             fc::variant("2f1f13e291c79da5a2bbad259ed7c1f2d34f697ea460b14b565ac33b063b73e2").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: ONLY_BILL_FIRST_AUTHORIZER
 
@@ -113,7 +113,7 @@ Adds CPU and network bandwidth usage to only the first authorizer of a transacti
          (  builtin_protocol_feature_t::forward_setcode, builtin_protocol_feature_spec{
             "FORWARD_SETCODE",
             fc::variant("898082c59f921d0042e581f00a59d5ceb8be6f1d9c7a45b6f07c0e26eaee0222").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: FORWARD_SETCODE
 
@@ -124,7 +124,7 @@ Forward eosio::setcode actions to the WebAssembly code deployed on the eosio acc
          (  builtin_protocol_feature_t::get_sender, builtin_protocol_feature_spec{
             "GET_SENDER",
             fc::variant("1eab748b95a2e6f4d7cb42065bdee5566af8efddf01a55a0a8d831b823f8828a").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: GET_SENDER
 
@@ -157,7 +157,7 @@ either the account authorized the action or the action's net effect on RAM usage
          (  builtin_protocol_feature_t::webauthn_key, builtin_protocol_feature_spec{
             "WEBAUTHN_KEY",
             fc::variant("927fdf78c51e77a899f2db938249fb1f8bb38f4e43d9c1f75b190492080cbc34").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: WEBAUTHN_KEY
 
@@ -168,7 +168,7 @@ Enables usage of WebAuthn keys and signatures.
          (  builtin_protocol_feature_t::wtmsig_block_signatures, builtin_protocol_feature_spec{
             "WTMSIG_BLOCK_SIGNATURES",
             fc::variant("ab76031cad7a457f4fd5f5fca97a3f03b8a635278e0416f77dcc91eb99a48e10").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: WTMSIG_BLOCK_SIGNATURES
 
@@ -191,7 +191,7 @@ may use a new `set_proposed_producers_ex` intrinsic to access extended features.
          (  builtin_protocol_feature_t::action_return_value, builtin_protocol_feature_spec{
             "ACTION_RETURN_VALUE",
             fc::variant("69b064c5178e2738e144ed6caa9349a3995370d78db29e494b3126ebd9111966").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: ACTION_RETURN_VALUE
 
@@ -217,7 +217,7 @@ also removes an inadvertent restriction on custom sections.
             fc::variant("70787548dcea1a2c52c913a37f74ce99e6caae79110d7ca7b859936a0075b314").as<digest_type>(),
             {}
          } )
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: BLOCKCHAIN_PARAMETERS
 
@@ -237,7 +237,7 @@ Enables new `get_code_hash` intrinsic which gets the current code hash of an acc
          (  builtin_protocol_feature_t::crypto_primitives, builtin_protocol_feature_spec{
             "CRYPTO_PRIMITIVES",
             fc::variant("68d6405cb8df3de95bd834ebb408196578500a9f818ff62ccc68f60b932f7d82").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: CRYPTO_PRIMITIVES
 
@@ -253,7 +253,7 @@ Adds new cryptographic host functions
          (  builtin_protocol_feature_t::get_block_num, builtin_protocol_feature_spec{
             "GET_BLOCK_NUM",
             fc::variant("e5d7992006e628a38c5e6c28dd55ff5e57ea682079bf41fef9b3cced0f46b491").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: GET_BLOCK_NUM
 
@@ -264,7 +264,7 @@ Enables new `get_block_num` intrinsic which returns the current block number.
          (  builtin_protocol_feature_t::bls_primitives, builtin_protocol_feature_spec{
             "BLS_PRIMITIVES2",
             fc::variant("c0cce5bcd8ea19a28d9e12eafda65ebe6d0e0177e280d4f20c7ad66dcd9e011b").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: BLS_PRIMITIVES2
 
@@ -276,7 +276,7 @@ Adds new cryptographic host functions
          (  builtin_protocol_feature_t::disable_deferred_trxs_stage_1, builtin_protocol_feature_spec{
             "DISABLE_DEFERRED_TRXS_STAGE_1",
             fc::variant("440c3efaaab212c387ce967c574dc813851cf8332d041beb418dfaf55facd5a9").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: DISABLE_DEFERRED_TRXS_STAGE_1
 
@@ -296,7 +296,7 @@ have been reached.
          (  builtin_protocol_feature_t::disable_deferred_trxs_stage_2, builtin_protocol_feature_spec{
             "DISABLE_DEFERRED_TRXS_STAGE_2",
             fc::variant("a857eeb932774c511a40efb30346ec01bfb7796916b54c3c69fe7e5fb70d5cba").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
 Builtin protocol feature: DISABLE_DEFERRED_TRXS_STAGE_2
 Depends on: DISABLE_DEFERRED_TRXS_STAGE_1
@@ -308,24 +308,59 @@ retires a deferred transaction is invalid.
 */
             {builtin_protocol_feature_t::disable_deferred_trxs_stage_1}
          } )
-         (  builtin_protocol_feature_t::instant_finality, builtin_protocol_feature_spec{
-            "INSTANT_FINALITY",
-            fc::variant("bd496b9e85ce61dcddeee4576ea185add87844238da992a9ee6df2a2bdb357c2").as<digest_type>(),
-            // SHA256 hash of the raw message below within the comment delimiters (do not modify message below).
+         (  builtin_protocol_feature_t::savanna, builtin_protocol_feature_spec{
+            "SAVANNA",
+            fc::variant("01a8bebb4922c38293a8909668f7d00ba4a21a455c69719ad7dcc33ea1e631c0").as<digest_type>(),
+            // SHA256 hash of the raw message below within the comment delimiters (exclude newline after /*) (do not modify message below).
 /*
-Builtin protocol feature: INSTANT_FINALITY
-Depends on: DISALLOW_EMPTY_PRODUCER_SCHEDULE
+Builtin protocol feature: SAVANNA
+Depends on all previous protocol features:
+            ONLY_LINK_TO_EXISTING_PERMISSION
+            REPLACE_DEFERRED
+            NO_DUPLICATE_DEFERRED_ID
+            FIX_LINKAUTH_RESTRICTION
+            DISALLOW_EMPTY_PRODUCER_SCHEDULE
+            RESTRICT_ACTION_TO_SELF
+            ONLY_BILL_FIRST_AUTHORIZER
+            FORWARD_SETCODE
+            GET_SENDER
+            RAM_RESTRICTIONS
+            WEBAUTHN_KEY
             WTMSIG_BLOCK_SIGNATURES
             ACTION_RETURN_VALUE
+            CONFIGURABLE_WASM_LIMITS2
+            BLOCKCHAIN_PARAMETERS
+            GET_CODE_HASH
+            CRYPTO_PRIMITIVES
+            GET_BLOCK_NUM
             BLS_PRIMITIVES2
+            DISABLE_DEFERRED_TRXS_STAGE_1
+            DISABLE_DEFERRED_TRXS_STAGE_2
 
 Once this protocol feature is activated, the first subsequent block including a `set_finalizers`
-host function call will trigger a switch to the Savanna consensus algorithm.
+host function call will trigger a transition to the Savanna consensus algorithm.
 */
-            { builtin_protocol_feature_t::disallow_empty_producer_schedule,
+            { builtin_protocol_feature_t::only_link_to_existing_permission,
+              builtin_protocol_feature_t::replace_deferred,
+              builtin_protocol_feature_t::no_duplicate_deferred_id,
+              builtin_protocol_feature_t::fix_linkauth_restriction,
+              builtin_protocol_feature_t::disallow_empty_producer_schedule,
+              builtin_protocol_feature_t::restrict_action_to_self,
+              builtin_protocol_feature_t::only_bill_first_authorizer,
+              builtin_protocol_feature_t::forward_setcode,
+              builtin_protocol_feature_t::get_sender,
+              builtin_protocol_feature_t::ram_restrictions,
+              builtin_protocol_feature_t::webauthn_key,
               builtin_protocol_feature_t::wtmsig_block_signatures,
               builtin_protocol_feature_t::action_return_value,
-              builtin_protocol_feature_t::bls_primitives
+              builtin_protocol_feature_t::configurable_wasm_limits,
+              builtin_protocol_feature_t::blockchain_parameters,
+              builtin_protocol_feature_t::get_code_hash,
+              builtin_protocol_feature_t::crypto_primitives,
+              builtin_protocol_feature_t::get_block_num,
+              builtin_protocol_feature_t::bls_primitives,
+              builtin_protocol_feature_t::disable_deferred_trxs_stage_1,
+              builtin_protocol_feature_t::disable_deferred_trxs_stage_2
             }
          } )
    ;

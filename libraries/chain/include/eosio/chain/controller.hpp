@@ -40,6 +40,8 @@ namespace eosio::chain {
    using chainbase::pinnable_mapped_file;
    using boost::signals2::signal;
 
+   class transaction_context;
+   struct trx_block_context;
    class dynamic_global_property_object;
    class global_property_object;
    class permission_object;
@@ -180,6 +182,8 @@ namespace eosio::chain {
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block(block_report& br);
+         void allow_voting(bool val);
+         bool can_vote_on(const signed_block_ptr& b);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
@@ -240,7 +244,6 @@ namespace eosio::chain {
          account_name         head_block_producer()const;
          const block_header&  head_block_header()const;
          const signed_block_ptr& head_block()const;
-         bool                 head_sanity_check()const;
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,
@@ -329,10 +332,11 @@ namespace eosio::chain {
 
          bool is_known_unexpired_transaction( const transaction_id_type& id) const;
 
-         int64_t set_proposed_producers( vector<producer_authority> producers );
+         // called by host function
+         int64_t set_proposed_producers( transaction_context& trx_context, vector<producer_authority> producers );
 
-         // called by host function set_finalizers
-         void set_proposed_finalizers( finalizer_policy&& fin_pol );
+         void apply_trx_block_context( trx_block_context& trx_blk_context );
+
          // called from net threads
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
@@ -407,7 +411,7 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
-      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
+      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting = false);
 
       private:
          friend class apply_context;

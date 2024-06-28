@@ -32,21 +32,22 @@ std::filesystem::path get_retained_dir(const eosio::chain::controller::config& c
    return retained_dir;
 }
 
-struct restart_from_block_log_test_fixture {
-   eosio::testing::tester chain;
+template <class T>
+struct restart_from_block_log_tester : T {
+   T chain;
    uint32_t               cutoff_block_num;
 
-   restart_from_block_log_test_fixture() {
+   restart_from_block_log_tester() {
       using namespace eosio::chain;
       chain.create_account("replay1"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.create_account("replay2"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       chain.create_account("replay3"_n);
-      chain.produce_blocks(1);
+      chain.produce_block();
       auto cutoff_block = chain.produce_block();
       cutoff_block_num  = cutoff_block->block_num();
-      chain.produce_blocks(10);
+      chain.produce_block();
 
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
@@ -67,7 +68,7 @@ struct restart_from_block_log_test_fixture {
 
       // remove the state files to make sure we are starting from block log
       remove_existing_states(copied_config);
-      eosio::testing::tester from_block_log_chain(copied_config, *genesis);
+      T from_block_log_chain(copied_config, *genesis);
       using namespace eosio::chain;
       BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay2"_n));
@@ -75,10 +76,14 @@ struct restart_from_block_log_test_fixture {
    }
 };
 
-BOOST_AUTO_TEST_CASE(test_split_log) {
+
+using restart_from_block_log_testers = boost::mpl::list<restart_from_block_log_tester<eosio::testing::legacy_tester>,
+                                                        restart_from_block_log_tester<eosio::testing::savanna_tester>>;
+
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log, T, eosio::testing::testers ) {
    fc::temp_directory temp_dir;
 
-   eosio::testing::tester chain(
+   T chain(
          temp_dir,
          [](eosio::chain::controller::config& config) {
             config.blog = eosio::chain::partitioned_blocklog_config{ .archive_dir        = "archive",
@@ -126,9 +131,9 @@ BOOST_AUTO_TEST_CASE(test_split_log) {
    BOOST_CHECK(!chain.control->fetch_block_by_number(160));
 }
 
-BOOST_AUTO_TEST_CASE(test_split_log_zero_retained_file) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_zero_retained_file, T, eosio::testing::testers ) {
    fc::temp_directory temp_dir;
-   eosio::testing::tester chain(
+   T chain(
       temp_dir,
       [](eosio::chain::controller::config& config) {
          config.blog = eosio::chain::partitioned_blocklog_config{
@@ -151,9 +156,9 @@ BOOST_AUTO_TEST_CASE(test_split_log_zero_retained_file) {
    BOOST_CHECK(std::filesystem::exists(archive_dir / "blocks-101-150.index"));
 }
 
-BOOST_AUTO_TEST_CASE(test_split_log_all_in_retained_new_default) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_all_in_retained_new_default, T, eosio::testing::testers ) {
    fc::temp_directory temp_dir;
-   eosio::testing::tester chain(
+   T chain(
       temp_dir,
       [](eosio::chain::controller::config& config) {
          config.blog = eosio::chain::partitioned_blocklog_config{ .retained_dir = "retained",
@@ -176,13 +181,17 @@ BOOST_AUTO_TEST_CASE(test_split_log_all_in_retained_new_default) {
    BOOST_CHECK(std::filesystem::exists(retained_dir / "blocks-101-150.index"));
 }
 
-BOOST_AUTO_TEST_CASE(test_split_log_util1) {
-   fc::temp_directory temp_dir;
-
-   eosio::testing::tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers ) {
+   T chain;
    chain.produce_blocks(160);
 
    uint32_t head_block_num = chain.control->head_block_num();
+   uint32_t lib_block_num;
+   if constexpr (std::is_same_v<T, eosio::testing::savanna_tester>) {
+      lib_block_num = head_block_num - 3; // three-chain
+   } else {
+      lib_block_num = head_block_num - 1; // legacy, one producer
+   }
 
    eosio::chain::controller::config copied_config = chain.get_config();
    auto genesis = eosio::chain::block_log::extract_genesis_state(chain.get_config().blocks_dir,
@@ -202,9 +211,9 @@ BOOST_AUTO_TEST_CASE(test_split_log_util1) {
    BOOST_CHECK(std::filesystem::exists(retained_dir / "blocks-101-150.log"));
    BOOST_CHECK(std::filesystem::exists(retained_dir / "blocks-101-150.index"));
    char buf[64];
-   snprintf(buf, 64, "blocks-151-%u.log", head_block_num - 1);
+   snprintf(buf, 64, "blocks-151-%u.log", lib_block_num);
    std::filesystem::path last_block_file = retained_dir / buf;
-   snprintf(buf, 64, "blocks-151-%u.index", head_block_num - 1);
+   snprintf(buf, 64, "blocks-151-%u.index", lib_block_num);
    std::filesystem::path last_index_file = retained_dir / buf;
    BOOST_CHECK(std::filesystem::exists(last_block_file));
    BOOST_CHECK(std::filesystem::exists(last_index_file));
@@ -221,18 +230,17 @@ BOOST_AUTO_TEST_CASE(test_split_log_util1) {
                                                                    .stride             = 50,
                                                                    .max_retained_files = 5 };
 
-   eosio::testing::tester from_block_log_chain(copied_config, *genesis);
+   T from_block_log_chain(copied_config, *genesis);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1u);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75u);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100u);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(150)->block_num() == 150u);
 }
 
-BOOST_AUTO_TEST_CASE(test_split_log_no_archive) {
-
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_no_archive, T, eosio::testing::testers ) {
    fc::temp_directory temp_dir;
 
-   eosio::testing::tester chain(
+   T chain(
          temp_dir,
          [](eosio::chain::controller::config& config) {
             config.blog =
@@ -269,12 +277,13 @@ BOOST_AUTO_TEST_CASE(test_split_log_no_archive) {
    BOOST_CHECK(!chain.control->fetch_block_by_number(80));
 }
 
+template <typename T>
 void split_log_replay(uint32_t replay_max_retained_block_files) {
    fc::temp_directory temp_dir;
 
    const uint32_t stride = 20;
 
-   eosio::testing::tester chain(
+   T chain(
          temp_dir,
          [](eosio::chain::controller::config& config) {
             config.blog = eosio::chain::partitioned_blocklog_config{ .stride = stride, .max_retained_files = 10 };
@@ -296,7 +305,7 @@ void split_log_replay(uint32_t replay_max_retained_block_files) {
    copied_config.blog =
          eosio::chain::partitioned_blocklog_config{ .stride             = stride,
                                                     .max_retained_files = replay_max_retained_block_files };
-   eosio::testing::tester from_block_log_chain(copied_config, *genesis);
+   T from_block_log_chain(copied_config, *genesis);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100);
@@ -317,21 +326,28 @@ void split_log_replay(uint32_t replay_max_retained_block_files) {
                min_retained_block_number);
 }
 
-BOOST_AUTO_TEST_CASE(test_split_log_replay_retained_block_files_10) { split_log_replay(10); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_replay_retained_block_files_10, T, eosio::testing::testers ) {
+   split_log_replay<T>(10);
+}
 
-BOOST_AUTO_TEST_CASE(test_split_log_replay_retained_block_files_5) { split_log_replay(5); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_replay_retained_block_files_5, T, eosio::testing::testers ) {
+   split_log_replay<T>(5);
+}
 
-BOOST_AUTO_TEST_CASE(test_split_log_replay_retained_block_files_1) { split_log_replay(1); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_replay_retained_block_files_1, T, eosio::testing::testers ) {
+   split_log_replay<T>(1);
+}
 
-BOOST_AUTO_TEST_CASE(test_split_log_replay_retained_block_files_0) { split_log_replay(0); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_replay_retained_block_files_0, T, eosio::testing::testers ) {
+   split_log_replay<T>(0);
+}
 
-BOOST_AUTO_TEST_CASE(test_restart_without_blocks_log_file) {
-
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_without_blocks_log_file, T, eosio::testing::testers ) {
    fc::temp_directory temp_dir;
 
    const uint32_t stride = 20;
 
-   eosio::testing::tester chain(
+   T chain(
          temp_dir,
          [](eosio::chain::controller::config& config) {
             config.blog = eosio::chain::partitioned_blocklog_config{ .stride = stride, .max_retained_files = 10 };
@@ -352,7 +368,7 @@ BOOST_AUTO_TEST_CASE(test_restart_without_blocks_log_file) {
    std::filesystem::remove(copied_config.blocks_dir / "blocks.log");
    std::filesystem::remove(copied_config.blocks_dir / "blocks.index");
    copied_config.blog = eosio::chain::partitioned_blocklog_config{ .stride = stride, .max_retained_files = 10 };
-   eosio::testing::tester from_block_log_chain(copied_config, *genesis);
+   T from_block_log_chain(copied_config, *genesis);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1u);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75u);
    BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100u);
@@ -361,8 +377,9 @@ BOOST_AUTO_TEST_CASE(test_restart_without_blocks_log_file) {
    from_block_log_chain.produce_blocks(10);
 }
 
-BOOST_FIXTURE_TEST_CASE(start_with_incomplete_head, restart_from_block_log_test_fixture) {
-   auto& config      = chain.get_config();
+BOOST_AUTO_TEST_CASE_TEMPLATE( start_with_incomplete_head, T, restart_from_block_log_testers ) {
+   T t;
+   auto& config      = t.chain.get_config();
    auto  blocks_path = config.blocks_dir;
    // write a few random bytes to block log indicating the last block entry is incomplete
    fc::cfile logfile;
@@ -371,11 +388,12 @@ BOOST_FIXTURE_TEST_CASE(start_with_incomplete_head, restart_from_block_log_test_
    const char random_data[] = "12345678901231876983271649837";
    logfile.write(random_data, sizeof(random_data));
    logfile.close();
-   BOOST_CHECK_THROW(restart_chain(), eosio::chain::block_log_exception);
+   BOOST_CHECK_THROW(t.restart_chain(), eosio::chain::block_log_exception);
 }
 
-BOOST_FIXTURE_TEST_CASE(start_with_corrupted_index, restart_from_block_log_test_fixture) {
-   auto& config      = chain.get_config();
+BOOST_AUTO_TEST_CASE_TEMPLATE( start_with_corrupted_index, T, restart_from_block_log_testers ) {
+   T t;
+   auto& config      = t.chain.get_config();
    auto  blocks_path = config.blocks_dir;
    // write a few random index to block log indicating the index is corrupted
    fc::cfile indexfile;
@@ -384,11 +402,12 @@ BOOST_FIXTURE_TEST_CASE(start_with_corrupted_index, restart_from_block_log_test_
    uint64_t data = UINT64_MAX;
    indexfile.write(reinterpret_cast<const char*>(&data), sizeof(data));
    indexfile.close();
-   BOOST_CHECK_THROW(restart_chain(), eosio::chain::block_log_exception);
+   BOOST_CHECK_THROW(t.restart_chain(), eosio::chain::block_log_exception);
 }
 
-BOOST_FIXTURE_TEST_CASE(start_with_corrupted_log_and_index, restart_from_block_log_test_fixture) {
-   auto& config      = chain.get_config();
+BOOST_AUTO_TEST_CASE_TEMPLATE( start_with_corrupted_log_and_index, T, restart_from_block_log_testers ) {
+   T t;
+   auto& config      = t.chain.get_config();
    auto  blocks_path = config.blocks_dir;
    // write a few random bytes to block log and index
    fc::cfile indexfile;
@@ -403,7 +422,7 @@ BOOST_FIXTURE_TEST_CASE(start_with_corrupted_log_and_index, restart_from_block_l
    const char random_data[] = "12345678901231876983271649837";
    logfile.write(random_data, sizeof(random_data));
    indexfile.close();
-   BOOST_CHECK_THROW(restart_chain(), eosio::chain::block_log_exception);
+   BOOST_CHECK_THROW(t.restart_chain(), eosio::chain::block_log_exception);
 }
 
 struct blocklog_version_setter {
@@ -411,10 +430,10 @@ struct blocklog_version_setter {
    ~blocklog_version_setter() { eosio::chain::block_log::set_initial_version(eosio::chain::block_log::max_supported_version); };
 };
 
-BOOST_AUTO_TEST_CASE(test_split_from_v1_log) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_from_v1_log, T, eosio::testing::testers ) {
    fc::temp_directory      temp_dir;
    blocklog_version_setter set_version(1);
-   eosio::testing::tester  chain(
+   T  chain(
           temp_dir,
           [](eosio::chain::controller::config& config) {
             config.blog = eosio::chain::partitioned_blocklog_config{ .stride = 20, .max_retained_files = 5 };
@@ -428,9 +447,10 @@ BOOST_AUTO_TEST_CASE(test_split_from_v1_log) {
    BOOST_CHECK(chain.control->fetch_block_by_number(75)->block_num() == 75u);
 }
 
+template <class T>
 void trim_blocklog_front(uint32_t version) {
    blocklog_version_setter set_version(version);
-   eosio::testing::tester  chain;
+   T chain;
    chain.produce_blocks(10);
    chain.produce_blocks(20);
    chain.close();
@@ -456,15 +476,21 @@ void trim_blocklog_front(uint32_t version) {
    BOOST_CHECK(std::filesystem::file_size(temp1.path() / "blocks.index") == old_index_size - sizeof(uint64_t) * num_blocks_trimmed);
 }
 
-BOOST_AUTO_TEST_CASE(test_trim_blocklog_front) { trim_blocklog_front(eosio::chain::block_log::max_supported_version); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_trim_blocklog_front, T, eosio::testing::testers ) {
+   trim_blocklog_front<T>(eosio::chain::block_log::max_supported_version);
+}
 
-BOOST_AUTO_TEST_CASE(test_trim_blocklog_front_v1) { trim_blocklog_front(1); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_trim_blocklog_front_v1, T, eosio::testing::testers ) {
+   trim_blocklog_front<T>(1);
+}
 
-BOOST_AUTO_TEST_CASE(test_trim_blocklog_front_v2) { trim_blocklog_front(2); }
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_trim_blocklog_front_v2, T, eosio::testing::testers ) {
+   trim_blocklog_front<T>(2);
+}
 
-BOOST_AUTO_TEST_CASE(test_blocklog_split_then_merge) {
+BOOST_AUTO_TEST_CASE_TEMPLATE( test_blocklog_split_then_merge, T, eosio::testing::testers ) {
 
-   eosio::testing::tester chain;
+   T chain;
    chain.produce_blocks(160);
    chain.close();
 

@@ -74,11 +74,13 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    instant_finality_extension if_ext = bsp.block->extract_header_extension<instant_finality_extension>();
    assert(if_ext.new_finalizer_policy_diff); // required by transition mechanism
    result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*if_ext.new_finalizer_policy_diff)));
+   result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
    result.active_proposer_policy = std::make_shared<proposer_policy>();
    result.active_proposer_policy->active_time = bsp.timestamp();
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
    result.proposer_policies = {};  // none pending at IF genesis block
-   result.finalizer_policies = {}; // none pending at IF genesis block
+   result.proposed_finalizer_policies = {}; // none proposed at IF genesis block
+   result.pending_finalizer_policy = std::nullopt; // none pending at IF genesis block
    result.finalizer_policy_generation = 1;
    result.header_exts = bsp.header_exts;
 
@@ -143,8 +145,10 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
          .active_proposer_policy      = std::move(sbs.active_proposer_policy),
          .proposer_policies           = std::move(sbs.proposer_policies),
-         .finalizer_policies          = std::move(sbs.finalizer_policies),
-         .finalizer_policy_generation = sbs.finalizer_policy_generation
+         .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
+         .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
+         .finalizer_policy_generation = sbs.finalizer_policy_generation,
+         .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
@@ -278,7 +282,6 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
-   assert(!action_mroot.empty());
    assert(!strong_digest.empty());
 
    // Copy parent's validation_tree and validation_mroots.
@@ -338,27 +341,25 @@ finality_data_t block_state::get_finality_data() {
       base_digest = compute_base_digest(); // cache it
    }
 
-   // Check if there is any proposed finalizer policy in the block
-   std::optional<finalizer_policy> proposed_finalizer_policy;
+   // Check if there is a finalizer policy promoted to pending in the block
+   std::optional<finalizer_policy> pending_fin_pol;
    if (is_savanna_genesis_block()) {
-      // For Genesis Block, use the active finalizer policy which was proposed in the block.
-      proposed_finalizer_policy = *active_finalizer_policy;
-   } else {
-      auto range = finalizer_policies.equal_range(block_num());
-      for (auto itr = range.first; itr != range.second; ++itr) {
-         if (itr->second.state == finalizer_policy_tracker::state_t::proposed) {
-            proposed_finalizer_policy = *itr->second.policy;
-            break;
-         }
-      }
+      // For Genesis Block, use the active finalizer policy which went through
+      // proposed to pending to active in the single block.
+      pending_fin_pol = *active_finalizer_policy;
+   } else if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
+      // The `first` element of `pending_finalizer_policy` pair is the block number
+      // when the policy becomes pending
+      pending_fin_pol = *pending_finalizer_policy->second;
    }
 
    return {
-      // other fields take the default values set by finality_data_t definition
+      // major_version and minor_version take the default values set by finality_data_t definition
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
+      .final_on_strong_qc_block_num       = core.final_on_strong_qc_block_num,
       .action_mroot                       = action_mroot,
       .base_digest                        = *base_digest,
-      .proposed_finalizer_policy          = std::move(proposed_finalizer_policy)
+      .pending_finalizer_policy           = std::move(pending_fin_pol)
    };
 }
 

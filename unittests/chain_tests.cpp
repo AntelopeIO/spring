@@ -16,7 +16,7 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(chain_tests)
 
 BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
-   validating_tester tester;
+   legacy_validating_tester tester;
 
    const auto new_key = get_public_key(name("newkey"), config::active_name.to_string());
 
@@ -40,7 +40,7 @@ BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
    BOOST_REQUIRE(old_version == pending_version);
    BOOST_REQUIRE(pending_version == old_pending_version);
 
-   const auto& gpo = tester.control->db().get<global_property_object>();
+   const auto& gpo = tester.control->db().template get<global_property_object>();
    BOOST_REQUIRE(!gpo.proposed_schedule_block_num);
    BOOST_REQUIRE(gpo.proposed_schedule.version == 0);
    BOOST_REQUIRE(gpo.proposed_schedule.producers.empty());
@@ -57,12 +57,12 @@ BOOST_AUTO_TEST_CASE( replace_producer_keys ) try {
    }
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( replace_account_keys ) try {
-   validating_tester tester;
+BOOST_AUTO_TEST_CASE_TEMPLATE( replace_account_keys, T, validating_testers ) try {
+   T tester;
    const name usr = config::system_account_name;
    const name active_permission = config::active_name;
    const auto& rlm = tester.control->get_resource_limits_manager();
-   const auto* perm = tester.control->db().find<permission_object, by_owner>(boost::make_tuple(usr, active_permission));
+   const auto* perm = tester.control->db().template find<permission_object, by_owner>(boost::make_tuple(usr, active_permission));
    BOOST_REQUIRE(perm != NULL);
 
    const int64_t old_size = (int64_t)(chain::config::billable_size_v<permission_object> + perm->auth.get_billable_size());
@@ -81,8 +81,8 @@ BOOST_AUTO_TEST_CASE( replace_account_keys ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( decompressed_size_over_limit ) try {
-   tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_over_limit, T, testers ) try {
+   T chain;
 
    // build a transaction, add cf data, sign
    cf_action                        cfa;
@@ -116,8 +116,8 @@ BOOST_AUTO_TEST_CASE( decompressed_size_over_limit ) try {
                            });
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( decompressed_size_under_limit ) try {
-   tester chain;
+BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_under_limit, T, testers ) try {
+   T chain;
 
    // build a transaction, add cf data, sign
    cf_action                        cfa;
@@ -150,9 +150,9 @@ BOOST_AUTO_TEST_CASE( decompressed_size_under_limit ) try {
 } FC_LOG_AND_RETHROW()
 
 // verify accepted_block signals validated blocks
-BOOST_AUTO_TEST_CASE( signal_validated_blocks ) try {
-   tester chain;
-   tester validator;
+BOOST_AUTO_TEST_CASE_TEMPLATE( signal_validated_blocks, T, testers ) try {
+   T chain;
+   T validator;
 
    signed_block_ptr accepted_block;
    block_id_type accepted_id;
@@ -187,7 +187,7 @@ BOOST_AUTO_TEST_CASE( signal_validated_blocks ) try {
       validated_id = id;
    });
 
-   chain.produce_blocks(1);
+   chain.produce_block();
    validator.push_block(accepted_block);
 
    chain.create_account("hello"_n);

@@ -90,10 +90,6 @@ namespace eosio::chain {
       chain_config                        configuration;
       chain_id_type                       chain_id;
       wasm_config                         wasm_configuration;
-      // Note: proposed_fin_pol_block_num and proposed_fin_pol are used per block
-      //       and reset after uses. They do not need to be stored in snapshots.
-      std::optional<block_num_type>       proposed_fin_pol_block_num;
-      finalizer_policy                    proposed_fin_pol;
 
       // For snapshot_global_property_object_v2 and initialize_from( const T& legacy )
       template<typename T>
@@ -115,10 +111,6 @@ namespace eosio::chain {
          } else {
             wasm_configuration = legacy.wasm_configuration;
          }
-
-         // proposed_fin_pol_block_num and proposed_fin_pol are set to default values.
-         proposed_fin_pol_block_num = std::nullopt;
-         proposed_fin_pol = finalizer_policy{};
       }
 
       // For snapshot_global_property_object v3, v4, and v5
@@ -162,10 +154,6 @@ namespace eosio::chain {
             value.configuration = row.configuration;
             value.chain_id = row.chain_id;
             value.wasm_configuration = row.wasm_configuration;
-            // Snapshot does not contain proposed_fin_pol_block_num and proposed_fin_pol.
-            // Return their default values
-            value.proposed_fin_pol_block_num = std::nullopt;
-            value.proposed_fin_pol = finalizer_policy{};
          }
       };
    }

@@ -11,9 +11,9 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(database_tests)
 
    // Simple tests of undo infrastructure
-   BOOST_AUTO_TEST_CASE(undo_test) {
+   BOOST_AUTO_TEST_CASE_TEMPLATE( undo_test, T, validating_testers ) {
       try {
-         validating_tester test;
+         T test;
 
          // Bypass read-only restriction on state DB access for this unit test which really needs to mutate the DB to properly conduct its test.
          eosio::chain::database& db = const_cast<eosio::chain::database&>( test.control->db() );
@@ -39,13 +39,13 @@ BOOST_AUTO_TEST_SUITE(database_tests)
    }
 
    // Test the block fetching methods on database, fetch_bock_by_id, and fetch_block_by_number
-   BOOST_AUTO_TEST_CASE(get_blocks) {
+   BOOST_AUTO_TEST_CASE_TEMPLATE( get_blocks, T, validating_testers ) {
       try {
-         validating_tester test;
+         T test;
          vector<block_id_type> block_ids;
 
-         const uint32_t num_of_blocks_to_prod = 200;
-         // Produce 200 blocks and check their IDs should match the above
+         const uint32_t num_of_blocks_to_prod = 20;
+         // Produce 20 blocks and check their IDs should match the above
          test.produce_blocks(num_of_blocks_to_prod);
          for (uint32_t i = 0; i < num_of_blocks_to_prod; ++i) {
             block_ids.emplace_back(test.control->fetch_block_by_number(i + 1)->calculate_id());
@@ -53,19 +53,32 @@ BOOST_AUTO_TEST_SUITE(database_tests)
             BOOST_TEST(test.control->fetch_block_by_number(i + 1)->calculate_id() == block_ids.back());
          }
 
-         // Check the last irreversible block number is set correctly, with one producer, irreversibility should only just 1 block before
-         const auto expected_last_irreversible_block_number = test.control->head_block_num() - 1;
-         BOOST_TEST(test.control->head_block_state_legacy()->dpos_irreversible_blocknum == expected_last_irreversible_block_number);
+         // Check the last irreversible block number is set correctly.
+         if constexpr (std::is_same_v<T, savanna_validating_tester>) {
+            // In Savanna, after 3-chain finality is achieved.
+            const auto expected_last_irreversible_block_number = test.control->head_block_num() - 3;
+            BOOST_TEST(test.control->last_irreversible_block_num() == expected_last_irreversible_block_number);
+         } else {
+            // With one producer, irreversibility should only just 1 block before
+            const auto expected_last_irreversible_block_number = test.control->head_block_num() - 1;
+            BOOST_TEST(test.control->head_block_state_legacy()->dpos_irreversible_blocknum == expected_last_irreversible_block_number);
+         }
+
          // Ensure that future block doesn't exist
          const auto nonexisting_future_block_num = test.control->head_block_num() + 1;
          BOOST_TEST(test.control->fetch_block_by_number(nonexisting_future_block_num) == nullptr);
 
-         const uint32_t next_num_of_blocks_to_prod = 100;
+         const uint32_t next_num_of_blocks_to_prod = 10;
          test.produce_blocks(next_num_of_blocks_to_prod);
 
-         const auto next_expected_last_irreversible_block_number = test.control->head_block_num() - 1;
          // Check the last irreversible block number is updated correctly
-         BOOST_TEST(test.control->head_block_state_legacy()->dpos_irreversible_blocknum == next_expected_last_irreversible_block_number);
+         if constexpr (std::is_same_v<T, savanna_validating_tester>) {
+            const auto next_expected_last_irreversible_block_number = test.control->head_block_num() - 3;
+            BOOST_TEST(test.control->last_irreversible_block_num() == next_expected_last_irreversible_block_number);
+         } else {
+            const auto next_expected_last_irreversible_block_number = test.control->head_block_num() - 1;
+            BOOST_TEST(test.control->head_block_state_legacy()->dpos_irreversible_blocknum == next_expected_last_irreversible_block_number);
+         }
          // Previous nonexisting future block should exist by now
          BOOST_CHECK_NO_THROW(test.control->fetch_block_by_number(nonexisting_future_block_num));
          // Check the latest head block match

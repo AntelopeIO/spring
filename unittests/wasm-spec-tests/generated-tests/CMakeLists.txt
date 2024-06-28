@@ -37,3 +37,16 @@ foreach(TEST_SUITE ${WASM_TESTS}) # create an independent target for each test s
   endif()
 endforeach(TEST_SUITE)
 set(ctest_tests "'${ctest_tests}' -j8") # surround test list string in apostrophies
+
+# The following tests are known to take the longest, bump up their cost (priority) so that they'll run  first
+# even on fresh first time test runs before ctest auto-detects costs
+foreach(RUNTIME ${EOSIO_WASM_RUNTIMES})
+   set_tests_properties(memory_trap_1_check_throw_1_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(memory_trap_1_check_throw_2_unit_test_${RUNTIME} PROPERTIES COST 4000)
+   set_tests_properties(conversions_0_check_throw_unit_test_${RUNTIME} PROPERTIES COST 2500)
+   set_tests_properties(unreachable_0_check_throw_unit_test_${RUNTIME} PROPERTIES COST 2500)
+   set_tests_properties(f64_0_pass_unit_test_${RUNTIME} PROPERTIES COST 2500)
+   set_tests_properties(f32_0_pass_unit_test_${RUNTIME} PROPERTIES COST 2500)
+   set_tests_properties(f32_cmp_0_pass_unit_test_${RUNTIME} PROPERTIES COST 2500)
+   set_tests_properties(f64_cmp_0_pass_unit_test_${RUNTIME} PROPERTIES COST 2500)
+endforeach()

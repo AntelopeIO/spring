@@ -5,14 +5,7 @@
 #include <eosio/state_history/types.hpp>
 #include <eosio/state_history/log.hpp>
 
-namespace fc {
-class variant;
-}
-
 namespace eosio {
-using chain::bytes;
-using std::shared_ptr;
-typedef shared_ptr<struct state_history_plugin_impl> state_history_ptr;
 
 class state_history_plugin : public plugin<state_history_plugin> {
  public:
@@ -29,12 +22,8 @@ class state_history_plugin : public plugin<state_history_plugin> {
 
    void handle_sighup() override;
 
-   const state_history_log* trace_log() const;
-   const state_history_log* chain_state_log() const;
-   const state_history_log* finality_data_log() const;
-
  private:
-   state_history_ptr my;
+   unique_ptr<struct state_history_plugin_impl> my;
 };
 
 } // namespace eosio

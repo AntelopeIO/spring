@@ -266,25 +266,35 @@ namespace eosio::testing {
                builtin_protocol_feature_t::ram_restrictions,
                builtin_protocol_feature_t::webauthn_key,
                builtin_protocol_feature_t::wtmsig_block_signatures,
-               builtin_protocol_feature_t::bls_primitives,
-               builtin_protocol_feature_t::instant_finality
+               builtin_protocol_feature_t::bls_primitives
             });
             produce_block();
-            set_bios_contract();
             break;
          }
          case setup_policy::full:
-         case setup_policy::full_except_do_not_disable_deferred_trx: {
+         case setup_policy::full_except_do_not_disable_deferred_trx:
+         case setup_policy::full_except_do_not_transition_to_savanna: {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
-            if( policy == setup_policy::full ) {
-               preactivate_all_builtin_protocol_features();
-            } else {
+            if( policy == setup_policy::full_except_do_not_disable_deferred_trx ) {
                preactivate_all_but_disable_deferred_trx();
+            } else {
+               preactivate_all_builtin_protocol_features();
             }
             produce_block();
-            set_bios_contract();
+            if (policy == setup_policy::full || policy == setup_policy::full_except_do_not_transition_to_savanna ) {
+               set_bios_contract();
+            }
+
+            // Do not transition to Savanna under full_except_do_not_transition_to_savanna or
+            // full_except_do_not_disable_deferred_trx
+            if( policy == setup_policy::full ) {
+               // BLS voting is slow. Use only 1 finalizer for default testser.
+               finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
+               fin_keys.activate_savanna(0u /* first_key_idx */);
+            }
+
             break;
          }
          case setup_policy::none:
@@ -510,9 +520,9 @@ namespace eosio::testing {
    }
 
    void base_tester::_wait_for_vote_if_needed(controller& c) {
-      if (c.head_block()->is_proper_svnn_block()) {
+      if (c.can_vote_on(c.head_block())) {
          // wait for this node's vote to be processed
-         size_t retrys = 200;
+         size_t retrys = 500;
          while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
          }
@@ -522,12 +532,12 @@ namespace eosio::testing {
 
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
-      if( empty ) {
-         for( uint32_t i = 0; i < n; ++i )
-            res = produce_empty_block();
-      } else {
-         for( uint32_t i = 0; i < n; ++i )
-            res = produce_block();
+      for (uint32_t i = 0; i < n; ++i) {
+         // for performance, only vote on the last four to move finality
+         // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
+         if (n > 4)
+            control->allow_voting(i >= n - 4);
+         res = empty ? produce_empty_block() : produce_block();
       }
       return res;
    }
@@ -1248,7 +1258,7 @@ namespace eosio::testing {
                ("pop", pop.to_string()));
       }
 
-      control->set_node_finalizer_keys(local_finalizer_keys);
+      control->set_node_finalizer_keys(local_finalizer_keys, true);
 
       fc::mutable_variant_object fin_policy_variant;
       fin_policy_variant("threshold", input.threshold);
@@ -1266,7 +1276,7 @@ namespace eosio::testing {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
       }
-      control->set_node_finalizer_keys(local_finalizer_keys);
+      control->set_node_finalizer_keys(local_finalizer_keys, true);
    }
 
    base_tester::set_finalizers_output_t base_tester::set_active_finalizers(std::span<const account_name> names) {
@@ -1302,15 +1312,34 @@ namespace eosio::testing {
 
    void base_tester::preactivate_savanna_protocol_features() {
       const auto& pfm = control->get_protocol_feature_manager();
-      const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::instant_finality);
 
-      // dependencies of builtin_protocol_feature_t::instant_finality
-      const auto& deps = pfm.get_builtin_digest(builtin_protocol_feature_t::disallow_empty_producer_schedule);
-      const auto& wtm  = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
-      const auto& arv  = pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value);
-      const auto& bls   = pfm.get_builtin_digest(builtin_protocol_feature_t::bls_primitives);
+      // dependencies of builtin_protocol_feature_t::savanna
+      vector<digest_type> feature_digests;
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_link_to_existing_permission));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::replace_deferred));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::no_duplicate_deferred_id));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::fix_linkauth_restriction));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disallow_empty_producer_schedule));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::restrict_action_to_self));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::only_bill_first_authorizer));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::forward_setcode));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_sender));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::ram_restrictions));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::configurable_wasm_limits));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_code_hash));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::crypto_primitives));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::get_block_num));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::bls_primitives));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_1));
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::disable_deferred_trxs_stage_2));
+      // savanna
+      feature_digests.push_back(*pfm.get_builtin_digest(builtin_protocol_feature_t::savanna));
 
-      preactivate_protocol_features( {*deps, *wtm, *arv, *bls, *d} );
+      preactivate_protocol_features( feature_digests );
    }
 
    void base_tester::preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
@@ -1376,7 +1405,9 @@ namespace eosio::testing {
          // deferred trxs need to be exercised to make sure existing behaviors are
          // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2
          // from full protocol feature list such that existing tests can run.
-         if( f ==  builtin_protocol_feature_t::disable_deferred_trxs_stage_1 || f  == builtin_protocol_feature_t::disable_deferred_trxs_stage_2 ) {
+         if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
+            || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
+            || f == builtin_protocol_feature_t::savanna ) { // savanna depends on disable_deferred_trxs_stage_1 & 2
             continue;
          }
 

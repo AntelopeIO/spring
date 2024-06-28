@@ -19,8 +19,8 @@ using namespace std::literals;
 
 BOOST_AUTO_TEST_SUITE(protocol_feature_tests)
 
-BOOST_AUTO_TEST_CASE( activate_preactivate_feature ) try {
-   tester c( setup_policy::none );
+BOOST_AUTO_TEST_CASE_TEMPLATE(activate_preactivate_feature, T, testers) try {
+   T c( setup_policy::none );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    c.produce_block();
@@ -67,13 +67,13 @@ BOOST_AUTO_TEST_CASE( activate_preactivate_feature ) try {
 
    // Ensure validator node accepts the blockchain
 
-   tester c2(setup_policy::none, db_read_mode::HEAD);
+   T c2(setup_policy::none, db_read_mode::HEAD);
    push_blocks( c, c2 );
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( activate_and_restart ) try {
-   tester c( setup_policy::none );
+BOOST_AUTO_TEST_CASE_TEMPLATE(activate_and_restart, T, testers) try {
+   T c( setup_policy::none );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto pfs = pfm.get_protocol_feature_set(); // make copy of protocol feature set
@@ -85,7 +85,7 @@ BOOST_AUTO_TEST_CASE( activate_and_restart ) try {
 
    // Activate PREACTIVATE_FEATURE.
    c.schedule_protocol_features_wo_preactivation({ *d });
-   c.produce_blocks(2);
+   c.produce_block();
 
    auto head_block_num = c.control->head_block_num();
 
@@ -100,8 +100,8 @@ BOOST_AUTO_TEST_CASE( activate_and_restart ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( double_preactivation ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(double_preactivation, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::only_link_to_existing_permission );
@@ -126,8 +126,8 @@ BOOST_AUTO_TEST_CASE( double_preactivation ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( double_activation ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(double_activation, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::only_link_to_existing_permission );
@@ -160,8 +160,8 @@ BOOST_AUTO_TEST_CASE( double_activation ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( require_preactivation_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(require_preactivation_test, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::only_link_to_existing_permission );
@@ -202,8 +202,8 @@ BOOST_AUTO_TEST_CASE( require_preactivation_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( only_link_to_existing_permission_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(only_link_to_existing_permission_test, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::only_link_to_existing_permission );
@@ -261,8 +261,8 @@ BOOST_AUTO_TEST_CASE( only_link_to_existing_permission_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( subjective_restrictions_test ) try {
-   tester c( setup_policy::none );
+BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
+   T c( setup_policy::none );
    const auto& pfm = c.control->get_protocol_feature_manager();
 
    auto restart_with_new_pfs = [&c]( protocol_feature_set&& pfs ) {
@@ -371,8 +371,8 @@ BOOST_AUTO_TEST_CASE( subjective_restrictions_test ) try {
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( replace_deferred_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(replace_deferred_test, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    c.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    c.produce_block();
@@ -527,9 +527,9 @@ BOOST_AUTO_TEST_CASE( replace_deferred_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( no_duplicate_deferred_id_test ) try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
-   tester c2( setup_policy::none );
+BOOST_AUTO_TEST_CASE_TEMPLATE(no_duplicate_deferred_id_test, T, testers) try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
+   T c2( setup_policy::none );
 
    c.preactivate_builtin_protocol_features( {builtin_protocol_feature_t::crypto_primitives} );
    c.produce_block();
@@ -573,7 +573,7 @@ BOOST_AUTO_TEST_CASE( no_duplicate_deferred_id_test ) try {
 
    c.produce_block();
 
-   const auto& index = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>();
+   const auto& index = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>();
 
    transaction_trace_ptr trace1;
    auto h = c.control->applied_transaction().connect( [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> x) {
@@ -612,7 +612,8 @@ BOOST_AUTO_TEST_CASE( no_duplicate_deferred_id_test ) try {
    trace1 = nullptr;
 
    // Retire the delayed eosio::reqauth transaction.
-   c.produce_blocks(5);
+   c.produce_blocks(4, true);
+   c.produce_block();
    BOOST_REQUIRE( trace1 );
    BOOST_REQUIRE_EQUAL(0u, index.size());
 
@@ -694,15 +695,15 @@ BOOST_AUTO_TEST_CASE( no_duplicate_deferred_id_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( fix_linkauth_restriction ) { try {
-   tester chain( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(fix_linkauth_restriction, T, testers) { try {
+   T chain( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& tester_account = "tester"_n;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account("currency"_n);
    chain.create_account(tester_account);
-   chain.produce_blocks();
+   chain.produce_block();
 
    chain.push_action(config::system_account_name, updateauth::get_name(), tester_account, fc::mutable_variant_object()
            ("account", name(tester_account).to_string())
@@ -764,8 +765,8 @@ BOOST_AUTO_TEST_CASE( fix_linkauth_restriction ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( disallow_empty_producer_schedule_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(disallow_empty_producer_schedule_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::disallow_empty_producer_schedule );
@@ -791,8 +792,8 @@ BOOST_AUTO_TEST_CASE( disallow_empty_producer_schedule_test ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( restrict_action_to_self_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(restrict_action_to_self_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::restrict_action_to_self );
@@ -851,13 +852,13 @@ BOOST_AUTO_TEST_CASE( restrict_action_to_self_test ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( only_bill_to_first_authorizer ) { try {
-   tester chain( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
+   T chain( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& tester_account = "tester"_n;
    const auto& tester_account2 = "tester2"_n;
 
-   chain.produce_blocks();
+   chain.produce_block();
    chain.create_account(tester_account);
    chain.create_account(tester_account2);
 
@@ -875,7 +876,7 @@ BOOST_AUTO_TEST_CASE( only_bill_to_first_authorizer ) { try {
 
    const resource_limits_manager& mgr = chain.control->get_resource_limits_manager();
 
-   chain.produce_blocks();
+   chain.produce_block();
 
    {
       action act;
@@ -920,7 +921,7 @@ BOOST_AUTO_TEST_CASE( only_bill_to_first_authorizer ) { try {
    BOOST_REQUIRE( d );
 
    chain.preactivate_protocol_features( {*d} );
-   chain.produce_blocks();
+   chain.produce_block();
 
    {
       action act;
@@ -958,8 +959,8 @@ BOOST_AUTO_TEST_CASE( only_bill_to_first_authorizer ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( forward_setcode_test ) { try {
-   tester c( setup_policy::preactivate_feature_only );
+BOOST_AUTO_TEST_CASE_TEMPLATE(forward_setcode_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_only );
 
    const auto& tester1_account = "tester1"_n;
    const auto& tester2_account = "tester2"_n;
@@ -1018,8 +1019,8 @@ BOOST_AUTO_TEST_CASE( forward_setcode_test ) { try {
    c2.produce_block();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( get_sender_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(get_sender_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& tester1_account = account_name("tester1");
    const auto& tester2_account = account_name("tester2");
@@ -1071,97 +1072,8 @@ BOOST_AUTO_TEST_CASE( get_sender_test ) { try {
    );
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( protocol_activatation_works_after_transition_to_savanna ) { try {
-   validating_tester c({}, {}, setup_policy::preactivate_feature_and_new_bios );
-
-   c.preactivate_savanna_protocol_features();
-   c.produce_block();
-
-   c.set_bios_contract();
-   c.produce_block();
-
-   c.produce_block();
-
-   vector<account_name> accounts = {
-      "alice"_n, "bob"_n, "carol"_n
-   };
-
-   base_tester::finalizer_policy_input policy_input = {
-      .finalizers       = { {.name = "alice"_n, .weight = 1},
-                            {.name = "bob"_n,   .weight = 3},
-                            {.name = "carol"_n, .weight = 5} },
-      .threshold        = 5,
-      .local_finalizers = {"carol"_n}
-   };
-
-   // Create finalizer accounts
-   c.create_accounts(accounts);
-   c.produce_block();
-
-   // activate savanna
-   c.set_finalizers(policy_input);
-   auto block = c.produce_block(); // this block contains the header extension for the instant finality
-
-   std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
-   BOOST_TEST(!!ext);
-   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
-   BOOST_TEST(!!fin_policy_diff);
-   BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == accounts.size());
-
-   block = c.produce_block(); // savanna now active
-   auto fb = c.control->fetch_block_by_id(block->calculate_id());
-   BOOST_REQUIRE(!!fb);
-   BOOST_TEST(fb == block);
-   ext = fb->extract_header_extension(instant_finality_extension::extension_id());
-   BOOST_REQUIRE(ext);
-
-   auto lib_after_transition = c.lib_block->block_num();
-
-   c.produce_blocks(4);
-   BOOST_CHECK_GT(c.lib_block->block_num(), lib_after_transition);
-
-   // verify protocol feature activation works under savanna
-
-   const auto& tester1_account = account_name("tester1");
-   const auto& tester2_account = account_name("tester2");
-   c.create_accounts( {tester1_account, tester2_account} );
-   c.produce_block();
-
-   BOOST_CHECK_EXCEPTION(  c.set_code( tester1_account, test_contracts::get_sender_test_wasm() ),
-                           wasm_exception,
-                           fc_exception_message_is( "env.get_sender unresolveable" ) );
-
-   const auto& pfm = c.control->get_protocol_feature_manager();
-   const auto& d2 = pfm.get_builtin_digest( builtin_protocol_feature_t::get_sender );
-   BOOST_REQUIRE( d2 );
-
-   c.preactivate_protocol_features( {*d2} );
-   c.produce_block();
-
-   c.set_code( tester1_account, test_contracts::get_sender_test_wasm() );
-   c.set_abi( tester1_account, test_contracts::get_sender_test_abi() );
-   c.set_code( tester2_account, test_contracts::get_sender_test_wasm() );
-   c.set_abi( tester2_account, test_contracts::get_sender_test_abi() );
-   c.produce_block();
-
-   BOOST_CHECK_EXCEPTION(  c.push_action( tester1_account, "sendinline"_n, tester1_account, mutable_variant_object()
-                                             ("to", tester2_account.to_string())
-                                             ("expected_sender", account_name{}) ),
-                           eosio_assert_message_exception,
-                           eosio_assert_message_is( "sender did not match" ) );
-
-   c.push_action( tester1_account, "sendinline"_n, tester1_account, mutable_variant_object()
-      ("to", tester2_account.to_string())
-      ("expected_sender", tester1_account.to_string())
-   );
-
-   c.push_action( tester1_account, "assertsender"_n, tester1_account, mutable_variant_object()
-      ("expected_sender", account_name{})
-   );
-} FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_CASE( ram_restrictions_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(ram_restrictions_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& tester1_account = account_name("tester1");
    const auto& tester2_account = account_name("tester2");
@@ -1426,8 +1338,8 @@ BOOST_AUTO_TEST_CASE( ram_restrictions_test ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( webauthn_producer ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_producer, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest( builtin_protocol_feature_t::webauthn_key );
@@ -1449,8 +1361,8 @@ BOOST_AUTO_TEST_CASE( webauthn_producer ) { try {
    c.push_action(config::system_account_name, "setprods"_n, config::system_account_name, fc::mutable_variant_object()("schedule", waprodsched));
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( webauthn_create_account ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_create_account, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key);
@@ -1477,8 +1389,8 @@ BOOST_AUTO_TEST_CASE( webauthn_create_account ) { try {
    c.push_transaction(trx);
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( webauthn_update_account_auth ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_update_account_auth, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key);
@@ -1528,8 +1440,8 @@ static const char webauthn_recover_key_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( webauthn_recover_key ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_recover_key, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key);
@@ -1576,8 +1488,8 @@ static const char webauthn_assert_recover_key_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( webauthn_assert_recover_key ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_assert_recover_key, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::webauthn_key);
@@ -1622,8 +1534,8 @@ static const char import_set_proposed_producer_ex_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( set_proposed_producers_ex_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(set_proposed_producers_ex_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
@@ -1657,17 +1569,17 @@ BOOST_AUTO_TEST_CASE( set_proposed_producers_ex_test ) { try {
    c.produce_block();
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( producer_schedule_change_extension_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(producer_schedule_change_extension_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // sync a remote node into this chain
-   tester remote( setup_policy::none );
+   T remote( setup_policy::none );
    push_blocks(c, remote);
 
    // activate the feature
@@ -1766,14 +1678,14 @@ BOOST_AUTO_TEST_CASE( producer_schedule_change_extension_test ) { try {
    remote.push_block(c.produce_block());
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_legacy_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_legacy_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // activate the feature, and start an in-flight producer schedule change with the legacy format
    c.preactivate_protocol_features( {*d} );
@@ -1797,14 +1709,14 @@ BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_legacy_test ) { try {
 
 } FC_LOG_AND_RETHROW() }
 
-BOOST_AUTO_TEST_CASE( wtmsig_block_signing_inflight_extension_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(wtmsig_block_signing_inflight_extension_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::wtmsig_block_signatures);
    BOOST_REQUIRE(d);
 
-   c.produce_blocks(2);
+   c.produce_block();
 
    // activate the feature
    c.preactivate_protocol_features( {*d} );
@@ -1848,8 +1760,8 @@ static const char import_set_action_return_value_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( set_action_return_value_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(set_action_return_value_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::action_return_value);
@@ -1894,8 +1806,8 @@ static const char import_get_parameters_packed_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( get_parameters_packed_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(get_parameters_packed_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters);
@@ -1956,8 +1868,8 @@ static const char import_set_parameters_packed_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( set_parameters_packed_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(set_parameters_packed_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto& pfm = c.control->get_protocol_feature_manager();
    const auto& d = pfm.get_builtin_digest(builtin_protocol_feature_t::blockchain_parameters);
@@ -2013,7 +1925,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
    c.set_abi( "payloadless"_n, test_contracts::payloadless_abi().data() );
    c.produce_block();
 
-   auto gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   auto gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(0u, gen_size);
 
    // verify send_deferred host function works before disable_deferred_trxs_stage_1 is activated
@@ -2026,7 +1938,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
       ("replace_existing", false)
    );
    c.produce_block();
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(1u, gen_size);
 
    // verify cancel_deferred host function works before disable_deferred_trxs_stage_1 is activated
@@ -2034,7 +1946,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
       ("sender_id", 1)
    );
    c.produce_block();
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(0u, gen_size);
 
    // generate a deferred trx from contract for cancel_deferred test
@@ -2053,7 +1965,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
 
    // make sure two trxs were generated
    c.produce_block();
-   const auto& idx = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>();
+   const auto& idx = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>();
    gen_size = idx.size();
    BOOST_REQUIRE_EQUAL(2u, gen_size);
    transaction_id_type alice_trx_id;
@@ -2085,10 +1997,10 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
    c.produce_block();
 
    // verify bob's deferred trx is not made to generated_transaction_multi_index
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(2u, gen_size);
    // verify alice's deferred trx is still in generated_transaction_multi_index
-   auto gto = c.control->db().find<generated_transaction_object, by_trx_id>(alice_trx_id);
+   auto gto = c.control->db().template find<generated_transaction_object, by_trx_id>(alice_trx_id);
    BOOST_REQUIRE(gto != nullptr);
 
    // verify cancel_deferred host function is no-op
@@ -2097,10 +2009,10 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
          ("sender_id", 1)),
       eosio_assert_message_exception,
       eosio_assert_message_is( "cancel_deferred failed" ) );
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(2u, gen_size);
    // verify alice's deferred trx is not removed
-   gto = c.control->db().find<generated_transaction_object, by_trx_id>(alice_trx_id);
+   gto = c.control->db().template find<generated_transaction_object, by_trx_id>(alice_trx_id);
    BOOST_REQUIRE( gto );
 
    // call canceldelay native action
@@ -2115,10 +2027,10 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
    c.produce_block();
 
    // verify canceldelay is no-op
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL(2u, gen_size);
    // verify payloadless' delayed trx is not removed
-   gto = c.control->db().find<generated_transaction_object, by_trx_id>(payloadless_trx_id);
+   gto = c.control->db().template find<generated_transaction_object, by_trx_id>(payloadless_trx_id);
    BOOST_REQUIRE( gto );
 } FC_LOG_AND_RETHROW() } /// disable_deferred_trxs_stage_1_no_op_test
 
@@ -2134,7 +2046,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    c.produce_block();
 
    // verify number of deferred trxs is 0
-   auto gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   auto gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 0u, gen_size );
    auto alice_ram_usage_before = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
 
@@ -2150,7 +2062,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    c.produce_block();
 
    // the deferred trx was added into generated_transaction_multi_index
-   const auto& idx = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>();
+   const auto& idx = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>();
    gen_size = idx.size();
    BOOST_REQUIRE_EQUAL( 1u, gen_size );
    auto trx_id = idx.begin()->trx_id;
@@ -2166,7 +2078,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    c.produce_block();
 
    // verify generated_transaction_multi_index still has 1 entry
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 1u, gen_size );
 
    // at this time, delay_sec has not reached,
@@ -2183,7 +2095,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_retire_test ) { try {
    // the trx was retired as "expired" and RAM was refunded even though delay_until not reached
    BOOST_REQUIRE_EQUAL( trace->receipt->status, transaction_receipt::expired );
    // all scheduled deferred trxs are removed upon activation of disable_deferred_trxs_stage_2
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 0u, gen_size );
    // payers' RAM are refunded
    BOOST_CHECK_EQUAL( c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n ), alice_ram_usage_before );
@@ -2199,7 +2111,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
    c.produce_block();
 
    // verify number of deferred trxs starts at 0
-   auto gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   auto gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 0u, gen_size );
    auto alice_ram_usage_before = c.control->get_resource_limits_manager().get_account_ram_usage( "alice"_n );
    auto bob_ram_usage_before = c.control->get_resource_limits_manager().get_account_ram_usage( "bob"_n );
@@ -2224,7 +2136,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
    c.produce_block();
 
    // trxs were added into generated_transaction_multi_index
-   const auto& idx = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>();
+   const auto& idx = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>();
    gen_size = idx.size();
    BOOST_REQUIRE_EQUAL( 2u, gen_size );
 
@@ -2239,7 +2151,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
 
    // before disable_deferred_trxs_stage_2 is activated, generated_transaction_multi_index
    // should still have 2 entries
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 2u, gen_size );
 
    d = pfm.get_builtin_digest( builtin_protocol_feature_t::disable_deferred_trxs_stage_2 );
@@ -2248,7 +2160,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_2_test ) { try {
    c.produce_block();
 
    // all scheduled deferred trxs are removed upon activation of disable_deferred_trxs_stage_2
-   gen_size = c.control->db().get_index<generated_transaction_multi_index,by_trx_id>().size();
+   gen_size = c.control->db().template get_index<generated_transaction_multi_index,by_trx_id>().size();
    BOOST_REQUIRE_EQUAL( 0u, gen_size );
 
    // payers' RAM are refunded
@@ -2368,8 +2280,8 @@ static const char import_set_finalizers_wast[] = R"=====(
 )
 )=====";
 
-BOOST_AUTO_TEST_CASE( set_finalizers_test ) { try {
-   tester c( setup_policy::preactivate_feature_and_new_bios );
+BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
+   T c( setup_policy::preactivate_feature_and_new_bios );
 
    const auto alice_account = account_name("alice");
    c.create_accounts( {alice_account} );
@@ -2382,20 +2294,11 @@ BOOST_AUTO_TEST_CASE( set_finalizers_test ) { try {
    c.preactivate_savanna_protocol_features();
    c.produce_block();
 
-   // ensure it now resolves
-   c.set_code( config::system_account_name, import_set_finalizers_wast );
-
-   // ensure it can be called
-   auto action_priv = action( {//vector of permission_level
-                                 { config::system_account_name,
-                                    permission_name("active") }
-                              },
-                              config::system_account_name,
-                              action_name(),
-                              {} );
-   // if able to call then will get error on unpacking field `fthreshold`, top message of: 'read datastream of length 4 over by -3'
-   base_tester::action_result r = c.push_action(std::move(action_priv), config::system_account_name.to_uint64_t());
-   BOOST_CHECK(r.find("read datastream of length 4 over by -3") != std::string::npos);
+   // ensure it now resolves, forward setcode enabled so will call automatically
+   // if able to call then will get error on unpacking field `threshold`, top message of: 'read datastream of length 4 over by -3'
+   BOOST_CHECK_EXCEPTION( c.set_code( config::system_account_name, import_set_finalizers_wast ),
+                          fc::out_of_range_exception,
+                          fc_exception_message_contains( "read datastream of length 4 over by -3" ) );
 
    c.produce_block();
 

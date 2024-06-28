@@ -2,13 +2,12 @@
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/trace.hpp>
 #include <eosio/chain/platform_timer.hpp>
-#include <signal.h>
 
 namespace eosio::benchmark {
    struct interface_in_benchmark; // for benchmark testing
 }
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
    struct transaction_checktime_timer {
       public:
@@ -79,6 +78,26 @@ namespace eosio { namespace chain {
       }
    };
 
+   // transaction side affects to apply to block when block is assembled
+   struct trx_block_context {
+      std::optional<block_num_type>       proposed_schedule_block_num;
+      producer_authority_schedule         proposed_schedule;
+
+      std::optional<block_num_type>       proposed_fin_pol_block_num;
+      finalizer_policy                    proposed_fin_pol;
+
+      void apply(trx_block_context&& rhs) {
+         if (rhs.proposed_schedule_block_num) {
+            proposed_schedule_block_num = rhs.proposed_schedule_block_num;
+            proposed_schedule = std::move(rhs.proposed_schedule);
+         }
+         if (rhs.proposed_fin_pol_block_num) {
+            proposed_fin_pol_block_num = rhs.proposed_fin_pol_block_num;
+            proposed_fin_pol = std::move(rhs.proposed_fin_pol);
+         }
+      }
+   };
+
    class transaction_context {
       private:
          void init( uint64_t initial_net_usage);
@@ -138,6 +157,9 @@ namespace eosio { namespace chain {
          bool is_dry_run()const { return trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
+
+         int64_t set_proposed_producers(vector<producer_authority> producers);
+         void    set_proposed_finalizers(finalizer_policy&& fin_pol);
 
       private:
 
@@ -228,6 +250,7 @@ namespace eosio { namespace chain {
          int64_t                       billing_timer_exception_code = block_cpu_usage_exceeded::code_value;
          fc::time_point                pseudo_start;
          fc::microseconds              billed_time;
+         trx_block_context             trx_blk_context;
 
          enum class tx_cpu_usage_exceeded_reason {
             account_cpu_limit, // includes subjective billing
@@ -239,4 +262,4 @@ namespace eosio { namespace chain {
          tx_cpu_usage_exceeded_reason  tx_cpu_usage_reason = tx_cpu_usage_exceeded_reason::account_cpu_limit;
    };
 
-} }
+} // namespace eosio::chain

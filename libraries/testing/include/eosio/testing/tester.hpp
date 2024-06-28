@@ -67,6 +67,7 @@ namespace eosio::testing {
       preactivate_feature_and_new_bios,
       old_wasm_parser,
       full_except_do_not_disable_deferred_trx,
+      full_except_do_not_transition_to_savanna,
       full
    };
 
@@ -441,6 +442,10 @@ namespace eosio::testing {
             return true;
          }
 
+         void allow_voting(bool val) {
+            control->allow_voting(val);
+         }
+
          const controller::config& get_config() const {
             return cfg;
          }
@@ -501,7 +506,6 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
-            BOOST_REQUIRE_EQUAL(control->head_sanity_check(), true);
             auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
@@ -625,6 +629,42 @@ namespace eosio::testing {
 
    };
 
+   // The behavior of legacy_tester is activating all the protocol features but not
+   // transition to Savanna consensus.
+   // If needed, the tester can be transitioned to Savanna by explicitly calling
+   // set_finalizer host function only.
+   class legacy_tester : public tester {
+   public:
+      legacy_tester(setup_policy policy = setup_policy::full_except_do_not_transition_to_savanna, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{})
+      : tester(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
+                                            : policy,
+               read_mode, genesis_max_inline_action_size) {};
+
+      legacy_tester(controller::config config, const genesis_state& genesis)
+      : tester(config, genesis) {};
+
+      legacy_tester(const fc::temp_directory& tempdir, bool use_genesis)
+      : tester(tempdir, use_genesis) {};
+
+      template <typename Lambda>
+      legacy_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : tester(tempdir, conf_edit, use_genesis) {};
+
+      legacy_tester(const std::function<void(controller&)>& control_setup, setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD)
+      : tester(control_setup,
+               policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna
+                                            : policy,
+               read_mode) {};
+
+      // setup_policy::full does not not transition to Savanna consensus.
+      void execute_setup_policy(const setup_policy policy) {
+         tester::execute_setup_policy(policy == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : policy);
+      };
+   };
+
+   using savanna_tester = tester;
+   using testers = boost::mpl::list<legacy_tester, savanna_tester>;
+
    class tester_no_disable_deferred_trx : public tester {
    public:
       tester_no_disable_deferred_trx(): tester(setup_policy::full_except_do_not_disable_deferred_trx) {
@@ -639,8 +679,6 @@ namespace eosio::testing {
             return;
          }
          try {
-            if( num_blocks_to_producer_before_shutdown > 0 )
-               produce_blocks( num_blocks_to_producer_before_shutdown );
             if (!skip_validate && std::uncaught_exceptions() == 0)
                BOOST_CHECK_EQUAL( validate(), true );
          } catch( const fc::exception& e ) {
@@ -754,7 +792,6 @@ namespace eosio::testing {
       }
 
       unique_ptr<controller>      validating_node;
-      uint32_t                    num_blocks_to_producer_before_shutdown = 0;
       bool                        skip_validate = false;
    };
 
@@ -763,6 +800,26 @@ namespace eosio::testing {
       validating_tester_no_disable_deferred_trx(): validating_tester({}, nullptr, setup_policy::full_except_do_not_disable_deferred_trx) {
       }
    };
+
+   // The behavior of legacy_validating_tester is activating all the protocol features
+   // but not transition to Savanna consensus.
+   // If needed, the tester can be transitioned to Savanna by explicitly calling
+   // set_finalizer host function only.
+   class legacy_validating_tester : public validating_tester {
+   public:
+      legacy_validating_tester(const flat_set<account_name>& trusted_producers = flat_set<account_name>(), deep_mind_handler* dmlog = nullptr, setup_policy p = setup_policy::full_except_do_not_transition_to_savanna)
+      : validating_tester(trusted_producers, dmlog, p == setup_policy::full ? setup_policy::full_except_do_not_transition_to_savanna : p) {};
+
+      legacy_validating_tester(const fc::temp_directory& tempdir, bool use_genesis)
+      : validating_tester(tempdir, use_genesis) {};
+
+      template <typename Lambda>
+      legacy_validating_tester(const fc::temp_directory& tempdir, Lambda conf_edit, bool use_genesis)
+      : validating_tester(tempdir, conf_edit, use_genesis) {};
+   };
+
+   using savanna_validating_tester = validating_tester;
+   using validating_testers = boost::mpl::list<legacy_validating_tester, savanna_validating_tester>;
 
    // -------------------------------------------------------------------------------------
    // creates and manages a set of `bls_public_key` used for finalizers voting and policies
@@ -870,6 +927,12 @@ namespace eosio::testing {
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
          return finalizer_policy{}.apply_diff(*fin_policy_diff);
+      }
+
+      void activate_savanna(size_t first_key_idx) {
+         set_node_finalizers(first_key_idx, pubkeys.size());
+         set_finalizer_policy(first_key_idx);
+         transition_to_savanna();
       }
 
       Tester&                 t;
