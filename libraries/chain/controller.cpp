@@ -173,11 +173,11 @@ struct completed_block {
    block_handle bsp;
 
    deque<transaction_metadata_ptr> extract_trx_metas() {
-      return block_handle_accessor{}.apply<deque<transaction_metadata_ptr>>(bsp, [](auto& bsp) { return bsp->extract_trxs_metas(); });
+      return block_handle_accessor::apply<deque<transaction_metadata_ptr>>(bsp, [](auto& bsp) { return bsp->extract_trxs_metas(); });
    }
 
    const flat_set<digest_type>& get_activated_protocol_features() const {
-      return block_handle_accessor{}.apply<const flat_set<digest_type>&>(bsp, [](const auto& bsp) -> const flat_set<digest_type>& {
+      return block_handle_accessor::apply<const flat_set<digest_type>&>(bsp, [](const auto& bsp) -> const flat_set<digest_type>& {
          return bsp->get_activated_protocol_features()->protocol_features;
       });
    }
@@ -188,13 +188,13 @@ struct completed_block {
    account_name producer() const { return bsp.producer(); }
 
    const producer_authority_schedule& active_producers() const {
-      return block_handle_accessor{}.apply<const producer_authority_schedule&>(bsp, [](const auto& bsp) -> const producer_authority_schedule& {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(bsp, [](const auto& bsp) -> const producer_authority_schedule& {
          return bsp->active_schedule_auth();
       });
    }
 
    const producer_authority_schedule* next_producers() const {
-      return block_handle_accessor{}.apply<const producer_authority_schedule*>(bsp,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return bsp->pending_schedule_auth();
                     },
@@ -207,7 +207,7 @@ struct completed_block {
    }
 
    const producer_authority_schedule* pending_producers_legacy() const {
-      return block_handle_accessor{}.apply<const producer_authority_schedule*>(bsp,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return &bsp->pending_schedule.schedule;
                     },
@@ -994,26 +994,26 @@ struct controller_impl {
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
 
    protocol_feature_activation_set_ptr head_activated_protocol_features() const {
-      return block_handle_accessor{}.apply<protocol_feature_activation_set_ptr>(chain_head, [](const auto& head) {
+      return block_handle_accessor::apply<protocol_feature_activation_set_ptr>(chain_head, [](const auto& head) {
          return head->get_activated_protocol_features();
       });
    }
 
    const producer_authority_schedule& head_active_schedule_auth() const {
-      return block_handle_accessor{}.apply<const producer_authority_schedule&>(chain_head, [](const auto& head) -> const producer_authority_schedule& {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head, [](const auto& head) -> const producer_authority_schedule& {
          return head->active_schedule_auth();
       });
    }
 
    const producer_authority_schedule* head_pending_schedule_auth_legacy() const {
-      return block_handle_accessor{}.apply<const producer_authority_schedule*>(chain_head,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule* { return head->pending_schedule_auth(); },
                     [](const block_state_ptr&) -> const producer_authority_schedule* { return nullptr; }
          });
    }
 
    const producer_authority_schedule* next_producers() {
-      return block_handle_accessor{}.apply<const producer_authority_schedule*>(chain_head,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{
          [](const block_state_legacy_ptr& head) -> const producer_authority_schedule* {
             return head->pending_schedule_auth();
@@ -1029,7 +1029,7 @@ struct controller_impl {
    void replace_producer_keys( const public_key_type& key ) {
       ilog("Replace producer keys with ${k}", ("k", key));
 
-      block_handle_accessor{}.apply<void>(chain_head,
+      block_handle_accessor::apply<void>(chain_head,
          overloaded{
             [&](const block_state_legacy_ptr& head) {
                auto version = head->pending_schedule.schedule.version;
@@ -1317,7 +1317,7 @@ struct controller_impl {
       } else {
          assert(bsp->block);
          if (bsp->block->is_proper_svnn_block()) {
-            block_handle_accessor{}.apply_l<void>(chain_head, [&](const auto&) {
+            block_handle_accessor::apply_l<void>(chain_head, [&](const auto&) {
                // if chain_head is legacy, update to non-legacy chain_head, this is needed so that the correct block_state is created in apply_block
                block_state_ptr prev = forkdb.get_block(bsp->previous(), include_root_t::yes);
                assert(prev);
@@ -1567,7 +1567,7 @@ struct controller_impl {
          try {
             std::vector<block_state_legacy_ptr> legacy_branch; // for blocks that will need to be converted to IF blocks
             while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
-               block_handle_accessor{}.apply_l<void>(chain_head, [&](const auto& head) {
+               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
                   if (next->is_proper_svnn_block()) {
                      const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
@@ -1605,10 +1605,10 @@ struct controller_impl {
                      }
                   }
                });
-               block_handle_accessor{}.apply<void>(chain_head, [&]<typename T>(const T&) {
+               block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
                   replay_push_block<T>( next, controller::block_status::irreversible );
                });
-               block_handle_accessor{}.apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
+               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
                   assert(!next->is_proper_svnn_block());
                   if (next->contains_header_extension(instant_finality_extension::extension_id())) {
                      assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
@@ -1663,7 +1663,7 @@ struct controller_impl {
 
       auto fork_db_reset_root_to_chain_head = [&]() {
          fork_db.apply<void>([&](auto& forkdb) {
-            block_handle_accessor{}.apply<void>(chain_head, [&](const auto& head) {
+            block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
                if constexpr (std::is_same_v<std::decay_t<decltype(head)>, std::decay_t<decltype(forkdb.head())>>)
                   forkdb.reset_root(head);
             });
@@ -1673,7 +1673,7 @@ struct controller_impl {
       auto switch_from_legacy_if_needed = [&]() {
          if (fork_db.version_in_use() == fork_database::in_use_t::legacy) {
             // switch to savanna if needed
-            block_handle_accessor{}.apply_s<void>(chain_head, [&](const auto& head) {
+            block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                fork_db.switch_from_legacy(head);
             });
          }
@@ -1780,7 +1780,7 @@ struct controller_impl {
          ilog( "Snapshot loaded, lib: ${lib}", ("lib", chain_head.block_num()) );
 
          init(startup_t::snapshot);
-         block_handle_accessor{}.apply_l<void>(chain_head, [&](auto& head) {
+         block_handle_accessor::apply_l<void>(chain_head, [&](auto& head) {
             if (block_states.second && head->header.contains_header_extension(instant_finality_extension::extension_id())) {
                // snapshot generated in transition to savanna
                if (fork_db.version_in_use() == fork_database::in_use_t::legacy) {
@@ -2058,7 +2058,7 @@ struct controller_impl {
 
    block_state_pair get_block_state_to_snapshot() const
    {
-       return block_handle_accessor{}.apply<block_state_pair>(chain_head, overloaded{
+       return block_handle_accessor::apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
              if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
                 // During transition to Savanna, we need to build Transition Savanna block
@@ -2080,7 +2080,7 @@ struct controller_impl {
          section.add_row(chain_snapshot_header(), db);
       });
 
-      block_handle_accessor{}.apply<void>(chain_head, [&](const auto& head) {
+      block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
          snapshot_detail::snapshot_block_state_data_v7 block_state_data(get_block_state_to_snapshot());
 
          snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
@@ -2996,7 +2996,7 @@ struct controller_impl {
                   "db revision is not on par with head block",
                   ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head_block_num()) );
 
-      block_handle_accessor{}.apply<void>(chain_head, overloaded{
+      block_handle_accessor::apply<void>(chain_head, overloaded{
                     [&](const block_state_legacy_ptr& head) {
                        maybe_session session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
                        pending.emplace(std::move(session), *head, when, confirm_block_count, new_protocol_feature_activations);
@@ -3279,7 +3279,7 @@ struct controller_impl {
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
             if (!my_finalizers.empty()) {
-               block_handle_accessor{}.apply_s<void>(chain_head, [&](const auto& head) {
+               block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || my_finalizers.is_active()) {
                      if (async_voting == async_t::no)
                         create_and_send_vote_msg(head);
@@ -3292,7 +3292,7 @@ struct controller_impl {
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
-            block_handle_accessor{}.apply<void>(chain_head,
+            block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
                               auto fd = head_finality_data(); // for transition blocks
@@ -4117,7 +4117,7 @@ struct controller_impl {
                }
             }
          };
-         block_handle_accessor{}.apply<void>(chain_head, do_push);
+         block_handle_accessor::apply<void>(chain_head, do_push);
 
       } FC_LOG_AND_RETHROW( )
    }
@@ -4159,7 +4159,7 @@ struct controller_impl {
             bool switch_fork = !branches.second.empty();
             if( switch_fork ) {
                auto head_fork_comp_str =
-                  block_handle_accessor{}.apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
+                  block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
                ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
                     ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
                     ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
@@ -4574,7 +4574,7 @@ struct controller_impl {
    }
 
    std::optional<finality_data_t> head_finality_data() const {
-      return block_handle_accessor{}.apply<std::optional<finality_data_t>>(chain_head, overloaded{
+      return block_handle_accessor::apply<std::optional<finality_data_t>>(chain_head, overloaded{
          [&](const block_state_legacy_ptr& head) -> std::optional<finality_data_t> {
             // When in Legacy, if it is during transition to Savana, we need to
             // build finality_data for the corresponding Savanna block
@@ -5023,11 +5023,11 @@ void controller::push_block( block_report& br,
                              const trx_meta_cache_lookup& trx_lookup )
 {
    validate_db_available_size();
-   block_handle_accessor{}.apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
+   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
 }
 
 void controller::accept_block(const block_handle& bh) {
-   block_handle_accessor{}.apply<void>(bh, [&](const auto& bsp) { my->accept_block(bsp); });
+   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->accept_block(bsp); });
 }
 
 transaction_trace_ptr controller::push_transaction( const transaction_metadata_ptr& trx,
@@ -5122,7 +5122,7 @@ const block_header& controller::head_block_header()const {
 
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
-   return block_handle_accessor{}.apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
+   return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
 }
@@ -5410,7 +5410,7 @@ const producer_authority_schedule* controller::next_producers()const {
 }
 
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {
-   return block_handle_accessor{}.apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+   return block_handle_accessor::apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
       return head->active_finalizer_policy;
    });
 }
