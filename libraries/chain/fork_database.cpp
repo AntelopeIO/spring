@@ -80,24 +80,26 @@ namespace eosio::chain {
       using by_best_branch_legacy_t = ordered_unique<
          tag<by_best_branch>,
          composite_key<block_state_legacy,
-                       global_fun<const block_state_legacy&, bool, &block_state_legacy_accessor::is_valid>,
-                       const_mem_fun<block_state_legacy, uint32_t, &block_state_legacy::irreversible_blocknum>,
-                       const_mem_fun<block_state_legacy, uint32_t, &block_state_legacy::block_num>,
-                       const_mem_fun<block_state_legacy, const block_id_type&, &block_state_legacy::id>>,
+                       global_fun<const block_state_legacy&, bool,                 &block_state_legacy_accessor::is_valid>,
+                       const_mem_fun<block_state_legacy,     uint32_t,             &block_state_legacy::irreversible_blocknum>,
+                       const_mem_fun<block_state_legacy,     uint32_t,             &block_state_legacy::block_num>,
+                       const_mem_fun<block_state_legacy,     const block_id_type&, &block_state_legacy::id>>,
          composite_key_compare<std::greater<bool>, std::greater<uint32_t>, std::greater<uint32_t>, sha256_less>>;
 
       using by_best_branch_if_t = ordered_unique<
          tag<by_best_branch>,
-         composite_key<block_state, global_fun<const block_state&, bool, &block_state_accessor::is_valid>,
-                       const_mem_fun<block_state, block_timestamp_type, &block_state::last_final_block_timestamp>,
-                       const_mem_fun<block_state, block_timestamp_type, &block_state::latest_qc_block_timestamp>,
-                       const_mem_fun<block_state, block_timestamp_type, &block_state::timestamp>,
-                       const_mem_fun<block_state, const block_id_type&, &block_state::id>>,
+         composite_key<block_state,
+                       global_fun<const block_state&, bool,                 &block_state_accessor::is_valid>,
+                       const_mem_fun<block_state,     block_timestamp_type, &block_state::last_final_block_timestamp>,
+                       const_mem_fun<block_state,     block_timestamp_type, &block_state::latest_qc_block_timestamp>,
+                       const_mem_fun<block_state,     block_timestamp_type, &block_state::timestamp>,
+                       const_mem_fun<block_state,     const block_id_type&, &block_state::id>>,
          composite_key_compare<std::greater<bool>, std::greater<block_timestamp_type>,
                                std::greater<block_timestamp_type>, std::greater<block_timestamp_type>, sha256_less>>;
 
-      using by_best_branch_t =
-         std::conditional_t<std::is_same_v<bs_t, block_state>, by_best_branch_if_t, by_best_branch_legacy_t>;
+      using by_best_branch_t = std::conditional_t<std::is_same_v<bs_t, block_state>,
+                                                  by_best_branch_if_t,
+                                                  by_best_branch_legacy_t>;
 
       using fork_multi_index_type = multi_index_container<
          bsp_t,
