@@ -58,7 +58,7 @@ try:
 
     Print("Stand up cluster")
     extraNodeosArgs = '--plugin eosio::prometheus_plugin --connection-cleanup-period 3'
-    # Custom topology is a line of singlely connected nodes from highest node number in sequence to lowest,
+    # Custom topology is a line of singly connected nodes from the highest node number in sequence to lowest,
     # the reverse of the usual TestHarness line topology.
     if cluster.launch(pnodes=pnodes, unstartedNodes=2, totalNodes=total_nodes, prodCount=prod_count, 
                       topo='./tests/p2p_sync_throttle_test_shape.json', delay=delay, activateIF=activateIF,
@@ -205,6 +205,7 @@ try:
                                                          'block_sync_bytes_sent',
                                                          response)
     Print(f'End sync throttling bytes sent: {endSyncThrottlingBytesSent}')
+    assert throttledNode.waitForBlock(beginLargeBlocksHeadBlock, timeout=90), f'Wait for begin block {beginLargeBlocksHeadBlock} on throttled sync node timed out'
     # Throttled node is connecting to a listen port with a block sync throttle applied so it will receive
     # blocks more slowly during syncing than an unthrottled node.
     wasThrottled = False

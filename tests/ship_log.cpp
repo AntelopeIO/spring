@@ -1449,4 +1449,72 @@ BOOST_AUTO_TEST_CASE(rewrite_too_old_pruned_block) try {
 
 } FC_LOG_AND_RETHROW();
 
+//verificaiton of clear()
+const state_history::state_history_log_config log_configs_for_clear[] = {
+   {std::monostate()},
+   {state_history::partition_config{
+      .retained_dir = {},
+      .archive_dir = {},
+      .stride = 5
+   }},
+   {state_history::partition_config{
+      .retained_dir = {},
+      .archive_dir = {},
+      .stride = 5,
+      .max_retained_files = 2
+   }},
+   {state_history::prune_config{
+      .prune_blocks = 5,
+      .prune_threshold = 2
+   }}
+};
+BOOST_DATA_TEST_CASE(clear, bdata::make(log_configs_for_clear) * bdata::make({9u, 10u, 11u}), config, after_clear_begin_block) try {
+   const fc::temp_directory tmpdir;
+
+   const unsigned before_clear_begin_block = 10;
+   const unsigned before_clear_end_block = 42;
+
+   const unsigned after_clear_end_block = after_clear_begin_block+4;
+
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "clearme");
+      for(unsigned i = before_clear_begin_block; i < before_clear_end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {});
+
+      auto [begin_block, end_block] = lc.block_range();
+      //not checking begin_block because logs could have been rotated or pruned depending on test case
+      BOOST_REQUIRE_EQUAL(end_block, before_clear_end_block);
+
+      lc.clear();
+      BOOST_REQUIRE(lc.empty());
+      //head log should be empty
+      BOOST_REQUIRE_EQUAL(0u, std::filesystem::file_size(tmpdir.path() / "clearme.log"));
+      BOOST_REQUIRE_EQUAL(0u, std::filesystem::file_size(tmpdir.path() / "clearme.index"));
+      //make sure no retained logs exist
+      for(const std::string& suffix : {"log"s, "index"s}) {
+         const std::regex retained_logfile_regex(R"(^clearme-\d+-\d+\.)" + suffix + "$");
+
+         unsigned found = 0;
+         for(const std::filesystem::directory_entry& dir_entry : std::filesystem::directory_iterator(tmpdir.path()))
+            found += std::regex_search(dir_entry.path().filename().string(), retained_logfile_regex);
+         BOOST_REQUIRE_EQUAL(found, 0u);
+      }
+
+      for(unsigned i = after_clear_begin_block; i < after_clear_end_block; ++i)
+         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {});
+
+      std::tie(begin_block, end_block) = lc.block_range();
+      BOOST_REQUIRE_EQUAL(begin_block, after_clear_begin_block);
+      BOOST_REQUIRE_EQUAL(end_block, after_clear_end_block);
+   }
+
+   //reopen for sanity check
+   {
+      eosio::state_history::log_catalog lc(tmpdir.path(), config, "clearme");
+      const auto [begin_block, end_block] = lc.block_range();
+      BOOST_REQUIRE_EQUAL(begin_block, after_clear_begin_block);
+      BOOST_REQUIRE_EQUAL(end_block, after_clear_end_block);
+   }
+} FC_LOG_AND_RETHROW();
+
 BOOST_AUTO_TEST_SUITE_END()

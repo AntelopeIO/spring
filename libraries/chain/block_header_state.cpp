@@ -153,7 +153,6 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
    if (target != prev_proposed.end()) {
       if (pending_slot_open) {
          // promote the target to pending
-         // https://github.com/AntelopeIO/spring/issues/306 will update generation properly
          auto block_num = next_header_state.block_num();
          next_pending.emplace(block_num, target->second);
       } else {
