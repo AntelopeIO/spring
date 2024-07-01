@@ -1681,8 +1681,14 @@ struct controller_impl {
             if( read_mode == db_read_mode::IRREVERSIBLE) {
                auto head = forkdb.head();
                auto root = forkdb.root();
-               if (head && root && head->id() != root->id())
+               if (head && root && head->id() != root->id()) {
                   forkdb.rollback_head_to_root();
+                  chain_head = block_handle{forkdb.head()};
+                  // rollback db to LIB
+                  while( db.revision() > chain_head.block_num() ) {
+                     db.undo();
+                  }
+               }
             }
          };
          fork_db.apply<void>(do_startup);
@@ -1898,9 +1904,9 @@ struct controller_impl {
          });
       }
 
-      // At this point head != nullptr
+      // At this point chain_head != nullptr
       EOS_ASSERT( db.revision() >= chain_head.block_num(), fork_database_exception,
-                  "fork database head (${head}) is inconsistent with state (${db})",
+                  "chain head (${head}) is inconsistent with state (${db})",
                   ("db", db.revision())("head", chain_head.block_num()) );
 
       if( db.revision() > chain_head.block_num() ) {
