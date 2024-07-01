@@ -209,8 +209,8 @@ namespace eosio::chain {
    void fork_database_impl<BSP>::close_impl(std::ofstream& out) {
       assert(!!head && !!root); // if head or root are null, we don't save and shouldn't get here
 
-      ilog("Writing fork_database with root ${rn}:${r} and head ${hn}:${h}",
-           ("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
+      ilog("Writing fork_database ${b} blocks with root ${rn}:${r} and head ${hn}:${h}",
+           ("b", head->block_num() - root->block_num())("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
 
       fc::raw::pack( out, *root );
 
