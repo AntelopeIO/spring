@@ -99,7 +99,7 @@ namespace savanna_cluster {
    // cluster_t
    // ---------
    //
-   // Set up a test network which consists of 4 nodes, all of which have transitioned to
+   // Set up a test network which consists of N nodes, all of which have transitioned to
    // the Savanna consensus.
    //
    // They are all finalizers (Each node has one finalizer) and can all produce blocks.
