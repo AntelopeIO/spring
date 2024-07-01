@@ -17,16 +17,8 @@ struct blog_replay_fixture {
    uint32_t               last_head_block_num {0}; // head_block_num at stopping
    uint32_t               last_irreversible_block_num {0}; // LIB at stopping
 
-   // Activate Savanna and create blocks log
+   // Create blocks log
    blog_replay_fixture() {
-      // Activate Savanna
-      size_t num_keys    = 4u;
-      size_t finset_size = 4u;
-      finalizer_keys fin_keys(chain, num_keys, finset_size); // Create finalizer keys
-      fin_keys.set_node_finalizers(0u, num_keys); // set finalizers on current node
-      fin_keys.set_finalizer_policy(0u);
-      fin_keys.transition_to_savanna();
-
       // Create a few accounts and produce a few blocks to fill in blocks log
       chain.create_account("replay1"_n);
       chain.produce_blocks(1);
@@ -49,7 +41,7 @@ struct blog_replay_fixture {
       chain.close();
    }
 
-   // Stop replay at block number `stop_at` and resume the replay afterwards
+   // Stop replay at block number `stop_at` via simulated ctrl-c and resume the replay afterward
    void stop_and_resume_replay(uint32_t stop_at) try {
       controller::config copied_config = chain.get_config();
 
@@ -57,7 +49,7 @@ struct blog_replay_fixture {
       BOOST_REQUIRE(genesis);
 
       // remove the state files to make sure starting from blocks log
-      remove_existing_states(copied_config);
+      remove_existing_states(copied_config.state_dir);
 
       // Create a replay chain without starting it
       eosio::testing::tester replay_chain(copied_config, *genesis, false); // false for not starting the chain
@@ -87,15 +79,18 @@ struct blog_replay_fixture {
 
       // Prepare resuming replay
       controller::config copied_config_1 = replay_chain.get_config();
-      auto genesis_1 = block_log::extract_genesis_state(copied_config_1.blocks_dir); 
-      BOOST_REQUIRE(genesis_1);
-
-      // Remove the state files to make sure starting from block log
-      remove_existing_states(copied_config_1);
 
       // Resume replay
-      eosio::testing::tester replay_chain_1(copied_config_1, *genesis);
-      
+      eosio::testing::tester replay_chain_1(copied_config_1, *genesis, false); // false for not starting the chain
+      replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
+
+      replay_chain_1.control->accepted_block().connect([&](const block_signal_params& t) {
+         const auto& [ block, id ] = t;
+         BOOST_TEST(block->block_num() > stop_at);
+         static uint32_t first = block->block_num();
+         BOOST_TEST(first == stop_at);
+      });
+
       // Make sure new chain contain the account created by original chain
       BOOST_REQUIRE_NO_THROW(replay_chain_1.control->get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(replay_chain_1.control->get_account("replay2"_n));
@@ -107,9 +102,8 @@ struct blog_replay_fixture {
       BOOST_CHECK(replay_chain_1.control->head_block_num() == last_head_block_num);
    } FC_LOG_AND_RETHROW()
 
-   void remove_existing_states(eosio::chain::controller::config& config) {
-      auto state_path = config.state_dir;
-      remove_all(state_path);
+   void remove_existing_states(std::filesystem::path& state_path) {
+      std::filesystem::remove_all(state_path);
       std::filesystem::create_directories(state_path);
    }
 };
@@ -122,7 +116,7 @@ BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
    BOOST_REQUIRE(genesis);
 
    // remove the state files to make sure we are starting from block log
-   remove_existing_states(copied_config);
+   remove_existing_states(copied_config.state_dir);
    eosio::testing::tester replay_chain(copied_config, *genesis);
 
    // Make sure new chain contain the account created by original chain
@@ -147,6 +141,13 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_in_reversible_blocks, blog_replay_fixture) t
    // block `last_head_block_num - 1` is within reversible_blocks, since in Savanna
    // we have at least 2 reversible blocks
    stop_and_resume_replay(last_head_block_num - 1);
+} FC_LOG_AND_RETHROW()
+
+// Test replay stopping in the middle of reversible blocks and resuming
+BOOST_FIXTURE_TEST_CASE(replay_stop_multiple, blog_replay_fixture) try {
+   stop_and_resume_replay(last_irreversible_block_num - 5);
+   stop_and_resume_replay(last_irreversible_block_num);
+   stop_and_resume_replay(last_head_block_num - 3);
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()
