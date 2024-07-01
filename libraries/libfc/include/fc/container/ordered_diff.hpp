@@ -1,5 +1,13 @@
 #pragma once
 
+#include <algorithm>
+#include <compare>
+#include <concepts>
+#include <cstddef>
+#include <iterator>
+#include <limits>
+#include <ranges>
+#include <type_traits>
 #include <vector>
 #include <utility>
 
@@ -8,6 +16,8 @@ namespace fc {
 /**
  * @class ordered_diff
  * @brief Provides ability to generate and apply diff of containers of type T
+ *
+ * Minimizes the number of inserts to transform source to target.
  *
  * Example use:
  *    std::vector<char> source = { 'a', 'b', 'f', 'c', 'd' };
@@ -24,86 +34,137 @@ template <typename T, typename SizeType = size_t, template<typename Y, typename.
 requires std::equality_comparable<T> && std::random_access_iterator<typename Container<T>::iterator>
 class ordered_diff {
 public:
+
+   /// All indexes are in reference to the target. Apply in order: remove, insert, move.
+   /// remove_indexes are in reverse order so they can be applied directly, see apply_diff.
    struct diff_result {
-      Container<SizeType>                remove_indexes;
-      Container<std::pair<SizeType, T>>  insert_indexes;
+      using value_type = T;
+      Container<SizeType>                       remove_indexes;
+      Container<std::pair<SizeType, T>>         insert_indexes;
+      Container<std::pair<SizeType, SizeType>>  move_indexes;
    };
 
-   /// Generate diff_result that when `apply_diff(source, diff_result)` will modify source to be equal to target.
-   static diff_result diff(const Container<T>& source, const Container<T>& target) {
-      size_t s = 0;
-      size_t t = 0;
-
+   /// Generate diff_result that when `apply_diff(orig, diff_result)` will modify source to be equal to target.
+   static diff_result diff(const Container<T>& orig, const Container<T>& target) {
       diff_result result;
-      while (s < source.size() || t < target.size()) {
-         if (s < source.size() && t < target.size()) {
-            if (source[s] == target[t]) {
-               // nothing to do, skip over
-               assert(s <= std::numeric_limits<SizeType>::max());
-               assert(t <= std::numeric_limits<SizeType>::max());
-               ++s;
-               ++t;
-            } else { // not equal
-               if (s == source.size() - 1 && t == target.size() - 1) {
-                  // both at end, insert target and remove source
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++s;
-                  ++t;
-               } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
-                  // misalignment, but next value equal, insert and remove
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++s;
-                  ++t;
-               } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
-                  // source equals next target, insert current target
-                  assert(t <= std::numeric_limits<SizeType>::max());
-                  result.insert_indexes.emplace_back(t, target[t]);
-                  ++t;
-               } else { // source[s + 1] == target[t]
-                  // target matches next source, remove current source
-                  assert(s <= std::numeric_limits<SizeType>::max());
-                  result.remove_indexes.push_back(s);
-                  ++s;
-               }
-            }
-         } else if (s < source.size()) {
-            // remove extra in source
-            assert(s <= std::numeric_limits<SizeType>::max());
-            result.remove_indexes.push_back(s);
-            ++s;
-         } else if (t < target.size()) {
-            // insert extra in target
-            assert(t <= std::numeric_limits<SizeType>::max());
-            result.insert_indexes.emplace_back(t, target[t]);
-            ++t;
+
+      auto sort_input = [](auto&& r) -> Container<std::pair<T, size_t>> {
+         Container<std::pair<T, size_t>> sorted;
+         if constexpr (requires(Container<SizeType>& t) { t.reserve(0u); }) {
+            sorted.reserve(std::ranges::size(r));
          }
+
+         size_t index = 0;
+         for (const auto& entry : r) {
+            sorted.emplace_back(entry, index);
+            ++index;
+         }
+
+         std::ranges::stable_sort(sorted, [](auto&& lhs, auto&& rhs) {
+            return lhs.first < rhs.first;
+         });
+
+         return sorted;
+      };
+
+      auto orig_sorted = sort_input(orig);
+      auto targ_sorted = sort_input(target);
+
+      size_t orig_index = 0;
+      size_t cur_index  = 0;
+
+      while ((orig_index < orig_sorted.size()) || (cur_index < targ_sorted.size())) {
+         std::weak_ordering cmp = std::weak_ordering::equivalent;
+
+         if (orig_sorted.size() <= orig_index) {
+            cmp = std::weak_ordering::greater;
+         } else if (targ_sorted.size() <= cur_index) {
+            cmp = std::weak_ordering::less;
+         } else {
+            cmp = (orig_sorted[orig_index].first <=> targ_sorted[cur_index].first);
+         }
+
+         if (cmp == std::weak_ordering::less) {
+            assert(orig_sorted[orig_index].second <= std::numeric_limits<SizeType>::max());
+            result.remove_indexes.emplace_back(orig_sorted[orig_index].second);
+            ++orig_index;
+         } else if (cmp == std::weak_ordering::greater) {
+            assert(targ_sorted[cur_index].second <= std::numeric_limits<SizeType>::max());
+            result.insert_indexes.emplace_back(targ_sorted[cur_index].second, std::move(targ_sorted[cur_index].first));
+            ++cur_index;
+         } else {
+            // cmp == std::weak_ordering::equivalent
+            assert(orig_sorted[orig_index].first == targ_sorted[cur_index].first);
+            if (orig_sorted[orig_index].second != targ_sorted[cur_index].second) {
+               assert(orig_sorted[orig_index].second <= std::numeric_limits<SizeType>::max());
+               assert(targ_sorted[cur_index].second <= std::numeric_limits<SizeType>::max());
+               result.move_indexes.emplace_back(orig_sorted[orig_index].second, targ_sorted[cur_index].second);
+            }
+            ++orig_index;
+            ++cur_index;
+         }
+      }
+
+      std::ranges::sort(result.remove_indexes, [](auto&& lhs, auto&& rhs) { return lhs > rhs; }); // descending
+      std::ranges::sort(result.insert_indexes, [](auto&& lhs, auto&& rhs) { return lhs.first < rhs.first; });
+      std::ranges::sort(result.move_indexes,   [](auto&& lhs, auto&& rhs) { return lhs.first < rhs.first; });
+
+      // update move indexes
+      if (!result.move_indexes.empty()) {
+         // remove decreases `from` index
+         for (const auto& i : result.remove_indexes) {
+            auto m = std::lower_bound(result.move_indexes.begin(), result.move_indexes.end(), i, [&](const auto& p, const auto& v) { return p.first < v; });
+            for (; m != result.move_indexes.end(); ++m) {
+               --m->first;
+            }
+         }
+         // insert increases `from` index
+         for (const auto& i : result.insert_indexes) {
+            auto m = std::lower_bound(result.move_indexes.begin(), result.move_indexes.end(), i.first, [](const auto& p, const auto& v) { return p.first < v; });
+            for (; m != result.move_indexes.end(); ++m) {
+               ++m->first;
+            }
+         }
+         // remove any moves that are not needed, from == to
+         result.move_indexes.erase(std::remove_if(result.move_indexes.begin(), result.move_indexes.end(),
+                                                  [](const auto& p) { return p.first == p.second; }),
+                                   result.move_indexes.end());
       }
 
       return result;
    }
 
-   /// @param diff the diff_result created from diff(source, target), apply_diff(std::move(source), diff_result) => target
-   /// @param container the source of diff(source, target) to modify using the diff_result to produce original target
-   /// @return the modified container now equal to original target
+   /// @param diff the diff_result created from diff(orig, target), apply_diff(std::move(orig), diff_result) => target
+   /// @param container the orig of diff(orig, target) to modify using the diff_result to produce the target
+   /// @return the modified container now equal to target
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
    static Container<T> apply_diff(Container<T>&& container, X&& diff) {
-      // Remove from the source based on diff.remove_indexes
-      std::ptrdiff_t offset = 0;
-      for (SizeType index : diff.remove_indexes) {
-         container.erase(container.begin() + index + offset);
-         --offset;
+      // Remove from the container based on diff.remove_indexes which is descending order
+      for (auto index : diff.remove_indexes) {
+         container.erase(container.begin() + index);
       }
 
-      // Insert into the source based on diff.insert_indexes
-      for (auto& [index, value] : diff.insert_indexes) {
+      // Insert into the container based on diff.insert_indexes
+      if constexpr (requires(Container<T>& t) { t.reserve(0u); }) {
+         container.reserve(container.size() + diff.insert_indexes.size());
+      }
+      for (auto&& [index, value] : diff.insert_indexes) {
          container.insert(container.begin() + index, std::move(value));
+      }
+
+      // Move in container based on diff.move_indexes
+      Container<T> items;
+      if constexpr (requires(Container<T>& t) { t.reserve(0u); }) {
+         items.reserve(diff.move_indexes.size());
+      }
+      for (const auto& [from, _] : diff.move_indexes) {
+         items.push_back(std::move(container[from]));
+      }
+      size_t i = 0;
+      for (const auto& [_, to] : diff.move_indexes) {
+         container[to] = std::move(items[i]);
+         ++i;
       }
       return container;
    }

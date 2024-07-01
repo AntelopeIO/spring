@@ -96,9 +96,8 @@ struct key_weight {
    public_key_type key;
    weight_type     weight;
 
-   friend bool operator == ( const key_weight& lhs, const key_weight& rhs ) {
-      return tie( lhs.key, lhs.weight ) == tie( rhs.key, rhs.weight );
-   }
+   friend auto operator<=>(const key_weight&, const key_weight&) = default;
+   friend bool operator==(const key_weight&, const key_weight&) = default;
 
    friend bool operator==( const key_weight& lhs, const shared_key_weight& rhs );
 

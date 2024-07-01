@@ -44,5 +44,5 @@ using proposer_policy_ptr = std::shared_ptr<proposer_policy>;
 } /// eosio::chain
 
 FC_REFLECT( eosio::chain::proposer_policy, (active_time)(proposer_schedule) )
-FC_REFLECT( eosio::chain::producer_auth_diff_t, (remove_indexes)(insert_indexes) )
+FC_REFLECT( eosio::chain::producer_auth_diff_t, (remove_indexes)(insert_indexes)(move_indexes) )
 FC_REFLECT( eosio::chain::proposer_policy_diff, (version)(active_time)(producer_auth_diff) )
