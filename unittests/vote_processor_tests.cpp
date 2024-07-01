@@ -157,14 +157,14 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    { // empty fork db, block never found, never signaled
       vote_message_ptr vm1 = make_empty_message(make_block_id(1));
       signaled = 0;
-      vp.process_vote_message(1, vm1);
+      vp.process_vote_message(1, vm1, async_t::yes);
       for (size_t i = 0; i < 50 && vp.index_size() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
       BOOST_TEST(vp.index_size() == 1u);
       // move lib past block
       vp.notify_lib(2);
-      vp.notify_new_block();
+      vp.notify_new_block(async_t::yes);
       for (size_t i = 0; i < 50 && vp.index_size() > 0; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
@@ -177,9 +177,9 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK_EQUAL(bsp->block_num(), 3u);
       vote_message_ptr m1 = make_vote_message(bsp);
       add_to_forkdb(bsp);
-      vp.process_vote_message(1, m1);
+      vp.process_vote_message(1, m1, async_t::yes);
       // duplicate ignored
-      vp.process_vote_message(1, m1);
+      vp.process_vote_message(1, m1, async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       vote_message_ptr m1 = make_vote_message(bsp);
       m1->strong = false; // signed with strong_digest
       add_to_forkdb(bsp);
-      vp.process_vote_message(1, m1);
+      vp.process_vote_message(1, m1, async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
@@ -212,8 +212,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       auto bsp2 = create_test_block_state(bsp);
       vote_message_ptr m1 = make_vote_message(bsp);
       vote_message_ptr m2 = make_vote_message(bsp2);
-      vp.process_vote_message(2, m1);
-      vp.process_vote_message(3, m2);
+      vp.process_vote_message(2, m1, async_t::yes);
+      vp.process_vote_message(3, m2, async_t::yes);
       for (size_t i = 0; i < 5; ++i) {
          if (vp.index_size() == 2) break;
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       std::this_thread::sleep_for(std::chrono::milliseconds{5}); // no votes for awhile
       BOOST_TEST(signaled.load() == 0u);
       add_to_forkdb(bsp);
-      vp.notify_new_block();
+      vp.notify_new_block(async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }
@@ -232,7 +232,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK(m1 == received_vote_message);
 
       add_to_forkdb(bsp2);
-      vp.notify_new_block();
+      vp.notify_new_block(async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
       }

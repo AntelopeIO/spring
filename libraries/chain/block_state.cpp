@@ -196,7 +196,7 @@ vote_status block_state::aggregate_vote(uint32_t connection_id, const vote_messa
    }
 }
 
-bool block_state::has_voted(const bls_public_key& key) const {
+vote_status_t block_state::has_voted(const bls_public_key& key) const {
    const auto& finalizers = active_finalizer_policy->finalizers;
    auto it = std::find_if(finalizers.begin(),
                           finalizers.end(),
@@ -204,9 +204,17 @@ bool block_state::has_voted(const bls_public_key& key) const {
 
    if (it != finalizers.end()) {
       auto index = std::distance(finalizers.begin(), it);
-      return pending_qc.has_voted(index);
+      return pending_qc.has_voted(index) ? vote_status_t::voted : vote_status_t::not_voted;
    }
-   return false;
+   return vote_status_t::irrelevant_finalizer;
+}
+
+vote_info_vec block_state::get_votes() const {
+   const auto& finalizers = active_finalizer_policy->finalizers;
+   vote_info_vec res;
+   res.reserve(finalizers.size());
+   pending_qc.visit_votes([&](size_t idx, bool strong) { res.emplace_back(finalizers[idx].public_key, strong); });
+   return res;
 }
 
 // Called from net threads
@@ -217,6 +225,7 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
    // utility to accumulate voted weights
    auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
       uint64_t sum = 0;
+      assert(num_finalizers == votes_bitset.size());
       auto n = std::min(num_finalizers, votes_bitset.size());
       for (auto i = 0u; i < n; ++i) {
          if( votes_bitset[i] ) { // ith finalizer voted

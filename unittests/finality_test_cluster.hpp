@@ -22,7 +22,6 @@ struct finality_node_t : public eosio::testing::tester {
    };
 
    uint32_t                                prev_lib_num{0};
-   std::mutex                              votes_mtx;
    std::vector<vote_message_ptr>           votes;
    eosio::chain::vote_message_ptr          orig_vote;
    eosio::testing::finalizer_keys<tester>  finkeys;
@@ -53,7 +52,6 @@ struct finality_node_t : public eosio::testing::tester {
 
    // Restore node's original vote
    void restore_to_original_vote(size_t idx) {
-      std::lock_guard g(votes_mtx);
       assert(!votes.empty());
 
       if (idx == (size_t)-1)
@@ -65,7 +63,6 @@ struct finality_node_t : public eosio::testing::tester {
    }
 
    void clear_votes_and_reset_lib() {
-      std::lock_guard g(votes_mtx);
       votes.clear();
       prev_lib_num = lib_num();
    }
@@ -144,12 +141,13 @@ public:
          nodes[i].setup(i * split, split);
       }
 
-      // node0's votes
-      node0.control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
+      // check that node0 aggregates votes correctly, and that after receiving a vote from another
+      // node, that vote is aggregated into a QC (which we check in wait_on_aggregate_vote).
+      // -----------------------------------------------------------------------------------------
+      node0.control->aggregated_vote().connect( [&]( const eosio::chain::vote_signal_params& v ) {
          last_vote_status = std::get<1>(v);
          last_connection_vote = std::get<0>(v);
       });
-
 
       // set initial finalizer policy
       // ----------------------------
@@ -245,8 +243,9 @@ public:
       return num_voting_nodes + start_idx;
    }
 
-   // propagate votes to node1, node2, etc. according to their ordinal position in the bool vector (shifted by one to account for node0)
-   void process_finalizer_votes(const std::vector<bool> votes) {
+   // propagate votes to node1, node2, etc. according to their ordinal position in the bool vector
+   // (shifted by one to account for node0)
+   void process_finalizer_votes(const std::vector<bool>& votes) {
       assert(votes.size() == num_nodes-1);
       for (size_t i = 1; i<num_nodes; i++)
          if (votes[i-1]) process_vote(i, -1, vote_mode::strong, false);
@@ -281,13 +280,16 @@ private:
       static uint32_t connection_id = 0;
       node0.control->process_vote_message( ++connection_id, vote );
       if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.lib_num())
-         return wait_on_vote(connection_id, duplicate);
+         return wait_on_aggregate_vote(connection_id, duplicate);
       return vote_status::unknown_block;
    }
 
-   vote_status wait_on_vote(uint32_t connection_id, bool duplicate)  {
+   vote_status wait_on_aggregate_vote(uint32_t connection_id, bool duplicate)  {
       // wait for this node's vote to be processed
       // duplicates are not signaled
+      // This wait is not strictly necessary since the controller is set (via `disable_async_aggregation(true)`)
+      // to aggregate votes (and emit the `aggregated_vote` signal) synchronously.
+      // -------------------------------------------------------------------------------------------------------
       size_t retrys = 200;
       while ( (last_connection_vote != connection_id) && --retrys) {
          std::this_thread::sleep_for(std::chrono::milliseconds(5));

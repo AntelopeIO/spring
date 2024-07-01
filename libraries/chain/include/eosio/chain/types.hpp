@@ -404,6 +404,9 @@ namespace eosio::chain {
    template<typename T>
    using next_function = std::function<void(const next_function_variant<T>&)>;
 
+   // to configure whether a process should be done asynchronously or not
+   enum class async_t { no, yes };
+
 }  // eosio::chain
 
 FC_REFLECT_EMPTY( eosio::chain::void_t )
