@@ -149,8 +149,8 @@ add_library( eosio_chain
 ## https://github.com/boostorg/cmake/issues/39). Until this is fixed, manually add Boost::numeric_ublas
 ## as an interface library
 ## ----------------------------------------------------------------------------------------------------
-add_library(boost_numeric_ublas INTERFACE)
-add_library(Boost::numeric_ublas ALIAS boost_numeric_ublas)
+#add_library(boost_numeric_ublas INTERFACE)
+#add_library(Boost::numeric_ublas ALIAS boost_numeric_ublas)
 
 target_link_libraries( eosio_chain PUBLIC bn256 fc chainbase eosio_rapidjson Logging IR WAST WASM
                        softfloat builtins ${CHAIN_EOSVM_LIBRARIES} ${LLVM_LIBS} ${CHAIN_RT_LINKAGE}
