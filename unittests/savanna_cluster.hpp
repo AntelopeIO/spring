@@ -22,9 +22,10 @@ namespace savanna_cluster {
    template<class tester>
    using finalizer_keys   = eosio::testing::finalizer_keys<tester>;
 
+   class cluster_t;
+
    // ----------------------------------------------------------------------------
-   template <class cluster_t>
-   class cluster_node_t : public tester {
+   class node_t : public tester {
       uint32_t                prev_lib_num{0};
       size_t                  node_idx;
       cluster_t&              cluster;
@@ -32,26 +33,7 @@ namespace savanna_cluster {
       size_t                  cur_key{0}; // index of key used in current policy
 
    public:
-      cluster_node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none)
-         : tester(policy)
-         , node_idx(node_idx)
-         , cluster(cluster)
-         , finkeys(*this) {
-
-         // since we are creating forks, finalizers may be locked on another fork and unable to vote.
-         do_check_for_votes(false);
-
-         control->voted_block().connect([&, node_idx](const eosio::chain::vote_signal_params& v) {
-            // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
-            // to vote (and emit the `voted_block` signal) synchronously.
-            // --------------------------------------------------------------------------------------
-            vote_status status = std::get<1>(v);
-            if (status == vote_status::success)
-               cluster.dispatch_vote_to_peers(node_idx, std::get<2>(v));
-         });
-
-         set_produce_block_callback([&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, b); });
-      }
+      node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
 
       void set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
          finkeys.init_keys(keys_per_node * num_nodes, num_nodes);
@@ -83,7 +65,7 @@ namespace savanna_cluster {
 
       uint32_t head_num() const { return control->fork_db_head_block_num(); }
 
-      void push_blocks(cluster_node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+      void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          while (to.head_num() < std::min(head_num(), block_num_limit)) {
             auto sb = control->fetch_block_by_number(to.control->fork_db_head_block_num() + 1);
             to.push_block(sb);
@@ -108,20 +90,25 @@ namespace savanna_cluster {
    //
    // It is possible to split the 'virtual' network using `cluster_t::split()`.
    //  --------------------------------------------------------------------------------------
-   template <size_t NUM_NODES, size_t KEYS_PER_NODE = 10> requires (NUM_NODES > 3)
    class cluster_t {
    public:
-      using node_t = cluster_node_t<cluster_t>;
+      cluster_t(size_t num_nodes = 4, size_t keys_per_node = 10)
+         : _num_nodes(num_nodes)
+         , _keys_per_node(keys_per_node)
+      {
+         assert(_num_nodes > 3); // cluster should have a minimum of 3 nodes (quorum = 2)
 
-      cluster_t()
-         : _nodes{
-               {{0, *this, setup_policy::full_except_do_not_transition_to_savanna}, {1, *this}, {2, *this}, {3, *this}}
-      } {
-         // make sure we push node0 initialization (full_except_do_not_transition_to_savanna) to
-         // the other nodes. Needed because the tester was initialized before `node_t`.
+         _nodes.reserve(_num_nodes);
+         _nodes.emplace_back(0, *this, setup_policy::full_except_do_not_transition_to_savanna);
+         for (size_t i=1; i<_num_nodes; ++i)
+            _nodes.emplace_back(i, *this);
+
+
+         // make sure we push _nodes[0] initialization (full_except_do_not_transition_to_savanna)
+         // to the other nodes. Needed because the tester was initialized before `node_t`.
          // ------------------------------------------------------------------------------------
          for (size_t i = 0; i < _nodes.size(); ++i)
-            node0.push_blocks(_nodes[i]);
+            _nodes[0].push_blocks(_nodes[i]);
 
          // from now on, propagation of blocks and votes happens automatically (thanks to the
          // callbacks registered in `node_t` constructor).
@@ -132,22 +119,22 @@ namespace savanna_cluster {
 
          // set initial finalizer policy
          // ----------------------------
-         std::array<size_t, NUM_NODES> indices;
+         std::vector<size_t> indices;
 
          for (size_t i = 0; i < _nodes.size(); ++i) {
-            indices[i] = i * KEYS_PER_NODE;
-            _nodes[i].set_node_finalizers(KEYS_PER_NODE, NUM_NODES);
+            indices.push_back(i * _keys_per_node);
+            _nodes[i].set_node_finalizers(_keys_per_node, _num_nodes);
          }
 
-         // do the transition to Savanna on node0. Blocks will be propagated to the other nodes.
+         // do the transition to Savanna on _nodes[0]. Blocks will be propagated to the other nodes.
          // ------------------------------------------------------------------------------------
-         auto [_fin_policy_pubkeys, fin_policy] = node0.transition_to_savanna(indices);
+         auto [_fin_policy_pubkeys, fin_policy] = _nodes[0].transition_to_savanna(indices);
 
-         // at this point, node0 has a QC to include in next block.
+         // at this point, _nodes[0] has a QC to include in next block.
          // Produce that block and push it, but don't process votes so that
          // we don't start with an existing QC
          // ---------------------------------------------------------------
-         node0.produce_block();
+         _nodes[0].produce_block();
 
          // reset votes and saved lib, so that each test starts in a clean slate
          // --------------------------------------------------------------------
@@ -236,20 +223,16 @@ namespace savanna_cluster {
 
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
-      size_t num_nodes() const { return NUM_NODES; }
+      size_t num_nodes() const { return _num_nodes; }
 
    public:
-      std::array<node_t, NUM_NODES>   _nodes;
-
-      node_t&                         node0 = _nodes[0];
-      node_t&                         node1 = _nodes[1];
-      node_t&                         node2 = _nodes[2];
-      node_t&                         node3 = _nodes[3];
-
+      std::vector<node_t>             _nodes;
       std::vector<bls_public_key>     _fin_policy_pubkeys; // set of public keys for node finalizers
 
    private:
       std::vector<size_t>             _partition;
+      size_t                          _num_nodes;
+      size_t                          _keys_per_node;
       bool                            _shutting_down {false};
 
       friend node_t;
@@ -273,7 +256,7 @@ namespace savanna_cluster {
             return;
 
          if (_partition.empty()) {
-            for (size_t i=0; i<NUM_NODES; ++i)
+            for (size_t i=0; i<_num_nodes; ++i)
                if (i != node_idx)
                   cb(_nodes[i]);
          } else {
@@ -281,7 +264,7 @@ namespace savanna_cluster {
                return ranges::any_of(_partition, [&](auto i) { return i == node_idx; });
             };
             bool in = in_partition(node_idx);
-            for (size_t i=0; i<NUM_NODES; ++i)
+            for (size_t i=0; i<_num_nodes; ++i)
                if (i != node_idx && in == in_partition(i))
                   cb(_nodes[i]);
          }
