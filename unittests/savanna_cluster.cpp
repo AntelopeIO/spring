@@ -24,4 +24,6 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
    set_produce_block_callback([&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, b); });
 }
 
+node_t::~node_t() {}
+
 }

@@ -35,6 +35,10 @@ namespace savanna_cluster {
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
 
+      virtual ~node_t();
+
+      node_t(node_t&&) = default;
+
       void set_node_finalizers(size_t keys_per_node, size_t num_nodes) {
          finkeys.init_keys(keys_per_node * num_nodes, num_nodes);
 
@@ -70,6 +74,10 @@ namespace savanna_cluster {
             auto sb = control->fetch_block_by_number(to.control->fork_db_head_block_num() + 1);
             to.push_block(sb);
          }
+      }
+
+      bool is_head_missing_finalizer_votes() {
+         return control->is_block_missing_finalizer_votes(head());
       }
    };
 
@@ -128,7 +136,7 @@ namespace savanna_cluster {
 
          // do the transition to Savanna on _nodes[0]. Blocks will be propagated to the other nodes.
          // ------------------------------------------------------------------------------------
-         auto [_fin_policy_pubkeys, fin_policy] = _nodes[0].transition_to_savanna(indices);
+         auto [fin_policy_pubkeys, fin_policy] = _nodes[0].transition_to_savanna(indices);
 
          // at this point, _nodes[0] has a QC to include in next block.
          // Produce that block and push it, but don't process votes so that
@@ -227,7 +235,6 @@ namespace savanna_cluster {
 
    public:
       std::vector<node_t>             _nodes;
-      std::vector<bls_public_key>     _fin_policy_pubkeys; // set of public keys for node finalizers
 
    private:
       std::vector<size_t>             _partition;
