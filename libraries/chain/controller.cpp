@@ -1233,7 +1233,7 @@ struct controller_impl {
     chain_id( chain_id ),
     read_mode( cfg.read_mode ),
     thread_pool(),
-    my_finalizers(cfg.finalizers_dir / "safety.dat"),
+    my_finalizers(cfg.finalizers_dir / config::safety_filename),
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -1652,10 +1652,40 @@ struct controller_impl {
       }
 
       try {
-         if (startup != startup_t::existing_state)
-           open_fork_db();
+         open_fork_db();
       } catch (const fc::exception& e) {
          elog( "Unable to open fork database, continuing without reversible blocks: ${e}", ("e", e));
+      }
+
+      if (startup == startup_t::existing_state) {
+         EOS_ASSERT(fork_db_has_head(), fork_database_exception,
+                    "No existing fork database despite existing chain state. Replay required." );
+         uint32_t lib_num = fork_db_root_block_num();
+         auto first_block_num = blog.first_block_num();
+         if(blog_head) {
+            EOS_ASSERT( first_block_num <= lib_num && lib_num <= blog_head->block_num(),
+                        block_log_exception,
+                        "block log (ranging from ${block_log_first_num} to ${block_log_last_num}) does not contain the last irreversible block (${fork_db_lib})",
+                        ("block_log_first_num", first_block_num)
+                        ("block_log_last_num", blog_head->block_num())
+                        ("fork_db_lib", lib_num)
+            );
+            lib_num = blog_head->block_num();
+         } else {
+            if( first_block_num != (lib_num + 1) ) {
+               blog.reset( chain_id, lib_num + 1 );
+            }
+         }
+
+         auto do_startup = [&](auto& forkdb) {
+            if( read_mode == db_read_mode::IRREVERSIBLE) {
+               auto head = forkdb.head();
+               auto root = forkdb.root();
+               if (head && root && head->id() != root->id())
+                  forkdb.rollback_head_to_root();
+            }
+         };
+         fork_db.apply<void>(do_startup);
       }
 
       auto fork_db_reset_root_to_chain_head = [&]() {
@@ -1821,40 +1851,17 @@ struct controller_impl {
       EOS_ASSERT( db.revision() >= 1, database_exception,
                   "This version of controller::startup does not work with a fresh state database." );
 
-      open_fork_db();
-
-      EOS_ASSERT( fork_db_has_head(), fork_database_exception,
-                  "No existing fork database despite existing chain state. Replay required." );
-
       this->shutdown = std::move(shutdown);
       assert(this->shutdown);
       this->check_shutdown = std::move(check_shutdown);
       assert(this->check_shutdown);
-      uint32_t lib_num = fork_db_root_block_num();
-      auto first_block_num = blog.first_block_num();
-      if( auto blog_head = blog.head() ) {
-         EOS_ASSERT( first_block_num <= lib_num && lib_num <= blog_head->block_num(),
-                     block_log_exception,
-                     "block log (ranging from ${block_log_first_num} to ${block_log_last_num}) does not contain the last irreversible block (${fork_db_lib})",
-                     ("block_log_first_num", first_block_num)
-                     ("block_log_last_num", blog_head->block_num())
-                     ("fork_db_lib", lib_num)
-         );
-         lib_num = blog_head->block_num();
-      } else {
-         if( first_block_num != (lib_num + 1) ) {
-            blog.reset( chain_id, lib_num + 1 );
-         }
-      }
 
-      auto do_startup = [&](auto& forkdb) {
-         if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.head()->id() != forkdb.root()->id() ) {
-            forkdb.rollback_head_to_root();
-         }
-         chain_head = block_handle{forkdb.head()};
-      };
+      bool valid = chain_head.read(conf.state_dir / config::chain_head_filename);
+      EOS_ASSERT( valid, database_exception, "No existing chain_head.dat file");
 
-      fork_db.apply<void>(do_startup);
+      EOS_ASSERT(db.revision() == chain_head.block_num(), database_exception,
+                 "chain_head block num ${bn} does not match chainbase revision ${r}",
+                 ("bn", chain_head.block_num())("r", db.revision()));
 
       init(startup_t::existing_state);
    }
@@ -1979,6 +1986,7 @@ struct controller_impl {
    }
 
    ~controller_impl() {
+      chain_head.write(conf.state_dir / config::chain_head_filename);
       pending.reset();
       //only log this not just if configured to, but also if initialization made it to the point we'd log the startup too
       if(okay_to_print_integrity_hash_on_stop && conf.integrity_hash_on_stop)

@@ -93,6 +93,7 @@ add_library( eosio_chain
              name.cpp
              transaction.cpp
              block.cpp
+             block_handle.cpp
              block_header.cpp
              block_header_state.cpp
              block_state.cpp
