@@ -74,6 +74,9 @@ def executeTest(cluster, testNodeId, testNodeArgs, resultMsgs):
         # also checking it stops at the correct block.
         checkReplay(testNode, testNodeArgs)
 
+        # verify node can be restarted after a replay
+        checkRestart(testNode, "--replay-blockchain")
+
         resultDesc = "!!!TEST CASE #{} ({}) IS SUCCESSFUL".format(
             testNodeId,
             testNodeArgs
@@ -140,6 +143,21 @@ def checkReplay(testNode, testNodeArgs):
 
     head, lib = getBlockNumInfo(testNode)
     assert head == termAtBlock, f"head {head} termAtBlock {termAtBlock}"
+
+def checkRestart(testNode, rmChainArgs):
+    """Test restart of node continues"""
+    if testNode and not testNode.killed:
+        assert testNode.kill(signal.SIGTERM)
+
+    if not testNode.relaunch(rmArgs=rmChainArgs):
+        Utils.errorExit(f"Unable to relaunch after {rmChainArgs}")
+
+    assert testNode.verifyAlive(), f"relaunch failed after {rmChainArgs}"
+
+    # getBlockNumInfo asserts relaunch was successful
+    head, lib = getBlockNumInfo(testNode)
+
+    assert head >= lib, f"Sanity check of head {head} >= lib {lib} failed"
 
 
 def getBlockNumInfo(testNode):
@@ -211,6 +229,27 @@ def executeSnapshotBlocklogTest(cluster, testNodeId, resultMsgs, nodeArgs, termA
 
     if testNode and not testNode.killed:
         assert testNode.kill(signal.SIGTERM)
+
+    if not testNode.relaunch(rmArgs=chainArg):
+        Utils.errorExit(f"Unable to relaunch after terminate-at-block {termAtBlock}")
+
+    if testNode and not testNode.killed:
+        assert testNode.kill(signal.SIGTERM)
+
+    if testResult:
+        testResult = False
+        # Check the node continued past the terminate block
+        errFileName=f"{cluster.nodeosLogPath}/node_{str(testNodeId).zfill(2)}/stderr.txt"
+        with open(errFileName) as errFile:
+            for line in errFile:
+                m=re.search(r"Writing chain_head block ([\d]+)", line)
+                if m:
+                    assert int(m.group(1)) > termAtBlock, f"End block number {m.group(1)} not greater than termAtBlock {termAtBlock}"
+                    resultDesc = f"!!!TEST CASE #{testNodeId}a (replay block log after terminate, mode {nodeArgs} --terminate-at-block {termAtBlock}) IS SUCCESSFUL"
+                    testResult = True
+
+        Print(resultDesc)
+        resultMsgs.append(resultDesc)
 
     return testResult
 
