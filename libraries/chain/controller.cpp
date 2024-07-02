@@ -1064,12 +1064,12 @@ struct controller_impl {
 
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
-         [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->block_num(); });
+         [&](const auto& forkdb) { return forkdb.pending_head()->block_num(); });
    }
 
    block_id_type fork_db_head_block_id() const {
       return fork_db.apply<block_id_type>(
-         [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->id(); });
+         [&](const auto& forkdb) { return forkdb.pending_head()->id(); });
    }
 
    uint32_t fork_db_head_irreversible_blocknum() const {
