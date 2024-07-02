@@ -35,8 +35,8 @@ namespace eosio::chain {
    std::string log_fork_comparison(const block_state& bs) {
       std::string r;
       r += "[ valid: " + std::to_string(block_state_accessor::is_valid(bs)) + ", ";
-      r += "last_final_block_num: " + std::to_string(bs.last_final_block_num()) + ", ";
-      r += "latest_qc_block_num: " + std::to_string(bs.latest_qc_block_num()) + ", ";
+      r += "last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
+      r += "latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
       r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + " ]";
       return r;
    }
@@ -56,8 +56,8 @@ namespace eosio::chain {
 
    // match comparison of by_best_branch
    bool first_preferred( const block_state& lhs, const block_state& rhs ) {
-      return std::make_tuple(lhs.last_final_block_num(), lhs.latest_qc_block_num(), lhs.timestamp()) >
-             std::make_tuple(rhs.last_final_block_num(), rhs.latest_qc_block_num(), rhs.timestamp());
+      return std::make_tuple(lhs.last_final_block_timestamp(), lhs.latest_qc_block_timestamp(), lhs.timestamp()) >
+             std::make_tuple(rhs.last_final_block_timestamp(), rhs.latest_qc_block_timestamp(), rhs.timestamp());
    }
    bool first_preferred( const block_state_legacy& lhs, const block_state_legacy& rhs ) {
       return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num()) >
