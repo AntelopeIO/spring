@@ -6,6 +6,13 @@
 #include <bls12-381/bls12-381.hpp>
 #include <random>
 
+//This program isn't unit tests. But libtester, because of the way it depends on boost test, will ultimately require implementation of
+// various boost test detail/impl bits that are only implemented by including a boost test usage variant. The most obvious reason for this
+// is because libtester inspects the master_test_suite, but the master_test_suite is only defined after a usage variant is used.
+#define BOOST_TEST_MODULE benchmark dummy module
+#define BOOST_TEST_NO_MAIN
+#include <boost/test/included/unit_test.hpp>
+
 using namespace eosio;
 using namespace eosio::chain;
 using namespace eosio::testing;

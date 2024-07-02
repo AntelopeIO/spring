@@ -7,7 +7,7 @@ add_executable( test_trace_api_plugin
         test_compressed_file.cpp
         main.cpp
         )
-target_link_libraries( test_trace_api_plugin trace_api_plugin )
+target_link_libraries( test_trace_api_plugin trace_api_plugin Boost::included_unit_test_framework )
 target_include_directories( test_trace_api_plugin PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" )
 
 add_test(NAME test_trace_api_plugin COMMAND plugins/trace_api_plugin/test/test_trace_api_plugin WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
