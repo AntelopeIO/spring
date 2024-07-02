@@ -37,7 +37,9 @@ namespace eosio::chain {
       r += "[ valid: " + std::to_string(block_state_accessor::is_valid(bs)) + ", ";
       r += "last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
       r += "latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + " ]";
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "id: " + bs.id().str();
+      r += " ]";
       return r;
    }
 
@@ -46,7 +48,9 @@ namespace eosio::chain {
       r += "[ valid: " + std::to_string(block_state_legacy_accessor::is_valid(bs)) + ", ";
       r += "irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
       r += "block_num: " + std::to_string(bs.block_num()) + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + " ]";
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "id: " + bs.id().str();
+      r += " ]";
       return r;
    }
 
@@ -56,12 +60,12 @@ namespace eosio::chain {
 
    // match comparison of by_best_branch
    bool first_preferred( const block_state& lhs, const block_state& rhs ) {
-      return std::make_tuple(lhs.last_final_block_timestamp(), lhs.latest_qc_block_timestamp(), lhs.timestamp()) >
-             std::make_tuple(rhs.last_final_block_timestamp(), rhs.latest_qc_block_timestamp(), rhs.timestamp());
+      return std::make_tuple(lhs.last_final_block_timestamp(), lhs.latest_qc_block_timestamp(), lhs.timestamp(), lhs.id()) >
+             std::make_tuple(rhs.last_final_block_timestamp(), rhs.latest_qc_block_timestamp(), rhs.timestamp(), rhs.id());
    }
    bool first_preferred( const block_state_legacy& lhs, const block_state_legacy& rhs ) {
-      return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num()) >
-             std::make_tuple(rhs.irreversible_blocknum(), rhs.block_num());
+      return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num(), lhs.id()) >
+             std::make_tuple(rhs.irreversible_blocknum(), rhs.block_num(), rhs.id());
    }
 
    template<class BSP>  // either [block_state_legacy_ptr, block_state_ptr], same with block_header_state_ptr
@@ -84,7 +88,7 @@ namespace eosio::chain {
                        const_mem_fun<block_state_legacy,     uint32_t,             &block_state_legacy::irreversible_blocknum>,
                        const_mem_fun<block_state_legacy,     uint32_t,             &block_state_legacy::block_num>,
                        const_mem_fun<block_state_legacy,     const block_id_type&, &block_state_legacy::id>>,
-         composite_key_compare<std::greater<bool>, std::greater<uint32_t>, std::greater<uint32_t>, sha256_less>>;
+         composite_key_compare<std::greater<bool>, std::greater<uint32_t>, std::greater<uint32_t>, std::greater<block_id_type>>>;
 
       using by_best_branch_if_t = ordered_unique<
          tag<by_best_branch>,
@@ -95,7 +99,7 @@ namespace eosio::chain {
                        const_mem_fun<block_state,     block_timestamp_type, &block_state::timestamp>,
                        const_mem_fun<block_state,     const block_id_type&, &block_state::id>>,
          composite_key_compare<std::greater<bool>, std::greater<block_timestamp_type>,
-                               std::greater<block_timestamp_type>, std::greater<block_timestamp_type>, sha256_less>>;
+                               std::greater<block_timestamp_type>, std::greater<block_timestamp_type>, std::greater<block_id_type>>>;
 
       using by_best_branch_t = std::conditional_t<std::is_same_v<bs_t, block_state>,
                                                   by_best_branch_if_t,

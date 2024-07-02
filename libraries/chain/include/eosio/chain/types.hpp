@@ -246,12 +246,9 @@ namespace eosio::chain {
 
    struct sha256_less {
       bool operator()( const fc::sha256& lhs, const fc::sha256& rhs ) const {
-       return
-             std::tie(lhs._hash[0], lhs._hash[1], lhs._hash[2], lhs._hash[3]) <
-             std::tie(rhs._hash[0], rhs._hash[1], rhs._hash[2], rhs._hash[3]);
+         return lhs < rhs;
       }
    };
-
 
    /**
     *  Extentions are prefixed with type and are a buffer that can be
