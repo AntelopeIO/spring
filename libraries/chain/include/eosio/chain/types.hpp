@@ -244,12 +244,6 @@ namespace eosio::chain {
    using bytes               = vector<char>;
    using digests_t           = deque<digest_type>;
 
-   struct sha256_less {
-      bool operator()( const fc::sha256& lhs, const fc::sha256& rhs ) const {
-         return lhs < rhs;
-      }
-   };
-
    /**
     *  Extentions are prefixed with type and are a buffer that can be
     *  interpreted by code that is aware and ignored by unaware code.
