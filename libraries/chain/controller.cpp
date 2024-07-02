@@ -1050,10 +1050,6 @@ struct controller_impl {
    }
 
    // --------------- access fork_db head ----------------------------------------------------------------------
-   bool fork_db_has_head() const {
-      return fork_db.apply<uint32_t>([&](const auto& forkdb) { return !!forkdb.head(); });
-   }
-
    template <typename ForkDB>
    typename ForkDB::bsp_t fork_db_head_or_pending(const ForkDB& forkdb) const {
       if (irreversible_mode()) {
@@ -1663,7 +1659,7 @@ struct controller_impl {
       }
 
       if (startup == startup_t::existing_state) {
-         EOS_ASSERT(fork_db_has_head(), fork_database_exception,
+         EOS_ASSERT(fork_db_has_root(), fork_database_exception,
                     "No existing fork database despite existing chain state. Replay required." );
          uint32_t lib_num = fork_db_root_block_num();
          auto first_block_num = blog.first_block_num();
@@ -1684,11 +1680,10 @@ struct controller_impl {
 
          auto do_startup = [&](auto& forkdb) {
             if( read_mode == db_read_mode::IRREVERSIBLE) {
-               auto head = forkdb.head();
                auto root = forkdb.root();
-               if (head && root && head->id() != root->id()) {
+               if (root && chain_head.id() != root->id()) {
                   forkdb.rollback_head_to_root();
-                  chain_head = block_handle{forkdb.head()};
+                  chain_head = block_handle{forkdb.root()};
                   // rollback db to LIB
                   while( db.revision() > chain_head.block_num() ) {
                      db.undo();
@@ -1702,7 +1697,7 @@ struct controller_impl {
       auto fork_db_reset_root_to_chain_head = [&]() {
          fork_db.apply<void>([&](auto& forkdb) {
             block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
-               if constexpr (std::is_same_v<std::decay_t<decltype(head)>, std::decay_t<decltype(forkdb.head())>>)
+               if constexpr (std::is_same_v<std::decay_t<decltype(head)>, std::decay_t<decltype(forkdb.root())>>)
                   forkdb.reset_root(head);
             });
          });
@@ -1727,9 +1722,6 @@ struct controller_impl {
                wlog( "No existing chain state. Initializing fresh blockchain state." );
             } else {
                wlog( "No existing chain state or fork database. Initializing fresh blockchain state and resetting fork database.");
-            }
-
-            if( !forkdb.head() ) {
                fork_db_reset_root_to_chain_head();
             }
          };
@@ -1945,11 +1937,10 @@ struct controller_impl {
       auto finish_init = [&](auto& forkdb) {
          if( read_mode != db_read_mode::IRREVERSIBLE ) {
             auto pending_head = forkdb.pending_head();
-            auto head         = forkdb.head();
-            if ( head && pending_head && pending_head->id() != head->id() && head->id() == forkdb.root()->id() ) {
+            if ( pending_head && pending_head->id() != chain_head.id() && chain_head.id() == forkdb.root()->id() ) {
                ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
 
-               for( ; pending_head->id() != forkdb.head()->id(); pending_head = forkdb.pending_head() ) {
+               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.pending_head() ) {
                   ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
                   controller::block_report br;
                   maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
@@ -3255,8 +3246,8 @@ struct controller_impl {
 
          if (s != controller::block_status::irreversible) {
             auto add_completed_block = [&](auto& forkdb) {
-               assert(std::holds_alternative<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal()));
-               const auto& bsp = std::get<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal());
+               assert(std::holds_alternative<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal()));
+               const auto& bsp = std::get<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal());
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -3274,8 +3265,8 @@ struct controller_impl {
 
          if( s == controller::block_status::incomplete ) {
             fork_db.apply_s<void>([&](auto& forkdb) {
-               assert(std::holds_alternative<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal()));
-               const auto& bsp = std::get<std::decay_t<decltype(forkdb.head())>>(cb.bsp.internal());
+               assert(std::holds_alternative<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal()));
+               const auto& bsp = std::get<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal());
 
                uint16_t if_ext_id = instant_finality_extension::extension_id();
                assert(bsp->header_exts.count(if_ext_id) > 0); // in all instant_finality block headers
@@ -4035,7 +4026,7 @@ struct controller_impl {
       consider_voting(bsp, use_thread_pool_t::yes);
 
       auto do_accept_block = [&](auto& forkdb) {
-         if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
+         if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
             forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
 
          emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -4062,7 +4053,7 @@ struct controller_impl {
          const auto& b = bsp->block;
 
          auto do_push = [&](auto& forkdb) {
-            if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>) {
+            if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>) {
                forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
             }
 
@@ -4073,7 +4064,7 @@ struct controller_impl {
             emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
-               if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.head())>>)
+               if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
                   maybe_switch_forks( br, forkdb.pending_head(), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
@@ -4108,7 +4099,7 @@ struct controller_impl {
 
                if (s != controller::block_status::irreversible) {
                   fork_db.apply<void>([&](auto& forkdb) {
-                     if constexpr (std::is_same_v<std::decay_t<decltype(bsp)>, std::decay_t<decltype(forkdb.head())>>)
+                     if constexpr (std::is_same_v<std::decay_t<decltype(bsp)>, std::decay_t<decltype(forkdb.root())>>)
                         forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
                   });
                }
@@ -4142,7 +4133,7 @@ struct controller_impl {
       auto maybe_switch = [&](auto& forkdb) {
          if (read_mode != db_read_mode::IRREVERSIBLE) {
             auto pending_head = forkdb.pending_head();
-            if (chain_head.id() != pending_head->id() && pending_head->id() != forkdb.head()->id()) {
+            if (chain_head.id() != pending_head->id()) {
                dlog("switching forks on controller->maybe_switch_forks call");
                controller::block_report br;
                maybe_switch_forks(br, pending_head,

@@ -136,7 +136,7 @@ struct simulator_t {
    }
 
    vote_result propose(const proposal_t& p, std::optional<qc_claim_t> _claim = {}) {
-      bsp h = forkdb.head();
+      bsp h = forkdb.pending_head();
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
@@ -145,7 +145,7 @@ struct simulator_t {
    }
 
    result add(const proposal_t& p, std::optional<qc_claim_t> _claim = {}, const bsp& parent = {}) {
-      bsp h = parent ? parent : forkdb.head();
+      bsp h = parent ? parent : forkdb.pending_head();
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
