@@ -237,7 +237,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          if (qc_data.qc.has_value()) {
-             std::cout << "qc claim  : " << qc_data.qc_claim.block_num << " , sig : " << qc_data.qc.value().data.sig.to_string() << "\n";
+             dlog("qc claim  : ${bn} , sig: ${s}", ("bn", qc_data.qc_claim.block_num)("s", qc_data.qc.value().data.sig.to_string()));
          }
 
          // return relevant IBC information
