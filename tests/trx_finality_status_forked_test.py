@@ -183,6 +183,7 @@ try:
         blockNum = getBlockNum(retStatus)
         if state == forkedOutState or ( info['head_block_producer'] == 'defproducerd' and info['last_irreversible_block_num'] > blockNum ):
             break
+        prodD.waitForNextBlock()
 
     if state == irreversibleState:
         Print(f"Transaction became irreversible before it could be found forked out: {json.dumps(retStatus, indent=1)}")
@@ -228,11 +229,16 @@ try:
         f"ERROR: Block never finalized.\n\nprod A info: {json.dumps(prodA.getInfo(), indent=1)}\n\nprod C info: {json.dumps(prodD.getInfo(), indent=1)}" + \
         f"\n\nafter fork in block state: {json.dumps(afterForkInBlockState, indent=1)}"
 
-    retStatus = prodD.getTransactionStatus(transId)
-    if afterForkBlockId != getBlockID(retStatus): # might have been forked out, if so wait for new block to become LIB
-        assert prodD.waitForBlock(getBlockNum(retStatus), timeout=120, blockType=BlockType.lib), \
+    while True: # might have been forked out, if so wait for new block to become LIB
+        retStatus = prodD.getTransactionStatus(transId)
+        currentBlockId = getBlockID(retStatus)
+        currentBlockNum = getBlockNum(retStatus)
+        if afterForkBlockId == currentBlockId:
+            break
+        assert prodD.waitForBlock(currentBlockNum, timeout=120, blockType=BlockType.lib), \
             f"ERROR: Block never finalized.\n\nprod A info: {json.dumps(prodA.getInfo(), indent=1)}\n\nprod C info: {json.dumps(prodD.getInfo(), indent=1)}" + \
             f"\n\nafter fork in block state: {json.dumps(afterForkInBlockState, indent=1)}"
+        afterForkBlockId = currentBlockId
 
     retStatus = prodD.getTransactionStatus(transId)
     state = getState(retStatus)
