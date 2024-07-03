@@ -165,6 +165,9 @@ namespace eosio::testing {
          static const fc::microseconds abi_serializer_max_time;
          static constexpr fc::microseconds default_skip_time = fc::milliseconds(config::block_interval_ms);
 
+         virtual ~base_tester() {}
+         base_tester() = default;
+         base_tester(base_tester&&) = default;
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
