@@ -185,19 +185,24 @@ public:
    }
 
    // called from net threads
-   void notify_new_block() {
+   void notify_new_block(async_t async) {
       if (stopped)
          return;
-      // would require a mtx lock to check if index is empty, post check to thread_pool
-      boost::asio::post(thread_pool.get_executor(), [this] {
+      auto process_any_queued = [this] {
          std::unique_lock g(mtx);
          process_any_queued_for_later(g);
-      });
+      };
+      if (async == async_t::no)
+         process_any_queued();
+      else {
+         // would require a mtx lock to check if index is empty, post check to thread_pool
+         boost::asio::post(thread_pool.get_executor(), process_any_queued);
+      }
    }
 
    /// called from net threads and controller's thread pool
    /// msg is ignored vote_processor not start()ed
-   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg) {
+   void process_vote_message(uint32_t connection_id, const vote_message_ptr& msg, async_t async) {
       if (stopped)
          return;
       assert(msg);
@@ -205,7 +210,8 @@ public:
       if (msg_block_num <= lib.load(std::memory_order_relaxed))
          return;
       ++queued_votes;
-      boost::asio::post(thread_pool.get_executor(), [this, connection_id, msg] {
+
+      auto process_vote =  [this, connection_id, msg] {
          if (stopped)
             return;
          auto num_queued_votes = --queued_votes;
@@ -243,7 +249,12 @@ public:
             }
          }
 
-      });
+      };
+
+      if (async == async_t::no)
+         process_vote();
+      else
+         boost::asio::post(thread_pool.get_executor(), process_vote);
    }
 
 };

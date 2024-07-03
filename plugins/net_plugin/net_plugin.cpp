@@ -537,7 +537,7 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
-      void on_voted_block( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
+      void broadcast_vote_message( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
@@ -4058,7 +4058,7 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::on_voted_block(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
+   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
       fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
                 ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
@@ -4509,9 +4509,13 @@ namespace eosio {
             my->on_irreversible_block( id, block->block_num() );
          } );
 
-         cc.voted_block().connect( [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
-            my->on_voted_block(std::get<0>(vote_signal), std::get<1>(vote_signal), std::get<2>(vote_signal));
-         } );
+         auto broadcast_vote =  [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
+            auto& [connection_id, status, msg] = vote_signal;
+            my->broadcast_vote_message(connection_id, status, msg);
+         };
+
+         cc.aggregated_vote().connect( broadcast_vote );
+         cc.voted_block().connect( broadcast_vote );
       }
 
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(

@@ -339,7 +339,7 @@ namespace eosio::testing {
       control->add_indices();
       if (lambda) lambda();
       chain_transactions.clear();
-      control->accepted_block().connect([this]( block_signal_params t ){
+      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
         const auto& [ block, id ] = t;
         FC_ASSERT( block );
           for( auto receipt : block->transactions ) {
@@ -353,7 +353,10 @@ namespace eosio::testing {
           }
       });
 
-      lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
+      control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
+      control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
+
+      [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
          lib_block = block;
          lib_id    = id;
@@ -384,11 +387,13 @@ namespace eosio::testing {
       });
    }
 
-   void base_tester::push_block(signed_block_ptr b) {
-      auto btf = control->create_block_handle_future(b->calculate_id(), b);
+   void base_tester::push_block(const signed_block_ptr& b) {
+      auto block_id = b->calculate_id();
+      auto bhf = control->create_block_handle_future(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );
       controller::block_report br;
-      control->push_block( br, btf.get(), [this]( const transaction_metadata_ptr& trx ) {
+      block_handle bh = bhf.get();
+      control->push_block( br, bh, [this]( const transaction_metadata_ptr& trx ) {
          unapplied_transactions.add_forked( trx );
       }, [this]( const transaction_id_type& id ) {
          return unapplied_transactions.get_trx( id );
@@ -396,9 +401,9 @@ namespace eosio::testing {
 
       auto itr = last_produced_block.find(b->producer);
       if (itr == last_produced_block.end() || b->block_num() > block_header::num_from_id(itr->second)) {
-         last_produced_block[b->producer] = b->calculate_id();
+         last_produced_block[b->producer] = block_id;
       }
-      _wait_for_vote_if_needed(*control);
+      _check_for_vote_if_needed(*control, bh);
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {
@@ -445,6 +450,10 @@ namespace eosio::testing {
       res.block = _finish_block();
 
       onblock_trace = _start_block( next_time + fc::microseconds(config::block_interval_us));
+
+      if (_produce_block_callback)
+         _produce_block_callback(res.block);
+
       return res;
    }
 
@@ -512,21 +521,22 @@ namespace eosio::testing {
       } );
 
       control->commit_block(br);
-      last_produced_block[producer_name] = control->head_block_id();
 
-      _wait_for_vote_if_needed(*control);
+      block_handle head = control->head();
 
-      return control->head_block();
+      last_produced_block[producer_name] = head.id();
+      _check_for_vote_if_needed(*control, head);
+      return head.block();
    }
 
-   void base_tester::_wait_for_vote_if_needed(controller& c) {
-      if (c.can_vote_on(c.head_block())) {
-         // wait for this node's vote to be processed
-         size_t retrys = 500;
-         while (!c.node_has_voted_if_finalizer(c.head_block_id()) && --retrys) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-         }
-         FC_ASSERT(retrys, "Never saw this nodes vote processed before timeout");
+   void base_tester::_check_for_vote_if_needed(controller& c, const block_handle& bh) {
+      if (_expect_votes) {
+         // `_expect_votes` should be true *only* when we expect an active finalizer to
+         // vote on every block.
+         // This is not the case for tests with forks, so for these tests we should set
+         // `_expect_votes` to false by calling `base_tester::do_check_for_votes(false)`
+         // ----------------------------------------------------------------------------
+         FC_ASSERT(c.is_block_missing_finalizer_votes(bh) == false, "Missing expected vote");
       }
    }
 

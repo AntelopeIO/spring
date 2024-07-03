@@ -10,16 +10,20 @@ namespace eosio::chain {
 // Valid to request id and signed_block_ptr it was created from.
 struct block_handle {
 private:
-   friend struct fc::reflector<block_handle>;
    std::variant<block_state_legacy_ptr, block_state_ptr> _bsp;
 
+   friend struct fc::reflector<block_handle>;
+   friend struct controller_impl;       // for `internal()` access below from controller
+   friend struct block_handle_accessor; // for `internal()` access below from controller
+
+   // Avoid using internal block_state/block_state_legacy as those types are internal to controller.
+   const auto& internal() const { return _bsp; }
+   
 public:
    block_handle() = default;
    explicit block_handle(block_state_legacy_ptr bsp) : _bsp(std::move(bsp)) {}
    explicit block_handle(block_state_ptr bsp) : _bsp(std::move(bsp)) {}
 
-   // Avoid using internal block_state/block_state_legacy as those types are internal to controller.
-   const auto& internal() const { return _bsp; }
    bool is_valid() const { return _bsp.index() != std::variant_npos && std::visit([](const auto& bsp) { return !!bsp; }, _bsp); }
 
    uint32_t                block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
