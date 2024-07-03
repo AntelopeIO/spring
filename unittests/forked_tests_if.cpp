@@ -28,7 +28,7 @@ BOOST_AUTO_TEST_SUITE(forked_tests_if)
 //   in fork_db, but they won't validate.
 //
 // - make sure that the first two blocks of each fork have a timestamp earlier that the
-//   blocks of node0's fork, and that the last block of each fork has a timestamp later
+//   blocks of _nodes[0]'s fork, and that the last block of each fork has a timestamp later
 //   than the blocks of _nodes[0]'s fork (so the fork swith happens when the last block
 //   of the fork is pushed, according to Savanna's fork choice rules).
 //
@@ -73,7 +73,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // So we need a lambda to produce (and possibly corrupt) a block on _nodes[3] with a specified offset.
    // -----------------------------------------------------------------------------------------------
    auto produce_and_store_block_on_node3_forks = [&](size_t i, int offset) {
-      auto b = node3.produce_block(_block_interval_us * offset);
+      auto b = _nodes[3].produce_block(_block_interval_us * offset);
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);
 
       for (size_t j = 0; j < num_forks; j ++) {
@@ -114,7 +114,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // to push the forks from _nodes[3].
    // -------------------------------------------------------------------------------------
    for (size_t i = 0; i < num_forks; ++i) {
-      auto sb = node0.produce_block(_block_interval_us * (i==0 ? num_forks : 1));
+      auto sb = _nodes[0].produce_block(_block_interval_us * (i==0 ? num_forks : 1));
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // produced by the producer returned by `set_producers`
    }
 
@@ -154,9 +154,9 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    set_partition({});
    propagate_heads();
 
-   sb = node0.produce_block();  // produce an even more recent block on node0 so that it will be the uncontested head
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node2.head().id());
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());
+   sb = _nodes[0].produce_block();  // produce an even more recent block on _nodes[0] so that it will be the uncontested head
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), _nodes[2].head().id());
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), _nodes[3].head().id());
 
    verify_lib_advances();
 } FC_LOG_AND_RETHROW();
@@ -169,17 +169,17 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 // - on P1, produce a block with a later timestamp than the last P0 block and push it to P0.
 // - verify that the fork switch happens on P0 because of the later timestamp.
 // - produce more blocks on P1, push them on P0, verify fork switch happens and head blocks match.
-// - unsplit the network, produce blocks on node0 and verify lib advances.
+// - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
-   while (node0.control->head_block_num() < 3) {
-      node0.produce_block();
+BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
+   while (_nodes[0].control->head_block_num() < 3) {
+      _nodes[0].produce_block();
    }
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
-   node0.create_accounts(producers);
+   _nodes[0].create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
-   auto sb = node0.produce_block();
+   auto sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // first block produced by producers[prod]
 
    const std::vector<size_t> partition {2, 3};
@@ -188,65 +188,65 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t<4> ) try {
                                               // the next block it produces which will advance lib.
 
    // process in-flight QC and reset lib
-   node0.produce_block();
-   node3.produce_block();
+   _nodes[0].produce_block();
+   _nodes[3].produce_block();
    reset_lib();
 
-   // now that the network is split, produce 9 blocks on node0
-   sb = node0.produce_blocks(9);
+   // now that the network is split, produce 9 blocks on _nodes[0]
+   sb = _nodes[0].produce_blocks(9);
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
 
    // verify that lib doesn't advance
    BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
 
    // set new producers and produce blocks until the switch is pending
-   node0.create_accounts( {"cam"_n} );
+   _nodes[0].create_accounts( {"cam"_n} );
    const vector<account_name> new_producers { "dan"_n, "sam"_n, "pam"_n, "cam"_n };
    auto new_prod = set_producers(0, new_producers);             // set new producers and produce blocks until the switch is pending
 
-   sb = node0.produce_block();
+   sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
    BOOST_REQUIRE_GT(new_prod, prod);
    BOOST_REQUIRE_EQUAL(new_prod, 1);
 
-   node0.produce_blocks(3);                                     // sam produces 3 more blocks
+   _nodes[0].produce_blocks(3);                                 // sam produces 3 more blocks
 
-   // start producing on node3, skipping ahead by 23 block_interval_ms so that these block timestamps
-   // will be ahead of those of node0.
+   // start producing on _nodes[3], skipping ahead by 23 block_interval_ms so that these block timestamps
+   // will be ahead of those of _nodes[0].
    //
-   // node3 is still having just produced the 2nd block by "sam", and with the `producers` schedule.
+   // _nodes[3] is still having just produced the 2nd block by "sam", and with the `producers` schedule.
    // skip 23 blocks in the future so that "pam" produces
-   auto node3_head = node3.produce_block(_block_interval_us * 22);
+   auto node3_head = _nodes[3].produce_block(_block_interval_us * 22);
    BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);    // should be sam's last block
    push_block(0, node3_head);
-   BOOST_REQUIRE_EQUAL(node3.head().id(), node0.head().id());  // fork switch on 1st block because of later timestamp
-   BOOST_REQUIRE_EQUAL(node3.head().id(), node1.head().id());  // push_block() propagated on peer which also fork switched
+   BOOST_REQUIRE_EQUAL(_nodes[3].head().id(), _nodes[0].head().id());  // fork switch on 1st block because of later timestamp
+   BOOST_REQUIRE_EQUAL(_nodes[3].head().id(), _nodes[1].head().id());  // push_block() propagated on peer which also fork switched
 
-   sb = node3.produce_block();
+   sb = _nodes[3].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[2]);            // just switched to "pam"
-   sb = node3.produce_blocks(12);                              // after 12 blocks, should have switched to "dan"
+   sb = _nodes[3].produce_blocks(12);                          // after 12 blocks, should have switched to "dan"
    BOOST_REQUIRE_EQUAL(sb->producer, producers[0]);            // chack that this is the case
 
-   push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());  // node0 caught up
-   BOOST_REQUIRE_EQUAL(node1.head().id(), node3.head().id());  // node0 peer was updated as well
+   push_blocks(3, 0, node3_head->block_num() + 1);             // push the last 13 produced blocks to _nodes[0]
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), _nodes[3].head().id());  // _nodes[0] caught up
+   BOOST_REQUIRE_EQUAL(_nodes[1].head().id(), _nodes[3].head().id());  // _nodes[0] peer was updated as well
 
    // unsplit the network
    set_partition({});
 
-   // produce an even more recent block on node0 so that it will be the uncontested head
-   sb = node0.produce_block(_block_interval_us, true);         // no_throw = true because of expired transaction
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node2.head().id());
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node3.head().id());
+   // produce an even more recent block on _nodes[0] so that it will be the uncontested head
+   sb = _nodes[0].produce_block(_block_interval_us, true);     // no_throw = true because of expired transaction
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), _nodes[2].head().id());
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), _nodes[3].head().id());
 
    // and verify lib advances.
-   auto lib = node0.lib_block->block_num();
+   auto lib = _nodes[0].lib_block->block_num();
    size_t tries = 0;
    while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
       _nodes[0].produce_block();
    }
-   BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
-   BOOST_REQUIRE_EQUAL(node0.lib_block->block_num(), node3.lib_block->block_num());
+   BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
+   BOOST_REQUIRE_EQUAL(_nodes[0].lib_block->block_num(), _nodes[3].lib_block->block_num());
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------- prune_remove_branch ---------------------------------
@@ -261,16 +261,16 @@ void print_core(const block_handle& h) {
 // Verify fork choice criteria for Savanna:
 //   last_final_block_num > last_qc_block_num > timestamp
 // ----------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t<4> ) try {
-   while (node0.control->head_block_num() < 3) {
-      node0.produce_block();
+BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t) try {
+   while (_nodes[0].control->head_block_num() < 3) {
+      _nodes[0].produce_block();
    }
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
-   node0.create_accounts(producers);
+   _nodes[0].create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
 
-   auto sb_common = node0.produce_blocks(4);
-   auto lib = node0.lib_num();
+   auto sb_common = _nodes[0].produce_blocks(4);
+   auto lib = _nodes[0].lib_num();
    BOOST_REQUIRE_EQUAL(sb_common->producer, producers[prod]); // first block produced by producers[prod]
 
 
@@ -281,26 +281,26 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t<4> )
                                               // the next block it produces which will advance lib by one)
                                               // finality will still advance further in p1 because it has 3 finalizers
 
-   node1.produce_blocks(2);                   // produce 2 blocks on node1 finality will advance by 2 blocks
-   auto node1_head = node1.head();
-   BOOST_REQUIRE_EQUAL(node1.lib_num(), lib+2);
+   _nodes[1].produce_blocks(2);                   // produce 2 blocks on _nodes[1] finality will advance by 2 blocks
+   auto node1_head = _nodes[1].head();
+   BOOST_REQUIRE_EQUAL(_nodes[1].lib_num(), lib+2);
 
-   node0.produce_block(_block_interval_us * 12); // produce 2 blocks on node0. finality will advance by 1 block only
-   node0.produce_block();                        // but they'll have a later timestamp
-   auto node0_head = node0.head();
-   BOOST_REQUIRE_EQUAL(node0.lib_num(), lib+1);
+   _nodes[0].produce_block(_block_interval_us * 12); // produce 2 blocks on _nodes[0]. finality will advance by 1 block only
+   _nodes[0].produce_block();                        // but they'll have a later timestamp
+   auto node0_head = _nodes[0].head();
+   BOOST_REQUIRE_EQUAL(_nodes[0].lib_num(), lib+1);
 
-   // verify assumptions (finality more advanced on node1, but timestamp less)
+   // verify assumptions (finality more advanced on _nodes[1], but timestamp less)
    auto core0 = node0_head.core_info();
    auto core1 = node1_head.core_info();
    BOOST_REQUIRE_GT(core1->last_final_block_num, core0->last_final_block_num);
    BOOST_REQUIRE_GT(core1->last_qc_block_num, core0->last_qc_block_num);
    BOOST_REQUIRE_LT(core1->timestamp, core0->timestamp);
 
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node0_head.id());
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), node0_head.id());
 
-   push_blocks(1, 0, sb_common->block_num() + 1); // push the 2 produced blocks to node0
-   BOOST_REQUIRE_EQUAL(node0.head().id(), node1_head.id()); // and check that we fork-switched to node1's head
+   push_blocks(1, 0, sb_common->block_num() + 1); // push the 2 produced blocks to _nodes[0]
+   BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), node1_head.id()); // and check that we fork-switched to _nodes[1]'s head
 
    set_partition({});
    propagate_heads();

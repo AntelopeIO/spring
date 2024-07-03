@@ -106,7 +106,7 @@ namespace savanna_cluster {
          : _num_nodes(num_nodes)
          , _keys_per_node(keys_per_node)
       {
-         assert(_num_nodes > 3); // cluster should have a minimum of 3 nodes (quorum = 2)
+         assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
 
          _nodes.reserve(_num_nodes);
          _nodes.emplace_back(0, *this, setup_policy::full_except_do_not_transition_to_savanna);
@@ -268,12 +268,12 @@ namespace savanna_cluster {
       }
 
       void verify_lib_advances() {
-         auto lib = node0.lib_block->block_num();
+         auto lib = _nodes[0].lib_block->block_num();
          size_t tries = 0;
-         while (node0.lib_block->block_num() <= lib + 3 && ++tries < 10) {
-            node0.produce_block();
+         while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
+            _nodes[0].produce_block();
          }
-         BOOST_REQUIRE_GT(node0.lib_block->block_num(), lib + 3);
+         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
       }
 
 
