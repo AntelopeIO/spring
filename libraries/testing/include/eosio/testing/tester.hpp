@@ -165,9 +165,6 @@ namespace eosio::testing {
          static const fc::microseconds abi_serializer_max_time;
          static constexpr fc::microseconds default_skip_time = fc::milliseconds(config::block_interval_ms);
 
-         virtual ~base_tester() {
-            lib_connection.disconnect();
-         };
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
@@ -205,7 +202,7 @@ namespace eosio::testing {
          // Produce minimal number of blocks as possible to spend the given time without having any
          // producer become inactive
          void                 produce_min_num_of_blocks_to_spend_time_wo_inactive_prod(const fc::microseconds target_elapsed_time = fc::microseconds());
-         void                 push_block(signed_block_ptr b);
+         void                 push_block(const signed_block_ptr& b);
 
          /**
           * These transaction IDs represent transactions available in the head chain state as scheduled
@@ -501,6 +498,8 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         block_handle head() const { return control->head(); }
+
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
          // -----------------------------------------------------------------
@@ -521,20 +520,27 @@ namespace eosio::testing {
                BOOST_REQUIRE_EQUAL(keys[i], active_keys[i]);
          }
 
+         void set_produce_block_callback(std::function<void(const signed_block_ptr&)> cb) { _produce_block_callback = std::move(cb); }
+         void do_check_for_votes(bool val) { _expect_votes = val; }
+         vote_info_vec get_votes(const block_id_type& id) const { return control->get_votes(id); }
+
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
          produce_block_result_t _produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw );
 
          transaction_trace_ptr  _start_block(fc::time_point block_time);
          signed_block_ptr       _finish_block();
-         void                   _wait_for_vote_if_needed(controller& c);
+         void                   _check_for_vote_if_needed(controller& c, const block_handle& bh);
 
       // Fields:
       protected:
+         bool                   _expect_votes {true};                          // if set, ensure the node votes on each block
+         std::function<void(const signed_block_ptr&)> _produce_block_callback; // if set, called every time a block is produced
+
          // tempdir field must come before control so that during destruction the tempdir is deleted only after controller finishes
          fc::temp_directory                            tempdir;
       public:
-         unique_ptr<controller> control;
+         unique_ptr<controller>                        control;
          std::map<chain::public_key_type, chain::private_key_type> block_signing_private_keys;
       protected:
          controller::config                            cfg;
@@ -549,7 +555,6 @@ namespace eosio::testing {
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
-         boost::signals2::connection             lib_connection;
    };
 
    class tester : public base_tester {
@@ -751,8 +756,9 @@ namespace eosio::testing {
       void validate_push_block(const signed_block_ptr& sb) {
          auto btf = validating_node->create_block_handle_future( sb->calculate_id(), sb );
          controller::block_report br;
-         validating_node->push_block( br, btf.get(), {}, trx_meta_cache_lookup{} );
-         _wait_for_vote_if_needed(*validating_node);
+         block_handle bh = btf.get();
+         validating_node->push_block( br, bh, {}, trx_meta_cache_lookup{} );
+         _check_for_vote_if_needed(*validating_node, bh);
       }
 
       signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
