@@ -339,7 +339,7 @@ namespace eosio::testing {
       control->add_indices();
       if (lambda) lambda();
       chain_transactions.clear();
-      control->accepted_block().connect([this]( block_signal_params t ){
+      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
         const auto& [ block, id ] = t;
         FC_ASSERT( block );
           for( auto receipt : block->transactions ) {
@@ -356,7 +356,7 @@ namespace eosio::testing {
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
-      lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
+      [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
          lib_block = block;
          lib_id    = id;

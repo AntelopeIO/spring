@@ -165,9 +165,6 @@ namespace eosio::testing {
          static const fc::microseconds abi_serializer_max_time;
          static constexpr fc::microseconds default_skip_time = fc::milliseconds(config::block_interval_ms);
 
-         virtual ~base_tester() {
-            lib_connection.disconnect();
-         };
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
@@ -543,7 +540,7 @@ namespace eosio::testing {
          // tempdir field must come before control so that during destruction the tempdir is deleted only after controller finishes
          fc::temp_directory                            tempdir;
       public:
-         unique_ptr<controller> control;
+         unique_ptr<controller>                        control;
          std::map<chain::public_key_type, chain::private_key_type> block_signing_private_keys;
       protected:
          controller::config                            cfg;
@@ -559,7 +556,6 @@ namespace eosio::testing {
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
-         boost::signals2::connection             lib_connection;
    };
 
    class tester : public base_tester {
