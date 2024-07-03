@@ -972,8 +972,8 @@ namespace eosio {
       std::optional<request_message>   last_req            GUARDED_BY(conn_mtx);
       handshake_message                last_handshake_recv GUARDED_BY(conn_mtx);
       handshake_message                last_handshake_sent GUARDED_BY(conn_mtx);
-      block_id_type                    fork_head           GUARDED_BY(conn_mtx);
-      uint32_t                         fork_head_num       GUARDED_BY(conn_mtx) {0};
+      block_id_type                    conn_fork_head      GUARDED_BY(conn_mtx);
+      uint32_t                         conn_fork_head_num  GUARDED_BY(conn_mtx) {0};
       fc::time_point                   last_close          GUARDED_BY(conn_mtx);
       std::string                      p2p_address         GUARDED_BY(conn_mtx);
       std::string                      unique_conn_node_id GUARDED_BY(conn_mtx);
@@ -1499,10 +1499,10 @@ namespace eosio {
 
    // called from connection strand
    void connection::blk_send_branch( const block_id_type& msg_head_id ) {
-      uint32_t fork_head_num = my_impl->get_fork_head_num();
+      uint32_t head_num = my_impl->get_chain_head_num();
 
-      peer_dlog(this, "fhead_num = ${h}",("h",fork_head_num));
-      if(fork_head_num == 0) {
+      peer_dlog(this, "fhead_num = ${h}",("h",head_num));
+      if(head_num == 0) {
          notice_message note;
          note.known_blocks.mode = normal;
          note.known_blocks.pending = 0;
@@ -1541,18 +1541,18 @@ namespace eosio {
       } else {
          if( on_fork ) msg_head_num = 0;
          // if peer on fork, start at their last lib, otherwise we can start at msg_head+1
-         blk_send_branch( msg_head_num, lib_num, fork_head_num );
+         blk_send_branch( msg_head_num, lib_num, head_num );
       }
    }
 
    // called from connection strand
-   void connection::blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t fork_head_num ) {
+   void connection::blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t head_num ) {
       if( !peer_requested ) {
          auto last = msg_head_num != 0 ? msg_head_num : lib_num;
-         peer_requested = peer_sync_state( last+1, fork_head_num, last );
+         peer_requested = peer_sync_state( last+1, head_num, last );
       } else {
          auto last = msg_head_num != 0 ? msg_head_num : std::min( peer_requested->last, lib_num );
-         uint32_t end   = std::max( peer_requested->end_block, fork_head_num );
+         uint32_t end   = std::max( peer_requested->end_block, head_num );
          peer_requested = peer_sync_state( last+1, end, last );
       }
       if( peer_requested->start_block <= peer_requested->end_block ) {
@@ -2366,7 +2366,7 @@ namespace eosio {
       req.req_blocks.mode = catch_up;
       auto is_fork_head_greater = [num, &id, &req]( const auto& cc ) {
          fc::lock_guard g_conn( cc->conn_mtx );
-         if( cc->fork_head_num > num || cc->fork_head == id ) {
+         if( cc->conn_fork_head_num > num || cc->conn_fork_head == id ) {
             req.req_blocks.mode = none;
             return true;
          }
@@ -2391,8 +2391,8 @@ namespace eosio {
          set_state( head_catchup );
          {
             fc::lock_guard g_conn( c->conn_mtx );
-            c->fork_head = id;
-            c->fork_head_num = num;
+            c->conn_fork_head = id;
+            c->conn_fork_head_num = num;
          }
 
          req.req_blocks.ids.emplace_back( chain_info.fork_head_id );
@@ -2400,8 +2400,8 @@ namespace eosio {
          peer_ilog( c, "none notice while in ${s}, fhead = ${hn}, id ${id}...",
                   ("s", stage_str( sync_state ))("hn", num)("id", id.str().substr(8,16)) );
          fc::lock_guard g_conn( c->conn_mtx );
-         c->fork_head = block_id_type();
-         c->fork_head_num = 0;
+         c->conn_fork_head = block_id_type();
+         c->conn_fork_head_num = 0;
       }
       req.req_trx.mode = none;
       c->enqueue( req );
@@ -2490,15 +2490,15 @@ namespace eosio {
          bool set_state_to_head_catchup = false;
          my_impl->connections.for_each_block_connection( [&null_id, blk_num, &blk_id, &c, &set_state_to_head_catchup]( const auto& cp ) {
             fc::unique_lock g_cp_conn( cp->conn_mtx );
-            uint32_t fork_head_num = cp->fork_head_num;
-            block_id_type fork_head_id = cp->fork_head;
+            uint32_t fork_head_num = cp->conn_fork_head_num;
+            block_id_type fork_head_id = cp->conn_fork_head;
             g_cp_conn.unlock();
             if( fork_head_id == null_id ) {
                // continue
             } else if( fork_head_num < blk_num || fork_head_id == blk_id ) {
                fc::lock_guard g_conn( c->conn_mtx );
-               c->fork_head = null_id;
-               c->fork_head_num = 0;
+               c->conn_fork_head = null_id;
+               c->conn_fork_head_num = 0;
             } else {
                set_state_to_head_catchup = true;
             }
