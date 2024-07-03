@@ -23,6 +23,6 @@ add_executable( test_fc
         test_ordered_diff.cpp
         main.cpp
         )
-target_link_libraries( test_fc fc )
+target_link_libraries( test_fc fc Boost::included_unit_test_framework)
 
 add_test(NAME test_fc COMMAND test_fc WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
