@@ -5,7 +5,6 @@ namespace savanna_cluster {
 node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = setup_policy::none */)
    : tester(policy)
    , node_idx(node_idx)
-   , cluster(cluster)
    , finkeys(*this) {
 
    // since we are creating forks, finalizers may be locked on another fork and unable to vote.

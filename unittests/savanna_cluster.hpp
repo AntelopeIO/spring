@@ -28,7 +28,6 @@ namespace savanna_cluster {
    class node_t : public tester {
       uint32_t                prev_lib_num{0};
       size_t                  node_idx;
-      cluster_t&              cluster;
       finalizer_keys<tester>  finkeys;
       size_t                  cur_key{0}; // index of key used in current policy
 
