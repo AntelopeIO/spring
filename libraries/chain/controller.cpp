@@ -1721,8 +1721,8 @@ struct controller_impl {
       if (startup == startup_t::genesis) {
          switch_from_legacy_if_needed();
          auto do_startup = [&](auto& forkdb) {
-            if( forkdb.head() ) {
-               if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.head()->id() != forkdb.root()->id() ) {
+            if( forkdb.pending_head() ) {
+               if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.pending_head()->id() != forkdb.root()->id() ) {
                   forkdb.rollback_head_to_root();
                }
                wlog( "No existing chain state. Initializing fresh blockchain state." );
@@ -1764,7 +1764,7 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && forkdb.head() ) {
+         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.pending_head()) {
             auto head_block_num = chain_head.block_num();
             auto branch = fork_db.fetch_branch_from_head();
             int rev = 0;
@@ -1777,7 +1777,7 @@ struct controller_impl {
             ilog( "${n} reversible blocks replayed", ("n",rev) );
          }
 
-         if( !forkdb.head() ) {
+         if( !forkdb.pending_head() ) {
             fork_db_reset_root_to_chain_head();
          }
 

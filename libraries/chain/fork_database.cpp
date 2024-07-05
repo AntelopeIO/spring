@@ -844,7 +844,7 @@ namespace eosio::chain {
 
    block_branch_t fork_database::fetch_branch_from_head() const {
       return apply<block_branch_t>([&](auto& forkdb) {
-         return forkdb.fetch_block_branch(forkdb.head()->id());
+         return forkdb.fetch_block_branch(forkdb.pending_head()->id());
       });
    }
 
