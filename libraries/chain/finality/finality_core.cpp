@@ -31,7 +31,7 @@ finality_core finality_core::create_core_for_genesis_block(const block_ref& gene
          },
       },
       .refs                         = {
-
+         genesis_block
       },
       .final_on_strong_qc_block_num = block_num,
    };
@@ -116,7 +116,7 @@ uint32_t finality_core::latest_qc_block_finalizer_policy_generation() const {
  */
 bool finality_core::extends(const block_id_type& id) const {
    uint32_t block_num = block_header::num_from_id(id);
-   if (block_num >= last_final_block_num() && block_num < current_block_num()) {
+   if (block_num >= last_final_block_num() && block_num < current_block_num() + static_cast<int>(is_genesis_core())) {
       const block_ref& ref = get_block_reference(block_num);
       return ref.block_id == id;
    }
@@ -132,25 +132,30 @@ bool finality_core::is_genesis_block_num(block_num_type candidate_block_num) con
    assert(last_final_block_num() <= candidate_block_num &&
           candidate_block_num <= current_block_num());
 
+   // [greg] if links.front().source_block_num != links.front().target_block_num
+   //        it means that finality has advanced past the genesis block.
+   //        so, if candidate_block_num < links.front().target_block_num, we
+   //        can't tell whether candidate_block_num is the genesis block or not
+
    return (links.front().source_block_num == links.front().target_block_num &&
            links.front().source_block_num == candidate_block_num);
 }
 
 /**
- *  @pre last_final_block_num() <= block_num < current_block_num()
+ *  @pre last_final_block_num() <= block_num <= current_block_num()
  *
  *  @post returned block_ref has block_num() == block_num
  */
 const block_ref& finality_core::get_block_reference(block_num_type block_num) const
 {
    assert(last_final_block_num() <= block_num); // Satisfied by precondition.
-   assert(block_num < current_block_num()); // Satisfied by precondition.
+   assert(block_num <= current_block_num()); // Satisfied by precondition.
 
-   // If refs.empty() == true, then by invariant 3, current_block_num() == last_final_block_num(), 
-   // and therefore it is impossible to satisfy the precondition. So going forward, it is safe to assume refs.empty() == false.
+   // refs.empty() == false by invariant 10
 
    const size_t ref_index = block_num - last_final_block_num();
 
+   // todo: update
    // By the precondition, 0 <= ref_index < (current_block_num() - last_final_block_num()).
    // Then, by invariant 8, 0 <= ref_index < refs.size().
 
@@ -191,6 +196,7 @@ const qc_link& finality_core::get_qc_link_from(block_num_type block_num) const
  *  @post c.links.front().source_block_num <= std::get<1>(returned_value)
  *  @post c.final_on_strong_qc_block_num <= std::get<2>(returned_value)
  */
+// [greg] should this be a private member function?
 std::tuple<block_num_type, block_num_type, block_num_type> get_new_block_numbers(const finality_core& c, const qc_claim_t& most_recent_ancestor_with_qc)
 {
    assert(most_recent_ancestor_with_qc.block_num <= c.current_block_num()); // Satisfied by the precondition.
@@ -273,8 +279,11 @@ core_metadata finality_core::next_metadata(const qc_claim_t& most_recent_ancesto
 }
 
 /**
+ *  [greg] current_block here is really the parent of the block whose finality_core we are computing
+ *         (but the same block containing `this` core)
+ *
  *  @pre current_block.block_num() == this->current_block_num()
- *  @pre If this->refs.empty() == false, then current_block is the block after the one referenced by this->refs.back()
+ *  @pre current_block is the block after the one referenced by this->refs.back()
  *  @pre this->latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num <= this->current_block_num()
  *  @pre this->latest_qc_claim() <= most_recent_ancestor_with_qc
  *
@@ -287,9 +296,9 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
 {
    assert(current_block.block_num() == current_block_num()); // Satisfied by precondition 1.
    
-   assert(refs.empty() || (refs.back().block_num() + 1 == current_block.block_num())); // Satisfied by precondition 2.
-   assert(refs.empty() || (refs.back().timestamp < current_block.timestamp)); // Satisfied by precondition 2.
-   assert(refs.empty() || (refs.back().finalizer_policy_generation <= current_block.finalizer_policy_generation)); // Satisfied by precondition 2.
+   assert(is_genesis_core() || refs.back().block_num() + 1 == current_block.block_num()); // Satisfied by precondition 2.
+   assert(is_genesis_core() || refs.back().timestamp < current_block.timestamp);          // Satisfied by precondition 2.
+   assert(refs.back().finalizer_policy_generation <= current_block.finalizer_policy_generation); // Satisfied by precondition 2.
 
    assert(most_recent_ancestor_with_qc.block_num <= current_block_num()); // Satisfied by precondition 3.
 
@@ -346,22 +355,23 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
       const size_t refs_index = new_last_final_block_num - last_final_block_num();
 
       // Using the justifications in new_block_nums, 0 <= ref_index <= (current_block_num() - last_final_block_num).
-      // If refs.empty() == true, then by invariant 3, current_block_num() == last_final_block_num, and therefore ref_index == 0.
-      // Otherwise if refs.empty() == false, the justification in new_block_nums provides the stronger inequality
+      // If refs.size() == 1, then by invariant 3, current_block_num() == last_final_block_num, and therefore ref_index == 0.
+      // Otherwise if refs.size() > 1, the justification in new_block_nums provides the stronger inequality
       // 0 <= ref_index < (current_block_num() - last_final_block_num), which, using invariant 8, can be simplified to
       // 0 <= ref_index < refs.size().
 
-      assert(!refs.empty() || (refs_index == 0)); // Satisfied by justification above.
-      assert(refs.empty() || (refs_index < refs.size())); // Satisfied by justification above.
+      assert(!refs.empty());                        // invariant 10
+      assert(refs.size() > 1 || (refs_index == 0)); // Satisfied by justification above.
+      assert(refs_index < refs.size());             // Satisfied by justification above.
 
       // Garbage collect unnecessary block references
       next_core.refs = {refs.cbegin() + refs_index, refs.cend()};
-      assert(refs.empty() || (next_core.refs.front().block_num() == new_last_final_block_num)); // Satisfied by choice of refs_index.
+      assert(next_core.refs.front().block_num() == new_last_final_block_num); // Satisfied by choice of refs_index.
 
       // Add new block reference
       next_core.refs.emplace_back(current_block);
 
-      // Invariant 3 is trivially satisfied for next_core because next_core.refs.empty() == false.
+      // Invariant 3 is trivially satisfied for next_core because next_core.refs.size() == false.
 
       // Invariant 5 is clearly satisfied for next_core because next_core.refs.back().block_num() == this->current_block_num()
       // and next_core.links.back().source_block_num == this->current_block_num() + 1.

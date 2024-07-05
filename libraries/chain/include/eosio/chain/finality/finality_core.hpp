@@ -33,6 +33,7 @@ struct qc_claim_t
    block_num_type  block_num {0};
    bool            is_strong_qc {false};
 
+   // [greg] I think we should use only `block_num` in the comparison
    auto operator<=>(const qc_claim_t&) const = default;
 };
 
@@ -65,6 +66,7 @@ struct core_metadata
 //   - always true
 //
 //     (1) links.empty() == false
+//     (10) refs.empty() == false
 //     (2) last_final_block_num() <= links.front().source_block_num <= final_on_strong_qc_block_num <=
 //         latest_qc_claim().block_num
 //     (9) current_block_num() - links.front().source_block_num == links.size() - 1 (always implied by invariants 3 and 7)

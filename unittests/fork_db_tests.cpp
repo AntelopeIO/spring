@@ -33,11 +33,12 @@ struct block_state_accessor {
       bsp->block_id = make_block_id(block_num);
       bsp->header.timestamp.slot = prev->header.timestamp.slot + 1;
       bsp->header.previous = prev->id();
-      block_ref parent_block {
+      block_ref prev_block {
          .block_id  = prev->id(),
-         .timestamp = prev->timestamp()
+         .timestamp = prev->timestamp(),
+         .finalizer_policy_generation = 1
       };
-      bsp->core = prev->core.next(parent_block, prev->core.latest_qc_claim());
+      bsp->core = prev->core.next(prev_block, prev->core.latest_qc_claim());
       return bsp;
    }
 
