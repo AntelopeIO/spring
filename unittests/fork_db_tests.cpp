@@ -44,6 +44,10 @@ struct block_state_accessor {
    static void reset_valid(block_state_ptr& bsp) {
       bsp->validated.store(false);
    }
+
+   static bool is_valid(const block_state_ptr& bsp) {
+      return bsp->is_valid();
+   }
 };
 
 } // namespace eosio::chain
@@ -125,12 +129,9 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
    BOOST_TEST(branch[2] == bsp11b);
 
    // test fetch branch providing head and lib
-   BOOST_TEST(forkdb.head()->id() == root->id());
-   forkdb.mark_valid(bsp13a);
-   BOOST_TEST(forkdb.head()->id() == bsp13a->id());
-   branch = forkdb.fetch_branch(forkdb.head()->id(), bsp11c->id());
+   branch = forkdb.fetch_branch(bsp13a->id(), bsp11c->id());
    BOOST_TEST(branch.empty()); // bsp11c not on bsp13a branch
-   branch = forkdb.fetch_branch(forkdb.head()->id(), bsp12a->id());
+   branch = forkdb.fetch_branch(bsp13a->id(), bsp12a->id());
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12a);
    BOOST_TEST(branch[1] == bsp11a);
@@ -138,9 +139,8 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
    // test mark valid via add
    block_state_accessor::reset_valid(bsp13a);
    reset();
-   BOOST_TEST(forkdb.head()->id() == root->id());
    forkdb.add(bsp13a, mark_valid_t::yes, ignore_duplicate_t::yes);
-   BOOST_TEST(forkdb.head()->id() == bsp13a->id());
+   BOOST_TEST(block_state_accessor::is_valid(bsp13a));
 
 } FC_LOG_AND_RETHROW();
 
