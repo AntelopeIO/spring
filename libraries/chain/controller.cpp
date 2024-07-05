@@ -1050,18 +1050,6 @@ struct controller_impl {
    }
 
    // --------------- access fork_db head ----------------------------------------------------------------------
-   template <typename ForkDB>
-   typename ForkDB::bsp_t fork_db_head_or_pending(const ForkDB& forkdb) const {
-      if (irreversible_mode()) {
-         // When in IRREVERSIBLE mode fork_db blocks are marked valid when they become irreversible so that
-         // fork_db.head() returns irreversible block
-         // Use pending_head since this method should return the chain head and not last irreversible.
-         return forkdb.pending_head();
-      } else {
-         return forkdb.head();
-      }
-   }
-
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) { return forkdb.pending_head()->block_num(); });
@@ -1297,6 +1285,7 @@ struct controller_impl {
       }
    }
 
+   // When in IRREVERSIBLE mode fork_db blocks are applied and marked valid when they become irreversible
    template<typename ForkDB, typename BSP>
    bool apply_irreversible_block(ForkDB& forkdb, const BSP& bsp) {
       if (read_mode != db_read_mode::IRREVERSIBLE)
@@ -1359,7 +1348,11 @@ struct controller_impl {
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
          legacy_root = forkdb.root();
-         legacy_branch = forkdb.fetch_branch(fork_db_head_or_pending(forkdb)->id());
+         if (irreversible_mode()) {
+            legacy_branch = forkdb.fetch_branch(forkdb.pending_head()->id());
+         } else {
+            legacy_branch = forkdb.fetch_branch(chain_head.id());
+         }
       });
 
       assert(!!legacy_root);
@@ -1382,9 +1375,9 @@ struct controller_impl {
             transition_add_to_savanna_fork_db(forkdb, *bitr, new_bsp, prev);
             prev = new_bsp;
          }
-         assert(read_mode == db_read_mode::IRREVERSIBLE || forkdb.head()->id() == legacy_branch.front()->id());
+         assert(read_mode == db_read_mode::IRREVERSIBLE || chain_head.id() == legacy_branch.front()->id());
          if (read_mode != db_read_mode::IRREVERSIBLE)
-            chain_head = block_handle{forkdb.head()};
+            chain_head = block_handle{prev};
          ilog("Transition to instant finality happening after block ${b}, First IF Proper Block ${pb}", ("b", prev->block_num())("pb", prev->block_num()+1));
       });
 
