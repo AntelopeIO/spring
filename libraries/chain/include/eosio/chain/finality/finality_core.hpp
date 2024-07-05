@@ -43,11 +43,55 @@ struct core_metadata
    block_num_type  latest_qc_claim_block_num {0};
 };
 
+// ------------------------------------------------------------------------------------------------------------------
+// - for all blocks after the genesis block:
+//   ---------------------------------------
+//
+//    refs:  [lib, ..., parent]          monotonically increasing block_num, refs.back() is current block's parent
+//    links: [(x,lib) ... (current,y)]   links.back().target_block_num provided the qc_claim for this core
+//
+// - for the genesis block:
+//   ----------------------
+//
+//    refs:  [lib]                       refs.back() is current block
+//    links: [(lib,lib)]
+//
+// - Invariants
+//   ----------
+//
+//   - always true
+//
+//     (1) links.empty() == false
+//     (2) last_final_block_num() <= links.front().source_block_num <= final_on_strong_qc_block_num <=
+//         latest_qc_claim().block_num
+//     (9) current_block_num() - links.front().source_block_num == links.size() - 1 (always implied by invariants 3 and 7)
+//
+//   - for all blocks after the genesis block (links.size() > 1)
+//
+//     () links.size() > 1
+//     () refs.size() > 1
+//     (4) refs.front().block_num() == links.front().target_block_num == last_final_block_num()
+//     (5) refs.back().block_num() + 1 == links.back().source_block_num == current_block_num()
+//     (6) For i = 0 to refs.size() - 2:
+//              (refs[i].block_num() + 1 == refs[i+1].block_num()) and (refs[i].timestamp < refs[i+1].timestamp)
+//     (7) For i = 0 to links.size() - 2:
+//              (links[i].source_block_num + 1 == links[i+1].source_block_num) and
+//              (links[i].target_block_num <= links[i+1].target_block_num)
+//     (8) current_block_num() - last_final_block_num() == refs.size() (always implied by invariants 4 to 6)
+//
+//   - for the genesis block  (links.size() == 1)
+//
+//     ()  refs.size() == 1
+//     (3) links.size() == 1 &&
+//         links[0].target_block_num == links[0].source_block_num == final_on_strong_qc_block_num ==
+//         last_final_block_num() == refs.front().block_num() == current_block_num()
+//
+// ------------------------------------------------------------------------------------------------------------------
 struct finality_core
 {
    std::vector<qc_link>    links; // Captures all relevant links sorted in order of ascending source_block_num.
-   std::vector<block_ref>  refs; // Covers ancestor blocks with block numbers greater than or equal to last_final_block_num.
-                                 // Sorted in order of ascending block_num.
+   std::vector<block_ref>  refs;  // Covers ancestor blocks with block numbers greater than or equal to last_final_block_num.
+                                  // Sorted in order of ascending block_num.
    block_num_type          final_on_strong_qc_block_num {0};
 
    // Invariants:
@@ -75,6 +119,8 @@ struct finality_core
     *  @post returned core has last_final_block_num() == block_num
     */
    static finality_core create_core_for_genesis_block(block_num_type block_num);
+
+   bool is_genesis_core() const { return links.size() == 1; }
 
    /**
     *  @pre this->links.empty() == false
