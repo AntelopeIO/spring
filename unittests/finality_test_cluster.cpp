@@ -5,14 +5,12 @@ using namespace eosio::chain;
 // Construct a test network and activate IF.
 
 void finality_node_t::corrupt_vote_block_id() {
-   std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
    last_vote->block_id.data()[0] ^= 1; // flip one bit
 }
 
 void finality_node_t::corrupt_vote_finalizer_key() {
-   std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
 
@@ -24,7 +22,6 @@ void finality_node_t::corrupt_vote_finalizer_key() {
 }
 
 void finality_node_t::corrupt_vote_signature() {
-   std::lock_guard g(votes_mtx);
    auto& last_vote = votes.back();
    orig_vote = std::make_shared<vote_message>(*last_vote);
 
@@ -52,14 +49,12 @@ void finality_node_t::setup(size_t first_node_key, size_t num_node_keys) {
    finkeys.set_node_finalizers(first_node_key, num_node_keys);
 
    control->voted_block().connect( [&]( const eosio::chain::vote_signal_params& v ) {
-      std::lock_guard g(votes_mtx);
       votes.emplace_back(std::get<2>(v));
    });
 }
 
 // Update "vote_index" vote on node according to `mode` parameter
 vote_message_ptr finality_node_t::get_vote(size_t vote_index, vote_mode mode) {
-   std::lock_guard g(votes_mtx);
    if (votes.empty())
       return {};
 

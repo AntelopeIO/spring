@@ -183,7 +183,8 @@ namespace eosio::chain {
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block(block_report& br);
          void allow_voting(bool val);
-         bool can_vote_on(const signed_block_ptr& b);
+         void set_async_voting(async_t val);
+         void set_async_aggregation(async_t val);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
@@ -237,6 +238,7 @@ namespace eosio::chain {
 
          void   set_disable_replay_opts( bool v );
 
+         block_handle         head()const;
          uint32_t             head_block_num()const;
          time_point           head_block_time()const;
          block_timestamp_type head_block_timestamp()const;
@@ -340,7 +342,10 @@ namespace eosio::chain {
          // called from net threads
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
-         bool node_has_voted_if_finalizer(const block_id_type& id) const;
+         bool is_block_missing_finalizer_votes(const block_handle& bh) const;
+
+         // for testing
+         vote_info_vec get_votes(const block_id_type& id) const;
 
          // thread safe, for testing
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const;
@@ -388,8 +393,11 @@ namespace eosio::chain {
          signal<void(const block_signal_params&)>&  accepted_block();
          signal<void(const block_signal_params&)>&  irreversible_block();
          signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& applied_transaction();
-         // Unlike other signals, voted_block is signaled from other threads than the main thread.
+
+         // Unlike other signals, voted_block and aggregated_vote may be signaled from other
+         // threads than the main thread.
          vote_signal_t&                             voted_block();
+         vote_signal_t&                             aggregated_vote();
 
          const apply_handler* find_apply_handler( account_name contract, scope_name scope, action_name act )const;
          wasm_interface& get_wasm_interface();
@@ -423,7 +431,7 @@ namespace eosio::chain {
    }; // controller
 
    /**
-    *  Plugins / observers listening to signals emited might trigger
+    *  Plugins / observers listening to signals emitted might trigger
     *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
     *  cause a node to fork.
     *

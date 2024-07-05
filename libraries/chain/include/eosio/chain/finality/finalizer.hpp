@@ -139,6 +139,11 @@ namespace eosio::chain {
          return std::ranges::all_of(std::views::keys(finalizers), std::forward<F>(f));
       }
 
+      template<typename F>
+      bool any_of_public_keys(F&& f) const { // only access keys which do not change, thread safe
+         return std::ranges::any_of(std::views::keys(finalizers), std::forward<F>(f));
+      }
+
       /// only call on startup
       /// @param enable_immediate_voting if true enable immediate voting on startup (for testing)
       void    set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting);
