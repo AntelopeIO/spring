@@ -1072,11 +1072,6 @@ struct controller_impl {
          [&](const auto& forkdb) { return forkdb.pending_head()->id(); });
    }
 
-   uint32_t fork_db_head_irreversible_blocknum() const {
-      return fork_db.apply<uint32_t>(
-         [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->irreversible_blocknum(); });
-   }
-
    // --------------- access fork_db root ----------------------------------------------------------------------
    bool fork_db_has_root() const {
       return fork_db.apply<bool>([&](const auto& forkdb) { return !!forkdb.has_root(); });
@@ -1426,6 +1421,17 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
+      auto fork_db_head_irreversible_blocknum = [&]() {
+         if (!irreversible_mode()) {
+            return block_handle_accessor::apply<uint32_t>(chain_head, [](const auto& head) {
+               return head->irreversible_blocknum();
+            });
+         }
+         return fork_db.apply<uint32_t>([&](const auto& forkdb) {
+            return forkdb.pending_head()->irreversible_blocknum();
+         });
+      };
+
       const block_id_type irreversible_block_id = if_irreversible_block_id.load();
       const uint32_t savanna_lib_num = block_header::num_from_id(irreversible_block_id);
       const bool savanna = savanna_lib_num > 0;
@@ -1734,7 +1740,7 @@ struct controller_impl {
       }
 
       auto replay_fork_db = [&](auto& forkdb) {
-         using BSP = std::decay_t<decltype(forkdb.head())>;
+         using BSP = std::decay_t<decltype(forkdb.root())>;
 
          auto pending_head = forkdb.pending_head();
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
@@ -1930,7 +1936,7 @@ struct controller_impl {
 
       if( check_shutdown() ) return;
 
-      // At this point head != nullptr && fork_db.head() != nullptr && fork_db.root() != nullptr.
+      // At this point chain_head != nullptr && fork_db.pending_head() != nullptr && fork_db.root() != nullptr.
       // Furthermore, fork_db.root()->block_num() <= lib_num.
       // Also, even though blog.head() may still be nullptr, blog.first_block_num() is guaranteed to be lib_num + 1.
 

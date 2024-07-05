@@ -1062,7 +1062,7 @@ namespace eosio {
       /** @} */
 
       void blk_send_branch( const block_id_type& msg_head_id );
-      void blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t fork_head_num );
+      void blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t head_num );
       void blk_send(const block_id_type& blkid);
 
       void enqueue( const net_message &msg );
