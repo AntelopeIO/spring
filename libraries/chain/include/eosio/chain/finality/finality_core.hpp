@@ -47,14 +47,17 @@ struct core_metadata
 // - for all blocks after the genesis block:
 //   ---------------------------------------
 //
-//    refs:  [lib, ..., parent]          monotonically increasing block_num, refs.back() is current block's parent
-//    links: [(x,lib) ... (current,y)]   links.back().target_block_num provided the qc_claim for this core
+//    refs:  [lib, ..., parent]          - monotonically increasing block_num
+//                                       - refs.back() is current block's parent
+//    links: [(x,lib) ... (current,y)]   - links.back().target_block_num provided the qc_claim for this core
+//                                       - source numbers are consecutive, target nunbers can repeat or skip ahead,
+//                                         but cannot decrease
 //
 // - for the genesis block:
 //   ----------------------
 //
-//    refs:  [lib]                       refs.back() is current block
-//    links: [(lib,lib)]
+//    refs:  [lib]                       - refs.back() is current block (also lib)
+//    links: [(lib,lib)]                 - size() == 1, source and target are current block
 //
 // - Invariants
 //   ----------
@@ -118,7 +121,7 @@ struct finality_core
     *  @post returned core has final_on_strong_qc_block_num == block_num
     *  @post returned core has last_final_block_num() == block_num
     */
-   static finality_core create_core_for_genesis_block(block_num_type block_num);
+   static finality_core create_core_for_genesis_block(const block_ref& genesis_block);
 
    bool is_genesis_core() const { return links.size() == 1; }
 

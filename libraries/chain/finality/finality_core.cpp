@@ -19,8 +19,9 @@ block_num_type block_ref::block_num() const {
  *  @post returned core has final_on_strong_qc_block_num == block_num
  *  @post returned core has last_final_block_num() == block_num
  */
-finality_core finality_core::create_core_for_genesis_block(block_num_type block_num)
+finality_core finality_core::create_core_for_genesis_block(const block_ref& genesis_block)
 {
+   block_num_type block_num = block_header::num_from_id(genesis_block.block_id);
    return finality_core {
       .links                        = {
          qc_link{
@@ -29,7 +30,9 @@ finality_core finality_core::create_core_for_genesis_block(block_num_type block_
             .is_link_strong    = false,
          },
       },
-      .refs                         = {},
+      .refs                         = {
+
+      },
       .final_on_strong_qc_block_num = block_num,
    };
 
@@ -64,7 +67,7 @@ block_num_type finality_core::last_final_block_num() const
 /**
  *  @pre this->links.empty() == false
  *  @post none
- *  @returns last final block timestamp in respect to the core
+ *  @returns last final block timestamp with respect to the core
  */
 block_time_type finality_core::last_final_block_timestamp() const
 {
