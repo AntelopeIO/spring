@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       // create a valid_quorum_certificate
       valid_quorum_certificate qc(strong_votes, {}, agg_sig);
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_starts_with("strong quorum is not met") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("strong quorum is not met") );
    }
 
    {  // weak QC quorem not met
@@ -301,7 +301,45 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       // create a valid_quorum_certificate
       valid_quorum_certificate qc({}, weak_votes, agg_sig);
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_starts_with("weak quorum is not met") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("weak quorum is not met") );
+   }
+
+   {  // strong QC bitset size does not match number of finalizers in the policy
+
+      // construct vote bitset with a size greater than num_finalizers
+      vote_bitset strong_votes(num_finalizers + 1);
+
+      // vote by finalizer 0
+      strong_votes[0] = 1;
+
+      // aggregate votes
+      bls_aggregate_signature agg_sig;
+      bls_signature sig = private_key[0].sign(strong_digest.to_uint8_span());
+      agg_sig.aggregate(sig);
+
+      // create a valid_quorum_certificate
+      valid_quorum_certificate qc(strong_votes, {}, agg_sig);
+
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("vote bitset size is not the same as the number of finalizers") );
+   }
+
+   {  // weak QC bitset size does not match number of finalizers in the policy
+
+      // construct vote bitset with a size less than num_finalizers
+      vote_bitset weak_votes(num_finalizers - 1);
+
+      // vote by finalizer 0
+      weak_votes[0] = 1;
+
+      // aggregate votes
+      bls_aggregate_signature agg_sig;
+      bls_signature sig = private_key[0].sign(weak_digest);
+      agg_sig.aggregate(sig);
+
+      // create a valid_quorum_certificate
+      valid_quorum_certificate qc({}, weak_votes, agg_sig);
+
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("vote bitset size is not the same as the number of finalizers") );
    }
 
    {  // strong QC with a wrong signing private key
@@ -318,7 +356,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       // create a valid_quorum_certificate
       valid_quorum_certificate qc(strong_votes, {}, sig);
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
    }
 
    {  // strong QC with a wrong digest
@@ -335,7 +373,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       // create a valid_quorum_certificate
       valid_quorum_certificate qc(strong_votes, {}, sig);
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
    }
 
    {  // weak QC with a wrong signing private key
@@ -352,7 +390,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(weak_sig);
 
       valid_quorum_certificate qc(strong_votes, weak_votes, sig);
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
    }
 
    {  // weak QC with a wrong digest
@@ -369,7 +407,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(weak_sig);
 
       valid_quorum_certificate qc(strong_votes, weak_votes, sig);
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), block_validate_exception, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
    }
 } FC_LOG_AND_RETHROW();
 

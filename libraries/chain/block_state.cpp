@@ -231,10 +231,13 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 
    // utility to accumulate voted weights
    auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
+      EOS_ASSERT( num_finalizers == votes_bitset.size(),
+                  invalid_qc_claim,
+                  "vote bitset size is not the same as the number of finalizers for the policy it refers to, vote bitset size: ${s}, num of finalizers for the policy: ${n}",
+                  ("s", votes_bitset.size())("n", num_finalizers) );
+
       uint64_t sum = 0;
-      assert(num_finalizers == votes_bitset.size());
-      auto n = std::min(num_finalizers, votes_bitset.size());
-      for (auto i = 0u; i < n; ++i) {
+      for (auto i = 0u; i < num_finalizers; ++i) {
          if( votes_bitset[i] ) { // ith finalizer voted
             sum += finalizers[i].weight;
          }
