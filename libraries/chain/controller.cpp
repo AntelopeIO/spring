@@ -941,7 +941,6 @@ struct controller_impl {
    block_handle                    chain_head;
    block_state_ptr                 chain_head_trans_svnn_block; // chain_head's Savanna representation during transition
    fork_database                   fork_db;
-   large_atomic<block_id_type>     if_irreversible_block_id;
    resource_limits_manager         resource_limits;
    subjective_billing              subjective_bill;
    authorization_manager           authorization;
@@ -1418,25 +1417,8 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      auto fork_db_head_irreversible_blocknum = [&]() -> block_num_type {
-         if (!irreversible_mode()) {
-            return block_handle_accessor::apply<block_num_type>(chain_head, [](const auto& head) {
-               return head->irreversible_blocknum();
-            });
-         }
-         // for irreversible mode, chain_head is LIB, use forkdb pending head
-         return fork_db.apply<block_num_type>([&](const auto& forkdb) {
-            auto head = forkdb.pending_head();
-            if (!head)
-               return block_num_type{0};
-            return head->irreversible_blocknum();
-         });
-      };
-
-      const block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      const block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
-      const bool savanna = savanna_lib_num > 0;
-      const block_num_type new_lib_num = savanna ? savanna_lib_num : fork_db_head_irreversible_blocknum();
+      const block_id_type new_lib_id = fork_db.pending_lib_id();
+      const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
 
       if( new_lib_num <= lib_num )
          return;
@@ -1445,8 +1427,7 @@ struct controller_impl {
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.pending_head());
          const auto& head_id = irreversible_mode() ? forkdb.pending_head()->id() : chain_head.id();
-         auto branch = savanna ? forkdb.fetch_branch( head_id, irreversible_block_id)
-                               : forkdb.fetch_branch( head_id, new_lib_num );
+         auto branch = forkdb.fetch_branch( head_id, new_lib_id);
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
@@ -3285,7 +3266,7 @@ struct controller_impl {
                   auto claimed = forkdb.search_on_branch(bsp->id(), if_ext.qc_claim.block_num);
                   if (claimed) {
                      auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
-                     set_if_irreversible_block_id(final_on_strong_qc_block_ref.block_id);
+                     set_savanna_lib_id(final_on_strong_qc_block_ref.block_id);
                   }
                }
             });
@@ -3992,7 +3973,7 @@ struct controller_impl {
          // just acting as a carrier of this info. It doesn't matter if the block
          // is actually valid as it simply is used as a network message for this data.
          const auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
-         set_if_irreversible_block_id(final_on_strong_qc_block_ref.block_id);
+         set_savanna_lib_id(final_on_strong_qc_block_ref.block_id);
          // Update finalizer safety information based on vote evidence
          my_finalizers.maybe_update_fsi(claimed, received_qc);
       }
@@ -4524,14 +4505,12 @@ struct controller_impl {
       return is_trx_transient ? nullptr : deep_mind_logger;
    }
 
-   void set_if_irreversible_block_id(const block_id_type& id) {
-      const block_num_type id_num = block_header::num_from_id(id);
-      auto accessor = if_irreversible_block_id.make_accessor();
-      const block_num_type current_num = block_header::num_from_id(accessor.value());
-      if( id_num > current_num ) {
-         dlog("set irreversible block ${bn}: ${id}, old ${obn}: ${oid}", ("bn", id_num)("id", id)("obn", current_num)("oid", accessor.value()));
-         accessor.value() = id;
-      }
+   void set_savanna_lib_id(const block_id_type& id) {
+      fork_db.apply_s<void>([&](auto& forkdb) {
+         if (forkdb.set_pending_savanna_lib_id(id)) {
+            dlog("set irreversible block ${bn}: ${id}", ("bn", block_header::num_from_id(id))("id", id));
+         }
+      });
    }
 
    // Returns corresponding Transition Savanna block for a given Legacy block.
@@ -5186,12 +5165,8 @@ std::optional<block_id_type> controller::pending_producer_block_id()const {
    return my->pending_producer_block_id();
 }
 
-void controller::set_if_irreversible_block_id(const block_id_type& id) {
-   my->set_if_irreversible_block_id(id);
-}
-
-uint32_t controller::if_irreversible_block_num() const {
-   return block_header::num_from_id(my->if_irreversible_block_id.load());
+void controller::set_savanna_lib_id(const block_id_type& id) {
+   my->set_savanna_lib_id(id);
 }
 
 uint32_t controller::last_irreversible_block_num() const {
