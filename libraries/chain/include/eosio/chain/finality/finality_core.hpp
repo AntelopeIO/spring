@@ -45,53 +45,6 @@ struct core_metadata
 };
 
 // ------------------------------------------------------------------------------------------------------------------
-// - for all blocks after the genesis block:
-//   ---------------------------------------
-//
-//    refs:  [lib, ..., parent]          - monotonically increasing block_num
-//                                       - refs.back() is current block's parent
-//    links: [(x,lib) ... (current,y)]   - links.back().target_block_num provided the qc_claim for this core
-//                                       - source numbers are consecutive, target nunbers can repeat or skip ahead,
-//                                         but cannot decrease
-//
-// - for the genesis block:
-//   ----------------------
-//
-//    refs:  [lib]                       - refs.back() is current block (also lib)
-//    links: [(lib,lib)]                 - size() == 1, source and target are current block
-//
-// - Invariants
-//   ----------
-//
-//   - always true
-//
-//     (1) links.empty() == false
-//     (10) refs.empty() == false
-//     (2) last_final_block_num() <= links.front().source_block_num <= final_on_strong_qc_block_num <=
-//         latest_qc_claim().block_num
-//     (9) current_block_num() - links.front().source_block_num == links.size() - 1 (always implied by invariants 3 and 7)
-//
-//   - for all blocks after the genesis block (links.size() > 1)
-//
-//     () links.size() > 1
-//     () refs.size() > 1
-//     (4) refs.front().block_num() == links.front().target_block_num == last_final_block_num()
-//     (5) refs.back().block_num() + 1 == links.back().source_block_num == current_block_num()
-//     (6) For i = 0 to refs.size() - 2:
-//              (refs[i].block_num() + 1 == refs[i+1].block_num()) and (refs[i].timestamp < refs[i+1].timestamp)
-//     (7) For i = 0 to links.size() - 2:
-//              (links[i].source_block_num + 1 == links[i+1].source_block_num) and
-//              (links[i].target_block_num <= links[i+1].target_block_num)
-//     (8) current_block_num() - last_final_block_num() == refs.size() (always implied by invariants 4 to 6)
-//
-//   - for the genesis block  (links.size() == 1)
-//
-//     ()  refs.size() == 1
-//     (3) links.size() == 1 &&
-//         links[0].target_block_num == links[0].source_block_num == final_on_strong_qc_block_num ==
-//         last_final_block_num() == refs.front().block_num() == current_block_num()
-//
-// ------------------------------------------------------------------------------------------------------------------
 struct finality_core
 {
    std::vector<qc_link>    links; // Captures all relevant links sorted in order of ascending source_block_num.
