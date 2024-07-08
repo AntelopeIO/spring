@@ -33,7 +33,6 @@ struct qc_claim_t
    block_num_type  block_num {0};
    bool            is_strong_qc {false};
 
-   // [greg] I think we should use only `block_num` in the comparison
    auto operator<=>(const qc_claim_t&) const = default;
 };
 
