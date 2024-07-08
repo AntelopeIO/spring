@@ -623,7 +623,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "30")
+         ("bitset_string", "30") //bitset bytes are reversed, so we do the same to test
          ("bitset_vector", bitset_2)
          ("finalizers_count", 3)
       );
