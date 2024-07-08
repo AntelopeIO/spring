@@ -11,6 +11,9 @@ namespace eosio::chain {
 
 struct vote_message;
 
+struct vote_info { bls_public_key finalizer; bool strong; };
+using vote_info_vec = std::vector<vote_info>;
+
 using signer_callback_type = std::function<std::vector<signature_type>(const digest_type&)>;
 
 constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
@@ -65,8 +68,10 @@ struct finality_data_t {
    uint32_t     final_on_strong_qc_block_num{0};
    digest_type  action_mroot{};
    digest_type  base_digest{};
-   std::optional<finalizer_policy> proposed_finalizer_policy; // finalizer policy, if proposed in the block
+   std::optional<finalizer_policy> pending_finalizer_policy; // finalizer policy if one is promoted to pending in the block
 };
+
+enum class vote_status_t { voted, not_voted, irrelevant_finalizer };
 
 struct block_state : public block_header_state {     // block_header_state provides parent link
    // ------ data members -------------------------------------------------------------
@@ -135,7 +140,8 @@ public:
 
    // connection_id only for logging
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
-   bool has_voted(const bls_public_key& key) const;
+   vote_status_t has_voted(const bls_public_key& key) const;
+   vote_info_vec get_votes() const;                          // for testing, returns vote info from pending_qc
    void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
 
    using bhs_t  = block_header_state;
@@ -183,5 +189,5 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 // not exporting pending_qc or valid_qc
 FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
-FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(base_digest)(proposed_finalizer_policy) )
+FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(base_digest)(pending_finalizer_policy) )
 FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(pending_qc)(valid)(validated) )

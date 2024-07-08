@@ -120,62 +120,64 @@ class maybe_session {
       std::optional<database::session>     _session;
 };
 
-// apply methods of block_handle defined here as access to internal block_handle restricted to controller
-template <class R, class F>
-R apply(const block_handle& bh, F&& f) {
-   if constexpr (std::is_same_v<void, R>)
-      std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
-                                  [&](const block_state_ptr& head) { std::forward<F>(f)(head); }
-                       }, bh.internal());
-   else
-      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
-                                      [&](const block_state_ptr& head) -> R { return std::forward<F>(f)(head); }
-                           }, bh.internal());
-}
+struct block_handle_accessor {
+   // apply methods of block_handle defined here as access to internal block_handle restricted to controller
+   template <class R, class F>
+   static R apply(const block_handle& bh, F&& f) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
+                  [&](const block_state_ptr& head) { std::forward<F>(f)(head); }
+                  }, bh.internal());
+      else
+         return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
+                  [&](const block_state_ptr& head) -> R { return std::forward<F>(f)(head); }
+                  }, bh.internal());
+   }
 
-template <class R, class F, class S>
-R apply(const block_handle& bh, F&& f, S&& s) {
-   if constexpr (std::is_same_v<void, R>)
-      std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
-                                  [&](const block_state_ptr& head) { std::forward<S>(s)(head); }
-                       }, bh.internal());
-   else
-      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
-                                      [&](const block_state_ptr& head) -> R { return std::forward<S>(s)(head); }
-                           }, bh.internal());
-}
+   template <class R, class F, class S>
+   static R apply(const block_handle& bh, F&& f, S&& s) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
+                  [&](const block_state_ptr& head) { std::forward<S>(s)(head); }
+                  }, bh.internal());
+      else
+         return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
+                  [&](const block_state_ptr& head) -> R { return std::forward<S>(s)(head); }
+                  }, bh.internal());
+   }
 
-// apply savanna block_state
-template <class R, class F>
-R apply_s(const block_handle& bh, F&& f) {
-   if constexpr (std::is_same_v<void, R>)
-      std::visit<void>(overloaded{[&](const block_state_legacy_ptr&) {},
-                                  [&](const block_state_ptr& head)   { std::forward<F>(f)(head); }}, bh.internal());
-   else
-      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr&) -> R { return {}; },
-                                      [&](const block_state_ptr& head)   -> R { return std::forward<F>(f)(head); }}, bh.internal());
-}
+   // apply savanna block_state
+   template <class R, class F>
+   static R apply_s(const block_handle& bh, F&& f) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit<void>(overloaded{[&](const block_state_legacy_ptr&) {},
+                  [&](const block_state_ptr& head)   { std::forward<F>(f)(head); }}, bh.internal());
+      else
+         return std::visit<R>(overloaded{[&](const block_state_legacy_ptr&) -> R { return {}; },
+                  [&](const block_state_ptr& head)   -> R { return std::forward<F>(f)(head); }}, bh.internal());
+   }
 
-// apply legancy block_state_legacy
-template <class R, class F>
-R apply_l(const block_handle& bh, F&& f) {
-   if constexpr (std::is_same_v<void, R>)
-      std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
-                                  [&](const block_state_ptr&)             {}}, bh.internal());
-   else
-      return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
-                                      [&](const block_state_ptr&)             -> R { return {}; }}, bh.internal());
-}
+   // apply legancy block_state_legacy
+   template <class R, class F>
+   static R apply_l(const block_handle& bh, F&& f) {
+      if constexpr (std::is_same_v<void, R>)
+         std::visit<void>(overloaded{[&](const block_state_legacy_ptr& head) { std::forward<F>(f)(head); },
+                  [&](const block_state_ptr&)             {}}, bh.internal());
+      else
+         return std::visit<R>(overloaded{[&](const block_state_legacy_ptr& head) -> R { return std::forward<F>(f)(head); },
+                  [&](const block_state_ptr&)             -> R { return {}; }}, bh.internal());
+   }
+};
 
 struct completed_block {
    block_handle bsp;
 
    deque<transaction_metadata_ptr> extract_trx_metas() {
-      return apply<deque<transaction_metadata_ptr>>(bsp, [](auto& bsp) { return bsp->extract_trxs_metas(); });
+      return block_handle_accessor::apply<deque<transaction_metadata_ptr>>(bsp, [](auto& bsp) { return bsp->extract_trxs_metas(); });
    }
 
    const flat_set<digest_type>& get_activated_protocol_features() const {
-      return apply<const flat_set<digest_type>&>(bsp, [](const auto& bsp) -> const flat_set<digest_type>& {
+      return block_handle_accessor::apply<const flat_set<digest_type>&>(bsp, [](const auto& bsp) -> const flat_set<digest_type>& {
          return bsp->get_activated_protocol_features()->protocol_features;
       });
    }
@@ -186,13 +188,13 @@ struct completed_block {
    account_name producer() const { return bsp.producer(); }
 
    const producer_authority_schedule& active_producers() const {
-      return apply<const producer_authority_schedule&>(bsp, [](const auto& bsp) -> const producer_authority_schedule& {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(bsp, [](const auto& bsp) -> const producer_authority_schedule& {
          return bsp->active_schedule_auth();
       });
    }
 
    const producer_authority_schedule* next_producers() const {
-      return apply<const producer_authority_schedule*>(bsp,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return bsp->pending_schedule_auth();
                     },
@@ -205,7 +207,7 @@ struct completed_block {
    }
 
    const producer_authority_schedule* pending_producers_legacy() const {
-      return apply<const producer_authority_schedule*>(bsp,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return &bsp->pending_schedule.schedule;
                     },
@@ -958,6 +960,8 @@ struct controller_impl {
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
    bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
+   async_t                         async_voting = async_t::yes;  // by default we post `create_and_send_vote_msg()` calls, used in tester
+   async_t                         async_aggregation = async_t::yes; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
 
@@ -977,9 +981,10 @@ struct controller_impl {
    signal<void(const block_signal_params&)>  accepted_block;
    signal<void(const block_signal_params&)>  irreversible_block;
    signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)> applied_transaction;
-   vote_signal_t                             voted_block;
+   vote_signal_t                             voted_block;     // emitted when a local finalizer votes on a block
+   vote_signal_t                             aggregated_vote; // emitted when a vote received from the network is aggregated
 
-   vote_processor_t vote_processor{voted_block,
+   vote_processor_t vote_processor{aggregated_vote,
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
                                          return forkdb.get_block(id);
@@ -989,26 +994,26 @@ struct controller_impl {
    int64_t set_proposed_producers_legacy( vector<producer_authority> producers );
 
    protocol_feature_activation_set_ptr head_activated_protocol_features() const {
-      return apply<protocol_feature_activation_set_ptr>(chain_head, [](const auto& head) {
+      return block_handle_accessor::apply<protocol_feature_activation_set_ptr>(chain_head, [](const auto& head) {
          return head->get_activated_protocol_features();
       });
    }
 
    const producer_authority_schedule& head_active_schedule_auth() const {
-      return apply<const producer_authority_schedule&>(chain_head, [](const auto& head) -> const producer_authority_schedule& {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head, [](const auto& head) -> const producer_authority_schedule& {
          return head->active_schedule_auth();
       });
    }
 
    const producer_authority_schedule* head_pending_schedule_auth_legacy() const {
-      return apply<const producer_authority_schedule*>(chain_head,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule* { return head->pending_schedule_auth(); },
                     [](const block_state_ptr&) -> const producer_authority_schedule* { return nullptr; }
          });
    }
 
    const producer_authority_schedule* next_producers() {
-      return apply<const producer_authority_schedule*>(chain_head,
+      return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{
          [](const block_state_legacy_ptr& head) -> const producer_authority_schedule* {
             return head->pending_schedule_auth();
@@ -1024,7 +1029,7 @@ struct controller_impl {
    void replace_producer_keys( const public_key_type& key ) {
       ilog("Replace producer keys with ${k}", ("k", key));
 
-      apply<void>(chain_head,
+      block_handle_accessor::apply<void>(chain_head,
          overloaded{
             [&](const block_state_legacy_ptr& head) {
                auto version = head->pending_schedule.schedule.version;
@@ -1312,7 +1317,7 @@ struct controller_impl {
       } else {
          assert(bsp->block);
          if (bsp->block->is_proper_svnn_block()) {
-            apply_l<void>(chain_head, [&](const auto&) {
+            block_handle_accessor::apply_l<void>(chain_head, [&](const auto&) {
                // if chain_head is legacy, update to non-legacy chain_head, this is needed so that the correct block_state is created in apply_block
                block_state_ptr prev = forkdb.get_block(bsp->previous(), include_root_t::yes);
                assert(prev);
@@ -1404,12 +1409,6 @@ struct controller_impl {
                                           .last_vote = {start_block.id(), start_block.block_time(), 1},
                                           .lock      = {lib_block.id(),   lib_block.block_time(),   1} });
       }
-   }
-
-   block_num_type latest_known_lib_num() const {
-      block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
-      return savanna_lib_num > 0 ? savanna_lib_num : fork_db_head_irreversible_blocknum();
    }
 
    void log_irreversible() {
@@ -1562,7 +1561,7 @@ struct controller_impl {
          try {
             std::vector<block_state_legacy_ptr> legacy_branch; // for blocks that will need to be converted to IF blocks
             while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
-               apply_l<void>(chain_head, [&](const auto& head) {
+               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
                   if (next->is_proper_svnn_block()) {
                      const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
                      assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
@@ -1600,10 +1599,10 @@ struct controller_impl {
                      }
                   }
                });
-               apply<void>(chain_head, [&]<typename T>(const T&) {
+               block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
                   replay_push_block<T>( next, controller::block_status::irreversible );
                });
-               apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
+               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
                   assert(!next->is_proper_svnn_block());
                   if (next->contains_header_extension(instant_finality_extension::extension_id())) {
                      assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
@@ -1658,7 +1657,7 @@ struct controller_impl {
 
       auto fork_db_reset_root_to_chain_head = [&]() {
          fork_db.apply<void>([&](auto& forkdb) {
-            apply<void>(chain_head, [&](const auto& head) {
+            block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
                if constexpr (std::is_same_v<std::decay_t<decltype(head)>, std::decay_t<decltype(forkdb.head())>>)
                   forkdb.reset_root(head);
             });
@@ -1668,7 +1667,7 @@ struct controller_impl {
       auto switch_from_legacy_if_needed = [&]() {
          if (fork_db.version_in_use() == fork_database::in_use_t::legacy) {
             // switch to savanna if needed
-            apply_s<void>(chain_head, [&](const auto& head) {
+            block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                fork_db.switch_from_legacy(head);
             });
          }
@@ -1775,7 +1774,7 @@ struct controller_impl {
          ilog( "Snapshot loaded, lib: ${lib}", ("lib", chain_head.block_num()) );
 
          init(startup_t::snapshot);
-         apply_l<void>(chain_head, [&](auto& head) {
+         block_handle_accessor::apply_l<void>(chain_head, [&](auto& head) {
             if (block_states.second && head->header.contains_header_extension(instant_finality_extension::extension_id())) {
                // snapshot generated in transition to savanna
                if (fork_db.version_in_use() == fork_database::in_use_t::legacy) {
@@ -2053,7 +2052,7 @@ struct controller_impl {
 
    block_state_pair get_block_state_to_snapshot() const
    {
-       return apply<block_state_pair>(chain_head, overloaded{
+       return block_handle_accessor::apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
              if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
                 // During transition to Savanna, we need to build Transition Savanna block
@@ -2075,7 +2074,7 @@ struct controller_impl {
          section.add_row(chain_snapshot_header(), db);
       });
 
-      apply<void>(chain_head, [&](const auto& head) {
+      block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
          snapshot_detail::snapshot_block_state_data_v7 block_state_data(get_block_state_to_snapshot());
 
          snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
@@ -2991,7 +2990,7 @@ struct controller_impl {
                   "db revision is not on par with head block",
                   ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head_block_num()) );
 
-      apply<void>(chain_head, overloaded{
+      block_handle_accessor::apply<void>(chain_head, overloaded{
                     [&](const block_state_legacy_ptr& head) {
                        maybe_session session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
                        pending.emplace(std::move(session), *head, when, confirm_block_count, new_protocol_feature_activations);
@@ -3239,7 +3238,7 @@ struct controller_impl {
                if( s == controller::block_status::incomplete ) {
                   forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
-                  vote_processor.notify_new_block();
+                  vote_processor.notify_new_block(async_aggregation);
                } else {
                   assert(s != controller::block_status::irreversible);
                   forkdb.mark_valid( bsp );
@@ -3274,18 +3273,20 @@ struct controller_impl {
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
             if (!my_finalizers.empty()) {
-               apply_s<void>(chain_head, [&](const auto& head) {
+               block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || my_finalizers.is_active()) {
-                     boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                     if (async_voting == async_t::no)
                         create_and_send_vote_msg(head);
-                     });
+                     else
+                        boost::asio::post(thread_pool.get_executor(), [this, head=head]() {
+                           create_and_send_vote_msg(head); });
                   }
                });
             }
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
-            apply<void>(chain_head,
+            block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
                               auto fd = head_finality_data(); // for transition blocks
@@ -3310,7 +3311,7 @@ struct controller_impl {
             ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
                  "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
                  ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
-                 ("count", new_b->transactions.size())("lib", latest_known_lib_num())("net", br.total_net_usage)
+                 ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("net", br.total_net_usage)
                  ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)("confs", new_b->confirmed));
          }
 
@@ -3475,7 +3476,7 @@ struct controller_impl {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
               "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
-              ("count", bsp->block->transactions.size())("lib", latest_known_lib_num())
+              ("count", bsp->block->transactions.size())("lib", fork_db_root_block_num())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
               ("elapsed", br.total_elapsed_time)("time", br.total_time)("latency", (now - bsp->timestamp()).count() / 1000));
          const auto& hb_id = chain_head.id();
@@ -3484,7 +3485,7 @@ struct controller_impl {
             ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
                  "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
                  ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-                 ("count", hb->transactions.size())("lib", latest_known_lib_num())
+                 ("count", hb->transactions.size())("lib", fork_db_root_block_num())
                  ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", br.total_time)
                  ("latency", (now - hb->timestamp).count() / 1000));
          }
@@ -3666,28 +3667,31 @@ struct controller_impl {
 
    // called from net threads and controller's thread pool
    void process_vote_message( uint32_t connection_id, const vote_message_ptr& vote ) {
-      vote_processor.process_vote_message(connection_id, vote);
+      vote_processor.process_vote_message(connection_id, vote, async_aggregation);
    }
 
-   bool node_has_voted_if_finalizer(const block_id_type& id) const {
-      if (my_finalizers.empty())
-         return true;
-
-      std::optional<bool> voted = fork_db.apply_s<std::optional<bool>>([&](auto& forkdb) -> std::optional<bool> {
-         auto bsp = forkdb.get_block(id);
-         if (bsp) {
-            return my_finalizers.all_of_public_keys([&bsp](const auto& k) {
-               const finalizer_policy_ptr& fp { bsp->active_finalizer_policy };
-               assert(fp);
-               if (!std::ranges::any_of(fp->finalizers, [&](const auto& auth) { return auth.public_key == k; }))
-                  return true; // we only care about keys from the active finalizer_policy
-               return bsp->has_voted(k);
-            });
-         }
+   bool is_block_missing_finalizer_votes(const block_handle& bh) const {
+      if (!allow_voting || my_finalizers.empty())
          return false;
-      });
-      // empty optional means legacy forkdb
-      return !voted || *voted;
+
+      return std::visit(
+         overloaded{
+            [&](const block_state_legacy_ptr& bsp) { return false; },
+            [&](const block_state_ptr& bsp) {
+               return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
+                  return bsp->has_voted(k) == vote_status_t::not_voted;
+               });
+            }},
+         bh.internal());
+   }
+
+   vote_info_vec get_votes(const block_id_type& id) const {
+       return fork_db.apply_s<vote_info_vec>([&](auto& forkdb) -> vote_info_vec {
+          auto bsp = forkdb.get_block(id);
+          if (bsp)
+             return bsp->get_votes();
+          return {};
+       });
    }
 
    std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
@@ -3699,13 +3703,9 @@ struct controller_impl {
       });
    }
 
-   bool can_vote_on(const signed_block_ptr& b) {
-      return allow_voting && b->is_proper_svnn_block();
-   }
-
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!can_vote_on(bsp->block))
+      if (!allow_voting || !bsp->block->is_proper_svnn_block())
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
@@ -3873,7 +3873,7 @@ struct controller_impl {
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
-            vote_processor.notify_new_block();
+            vote_processor.notify_new_block(async_aggregation);
       }
 
       return block_handle{bsp};
@@ -3987,7 +3987,7 @@ struct controller_impl {
 
       if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
          if (bsp->is_recent() || my_finalizers.is_active()) {
-            if (use_thread_pool == use_thread_pool_t::yes) {
+            if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
                   const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
                   if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
@@ -4111,7 +4111,7 @@ struct controller_impl {
                }
             }
          };
-         apply<void>(chain_head, do_push);
+         block_handle_accessor::apply<void>(chain_head, do_push);
 
       } FC_LOG_AND_RETHROW( )
    }
@@ -4152,7 +4152,8 @@ struct controller_impl {
 
             bool switch_fork = !branches.second.empty();
             if( switch_fork ) {
-               auto head_fork_comp_str = apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
+               auto head_fork_comp_str =
+                  block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
                ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
                     ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
                     ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
@@ -4567,7 +4568,7 @@ struct controller_impl {
    }
 
    std::optional<finality_data_t> head_finality_data() const {
-      return apply<std::optional<finality_data_t>>(chain_head, overloaded{
+      return block_handle_accessor::apply<std::optional<finality_data_t>>(chain_head, overloaded{
          [&](const block_state_legacy_ptr& head) -> std::optional<finality_data_t> {
             // When in Legacy, if it is during transition to Savana, we need to
             // build finality_data for the corresponding Savanna block
@@ -4980,8 +4981,12 @@ void controller::allow_voting(bool val) {
    my->allow_voting = val;
 }
 
-bool controller::can_vote_on(const signed_block_ptr& b) {
-   return my->can_vote_on(b);
+void controller::set_async_voting(async_t val) {
+   my->async_voting = val;
+}
+
+void controller::set_async_aggregation(async_t val) {
+   my->async_aggregation = val;
 }
 
 void controller::maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
@@ -5012,11 +5017,11 @@ void controller::push_block( block_report& br,
                              const trx_meta_cache_lookup& trx_lookup )
 {
    validate_db_available_size();
-   apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
+   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
 }
 
 void controller::accept_block(const block_handle& bh) {
-   apply<void>(bh, [&](const auto& bsp) { my->accept_block(bsp); });
+   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->accept_block(bsp); });
 }
 
 transaction_trace_ptr controller::push_transaction( const transaction_metadata_ptr& trx,
@@ -5084,6 +5089,10 @@ void controller::set_disable_replay_opts( bool v ) {
    my->conf.disable_replay_opts = v;
 }
 
+block_handle controller::head()const {
+   return my->chain_head;
+}
+
 uint32_t controller::head_block_num()const {
    return my->chain_head.block_num();
 }
@@ -5107,7 +5116,7 @@ const block_header& controller::head_block_header()const {
 
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
-   return apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
+   return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
 }
@@ -5355,8 +5364,12 @@ void controller::process_vote_message( uint32_t connection_id, const vote_messag
    my->process_vote_message( connection_id, vote );
 };
 
-bool controller::node_has_voted_if_finalizer(const block_id_type& id) const {
-   return my->node_has_voted_if_finalizer(id);
+bool controller::is_block_missing_finalizer_votes(const block_handle& bh) const {
+   return my->is_block_missing_finalizer_votes(bh);
+}
+
+vote_info_vec controller::get_votes(const block_id_type& id) const {
+   return my->get_votes(id);
 }
 
 std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
@@ -5391,7 +5404,7 @@ const producer_authority_schedule* controller::next_producers()const {
 }
 
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {
-   return apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+   return block_handle_accessor::apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
       return head->active_finalizer_policy;
    });
 }
@@ -5650,7 +5663,8 @@ signal<void(const block_signal_params&)>&  controller::accepted_block_header() {
 signal<void(const block_signal_params&)>&  controller::accepted_block() { return my->accepted_block; }
 signal<void(const block_signal_params&)>&  controller::irreversible_block() { return my->irreversible_block; }
 signal<void(std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&>)>& controller::applied_transaction() { return my->applied_transaction; }
-vote_signal_t&                             controller::voted_block() { return my->voted_block; }
+vote_signal_t&                             controller::voted_block()     { return my->voted_block; }
+vote_signal_t&                             controller::aggregated_vote() { return my->aggregated_vote; }
 
 chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    chain_snapshot_header header;

@@ -610,7 +610,7 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "final_on_strong_qc_block_num", "type": "uint32" },
                 { "name": "action_mroot", "type": "checksum256" },
                 { "name": "base_digest", "type": "checksum256" },
-                { "name": "proposed_finalizer_policy", "type": "finalizer_policy?" }
+                { "name": "pending_finalizer_policy", "type": "finalizer_policy?" }
             ]
         }
     ],

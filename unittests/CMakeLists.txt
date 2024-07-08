@@ -75,6 +75,7 @@ target_link_libraries( unit_test eosio_chain_wrap state_history chainbase eosio_
 
 target_compile_options(unit_test PUBLIC -DDISABLE_EOSLIB_SERIALIZE)
 target_include_directories( unit_test PUBLIC
+                            ${CMAKE_CURRENT_SOURCE_DIR}
                             ${CMAKE_SOURCE_DIR}/libraries/testing/include
                             ${CMAKE_SOURCE_DIR}/test-contracts
                             ${CMAKE_BINARY_DIR}/contracts
