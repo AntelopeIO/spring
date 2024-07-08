@@ -103,6 +103,7 @@ namespace eosio::chain {
 
       std::mutex             mtx;
       bsp_t                  root;
+      block_id_type          pending_savanna_lib_id; // under Savanna the id of what will become root
       fork_multi_index_type  index;
 
       explicit fork_database_impl() = default;
@@ -148,6 +149,7 @@ namespace eosio::chain {
    template<class BSP>
    void fork_database_impl<BSP>::open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator ) {
       bsp_t _root = std::make_shared<bs_t>();
+      fc::raw::unpack( ds, pending_savanna_lib_id );
       fc::raw::unpack( ds, *_root );
       reset_root_impl( _root );
 
@@ -179,6 +181,7 @@ namespace eosio::chain {
          ilog("Writing empty fork_database with root ${rn}:${r}", ("rn", root->block_num())("r", root->id()));
       }
 
+      fc::raw::pack( out, pending_savanna_lib_id );
       fc::raw::pack( out, *root );
 
       uint32_t num_blocks_in_fork_db = index.size();
@@ -350,6 +353,24 @@ namespace eosio::chain {
       }
       const auto& indx = index.template get<by_best_branch>();
       return *indx.begin();
+   }
+
+   template<class BSP>
+   block_id_type fork_database_t<BSP>::pending_savanna_lib_id() const {
+      std::lock_guard g( my->mtx );
+      return my->pending_savanna_lib_id;
+   }
+
+   template<class BSP>
+   bool fork_database_t<BSP>::set_pending_savanna_lib_id(const block_id_type& id) {
+      block_num_type new_lib = block_header::num_from_id(id);
+      std::lock_guard g( my->mtx );
+      block_num_type old_lib = block_header::num_from_id(my->pending_savanna_lib_id);
+      if (new_lib > old_lib) {
+         my->pending_savanna_lib_id = id;
+         return true;
+      }
+      return false;
    }
 
    template <class BSP>

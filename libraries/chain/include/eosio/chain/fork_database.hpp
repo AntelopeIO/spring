@@ -80,9 +80,11 @@ namespace eosio::chain {
 
       bool is_valid() const; // sanity checks on this fork_db
 
-      bool has_root() const;
+      bool   has_root() const;
       bsp_t  root() const; // undefined if !has_root()
       bsp_t  pending_head(include_root_t include_root = include_root_t::no) const;
+      block_id_type pending_savanna_lib_id() const;
+      bool set_pending_savanna_lib_id( const block_id_type& id );
 
       /**
        *  Returns the sequence of block states resulting from trimming the branch from the
@@ -169,6 +171,21 @@ namespace eosio::chain {
 
       // see fork_database_t::fetch_branch(forkdb->pending_head()->id())
       block_branch_t fetch_branch_from_head() const;
+
+      block_id_type pending_lib_id() const {
+         if (in_use.load() == in_use_t::legacy) {
+            auto head = fork_db_l.pending_head();
+            if (!head)
+               return {};
+            block_num_type lib_num = head->irreversible_blocknum();
+            auto lib = fork_db_l.search_on_branch(head->id(), lib_num, include_root_t::no);
+            if (!lib)
+               return {};
+            return lib->id();
+         } else {
+            return fork_db_s.pending_savanna_lib_id();
+         }
+      }
 
       template <class R, class F>
       R apply(const F& f) const {
