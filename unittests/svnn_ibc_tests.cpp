@@ -18,45 +18,39 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-std::string binary_to_hex(const std::string& bin) {
-   size_t pad_bin_length = (4 - (bin.length() % 4)) % 4;
 
-    std::string padded_bin = std::string(pad_bin_length, '0') + bin;
-    std::stringstream hex_stream;
+std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+   static const char* hexchar = "0123456789abcdef";
 
-    for (size_t i = 0; i < padded_bin.length(); i += 4) {
-        std::string segment = padded_bin.substr(i, 4);
-        int value = std::stoi(segment, nullptr, 2);
-        hex_stream << std::hex << value;
-    }
+   boost::dynamic_bitset<unsigned char> bs(bitset);
+   bs.resize((bs.size() + 7) & ~0x7);
+   assert(bs.size() % 8 == 0);
 
-    size_t pad_out_length = (2 - (hex_stream.str().length() % 2)) % 2;
-
-    std::string padded_hex_stream = std::string(pad_out_length, '0') + hex_stream.str();
-    std::string reversed_hex = "";
-
-    for (size_t i = 0; i < padded_hex_stream.length(); i += 2) {
-      std::string byte = padded_hex_stream.substr(i, 2);
-      reversed_hex = byte + reversed_hex;
-    }
-
-    return reversed_hex;
-
-}
-
-std::string bitset_to_binary(const boost::dynamic_bitset<unsigned char>& bitset) {
    std::string result;
-   result.reserve(bitset.size());
-   for (std::size_t i = bitset.size(); i > 0; --i) {
-       result += bitset[i - 1] ? '1' : '0';
+   result.resize(bs.size() / 4);
+   for (size_t i = 0; i < bs.size(); i += 4) {
+      size_t x = 0;
+      for (size_t j = 0; j < 4; ++j)
+         x += bs[i+j] << j;
+      auto slot = i / 4;
+      result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
    }
    return result;
 }
 
-std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
-   std::string result = bitset_to_binary(bitset);
-   return binary_to_hex(result);
+std::string binary_to_hex(const std::string& bin) {
+   boost::dynamic_bitset<unsigned char> bitset(bin.size());
+   for (size_t i = 0; i < bin.size(); ++i) {
+       if (bin[i] == '1') {
+           bitset.set(bin.size() - 1 - i);
+       }
+   }
+   return bitset_to_input_string(bitset);
 }
+
+auto finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
+   return bitset_to_input_string(bd.qc_data.qc.value().data.strong_votes.value());
+};
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
@@ -123,7 +117,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_5_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -162,7 +156,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_5_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -196,7 +190,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_6_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_6_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -378,7 +372,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_10_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_10_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -494,7 +488,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_14_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_14_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -541,7 +535,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", bitset_to_input_string(block_15_result.qc_data.qc.value().data.strong_votes.value())) 
+                  ("finalizers", finalizers_string(block_15_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
