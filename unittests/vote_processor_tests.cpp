@@ -57,7 +57,8 @@ auto create_genesis_block_state() { // block 2
    genesis->active_finalizer_policy = std::make_shared<finalizer_policy>(new_finalizer_policy);
    genesis->block->previous = make_block_id(1);
    genesis->active_proposer_policy = std::make_shared<proposer_policy>(proposer_policy{.proposer_schedule = schedule});
-   genesis->core = finality_core::create_core_for_genesis_block(1);
+   genesis->core = finality_core::create_core_for_genesis_block(
+      block_ref{ genesis->block_id, genesis->header.timestamp, genesis->active_finalizer_policy->generation });
    genesis->block_id = genesis->block->calculate_id();
    return genesis;
 }

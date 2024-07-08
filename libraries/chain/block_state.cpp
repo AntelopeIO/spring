@@ -68,12 +68,19 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.block_id = bsp.id();
    result.header = bsp.header;
    result.activated_protocol_features = bsp.activated_protocol_features;
-   result.core = finality_core::create_core_for_genesis_block(bsp.block_num());
 
    assert(bsp.block->contains_header_extension(instant_finality_extension::extension_id())); // required by transition mechanism
    instant_finality_extension if_ext = bsp.block->extract_header_extension<instant_finality_extension>();
    assert(if_ext.new_finalizer_policy_diff); // required by transition mechanism
    result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*if_ext.new_finalizer_policy_diff)));
+
+   block_ref genesis_block_ref {
+      .block_id  = bsp.id(),
+      .timestamp = bsp.timestamp(),
+      .finalizer_policy_generation = result.active_finalizer_policy->generation
+   };
+   result.core = finality_core::create_core_for_genesis_block(genesis_block_ref);
+
    result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
    result.active_proposer_policy = std::make_shared<proposer_policy>();
    result.active_proposer_policy->active_time = bsp.timestamp();
