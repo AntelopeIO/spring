@@ -4016,8 +4016,12 @@ struct controller_impl {
       consider_voting(bsp, use_thread_pool_t::yes);
 
       auto do_accept_block = [&](auto& forkdb) {
-         if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
+         if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>) {
             forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
+         } else {
+            EOS_ASSERT( false, unlinkable_block_exception,
+                        "wrong block state type, unlinkable block ${id} previous ${p}", ("id", bsp->id())("p", bsp->previous()) );
+         }
 
          emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
       };
@@ -4045,6 +4049,9 @@ struct controller_impl {
          auto do_push = [&](auto& forkdb) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>) {
                forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
+            } else {
+               EOS_ASSERT( false, unlinkable_block_exception,
+                           "unexpected block state type, unlinkable block ${id} previous ${p}", ("id", bsp->id())("p", b->previous) );
             }
 
             if (is_trusted_producer(b->producer)) {
