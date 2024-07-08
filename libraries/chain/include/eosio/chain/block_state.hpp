@@ -111,7 +111,15 @@ public:
    block_timestamp_type   timestamp()         const { return block_header_state::timestamp(); }
    const extensions_type& header_extensions() const { return block_header_state::header.header_extensions; }
    uint32_t               irreversible_blocknum() const { return core.last_final_block_num(); } // backwards compatibility
-   uint32_t               last_final_block_num() const { return core.last_final_block_num(); }
+
+   uint32_t               last_final_block_num() const         { return core.last_final_block_num(); }
+   block_timestamp_type   last_final_block_timestamp() const   { return core.last_final_block_timestamp(); }
+
+   uint32_t               latest_qc_block_num() const          { return core.latest_qc_claim().block_num; }
+   block_timestamp_type   latest_qc_block_timestamp() const    { return core.latest_qc_block_timestamp(); }
+
+   uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
+
    std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
    void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
@@ -122,9 +130,6 @@ public:
    }
 
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
-   uint32_t               last_qc_block_num() const { return core.latest_qc_claim().block_num; }
-   uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
-
    // build next valid structure from current one with input of next
    valid_t new_valid(const block_header_state& bhs, const digest_type& action_mroot, const digest_type& strong_digest) const;
 
