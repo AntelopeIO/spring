@@ -82,8 +82,7 @@ namespace eosio::chain {
 
       bool has_root() const;
       bsp_t  root() const; // undefined if !has_root()
-      bsp_t  head() const;
-      bsp_t  pending_head() const;
+      bsp_t  pending_head(include_root_t include_root = include_root_t::no) const;
 
       /**
        *  Returns the sequence of block states resulting from trimming the branch from the
@@ -168,7 +167,7 @@ namespace eosio::chain {
 
       in_use_t version_in_use() const { return in_use.load(); }
 
-      // see fork_database_t::fetch_branch(forkdb->head()->id())
+      // see fork_database_t::fetch_branch(forkdb->pending_head()->id())
       block_branch_t fetch_branch_from_head() const;
 
       template <class R, class F>

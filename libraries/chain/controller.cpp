@@ -1052,12 +1052,16 @@ struct controller_impl {
    // --------------- access fork_db head ----------------------------------------------------------------------
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
-         [&](const auto& forkdb) { return forkdb.pending_head()->block_num(); });
+         [&](const auto& forkdb) {
+            return forkdb.pending_head(include_root_t::yes)->block_num();
+         });
    }
 
    block_id_type fork_db_head_block_id() const {
       return fork_db.apply<block_id_type>(
-         [&](const auto& forkdb) { return forkdb.pending_head()->id(); });
+         [&](const auto& forkdb) {
+            return forkdb.pending_head(include_root_t::yes)->id();
+         });
    }
 
    // --------------- access fork_db root ----------------------------------------------------------------------
@@ -1414,29 +1418,35 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      auto fork_db_head_irreversible_blocknum = [&]() {
+      auto fork_db_head_irreversible_blocknum = [&]() -> block_num_type {
          if (!irreversible_mode()) {
-            return block_handle_accessor::apply<uint32_t>(chain_head, [](const auto& head) {
+            return block_handle_accessor::apply<block_num_type>(chain_head, [](const auto& head) {
                return head->irreversible_blocknum();
             });
          }
-         return fork_db.apply<uint32_t>([&](const auto& forkdb) {
-            return forkdb.pending_head()->irreversible_blocknum();
+         // for irreversible mode, chain_head is LIB, use forkdb pending head
+         return fork_db.apply<block_num_type>([&](const auto& forkdb) {
+            auto head = forkdb.pending_head();
+            if (!head)
+               return block_num_type{0};
+            return head->irreversible_blocknum();
          });
       };
 
       const block_id_type irreversible_block_id = if_irreversible_block_id.load();
-      const uint32_t savanna_lib_num = block_header::num_from_id(irreversible_block_id);
+      const block_num_type savanna_lib_num = block_header::num_from_id(irreversible_block_id);
       const bool savanna = savanna_lib_num > 0;
-      const uint32_t new_lib_num = savanna ? savanna_lib_num : fork_db_head_irreversible_blocknum();
+      const block_num_type new_lib_num = savanna ? savanna_lib_num : fork_db_head_irreversible_blocknum();
 
       if( new_lib_num <= lib_num )
          return;
 
       bool savanna_transition_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
-         auto branch = savanna ? forkdb.fetch_branch( forkdb.pending_head()->id(), irreversible_block_id)
-                               : forkdb.fetch_branch( forkdb.pending_head()->id(), new_lib_num );
+         assert(!irreversible_mode() || forkdb.pending_head());
+         const auto& head_id = irreversible_mode() ? forkdb.pending_head()->id() : chain_head.id();
+         auto branch = savanna ? forkdb.fetch_branch( head_id, irreversible_block_id)
+                               : forkdb.fetch_branch( head_id, new_lib_num );
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
@@ -4064,7 +4074,7 @@ struct controller_impl {
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
-                  maybe_switch_forks( br, forkdb.pending_head(), s, forked_branch_cb, trx_lookup );
+                  maybe_switch_forks( br, forkdb.pending_head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
             }
@@ -4131,7 +4141,7 @@ struct controller_impl {
    void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
       auto maybe_switch = [&](auto& forkdb) {
          if (read_mode != db_read_mode::IRREVERSIBLE) {
-            auto pending_head = forkdb.pending_head();
+            auto pending_head = forkdb.pending_head(include_root_t::yes);
             if (chain_head.id() != pending_head->id()) {
                dlog("switching forks on controller->maybe_switch_forks call");
                controller::block_report br;

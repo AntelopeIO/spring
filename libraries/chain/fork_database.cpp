@@ -54,16 +54,6 @@ namespace eosio::chain {
    struct by_best_branch;
    struct by_prev;
 
-   // match comparison of by_best_branch
-   bool first_preferred( const block_state& lhs, const block_state& rhs ) {
-      return std::make_tuple(lhs.last_final_block_num(), lhs.last_qc_block_num(), lhs.timestamp()) >
-             std::make_tuple(rhs.last_final_block_num(), rhs.last_qc_block_num(), rhs.timestamp());
-   }
-   bool first_preferred( const block_state_legacy& lhs, const block_state_legacy& rhs ) {
-      return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num()) >
-             std::make_tuple(rhs.irreversible_blocknum(), rhs.block_num());
-   }
-
    template<class BSP>  // either [block_state_legacy_ptr, block_state_ptr], same with block_header_state_ptr
    struct fork_database_impl {
       using bsp_t              = BSP;
@@ -80,25 +70,22 @@ namespace eosio::chain {
       using by_best_branch_legacy_t =
             ordered_unique<tag<by_best_branch>,
                composite_key<block_state_legacy,
-                  global_fun<const block_state_legacy&,  bool,                 &block_state_legacy_accessor::is_valid>,
                   const_mem_fun<block_state_legacy,      uint32_t,             &block_state_legacy::irreversible_blocknum>,
                   const_mem_fun<block_state_legacy,      uint32_t,             &block_state_legacy::block_num>,
                   const_mem_fun<block_state_legacy,      const block_id_type&, &block_state_legacy::id>
                >,
-               composite_key_compare<std::greater<bool>, std::greater<uint32_t>, std::greater<uint32_t>, sha256_less
+               composite_key_compare<std::greater<uint32_t>, std::greater<uint32_t>, sha256_less
                >>;
 
       using by_best_branch_if_t =
             ordered_unique<tag<by_best_branch>,
                composite_key<block_state,
-                  global_fun<const block_state&, bool,                  &block_state_accessor::is_valid>,
                   const_mem_fun<block_state,     uint32_t,              &block_state::last_final_block_num>,
                   const_mem_fun<block_state,     uint32_t,              &block_state::last_qc_block_num>,
                   const_mem_fun<block_state,     block_timestamp_type,  &block_state::timestamp>,
                   const_mem_fun<block_state,     const block_id_type&,  &block_state::id>
                >,
-               composite_key_compare<std::greater<bool>, std::greater<uint32_t>, std::greater<uint32_t>,
-                                     std::greater<block_timestamp_type>, sha256_less>
+               composite_key_compare<std::greater<uint32_t>, std::greater<uint32_t>, std::greater<block_timestamp_type>, sha256_less>
                >;
 
       using by_best_branch_t = std::conditional_t<std::is_same_v<bs_t, block_state>,
@@ -116,7 +103,6 @@ namespace eosio::chain {
 
       std::mutex             mtx;
       bsp_t                  root;
-      bsp_t                  head;
       fork_multi_index_type  index;
 
       explicit fork_database_impl() = default;
@@ -133,6 +119,7 @@ namespace eosio::chain {
       void             rollback_head_to_root_impl();
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
+      bsp_t            pending_head_impl(include_root_t include_root) const;
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       branch_t         fetch_branch_impl( const block_id_type& h, const block_id_type& b ) const;
@@ -172,31 +159,6 @@ namespace eosio::chain {
          s.header_exts = s.block->validate_and_extract_header_extensions();
          add_impl( std::make_shared<bs_t>( std::move( s ) ), mark_valid_t::no, ignore_duplicate_t::no, true, validator );
       }
-      block_id_type head_id;
-      fc::raw::unpack( ds, head_id );
-
-      if( root->id() == head_id ) {
-         head = root;
-      } else {
-         head = get_block_impl( head_id );
-         if (!head)
-            std::filesystem::remove( fork_db_file );
-         EOS_ASSERT( head, fork_database_exception,
-                     "could not find head while reconstructing fork database from file; ${d} "
-                     "'${filename}' is likely corrupted and has been removed",
-                     ("d", desc)("filename", fork_db_file) );
-      }
-
-      auto candidate = index.template get<by_best_branch>().begin();
-      if( candidate == index.template get<by_best_branch>().end() || !bs_accessor_t::is_valid(**candidate) ) {
-         EOS_ASSERT( head->id() == root->id(), fork_database_exception,
-                     "head not set to root despite no better option available; ${d} '${filename}' is likely corrupted",
-                     ("d", desc)("filename", fork_db_file) );
-      } else {
-         EOS_ASSERT( !first_preferred( **candidate, *head ), fork_database_exception,
-                     "head not set to the best available option available; ${d} '${filename}' is likely corrupted",
-                     ("d", desc)("filename", fork_db_file) );
-      }
    }
 
    template<class BSP>
@@ -207,10 +169,15 @@ namespace eosio::chain {
 
    template<class BSP>
    void fork_database_impl<BSP>::close_impl(std::ofstream& out) {
-      assert(!!head && !!root); // if head or root are null, we don't save and shouldn't get here
+      assert(!!root); // if head or root are null, we don't save and shouldn't get here
 
-      ilog("Writing fork_database ${b} blocks with root ${rn}:${r} and head ${hn}:${h}",
-           ("b", head->block_num() - root->block_num())("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
+      auto head = pending_head_impl(include_root_t::no);
+      if (head) {
+         ilog("Writing fork_database ${b} blocks with root ${rn}:${r} and head ${hn}:${h}",
+              ("b", head->block_num() - root->block_num())("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
+      } else {
+         ilog("Writing empty fork_database with root ${rn}:${r}", ("rn", root->block_num())("r", root->id()));
+      }
 
       fc::raw::pack( out, *root );
 
@@ -219,40 +186,9 @@ namespace eosio::chain {
 
       const auto& indx = index.template get<by_best_branch>();
 
-      auto unvalidated_itr = indx.rbegin();
-      auto unvalidated_end = boost::make_reverse_iterator( indx.lower_bound( false ) );
-
-      auto validated_itr = unvalidated_end;
-      auto validated_end = indx.rend();
-
-      for(  bool unvalidated_remaining = (unvalidated_itr != unvalidated_end),
-                 validated_remaining   = (validated_itr != validated_end);
-
-            unvalidated_remaining || validated_remaining;
-
-            unvalidated_remaining = (unvalidated_itr != unvalidated_end),
-            validated_remaining   = (validated_itr != validated_end)
-         )
-      {
-         auto itr = (validated_remaining ? validated_itr : unvalidated_itr);
-
-         if( unvalidated_remaining && validated_remaining ) {
-            if( first_preferred( **validated_itr, **unvalidated_itr ) ) {
-               itr = unvalidated_itr;
-               ++unvalidated_itr;
-            } else {
-               ++validated_itr;
-            }
-         } else if( unvalidated_remaining ) {
-            ++unvalidated_itr;
-         } else {
-            ++validated_itr;
-         }
-
+      for (auto itr = indx.rbegin(); itr != indx.rend(); ++itr) {
          fc::raw::pack( out, *(*itr) );
       }
-
-      fc::raw::pack( out, head->id() );
 
       index.clear();
    }
@@ -268,7 +204,6 @@ namespace eosio::chain {
       index.clear();
       root = root_bsp;
       bs_accessor_t::set_valid(*root, true);
-      head = root;
    }
 
    template<class BSP>
@@ -287,7 +222,6 @@ namespace eosio::chain {
          } );
          ++itr;
       }
-      head = root;
    }
 
    template<class BSP>
@@ -366,11 +300,6 @@ namespace eosio::chain {
             } );
          }
       }
-
-      auto candidate = index.template get<by_best_branch>().begin();
-      if (bs_accessor_t::is_valid(**candidate)) {
-         head = *candidate;
-      }
    }
 
    template<class BSP>
@@ -392,7 +321,7 @@ namespace eosio::chain {
 
    template<class BSP>
    bool fork_database_impl<BSP>::is_valid() const {
-      return !!root && !!head && (root->id() == head->id() || get_block_impl(head->id()));
+      return !!root;
    }
 
    template<class BSP>
@@ -407,27 +336,24 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   BSP fork_database_t<BSP>::head() const {
+   BSP fork_database_t<BSP>::pending_head(include_root_t include_root) const {
       std::lock_guard g( my->mtx );
-      return my->head;
+      return my->pending_head_impl(include_root);
    }
 
    template<class BSP>
-   BSP fork_database_t<BSP>::pending_head() const {
-      std::lock_guard g( my->mtx );
-      const auto& indx = my->index.template get<by_best_branch>();
-
-      auto itr = indx.lower_bound( false );
-      if( itr != indx.end() && !fork_database_impl<BSP>::bs_accessor_t::is_valid(**itr) ) {
-         if( first_preferred( **itr, *my->head ) )
-            return *itr;
+   BSP fork_database_impl<BSP>::pending_head_impl(include_root_t include_root) const {
+      if (index.empty()) {
+         if (include_root == include_root_t::yes)
+            return root;
+         return {};
       }
-
-      return my->head;
+      const auto& indx = index.template get<by_best_branch>();
+      return *indx.begin();
    }
 
    template <class BSP>
-   fork_database_t<BSP>::branch_t
+   eosio::chain::fork_database_t<BSP>::branch_t
    fork_database_t<BSP>::fetch_branch(const block_id_type& h, uint32_t trim_after_block_num) const {
       std::lock_guard g(my->mtx);
       return my->fetch_branch_impl(h, trim_after_block_num);
@@ -535,6 +461,11 @@ namespace eosio::chain {
 
    template<class BSP>
    BSP fork_database_impl<BSP>::search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const {
+      auto head = pending_head_impl(include_root_t::no);
+      if (!head && include_root == include_root_t::yes && block_num == root->block_num())
+         return root;
+      if (!head)
+         return {};
       return search_on_branch_impl(head->id(), block_num, include_root);
    }
 
@@ -620,12 +551,8 @@ namespace eosio::chain {
    void fork_database_impl<BSP>::remove_impl( const block_id_type& id ) {
       deque<block_id_type> remove_queue{id};
       const auto& previdx = index.template get<by_prev>();
-      const auto& head_id = head->id();
 
       for( uint32_t i = 0; i < remove_queue.size(); ++i ) {
-         EOS_ASSERT( remove_queue[i] != head_id, fork_database_exception,
-                     "removing the block and its descendants would remove the current head block ${id}", ("id", head_id) );
-
          auto previtr = previdx.lower_bound( remove_queue[i] );
          while( previtr != previdx.end() && (*previtr)->previous() == remove_queue[i] ) {
             remove_queue.emplace_back( (*previtr)->id() );
@@ -658,11 +585,6 @@ namespace eosio::chain {
       by_id_idx.modify( itr, []( auto& i ) {
          bs_accessor_t::set_valid(*i, true);
       } );
-
-      auto candidate = index.template get<by_best_branch>().begin();
-      if( first_preferred( **candidate, *head ) ) {
-         head = *candidate;
-      }
    }
 
    template<class BSP>
@@ -844,7 +766,10 @@ namespace eosio::chain {
 
    block_branch_t fork_database::fetch_branch_from_head() const {
       return apply<block_branch_t>([&](auto& forkdb) {
-         return forkdb.fetch_block_branch(forkdb.pending_head()->id());
+         auto head = forkdb.pending_head();
+         if (head)
+            return forkdb.fetch_block_branch(head->id());
+         return block_branch_t{};
       });
    }
 
