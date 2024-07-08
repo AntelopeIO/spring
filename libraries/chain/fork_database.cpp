@@ -64,8 +64,8 @@ namespace eosio::chain {
              std::make_tuple(rhs.last_final_block_timestamp(), rhs.latest_qc_block_timestamp(), rhs.timestamp(), rhs.id());
    }
    bool first_preferred( const block_state_legacy& lhs, const block_state_legacy& rhs ) {
-      return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num(), lhs.id()) >
-             std::make_tuple(rhs.irreversible_blocknum(), rhs.block_num(), rhs.id());
+      return std::make_tuple(lhs.irreversible_blocknum(), lhs.block_num()) >
+             std::make_tuple(rhs.irreversible_blocknum(), rhs.block_num());
    }
 
    template<class BSP>  // either [block_state_legacy_ptr, block_state_ptr], same with block_header_state_ptr

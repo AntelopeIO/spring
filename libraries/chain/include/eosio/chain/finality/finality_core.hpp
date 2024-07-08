@@ -98,6 +98,7 @@ struct finality_core
    std::vector<block_ref>  refs;  // Covers ancestor blocks with block numbers greater than or equal to last_final_block_num.
                                   // Sorted in order of ascending block_num.
    block_num_type          final_on_strong_qc_block_num {0};
+   block_time_type         genesis_timestamp;  // set and used only for the genesis finality core.
 
    // Invariants:
    // 1. links.empty() == false
@@ -125,7 +126,7 @@ struct finality_core
     */
    static finality_core create_core_for_genesis_block(const block_ref& genesis_block);
 
-   bool is_genesis_core() const { return links.size() == 1; }
+   bool is_genesis_core() const { return refs.empty(); }
 
    /**
     *  @pre this->links.empty() == false
