@@ -5,12 +5,21 @@
 
 using namespace eosio::chain;
 
+// ---------------------------------------------------------------------------------------
+inline block_id_type calc_id(block_id_type id, uint32_t block_number) {
+   id._hash[0] &= 0xffffffff00000000;
+   id._hash[0] += fc::endian_reverse_u32(block_number);
+   return id;
+}
+
+// ---------------------------------------------------------------------------------------
 struct test_core {
    finality_core   core;
    block_time_type timestamp;
 
    test_core() {
-      core = finality_core::create_core_for_genesis_block(0);
+      block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}, 1};
+      core = finality_core::create_core_for_genesis_block(genesis_ref);
 
       next(0, qc_claim_t{.block_num = 0, .is_strong_qc = true});
       verify_post_conditions(0, 0);
@@ -63,7 +72,8 @@ BOOST_AUTO_TEST_SUITE(finality_core_tests)
 
 // Verify post conditions of IF genesis block core
 BOOST_AUTO_TEST_CASE(create_core_for_genesis_block_test) { try {
-   finality_core core = finality_core::create_core_for_genesis_block(0);
+   block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}, 1};
+   finality_core core = finality_core::create_core_for_genesis_block(genesis_ref);
 
    BOOST_REQUIRE_EQUAL(core.current_block_num(), 0u);
    qc_claim_t qc_claim{.block_num=0, .is_strong_qc=false};
