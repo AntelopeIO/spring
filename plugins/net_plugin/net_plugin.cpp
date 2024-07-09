@@ -64,7 +64,6 @@ namespace eosio {
    using fc::time_point;
    using fc::time_point_sec;
    using eosio::chain::transaction_id_type;
-   using eosio::chain::sha256_less;
 
    class connection;
 
@@ -104,7 +103,7 @@ namespace eosio {
                member<node_transaction_state, transaction_id_type, &node_transaction_state::id>,
                member<node_transaction_state, uint32_t, &node_transaction_state::connection_id>
             >,
-            composite_key_compare< sha256_less, std::less<> >
+            composite_key_compare< std::less<transaction_id_type>, std::less<> >
          >,
          ordered_non_unique<
             tag< by_expiry >,
@@ -131,7 +130,7 @@ namespace eosio {
                      member<peer_block_state, block_id_type, &eosio::peer_block_state::id>,
                      member<peer_block_state, uint32_t, &eosio::peer_block_state::connection_id>
                >,
-               composite_key_compare< std::less<>, sha256_less, std::less<> >
+                         composite_key_compare< std::less<>, std::less<block_id_type>, std::less<> >
          >
       >
       > peer_block_state_index;
@@ -158,7 +157,7 @@ namespace eosio {
                               const_mem_fun<unlinkable_block_state, uint32_t, &eosio::unlinkable_block_state::block_num>,
                               member<unlinkable_block_state, block_id_type, &eosio::unlinkable_block_state::id>
                         >,
-                        composite_key_compare<std::less<>, sha256_less>
+                                 composite_key_compare<std::less<>, std::less<block_id_type>>
                   >,
                   ordered_non_unique<tag<by_timestamp>,
                         const_mem_fun<unlinkable_block_state, const block_timestamp_type&, &unlinkable_block_state::timestamp>
