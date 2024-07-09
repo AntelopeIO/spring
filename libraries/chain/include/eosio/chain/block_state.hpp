@@ -92,6 +92,7 @@ private:
    std::optional<digest_type> base_digest;  // For finality_data sent to SHiP, computed on demand in get_finality_data()
 
    // ------ private methods -----------------------------------------------------------
+   void                                set_valid(bool v) { validated.store(v); }
    bool                                is_valid() const { return validated.load(); }
    bool                                is_pub_keys_recovered() const { return pub_keys_recovered; }
    deque<transaction_metadata_ptr>     extract_trxs_metas();

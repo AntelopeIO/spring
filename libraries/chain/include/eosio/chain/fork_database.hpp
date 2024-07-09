@@ -10,7 +10,6 @@ namespace eosio::chain {
    struct fork_database_impl;
 
    using block_branch_t = std::vector<signed_block_ptr>;
-   enum class mark_valid_t { no, yes };
    enum class ignore_duplicate_t { no, yes };
    enum class include_root_t { no, yes };
 
@@ -60,9 +59,9 @@ namespace eosio::chain {
       void reset_root( const bsp_t& root_bhs );
 
       /**
-       *  Removes validated flag from all blocks in fork database and resets head to point to the root.
+       *  Removes validated flag from all blocks in fork database, except root
        */
-      void rollback_head_to_root();
+      void mark_all_invalid();
 
       /**
        *  Advance root block forward to some other block in the tree.
@@ -72,9 +71,8 @@ namespace eosio::chain {
       /**
        *  Add block state to fork database.
        *  Must link to existing block in fork database or the root.
-       *  @param mark_valid if true also mark next_block valid
        */
-      void add( const bsp_t& next_block, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate );
+      void add( const bsp_t& next_block, ignore_duplicate_t ignore_duplicate );
 
       void remove( const block_id_type& id );
 
@@ -127,8 +125,6 @@ namespace eosio::chain {
        *  end with a common ancestor (same prior block)
        */
       branch_pair_t fetch_branch_from(const block_id_type& first, const block_id_type& second) const;
-
-      void mark_valid( const bsp_t& h );
 
    private:
       unique_ptr<fork_database_impl<BSP>> my;

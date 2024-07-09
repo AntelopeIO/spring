@@ -62,7 +62,10 @@ namespace eosio::chain {
       friend struct completed_block;
       friend struct block_state;
 
+      // not thread safe, expected to only be called from main thread
+      void set_valid(bool v) { validated = v; }
       bool is_valid() const { return validated; }
+
       bool is_pub_keys_recovered()const { return _pub_keys_recovered; }
       
       deque<transaction_metadata_ptr> extract_trxs_metas() {

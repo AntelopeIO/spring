@@ -24,12 +24,12 @@ namespace eosio::chain {
 
    struct block_state_accessor {
       static bool is_valid(const block_state& bs) { return bs.is_valid(); }
-      static void set_valid(block_state& bs, bool v) { bs.validated.store(v); }
+      static void set_valid(block_state& bs, bool v) { bs.set_valid(v); }
    };
 
    struct block_state_legacy_accessor {
       static bool is_valid(const block_state_legacy& bs) { return bs.is_valid(); }
-      static void set_valid(block_state_legacy& bs, bool v) { bs.validated = v; }
+      static void set_valid(block_state_legacy& bs, bool v) { bs.set_valid(v); }
    };
 
    std::string log_fork_comparison(const block_state& bs) {
@@ -110,14 +110,14 @@ namespace eosio::chain {
 
       void             open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void             close_impl( std::ofstream& out );
-      void             add_impl( const bsp_t& n, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
+      void             add_impl( const bsp_t& n, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
       bool             is_valid() const;
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool             block_exists_impl( const block_id_type& id ) const;
       bool             validated_block_exists_impl( const block_id_type& id ) const;
       void             reset_root_impl( const bsp_t& root_bs );
-      void             rollback_head_to_root_impl();
+      void             mark_all_invalid_impl();
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
       bsp_t            pending_head_impl(include_root_t include_root) const;
@@ -127,7 +127,6 @@ namespace eosio::chain {
       full_branch_t    fetch_full_branch_impl(const block_id_type& h) const;
       bsp_t            search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const;
       bsp_t            search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const;
-      void             mark_valid_impl( const bsp_t& h );
       branch_pair_t    fetch_branch_from_impl( const block_id_type& first, const block_id_type& second ) const;
 
    };
@@ -159,7 +158,7 @@ namespace eosio::chain {
          fc::raw::unpack( ds, s );
          // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
          s.header_exts = s.block->validate_and_extract_header_extensions();
-         add_impl( std::make_shared<bs_t>( std::move( s ) ), mark_valid_t::no, ignore_duplicate_t::no, true, validator );
+         add_impl( std::make_shared<bs_t>( std::move( s ) ), ignore_duplicate_t::no, true, validator );
       }
    }
 
@@ -210,19 +209,17 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   void fork_database_t<BSP>::rollback_head_to_root() {
+   void fork_database_t<BSP>::mark_all_invalid() {
       std::lock_guard g( my->mtx );
-      my->rollback_head_to_root_impl();
+      my->mark_all_invalid_impl();
    }
 
    template<class BSP>
-   void fork_database_impl<BSP>::rollback_head_to_root_impl() {
+   void fork_database_impl<BSP>::mark_all_invalid_impl() {
       auto& by_id_idx = index.template get<by_block_id>();
       auto itr = by_id_idx.begin();
       while (itr != by_id_idx.end()) {
-         by_id_idx.modify( itr, []( auto& i ) {
-            bs_accessor_t::set_valid(*i, false);
-         } );
+         bs_accessor_t::set_valid(**itr, false);
          ++itr;
       }
    }
@@ -269,7 +266,7 @@ namespace eosio::chain {
    }
 
    template <class BSP>
-   void fork_database_impl<BSP>::add_impl(const bsp_t& n, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate,
+   void fork_database_impl<BSP>::add_impl(const bsp_t& n, ignore_duplicate_t ignore_duplicate,
                                           bool validate, validator_t& validator) {
       EOS_ASSERT( root, fork_database_exception, "root not yet set" );
       EOS_ASSERT( n, fork_database_exception, "attempt to add null block state" );
@@ -294,21 +291,12 @@ namespace eosio::chain {
       auto inserted = index.insert(n);
       EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
                  "duplicate block added: ${id}", ("id", n->id()));
-
-      if (mark_valid == mark_valid_t::yes) {
-         // if just inserted and was inserted already valid then no update needed
-         if (!inserted.second || !bs_accessor_t::is_valid(*n)) {
-            index.modify( inserted.first, []( auto& i ) {
-               bs_accessor_t::set_valid(*i, true);
-            } );
-         }
-      }
    }
 
    template<class BSP>
-   void fork_database_t<BSP>::add( const bsp_t& n, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate ) {
+   void fork_database_t<BSP>::add( const bsp_t& n, ignore_duplicate_t ignore_duplicate ) {
       std::lock_guard g( my->mtx );
-      my->add_impl( n, mark_valid, ignore_duplicate, false,
+      my->add_impl( n, ignore_duplicate, false,
                     []( block_timestamp_type timestamp,
                         const flat_set<digest_type>& cur_features,
                         const vector<digest_type>& new_features )
@@ -584,28 +572,6 @@ namespace eosio::chain {
       for( const auto& block_id : remove_queue ) {
          index.erase( block_id );
       }
-   }
-
-   template<class BSP>
-   void fork_database_t<BSP>::mark_valid( const bsp_t& h ) {
-      std::lock_guard g( my->mtx );
-      my->mark_valid_impl( h );
-   }
-
-   template<class BSP>
-   void fork_database_impl<BSP>::mark_valid_impl( const bsp_t& h ) {
-      if( bs_accessor_t::is_valid(*h) ) return;
-
-      auto& by_id_idx = index.template get<by_block_id>();
-
-      auto itr = by_id_idx.find( h->id() );
-      EOS_ASSERT( itr != by_id_idx.end(), fork_database_exception,
-                  "block state not in fork database; cannot mark as valid",
-                  ("id", h->id()) );
-
-      by_id_idx.modify( itr, []( auto& i ) {
-         bs_accessor_t::set_valid(*i, true);
-      } );
    }
 
    template<class BSP>

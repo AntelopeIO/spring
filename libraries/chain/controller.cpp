@@ -1339,7 +1339,9 @@ struct controller_impl {
          // Create the valid structure for producing
          new_bsp->valid = prev->new_valid(*new_bsp, *legacy->action_mroot_savanna, new_bsp->strong_digest);
       }
-      forkdb.add(new_bsp, legacy->is_valid() ? mark_valid_t::yes : mark_valid_t::no, ignore_duplicate_t::yes);
+      if (legacy->is_valid())
+         new_bsp->validated.store(true);
+      forkdb.add(new_bsp, ignore_duplicate_t::yes);
    }
 
    void transition_to_savanna() {
@@ -1670,7 +1672,7 @@ struct controller_impl {
             if( read_mode == db_read_mode::IRREVERSIBLE) {
                auto root = forkdb.root();
                if (root && chain_head.id() != root->id()) {
-                  forkdb.rollback_head_to_root();
+                  forkdb.mark_all_invalid();
                   chain_head = block_handle{forkdb.root()};
                   // rollback db to LIB
                   while( db.revision() > chain_head.block_num() ) {
@@ -1705,7 +1707,7 @@ struct controller_impl {
          auto do_startup = [&](auto& forkdb) {
             if( forkdb.pending_head() ) {
                if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.pending_head()->id() != forkdb.root()->id() ) {
-                  forkdb.rollback_head_to_root();
+                  forkdb.mark_all_invalid();
                }
                wlog( "No existing chain state. Initializing fresh blockchain state." );
             } else {
@@ -1738,7 +1740,7 @@ struct controller_impl {
                            "unexpected error: could not find new LIB in fork database" );
                ilog( "advancing fork database root to new last irreversible block within existing fork database: ${id}",
                      ("id", new_root->id()) );
-               forkdb.mark_valid( new_root );
+               new_root->set_valid(true);
                forkdb.advance_root( new_root->id() );
             }
          }
@@ -3236,13 +3238,13 @@ struct controller_impl {
             auto add_completed_block = [&](auto& forkdb) {
                assert(std::holds_alternative<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal()));
                const auto& bsp = std::get<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal());
+               bsp->set_valid(true);
                if( s == controller::block_status::incomplete ) {
-                  forkdb.add( bsp, mark_valid_t::yes, ignore_duplicate_t::no );
+                  forkdb.add( bsp, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
                   vote_processor.notify_new_block(async_aggregation);
                } else {
                   assert(s != controller::block_status::irreversible);
-                  forkdb.mark_valid( bsp );
                }
             };
             fork_db.apply<void>(add_completed_block);
@@ -3872,7 +3874,7 @@ struct controller_impl {
       }
 
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
-         forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
+         forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
       }
@@ -4015,7 +4017,7 @@ struct controller_impl {
 
       auto do_accept_block = [&](auto& forkdb) {
          if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>) {
-            forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
+            forkdb.add( bsp, ignore_duplicate_t::yes );
          } else {
             EOS_ASSERT( false, unlinkable_block_exception,
                         "wrong block state type, unlinkable block ${id} previous ${p}", ("id", bsp->id())("p", bsp->previous()) );
@@ -4046,7 +4048,7 @@ struct controller_impl {
 
          auto do_push = [&](auto& forkdb) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>) {
-               forkdb.add( bsp, mark_valid_t::no, ignore_duplicate_t::yes );
+               forkdb.add( bsp, ignore_duplicate_t::yes );
             } else {
                EOS_ASSERT( false, unlinkable_block_exception,
                            "unexpected block state type, unlinkable block ${id} previous ${p}", ("id", bsp->id())("p", b->previous) );
@@ -4095,7 +4097,7 @@ struct controller_impl {
                if (s != controller::block_status::irreversible) {
                   fork_db.apply<void>([&](auto& forkdb) {
                      if constexpr (std::is_same_v<std::decay_t<decltype(bsp)>, std::decay_t<decltype(forkdb.root())>>)
-                        forkdb.add(bsp, mark_valid_t::no, ignore_duplicate_t::yes);
+                        forkdb.add(bsp, ignore_duplicate_t::yes);
                   });
                }
 
