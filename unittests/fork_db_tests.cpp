@@ -17,7 +17,7 @@ inline block_id_type make_block_id(block_num_type block_num) {
 }
 
 // Used to access privates of block_state
-struct block_state_accessor {
+struct test_block_state_accessor {
    static auto make_genesis_block_state() {
       block_state_ptr root = std::make_shared<block_state>();
       block_id_type genesis_id = make_block_id(10);
@@ -62,21 +62,21 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
 
    // Setup fork database with blocks based on a root of block 10
    // Add a number of forks in the fork database
-   auto root = block_state_accessor::make_genesis_block_state();
-   auto   bsp11a = block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12a = block_state_accessor::make_unique_block_state(12, bsp11a);
-   auto       bsp13a = block_state_accessor::make_unique_block_state(13, bsp12a);
-   auto   bsp11b = block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12b = block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto       bsp13b = block_state_accessor::make_unique_block_state(13, bsp12b);
-   auto         bsp14b = block_state_accessor::make_unique_block_state(14, bsp13b);
-   auto     bsp12bb = block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto       bsp13bb = block_state_accessor::make_unique_block_state(13, bsp12bb);
-   auto       bsp13bbb = block_state_accessor::make_unique_block_state(13, bsp12bb);
-   auto     bsp12bbb = block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto   bsp11c = block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12c = block_state_accessor::make_unique_block_state(12, bsp11c);
-   auto       bsp13c = block_state_accessor::make_unique_block_state(13, bsp12c);
+   auto root = test_block_state_accessor::make_genesis_block_state();
+   auto   bsp11a = test_block_state_accessor::make_unique_block_state(11, root);
+   auto     bsp12a = test_block_state_accessor::make_unique_block_state(12, bsp11a);
+   auto       bsp13a = test_block_state_accessor::make_unique_block_state(13, bsp12a);
+   auto   bsp11b = test_block_state_accessor::make_unique_block_state(11, root);
+   auto     bsp12b = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   auto       bsp13b = test_block_state_accessor::make_unique_block_state(13, bsp12b);
+   auto         bsp14b = test_block_state_accessor::make_unique_block_state(14, bsp13b);
+   auto     bsp12bb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   auto       bsp13bb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
+   auto       bsp13bbb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
+   auto     bsp12bbb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   auto   bsp11c = test_block_state_accessor::make_unique_block_state(11, root);
+   auto     bsp12c = test_block_state_accessor::make_unique_block_state(12, bsp11c);
+   auto       bsp13c = test_block_state_accessor::make_unique_block_state(13, bsp12c);
 
    // keep track of all those added for easy verification
    std::vector<block_state_ptr> all { bsp11a, bsp12a, bsp13a, bsp11b, bsp12b, bsp12bb, bsp12bbb, bsp13b, bsp13bb, bsp13bbb, bsp14b, bsp11c, bsp12c, bsp13c };

@@ -22,7 +22,7 @@ using fsi_t         = finalizer_safety_information;
 // ---------------------------------------------------------------------------------------
 // Used to access privates of block_state
 namespace eosio::chain {
-   struct block_state_accessor {
+   struct test_block_state_accessor {
       static void set_valid(block_state_ptr& bsp, bool v) {
          bsp->set_valid(v);
       }
@@ -163,7 +163,7 @@ struct simulator_t {
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
-      block_state_accessor::set_valid(new_bsp, true);
+      test_block_state_accessor::set_valid(new_bsp, true);
       forkdb.add(new_bsp, ignore_duplicate_t::no);
 
       auto v = vote(new_bsp);

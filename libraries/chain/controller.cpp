@@ -1920,7 +1920,7 @@ struct controller_impl {
 
       if( check_shutdown() ) return;
 
-      // At this point chain_head != nullptr && fork_db.pending_head() != nullptr && fork_db.root() != nullptr.
+      // At this point chain_head != nullptr && fork_db.head() != nullptr && fork_db.root() != nullptr.
       // Furthermore, fork_db.root()->block_num() <= lib_num.
       // Also, even though blog.head() may still be nullptr, blog.first_block_num() is guaranteed to be lib_num + 1.
 

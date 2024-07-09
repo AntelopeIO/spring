@@ -22,20 +22,9 @@ namespace eosio::chain {
     *            root is full `block_state`, not just the header.
     */
 
-   struct block_state_accessor {
-      static bool is_valid(const block_state& bs) { return bs.is_valid(); }
-      static void set_valid(block_state& bs, bool v) { bs.set_valid(v); }
-   };
-
-   struct block_state_legacy_accessor {
-      static bool is_valid(const block_state_legacy& bs) { return bs.is_valid(); }
-      static void set_valid(block_state_legacy& bs, bool v) { bs.set_valid(v); }
-   };
-
    std::string log_fork_comparison(const block_state& bs) {
       std::string r;
-      r += "[ valid: " + std::to_string(block_state_accessor::is_valid(bs)) + ", ";
-      r += "last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
+      r += "[ last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
       r += "latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
       r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
       r += "id: " + bs.id().str();
@@ -45,8 +34,7 @@ namespace eosio::chain {
 
    std::string log_fork_comparison(const block_state_legacy& bs) {
       std::string r;
-      r += "[ valid: " + std::to_string(block_state_legacy_accessor::is_valid(bs)) + ", ";
-      r += "irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
+      r += "[ irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
       r += "block_num: " + std::to_string(bs.block_num()) + ", ";
       r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
       r += "id: " + bs.id().str();
@@ -62,7 +50,6 @@ namespace eosio::chain {
    struct fork_database_impl {
       using bsp_t              = BSP;
       using bs_t               = bsp_t::element_type;
-      using bs_accessor_t      = bs_t::fork_db_block_state_accessor_t;
       using bhsp_t             = bs_t::bhsp_t;
       using bhs_t              = bhsp_t::element_type;
 
@@ -203,8 +190,9 @@ namespace eosio::chain {
    template<class BSP>
    void fork_database_impl<BSP>::reset_root_impl( const bsp_t& root_bsp ) {
       index.clear();
+      assert(root_bsp);
       root = root_bsp;
-      bs_accessor_t::set_valid(*root, true);
+      root->set_valid(true);
    }
 
    template<class BSP>
@@ -218,7 +206,7 @@ namespace eosio::chain {
       auto& by_id_idx = index.template get<by_block_id>();
       auto itr = by_id_idx.begin();
       while (itr != by_id_idx.end()) {
-         bs_accessor_t::set_valid(**itr, false);
+         (*itr)->set_valid(false);
          ++itr;
       }
    }
@@ -236,7 +224,7 @@ namespace eosio::chain {
       auto new_root = get_block_impl( id );
       EOS_ASSERT( new_root, fork_database_exception,
                   "cannot advance root to a block that does not exist in the fork database" );
-      EOS_ASSERT( bs_accessor_t::is_valid(*new_root), fork_database_exception,
+      EOS_ASSERT( new_root->is_valid(), fork_database_exception,
                   "cannot advance root to a block that has not yet been validated" );
 
 
@@ -612,7 +600,7 @@ namespace eosio::chain {
    template<class BSP>
    bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id) const {
       auto itr = index.find( id );
-      return itr != index.end() && bs_accessor_t::is_valid(*(*itr));
+      return itr != index.end() && (*itr)->is_valid();
    }
 
 // ------------------ fork_database -------------------------
