@@ -19,8 +19,9 @@ block_num_type block_ref::block_num() const {
  *  @post returned core has final_on_strong_qc_block_num == block_num
  *  @post returned core has last_final_block_num() == block_num
  */
-finality_core finality_core::create_core_for_genesis_block(block_num_type block_num)
+finality_core finality_core::create_core_for_genesis_block(const block_ref& genesis_block)
 {
+   block_num_type block_num = block_header::num_from_id(genesis_block.block_id);
    return finality_core {
       .links                        = {
          qc_link{
@@ -31,6 +32,7 @@ finality_core finality_core::create_core_for_genesis_block(block_num_type block_
       },
       .refs                         = {},
       .final_on_strong_qc_block_num = block_num,
+      .genesis_timestamp = genesis_block.timestamp
    };
 
    // Invariants 1 to 7 can be easily verified to be satisfied for the returned core.
@@ -64,11 +66,11 @@ block_num_type finality_core::last_final_block_num() const
 /**
  *  @pre this->links.empty() == false
  *  @post none
- *  @returns last final block timestamp in respect to the core
+ *  @returns last final block timestamp with respect to the core
  */
 block_time_type finality_core::last_final_block_timestamp() const
 {
-   return get_block_reference(last_final_block_num()).timestamp;
+   return is_genesis_core() ? genesis_timestamp : get_block_reference(last_final_block_num()).timestamp;
 }
 
 
@@ -92,7 +94,7 @@ qc_claim_t finality_core::latest_qc_claim() const
 block_time_type finality_core::latest_qc_block_timestamp() const {
    assert(!links.empty()); // Satisfied by invariant 1.
 
-   return get_block_reference(links.back().target_block_num).timestamp;
+   return is_genesis_core() ? genesis_timestamp : get_block_reference(links.back().target_block_num).timestamp;
 }
 
 /**

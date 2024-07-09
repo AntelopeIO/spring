@@ -102,7 +102,7 @@ ARG SPRING_BUILD_JOBS
 COPY / /__w/spring/spring
 RUN cmake -S /__w/spring/spring -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -GNinja && \
     cmake --build build -t package -- ${SPRING_BUILD_JOBS:+-j$SPRING_BUILD_JOBS} && \
-    /__w/spring/spring/tools/tweak-deb.sh build/spring_*.deb
+    /__w/spring/spring/tools/tweak-deb.sh build/antelope-spring_*.deb
 
 FROM scratch AS exporter
 COPY --from=build /build/*.deb /build/*.tar.* /
