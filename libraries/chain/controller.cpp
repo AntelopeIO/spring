@@ -1351,11 +1351,7 @@ struct controller_impl {
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
          legacy_root = forkdb.root();
-         if (irreversible_mode()) {
-            legacy_branch = forkdb.fetch_branch(forkdb.pending_head()->id());
-         } else {
-            legacy_branch = forkdb.fetch_branch(chain_head.id());
-         }
+         legacy_branch = forkdb.fetch_branch(forkdb.pending_head()->id());
       });
 
       assert(!!legacy_root);
@@ -1368,6 +1364,8 @@ struct controller_impl {
          assert(prev);
          for (auto bitr = legacy_branch.rbegin(); bitr != legacy_branch.rend(); ++bitr) {
             assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+            if (!irreversible_mode() && !(*bitr)->is_valid())
+               break;
             const bool skip_validate_signee = true; // validated already
             auto new_bsp = block_state::create_transition_block(
                   *prev,
