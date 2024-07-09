@@ -172,9 +172,15 @@ namespace eosio::chain {
       // see fork_database_t::fetch_branch(forkdb->pending_head()->id())
       block_branch_t fetch_branch_from_head() const;
 
-      block_id_type pending_lib_id() const {
+      block_id_type pending_lib_id(const block_id_type& head_id) const {
          if (in_use.load() == in_use_t::legacy) {
-            auto head = fork_db_l.pending_head();
+            block_state_legacy_ptr head;
+            if (head_id.empty()) {
+               head = fork_db_l.pending_head();
+            } else {
+               // maintain legacy only advancing LIB via validated blocks
+               head = fork_db_l.get_block(head_id);
+            }
             if (!head)
                return {};
             block_num_type lib_num = head->irreversible_blocknum();
