@@ -24,7 +24,7 @@ public:
    explicit block_handle(block_state_legacy_ptr bsp) : _bsp(std::move(bsp)) {}
    explicit block_handle(block_state_ptr bsp) : _bsp(std::move(bsp)) {}
 
-   bool is_valid() const { return _bsp.index() != std::variant_npos && std::visit([](const auto& bsp) { return !!bsp; }, _bsp); }
+   bool is_valid() const { return !_bsp.valueless_by_exception() && std::visit([](const auto& bsp) { return !!bsp; }, _bsp); }
 
    uint32_t                block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
    block_timestamp_type    block_time() const { return std::visit([](const auto& bsp) { return bsp->timestamp(); }, _bsp); };
