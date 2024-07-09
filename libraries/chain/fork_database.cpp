@@ -103,7 +103,6 @@ namespace eosio::chain {
       bool             block_exists_impl( const block_id_type& id ) const;
       bool             validated_block_exists_impl( const block_id_type& id ) const;
       void             reset_root_impl( const bsp_t& root_bs );
-      void             mark_all_invalid_impl();
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
       bsp_t            head_impl(include_root_t include_root) const;
@@ -193,22 +192,6 @@ namespace eosio::chain {
       assert(root_bsp);
       root = root_bsp;
       root->set_valid(true);
-   }
-
-   template<class BSP>
-   void fork_database_t<BSP>::mark_all_invalid() {
-      std::lock_guard g( my->mtx );
-      my->mark_all_invalid_impl();
-   }
-
-   template<class BSP>
-   void fork_database_impl<BSP>::mark_all_invalid_impl() {
-      auto& by_id_idx = index.template get<by_block_id>();
-      auto itr = by_id_idx.begin();
-      while (itr != by_id_idx.end()) {
-         (*itr)->set_valid(false);
-         ++itr;
-      }
    }
 
    template<class BSP>

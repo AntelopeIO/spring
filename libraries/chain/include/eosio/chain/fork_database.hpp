@@ -59,11 +59,6 @@ namespace eosio::chain {
       void reset_root( const bsp_t& root_bhs );
 
       /**
-       *  Removes validated flag from all blocks in fork database, except root
-       */
-      void mark_all_invalid();
-
-      /**
        *  Advance root block forward to some other block in the tree.
        */
       void advance_root( const block_id_type& id );

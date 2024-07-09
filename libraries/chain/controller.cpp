@@ -1672,7 +1672,6 @@ struct controller_impl {
             if( read_mode == db_read_mode::IRREVERSIBLE) {
                auto root = forkdb.root();
                if (root && chain_head.id() != root->id()) {
-                  forkdb.mark_all_invalid();
                   chain_head = block_handle{forkdb.root()};
                   // rollback db to LIB
                   while( db.revision() > chain_head.block_num() ) {
@@ -1706,9 +1705,6 @@ struct controller_impl {
          switch_from_legacy_if_needed();
          auto do_startup = [&](auto& forkdb) {
             if( forkdb.head() ) {
-               if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.head()->id() != forkdb.root()->id() ) {
-                  forkdb.mark_all_invalid();
-               }
                wlog( "No existing chain state. Initializing fresh blockchain state." );
             } else {
                wlog( "No existing chain state or fork database. Initializing fresh blockchain state and resetting fork database.");
