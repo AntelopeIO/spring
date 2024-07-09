@@ -1340,7 +1340,7 @@ struct controller_impl {
          new_bsp->valid = prev->new_valid(*new_bsp, *legacy->action_mroot_savanna, new_bsp->strong_digest);
       }
       if (legacy->is_valid())
-         new_bsp->validated.store(true);
+         new_bsp->set_valid(true);
       forkdb.add(new_bsp, ignore_duplicate_t::yes);
    }
 
@@ -3238,13 +3238,16 @@ struct controller_impl {
             auto add_completed_block = [&](auto& forkdb) {
                assert(std::holds_alternative<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal()));
                const auto& bsp = std::get<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal());
-               bsp->set_valid(true);
                if( s == controller::block_status::incomplete ) {
+                  bsp->set_valid(true);
                   forkdb.add( bsp, ignore_duplicate_t::no );
                   emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
                   vote_processor.notify_new_block(async_aggregation);
                } else {
                   assert(s != controller::block_status::irreversible);
+                  auto existing = forkdb.get_block(bsp->id());
+                  assert(existing);
+                  existing->set_valid(true);
                }
             };
             fork_db.apply<void>(add_completed_block);
