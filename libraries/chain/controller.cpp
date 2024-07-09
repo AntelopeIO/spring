@@ -1052,14 +1052,14 @@ struct controller_impl {
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
-            return forkdb.pending_head(include_root_t::yes)->block_num();
+            return forkdb.head(include_root_t::yes)->block_num();
          });
    }
 
    block_id_type fork_db_head_block_id() const {
       return fork_db.apply<block_id_type>(
          [&](const auto& forkdb) {
-            return forkdb.pending_head(include_root_t::yes)->id();
+            return forkdb.head(include_root_t::yes)->id();
          });
    }
 
@@ -1353,7 +1353,7 @@ struct controller_impl {
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
          legacy_root = forkdb.root();
-         legacy_branch = forkdb.fetch_branch(forkdb.pending_head()->id());
+         legacy_branch = forkdb.fetch_branch(forkdb.head()->id());
       });
 
       assert(!!legacy_root);
@@ -1425,8 +1425,8 @@ struct controller_impl {
 
       bool savanna_transition_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
-         assert(!irreversible_mode() || forkdb.pending_head());
-         const auto& head_id = irreversible_mode() ? forkdb.pending_head()->id() : chain_head.id();
+         assert(!irreversible_mode() || forkdb.head());
+         const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
          auto branch = forkdb.fetch_branch( head_id, new_lib_id);
          try {
             auto should_process = [&](auto& bsp) {
@@ -1705,8 +1705,8 @@ struct controller_impl {
       if (startup == startup_t::genesis) {
          switch_from_legacy_if_needed();
          auto do_startup = [&](auto& forkdb) {
-            if( forkdb.pending_head() ) {
-               if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.pending_head()->id() != forkdb.root()->id() ) {
+            if( forkdb.head() ) {
+               if( read_mode == db_read_mode::IRREVERSIBLE && forkdb.head()->id() != forkdb.root()->id() ) {
                   forkdb.mark_all_invalid();
                }
                wlog( "No existing chain state. Initializing fresh blockchain state." );
@@ -1726,7 +1726,7 @@ struct controller_impl {
       auto replay_fork_db = [&](auto& forkdb) {
          using BSP = std::decay_t<decltype(forkdb.root())>;
 
-         auto pending_head = forkdb.pending_head();
+         auto pending_head = forkdb.head();
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
             ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
                  ("hn", pending_head->block_num())("h", pending_head->id())
@@ -1748,7 +1748,7 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.pending_head()) {
+         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.head()) {
             auto head_block_num = chain_head.block_num();
             auto branch = fork_db.fetch_branch_from_head();
             int rev = 0;
@@ -1761,7 +1761,7 @@ struct controller_impl {
             ilog( "${n} reversible blocks replayed", ("n",rev) );
          }
 
-         if( !forkdb.pending_head() ) {
+         if( !forkdb.head() ) {
             fork_db_reset_root_to_chain_head();
          }
 
@@ -1926,11 +1926,11 @@ struct controller_impl {
 
       auto finish_init = [&](auto& forkdb) {
          if( read_mode != db_read_mode::IRREVERSIBLE ) {
-            auto pending_head = forkdb.pending_head();
+            auto pending_head = forkdb.head();
             if ( pending_head && pending_head->id() != chain_head.id() && chain_head.id() == forkdb.root()->id() ) {
                ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
 
-               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.pending_head() ) {
+               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
                   ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
                   controller::block_report br;
                   maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
@@ -4065,7 +4065,7 @@ struct controller_impl {
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
-                  maybe_switch_forks( br, forkdb.pending_head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
+                  maybe_switch_forks( br, forkdb.head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
             }
@@ -4132,7 +4132,7 @@ struct controller_impl {
    void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
       auto maybe_switch = [&](auto& forkdb) {
          if (read_mode != db_read_mode::IRREVERSIBLE) {
-            auto pending_head = forkdb.pending_head(include_root_t::yes);
+            auto pending_head = forkdb.head(include_root_t::yes);
             if (chain_head.id() != pending_head->id()) {
                dlog("switching forks on controller->maybe_switch_forks call");
                controller::block_report br;

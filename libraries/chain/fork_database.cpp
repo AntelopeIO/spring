@@ -119,7 +119,7 @@ namespace eosio::chain {
       void             mark_all_invalid_impl();
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
-      bsp_t            pending_head_impl(include_root_t include_root) const;
+      bsp_t            head_impl(include_root_t include_root) const;
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       branch_t         fetch_branch_impl( const block_id_type& h, const block_id_type& b ) const;
@@ -171,7 +171,7 @@ namespace eosio::chain {
    void fork_database_impl<BSP>::close_impl(std::ofstream& out) {
       assert(!!root); // if head or root are null, we don't save and shouldn't get here
 
-      auto head = pending_head_impl(include_root_t::no);
+      auto head = head_impl(include_root_t::no);
       if (head) {
          ilog("Writing fork_database ${b} blocks with root ${rn}:${r} and head ${hn}:${h}",
               ("b", head->block_num() - root->block_num())("rn", root->block_num())("r", root->id())("hn", head->block_num())("h", head->id()));
@@ -326,13 +326,13 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   BSP fork_database_t<BSP>::pending_head(include_root_t include_root) const {
+   BSP fork_database_t<BSP>::head(include_root_t include_root) const {
       std::lock_guard g( my->mtx );
-      return my->pending_head_impl(include_root);
+      return my->head_impl(include_root);
    }
 
    template<class BSP>
-   BSP fork_database_impl<BSP>::pending_head_impl(include_root_t include_root) const {
+   BSP fork_database_impl<BSP>::head_impl(include_root_t include_root) const {
       if (index.empty()) {
          if (include_root == include_root_t::yes)
             return root;
@@ -469,7 +469,7 @@ namespace eosio::chain {
 
    template<class BSP>
    BSP fork_database_impl<BSP>::search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const {
-      auto head = pending_head_impl(include_root_t::no);
+      auto head = head_impl(include_root_t::no);
       if (!head && include_root == include_root_t::yes && block_num == root->block_num())
          return root;
       if (!head)
@@ -752,7 +752,7 @@ namespace eosio::chain {
 
    block_branch_t fork_database::fetch_branch_from_head() const {
       return apply<block_branch_t>([&](auto& forkdb) {
-         auto head = forkdb.pending_head();
+         auto head = forkdb.head();
          if (head)
             return forkdb.fetch_block_branch(head->id());
          return block_branch_t{};

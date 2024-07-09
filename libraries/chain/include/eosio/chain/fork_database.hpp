@@ -80,7 +80,7 @@ namespace eosio::chain {
 
       bool   has_root() const;
       bsp_t  root() const; // undefined if !has_root()
-      bsp_t  pending_head(include_root_t include_root = include_root_t::no) const;
+      bsp_t  head(include_root_t include_root = include_root_t::no) const;
       block_id_type pending_savanna_lib_id() const;
       bool set_pending_savanna_lib_id( const block_id_type& id );
 
@@ -172,7 +172,7 @@ namespace eosio::chain {
          if (in_use.load() == in_use_t::legacy) {
             block_state_legacy_ptr head;
             if (head_id.empty()) {
-               head = fork_db_l.pending_head();
+               head = fork_db_l.head();
             } else {
                // maintain legacy only advancing LIB via validated blocks
                head = fork_db_l.get_block(head_id);
