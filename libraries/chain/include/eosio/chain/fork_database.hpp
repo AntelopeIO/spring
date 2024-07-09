@@ -165,7 +165,7 @@ namespace eosio::chain {
 
       in_use_t version_in_use() const { return in_use.load(); }
 
-      // see fork_database_t::fetch_branch(forkdb->pending_head()->id())
+      // see fork_database_t::fetch_branch(forkdb->head()->id())
       block_branch_t fetch_branch_from_head() const;
 
       block_id_type pending_lib_id(const block_id_type& head_id) const {
