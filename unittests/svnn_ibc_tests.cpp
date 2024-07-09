@@ -18,6 +18,40 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
+
+std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+   static const char* hexchar = "0123456789abcdef";
+
+   boost::dynamic_bitset<unsigned char> bs(bitset);
+   bs.resize((bs.size() + 7) & ~0x7);
+   assert(bs.size() % 8 == 0);
+
+   std::string result;
+   result.resize(bs.size() / 4);
+   for (size_t i = 0; i < bs.size(); i += 4) {
+      size_t x = 0;
+      for (size_t j = 0; j < 4; ++j)
+         x += bs[i+j] << j;
+      auto slot = i / 4;
+      result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
+   }
+   return result;
+}
+
+std::string binary_to_hex(const std::string& bin) {
+   boost::dynamic_bitset<unsigned char> bitset(bin.size());
+   for (size_t i = 0; i < bin.size(); ++i) {
+       if (bin[i] == '1') {
+           bitset.set(bin.size() - 1 - i);
+       }
+   }
+   return bitset_to_input_string(bitset);
+}
+
+auto finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
+   return bitset_to_input_string(bd.qc_data.qc.value().data.strong_votes.value());
+};
+
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
@@ -68,15 +102,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(block_5_result.qc_data.qc.has_value());
       BOOST_TEST(block_6_result.qc_data.qc.has_value());
 
-      std::stringstream sstream;
-      sstream << std::hex << (1 << 3) - 1; // we expect a quorum of finalizers to vote
-                                                                             // +1 because num_needed_for_quorum excludes node0
-      std::string raw_bitset = sstream.str();
-      if (raw_bitset.size() % 2)
-         raw_bitset.insert(0, "0");
-
       // create a few proofs we'll use to perform tests
-
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
@@ -91,7 +117,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -130,7 +156,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -164,7 +190,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_6_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -346,7 +372,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_10_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -462,7 +488,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_14_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -509,7 +535,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("qc", mvo()
                   ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", raw_bitset) 
+                  ("finalizers", finalizers_string(block_15_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -572,6 +598,59 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify action has failed, as expected
       BOOST_CHECK(last_action_failed); 
+
+   } FC_LOG_AND_RETHROW() }
+
+   BOOST_AUTO_TEST_CASE(bitset_tests) { try {
+
+      savanna_tester chain;
+
+      chain.create_account( "ibc"_n );
+      chain.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
+      chain.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
+
+      std::string bitset_1 = binary_to_hex("0");
+      std::string bitset_2 = binary_to_hex("011");
+      std::string bitset_3 = binary_to_hex("00011101010");
+      std::string bitset_4 = binary_to_hex("11011000100001");
+      std::string bitset_5 = binary_to_hex("111111111111111111111");
+      std::string bitset_6 = binary_to_hex("000000111111111111111");
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "00")
+         ("bitset_vector", bitset_1)
+         ("finalizers_count", 1)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "30") //bitset bytes are reversed, so we do the same to test
+         ("bitset_vector", bitset_2)
+         ("finalizers_count", 3)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "ae00")
+         ("bitset_vector", bitset_3)
+         ("finalizers_count", 11)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "1263")
+         ("bitset_vector", bitset_4)
+         ("finalizers_count", 14)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "fffff1")
+         ("bitset_vector", bitset_5)
+         ("finalizers_count", 21)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "fff700")
+         ("bitset_vector", bitset_6)
+         ("finalizers_count", 21)
+      );
 
    } FC_LOG_AND_RETHROW() }
 

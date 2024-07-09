@@ -236,10 +236,6 @@ namespace finality_proof {
 
          qc_data_t qc_data = extract_qc_data(block);
 
-         if (qc_data.qc.has_value()) {
-             std::cout << "qc claim  : " << qc_data.qc_claim.block_num << " , sig : " << qc_data.qc.value().data.sig.to_string() << "\n";
-         }
-
          // return relevant IBC information
          return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, afp_base_digest, finality_leaf, finality_root };
 
