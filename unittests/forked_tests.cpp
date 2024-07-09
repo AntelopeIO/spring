@@ -92,21 +92,35 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
       offset = fc::milliseconds(config::block_interval_ms);
    }
 
+   // forkdb is sorted on block id which can cause fork switch on the second to last block or last block depending
+   // on block id. Allow exception on either one so that test is not sensitive to block id hash.
+   auto push_last_two = [&](const fork_tracker& fork) {
+      if (fork.blocks.size() > 1) {
+         const auto& b = fork.blocks.at(fork.blocks.size() - 2);
+         if (!bios.control->fetch_block_by_id(b->calculate_id())) {
+            bios.push_block(b);
+         }
+      }
+      bios.push_block(fork.blocks.back());
+   };
+
    // go from most corrupted fork to least
    for (size_t i = 0; i < forks.size(); i++) {
       BOOST_TEST_CONTEXT("Testing Fork: " << i) {
          const auto& fork = forks.at(i);
          // push the fork to the original node
-         for (size_t fidx = 0; fidx < fork.blocks.size() - 1; fidx++) {
-            const auto& b = fork.blocks.at(fidx);
-            // push the block only if its not known already
-            if (!bios.control->fetch_block_by_id(b->calculate_id())) {
-               bios.push_block(b);
+         if (fork.blocks.size() > 1) {
+            for (size_t fidx = 0; fidx < fork.blocks.size() - 2; fidx++) {
+               const auto& b = fork.blocks.at(fidx);
+               // push the block only if its not known already
+               if (!bios.control->fetch_block_by_id(b->calculate_id())) {
+                  bios.push_block(b);
+               }
             }
          }
 
          // push the block which should attempt the corrupted fork and fail
-         BOOST_REQUIRE_EXCEPTION( bios.push_block(fork.blocks.back()), fc::exception,
+         BOOST_REQUIRE_EXCEPTION( push_last_two(fork), fc::exception,
                                   fc_exception_message_starts_with( "Block ID does not match" )
          );
       }
