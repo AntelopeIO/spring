@@ -83,18 +83,28 @@ namespace eosio::chain {
       );
    }
 
-   void deep_mind_handler::on_accepted_block_v2(const block_id_type& id, block_num_type lib, const signed_block_ptr& b,
-                                                const finality_data_t& fd)
+   void deep_mind_handler::on_accepted_block_v2(const block_id_type& id, block_num_type lib,
+                                                const signed_block_ptr& b,
+                                                const finality_data_t& fd,
+                                                const proposer_policy_ptr& active_proposer_policy,
+                                                const finalizer_policy_ptr& active_finalizer_policy)
    {
+      assert(b);
+      assert(active_proposer_policy);
+      assert(active_finalizer_policy);
       auto packed_blk = fc::raw::pack(*b);
       auto finality_data = fc::raw::pack(fd);
+      auto packed_proposer_policy = fc::raw::pack(*active_proposer_policy);
+      auto packed_finalizer_policy = fc::raw::pack(*active_finalizer_policy);
 
-      fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${id} ${num} ${lib} ${blk} ${fd}",
+      fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${id} ${num} ${lib} ${blk} ${fd} ${pp} ${fp}",
          ("id", id)
          ("num", b->block_num())
          ("lib", lib)
          ("blk", fc::to_hex(packed_blk))
          ("fd", fc::to_hex(finality_data))
+         ("pp", fc::to_hex(packed_proposer_policy))
+         ("fp", fc::to_hex(packed_finalizer_policy))
       );
    }
 
