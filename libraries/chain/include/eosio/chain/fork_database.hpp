@@ -10,7 +10,6 @@ namespace eosio::chain {
    struct fork_database_impl;
 
    using block_branch_t = std::vector<signed_block_ptr>;
-   enum class mark_valid_t { no, yes };
    enum class ignore_duplicate_t { no, yes };
    enum class include_root_t { no, yes };
 
@@ -60,11 +59,6 @@ namespace eosio::chain {
       void reset_root( const bsp_t& root_bhs );
 
       /**
-       *  Removes validated flag from all blocks in fork database and resets head to point to the root.
-       */
-      void rollback_head_to_root();
-
-      /**
        *  Advance root block forward to some other block in the tree.
        */
       void advance_root( const block_id_type& id );
@@ -72,18 +66,32 @@ namespace eosio::chain {
       /**
        *  Add block state to fork database.
        *  Must link to existing block in fork database or the root.
-       *  @param mark_valid if true also mark next_block valid
        */
-      void add( const bsp_t& next_block, mark_valid_t mark_valid, ignore_duplicate_t ignore_duplicate );
+      void add( const bsp_t& next_block, ignore_duplicate_t ignore_duplicate );
 
       void remove( const block_id_type& id );
 
       bool is_valid() const; // sanity checks on this fork_db
 
-      bool has_root() const;
-      bsp_t  root() const; // undefined if !has_root()
-      bsp_t  head() const;
-      bsp_t  pending_head() const;
+      bool   has_root() const;
+
+      /**
+       * Root of the fork database, not part of the index. Corresponds to head of the block log. Is an irreversible block.
+       * Undefined if !has_root()
+       */
+      bsp_t  root() const;
+
+      /**
+       * The best branch head of blocks in the fork database, can be null if include_root_t::no and forkdb is empty
+       * @param include_root yes if root should be returned if no blocks in fork database
+       */
+      bsp_t  head(include_root_t include_root = include_root_t::no) const;
+
+      /**
+       * The calculated pending savanna LIB ID that will become LIB or is currently LIB
+       */
+      block_id_type pending_savanna_lib_id() const;
+      bool set_pending_savanna_lib_id( const block_id_type& id );
 
       /**
        *  Returns the sequence of block states resulting from trimming the branch from the
@@ -127,8 +135,6 @@ namespace eosio::chain {
        */
       branch_pair_t fetch_branch_from(const block_id_type& first, const block_id_type& second) const;
 
-      void mark_valid( const bsp_t& h );
-
    private:
       unique_ptr<fork_database_impl<BSP>> my;
    };
@@ -170,6 +176,11 @@ namespace eosio::chain {
 
       // see fork_database_t::fetch_branch(forkdb->head()->id())
       block_branch_t fetch_branch_from_head() const;
+
+      /// The pending LIB.
+      /// - legacy  returns dpos_irreversible_blocknum according to head_id or pending head if head_id is empty
+      /// - savanna returns the current pending_savanna_lib_id
+      block_id_type pending_lib_id(const block_id_type& head_id) const;
 
       template <class R, class F>
       R apply(const F& f) const {

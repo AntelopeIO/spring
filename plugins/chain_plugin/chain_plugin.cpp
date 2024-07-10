@@ -1289,13 +1289,17 @@ const string read_only::KEYi64 = "i64";
 read_only::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
    const auto& rm = db.get_resource_limits_manager();
 
+   auto head_id = db.head_block_id();
+   auto lib_id = db.last_irreversible_block_id();
+   auto fhead_id = db.fork_db_head_block_id();
+
    return {
       itoh(static_cast<uint32_t>(app().version())),
       db.get_chain_id(),
-      db.head_block_num(),
-      db.last_irreversible_block_num(),
-      db.last_irreversible_block_id(),
-      db.head_block_id(),
+      block_header::num_from_id(head_id),
+      block_header::num_from_id(lib_id),
+      lib_id,
+      head_id,
       db.head_block_time(),
       db.head_block_producer(),
       rm.get_virtual_block_cpu_limit(),
@@ -1305,8 +1309,8 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       //std::bitset<64>(db.get_dynamic_global_properties().recent_slots_filled).to_string(),
       //__builtin_popcountll(db.get_dynamic_global_properties().recent_slots_filled) / 64.0,
       app().version_string(),
-      db.fork_db_head_block_num(),
-      db.fork_db_head_block_id(),
+      block_header::num_from_id(fhead_id),
+      fhead_id,
       app().full_version_string(),
       rm.get_total_cpu_weight(),
       rm.get_total_net_weight(),
