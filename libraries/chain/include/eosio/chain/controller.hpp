@@ -278,8 +278,7 @@ namespace eosio::chain {
          // returns nullptr pre-savanna, thread-safe, block_num according to branch curresponding to id
          finalizer_policy_ptr                       active_finalizer_policy(const block_id_type& id, block_num_type block_num)const;
 
-         void set_if_irreversible_block_id(const block_id_type& id);
-         uint32_t if_irreversible_block_num() const;
+         void set_savanna_lib_id(const block_id_type& id);
 
          uint32_t last_irreversible_block_num() const;
          block_id_type last_irreversible_block_id() const;

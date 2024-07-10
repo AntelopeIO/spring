@@ -20,6 +20,20 @@ using tstamp        = block_timestamp_type;
 using fsi_t         = finalizer_safety_information;
 
 // ---------------------------------------------------------------------------------------
+// Used to access privates of block_state
+namespace eosio::chain {
+   struct test_block_state_accessor {
+      static void set_valid(block_state_ptr& bsp, bool v) {
+         bsp->set_valid(v);
+      }
+
+      static bool is_valid(const block_state_ptr& bsp) {
+         return bsp->is_valid();
+      }
+   };
+}
+
+// ---------------------------------------------------------------------------------------
 struct bls_keys_t {
    bls_private_key privkey;
    bls_public_key  pubkey;
@@ -136,7 +150,7 @@ struct simulator_t {
    }
 
    vote_result propose(const proposal_t& p, std::optional<qc_claim_t> _claim = {}) {
-      bsp h = forkdb.head();
+      bsp h = forkdb.head(include_root_t::yes);
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
@@ -145,11 +159,12 @@ struct simulator_t {
    }
 
    result add(const proposal_t& p, std::optional<qc_claim_t> _claim = {}, const bsp& parent = {}) {
-      bsp h = parent ? parent : forkdb.head();
+      bsp h = parent ? parent : forkdb.head(include_root_t::yes);
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
-      forkdb.add(new_bsp, mark_valid_t::yes, ignore_duplicate_t::no);
+      test_block_state_accessor::set_valid(new_bsp, true);
+      forkdb.add(new_bsp, ignore_duplicate_t::no);
 
       auto v = vote(new_bsp);
       return { new_bsp, v };
