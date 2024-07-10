@@ -50,6 +50,27 @@ namespace eosio::chain {
       }
    };
 
+   // This is used by SHiP and Deepmind which require public keys in string format.
+   struct finalizer_policy_with_string_key {
+      uint32_t                                         generation = 0;
+      uint64_t                                         threshold = 0;
+      std::vector<finalizer_authority_with_string_key> finalizers;
+
+      finalizer_policy_with_string_key() = default;
+      finalizer_policy_with_string_key(const finalizer_policy& input)
+         : generation(input.generation)
+         , threshold(input.threshold)
+      {
+         finalizers.resize(input.finalizers.size());
+         std::transform(
+            input.finalizers.begin(),
+            input.finalizers.end(),
+            finalizers.begin(),
+            [](const finalizer_authority& fin_authority) {
+               return finalizer_authority_with_string_key(fin_authority); });
+      }
+   };
+
    using finalizer_policy_ptr = std::shared_ptr<finalizer_policy>;
    using finalizer_policy_diff_ptr = std::shared_ptr<finalizer_policy_diff>;
 
@@ -58,3 +79,4 @@ namespace eosio::chain {
 FC_REFLECT( eosio::chain::finalizer_policy, (generation)(threshold)(finalizers) )
 FC_REFLECT( eosio::chain::finalizers_diff_t, (remove_indexes)(insert_indexes) )
 FC_REFLECT( eosio::chain::finalizer_policy_diff, (generation)(threshold)(finalizers_diff) )
+FC_REFLECT( eosio::chain::finalizer_policy_with_string_key, (generation)(threshold)(finalizers) )
