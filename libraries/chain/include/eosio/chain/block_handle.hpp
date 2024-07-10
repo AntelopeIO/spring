@@ -2,6 +2,7 @@
 
 #include <eosio/chain/block_state_legacy.hpp>
 #include <eosio/chain/block_state.hpp>
+#include <fc/reflect/reflect.hpp>
 
 namespace eosio::chain {
 
@@ -11,6 +12,7 @@ struct block_handle {
 private:
    std::variant<block_state_legacy_ptr, block_state_ptr> _bsp;
 
+   friend struct fc::reflector<block_handle>;
    friend struct controller_impl;       // for `internal()` access below from controller
    friend struct block_handle_accessor; // for `internal()` access below from controller
 
@@ -22,6 +24,8 @@ public:
    explicit block_handle(block_state_legacy_ptr bsp) : _bsp(std::move(bsp)) {}
    explicit block_handle(block_state_ptr bsp) : _bsp(std::move(bsp)) {}
 
+   bool is_valid() const { return _bsp.index() != std::variant_npos && std::visit([](const auto& bsp) { return !!bsp; }, _bsp); }
+
    uint32_t                block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
    block_timestamp_type    block_time() const { return std::visit([](const auto& bsp) { return bsp->timestamp(); }, _bsp); };
    const block_id_type&    id() const { return std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->id(); }, _bsp); }
@@ -30,7 +34,10 @@ public:
    const block_header&     header() const { return std::visit<const block_header&>([](const auto& bsp) -> const block_header& { return bsp->header; }, _bsp); };
    account_name            producer() const { return std::visit([](const auto& bsp) { return bsp->producer(); }, _bsp); }
 
-
+   void write(const std::filesystem::path& state_file);
+   bool read(const std::filesystem::path& state_file);
 };
 
 } // namespace eosio::chain
+
+FC_REFLECT(eosio::chain::block_handle, (_bsp))
