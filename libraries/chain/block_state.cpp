@@ -298,6 +298,14 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
                invalid_qc_claim, "signature validation failed" );
 }
 
+qc_claim_t block_state::extract_qc_claim() const {
+   auto itr = header_exts.lower_bound(instant_finality_extension::extension_id());
+   if (itr == header_exts.end())
+      return {};
+   const auto& if_ext = std::get<instant_finality_extension>(itr->second);
+   return if_ext.qc_claim;
+}
+
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
