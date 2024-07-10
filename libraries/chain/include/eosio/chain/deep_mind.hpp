@@ -63,7 +63,7 @@ public:
                              const signed_block_ptr& b,
                              const finality_data_t& fd,
                              const proposer_policy_ptr& active_proposer_policy,
-                             const finalizer_policy_ptr& active_finalizer_policy);
+                             const finalizer_policy_with_string_key& active_finalizer_policy);
    void on_switch_forks(const block_id_type& old_head, const block_id_type& new_head);
    void on_onerror(const signed_transaction& etrx);
    void on_onblock(const signed_transaction& trx);

@@ -87,15 +87,14 @@ namespace eosio::chain {
                                                 const signed_block_ptr& b,
                                                 const finality_data_t& fd,
                                                 const proposer_policy_ptr& active_proposer_policy,
-                                                const finalizer_policy_ptr& active_finalizer_policy)
+                                                const finalizer_policy_with_string_key& active_finalizer_policy)
    {
       assert(b);
       assert(active_proposer_policy);
-      assert(active_finalizer_policy);
       auto packed_blk = fc::raw::pack(*b);
       auto finality_data = fc::raw::pack(fd);
       auto packed_proposer_policy = fc::raw::pack(*active_proposer_policy);
-      auto packed_finalizer_policy = fc::raw::pack(*active_finalizer_policy);
+      auto packed_finalizer_policy = fc::raw::pack(active_finalizer_policy);
 
       fc_dlog(_logger, "ACCEPTED_BLOCK_V2 ${id} ${num} ${lib} ${blk} ${fd} ${pp} ${fp}",
          ("id", id)
