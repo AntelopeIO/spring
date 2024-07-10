@@ -16,6 +16,8 @@ bool produce_until_transition( base_tester& t,
                                account_name next_producer,
                                uint32_t max_num_blocks_to_produce = std::numeric_limits<uint32_t>::max() );
 
+void produce_until_transition( base_tester& t);
+
 bool produce_until_blocks_from( base_tester& t,
                                 const std::set<account_name>& expected_producers,
                                 uint32_t max_num_blocks_to_produce = std::numeric_limits<uint32_t>::max() );

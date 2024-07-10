@@ -3,6 +3,8 @@
 #include <eosio/chain/abi_serializer.hpp>
 #include <eosio/chain/fork_database.hpp>
 
+#include "fork_test_utilities.hpp"
+
 using namespace eosio::chain;
 using namespace eosio::testing;
 
@@ -328,49 +330,61 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t) try
 } FC_LOG_AND_RETHROW()
 
 
-#if 0
-
 // ---------------------------- irreversible_mode ---------------------------------
-BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
+// Testing scenarios to duplicate for savanna here:
+//
+// - A node not in irreversible mode captures what the LIB is as of different blocks
+//   in the blockchain. Then the blocks are synced to a node running in irreversible
+//   mode gradually. When syncing up to some block number, the test checks that the
+//   controller head is at the block number of the corresponding LIB that was captured
+//   earlier.
+//
+// - Two nodes not in irreversible mode are used to construct two competing branches.
+//   One branch is considered the better branch compared to the other. The LIB determined
+//   from the better branch is a descendant of the LIB determined from the worse branch.
+//   Then a third node in irreversible mode gradually receives blocks from the two nodes.
+//   It first receives the worse branch and the test checks the LIB is what is expected.
+//   Then it receives the better branch and the test checks that the LIB has advanced to
+//   the new block number expected which indicates that the fork DB has recognized the new
+//   branch as the better branch. Also verify that the a block from the worse branch that
+//   was not in the better branch has been pruned out of the fork database after LIB
+//   advances past the fork block.
+// ---------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE( irreversible_mode_if, savanna_cluster::cluster_t ) try {
    auto does_account_exist = []( const tester& t, account_name n ) {
       const auto& db = t.control->db();
       return (db.find<account_object, by_name>( n ) != nullptr);
    };
 
-   legacy_tester main;
+   const vector<account_name> producers {"producer1"_n, "producer2"_n};
+   _nodes[0].create_accounts(producers);
+   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   if (prod == 0)
+      produce_until_transition(_nodes[0]);    // so pending producer is "producer2"_n
+   BOOST_REQUIRE_EQUAL( _nodes[0].control->pending_block_producer().to_string(), "producer2" );
 
-   main.create_accounts( {"producer1"_n, "producer2"_n} );
-   main.produce_block();
-   main.set_producers( {"producer1"_n, "producer2"_n} );
-   main.produce_block();
-   BOOST_REQUIRE( produce_until_transition( main, "producer1"_n, "producer2"_n, 26) );
+   _nodes[0].create_accounts( {"alice"_n} );
+   _nodes[0].produce_block();
+   auto hbn1 = _nodes[0].control->head_block_num();
+   auto lib1 = _nodes[0].control->last_irreversible_block_num();
 
-   main.create_accounts( {"alice"_n} );
-   main.produce_block();
-   auto hbn1 = main.control->head_block_num();
-   auto lib1 = main.control->last_irreversible_block_num();
+   produce_until_transition(_nodes[0]);
 
-   BOOST_REQUIRE( produce_until_transition( main, "producer2"_n, "producer1"_n, 11) );
-
-   auto hbn2 = main.control->head_block_num();
-   auto lib2 = main.control->last_irreversible_block_num();
-
-   BOOST_REQUIRE( lib2 < hbn1 );
+   auto hbn2 = _nodes[0].control->head_block_num();
+   auto lib2 = _nodes[0].control->last_irreversible_block_num();
 
    legacy_tester other(setup_policy::none);
 
-   push_blocks( main, other );
+   ::push_blocks( _nodes[0], other );
    BOOST_CHECK_EQUAL( other.control->head_block_num(), hbn2 );
 
-   BOOST_REQUIRE( produce_until_transition( main, "producer1"_n, "producer2"_n, 12) );
-   BOOST_REQUIRE( produce_until_transition( main, "producer2"_n, "producer1"_n, 12) );
+   produce_until_transition(_nodes[0]);
+   produce_until_transition(_nodes[0]);
 
-   auto hbn3 = main.control->head_block_num();
-   auto lib3 = main.control->last_irreversible_block_num();
+   auto hbn3 = _nodes[0].control->head_block_num();
+   auto lib3 = _nodes[0].control->last_irreversible_block_num();
 
-   BOOST_REQUIRE( lib3 >= hbn1 );
-
-   BOOST_CHECK_EQUAL( does_account_exist( main, "alice"_n ), true );
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "alice"_n ), true );
 
    // other forks away from main after hbn2
    BOOST_REQUIRE_EQUAL( other.control->head_block_producer().to_string(), "producer2" );
@@ -383,6 +397,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
    BOOST_REQUIRE( produce_until_transition( other, "producer2"_n, "producer1"_n, 11) ); // finish producer2's round
    BOOST_REQUIRE_EQUAL( other.control->pending_block_producer().to_string(), "producer1" );
 
+#if 0
    // Repeat two more times to ensure other has a longer chain than main
    other.produce_block( fc::milliseconds( 13 * config::block_interval_ms ) ); // skip over producer1's round
    BOOST_REQUIRE( produce_until_transition( other, "producer2"_n, "producer1"_n, 11) ); // finish producer2's round
@@ -412,7 +427,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
 
    // force push blocks from main to irreversible creating a new branch in irreversible's fork database
    for( uint32_t n = hbn2 + 1; n <= hbn3; ++n ) {
-      auto fb = main.control->fetch_block_by_number( n );
+      auto fb = _nodes[0].control->fetch_block_by_number( n );
       irreversible.push_block( fb );
    }
 
@@ -426,9 +441,9 @@ BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
       BOOST_TEST( irreversible.control->block_exists(fork_first_block_id) );
    }
 
-   main.produce_block();
-   auto hbn5 = main.control->head_block_num();
-   auto lib5 = main.control->last_irreversible_block_num();
+   _nodes[0].produce_block();
+   auto hbn5 = _nodes[0].control->head_block_num();
+   auto lib5 = _nodes[0].control->last_irreversible_block_num();
 
    BOOST_REQUIRE( lib5 > lib3 );
 
@@ -439,8 +454,11 @@ BOOST_AUTO_TEST_CASE( irreversible_mode_if ) try {
       BOOST_REQUIRE( !b );
       BOOST_TEST( !irreversible.control->block_exists(fork_first_block_id) );
    }
+#endif
 
 } FC_LOG_AND_RETHROW()
+
+#if 0
 
 // ---------------------------- push_block_returns_forked_transactions ---------------------------------
 BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions_if ) try {
