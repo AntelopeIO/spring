@@ -6,6 +6,33 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
+// ---------------------------- access some finality_core data ---------------------------------
+namespace eosio::chain {
+   struct core_info_t {
+      uint32_t             last_final_block_num;
+      uint32_t             last_qc_block_num;
+      block_timestamp_type timestamp;
+   };
+
+   struct block_handle_accessor {
+      static std::optional<core_info_t> core_info(const block_handle& h)  {
+         return std::visit(
+            overloaded{[](const block_state_legacy_ptr&) -> std::optional<core_info_t> { return {}; },
+                       [](const block_state_ptr& bsp) -> std::optional<core_info_t> {
+                          return core_info_t{bsp->last_final_block_num(), bsp->latest_qc_block_num(), bsp->timestamp()};
+                       }},
+            h.internal());
+      }
+   };
+
+   void print_core(const block_handle& h) {
+      auto core = block_handle_accessor::core_info(h);
+      printf("last_final=%d, last_qc=%d, timestamp=%d\n", core->last_final_block_num,
+             core->last_qc_block_num, core->timestamp.slot);
+   }
+
+}
+
 // ---------------------------------------------------
 // Following tests in this file are for Savanna only:
 //    - fork_with_bad_block
@@ -250,14 +277,6 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------- prune_remove_branch ---------------------------------
-void print_core(const block_handle& h) {
-   auto core = h.core_info();
-   printf("last_final=%d, last_qc=%d, timestamp=%d\n", core->last_final_block_num,
-          core->last_qc_block_num, core->timestamp.slot);
-
-}
-
-// ---------------------------- prune_remove_branch ---------------------------------
 // Verify fork choice criteria for Savanna:
 //   last_final_block_num > last_qc_block_num > timestamp
 // ----------------------------------------------------------------------------------
@@ -291,8 +310,8 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t) try
    BOOST_REQUIRE_EQUAL(_nodes[0].lib_num(), lib+1);
 
    // verify assumptions (finality more advanced on _nodes[1], but timestamp less)
-   auto core0 = node0_head.core_info();
-   auto core1 = node1_head.core_info();
+   auto core0 = block_handle_accessor::core_info(node0_head);
+   auto core1 = block_handle_accessor::core_info(node1_head);
    BOOST_REQUIRE_GT(core1->last_final_block_num, core0->last_final_block_num);
    BOOST_REQUIRE_GT(core1->last_qc_block_num, core0->last_qc_block_num);
    BOOST_REQUIRE_LT(core1->timestamp, core0->timestamp);

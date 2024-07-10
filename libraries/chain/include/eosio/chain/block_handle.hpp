@@ -12,7 +12,7 @@ private:
    std::variant<block_state_legacy_ptr, block_state_ptr> _bsp;
 
    friend struct controller_impl;       // for `internal()` access below from controller
-   friend struct block_handle_accessor; // for `internal()` access below from controller
+   friend struct block_handle_accessor; // for `internal()` access below from controller or tests
 
    // Avoid using internal block_state/block_state_legacy as those types are internal to controller.
    const auto& internal() const { return _bsp; }
@@ -30,13 +30,6 @@ public:
    const block_header&     header() const { return std::visit<const block_header&>([](const auto& bsp) -> const block_header& { return bsp->header; }, _bsp); };
    account_name            producer() const { return std::visit([](const auto& bsp) { return bsp->producer(); }, _bsp); }
 
-   std::optional<core_info_t> core_info() const {
-      return std::visit(overloaded{[](const block_state_legacy_ptr&) -> std::optional<core_info_t> { return {}; },
-                                   [](const block_state_ptr& bsp) -> std::optional<core_info_t> {
-                                      return bsp->core_info();
-                                   }},
-                        _bsp);
-   }
 };
 
 } // namespace eosio::chain
