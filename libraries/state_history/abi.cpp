@@ -589,17 +589,17 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
-            "name": "finalizer_authority", "fields": [
+            "name": "finalizer_authority_with_string_key", "fields": [
                 { "name": "description", "type": "string" },
                 { "name": "weight", "type": "uint64" },
-                { "name": "public_key", "type": "bytes" }
+                { "name": "public_key", "type": "string" }
             ]
         },
         {
-            "name": "finalizer_policy", "fields": [
+            "name": "finalizer_policy_with_string_key", "fields": [
                 { "name": "generation", "type": "uint32" },
                 { "name": "threshold", "type": "uint64" },
-                { "name": "finalizers", "type": "finalizer_authority[]" }
+                { "name": "finalizers", "type": "finalizer_authority_with_string_key[]" }
             ]
         },
         {
@@ -610,7 +610,7 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "final_on_strong_qc_block_num", "type": "uint32" },
                 { "name": "action_mroot", "type": "checksum256" },
                 { "name": "base_digest", "type": "checksum256" },
-                { "name": "pending_finalizer_policy", "type": "finalizer_policy?" }
+                { "name": "pending_finalizer_policy", "type": "finalizer_policy_with_string_key?" }
             ]
         }
     ],
