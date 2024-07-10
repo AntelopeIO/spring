@@ -1746,13 +1746,14 @@ struct controller_impl {
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.head()) {
             auto head_block_num = chain_head.block_num();
-            auto branch = fork_db.fetch_branch_from_head();
+            auto branch = forkdb.fetch_branch(forkdb.head()->id());
             int rev = 0;
             for( auto i = branch.rbegin(); i != branch.rend(); ++i ) {
                if( check_shutdown() ) break; // needed on every loop for terminate-at-block
+               if( !(*i)->is_valid() ) break;
                if( (*i)->block_num() <= head_block_num ) continue;
                ++rev;
-               replay_push_block<BSP>( *i, controller::block_status::validated );
+               replay_push_block<BSP>( (*i)->block, controller::block_status::validated );
             }
             ilog( "${n} reversible blocks replayed", ("n",rev) );
          }
