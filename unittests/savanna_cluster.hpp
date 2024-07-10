@@ -164,9 +164,8 @@ namespace savanna_cluster {
          node_t& n = _nodes[node_idx];
          n.set_producers(producers);
          account_name pending;
-         signed_block_ptr sb;
          while (1) {
-            sb = n.produce_block();
+            signed_block_ptr sb = n.produce_block();
             pending = n.control->pending_block_producer();
             if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
                break;
