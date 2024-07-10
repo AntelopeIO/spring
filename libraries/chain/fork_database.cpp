@@ -440,11 +440,9 @@ namespace eosio::chain {
 
    template<class BSP>
    BSP fork_database_impl<BSP>::search_on_head_branch_impl( uint32_t block_num, include_root_t include_root ) const {
-      auto head = head_impl(include_root_t::no);
-      if (!head && include_root == include_root_t::yes && block_num == root->block_num())
-         return root;
+      auto head = head_impl(include_root);
       if (!head)
-         return {};
+         return head;
       return search_on_branch_impl(head->id(), block_num, include_root);
    }
 
