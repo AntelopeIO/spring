@@ -68,7 +68,9 @@ struct finality_data_t {
    uint32_t     final_on_strong_qc_block_num{0};
    digest_type  action_mroot{};
    digest_type  base_digest{};
-   std::optional<finalizer_policy> pending_finalizer_policy; // finalizer policy if one is promoted to pending in the block
+   // Finalizer policy if one is promoted to pending in the block.
+   // Use string format for public key in the policy for easier uses.
+   std::optional<finalizer_policy_with_string_key> pending_finalizer_policy;
 };
 
 enum class vote_status_t { voted, not_voted, irrelevant_finalizer };

@@ -369,15 +369,15 @@ finality_data_t block_state::get_finality_data() {
    }
 
    // Check if there is a finalizer policy promoted to pending in the block
-   std::optional<finalizer_policy> pending_fin_pol;
+   std::optional<finalizer_policy_with_string_key> pending_fin_pol;
    if (is_savanna_genesis_block()) {
       // For Genesis Block, use the active finalizer policy which went through
       // proposed to pending to active in the single block.
-      pending_fin_pol = *active_finalizer_policy;
+      pending_fin_pol = finalizer_policy_with_string_key(*active_finalizer_policy);
    } else if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
       // The `first` element of `pending_finalizer_policy` pair is the block number
       // when the policy becomes pending
-      pending_fin_pol = *pending_finalizer_policy->second;
+      pending_fin_pol = finalizer_policy_with_string_key(*pending_finalizer_policy->second);
    }
 
    return {
