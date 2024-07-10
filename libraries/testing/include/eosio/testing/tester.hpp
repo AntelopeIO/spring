@@ -71,6 +71,12 @@ namespace eosio::testing {
       full
    };
 
+   enum class call_startup_t {
+      no, // tester does not call startup() during initialization. The user must call
+          // `startup()` explicitly. See unittests/blocks_log_replay_tests.cpp for example.
+      yes // tester calls startup() during initialization.
+   };
+
    std::ostream& operator<<(std::ostream& os, setup_policy p);
 
    std::vector<uint8_t> read_wasm( const char* fn );
@@ -171,7 +177,7 @@ namespace eosio::testing {
 
          void              init(const setup_policy policy = setup_policy::full, db_read_mode read_mode = db_read_mode::HEAD, std::optional<uint32_t> genesis_max_inline_action_size = std::optional<uint32_t>{});
          void              init(controller::config config, const snapshot_reader_ptr& snapshot);
-         void              init(controller::config config, const genesis_state& genesis, bool do_startup = true);
+         void              init(controller::config config, const genesis_state& genesis, call_startup_t call_startup);
          void              init(controller::config config);
          void              init(controller::config config, protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot);
          void              init(controller::config config, protocol_feature_set&& pfs, const genesis_state& genesis);
@@ -181,10 +187,10 @@ namespace eosio::testing {
          void              close();
          void              open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id, const std::function<void()>& lambda );
          void              open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot );
-         void              open( protocol_feature_set&& pfs, const genesis_state& genesis, bool do_startup = true );
+         void              open( protocol_feature_set&& pfs, const genesis_state& genesis, call_startup_t call_startup );
          void              open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id = {} );
          void              open( const snapshot_reader_ptr& snapshot );
-         void              open( const genesis_state& genesis, bool do_startup = true );
+         void              open( const genesis_state& genesis, call_startup_t call_startup );
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
          bool              is_same_chain( base_tester& other );
 
@@ -566,15 +572,15 @@ namespace eosio::testing {
          init(policy, read_mode, genesis_max_inline_action_size);
       }
 
-      // If `do_startup` is true, tester starts the chain during initialization.
+      // If `call_startup` is `yes`, tester starts the chain during initialization.
       //
-      // If `do_startup` is false, tester does NOT start the chain during initialization;
+      // If `call_startup` is `no`, tester does NOT start the chain during initialization;
       // the user must call `startup()` explicitly.
       // Before calling `startup()`, the user can do additional setups like connecting
       // to a particular signal, and customizing shutdown conditions.
       // See blocks_log_replay_tests.cpp in unit_test for an example.
-      tester(controller::config config, const genesis_state& genesis, bool do_startup = true) {
-         init(std::move(config), genesis, do_startup);
+      tester(controller::config config, const genesis_state& genesis, call_startup_t call_startup = call_startup_t::yes) {
+         init(std::move(config), genesis, call_startup);
       }
 
       tester(controller::config config) {
@@ -590,7 +596,7 @@ namespace eosio::testing {
          cfg = def_conf.first;
 
          if (use_genesis) {
-            init(cfg, def_conf.second);
+            init(cfg, def_conf.second, call_startup_t::yes);
          }
          else {
             init(cfg);
@@ -604,7 +610,7 @@ namespace eosio::testing {
          conf_edit(cfg);
 
          if (use_genesis) {
-            init(cfg, def_conf.second);
+            init(cfg, def_conf.second, call_startup_t::yes);
          }
          else {
             init(cfg);
@@ -704,7 +710,7 @@ namespace eosio::testing {
 
          validating_node = create_validating_node(vcfg, def_conf.second, true, dmlog);
 
-         init(def_conf.first, def_conf.second);
+         init(def_conf.first, def_conf.second, call_startup_t::yes);
          execute_setup_policy(p);
       }
 
@@ -728,7 +734,7 @@ namespace eosio::testing {
          validating_node = create_validating_node(vcfg, def_conf.second, use_genesis);
 
          if (use_genesis) {
-            init(def_conf.first, def_conf.second);
+            init(def_conf.first, def_conf.second, call_startup_t::yes);
          } else {
             init(def_conf.first);
          }
@@ -743,7 +749,7 @@ namespace eosio::testing {
          validating_node = create_validating_node(vcfg, def_conf.second, use_genesis);
 
          if (use_genesis) {
-            init(def_conf.first, def_conf.second);
+            init(def_conf.first, def_conf.second, call_startup_t::yes);
          }  else {
             init(def_conf.first);
          }
