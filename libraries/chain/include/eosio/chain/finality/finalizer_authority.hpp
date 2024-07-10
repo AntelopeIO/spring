@@ -21,7 +21,7 @@ namespace eosio::chain {
       std::string  public_key;
 
       finalizer_authority_with_string_key() = default;
-      finalizer_authority_with_string_key(const finalizer_authority& input)
+      explicit finalizer_authority_with_string_key(const finalizer_authority& input)
          : description(input.description)
          , weight(input.weight)
          , public_key(input.public_key.to_string()) {}

@@ -57,7 +57,7 @@ namespace eosio::chain {
       std::vector<finalizer_authority_with_string_key> finalizers;
 
       finalizer_policy_with_string_key() = default;
-      finalizer_policy_with_string_key(const finalizer_policy& input)
+      explicit finalizer_policy_with_string_key(const finalizer_policy& input)
          : generation(input.generation)
          , threshold(input.threshold)
       {
