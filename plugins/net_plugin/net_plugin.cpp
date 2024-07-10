@@ -1500,7 +1500,7 @@ namespace eosio {
    void connection::blk_send_branch( const block_id_type& msg_head_id ) {
       uint32_t head_num = my_impl->get_chain_head_num();
 
-      peer_dlog(this, "fhead_num = ${h}",("h",head_num));
+      peer_dlog(this, "head_num = ${h}",("h",head_num));
       if(head_num == 0) {
          notice_message note;
          note.known_blocks.mode = normal;
