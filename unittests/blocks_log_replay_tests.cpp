@@ -52,7 +52,7 @@ struct blog_replay_fixture {
       remove_existing_states(copied_config.state_dir);
 
       // Create a replay chain without starting it
-      eosio::testing::tester replay_chain(copied_config, *genesis, false); // false for not starting the chain
+      eosio::testing::tester replay_chain(copied_config, *genesis, call_startup_t::no);
 
       // Simulate shutdown by CTRL-C
       bool is_quiting = false;
@@ -81,7 +81,7 @@ struct blog_replay_fixture {
       controller::config copied_config_1 = replay_chain.get_config();
 
       // Resume replay
-      eosio::testing::tester replay_chain_1(copied_config_1, *genesis, false); // false for not starting the chain
+      eosio::testing::tester replay_chain_1(copied_config_1, *genesis, call_startup_t::no);
       replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
 
       replay_chain_1.control->accepted_block().connect([&](const block_signal_params& t) {
