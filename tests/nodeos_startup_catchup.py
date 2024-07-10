@@ -29,7 +29,7 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs=AppArgs()
-extraArgs = appArgs.add(flag="--catchup-count", type=int, help="How many catchup-nodes to launch", default=10)
+extraArgs = appArgs.add(flag="--catchup-count", type=int, help="How many catchup-nodes to launch", default=12)
 extraArgs = appArgs.add(flag="--txn-gen-nodes", type=int, help="How many transaction generator nodes", default=2)
 args = TestHelper.parse_args({"--dump-error-details","--keep-logs","-v","--leave-running",
                               "--activate-if","-p","--wallet-port","--unshared"}, applicationSpecificArgs=appArgs)
@@ -67,7 +67,8 @@ try:
     specificExtraNodeosArgs[pnodes+7] = f' --sync-fetch-span 1597 '
     specificExtraNodeosArgs[pnodes+8] = f' --sync-fetch-span 6765 '
     specificExtraNodeosArgs[pnodes+9] = f' --sync-fetch-span 28657 '
-    specificExtraNodeosArgs[pnodes+10] = f' --sync-fetch-span 89 '
+    specificExtraNodeosArgs[pnodes+10] = f' --sync-fetch-span 89 --read-mode irreversible '
+    specificExtraNodeosArgs[pnodes+11] = f' --sync-fetch-span 377 --read-mode irreversible '
     if cluster.launch(prodCount=prodCount, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF, onlyBios=False,
                       pnodes=pnodes, totalNodes=totalNodes, totalProducers=pnodes*prodCount, unstartedNodes=catchupCount,
                       loadSystemContract=True, maximumP2pPerHost=totalNodes+trxGeneratorCnt) is False:

@@ -92,15 +92,17 @@ private:
    std::optional<digest_type> base_digest;  // For finality_data sent to SHiP, computed on demand in get_finality_data()
 
    // ------ private methods -----------------------------------------------------------
+   void                                set_valid(bool v) { validated.store(v); }
    bool                                is_valid() const { return validated.load(); }
    bool                                is_pub_keys_recovered() const { return pub_keys_recovered; }
    deque<transaction_metadata_ptr>     extract_trxs_metas();
    void                                set_trxs_metas(deque<transaction_metadata_ptr>&& trxs_metas, bool keys_recovered);
    const deque<transaction_metadata_ptr>& trxs_metas()  const { return cached_trxs; }
 
-   friend struct block_state_accessor;
+   friend struct test_block_state_accessor;
    friend struct fc::reflector<block_state>;
    friend struct controller_impl;
+   template <typename BS> friend struct fork_database_impl;
    friend struct completed_block;
    friend struct building_block;
 public:
@@ -151,7 +153,6 @@ public:
 
    using bhs_t  = block_header_state;
    using bhsp_t = block_header_state_ptr;
-   using fork_db_block_state_accessor_t = block_state_accessor;
 
    block_state() = default;
    block_state(const block_state&) = delete;
