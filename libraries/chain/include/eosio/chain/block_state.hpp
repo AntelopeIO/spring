@@ -68,7 +68,9 @@ struct finality_data_t {
    uint32_t     final_on_strong_qc_block_num{0};
    digest_type  action_mroot{};
    digest_type  base_digest{};
-   std::optional<finalizer_policy> pending_finalizer_policy; // finalizer policy if one is promoted to pending in the block
+   // Finalizer policy if one is promoted to pending in the block.
+   // Use string format for public key in the policy for easier uses.
+   std::optional<finalizer_policy_with_string_key> pending_finalizer_policy;
 };
 
 enum class vote_status_t { voted, not_voted, irrelevant_finalizer };
@@ -125,6 +127,8 @@ public:
    std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
    void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
+   // extract the qc_claim from block header instant_finality_extension
+   qc_claim_t extract_qc_claim() const;
 
    // heuristic for determination if we are syncing or replaying for optimizations
    bool is_recent() const {

@@ -3260,23 +3260,6 @@ struct controller_impl {
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
          if( s == controller::block_status::incomplete ) {
-            fork_db.apply_s<void>([&](auto& forkdb) {
-               assert(std::holds_alternative<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal()));
-               const auto& bsp = std::get<std::decay_t<decltype(forkdb.root())>>(cb.bsp.internal());
-
-               uint16_t if_ext_id = instant_finality_extension::extension_id();
-               assert(bsp->header_exts.count(if_ext_id) > 0); // in all instant_finality block headers
-               const auto& if_ext = std::get<instant_finality_extension>(bsp->header_exts.lower_bound(if_ext_id)->second);
-               if (if_ext.qc_claim.is_strong_qc) {
-                  // claim has already been verified
-                  auto claimed = forkdb.search_on_branch(bsp->id(), if_ext.qc_claim.block_num);
-                  if (claimed) {
-                     auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
-                     set_savanna_lib_id(final_on_strong_qc_block_ref.block_id);
-                  }
-               }
-            });
-
             log_irreversible();
          }
 
@@ -3942,13 +3925,10 @@ struct controller_impl {
    // thread safe
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
-      const auto& block_exts = bsp_in->block->validate_and_extract_extensions();
-      auto qc_ext_id = quorum_certificate_extension::extension_id();
-
-      if( block_exts.count(qc_ext_id) == 0 ) {
+      if (!bsp_in->block->contains_extension(quorum_certificate_extension::extension_id()))
          return;
-      }
-      const auto& qc_ext = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
+
+      auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const auto& received_qc = qc_ext.qc.data;
 
       const auto claimed = fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
@@ -3971,15 +3951,7 @@ struct controller_impl {
       dlog("setting valid qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
       claimed->set_valid_qc(received_qc);
 
-      // advance LIB if QC is strong
       if( received_qc.is_strong() ) {
-         // We evaluate a block extension qc and advance lib if strong.
-         // This is done before evaluating the block. It is possible the block
-         // will not be valid or forked out. This is safe because the block is
-         // just acting as a carrier of this info. It doesn't matter if the block
-         // is actually valid as it simply is used as a network message for this data.
-         const auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
-         set_savanna_lib_id(final_on_strong_qc_block_ref.block_id);
          // Update finalizer safety information based on vote evidence
          my_finalizers.maybe_update_fsi(claimed, received_qc);
       }
@@ -4522,9 +4494,7 @@ struct controller_impl {
 
    void set_savanna_lib_id(const block_id_type& id) {
       fork_db.apply_s<void>([&](auto& forkdb) {
-         if (forkdb.set_pending_savanna_lib_id(id)) {
-            dlog("set irreversible block ${bn}: ${id}", ("bn", block_header::num_from_id(id))("id", id));
-         }
+         forkdb.set_pending_savanna_lib_id(id);
       });
    }
 

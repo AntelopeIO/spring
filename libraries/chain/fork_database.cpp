@@ -106,6 +106,7 @@ namespace eosio::chain {
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
       bsp_t            head_impl(include_root_t include_root) const;
+      bool             set_pending_savanna_lib_id_impl(const block_id_type& id);
       branch_t         fetch_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       block_branch_t   fetch_block_branch_impl( const block_id_type& h, uint32_t trim_after_block_num ) const;
       branch_t         fetch_branch_impl( const block_id_type& h, const block_id_type& b ) const;
@@ -241,6 +242,22 @@ namespace eosio::chain {
       EOS_ASSERT( root, fork_database_exception, "root not yet set" );
       EOS_ASSERT( n, fork_database_exception, "attempt to add null block state" );
 
+      if constexpr (std::is_same_v<BSP, block_state_ptr>) {
+         auto qc_claim = n->extract_qc_claim();
+         if (qc_claim.is_strong_qc) {
+            // claim has already been verified, update LIB even if unable to verify block
+            // We evaluate a block extension qc and advance lib if strong.
+            // This is done before evaluating the block. It is possible the block
+            // will not be valid or forked out. This is safe because the block is
+            // just acting as a carrier of this info. It doesn't matter if the block
+            // is actually valid as it simply is used as a network message for this data.
+            if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
+               auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
+               set_pending_savanna_lib_id_impl(final_on_strong_qc_block_ref.block_id);
+            }
+         }
+      }
+
       auto prev_bh = get_block_impl( n->previous(), include_root_t::yes );
       EOS_ASSERT( prev_bh, unlinkable_block_exception,
                   "forkdb unlinkable block ${id} previous ${p}", ("id", n->id())("p", n->previous()) );
@@ -321,11 +338,17 @@ namespace eosio::chain {
 
    template<class BSP>
    bool fork_database_t<BSP>::set_pending_savanna_lib_id(const block_id_type& id) {
-      block_num_type new_lib = block_header::num_from_id(id);
       std::lock_guard g( my->mtx );
-      block_num_type old_lib = block_header::num_from_id(my->pending_savanna_lib_id);
+      return my->set_pending_savanna_lib_id_impl(id);
+   }
+
+   template<class BSP>
+   bool fork_database_impl<BSP>::set_pending_savanna_lib_id_impl(const block_id_type& id) {
+      block_num_type new_lib = block_header::num_from_id(id);
+      block_num_type old_lib = block_header::num_from_id(pending_savanna_lib_id);
       if (new_lib > old_lib) {
-         my->pending_savanna_lib_id = id;
+         dlog("set pending savanna lib ${bn}: ${id}", ("bn", block_header::num_from_id(id))("id", id));
+         pending_savanna_lib_id = id;
          return true;
       }
       return false;

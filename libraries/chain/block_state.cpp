@@ -298,6 +298,14 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
                invalid_qc_claim, "signature validation failed" );
 }
 
+qc_claim_t block_state::extract_qc_claim() const {
+   auto itr = header_exts.lower_bound(instant_finality_extension::extension_id());
+   if (itr == header_exts.end())
+      return {};
+   const auto& if_ext = std::get<instant_finality_extension>(itr->second);
+   return if_ext.qc_claim;
+}
+
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
    assert(valid);
    assert(next_bhs.core.last_final_block_num() >= core.last_final_block_num());
@@ -361,15 +369,15 @@ finality_data_t block_state::get_finality_data() {
    }
 
    // Check if there is a finalizer policy promoted to pending in the block
-   std::optional<finalizer_policy> pending_fin_pol;
+   std::optional<finalizer_policy_with_string_key> pending_fin_pol;
    if (is_savanna_genesis_block()) {
       // For Genesis Block, use the active finalizer policy which went through
       // proposed to pending to active in the single block.
-      pending_fin_pol = *active_finalizer_policy;
+      pending_fin_pol = finalizer_policy_with_string_key(*active_finalizer_policy);
    } else if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
       // The `first` element of `pending_finalizer_policy` pair is the block number
       // when the policy becomes pending
-      pending_fin_pol = *pending_finalizer_policy->second;
+      pending_fin_pol = finalizer_policy_with_string_key(*pending_finalizer_policy->second);
    }
 
    return {
