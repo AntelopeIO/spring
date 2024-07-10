@@ -1065,7 +1065,7 @@ struct controller_impl {
 
    signed_block_ptr fork_db_head_block() const {
       return fork_db.apply<signed_block_ptr>(
-         [&](const auto& forkdb) { return fork_db_head_or_pending(forkdb)->block; });
+         [&](const auto& forkdb) { return forkdb.head(include_root_t::yes)->block; });
    }
 
    // --------------- access fork_db root ----------------------------------------------------------------------
