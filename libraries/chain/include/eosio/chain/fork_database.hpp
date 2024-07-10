@@ -74,8 +74,22 @@ namespace eosio::chain {
       bool is_valid() const; // sanity checks on this fork_db
 
       bool   has_root() const;
-      bsp_t  root() const; // undefined if !has_root()
+
+      /**
+       * Root of the fork database, not part of the index. Corresponds to head of the block log. Is an irreversible block.
+       * Undefined if !has_root()
+       */
+      bsp_t  root() const;
+
+      /**
+       * The best branch head of blocks in the fork database, can be null if include_root_t::no and forkdb is empty
+       * @param include_root yes if root should be returned if no blocks in fork database
+       */
       bsp_t  head(include_root_t include_root = include_root_t::no) const;
+
+      /**
+       * The calculated pending savanna LIB ID that will become LIB or is currently LIB
+       */
       block_id_type pending_savanna_lib_id() const;
       bool set_pending_savanna_lib_id( const block_id_type& id );
 
@@ -163,26 +177,10 @@ namespace eosio::chain {
       // see fork_database_t::fetch_branch(forkdb->head()->id())
       block_branch_t fetch_branch_from_head() const;
 
-      block_id_type pending_lib_id(const block_id_type& head_id) const {
-         if (in_use.load() == in_use_t::legacy) {
-            block_state_legacy_ptr head;
-            if (head_id.empty()) {
-               head = fork_db_l.head();
-            } else {
-               // maintain legacy only advancing LIB via validated blocks
-               head = fork_db_l.get_block(head_id);
-            }
-            if (!head)
-               return {};
-            block_num_type lib_num = head->irreversible_blocknum();
-            auto lib = fork_db_l.search_on_branch(head->id(), lib_num, include_root_t::no);
-            if (!lib)
-               return {};
-            return lib->id();
-         } else {
-            return fork_db_s.pending_savanna_lib_id();
-         }
-      }
+      /// The pending LIB.
+      /// - legacy  returns dpos_irreversible_blocknum according to head_id or pending head if head_id is empty
+      /// - savanna returns the current pending_savanna_lib_id
+      block_id_type pending_lib_id(const block_id_type& head_id) const;
 
       template <class R, class F>
       R apply(const F& f) const {

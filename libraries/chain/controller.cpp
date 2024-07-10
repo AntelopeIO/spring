@@ -1417,6 +1417,7 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
+      // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
       const block_id_type new_lib_id = fork_db.pending_lib_id(irreversible_mode() ? block_id_type{} : chain_head.id());
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
 
