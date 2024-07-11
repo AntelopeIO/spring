@@ -1360,10 +1360,16 @@ struct controller_impl {
       assert(read_mode == db_read_mode::IRREVERSIBLE || !legacy_branch.empty());
       ilog("Transitioning to savanna, IF Genesis Block ${gb}, IF Critical Block ${cb}", ("gb", legacy_root->block_num())("cb", chain_head.block_num()));
       if (chain_head_trans_svnn_block) {
+         // chain_head_trans_svnn_block is set if started from a snapshot created during the transition
+         // If the snapshot is from during transition then the IF genesis block should not be created, instead
+         // chain_head_trans_svnn_block contains the block_state to build from
          if (legacy_root->id() == chain_head_trans_svnn_block->id()) {
+            // setup savanna forkdb with the block_state from the snapshot
             fork_db.switch_from_legacy(chain_head_trans_svnn_block);
          } else {
             // root has moved from chain_head_trans_svnn_block, so transition the legacy root
+            // legacy_root can be one pass the snapshot start block when running in irreversible mode as LIB is advanced
+            // before transition_to_savanna is called.
             const bool skip_validate_signee = true; // validated already
             dlog("Create irreversible transition block ${bn}", ("bn", legacy_root->block_num()));
             auto new_bsp = block_state::create_transition_block(
