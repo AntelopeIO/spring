@@ -3922,7 +3922,11 @@ struct controller_impl {
       if (!b->is_proper_svnn_block()) {
          return fork_db.apply<std::future<block_handle>>(f, unlinkable);
       }
-      return fork_db.apply_s<std::future<block_handle>>(f);
+      std::future<block_handle> ret = fork_db.apply_s<std::future<block_handle>>(f);
+      if (!ret.valid()) {
+         ret = unlinkable(0);
+      }
+      return ret;
    }
 
    // thread safe, expected to be called from thread other than the main thread
