@@ -73,10 +73,13 @@ try:
     nodeSnap=cluster.getNode(snapshotNodeId)
     nodeIrr=cluster.getNode(irrNodeId)
 
-    # Active Savanna without waiting for activatation is finished so that we can take a
+    # Active Savanna without waiting for activation is finished so that we can take a
     # snapshot during transition
     success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
+
+    # allow time for instant finality activation to be processed
+    assert cluster.biosNode.waitForHeadToAdvance(blocksToAdvance=5), "Head should advance after instant finality activate"
     
     # Take snapshots
     def takeSnapshot(node):
@@ -101,20 +104,31 @@ try:
     info = cluster.biosNode.getInfo(exitOnError=True)
     assert (info["head_block_num"] - info["last_irreversible_block_num"]) < 9, "Instant finality enabled LIB diff should be small"
 
-    def restartWithSnapshot(node):
+    def restartWithSnapshot(node, rmBlocks, addSnapshot=True):
        Print("Shut down node")
        node.kill(signal.SIGTERM)
        Print("Restart node with snapshot")
-       node.removeState()
+       Utils.rmNodeDataDir(node.nodeId, rmBlocks=rmBlocks)
        node.rmFromCmd('--p2p-peer-address')
-       isRelaunchSuccess = node.relaunch(chainArg=f"--snapshot {node.getLatestSnapshot()}")
+       if addSnapshot:
+          chainArg=f"--snapshot {node.getLatestSnapshot()}"
+       else:
+          chainArg=None
+       isRelaunchSuccess = node.relaunch(chainArg=chainArg)
        assert isRelaunchSuccess, "Failed to relaunch node with snapshot"
+       assert node.waitForLibToAdvance(), "LIB did not advance after restart from snapshot"
 
-    Print("Restart snapshot node with snapshot")
-    restartWithSnapshot(nodeSnap)
+    Print("Restart snapshot node with snapshot with blocks")
+    restartWithSnapshot(nodeSnap, rmBlocks=False)
 
-    Print("Restart Irreversible node with snapshot")
-    restartWithSnapshot(nodeIrr)
+    Print("Restart Irreversible node with snapshot with blocks")
+    restartWithSnapshot(nodeIrr, rmBlocks=False)
+
+    Print("Restart snapshot node with snapshot without blocks")
+    restartWithSnapshot(nodeSnap, rmBlocks=True, addSnapshot=False)
+
+    Print("Restart Irreversible node with snapshot without blocks")
+    restartWithSnapshot(nodeIrr, rmBlocks=True, addSnapshot=False)
 
     testSuccessful=True
 finally:
