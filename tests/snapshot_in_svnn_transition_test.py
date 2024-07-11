@@ -104,13 +104,13 @@ try:
     info = cluster.biosNode.getInfo(exitOnError=True)
     assert (info["head_block_num"] - info["last_irreversible_block_num"]) < 9, "Instant finality enabled LIB diff should be small"
 
-    def restartWithSnapshot(node, rmBlocks, addSnapshot=True):
+    def restartWithSnapshot(node, rmBlocks, updateChainArg=True):
        Print("Shut down node")
        node.kill(signal.SIGTERM)
        Print("Restart node with snapshot")
        node.removeDataDir(rmBlocks=rmBlocks)
        node.rmFromCmd('--p2p-peer-address')
-       if addSnapshot:
+       if updateChainArg: # only add to chainArg once as the node remembers previous chainArgs, avoid two --snapshot passed to node
           chainArg=f"--snapshot {node.getLatestSnapshot()}"
        else:
           chainArg=None
@@ -125,10 +125,10 @@ try:
     restartWithSnapshot(nodeIrr, rmBlocks=False)
 
     Print("Restart snapshot node with snapshot without blocks")
-    restartWithSnapshot(nodeSnap, rmBlocks=True, addSnapshot=False)
+    restartWithSnapshot(nodeSnap, rmBlocks=True, updateChainArg=False)
 
     Print("Restart Irreversible node with snapshot without blocks")
-    restartWithSnapshot(nodeIrr, rmBlocks=True, addSnapshot=False)
+    restartWithSnapshot(nodeIrr, rmBlocks=True, updateChainArg=False)
 
     testSuccessful=True
 finally:
