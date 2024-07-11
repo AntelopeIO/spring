@@ -12,6 +12,7 @@
 #include <sys/vfs.h>
 #include <linux/magic.h>
 #include <sys/sysinfo.h>
+#include <sys/resource.h>
 #endif
 
 // use mlock2() on Linux to avoid a noop intercept of mlock() when ASAN is enabled (still present in compiler-rt 18.1)
@@ -224,7 +225,22 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
 #ifndef _WIN32
       if(mode == locked) {
          if(MLOCK(_non_file_mapped_mapping, _non_file_mapped_mapping_size)) {
-            std::string what_str("Failed to mlock database \"" + _database_name + "\"");
+            struct rlimit resouce_limit;
+            std::string details;
+
+            // Query the current locked memory limit and build detailed error message
+            if (getrlimit(RLIMIT_MEMLOCK, &resouce_limit) == 0) {
+               details = "Current locked memory ";
+               details += "soft limit: " + std::to_string(resouce_limit.rlim_cur) + " bytes, ";
+               details += "hard limit: " + std::to_string(resouce_limit.rlim_max) + " bytes. ";
+            } else {
+               details = "getrlimit for RLIMIT_MEMLOCK failed: ";
+               details += std::strerror(errno);
+               details += ".";
+            }
+            details += "Run \"ulimit -l\" to increase locked memory limit.";
+
+            std::string what_str("Failed to mlock database \"" + _database_name + "\". " + details);
             BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::no_mlock), what_str));
          }
          std::cerr << "CHAINBASE: Database \"" << _database_name << "\" has been successfully locked in memory" << '\n';
