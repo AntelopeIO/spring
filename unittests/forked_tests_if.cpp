@@ -402,8 +402,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
 
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(3);
-   [[maybe_unused]] auto hbn1 = _nodes[0].control->head_block_num();
-   [[maybe_unused]] auto lib1 = _nodes[0].control->last_irreversible_block_num();
+   auto hbn1 = _nodes[0].control->head_block_num(); // common block before network partitioned
 
    // partition node3. lib will not advance on node3 anymore, but will advance on the other 3 nodes
    const std::vector<size_t> partition {3};
@@ -413,8 +412,8 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    // --------------------------------------------------------------------------------
    auto fork_first_block_id = _nodes[3].produce_block(_block_interval_us * 10)->calculate_id();
    wlog( "{w}", ("w", fork_first_block_id));
-   _nodes[3].create_accounts( {"bob"_n} );
-   _nodes[3].produce_blocks(3);
+   _nodes[3].create_accounts( {"bob"_n} );    // finality does not advance so bob's account will not be found
+   _nodes[3].produce_blocks(4);
    auto hbn3 = _nodes[3].control->head_block_num();
    auto lib3 = _nodes[3].control->last_irreversible_block_num();
 
@@ -422,7 +421,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    // --------------------------------------------------------------------------------
    _nodes[0].produce_block();
    _nodes[0].create_accounts( {"carol"_n} );
-   _nodes[0].produce_blocks(3);
+   _nodes[0].produce_blocks(4);             // 4 so the block where "carol"'s account was created is made final
    auto hbn0 = _nodes[0].control->head_block_num();
    auto lib0 = _nodes[0].control->last_irreversible_block_num();
 
@@ -445,9 +444,13 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
       BOOST_TEST( irreversible.control->block_exists(fork_first_block_id) );
    }
 
-   // push the branch where `lib` has advanced past lib1
-   // --------------------------------------------------
-   ::push_blocks( _nodes[0], irreversible, hbn0 );
+   // push the branch where `lib` has advanced past lib1 (creating a new branch in
+   // irreversible's fork database which will be preferred because lib advanced).
+   // ----------------------------------------------------------------------------
+   for( uint32_t n = hbn1 + 1; n <= hbn3; ++n ) {
+      auto fb = _nodes[0].control->fetch_block_by_number( n );
+      irreversible.push_block( fb );
+   }
 
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn0 );
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib0 );
@@ -459,7 +462,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
       // has been pruned out of the fork database after LIB advances past the fork block.
       auto b = irreversible.control->fetch_block_by_id( fork_first_block_id );
       BOOST_CHECK( !b );
-      BOOST_TEST( !irreversible.control->block_exists(fork_first_block_id) );
+      BOOST_CHECK( !irreversible.control->block_exists(fork_first_block_id) );
    }
 
 } FC_LOG_AND_RETHROW()
