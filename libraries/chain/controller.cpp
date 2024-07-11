@@ -1359,8 +1359,25 @@ struct controller_impl {
       assert(!!legacy_root);
       assert(read_mode == db_read_mode::IRREVERSIBLE || !legacy_branch.empty());
       ilog("Transitioning to savanna, IF Genesis Block ${gb}, IF Critical Block ${cb}", ("gb", legacy_root->block_num())("cb", chain_head.block_num()));
-      auto new_root = block_state::create_if_genesis_block(*legacy_root);
-      fork_db.switch_from_legacy(new_root);
+      if (chain_head_trans_svnn_block) {
+         if (legacy_root->id() == chain_head_trans_svnn_block->id()) {
+            fork_db.switch_from_legacy(chain_head_trans_svnn_block);
+         } else {
+            // root has moved from chain_head_trans_svnn_block, so transition the legacy root
+            const bool skip_validate_signee = true; // validated already
+            dlog("Create irreversible transition block ${bn}", ("bn", legacy_root->block_num()));
+            auto new_bsp = block_state::create_transition_block(
+                  *chain_head_trans_svnn_block,
+                  legacy_root->block,
+                  protocol_features.get_protocol_feature_set(),
+                  validator_t{}, skip_validate_signee,
+                  legacy_root->action_mroot_savanna);
+            fork_db.switch_from_legacy(new_bsp);
+         }
+      } else {
+         auto new_root = block_state::create_if_genesis_block(*legacy_root);
+         fork_db.switch_from_legacy(new_root);
+      }
       fork_db.apply_s<void>([&](auto& forkdb) {
          block_state_ptr prev = forkdb.root();
          assert(prev);
@@ -1369,6 +1386,7 @@ struct controller_impl {
             if (!irreversible_mode() && !(*bitr)->is_valid())
                break;
             const bool skip_validate_signee = true; // validated already
+            dlog("Create transition block ${bn}", ("bn", (*bitr)->block_num()));
             auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
