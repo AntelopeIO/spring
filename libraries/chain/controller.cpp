@@ -3276,17 +3276,23 @@ struct controller_impl {
             block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
-                              auto fd = head_finality_data(); // for transition blocks
-                              assert(fd);
-                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block, *fd);
+                              auto bsp = get_transition_savanna_block(head);
+                              assert(bsp);
+                              assert(bsp->active_finalizer_policy);
+                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                                                              bsp->get_finality_data(),
+                                                              bsp->active_proposer_policy,
+                                                              finalizer_policy_with_string_key{*bsp->active_finalizer_policy});
                            } else {
                               dm_logger->on_accepted_block(head);
                            }
                         },
                         [&](const block_state_ptr& head) {
-                           auto fd = head_finality_data();
-                           assert(fd);
-                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block, *fd);
+                           assert(head->active_finalizer_policy);
+                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                                                           head->get_finality_data(),
+                                                           head->active_proposer_policy,
+                                                           finalizer_policy_with_string_key{*head->active_finalizer_policy});
                         });
          }
 
@@ -4164,9 +4170,11 @@ struct controller_impl {
                   }
                }
             } else if (!branches.first.empty()) {
-               ilog("applying ${n} fork db blocks from ${cbn}:${cbid} to ${nbn}:${nbid}",
-                    ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
-                    ("nbid", new_head->id())("nbn", new_head->block_num()));
+               if (fc::time_point::now() - new_head->timestamp() < fc::minutes(5)) {
+                  ilog("applying ${n} fork db blocks from ${cbn}:${cbid} to ${nbn}:${nbid}",
+                       ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
+                       ("nbid", new_head->id())("nbn", new_head->block_num()));
+               }
             }
 
             for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
