@@ -108,7 +108,7 @@ try:
        Print("Shut down node")
        node.kill(signal.SIGTERM)
        Print("Restart node with snapshot")
-       Utils.rmNodeDataDir(node.nodeId, rmBlocks=rmBlocks)
+       node.removeDataDir(rmBlocks=rmBlocks)
        node.rmFromCmd('--p2p-peer-address')
        if addSnapshot:
           chainArg=f"--snapshot {node.getLatestSnapshot()}"

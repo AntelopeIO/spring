@@ -161,15 +161,6 @@ class Utils:
         return path
 
     @staticmethod
-    def rmNodeDataDir(ext, rmState=True, rmBlocks=True, rmStateHist=True):
-        if rmState:
-            shutil.rmtree(Utils.getNodeDataDir(ext, "state"))
-        if rmBlocks:
-            shutil.rmtree(Utils.getNodeDataDir(ext, "blocks"))
-        if rmStateHist:
-            shutil.rmtree(Utils.getNodeDataDir(ext, "state-history"), ignore_errors=True)
-
-    @staticmethod
     def getNodeConfigDir(ext, relativeDir=None, trailingSlash=False):
         path=os.path.join(Utils.ConfigDir, Utils.nodeExtensionToName(ext))
         if relativeDir is not None:
