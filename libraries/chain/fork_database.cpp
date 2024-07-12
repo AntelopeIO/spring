@@ -731,11 +731,14 @@ namespace eosio::chain {
       if (in_use == in_use_t::legacy) {
          fork_db_s.reset_root(root);
          if (fork_db_l.has_root()) {
+            dlog("Switching forkdb from legacy to both");
             in_use = in_use_t::both;
          } else {
+            dlog("Switching forkdb from legacy to savanna");
             in_use = in_use_t::savanna;
          }
       } else if (in_use == in_use_t::both) {
+         dlog("Switching forkdb from legacy, already both root ${rid}, forkdb root ${fid}", ("rid", root->id())("fid", fork_db_s.root()->id()));
          assert(fork_db_s.root()->id() == root->id()); // should always set the same root
       } else {
          assert(false);
