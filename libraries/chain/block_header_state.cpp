@@ -1,6 +1,6 @@
 #include <eosio/chain/block_header_state.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
-#include <eosio/chain/finality/instant_finality_extension.hpp>
+#include <eosio/chain/finality/finality_extension.hpp>
 #include <eosio/chain/finality/proposer_policy.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <limits>
@@ -174,7 +174,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
-// header extensions (either new protocol_features or instant_finality_extension) applicable to this
+// header extensions (either new protocol_features or finality_extension) applicable to this
 // next block .
 //
 // These extensions either result from the execution of the previous block (in case this node
@@ -183,7 +183,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 instant_finality_extension if_ext,
+                 finality_extension if_ext,
                  bool log) { // only log on assembled blocks, to avoid double logging
    // activated protocol features
    // ---------------------------
@@ -296,11 +296,11 @@ block_header_state block_header_state::next(block_header_state_input& input) con
    if (input.new_proposer_policy) {
       new_proposer_policy_diff = get_last_proposed_proposer_policy().create_diff(*input.new_proposer_policy);
    }
-   instant_finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
+   finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
                                            std::move(new_finalizer_policy_diff),
                                            std::move(new_proposer_policy_diff) };
 
-   uint16_t if_ext_id = instant_finality_extension::extension_id();
+   uint16_t if_ext_id = finality_extension::extension_id();
    emplace_extension(next_header_state.header.header_extensions, if_ext_id, fc::raw::pack(new_if_ext));
    next_header_state.header_exts.emplace(if_ext_id, new_if_ext);
 
@@ -351,12 +351,12 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
       validator( timestamp(), activated_protocol_features->protocol_features, new_protocol_feature_activations );
    }
 
-   // retrieve instant_finality_extension data from block header extension
+   // retrieve finality_extension data from block header extension
    // --------------------------------------------------------------------
-   EOS_ASSERT(exts.count(instant_finality_extension::extension_id()) > 0, invalid_block_header_extension,
+   EOS_ASSERT(exts.count(finality_extension::extension_id()) > 0, invalid_block_header_extension,
               "Instant Finality Extension is expected to be present in all block headers after switch to IF");
-   auto  if_entry     = exts.lower_bound(instant_finality_extension::extension_id());
-   const auto& if_ext = std::get<instant_finality_extension>(if_entry->second);
+   auto  if_entry     = exts.lower_bound(finality_extension::extension_id());
+   const auto& if_ext = std::get<finality_extension>(if_entry->second);
 
    if (h.is_proper_svnn_block()) {
       // if there is no Finality Tree Root associated with the block,

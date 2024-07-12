@@ -71,8 +71,8 @@ namespace finality_proof {
    static qc_data_t extract_qc_data(const signed_block_ptr& b) {
       assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
+      if (auto if_entry = hexts.lower_bound(finality_extension::extension_id()); if_entry != hexts.end()) {
+         auto& if_ext   = std::get<finality_extension>(if_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
@@ -88,7 +88,7 @@ namespace finality_proof {
    static bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
-      instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
+      finality_extension if_ext = block->extract_header_extension<finality_extension>();
 
       return if_ext.new_finalizer_policy_diff.has_value();
 
@@ -97,7 +97,7 @@ namespace finality_proof {
    static finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
 
       // extract new finalizer policy
-      instant_finality_extension if_ext = block->extract_header_extension<instant_finality_extension>();
+      finality_extension if_ext = block->extract_header_extension<finality_extension>();
 
       assert(if_ext.new_finalizer_policy_diff.has_value());
 

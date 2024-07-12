@@ -1,7 +1,7 @@
 #include <eosio/chain/abi_serializer.hpp>
 #include <eosio/chain/asset.hpp>
 #include <eosio/chain/exceptions.hpp>
-#include <eosio/chain/finality/instant_finality_extension.hpp>
+#include <eosio/chain/finality/finality_extension.hpp>
 #include <fc/io/raw.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <fc/io/varint.hpp>
@@ -634,11 +634,11 @@ namespace eosio { namespace chain {
       _variant_to_binary(type, var, ds, ctx);
    }
 
-   void impl::abi_to_variant::add_block_header_instant_finality_extension( mutable_variant_object& mvo, const header_extension_multimap& header_exts ) {
-      if (header_exts.count(instant_finality_extension::extension_id())) {
+   void impl::abi_to_variant::add_block_header_finality_extension( mutable_variant_object& mvo, const header_extension_multimap& header_exts ) {
+      if (header_exts.count(finality_extension::extension_id())) {
          const auto& if_extension =
-                 std::get<instant_finality_extension>(header_exts.lower_bound(instant_finality_extension::extension_id())->second);
-         mvo("instant_finality_extension", if_extension);
+                 std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
+         mvo("finality_extension", if_extension);
       }
    }
 

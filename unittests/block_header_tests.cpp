@@ -9,12 +9,12 @@ BOOST_AUTO_TEST_SUITE(block_header_tests)
 BOOST_AUTO_TEST_CASE(block_header_without_extension_test)
 {
    block_header header;
-   std::optional<block_header_extension> ext = header.extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = header.extract_header_extension(finality_extension::extension_id());
    BOOST_REQUIRE(!ext);
 }
 
-// test for empty instant_finality_extension
-BOOST_AUTO_TEST_CASE(instant_finality_extension_with_empty_values_test)
+// test for empty finality_extension
+BOOST_AUTO_TEST_CASE(finality_extension_with_empty_values_test)
 {
    block_header       header;
    constexpr uint32_t last_qc_block_num {0};
@@ -22,30 +22,30 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_with_empty_values_test)
 
    emplace_extension(
       header.header_extensions,
-      instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{last_qc_block_num, is_last_strong_qc},
+      finality_extension::extension_id(),
+      fc::raw::pack( finality_extension{qc_claim_t{last_qc_block_num, is_last_strong_qc},
                                                 std::optional<finalizer_policy_diff>{}, std::optional<proposer_policy_diff>{}} )
    );
 
-   std::optional<block_header_extension> ext = header.extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = header.extract_header_extension(finality_extension::extension_id());
    BOOST_REQUIRE( !!ext );
 
-   const auto& if_extension = std::get<instant_finality_extension>(*ext);
+   const auto& if_extension = std::get<finality_extension>(*ext);
    BOOST_REQUIRE_EQUAL( if_extension.qc_claim.block_num, last_qc_block_num );
    BOOST_REQUIRE_EQUAL( if_extension.qc_claim.is_strong_qc, is_last_strong_qc );
    BOOST_REQUIRE( !if_extension.new_finalizer_policy_diff );
    BOOST_REQUIRE( !if_extension.new_proposer_policy_diff );
 }
 
-// test for instant_finality_extension uniqueness
-BOOST_AUTO_TEST_CASE(instant_finality_extension_uniqueness_test)
+// test for finality_extension uniqueness
+BOOST_AUTO_TEST_CASE(finality_extension_uniqueness_test)
 {
    block_header header;
 
    emplace_extension(
       header.header_extensions,
-      instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{0, false}, {std::nullopt},
+      finality_extension::extension_id(),
+      fc::raw::pack( finality_extension{qc_claim_t{0, false}, {std::nullopt},
                                                 std::optional<proposer_policy_diff>{}} )
    );
 
@@ -57,15 +57,15 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_uniqueness_test)
 
    emplace_extension(
       header.header_extensions,
-      instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{100, true}, new_finalizer_policy_diff, new_proposer_policy_diff} )
+      finality_extension::extension_id(),
+      fc::raw::pack( finality_extension{qc_claim_t{100, true}, new_finalizer_policy_diff, new_proposer_policy_diff} )
    );
    
    BOOST_CHECK_THROW(header.validate_and_extract_header_extensions(), invalid_block_header_extension);
 }
 
-// test for instant_finality_extension with values
-BOOST_AUTO_TEST_CASE(instant_finality_extension_with_values_test)
+// test for finality_extension with values
+BOOST_AUTO_TEST_CASE(finality_extension_with_values_test)
 {
    block_header       header;
    constexpr uint32_t last_qc_block_num {10};
@@ -79,14 +79,14 @@ BOOST_AUTO_TEST_CASE(instant_finality_extension_with_values_test)
 
    emplace_extension(
       header.header_extensions,
-      instant_finality_extension::extension_id(),
-      fc::raw::pack( instant_finality_extension{qc_claim_t{last_qc_block_num, is_strong_qc}, new_finalizer_policy_diff, new_proposer_policy_diff} )
+      finality_extension::extension_id(),
+      fc::raw::pack( finality_extension{qc_claim_t{last_qc_block_num, is_strong_qc}, new_finalizer_policy_diff, new_proposer_policy_diff} )
    );
 
-   std::optional<block_header_extension> ext = header.extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = header.extract_header_extension(finality_extension::extension_id());
    BOOST_REQUIRE( !!ext );
 
-   const auto& if_extension = std::get<instant_finality_extension>(*ext);
+   const auto& if_extension = std::get<finality_extension>(*ext);
 
    BOOST_REQUIRE_EQUAL( if_extension.qc_claim.block_num, last_qc_block_num );
    BOOST_REQUIRE_EQUAL( if_extension.qc_claim.is_strong_qc, is_strong_qc );

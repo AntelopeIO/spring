@@ -21,7 +21,7 @@ inline account_name get_expected_producer(const vector<producer_authority>& sche
 } // anonymous namespace
 
 // Use legacy_validating_tester because it transitions to savanna as part of the test.
-BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activation, legacy_validating_tester ) try {
+BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_savanna_activation, legacy_validating_tester ) try {
 
    // Utility function to ensure that producer schedule work as expected
    const auto& confirm_schedule_correctness = [&](const vector<producer_authority>& new_prod_schd, uint32_t expected_schd_ver, uint32_t expected_block_num = 0)  {
@@ -71,7 +71,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_instant_finality_activat
    };
    create_accounts(producers);
 
-   // enable instant_finality
+   // enable savanna
    set_finalizers(producers);
    auto setfin_block = produce_block(); // this block contains the header extension of the finalizer set
 
@@ -138,9 +138,9 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    };
 
    auto verify_block_if_ext_producer = [](const signed_block_ptr& block, uint32_t version, account_name new_producer) {
-      std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+      std::optional<block_header_extension> ext = block->extract_header_extension(finality_extension::extension_id());
       BOOST_TEST(!!ext);
-      std::optional<proposer_policy_diff> policy_diff = std::get<instant_finality_extension>(*ext).new_proposer_policy_diff;
+      std::optional<proposer_policy_diff> policy_diff = std::get<finality_extension>(*ext).new_proposer_policy_diff;
       BOOST_TEST_REQUIRE(!!policy_diff);
       BOOST_TEST(policy_diff->version == version);
       bool new_producer_in_insert = std::ranges::find_if(policy_diff->producer_auth_diff.insert_indexes,
@@ -154,7 +154,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
       produce_block();
    }
 
-   // activate instant_finality
+   // activate savanna
    set_finalizers({"alice"_n,"bob"_n,"carol"_n});
    produce_block(); // this block contains the header extension of the finalizer set
    produce_block(); // one producer, lib here
@@ -218,9 +218,9 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
    // test no change to active schedule
    set_producers( {"bob"_n,"alice"_n} ); // same as before, so no change
    b = produce_block();
-   std::optional<block_header_extension> ext = b->extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = b->extract_header_extension(finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<proposer_policy_diff> policy_diff = std::get<instant_finality_extension>(*ext).new_proposer_policy_diff;
+   std::optional<proposer_policy_diff> policy_diff = std::get<finality_extension>(*ext).new_proposer_policy_diff;
    BOOST_TEST_REQUIRE(!policy_diff); // no diff
 
    produce_blocks(config::producer_repetitions-1, true);
@@ -377,7 +377,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
       produce_block();
    }
 
-   // activate instant_finality
+   // activate savanna
    set_finalizers({"alice"_n,"bob"_n});
    produce_block(); // this block contains the header extension of the finalizer set
    produce_block(); // one producer, lib here
@@ -409,7 +409,7 @@ BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
    chain.create_accounts( accounts );
    chain.produce_block();
 
-   // activate instant_finality
+   // activate savanna
    chain.set_finalizers(accounts);
    chain.set_producers( accounts );
    chain.produce_block();
