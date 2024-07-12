@@ -250,7 +250,7 @@ private:
                      block_to_send->blocks_result_base.this_block  = {self.current_blocks_request.start_block_num, *this_block_id};
                      if(const std::optional<chain::block_id_type> last_block_id = self.get_block_id(self.next_block_cursor - 1))
                         block_to_send->blocks_result_base.prev_block = {self.next_block_cursor - 1, *last_block_id};
-                     if(chain::signed_block_ptr sbp = get_block(self.next_block_cursor); sbp && self.current_blocks_request.fetch_block)
+                     if(chain::signed_block_ptr sbp = get_block(*this_block_id); sbp && self.current_blocks_request.fetch_block)
                          block_to_send->blocks_result_base.block = fc::raw::pack(*sbp);
                      if(self.current_blocks_request.fetch_traces && self.trace_log)
                         block_to_send->trace_entry = self.trace_log->get_entry(self.next_block_cursor);
