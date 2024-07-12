@@ -403,6 +403,9 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(3);
    auto hbn1 = _nodes[0].control->head_block_num(); // common block before network partitioned
+   [[maybe_unused]] auto lib1 = _nodes[0].control->last_irreversible_block_num();
+   wlog("lib1 = ${lib1}", ("lib1", lib1)); // 36
+
 
    // partition node3. lib will not advance on node3 anymore, but will advance on the other 3 nodes
    const std::vector<size_t> partition {3};
@@ -411,19 +414,27 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    // produce blocks on _nodes[3], creating account "bob"_n. Finality will not advance
    // --------------------------------------------------------------------------------
    auto fork_first_block_id = _nodes[3].produce_block(_block_interval_us * 10)->calculate_id();
-   wlog( "{w}", ("w", fork_first_block_id));
-   _nodes[3].create_accounts( {"bob"_n} );    // finality does not advance so bob's account will not be found
+   wlog( "fork_first_block_id = ${w}", ("w", fork_first_block_id));
+   _nodes[3].create_accounts( {"bob"_n} );
    _nodes[3].produce_blocks(4);
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[3], "bob"_n ), true );
+
    auto hbn3 = _nodes[3].control->head_block_num();
    auto lib3 = _nodes[3].control->last_irreversible_block_num();
+   wlog("lib3 = ${lib3}", ("lib3", lib3)); // 37
 
    // produce blocks on _nodes[0], creating account "carol"_n. Finality will  advance
    // --------------------------------------------------------------------------------
    _nodes[0].produce_block();
    _nodes[0].create_accounts( {"carol"_n} );
-   _nodes[0].produce_blocks(4);             // 4 so the block where "carol"'s account was created is made final
+   _nodes[0].produce_blocks(2);
+   _nodes[0].create_accounts( {"dave"_n} );
+   _nodes[0].produce_blocks(2);  // need 3 blocks after carol created for the block creating carol to become irreversible
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "carol"_n ), true );
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "dave"_n ), true );
    auto hbn0 = _nodes[0].control->head_block_num();
    auto lib0 = _nodes[0].control->last_irreversible_block_num();
+   wlog("lib0 = ${lib0}", ("lib0", lib0)); // 41
 
    BOOST_CHECK_GT(lib0, lib3);
 
@@ -447,7 +458,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    // push the branch where `lib` has advanced past lib1 (creating a new branch in
    // irreversible's fork database which will be preferred because lib advanced).
    // ----------------------------------------------------------------------------
-   for( uint32_t n = hbn1 + 1; n <= hbn3; ++n ) {
+   for( uint32_t n = hbn1 + 1; n <= hbn0; ++n ) {
       auto fb = _nodes[0].control->fetch_block_by_number( n );
       irreversible.push_block( fb );
    }
@@ -456,6 +467,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib0 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), true );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "carol"_n ), true );
+   BOOST_CHECK_EQUAL( does_account_exist( irreversible, "dave"_n ), false ); // block where dave created is not irreversible
 
    {
       // verify that a block from the worse branch that was not in the better branch
@@ -467,10 +479,55 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
 
 } FC_LOG_AND_RETHROW()
 
+BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
+   const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
+   _nodes[0].create_accounts(producers);
+   set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
+   _nodes[0].create_accounts( {"alice"_n} );
+   _nodes[0].produce_blocks(12);
+   auto lib0 = _nodes[0].control->last_irreversible_block_num();
+   wlog("lib0 = ${lib0}", ("lib0", lib0)); // 45
+
+   // split the network
+   const std::vector<size_t> partition {2, 3};
+   set_partition(partition);       // simulate 2 disconnected partitions:  nodes {0, 1} and node {2, 3}
+
+   // produce 12 blocks on _nodes[0]'s partition
+   _nodes[0].create_accounts( {"bob"_n} );
+   _nodes[0].produce_blocks(12);
+   BOOST_CHECK_EQUAL( _nodes[0].control->last_irreversible_block_num(), lib0 + 1);
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "alice"_n ), true );
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "bob"_n ),   true );
+
+   // produce 12 blocks on _nodes[2]'s partition
+   _nodes[2].produce_block(_block_interval_us * 13);
+   _nodes[2].create_accounts( {"carol"_n} );
+   _nodes[2].produce_blocks(11);
+   BOOST_CHECK_EQUAL( _nodes[2].control->last_irreversible_block_num(), lib0 + 1);
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "alice"_n ), true );
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "bob"_n ),   false );
+   BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "carol"_n ), true );
+
+   // update the network split so that {0, 1, 2} are in one partition, enough for finality to start
+   // advancing again
+   set_partition(std::vector<size_t>{3});       // simulate 2 disconnected partitions:  nodes {0, 1, 2} and node {3}
+
+   propagate_heads();                           // otherwise we get unlinkable_block when newly produced blocks are pushed to node2
+
+   // and restart producing on _nodes[0]
+   _nodes[0].produce_block(_block_interval_us * 26, true);
+   _nodes[0].produce_blocks(6);
+   auto lib2 = _nodes[0].control->last_irreversible_block_num();
+   BOOST_CHECK_GT(lib2, lib0 + 12 + 7 );   // 12 when network was split, 7 just above (6 + 1)
+   wlog("lib2 = ${lib2}", ("lib2", lib2)); // 65
+
+} FC_LOG_AND_RETHROW()
+
+
 #if 0
 
 // ---------------------------- push_block_returns_forked_transactions ---------------------------------
-BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions_if ) try {
+BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_if, savanna_cluster::cluster_t  ) try {
    legacy_tester c1;
    while (c1.control->head_block_num() < 3) {
       c1.produce_block();

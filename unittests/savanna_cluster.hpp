@@ -92,7 +92,7 @@ namespace savanna_cluster {
    //
    // They are all finalizers (Each node has one finalizer) and can all produce blocks.
    // quorum is computed using the same formula as in the system contracts
-   // (so quorum == 3)
+   // (so quorum == (N * 2) / 3 + 1)
    //
    //
    // By default they are all connected, receive all produced blocks, vote on them,
@@ -342,5 +342,11 @@ namespace savanna_cluster {
                cb(_nodes[i]);
       }
 
+   };
+
+   class cluster_6_t : cluster_t {
+   public:
+      cluster_6_t(size_t num_nodes = 6, size_t keys_per_node = 10)
+         : cluster_t(num_nodes, keys_per_node) {}
    };
 }
