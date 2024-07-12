@@ -518,7 +518,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    _nodes[0].produce_block(_block_interval_us * 26, true);
    _nodes[0].produce_blocks(6);
    auto lib2 = _nodes[0].control->last_irreversible_block_num();
-   BOOST_CHECK_GT(lib2, lib0 + 12 + 7 );   // 12 when network was split, 7 just above (6 + 1)
+   BOOST_CHECK_EQUAL(lib2, lib0 + 12 + 7 );   // 12 when network was split, 7 just above (6 + 1)
    wlog("lib2 = ${lib2}", ("lib2", lib2)); // 65
 
 } FC_LOG_AND_RETHROW()
