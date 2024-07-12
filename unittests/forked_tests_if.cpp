@@ -479,6 +479,11 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
 
 } FC_LOG_AND_RETHROW()
 
+// ------------------------------ split_and_rejoin ---------------------------------------
+// demonstrates a worst-case scenario of finalizers split apart for different branches,
+// then rejoin together, and need to reach consensus on one of the branches through their
+// votes.
+// ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
