@@ -620,9 +620,10 @@ struct state_history_tester_logs  {
    eosio::state_history::trace_converter trace_converter;
 };
 
-struct state_history_tester : state_history_tester_logs, legacy_tester {
+template<typename T>
+struct state_history_tester : state_history_tester_logs, T {
    state_history_tester(const std::filesystem::path& dir, const eosio::state_history::state_history_log_config& config)
-   : state_history_tester_logs(dir, config), legacy_tester ([this](eosio::chain::controller& control) {
+   : state_history_tester_logs(dir, config), T ([this](eosio::chain::controller& control) {
       control.applied_transaction().connect(
        [&](std::tuple<const transaction_trace_ptr&, const packed_transaction_ptr&> t) {
           trace_converter.add_transaction(std::get<0>(t), std::get<1>(t));
@@ -645,6 +646,9 @@ struct state_history_tester : state_history_tester_logs, legacy_tester {
       });
    }) {}
 };
+
+using state_history_testers = boost::mpl::list<state_history_tester<legacy_tester>,
+                                               state_history_tester<savanna_tester>>;
 
 static std::vector<char> get_decompressed_entry(eosio::state_history::log_catalog& log, block_num_type block_num) {
    std::optional<eosio::state_history::ship_log_entry> entry = log.get_entry(block_num);
