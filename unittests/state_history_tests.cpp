@@ -708,8 +708,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
    BOOST_CHECK(std::filesystem::exists( archive_dir / "chain_state_history-21-40.log" ));
    BOOST_CHECK(std::filesystem::exists( archive_dir / "chain_state_history-21-40.index" ));
 
-   BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-41-60.log" ));
-   BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-41-60.index" ));
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      // Under Savanna, logs are archived earlier because LIB advances faster.
+      BOOST_CHECK(std::filesystem::exists( archive_dir / "trace_history-41-60.log" ));
+      BOOST_CHECK(std::filesystem::exists( archive_dir / "trace_history-41-60.index" ));
+   } else {
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-41-60.log" ));
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-41-60.index" ));
+   }
+
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-61-80.log" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-61-80.index" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-81-100.log" ));
@@ -718,11 +725,22 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-101-120.index" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-121-140.log" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-121-140.index" ));
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-141-160.log" ));
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "trace_history-141-160.index" ));
+   }
 
-   BOOST_CHECK_EQUAL(chain.traces_log.block_range().first, 41u);
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      BOOST_CHECK_EQUAL(chain.traces_log.block_range().first, 61u);
+   }
+   else {
+      BOOST_CHECK_EQUAL(chain.traces_log.block_range().first, 41u);
+   }
 
-   BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-41-60.log" ));
-   BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-41-60.index" ));
+   if constexpr (std::is_same_v<T, state_history_tester<legacy_tester>>) {
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-41-60.log" ));
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-41-60.index" ));
+   }
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-61-80.log" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-61-80.index" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-81-100.log" ));
@@ -731,20 +749,36 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-101-120.index" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-121-140.log" ));
    BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-121-140.index" ));
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-141-160.log" ));
+      BOOST_CHECK(std::filesystem::exists( retained_dir / "chain_state_history-141-160.index" ));
+   }
 
-   BOOST_CHECK_EQUAL(chain.chain_state_log.block_range().first, 41u);
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+     BOOST_CHECK_EQUAL(chain.chain_state_log.block_range().first, 61u);
+   } else {
+     BOOST_CHECK_EQUAL(chain.chain_state_log.block_range().first, 41u);
+   }
 
    BOOST_CHECK(get_traces(chain.traces_log, 10).empty());
    BOOST_CHECK(get_traces(chain.traces_log, 100).size());
    BOOST_CHECK(get_traces(chain.traces_log, 140).size());
    BOOST_CHECK(get_traces(chain.traces_log, 150).size());
-   BOOST_CHECK(get_traces(chain.traces_log, 160).empty());
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      BOOST_CHECK(get_traces(chain.traces_log, 160).size());
+   } else {
+      BOOST_CHECK(get_traces(chain.traces_log, 160).empty());
+   }
 
    BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 10).empty());
    BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 100).size());
    BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 140).size());
    BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 150).size());
-   BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 160).empty());
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 160).size());
+   } else {
+      BOOST_CHECK(get_decompressed_entry(chain.chain_state_log, 160).empty());
+   }
 }
 
 void push_blocks( tester& from, tester& to ) {
