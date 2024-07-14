@@ -674,8 +674,7 @@ static std::vector<eosio::ship_protocol::transaction_trace> get_traces(eosio::st
    return traces;
 }
 
-BOOST_AUTO_TEST_CASE(test_splitted_log) {
-
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
    fc::temp_directory state_history_dir;
 
    eosio::state_history::partition_config config{
@@ -685,7 +684,7 @@ BOOST_AUTO_TEST_CASE(test_splitted_log) {
       .max_retained_files = 5
    };
 
-   state_history_tester chain(state_history_dir.path(), config);
+   T chain(state_history_dir.path(), config);
    chain.produce_block();
    chain.produce_blocks(49, true);
 
@@ -757,6 +756,7 @@ void push_blocks( tester& from, tester& to ) {
    }
 }
 
+template<typename T>
 bool test_fork(uint32_t stride, uint32_t max_retained_files) {
 
    fc::temp_directory state_history_dir;
@@ -768,7 +768,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
       .max_retained_files = max_retained_files
    };
 
-   state_history_tester chain1(state_history_dir.path(), config);
+   T chain1(state_history_dir.path(), config);
    chain1.produce_blocks(2, true);
 
    chain1.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -802,25 +802,24 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    return trace_found;
 }
 
-BOOST_AUTO_TEST_CASE(test_fork_no_stride) {
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_fork_no_stride, T, state_history_testers) {
    // In this case, the chain fork would NOT trunk the trace log across the stride boundary.
-   BOOST_CHECK(test_fork(UINT32_MAX, 10));
+   BOOST_CHECK(test_fork<T>(UINT32_MAX, 10));
 }
-BOOST_AUTO_TEST_CASE(test_fork_with_stride1) {
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_fork_with_stride1, T, state_history_testers) {
    // In this case, the chain fork would trunk the trace log across the stride boundary.
    // However, there are still some traces remains after the truncation.
-   BOOST_CHECK(test_fork(10, 10));
+   BOOST_CHECK(test_fork<T>(10, 10));
 }
-BOOST_AUTO_TEST_CASE(test_fork_with_stride2) {
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_fork_with_stride2, T, state_history_testers) {
    // In this case, the chain fork would trunk the trace log across the stride boundary.
    // However, no existing trace remain after the truncation. Because we only keep a very
    // short history, the create_account_trace is not available to be found. We just need
    // to make sure no exception is throw.
-   BOOST_CHECK_NO_THROW(test_fork(5, 1));
+   BOOST_CHECK_NO_THROW(test_fork<T>(5, 1));
 }
 
-BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
-
+BOOST_AUTO_TEST_CASE_TEMPLATE(test_corrupted_log_recovery, T, state_history_testers) {
    fc::temp_directory state_history_dir;
 
    eosio::state_history::partition_config config{
@@ -829,7 +828,7 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
       .max_retained_files = 5
    };
 
-   state_history_tester chain(state_history_dir.path(), config);
+   T chain(state_history_dir.path(), config);
    chain.produce_block();
    chain.produce_blocks(49, true);
    chain.close();
@@ -843,7 +842,7 @@ BOOST_AUTO_TEST_CASE(test_corrupted_log_recovery) {
 
    std::filesystem::remove_all(chain.get_config().blocks_dir/"reversible");
 
-   state_history_tester new_chain(state_history_dir.path(), config);
+   T new_chain(state_history_dir.path(), config);
    new_chain.produce_block();
    new_chain.produce_blocks(49, true);
 
