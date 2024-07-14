@@ -811,6 +811,15 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    chain1.produce_block();
    chain1.produce_blocks(30, true);
 
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      // Do not vote the last block such that it won't become final when
+      // the first block from chain2 is pushed to chain1. This way, LIBs on chain1
+      // and chain2 are kept the same, and further blocks from chain2 can be
+      // pushed into chain1's forkdb.
+      chain1.control->allow_voting(false);
+      chain1.produce_block();
+   }
+
    tester chain2(setup_policy::none);
    push_blocks(chain1, chain2);
 
@@ -820,15 +829,25 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    auto create_account_traces = chain2.create_accounts( {"adam"_n} );
    auto create_account_trace_id = create_account_traces[0]->id;
 
+   if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
+      // Disable voting on chain2 such that new blocks produced form a fork when
+      // pushed to chain1
+      chain2.control->allow_voting(false);
+   }
+
    auto b = chain2.produce_block();
    chain2.produce_blocks(11+12, true);
 
+   // Merge blocks from chain2 to chain1 and select chain2 as the best chain.
+   // Specifically in Savanna, as voting is disabled on both chains, block timestamps
+   // are used to decide best chain. chain2 is selected because its last block's
+   // timestamp is bigger than chain1's last block's.
    for( uint32_t start = fork_block_num + 1, end = chain2.control->head_block_num(); start <= end; ++start ) {
       auto fb = chain2.control->fetch_block_by_number( start );
       chain1.push_block( fb );
    }
-   auto traces = get_traces(chain1.traces_log, b->block_num());
 
+   auto traces = get_traces(chain1.traces_log, b->block_num());
    bool trace_found = std::find_if(traces.begin(), traces.end(), [create_account_trace_id](const auto& v) {
                          return std::get<eosio::ship_protocol::transaction_trace_v0>(v).id == create_account_trace_id;
                       }) != traces.end();
