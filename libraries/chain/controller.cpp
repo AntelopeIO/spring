@@ -1501,7 +1501,7 @@ struct controller_impl {
                // If after restoring from a snapshot dpos LIB does not advance, still do the transition
                // This depends on the <= of new_lib_num <= lib_num, the dpos LIB will advance to at least snapshot lib.
                if (chain_head_trans_svnn_block && branch.empty()) {
-                  if (chain_head.header().contains_header_extension(instant_finality_extension::extension_id())) {
+                  if (chain_head.header().contains_header_extension(finality_extension::extension_id())) {
                      savanna_transition_required = true;
                   }
                }
