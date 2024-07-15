@@ -1497,6 +1497,15 @@ struct controller_impl {
                   break;
                }
             }
+            if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(*branch.rbegin())>>) {
+               // If after restoring from a snapshot dpos LIB does not advance, still do the transition
+               // This depends on the <= of new_lib_num <= lib_num, the dpos LIB will advance to at least snapshot lib.
+               if (chain_head_trans_svnn_block && branch.empty()) {
+                  if (chain_head.header().contains_header_extension(instant_finality_extension::extension_id())) {
+                     savanna_transition_required = true;
+                  }
+               }
+            }
          } catch( const std::exception& e ) {
             try {
                if (root_id != forkdb.root()->id()) {
