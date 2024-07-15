@@ -11,8 +11,8 @@ using namespace eosio::testing;
 // ---------------------------- access some finality_core data ---------------------------------
 namespace eosio::chain {
    struct core_info_t {
-      uint32_t             last_final_block_num;
-      uint32_t             last_qc_block_num;
+      uint32_t             last_final_block_num {0};
+      uint32_t             last_qc_block_num {0};
       block_timestamp_type timestamp;
    };
 
@@ -52,7 +52,7 @@ static bool does_account_exist( const tester& t, account_name n ) {
 // Similar Legacy tests are in: `forked_tests.cpp`
 // ---------------------------------------------------
 
-BOOST_AUTO_TEST_SUITE(forked_tests_if)
+BOOST_AUTO_TEST_SUITE(forked_tests_savanna)
 
 // ---------------------------- fork_with_bad_block -------------------------------------
 // - split the network (so finality doesn't advance) and create 3 forks on a node,
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_SUITE(forked_tests_if)
 //
 // - produce blocks and verify that finality still advances.
 // ---------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t) try {
    struct fork_tracker {
       vector<signed_block_ptr> blocks;
    };
@@ -206,7 +206,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
 // - produce more blocks on P1, push them on P0, verify fork switch happens and head blocks match.
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
+BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    while (_nodes[0].control->head_block_num() < 3) {
       _nodes[0].produce_block();
    }
@@ -288,7 +288,7 @@ BOOST_FIXTURE_TEST_CASE( forking_if, savanna_cluster::cluster_t ) try {
 // Verify fork choice criteria for Savanna:
 //   last_final_block_num > last_qc_block_num > timestamp
 // ----------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE( prune_remove_branch_savanna, savanna_cluster::cluster_t) try {
    while (_nodes[0].control->head_block_num() < 3) {
       _nodes[0].produce_block();
    }
@@ -336,14 +336,14 @@ BOOST_FIXTURE_TEST_CASE( prune_remove_branch_if, savanna_cluster::cluster_t) try
 } FC_LOG_AND_RETHROW()
 
 
-// ---------------------------- irreversible_mode_if_1 ---------------------------------
+// ---------------------------- irreversible_mode_savanna_1 ----------------------------
 //   A node not in irreversible mode captures what the LIB is as of different blocks
 //   in the blockchain. Then the blocks are synced to a node running in irreversible
 //   mode gradually. When syncing up to some block number, the test checks that the
 //   controller head is at the block number of the corresponding LIB that was captured
 //   earlier.
 // -------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) try {
+BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
    set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
@@ -384,7 +384,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) tr
 } FC_LOG_AND_RETHROW()
 
 
-// ---------------------------- irreversible_mode_if_2 ---------------------------------
+// ---------------------------- irreversible_mode_savanna_2 ------------------------------
 //   Two partitions not in irreversible mode are used to construct two competing branches.
 //   One branch is considered the better branch compared to the other. The LIB determined
 //   from the better branch is a descendant of the LIB determined from the worse branch.
@@ -395,8 +395,8 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) tr
 //   branch as the better branch. Also verify that a block from the worse branch that
 //   was not in the better branch has been pruned out of the fork database after LIB
 //   advances past the fork block.
-// -------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) try {
+// ---------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
    set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
@@ -529,8 +529,8 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 
 } FC_LOG_AND_RETHROW()
 
-// ---------------------------- push_block_returns_forked_transactions_if ---------------------------------
-BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_if, savanna_cluster::cluster_t  ) try {
+// ---------------------------- push_block_returns_forked_transactions_savanna ---------------------------------
+BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna_cluster::cluster_t  ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
    set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
