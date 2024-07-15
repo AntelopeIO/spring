@@ -5080,6 +5080,10 @@ block_handle controller::head()const {
    return my->chain_head;
 }
 
+time_point controller::head_block_time()const {
+   return my->chain_head.block_time();
+}
+
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
    return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
