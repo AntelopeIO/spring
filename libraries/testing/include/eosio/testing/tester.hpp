@@ -910,7 +910,7 @@ namespace eosio::testing {
 
          // Do some sanity checks on the genesis block
          // ------------------------------------------
-         const auto& ext = genesis_block->template extract_header_extension<instant_finality_extension>();
+         const auto& ext = genesis_block->template extract_header_extension<finality_extension>();
          const auto& fin_policy_diff = ext.new_finalizer_policy_diff;
          BOOST_TEST(!!fin_policy_diff);
          BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == fin_policy_size);

@@ -673,10 +673,10 @@ namespace eosio {
    constexpr uint16_t proto_dup_node_id_goaway = 6;        // eosio 2.1: support peer node_id based duplicate connection resolution
    constexpr uint16_t proto_leap_initial = 7;              // leap client, needed because none of the 2.1 versions are supported
    constexpr uint16_t proto_block_range = 8;               // include block range in notice_message
-   constexpr uint16_t proto_instant_finality = 9;          // instant finality
+   constexpr uint16_t proto_savanna = 9;                   // savanna
 #pragma GCC diagnostic pop
 
-   constexpr uint16_t net_version_max = proto_instant_finality;
+   constexpr uint16_t net_version_max = proto_savanna;
 
    /**
     * Index by start_block_num
@@ -2714,7 +2714,7 @@ namespace eosio {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
          cp->strand.post( [cp, msg]() {
-            if (cp->protocol_version >= proto_instant_finality) {
+            if (cp->protocol_version >= proto_savanna) {
                if (vote_logger.is_enabled(fc::log_level::debug))
                   peer_dlog(cp, "sending vote msg");
                cp->enqueue_buffer( msg, no_reason );

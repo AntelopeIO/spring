@@ -4,7 +4,7 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/finality/quorum_certificate.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
-#include <eosio/chain/finality/instant_finality_extension.hpp>
+#include <eosio/chain/finality/finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
 #include <future>
 
@@ -91,7 +91,7 @@ struct block_header_state {
    std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
 
    // generation increases by one each time a new finalizer_policy is proposed in a block
-   // It matches the finalizer policy generation most recently included in this block's `if_extension` or its ancestors
+   // It matches the finalizer policy generation most recently included in this block's `finality_extension` or its ancestors
    uint32_t                            finalizer_policy_generation{1};
 
    // digest of the finalizer policy (which includes the generation number in it) with the greatest generation number
