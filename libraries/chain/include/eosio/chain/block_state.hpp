@@ -127,7 +127,7 @@ public:
    std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
    void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
-   // extract the qc_claim from block header instant_finality_extension
+   // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 
    // heuristic for determination if we are syncing or replaying for optimizations

@@ -74,9 +74,9 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    size_t finset_size = 21u;
 
    auto verify_block_finality_policy_diff = [](const signed_block_ptr& block, uint32_t gen, const bls_public_key& key) {
-      std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+      std::optional<block_header_extension> ext = block->extract_header_extension(finality_extension::extension_id());
       BOOST_TEST(!!ext);
-      std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+      std::optional<finalizer_policy_diff> fin_policy_diff = std::get<finality_extension>(*ext).new_finalizer_policy_diff;
       BOOST_TEST(!!fin_policy_diff);
       BOOST_TEST(fin_policy_diff->generation == gen);
       // each set_finalizer_policy in this test removes one and adds one

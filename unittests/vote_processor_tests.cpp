@@ -48,8 +48,8 @@ auto create_genesis_block_state() { // block 2
    finalizer_policy_diff new_finalizer_policy_diff = finalizer_policy{}.create_diff(new_finalizer_policy);
    qc_claim_t initial_if_claim { .block_num = 2,
                                  .is_strong_qc = false };
-   emplace_extension(block->header_extensions, instant_finality_extension::extension_id(),
-                     fc::raw::pack(instant_finality_extension{ initial_if_claim, new_finalizer_policy_diff, {} }));
+   emplace_extension(block->header_extensions, finality_extension::extension_id(),
+                     fc::raw::pack(finality_extension{ initial_if_claim, new_finalizer_policy_diff, {} }));
 
    producer_authority_schedule schedule = { 0, { producer_authority{block->producer, block_signing_authority_v0{ 1, {{pub_key, 1}} } } } };
    auto genesis = std::make_shared<block_state>();
