@@ -17,10 +17,10 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
          // --------------------------------------------------------------------------------------
          vote_status status = std::get<1>(v);
          if (status == vote_status::success)
-            cluster.dispatch_vote_to_peers(node_idx, true, std::get<2>(v));
+            cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, std::get<2>(v));
       });
 
-   set_produce_block_callback([&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, true, b); });
+   set_produce_block_callback([&, node_idx](const signed_block_ptr& b) { cluster.push_block_to_peers(node_idx, skip_self_t::yes, b); });
 }
 
 node_t::~node_t() {}

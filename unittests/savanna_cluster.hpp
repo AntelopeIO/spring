@@ -25,6 +25,8 @@ namespace savanna_cluster {
 
    class cluster_t;
 
+   enum class skip_self_t : uint8_t { no, yes };
+
    // ----------------------------------------------------------------------------
    class node_t : public tester {
       uint32_t                prev_lib_num{0};
@@ -263,7 +265,7 @@ namespace savanna_cluster {
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
       void push_block(size_t dst_idx, const signed_block_ptr& sb) {
-         push_block_to_peers(dst_idx, false, sb);
+         push_block_to_peers(dst_idx, skip_self_t::no, sb);
       }
 
       void verify_lib_advances() {
@@ -318,27 +320,27 @@ namespace savanna_cluster {
 
       friend node_t;
 
-      void dispatch_vote_to_peers(size_t node_idx, bool skip_self, const vote_message_ptr& msg) {
+      void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.control->process_vote_message(++connection_id, msg);
          });
       }
 
-      void push_block_to_peers(size_t node_idx, bool skip_self, const signed_block_ptr& b) {
+      void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.push_block(b);
          });
       }
 
       template<class CB>
-      void for_each_peer(size_t node_idx, bool skip_self, const CB& cb) {
+      void for_each_peer(size_t node_idx, skip_self_t skip_self, const CB& cb) {
          if (_shutting_down)
             return;
          assert(_peers.find(node_idx) != _peers.end());
          const auto& peers = _peers[node_idx];
          for (auto i : peers)
-            if (!skip_self || i != node_idx)
+            if (skip_self == skip_self_t::no || i != node_idx)
                cb(_nodes[i]);
       }
 
