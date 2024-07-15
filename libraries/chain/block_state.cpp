@@ -69,10 +69,10 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.header = bsp.header;
    result.activated_protocol_features = bsp.activated_protocol_features;
 
-   assert(bsp.block->contains_header_extension(instant_finality_extension::extension_id())); // required by transition mechanism
-   instant_finality_extension if_ext = bsp.block->extract_header_extension<instant_finality_extension>();
-   assert(if_ext.new_finalizer_policy_diff); // required by transition mechanism
-   result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*if_ext.new_finalizer_policy_diff)));
+   assert(bsp.block->contains_header_extension(finality_extension::extension_id())); // required by transition mechanism
+   finality_extension f_ext = bsp.block->extract_header_extension<finality_extension>();
+   assert(f_ext.new_finalizer_policy_diff); // required by transition mechanism
+   result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*f_ext.new_finalizer_policy_diff)));
 
    block_ref genesis_block_ref {
       .block_id  = bsp.id(),
@@ -299,11 +299,11 @@ void block_state::verify_qc(const valid_quorum_certificate& qc) const {
 }
 
 qc_claim_t block_state::extract_qc_claim() const {
-   auto itr = header_exts.lower_bound(instant_finality_extension::extension_id());
+   auto itr = header_exts.lower_bound(finality_extension::extension_id());
    if (itr == header_exts.end())
       return {};
-   const auto& if_ext = std::get<instant_finality_extension>(itr->second);
-   return if_ext.qc_claim;
+   const auto& f_ext = std::get<finality_extension>(itr->second);
+   return f_ext.qc_claim;
 }
 
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
