@@ -5080,6 +5080,10 @@ block_handle controller::head()const {
    return my->chain_head;
 }
 
+uint32_t controller::head_block_num()const {
+   return my->chain_head.block_num();
+}
+
 time_point controller::head_block_time()const {
    return my->chain_head.block_time();
 }

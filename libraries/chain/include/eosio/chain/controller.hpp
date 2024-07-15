@@ -239,6 +239,7 @@ namespace eosio::chain {
          void   set_disable_replay_opts( bool v );
 
          block_handle         head()const;
+         uint32_t             head_block_num()const;
          time_point           head_block_time()const;
 
          // returns nullptr after instant finality enabled
