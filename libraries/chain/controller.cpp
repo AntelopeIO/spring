@@ -5089,9 +5089,6 @@ block_timestamp_type controller::head_block_timestamp()const {
 time_point controller::head_block_time()const {
    return my->chain_head.block_time();
 }
-block_id_type controller::head_block_id()const {
-   return my->chain_head.id();
-}
 
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated

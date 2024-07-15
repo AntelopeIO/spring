@@ -182,7 +182,7 @@ namespace eosio::testing {
    }
 
    bool base_tester::is_same_chain( base_tester& other ) {
-     return control->head_block_id() == other.control->head_block_id();
+     return control->head().id() == other.control->head().id();
    }
 
    void base_tester::init(const setup_policy policy, db_read_mode read_mode, std::optional<uint32_t> genesis_max_inline_action_size) {
@@ -599,7 +599,7 @@ namespace eosio::testing {
 
    void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
       trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
-      trx.set_reference_block( control->head_block_id() );
+      trx.set_reference_block( control->head().id() );
 
       trx.max_net_usage_words = 0; // No limit
       trx.max_cpu_usage_ms = 0; // No limit
@@ -1142,7 +1142,7 @@ namespace eosio::testing {
 
    void base_tester::sync_with(base_tester& other) {
       // Already in sync?
-      if (control->head_block_id() == other.control->head_block_id())
+      if (control->head().id() == other.control->head().id())
          return;
       // If other has a longer chain than we do, sync it to us first
       if (control->head_block_num() < other.control->head_block_num())

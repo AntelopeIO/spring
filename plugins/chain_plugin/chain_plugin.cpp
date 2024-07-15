@@ -1019,7 +1019,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             } );
 
       get_head_block_id_provider = app().get_method<methods::get_head_block_id>().register_provider( [this]() {
-         return chain->head_block_id();
+         return chain->head().id();
       } );
 
       get_last_irreversible_block_number_provider = app().get_method<methods::get_last_irreversible_block_number>().register_provider(
@@ -1289,7 +1289,7 @@ const string read_only::KEYi64 = "i64";
 read_only::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
    const auto& rm = db.get_resource_limits_manager();
 
-   auto head_id = db.head_block_id();
+   auto head_id = db.head().id();
    auto lib_id = db.last_irreversible_block_id();
    auto fhead_id = db.fork_db_head_block_id();
 

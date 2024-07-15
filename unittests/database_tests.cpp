@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_SUITE(database_tests)
          BOOST_CHECK_NO_THROW(test.control->fetch_block_by_number(nonexisting_future_block_num));
          // Check the latest head block match
          BOOST_TEST(test.control->fetch_block_by_number(test.control->head_block_num())->calculate_id() ==
-                    test.control->head_block_id());
+                    test.control->head().id());
       } FC_LOG_AND_RETHROW()
    }
 

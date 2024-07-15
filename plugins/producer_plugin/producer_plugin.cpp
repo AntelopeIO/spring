@@ -450,7 +450,7 @@ public:
          reschedule.cancel();
       }
 
-      return {chain.head_block_id(), chain.calculate_integrity_hash()};
+      return {chain.head().id(), chain.calculate_integrity_hash()};
    }
 
    void create_snapshot(producer_plugin::next_function<chain::snapshot_scheduler::snapshot_information> next) {

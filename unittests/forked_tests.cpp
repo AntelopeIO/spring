@@ -334,7 +334,7 @@ void test_validator_accepts_valid_blocks() try {
 
    n1.produce_block();
 
-   auto id = n1.control->head_block_id();
+   auto id = n1.control->head().id();
 
    signed_block_ptr first_block;
    block_id_type first_id;
@@ -349,7 +349,7 @@ void test_validator_accepts_valid_blocks() try {
 
    push_blocks( n1, n2 );
 
-   BOOST_CHECK_EQUAL( n2.control->head_block_id(), id );
+   BOOST_CHECK_EQUAL( n2.control->head().id(), id );
 
    BOOST_REQUIRE( first_block );
    const auto& first_bp = n2.control->fetch_block_by_id(first_id);
@@ -360,7 +360,7 @@ void test_validator_accepts_valid_blocks() try {
 
    n3.push_block( first_block );
 
-   BOOST_CHECK_EQUAL( n3.control->head_block_id(), id );
+   BOOST_CHECK_EQUAL( n3.control->head().id(), id );
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_CASE( validator_accepts_valid_blocks ) {
@@ -445,7 +445,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 
    other.produce_block( fc::milliseconds( 13 * config::block_interval_ms ) ); // skip over producer1's round
    BOOST_REQUIRE_EQUAL( other.control->head().producer().to_string(), "producer2" );
-   auto fork_first_block_id = other.control->head_block_id();
+   auto fork_first_block_id = other.control->head().id();
    wlog( "{w}", ("w", fork_first_block_id));
 
    BOOST_REQUIRE( produce_until_transition( other, "producer2"_n, "producer1"_n, 11) ); // finish producer2's round
@@ -540,7 +540,7 @@ void test_reopen_forkdb() try {
    // alice produces a block on fork 1 causing LIB to advance
    c1.produce_block();
 
-   auto fork1_head_block_id = c1.control->head_block_id();
+   auto fork1_head_block_id = c1.control->head().id();
 
    auto fork1_lib_after = c1.control->last_irreversible_block_num();
    BOOST_REQUIRE( fork1_lib_after > fork1_lib_before );
@@ -561,7 +561,7 @@ void test_reopen_forkdb() try {
       c1.push_block( fb );
    }
 
-   BOOST_REQUIRE( fork1_head_block_id == c1.control->head_block_id() ); // new blocks should not cause fork switch
+   BOOST_REQUIRE( fork1_head_block_id == c1.control->head().id() ); // new blocks should not cause fork switch
 
    c1.close();
 

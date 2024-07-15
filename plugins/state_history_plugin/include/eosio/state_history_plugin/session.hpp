@@ -176,7 +176,7 @@ private:
    get_status_result_v1 fill_current_status_result() {
       get_status_result_v1 ret;
 
-      ret.head              = {controller.head_block_num(), controller.head_block_id()};
+      ret.head              = {controller.head_block_num(), controller.head().id()};
       ret.last_irreversible = {controller.last_irreversible_block_num(), controller.last_irreversible_block_id()};
       ret.chain_id          = controller.get_chain_id();
       if(trace_log)
@@ -241,7 +241,7 @@ private:
                if(self.send_credits && self.next_block_cursor <= latest_to_consider && self.next_block_cursor < self.current_blocks_request.end_block_num) {
                   block_to_send.emplace( block_package{
                      .blocks_result_base = {
-                        .head = {self.controller.head_block_num(), self.controller.head_block_id()},
+                        .head = {self.controller.head_block_num(), self.controller.head().id()},
                         .last_irreversible = {self.controller.last_irreversible_block_num(), self.controller.last_irreversible_block_id()}
                      },
                      .is_v1_request = self.current_blocks_request_v1_finality.has_value()

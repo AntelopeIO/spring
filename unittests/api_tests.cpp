@@ -1547,7 +1547,7 @@ void transaction_tests(T& chain) {
    CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_num", fc::raw::pack(chain.control->head_block_num()) );
 
    // test test_tapos_block_prefix
-   CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_prefix", fc::raw::pack(chain.control->head_block_id()._hash[1]) );
+   CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_prefix", fc::raw::pack(chain.control->head().id()._hash[1]) );
 
    // test send_action_recurse
    BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION(chain, "test_transaction", "send_action_recurse", {}), eosio::chain::transaction_exception,

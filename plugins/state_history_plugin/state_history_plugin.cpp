@@ -338,7 +338,7 @@ void state_history_plugin_impl::plugin_startup() {
       uint32_t block_num = chain.head_block_num();
       if( block_num > 0 && chain_state_log && chain_state_log->empty() ) {
          fc_ilog( _log, "Storing initial state on startup, this can take a considerable amount of time" );
-         store_chain_state( chain.head_block_id(), chain.head().header().previous, block_num );
+         store_chain_state( chain.head().id(), chain.head().header().previous, block_num );
          fc_ilog( _log, "Done storing initial state on startup" );
       }
       first_available_block = chain.earliest_available_block_num();
