@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
 // ---------------------------- forking ---------------------------------
 BOOST_AUTO_TEST_CASE( forking ) try {
    legacy_tester c;
-   while (c.control->head_block_num() < 3) {
+   while (c.control->head().block_num() < 3) {
       c.produce_block();
    }
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -178,7 +178,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    // Now sam and pam go on their own fork while dan is producing blocks by himself.
 
    wlog( "sam and pam go off on their own fork on c2 while dan produces blocks by himself in c1" );
-   auto fork_block_num = c.control->head_block_num();
+   auto fork_block_num = c.control->head().block_num();
 
    wlog( "c2 blocks:" );
    c2.produce_blocks(12); // pam produces 12 blocks
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
    wlog( "push c2 blocks to c1" );
-   for( uint32_t start = fork_block_num + 1, end = c2.control->head_block_num(); start <= end; ++start ) {
+   for( uint32_t start = fork_block_num + 1, end = c2.control->head().block_num(); start <= end; ++start ) {
       wdump((start));
       auto fb = c2.control->fetch_block_by_number( start );
       c.push_block( fb );
@@ -217,7 +217,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    // Now with four block producers active and two identical chains (for now),
    // we can test out the case that would trigger the bug in the old fork db code:
-   fork_block_num = c.control->head_block_num();
+   fork_block_num = c.control->head().block_num();
    wlog( "cam and dan go off on their own fork on c1 while sam and pam go off on their own fork on c2" );
    wlog( "c1 blocks:" );
    c.produce_blocks(12); // dan produces 12 blocks
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
 
    // a node on chain 1 now gets all but the last block from chain 2 which should cause a fork switch
    wlog( "push c2 blocks (except for the last block by dan) to c1" );
-   for( uint32_t start = fork_block_num + 1, end = c2.control->head_block_num() - 1; start <= end; ++start ) {
+   for( uint32_t start = fork_block_num + 1, end = c2.control->head().block_num() - 1; start <= end; ++start ) {
       auto fb = c2.control->fetch_block_by_number( start );
       c.push_block( fb );
    }
@@ -262,7 +262,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
  */
 BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    legacy_tester c;
-   while (c.control->head_block_num() < 11) {
+   while (c.control->head().block_num() < 11) {
       c.produce_block();
    }
    auto r = c.create_accounts( {"dan"_n,"sam"_n,"pam"_n,"scott"_n} );
@@ -279,9 +279,9 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
    push_blocks(c, c2);
 
    // fork happen after block fork_num
-   uint32_t fork_num = c.control->head_block_num();
+   uint32_t fork_num = c.control->head().block_num();
 
-   BOOST_REQUIRE_EQUAL(fork_num, c2.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num, c2.control->head().block_num());
 
    auto nextproducer = [](legacy_tester &c, int skip_interval) ->account_name {
       auto head_time = c.control->head().block_time();
@@ -305,18 +305,18 @@ BOOST_AUTO_TEST_CASE( prune_remove_branch ) try {
       else ++skip2;
    }
 
-   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head_block_num());  // dan and sam each produced 12 blocks
-   BOOST_REQUIRE_EQUAL(fork_num + 12u, c2.control->head_block_num()); // only scott produced its 12 blocks
+   BOOST_REQUIRE_EQUAL(fork_num + 24u, c.control->head().block_num());  // dan and sam each produced 12 blocks
+   BOOST_REQUIRE_EQUAL(fork_num + 12u, c2.control->head().block_num()); // only scott produced its 12 blocks
 
    // push fork from c2 => c
    size_t p = fork_num;
 
-   while ( p < c2.control->head_block_num()) {
+   while ( p < c2.control->head().block_num()) {
       auto fb = c2.control->fetch_block_by_number(++p);
       c.push_block(fb);
    }
 
-   BOOST_REQUIRE_EQUAL(fork_num + 12u, c.control->head_block_num());
+   BOOST_REQUIRE_EQUAL(fork_num + 12u, c.control->head().block_num());
 
 } FC_LOG_AND_RETHROW()
 
@@ -378,18 +378,18 @@ void test_read_modes() try {
    c.produce_block();
    auto res = c.set_producers( {"dan"_n,"sam"_n,"pam"_n} );
    c.produce_blocks(200);
-   auto head_block_num = c.control->head_block_num();
+   auto head_block_num = c.control->head().block_num();
    auto last_irreversible_block_num = c.control->last_irreversible_block_num();
 
    TESTER head(setup_policy::none, db_read_mode::HEAD);
    push_blocks(c, head);
    BOOST_CHECK_EQUAL(head_block_num, head.control->fork_db_head_block_num());
-   BOOST_CHECK_EQUAL(head_block_num, head.control->head_block_num());
+   BOOST_CHECK_EQUAL(head_block_num, head.control->head().block_num());
 
    TESTER irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
    push_blocks(c, irreversible);
    BOOST_CHECK_EQUAL(head_block_num, irreversible.control->fork_db_head_block_num());
-   BOOST_CHECK_EQUAL(last_irreversible_block_num, irreversible.control->head_block_num());
+   BOOST_CHECK_EQUAL(last_irreversible_block_num, irreversible.control->head().block_num());
 
 } FC_LOG_AND_RETHROW()
 
@@ -415,12 +415,12 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 
    main.create_accounts( {"alice"_n} );
    main.produce_block();
-   auto hbn1 = main.control->head_block_num();
+   auto hbn1 = main.control->head().block_num();
    auto lib1 = main.control->last_irreversible_block_num();
 
    BOOST_REQUIRE( produce_until_transition( main, "producer2"_n, "producer1"_n, 11) );
 
-   auto hbn2 = main.control->head_block_num();
+   auto hbn2 = main.control->head().block_num();
    auto lib2 = main.control->last_irreversible_block_num();
 
    BOOST_REQUIRE( lib2 < hbn1 );
@@ -428,12 +428,12 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    legacy_tester other(setup_policy::none);
 
    push_blocks( main, other );
-   BOOST_CHECK_EQUAL( other.control->head_block_num(), hbn2 );
+   BOOST_CHECK_EQUAL( other.control->head().block_num(), hbn2 );
 
    BOOST_REQUIRE( produce_until_transition( main, "producer1"_n, "producer2"_n, 12) );
    BOOST_REQUIRE( produce_until_transition( main, "producer2"_n, "producer1"_n, 12) );
 
-   auto hbn3 = main.control->head_block_num();
+   auto hbn3 = main.control->head().block_num();
    auto lib3 = main.control->last_irreversible_block_num();
 
    BOOST_REQUIRE( lib3 >= hbn1 );
@@ -458,7 +458,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    other.produce_block( fc::milliseconds( 13 * config::block_interval_ms ) ); // skip over producer1's round
    BOOST_REQUIRE( produce_until_transition( other, "producer2"_n, "producer1"_n, 11) ); // finish producer2's round
 
-   auto hbn4 = other.control->head_block_num();
+   auto hbn4 = other.control->head().block_num();
    auto lib4 = other.control->last_irreversible_block_num();
 
    BOOST_REQUIRE( hbn4 > hbn3 );
@@ -469,13 +469,13 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    push_blocks( main, irreversible, hbn1 );
 
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn1 );
-   BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib1 );
+   BOOST_CHECK_EQUAL( irreversible.control->head().block_num(), lib1 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), false );
 
    push_blocks( other, irreversible, hbn4 );
 
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn4 );
-   BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib4 );
+   BOOST_CHECK_EQUAL( irreversible.control->head().block_num(), lib4 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), false );
 
    // force push blocks from main to irreversible creating a new branch in irreversible's fork database
@@ -485,7 +485,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    }
 
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn3 );
-   BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib3 );
+   BOOST_CHECK_EQUAL( irreversible.control->head().block_num(), lib3 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), true );
 
    {
@@ -495,7 +495,7 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    }
 
    main.produce_block();
-   auto hbn5 = main.control->head_block_num();
+   auto hbn5 = main.control->head().block_num();
    auto lib5 = main.control->last_irreversible_block_num();
 
    BOOST_REQUIRE( lib5 > lib3 );
@@ -550,13 +550,13 @@ void test_reopen_forkdb() try {
 
    // carol produces a block on fork 2 skipping over the slots of alice and bob
    c2.produce_block( fc::milliseconds(config::block_interval_ms * 25) );
-   auto fork2_start_block = c2.control->head_block_num();
+   auto fork2_start_block = c2.control->head().block_num();
    c2.produce_block();
 
    auto fork2_lib_after = c2.control->last_irreversible_block_num();
    BOOST_REQUIRE_EQUAL( fork2_lib_before, fork2_lib_after );
 
-   for( uint32_t block_num = fork2_start_block; block_num < c2.control->head_block_num(); ++block_num ) {
+   for( uint32_t block_num = fork2_start_block; block_num < c2.control->head().block_num(); ++block_num ) {
       auto fb = c2.control->fetch_block_by_number( block_num );
       c1.push_block( fb );
    }
@@ -577,7 +577,7 @@ BOOST_AUTO_TEST_CASE( reopen_forkdb ) {
 // ---------------------------- push_block_returns_forked_transactions ---------------------------------
 BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    legacy_tester c1;
-   while (c1.control->head_block_num() < 3) {
+   while (c1.control->head().block_num() < 3) {
       c1.produce_block();
    }
    auto r = c1.create_accounts( {"dan"_n,"sam"_n,"pam"_n} );
@@ -615,7 +615,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
    // Now sam and pam go on their own fork while dan is producing blocks by himself.
 
    wlog( "sam and pam go off on their own fork on c2 while dan produces blocks by himself in c1" );
-   auto fork_block_num = c1.control->head_block_num();
+   auto fork_block_num = c1.control->head().block_num();
 
    signed_block_ptr c2b;
    wlog( "c2 blocks:" );
@@ -718,7 +718,7 @@ BOOST_AUTO_TEST_CASE( push_block_returns_forked_transactions ) try {
 
    // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
    wlog( "push c2 blocks to c1" );
-   for( uint32_t start = fork_block_num + 1, end = c2.control->head_block_num(); start <= end; ++start ) {
+   for( uint32_t start = fork_block_num + 1, end = c2.control->head().block_num(); start <= end; ++start ) {
       auto fb = c2.control->fetch_block_by_number( start );
       c1.push_block( fb );
    }

@@ -335,7 +335,7 @@ void state_history_plugin_impl::plugin_startup() {
    try {
       const auto& chain = chain_plug->chain();
 
-      uint32_t block_num = chain.head_block_num();
+      uint32_t block_num = chain.head().block_num();
       if( block_num > 0 && chain_state_log && chain_state_log->empty() ) {
          fc_ilog( _log, "Storing initial state on startup, this can take a considerable amount of time" );
          store_chain_state( chain.head().id(), chain.head().header().previous, block_num );

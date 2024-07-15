@@ -160,7 +160,7 @@ void apply_eosio_setcode(apply_context& context) {
       old_size  = (int64_t)old_code_entry.code.size() * config::setcode_ram_bytes_multiplier;
       if( old_code_entry.code_ref_count == 1 ) {
          db.remove(old_code_entry);
-         context.control.code_block_num_last_used(account.code_hash, account.vm_type, account.vm_version, context.control.head_block_num() + 1);
+         context.control.code_block_num_last_used(account.code_hash, account.vm_type, account.vm_version, context.control.head().block_num() + 1);
       } else {
          db.modify(old_code_entry, [](code_object& o) {
             --o.code_ref_count;
@@ -180,7 +180,7 @@ void apply_eosio_setcode(apply_context& context) {
             o.code_hash = code_hash;
             o.code.assign(act.code.data(), code_size);
             o.code_ref_count = 1;
-            o.first_block_used = context.control.head_block_num() + 1;
+            o.first_block_used = context.control.head().block_num() + 1;
             o.vm_type = act.vmtype;
             o.vm_version = act.vmversion;
          });

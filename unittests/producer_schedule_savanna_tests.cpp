@@ -32,7 +32,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_savanna_activation, lega
          if (new_prod_schd == current_schedule) {
             scheduled_changed_to_new = true;
             if (expected_block_num != 0)
-               BOOST_TEST(control->head_block_num() == expected_block_num);
+               BOOST_TEST(control->head().block_num() == expected_block_num);
 
             // verify eosio.prods updated
             const name usr = config::producers_account_name;
@@ -150,7 +150,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
       BOOST_TEST(new_producer_in_insert);
    };
 
-   while (control->head_block_num() < 3) {
+   while (control->head().block_num() < 3) {
       produce_block();
    }
 
@@ -373,7 +373,7 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_progression_test, legacy_validating_tes
 BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n} );
 
-   while (control->head_block_num() < 3) {
+   while (control->head().block_num() < 3) {
       produce_block();
    }
 

@@ -458,7 +458,7 @@ namespace eosio::testing {
    }
 
    transaction_trace_ptr base_tester::_start_block(fc::time_point block_time) {
-      auto head_block_number = control->head_block_num();
+      auto head_block_number = control->head().block_num();
       auto producer = control->head_active_producers().get_scheduled_producer(block_time);
 
       auto last_produced_block_num = control->last_irreversible_block_num();
@@ -570,7 +570,7 @@ namespace eosio::testing {
       while(true) {
          blocks_per_round = control->active_producers().producers.size() * config::producer_repetitions;
          produce_block();
-         if (control->head_block_num() % blocks_per_round == (blocks_per_round - 1)) break;
+         if (control->head().block_num() % blocks_per_round == (blocks_per_round - 1)) break;
       }
    }
 
@@ -1145,11 +1145,11 @@ namespace eosio::testing {
       if (control->head().id() == other.control->head().id())
          return;
       // If other has a longer chain than we do, sync it to us first
-      if (control->head_block_num() < other.control->head_block_num())
+      if (control->head().block_num() < other.control->head().block_num())
          return other.sync_with(*this);
 
       auto sync_dbs = [](base_tester& a, base_tester& b) {
-         for( uint32_t i = 1; i <= a.control->head_block_num(); ++i ) {
+         for( uint32_t i = 1; i <= a.control->head().block_num(); ++i ) {
 
             auto block = a.control->fetch_block_by_number(i);
             if( block ) { //&& !b.control->is_known_block(block->id()) ) {
@@ -1355,7 +1355,7 @@ namespace eosio::testing {
    void base_tester::preactivate_builtin_protocol_features(const std::vector<builtin_protocol_feature_t>& builtins) {
       const auto& pfm = control->get_protocol_feature_manager();
       const auto& pfs = pfm.get_protocol_feature_set();
-      const auto current_block_num  =  control->head_block_num() + (control->is_building_block() ? 1 : 0);
+      const auto current_block_num  =  control->head().block_num() + (control->is_building_block() ? 1 : 0);
       const auto current_block_time = ( control->is_building_block() ? control->pending_block_time()
                                         : control->head().block_time() + fc::milliseconds(config::block_interval_ms) );
 

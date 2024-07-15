@@ -781,7 +781,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    tester chain2(setup_policy::none);
    push_blocks(chain1, chain2);
 
-   auto fork_block_num = chain1.control->head_block_num();
+   auto fork_block_num = chain1.control->head().block_num();
 
    chain1.produce_blocks(12, true);
    auto create_account_traces = chain2.create_accounts( {"adam"_n} );
@@ -790,7 +790,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    auto b = chain2.produce_block();
    chain2.produce_blocks(11+12, true);
 
-   for( uint32_t start = fork_block_num + 1, end = chain2.control->head_block_num(); start <= end; ++start ) {
+   for( uint32_t start = fork_block_num + 1, end = chain2.control->head().block_num(); start <= end; ++start ) {
       auto fb = chain2.control->fetch_block_by_number( start );
       chain1.push_block( fb );
    }

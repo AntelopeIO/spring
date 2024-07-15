@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(verify_producers, T, validating_testers) try {
 
 BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (control->head_block_num() < 3) {
+   while (control->head().block_num() < 3) {
       produce_block();
    }
 
@@ -203,7 +203,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
 
 BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (control->head_block_num() < 3) {
+   while (control->head().block_num() < 3) {
       produce_block();
    }
 
@@ -268,7 +268,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(empty_producer_schedule_has_no_effect, T, validati
    c.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (c.control->head_block_num() < 3) {
+   while (c.control->head().block_num() < 3) {
       c.produce_block();
    }
 
@@ -438,7 +438,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "carol"_n );
    BOOST_REQUIRE_EQUAL( c.control->active_producers().version, 2u );
 
-   auto carol_last_produced_block_num = c.control->head_block_num() + 1;
+   auto carol_last_produced_block_num = c.control->head().block_num() + 1;
    wdump((carol_last_produced_block_num));
 
    c.produce_block();
@@ -451,12 +451,12 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
 
    produce_until_transition( c, "bob"_n, "alice"_n );
 
-   auto bob_last_produced_block_num = c.control->head_block_num();
+   auto bob_last_produced_block_num = c.control->head().block_num();
    wdump((bob_last_produced_block_num));
 
    produce_until_transition( c, "alice"_n, "bob"_n );
 
-   auto alice_last_produced_block_num = c.control->head_block_num();
+   auto alice_last_produced_block_num = c.control->head().block_num();
    wdump((alice_last_produced_block_num));
 
    {
@@ -485,7 +485,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "bob"_n );
    c.finish_block();
 
-   auto carol_block_num = c.control->head_block_num() + 1;
+   auto carol_block_num = c.control->head().block_num() + 1;
    auto carol_block_time = c.control->head().block_time() + fc::milliseconds(config::block_interval_ms);
    auto confirmed = carol_block_num - carol_last_produced_block_num - 1;
 

@@ -87,14 +87,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(activate_and_restart, T, testers) try {
    c.schedule_protocol_features_wo_preactivation({ *d });
    c.produce_block();
 
-   auto head_block_num = c.control->head_block_num();
+   auto head_block_num = c.control->head().block_num();
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 
    c.close();
    c.open( std::move( pfs ) );
 
-   BOOST_CHECK_EQUAL( head_block_num, c.control->head_block_num() );
+   BOOST_CHECK_EQUAL( head_block_num, c.control->head().block_num() );
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 

@@ -1132,10 +1132,10 @@ void chain_plugin_impl::plugin_startup()
 
    if (genesis) {
       ilog("Blockchain started; head block is #${num}, genesis timestamp is ${ts}",
-           ("num", chain->head_block_num())("ts", genesis->initial_timestamp));
+           ("num", chain->head().block_num())("ts", genesis->initial_timestamp));
    }
    else {
-      ilog("Blockchain started; head block is #${num}", ("num", chain->head_block_num()));
+      ilog("Blockchain started; head block is #${num}", ("num", chain->head().block_num()));
    }
 
    chain_config.reset();
@@ -2392,7 +2392,7 @@ read_only::get_account_return_t read_only::get_account( const get_account_params
    const auto& d = db.db();
    const auto& rm = db.get_resource_limits_manager();
 
-   result.head_block_num  = db.head_block_num();
+   result.head_block_num  = db.head().block_num();
    result.head_block_time = db.head().block_time();
 
    rm.get_account_limits( result.account_name, result.ram_quota, result.net_weight, result.cpu_weight );

@@ -1544,7 +1544,7 @@ void transaction_tests(T& chain) {
    BOOST_TEST_MESSAGE( "sha_expect = " << sha_expect );
    BOOST_CHECK_EQUAL(tx_trace->action_traces.front().console == sha_expect, true);
    // test test_tapos_block_num
-   CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_num", fc::raw::pack(chain.control->head_block_num()) );
+   CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_num", fc::raw::pack(chain.control->head().block_num()) );
 
    // test test_tapos_block_prefix
    CALL_TEST_FUNCTION(chain, "test_transaction", "test_tapos_block_prefix", fc::raw::pack(chain.control->head().id()._hash[1]) );
