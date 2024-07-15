@@ -5093,19 +5093,11 @@ block_id_type controller::head_block_id()const {
    return my->chain_head.id();
 }
 
-const block_header& controller::head_block_header()const {
-   return my->chain_head.header();
-}
-
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated
    return block_handle_accessor::apply_l<block_state_legacy_ptr>(my->chain_head, [](const auto& head) {
       return head;
    });
-}
-
-const signed_block_ptr& controller::head_block()const {
-   return my->chain_head.block();
 }
 
 std::optional<finality_data_t> controller::head_finality_data() const {

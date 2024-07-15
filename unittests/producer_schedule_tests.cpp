@@ -61,7 +61,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
 
       BOOST_TEST(scheduled_changed_to_new);
 
-      const auto current_schd_ver = control->head_block_header().schedule_version;
+      const auto current_schd_ver = control->head().header().schedule_version;
       BOOST_TEST(current_schd_ver == expected_schd_ver);
    };
 
@@ -492,7 +492,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    c.control->start_block( carol_block_time, confirmed, {}, controller::block_status::incomplete );
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "carol"_n );
    c.produce_block();
-   auto h = c.control->head_block_header();
+   auto h = c.control->head().header();
 
    BOOST_CHECK_EQUAL( h.producer, "carol"_n );
    BOOST_CHECK_EQUAL( h.confirmed,  confirmed );

@@ -514,7 +514,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
-            auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
+            auto finpol = active_finalizer_policy(control->head().header().calculate_id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
             BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
@@ -789,8 +789,8 @@ namespace eosio::testing {
       }
 
       bool validate() {
-        const auto& hbh = control->head_block_header();
-        const auto& vn_hbh = validating_node->head_block_header();
+        const auto& hbh = control->head().header();
+        const auto& vn_hbh = validating_node->head().header();
         bool ok = control->head_block_id() == validating_node->head_block_id() &&
                hbh.previous == vn_hbh.previous &&
                hbh.timestamp == vn_hbh.timestamp &&

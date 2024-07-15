@@ -49,7 +49,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
    // produce 6 blocks on bios
    for (int i = 0; i < 6; i ++) {
       bios.produce_block();
-      BOOST_REQUIRE_EQUAL( bios.control->head_block()->producer.to_string(), "a" );
+      BOOST_REQUIRE_EQUAL( bios.control->head().block()->producer.to_string(), "a" );
    }
 
    vector<fork_tracker> forks(7);
