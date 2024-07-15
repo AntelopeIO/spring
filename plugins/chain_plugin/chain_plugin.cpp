@@ -183,7 +183,6 @@ public:
    incoming::methods::transaction_async::method_type& incoming_transaction_async_method;
 
    // method provider handles
-   methods::get_block_by_number::method_type::handle                 get_block_by_number_provider;
    methods::get_block_by_id::method_type::handle                     get_block_by_id_provider;
    methods::get_head_block_id::method_type::handle                   get_head_block_id_provider;
    methods::get_last_irreversible_block_number::method_type::handle  get_last_irreversible_block_number_provider;
@@ -1006,12 +1005,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
          chain->enable_deep_mind( &_deep_mind_log );
       }
-
-      // set up method providers
-      get_block_by_number_provider = app().get_method<methods::get_block_by_number>().register_provider(
-            [this]( uint32_t block_num ) -> signed_block_ptr {
-               return chain->fetch_block_by_number( block_num );
-            } );
 
       get_block_by_id_provider = app().get_method<methods::get_block_by_id>().register_provider(
             [this]( block_id_type id ) -> signed_block_ptr {
