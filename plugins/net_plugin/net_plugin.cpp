@@ -1453,6 +1453,10 @@ namespace eosio {
 
    // called from connection strand
    void connection::_close( bool reconnect, bool shutdown ) {
+      if (socket_open)
+         peer_ilog(this, "closing");
+      else
+         peer_dlog(this, "close called on already closed socket");
       socket_open = false;
       boost::system::error_code ec;
       socket->shutdown( tcp::socket::shutdown_both, ec );
@@ -1478,7 +1482,6 @@ namespace eosio {
       peer_requested.reset();
       sent_handshake_count = 0;
       if( !shutdown) my_impl->sync_master->sync_reset_lib_num( shared_from_this(), true );
-      peer_ilog( this, "closing" );
       cancel_wait();
       sync_last_requested_block = 0;
       org = std::chrono::nanoseconds{0};
