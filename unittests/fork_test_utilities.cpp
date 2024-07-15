@@ -38,7 +38,7 @@ bool produce_until_transition( base_tester& t,
                                uint32_t max_num_blocks_to_produce )
 {
    return produce_empty_blocks_until(t, max_num_blocks_to_produce, [&t, last_producer, next_producer]() {
-      return t.control->pending_block_producer() == next_producer && t.control->head_block_producer() == last_producer;
+      return t.control->pending_block_producer() == next_producer && t.control->head().producer() == last_producer;
    });
 }
 
@@ -48,7 +48,7 @@ bool produce_until_blocks_from( base_tester& t,
 {
    auto remaining_producers = expected_producers;
    return produce_empty_blocks_until(t, max_num_blocks_to_produce, [&t, &remaining_producers]() {
-      remaining_producers.erase(t.control->head_block_producer());
+      remaining_producers.erase(t.control->head().producer());
       return remaining_producers.size() == 0;
    });
 }

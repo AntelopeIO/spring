@@ -441,10 +441,10 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
    BOOST_CHECK_EQUAL( does_account_exist( main, "alice"_n ), true );
 
    // other forks away from main after hbn2
-   BOOST_REQUIRE_EQUAL( other.control->head_block_producer().to_string(), "producer2" );
+   BOOST_REQUIRE_EQUAL( other.control->head().producer().to_string(), "producer2" );
 
    other.produce_block( fc::milliseconds( 13 * config::block_interval_ms ) ); // skip over producer1's round
-   BOOST_REQUIRE_EQUAL( other.control->head_block_producer().to_string(), "producer2" );
+   BOOST_REQUIRE_EQUAL( other.control->head().producer().to_string(), "producer2" );
    auto fork_first_block_id = other.control->head_block_id();
    wlog( "{w}", ("w", fork_first_block_id));
 

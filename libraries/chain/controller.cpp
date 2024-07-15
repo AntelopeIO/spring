@@ -5093,10 +5093,6 @@ block_id_type controller::head_block_id()const {
    return my->chain_head.id();
 }
 
-account_name  controller::head_block_producer()const {
-   return my->chain_head.producer();
-}
-
 const block_header& controller::head_block_header()const {
    return my->chain_head.header();
 }

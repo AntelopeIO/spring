@@ -53,7 +53,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
          // Check if the producer is the same as what we expect
          const auto block_time = control->head_block_time();
          const auto& expected_producer = get_expected_producer(current_schedule, block_time);
-         BOOST_TEST(control->head_block_producer() == expected_producer);
+         BOOST_TEST(control->head().producer() == expected_producer);
 
          if (scheduled_changed_to_new)
             break;
@@ -178,7 +178,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
    produce_block();
    produce_blocks(23); // Alice produces the last block of her first round.
                     // Bob's first block (which advances LIB to Alice's last block) is started but not finalized.
-   BOOST_REQUIRE_EQUAL( control->head_block_producer(), "alice"_n );
+   BOOST_REQUIRE_EQUAL( control->head().producer(), "alice"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "bob"_n );
    BOOST_REQUIRE(control->pending_producers_legacy());
    BOOST_CHECK_EQUAL( control->pending_producers_legacy()->version, 2u );
@@ -187,7 +187,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
    produce_blocks(12); // Bob produces his 12th block.
                     // Alice's first block of the second round is started but not finalized (which advances LIB to Bob's last block).
-   BOOST_REQUIRE_EQUAL( control->head_block_producer(), "alice"_n );
+   BOOST_REQUIRE_EQUAL( control->head().producer(), "alice"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "bob"_n );
    BOOST_CHECK_EQUAL( control->active_producers().version, 2u );
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
@@ -196,7 +196,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
 
    // The next block will be produced according to the new schedule
    produce_block();
-   BOOST_CHECK_EQUAL( control->head_block_producer(), "carol"_n ); // And that next block happens to be produced by Carol.
+   BOOST_CHECK_EQUAL( control->head().producer(), "carol"_n ); // And that next block happens to be produced by Carol.
 
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
@@ -242,7 +242,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, *control->proposed_producers_legacy() ) );
 
    produce_blocks(48);
-   BOOST_REQUIRE_EQUAL( control->head_block_producer(), "bob"_n );
+   BOOST_REQUIRE_EQUAL( control->head().producer(), "bob"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "carol"_n );
    BOOST_REQUIRE(control->pending_producers_legacy());
    BOOST_CHECK_EQUAL( control->pending_producers_legacy()->version, 2u );
@@ -251,13 +251,13 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
    produce_blocks(1);
 
-   BOOST_REQUIRE_EQUAL( control->head_block_producer(), "carol"_n );
+   BOOST_REQUIRE_EQUAL( control->head().producer(), "carol"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "alice"_n );
    BOOST_CHECK_EQUAL( control->active_producers().version, 2u );
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
 
    produce_blocks(2);
-   BOOST_CHECK_EQUAL( control->head_block_producer(), "bob"_n );
+   BOOST_CHECK_EQUAL( control->head().producer(), "bob"_n );
 
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()

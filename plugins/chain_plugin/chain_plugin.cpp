@@ -1301,7 +1301,7 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       lib_id,
       head_id,
       db.head_block_time(),
-      db.head_block_producer(),
+      db.head().producer(),
       rm.get_virtual_block_cpu_limit(),
       rm.get_virtual_block_net_limit(),
       rm.get_block_cpu_limit(),

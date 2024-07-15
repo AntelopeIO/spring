@@ -54,7 +54,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_savanna_activation, lega
          // Check if the producer is the same as what we expect
          const auto block_time = control->head_block_time();
          const auto& expected_producer = get_expected_producer(current_schedule, block_time);
-         BOOST_TEST(control->head_block_producer() == expected_producer);
+         BOOST_TEST(control->head().producer() == expected_producer);
 
          if (scheduled_changed_to_new)
             break;
