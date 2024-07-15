@@ -1368,17 +1368,17 @@ struct controller_impl {
             fork_db.switch_from_legacy(chain_head_trans_svnn_block);
          } else {
             // root has moved from chain_head_trans_svnn_block, so transition the legacy root
-            // legacy_root can be one pass the snapshot start block when running in irreversible mode as LIB is advanced
+            // legacy_root can be one past the snapshot start block when running in irreversible mode as LIB is advanced
             // before transition_to_savanna is called.
             const bool skip_validate_signee = true; // validated already
             dlog("Create irreversible transition block ${bn}", ("bn", legacy_root->block_num()));
-            auto new_bsp = block_state::create_transition_block(
+            auto new_root = block_state::create_transition_block(
                   *chain_head_trans_svnn_block,
                   legacy_root->block,
                   protocol_features.get_protocol_feature_set(),
                   validator_t{}, skip_validate_signee,
                   legacy_root->action_mroot_savanna);
-            fork_db.switch_from_legacy(new_bsp);
+            fork_db.switch_from_legacy(new_root);
          }
       } else {
          auto new_root = block_state::create_if_genesis_block(*legacy_root);

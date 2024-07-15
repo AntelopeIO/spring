@@ -73,7 +73,7 @@ try:
     nodeSnap=cluster.getNode(snapshotNodeId)
     nodeIrr=cluster.getNode(irrNodeId)
 
-    # Active Savanna without waiting for activation is finished so that we can take a
+    # Activate Savanna without waiting for activation to be finished so that we can take a
     # snapshot during transition
     success, transId = cluster.activateInstantFinality(biosFinalizer=False, waitForFinalization=False)
     assert success, "Activate instant finality failed"
