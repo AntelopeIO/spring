@@ -71,8 +71,6 @@ namespace savanna_cluster {
 
       uint32_t forkdb_head_num() const { return control->fork_db_head_block_num(); }
 
-      signed_block_ptr forkdb_head() const { return control->fork_db_head_block(); }
-
       void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          while (to.forkdb_head_num() < std::min(forkdb_head_num(), block_num_limit)) {
             auto sb = control->fetch_block_by_number(to.forkdb_head_num() + 1);
@@ -313,10 +311,11 @@ namespace savanna_cluster {
 
    private:
       using peers_t = boost::unordered_flat_map<size_t, std::vector<size_t>>;
-      peers_t                         _peers;
-      size_t                          _num_nodes;
-      size_t                          _keys_per_node;
-      bool                            _shutting_down {false};
+
+      peers_t   _peers;
+      size_t    _num_nodes;
+      size_t    _keys_per_node;
+      bool      _shutting_down {false};
 
       friend node_t;
 
