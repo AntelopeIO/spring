@@ -4319,7 +4319,7 @@ struct controller_impl {
       //Look for expired transactions in the deduplication list, and remove them.
       auto& transaction_idx = db.get_mutable_index<transaction_multi_index>();
       const auto& dedupe_index = transaction_idx.indices().get<by_expiration>();
-      auto now = is_building_block() ? pending_block_time() : chain_head.block_time().to_time_point();
+      auto now = is_building_block() ? pending_block_time() : chain_head.timestamp().to_time_point();
       const auto total = dedupe_index.size();
       uint32_t num_removed = 0;
       while( (!dedupe_index.empty()) && ( now > dedupe_index.begin()->expiration.to_time_point() ) ) {
@@ -5082,9 +5082,6 @@ block_handle controller::head()const {
 
 uint32_t controller::head_block_num()const {
    return my->chain_head.block_num();
-}
-block_timestamp_type controller::head_block_timestamp()const {
-   return my->chain_head.block_time();
 }
 time_point controller::head_block_time()const {
    return my->chain_head.block_time();

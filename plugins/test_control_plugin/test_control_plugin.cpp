@@ -65,7 +65,7 @@ void test_control_plugin_impl::process_next_block_state(const chain::block_id_ty
 
    const auto& producer_authority = _chain.active_producers().get_scheduled_producer(block_time);
    const auto producer_name = producer_authority.producer_name;
-   const auto slot = _chain.head_block_timestamp().slot % chain::config::producer_repetitions;
+   const auto slot = _chain.head().timestamp().slot % chain::config::producer_repetitions;
    if (_producer != account_name()) {
       if( _producer != producer_name ) _clean_producer_sequence = true;
       if( _clean_producer_sequence ) {

@@ -825,7 +825,7 @@ public:
       }
 
       now             = fc::time_point::now();
-      if (chain.head_block_timestamp().next().to_time_point() >= now) {
+      if (chain.head().timestamp().next().to_time_point() >= now) {
          _production_enabled = true;
       }
 
