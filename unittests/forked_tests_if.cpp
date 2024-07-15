@@ -29,8 +29,9 @@ namespace eosio::chain {
 
    void print_core(const block_handle& h) {
       auto core = block_handle_accessor::core_info(h);
-      printf("last_final=%d, last_qc=%d, timestamp=%d\n", core->last_final_block_num,
-             core->last_qc_block_num, core->timestamp.slot);
+      ilog("block ${bn} finality_core: last_final=${lfbn}, last_qc=${lqc}, timestamp=${t}\n",
+           ("bn",h.block_num())("lfbn",core->last_final_block_num)
+           ("lqc",core->last_qc_block_num)("t",core->timestamp));
    }
 
 }
