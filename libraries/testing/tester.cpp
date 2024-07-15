@@ -414,7 +414,7 @@ namespace eosio::testing {
    produce_block_result_t base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs, bool no_throw ) {
       produce_block_result_t res;
 
-      auto head_time = control->head_block_time();
+      auto head_time = control->head().block_time();
       auto next_time = head_time + skip_time;
       static transaction_trace_ptr onblock_trace;
 
@@ -598,7 +598,7 @@ namespace eosio::testing {
 
 
    void base_tester::set_transaction_headers( transaction& trx, uint32_t expiration, uint32_t delay_sec ) const {
-      trx.expiration = fc::time_point_sec{control->head_block_time() + fc::seconds(expiration)};
+      trx.expiration = fc::time_point_sec{control->head().block_time() + fc::seconds(expiration)};
       trx.set_reference_block( control->head().id() );
 
       trx.max_net_usage_words = 0; // No limit
@@ -659,7 +659,7 @@ namespace eosio::testing {
                                                       )
    { try {
       if( !control->is_building_block() )
-         _start_block(control->head_block_time() + fc::microseconds(config::block_interval_us));
+         _start_block(control->head().block_time() + fc::microseconds(config::block_interval_us));
 
       auto ptrx = std::make_shared<packed_transaction>(trx);
       auto time_limit = deadline == fc::time_point::maximum() ?
@@ -680,7 +680,7 @@ namespace eosio::testing {
                                                       )
    { try {
       if( !control->is_building_block() )
-         _start_block(control->head_block_time() + fc::microseconds(config::block_interval_us));
+         _start_block(control->head().block_time() + fc::microseconds(config::block_interval_us));
       auto c = packed_transaction::compression_type::none;
 
       if( fc::raw::pack_size(trx) > 1000 ) {
@@ -1357,7 +1357,7 @@ namespace eosio::testing {
       const auto& pfs = pfm.get_protocol_feature_set();
       const auto current_block_num  =  control->head_block_num() + (control->is_building_block() ? 1 : 0);
       const auto current_block_time = ( control->is_building_block() ? control->pending_block_time()
-                                        : control->head_block_time() + fc::milliseconds(config::block_interval_ms) );
+                                        : control->head().block_time() + fc::milliseconds(config::block_interval_ms) );
 
       set<digest_type>    preactivation_set;
       vector<digest_type> preactivations;

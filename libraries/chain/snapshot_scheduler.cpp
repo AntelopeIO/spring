@@ -159,7 +159,7 @@ void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chai
 void snapshot_scheduler::create_snapshot(next_function<snapshot_information> next, chain::controller& chain, std::function<void(void)> predicate) {
    auto head_id = chain.head().id();
    const auto head_block_num = chain.head_block_num();
-   const auto head_block_time = chain.head_block_time();
+   const auto head_block_time = chain.head().block_time();
    const auto& snapshot_path = pending_snapshot<snapshot_information>::get_final_path(head_id, _snapshots_dir);
    const auto& temp_path = pending_snapshot<snapshot_information>::get_temp_path(head_id, _snapshots_dir);
 

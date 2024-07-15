@@ -5083,9 +5083,6 @@ block_handle controller::head()const {
 uint32_t controller::head_block_num()const {
    return my->chain_head.block_num();
 }
-time_point controller::head_block_time()const {
-   return my->chain_head.block_time();
-}
 
 block_state_legacy_ptr controller::head_block_state_legacy()const {
    // returns null after instant finality activated

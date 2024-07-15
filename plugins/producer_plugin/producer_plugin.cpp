@@ -955,7 +955,7 @@ public:
       try {
          const auto& id = trx->id();
 
-         fc::time_point       bt     = chain.is_building_block() ? chain.pending_block_time() : chain.head_block_time();
+         fc::time_point       bt     = chain.is_building_block() ? chain.pending_block_time() : chain.head().block_time();
          const fc::time_point expire = trx->packed_trx()->expiration().to_time_point();
          if (expire < bt) {
             auto except_ptr = std::static_pointer_cast<fc::exception>(std::make_shared<expired_tx_exception>(
@@ -1087,7 +1087,7 @@ void new_chain_banner(const eosio::chain::controller& db)
       "*******************************\n"
       "\n";
 
-   if( db.head_block_time() < (fc::time_point::now() - fc::milliseconds(200 * config::block_interval_ms))) {
+   if( db.head().block_time() < (fc::time_point::now() - fc::milliseconds(200 * config::block_interval_ms))) {
       std::cerr << "Your genesis seems to have an old timestamp\n"
          "Please consider using the --genesis-timestamp option to give your genesis a recent timestamp\n\n";
    }
@@ -1679,7 +1679,7 @@ fc::variants producer_plugin::get_supported_protocol_features(const get_supporte
    fc::variants             results;
    const chain::controller& chain           = my->chain_plug->chain();
    const auto&              pfs             = chain.get_protocol_feature_manager().get_protocol_feature_set();
-   const auto               next_block_time = chain.head_block_time() + fc::milliseconds(config::block_interval_ms);
+   const auto               next_block_time = chain.head().block_time() + fc::milliseconds(config::block_interval_ms);
 
    flat_map<digest_type, bool> visited_protocol_features;
    visited_protocol_features.reserve(pfs.size());
@@ -1836,7 +1836,7 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {
    const chain::controller& chain = chain_plug->chain();
    const fc::time_point     now   = fc::time_point::now();
-   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head_block_time());
+   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head().block_time());
    return block_timestamp_type(base).next();
 }
 
@@ -1926,7 +1926,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head_block_time();
+         auto head_block_age = now - chain.head().block_time();
          if (head_block_age > fc::seconds(5))
             return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
       }
@@ -2255,7 +2255,7 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
          auto except_ptr = std::static_pointer_cast<fc::exception>(std::make_shared<tx_cpu_usage_exceeded>(
             FC_LOG_MESSAGE(error, "transaction ${id} exceeded failure limit for account ${a} until ${next_reset_time}",
                            ("id", trx->id())("a", first_auth)
-                           ("next_reset_time", _account_fails.next_reset_timepoint(chain.head_block_num(), chain.head_block_time())))));
+                           ("next_reset_time", _account_fails.next_reset_timepoint(chain.head_block_num(), chain.head().block_time())))));
          log_trx_results(trx, except_ptr);
          next(except_ptr);
       }

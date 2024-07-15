@@ -526,7 +526,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
       BOOST_CHECK_EQUAL(res->receipt->status, transaction_receipt::executed);
    }
 
-   uint64_t now = static_cast<uint64_t>( chain.control->head_block_time().time_since_epoch().count() );
+   uint64_t now = static_cast<uint64_t>( chain.control->head().block_time().time_since_epoch().count() );
    now += config::block_interval_us;
    CALL_TEST_FUNCTION( chain, "test_action", "test_current_time", fc::raw::pack(now));
 
@@ -544,7 +544,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(action_tests, T, validating_testers) { try {
    chain.produce_block();
 
    // test_publication_time
-   uint64_t pub_time = static_cast<uint64_t>( chain.control->head_block_time().time_since_epoch().count() );
+   uint64_t pub_time = static_cast<uint64_t>( chain.control->head().block_time().time_since_epoch().count() );
    pub_time += config::block_interval_us;
    CALL_TEST_FUNCTION( chain, "test_action", "test_publication_time", fc::raw::pack(pub_time) );
 
@@ -3047,7 +3047,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(permission_usage_tests, T, validating_testers) { t
    BOOST_CHECK_THROW( CALL_TEST_FUNCTION( chain, "test_permission", "test_permission_last_used",
                        fc::raw::pack(test_permission_last_used_action{
                                        "testapi"_n, config::active_name,
-                                       chain.control->head_block_time() + fc::milliseconds(config::block_interval_ms)
+                                       chain.control->head().block_time() + fc::milliseconds(config::block_interval_ms)
                                      })
    ), eosio_assert_message_exception );
 

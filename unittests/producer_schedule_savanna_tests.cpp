@@ -52,7 +52,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule_after_savanna_activation, lega
          BOOST_TEST( b->confirmed == 0); // must be 0 after instant finality is enabled
 
          // Check if the producer is the same as what we expect
-         const auto block_time = control->head_block_time();
+         const auto block_time = control->head().block_time();
          const auto& expected_producer = get_expected_producer(current_schedule, block_time);
          BOOST_TEST(control->head().producer() == expected_producer);
 

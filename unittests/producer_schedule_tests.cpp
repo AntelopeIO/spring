@@ -51,7 +51,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
          control->abort_block(); // abort started block in produce_block so activate_producers() is off head
 
          // Check if the producer is the same as what we expect
-         const auto block_time = control->head_block_time();
+         const auto block_time = control->head().block_time();
          const auto& expected_producer = get_expected_producer(current_schedule, block_time);
          BOOST_TEST(control->head().producer() == expected_producer);
 
@@ -486,7 +486,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    c.finish_block();
 
    auto carol_block_num = c.control->head_block_num() + 1;
-   auto carol_block_time = c.control->head_block_time() + fc::milliseconds(config::block_interval_ms);
+   auto carol_block_time = c.control->head().block_time() + fc::milliseconds(config::block_interval_ms);
    auto confirmed = carol_block_num - carol_last_produced_block_num - 1;
 
    c.control->start_block( carol_block_time, confirmed, {}, controller::block_status::incomplete );
