@@ -239,13 +239,7 @@ namespace eosio::chain {
          void   set_disable_replay_opts( bool v );
 
          block_handle         head()const;
-         uint32_t             head_block_num()const;
-         time_point           head_block_time()const;
-         block_timestamp_type head_block_timestamp()const;
-         block_id_type        head_block_id()const;
-         account_name         head_block_producer()const;
-         const block_header&  head_block_header()const;
-         const signed_block_ptr& head_block()const;
+
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
          // returns finality_data associated with chain head for SHiP when in Savanna,
