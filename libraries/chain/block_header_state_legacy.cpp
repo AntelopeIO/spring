@@ -156,11 +156,10 @@ namespace eosio::chain {
          result.producer_to_last_implied_irb[proauth.producer_name] = dpos_proposed_irreversible_blocknum;
       }
 
-      if (header_exts.count(instant_finality_extension::extension_id())) { // transition to savanna has started
-         const auto& if_extension =
-            std::get<instant_finality_extension>(header_exts.lower_bound(instant_finality_extension::extension_id())->second);
+      if (header_exts.count(finality_extension::extension_id())) { // transition to savanna has started
+         const auto& f_ext = std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
          // copy over qc_claim from IF Genesis Block
-         result.qc_claim = if_extension.qc_claim;
+         result.qc_claim = f_ext.qc_claim;
       }
 
       return result;
@@ -222,11 +221,11 @@ namespace eosio::chain {
                                        .is_strong_qc = false };
          finalizer_policy no_policy;
          auto new_fin_policy_diff = no_policy.create_diff(*new_finalizer_policy);
-         emplace_extension(h.header_extensions, instant_finality_extension::extension_id(),
-                           fc::raw::pack(instant_finality_extension{ initial_if_claim, std::move(new_fin_policy_diff), {} }));
+         emplace_extension(h.header_extensions, finality_extension::extension_id(),
+                           fc::raw::pack(finality_extension{ initial_if_claim, std::move(new_fin_policy_diff), {} }));
       } else if (qc_claim) {
-         emplace_extension(h.header_extensions, instant_finality_extension::extension_id(),
-                           fc::raw::pack(instant_finality_extension{ *qc_claim, {}, {} }));
+         emplace_extension(h.header_extensions, finality_extension::extension_id(),
+                           fc::raw::pack(finality_extension{ *qc_claim, {}, {} }));
       }
 
       return h;

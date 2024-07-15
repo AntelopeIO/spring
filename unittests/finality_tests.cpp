@@ -26,9 +26,9 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
    auto block = t.produce_block();
 
-   std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = block->extract_header_extension(finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<finality_extension>(*ext).new_finalizer_policy_diff;
    BOOST_TEST(!!fin_policy_diff);
    BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == num_finalizers);
    BOOST_TEST(fin_policy_diff->generation == 1);
@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    auto fb = t.control->fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
    BOOST_TEST(fb->calculate_id() == t.lib_id);
-   ext = fb->extract_header_extension(instant_finality_extension::extension_id());
+   ext = fb->extract_header_extension(finality_extension::extension_id());
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 
@@ -75,9 +75,9 @@ void test_finality_transition(const vector<account_name>& accounts,
    // this block contains the header extension for the instant finality, savanna activated when it is LIB
    auto block = t.produce_block();
 
-   std::optional<block_header_extension> ext = block->extract_header_extension(instant_finality_extension::extension_id());
+   std::optional<block_header_extension> ext = block->extract_header_extension(finality_extension::extension_id());
    BOOST_TEST(!!ext);
-   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<instant_finality_extension>(*ext).new_finalizer_policy_diff;
+   std::optional<finalizer_policy_diff> fin_policy_diff = std::get<finality_extension>(*ext).new_finalizer_policy_diff;
    BOOST_TEST(!!fin_policy_diff);
    BOOST_TEST(fin_policy_diff->finalizers_diff.insert_indexes.size() == accounts.size());
    BOOST_TEST(fin_policy_diff->generation == 1);
@@ -92,7 +92,7 @@ void test_finality_transition(const vector<account_name>& accounts,
    auto fb = t.control->fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
    BOOST_TEST(fb->calculate_id() == t.lib_id);
-   ext = fb->extract_header_extension(instant_finality_extension::extension_id());
+   ext = fb->extract_header_extension(finality_extension::extension_id());
    BOOST_REQUIRE(!!ext);
    BOOST_TEST(if_genesis_block_id == fb->calculate_id());
 

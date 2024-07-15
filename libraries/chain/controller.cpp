@@ -1345,7 +1345,7 @@ struct controller_impl {
    }
 
    void transition_to_savanna() {
-      assert(chain_head.header().contains_header_extension(instant_finality_extension::extension_id()));
+      assert(chain_head.header().contains_header_extension(finality_extension::extension_id()));
       // copy head branch from legacy forkdb legacy to savanna forkdb
       if (check_shutdown())
          return;
@@ -1463,7 +1463,7 @@ struct controller_impl {
                root_id = (*bitr)->id();
 
                if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(*bitr)>>) {
-                  if ((*bitr)->header.contains_header_extension(instant_finality_extension::extension_id())) {
+                  if ((*bitr)->header.contains_header_extension(finality_extension::extension_id())) {
                      savanna_transition_required = true;
                      // Do not advance irreversible past IF Genesis Block
                      break;
@@ -1591,7 +1591,7 @@ struct controller_impl {
                });
                block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
                   assert(!next->is_proper_svnn_block());
-                  if (next->contains_header_extension(instant_finality_extension::extension_id())) {
+                  if (next->contains_header_extension(finality_extension::extension_id())) {
                      assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
                      legacy_branch.push_back(head);
                      // note if is_proper_svnn_block is not reached then transistion will happen live
@@ -1799,7 +1799,7 @@ struct controller_impl {
 
          init(startup_t::snapshot);
          block_handle_accessor::apply_l<void>(chain_head, [&](auto& head) {
-            if (block_states.second && head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+            if (block_states.second && head->header.contains_header_extension(finality_extension::extension_id())) {
                // snapshot generated in transition to savanna
                if (fork_db.version_in_use() == fork_database::in_use_t::legacy) {
                   fork_db.switch_from_legacy(block_states.second);
@@ -2055,7 +2055,7 @@ struct controller_impl {
    {
        return block_handle_accessor::apply<block_state_pair>(chain_head, overloaded{
           [&](const block_state_legacy_ptr& head) -> block_state_pair {
-             if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+             if (head->header.contains_header_extension(finality_extension::extension_id())) {
                 // During transition to Savanna, we need to build Transition Savanna block
                 // from Savanna Genesis block
                 return { head, get_transition_savanna_block(head) };
@@ -3275,7 +3275,7 @@ struct controller_impl {
          if (auto* dm_logger = get_deep_mind_logger(false)) {
             block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
-                           if (head->block->contains_header_extension(instant_finality_extension::extension_id())) {
+                           if (head->block->contains_header_extension(finality_extension::extension_id())) {
                               auto bsp = get_transition_savanna_block(head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
@@ -3426,16 +3426,14 @@ struct controller_impl {
 
       if (b.header_extensions != ab.header_extensions) {
          flat_multimap<uint16_t, block_header_extension> bheader_exts = b.validate_and_extract_header_extensions();
-         if (bheader_exts.count(instant_finality_extension::extension_id())) {
-            const auto& if_extension =
-               std::get<instant_finality_extension>(bheader_exts.lower_bound(instant_finality_extension::extension_id())->second);
-            elog("b  if: ${i}", ("i", if_extension));
+         if (bheader_exts.count(finality_extension::extension_id())) {
+            const auto& f_ext = std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
+            elog("b  if: ${i}", ("i", f_ext));
          }
          flat_multimap<uint16_t, block_header_extension> abheader_exts = ab.validate_and_extract_header_extensions();
-         if (abheader_exts.count(instant_finality_extension::extension_id())) {
-            const auto& if_extension =
-               std::get<instant_finality_extension>(abheader_exts.lower_bound(instant_finality_extension::extension_id())->second);
-            elog("ab if: ${i}", ("i", if_extension));
+         if (abheader_exts.count(finality_extension::extension_id())) {
+            const auto& f_ext = std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
+            elog("ab if: ${i}", ("i", f_ext));
          }
       }
 
@@ -3445,16 +3443,16 @@ struct controller_impl {
    static std::optional<qc_data_t> extract_qc_data(const signed_block_ptr& b) {
       std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(instant_finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<instant_finality_extension>(if_entry->second);
+      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+         auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
          if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
-            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+            return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
-         return qc_data_t{ {}, if_ext.qc_claim };
+         return qc_data_t{ {}, f_ext.qc_claim };
       }
       return {};
    }
@@ -3711,19 +3709,19 @@ struct controller_impl {
           });
    }
 
-   // Verify QC claim made by instant_finality_extension in header extension
+   // Verify QC claim made by finality_extension in header extension
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified
    // after creation.
    // -----------------------------------------------------------------------------
    void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
-      auto if_ext_id = instant_finality_extension::extension_id();
+      auto f_ext_id  = finality_extension::extension_id();
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(if_ext_id);
-      std::optional<block_header_extension> header_ext      = b->extract_header_extension(if_ext_id);
+      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> header_ext      = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
@@ -3745,8 +3743,8 @@ struct controller_impl {
       }
 
       assert(header_ext);
-      const auto& if_ext   = std::get<instant_finality_extension>(*header_ext);
-      const auto  new_qc_claim = if_ext.qc_claim;
+      const auto& f_ext        = std::get<finality_extension>(*header_ext);
+      const auto  new_qc_claim = f_ext.qc_claim;
 
       // If there is a header extension, but the previous block does not have a header extension,
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
@@ -3765,8 +3763,8 @@ struct controller_impl {
       // ----------------------------------------------------------------------------------------
       assert(header_ext && prev_header_ext);
 
-      const auto& prev_if_ext   = std::get<instant_finality_extension>(*prev_header_ext);
-      const auto  prev_qc_claim = prev_if_ext.qc_claim;
+      const auto& prev_f_ext    = std::get<finality_extension>(*prev_header_ext);
+      const auto  prev_qc_claim = prev_f_ext.qc_claim;
 
       // validate QC claim against previous block QC info
 
@@ -3832,7 +3830,7 @@ struct controller_impl {
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
       if constexpr (savanna_mode) {
-         // Verify claim made by instant_finality_extension in block header extension and
+         // Verify claim made by finality_extension in block header extension and
          // quorum_certificate_extension in block extension are valid.
          // This is the only place the evaluation is done.
          verify_qc_claim(id, b, prev);
@@ -4517,14 +4515,14 @@ struct controller_impl {
       // (where root() is updated), like in SHiP case where it is called
       // as a result receiving accepted_block signal.
       // Search both root and legacy_branch for the first block having
-      // instant_finality_extension -- the Savanna Genesis Block.
+      // finality_extension -- the Savanna Genesis Block.
       // Then start from the Savanna Genesis Block to create corresponding
       // Savanna blocks.
-      if (legacy_root->header.contains_header_extension(instant_finality_extension::extension_id())) {
+      if (legacy_root->header.contains_header_extension(finality_extension::extension_id())) {
          prev = block_state::create_if_genesis_block(*legacy_root);
       } else {
          for (; bitr != legacy_branch.rend(); ++bitr) {
-            if ((*bitr)->header.contains_header_extension(instant_finality_extension::extension_id())) {
+            if ((*bitr)->header.contains_header_extension(finality_extension::extension_id())) {
                prev = block_state::create_if_genesis_block(*(*bitr));
                ++bitr;
                break;
@@ -4561,7 +4559,7 @@ struct controller_impl {
          [&](const block_state_legacy_ptr& head) -> std::optional<finality_data_t> {
             // When in Legacy, if it is during transition to Savana, we need to
             // build finality_data for the corresponding Savanna block
-            if (head->header.contains_header_extension(instant_finality_extension::extension_id())) {
+            if (head->header.contains_header_extension(finality_extension::extension_id())) {
                // during transition
                return get_transition_block_finality_data(head);
             } else {
@@ -4968,6 +4966,10 @@ void controller::commit_block(block_report& br) {
 
 void controller::allow_voting(bool val) {
    my->allow_voting = val;
+}
+
+bool controller::get_allow_voting_flag() {
+   return my->allow_voting;
 }
 
 void controller::set_async_voting(async_t val) {
