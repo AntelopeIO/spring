@@ -3427,15 +3427,13 @@ struct controller_impl {
       if (b.header_extensions != ab.header_extensions) {
          flat_multimap<uint16_t, block_header_extension> bheader_exts = b.validate_and_extract_header_extensions();
          if (bheader_exts.count(finality_extension::extension_id())) {
-            const auto& if_extension =
-               std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
-            elog("b  if: ${i}", ("i", if_extension));
+            const auto& f_ext = std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
+            elog("b  if: ${i}", ("i", f_ext));
          }
          flat_multimap<uint16_t, block_header_extension> abheader_exts = ab.validate_and_extract_header_extensions();
          if (abheader_exts.count(finality_extension::extension_id())) {
-            const auto& if_extension =
-               std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
-            elog("ab if: ${i}", ("i", if_extension));
+            const auto& f_ext = std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
+            elog("ab if: ${i}", ("i", f_ext));
          }
       }
 
@@ -3445,16 +3443,16 @@ struct controller_impl {
    static std::optional<qc_data_t> extract_qc_data(const signed_block_ptr& b) {
       std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<finality_extension>(if_entry->second);
+      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+         auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
          if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
-            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+            return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
-         return qc_data_t{ {}, if_ext.qc_claim };
+         return qc_data_t{ {}, f_ext.qc_claim };
       }
       return {};
    }
@@ -3718,12 +3716,12 @@ struct controller_impl {
    // -----------------------------------------------------------------------------
    void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
-      auto if_ext_id = finality_extension::extension_id();
+      auto f_ext_id  = finality_extension::extension_id();
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(if_ext_id);
-      std::optional<block_header_extension> header_ext      = b->extract_header_extension(if_ext_id);
+      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> header_ext      = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
@@ -3745,8 +3743,8 @@ struct controller_impl {
       }
 
       assert(header_ext);
-      const auto& if_ext   = std::get<finality_extension>(*header_ext);
-      const auto  new_qc_claim = if_ext.qc_claim;
+      const auto& f_ext        = std::get<finality_extension>(*header_ext);
+      const auto  new_qc_claim = f_ext.qc_claim;
 
       // If there is a header extension, but the previous block does not have a header extension,
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
@@ -3765,8 +3763,8 @@ struct controller_impl {
       // ----------------------------------------------------------------------------------------
       assert(header_ext && prev_header_ext);
 
-      const auto& prev_if_ext   = std::get<finality_extension>(*prev_header_ext);
-      const auto  prev_qc_claim = prev_if_ext.qc_claim;
+      const auto& prev_f_ext    = std::get<finality_extension>(*prev_header_ext);
+      const auto  prev_qc_claim = prev_f_ext.qc_claim;
 
       // validate QC claim against previous block QC info
 

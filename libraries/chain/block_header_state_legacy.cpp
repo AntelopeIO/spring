@@ -157,10 +157,9 @@ namespace eosio::chain {
       }
 
       if (header_exts.count(finality_extension::extension_id())) { // transition to savanna has started
-         const auto& if_extension =
-            std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
+         const auto& f_ext = std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
          // copy over qc_claim from IF Genesis Block
-         result.qc_claim = if_extension.qc_claim;
+         result.qc_claim = f_ext.qc_claim;
       }
 
       return result;

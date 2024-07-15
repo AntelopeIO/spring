@@ -71,16 +71,16 @@ namespace finality_proof {
    static qc_data_t extract_qc_data(const signed_block_ptr& b) {
       assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto if_entry = hexts.lower_bound(finality_extension::extension_id()); if_entry != hexts.end()) {
-         auto& if_ext   = std::get<finality_extension>(if_entry->second);
+      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+         auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
          if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
-            return qc_data_t{ std::move(qc_ext.qc), if_ext.qc_claim };
+            return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
-         return qc_data_t{ {}, if_ext.qc_claim };
+         return qc_data_t{ {}, f_ext.qc_claim };
       }
       return {};
    }
@@ -88,21 +88,21 @@ namespace finality_proof {
    static bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
-      finality_extension if_ext = block->extract_header_extension<finality_extension>();
+      finality_extension f_ext = block->extract_header_extension<finality_extension>();
 
-      return if_ext.new_finalizer_policy_diff.has_value();
+      return f_ext.new_finalizer_policy_diff.has_value();
 
    }
 
    static finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
 
       // extract new finalizer policy
-      finality_extension if_ext = block->extract_header_extension<finality_extension>();
+      finality_extension f_ext = block->extract_header_extension<finality_extension>();
 
-      assert(if_ext.new_finalizer_policy_diff.has_value());
+      assert(f_ext.new_finalizer_policy_diff.has_value());
 
       finalizer_policy active_finalizer_policy =
-         current_policy.apply_diff(if_ext.new_finalizer_policy_diff.value());
+         current_policy.apply_diff(f_ext.new_finalizer_policy_diff.value());
 
       return active_finalizer_policy;
 

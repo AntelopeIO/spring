@@ -183,7 +183,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 void finish_next(const block_header_state& prev,
                  block_header_state& next_header_state,
                  vector<digest_type> new_protocol_feature_activations,
-                 finality_extension if_ext,
+                 finality_extension f_ext,
                  bool log) { // only log on assembled blocks, to avoid double logging
    // activated protocol features
    // ---------------------------
@@ -210,8 +210,8 @@ void finish_next(const block_header_state& prev,
    }
 
    std::optional<proposer_policy> new_proposer_policy;
-   if (if_ext.new_proposer_policy_diff) {
-      new_proposer_policy = prev.get_last_proposed_proposer_policy().apply_diff(*if_ext.new_proposer_policy_diff);
+   if (f_ext.new_proposer_policy_diff) {
+      new_proposer_policy = prev.get_last_proposed_proposer_policy().apply_diff(*f_ext.new_proposer_policy_diff);
    }
    if (new_proposer_policy) {
       // called when assembling the block
@@ -226,7 +226,7 @@ void finish_next(const block_header_state& prev,
       .timestamp = prev.timestamp(),
       .finalizer_policy_generation = prev.active_finalizer_policy->generation
    };
-   next_header_state.core = prev.core.next(parent_block, if_ext.qc_claim);
+   next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
    // finalizer policy
    // ----------------
@@ -236,8 +236,8 @@ void finish_next(const block_header_state& prev,
 
    next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
 
-   if (if_ext.new_finalizer_policy_diff) {
-      finalizer_policy new_finalizer_policy = prev.get_last_proposed_finalizer_policy().apply_diff(*if_ext.new_finalizer_policy_diff);
+   if (f_ext.new_finalizer_policy_diff) {
+      finalizer_policy new_finalizer_policy = prev.get_last_proposed_finalizer_policy().apply_diff(*f_ext.new_finalizer_policy_diff);
 
       // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
       // block's header extensions.
@@ -296,13 +296,13 @@ block_header_state block_header_state::next(block_header_state_input& input) con
    if (input.new_proposer_policy) {
       new_proposer_policy_diff = get_last_proposed_proposer_policy().create_diff(*input.new_proposer_policy);
    }
-   finality_extension new_if_ext { input.most_recent_ancestor_with_qc,
-                                           std::move(new_finalizer_policy_diff),
-                                           std::move(new_proposer_policy_diff) };
+   finality_extension new_f_ext { input.most_recent_ancestor_with_qc,
+                                  std::move(new_finalizer_policy_diff),
+                                  std::move(new_proposer_policy_diff) };
 
-   uint16_t if_ext_id = finality_extension::extension_id();
-   emplace_extension(next_header_state.header.header_extensions, if_ext_id, fc::raw::pack(new_if_ext));
-   next_header_state.header_exts.emplace(if_ext_id, new_if_ext);
+   uint16_t f_ext_id = finality_extension::extension_id();
+   emplace_extension(next_header_state.header.header_extensions, f_ext_id, fc::raw::pack(new_f_ext));
+   next_header_state.header_exts.emplace(f_ext_id, new_f_ext);
 
    // add protocol_feature_activation extension
    // -----------------------------------------
@@ -314,7 +314,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
       next_header_state.header_exts.emplace(ext_id, std::move(pfa_ext));
    }
 
-   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_if_ext), true);
+   finish_next(*this, next_header_state, std::move(input.new_protocol_feature_activations), std::move(new_f_ext), true);
 
    return next_header_state;
 }
@@ -355,13 +355,13 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    // --------------------------------------------------------------------
    EOS_ASSERT(exts.count(finality_extension::extension_id()) > 0, invalid_block_header_extension,
               "Instant Finality Extension is expected to be present in all block headers after switch to IF");
-   auto  if_entry     = exts.lower_bound(finality_extension::extension_id());
-   const auto& if_ext = std::get<finality_extension>(if_entry->second);
+   auto  f_entry     = exts.lower_bound(finality_extension::extension_id());
+   const auto& f_ext = std::get<finality_extension>(f_entry->second);
 
    if (h.is_proper_svnn_block()) {
       // if there is no Finality Tree Root associated with the block,
       // then this needs to validate that h.action_mroot is the empty digest
-      auto next_core_metadata = core.next_metadata(if_ext.qc_claim);
+      auto next_core_metadata = core.next_metadata(f_ext.qc_claim);
       bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num);
 
       EOS_ASSERT(no_finality_tree_associated == h.action_mroot.empty(), block_validate_exception,
@@ -371,7 +371,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
                  ("f", next_core_metadata.final_on_strong_qc_block_num));
    };
 
-   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), if_ext, false);
+   finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), f_ext, false);
 
    return next_header_state;
 }
