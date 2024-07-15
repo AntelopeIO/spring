@@ -69,10 +69,9 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
-      uint32_t forkdb_head_num() const { return control->fork_db_head_block_num(); }
-
-      void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         while (to.forkdb_head_num() < std::min(forkdb_head_num(), block_num_limit)) {
+      void push_blocks(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+         auto limit = std::min(forkdb_head_num(), block_num_limit);
+         while (to.forkdb_head_num() < limit) {
             auto sb = control->fetch_block_by_number(to.forkdb_head_num() + 1);
             to.push_block(sb);
          }
@@ -262,10 +261,6 @@ namespace savanna_cluster {
 
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
-      void push_block(size_t dst_idx, const signed_block_ptr& sb) {
-         push_block_to_peers(dst_idx, skip_self_t::no, sb);
-      }
-
       void verify_lib_advances() {
          auto lib = _nodes[0].lib_block->block_num();
          size_t tries = 0;
@@ -275,6 +270,9 @@ namespace savanna_cluster {
          BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
       }
 
+      void push_block(size_t dst_idx, const signed_block_ptr& sb) {
+         push_block_to_peers(dst_idx, skip_self_t::no, sb);
+      }
 
       // Push new blocks from src_idx node to all nodes in partition of dst_idx.
       // This is used when pushing one fork from a node to another node which has

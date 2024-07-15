@@ -356,7 +356,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) tr
 
    legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
 
-   ::push_blocks( _nodes[0], irreversible, hbn1 );
+   _nodes[0].push_blocks(irreversible, hbn1);
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn1 );
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib1 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), false );
@@ -367,7 +367,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) tr
    auto lib2 = _nodes[0].control->last_irreversible_block_num();
    BOOST_CHECK_GT(lib2, lib1);
 
-   ::push_blocks( _nodes[0], irreversible, hbn2 );
+   _nodes[0].push_blocks(irreversible, hbn2);
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn2 );
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib2 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), true );
@@ -378,7 +378,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_1, savanna_cluster::cluster_t ) tr
    auto lib3 = _nodes[0].control->last_irreversible_block_num();
    BOOST_CHECK_GT(lib3, lib2);
 
-   ::push_blocks( _nodes[0], irreversible, hbn3 );
+   _nodes[0].push_blocks(irreversible, hbn3);
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn3 );
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib3 );
 } FC_LOG_AND_RETHROW()
@@ -443,7 +443,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_if_2, savanna_cluster::cluster_t ) tr
 
    // push the branch where `lib` has not advanced past lib1
    // ------------------------------------------------------
-   ::push_blocks( _nodes[3], irreversible, hbn3 );
+   _nodes[3].push_blocks(irreversible, hbn3);
 
    BOOST_CHECK_EQUAL( irreversible.control->fork_db_head_block_num(), hbn3 );
    BOOST_CHECK_EQUAL( irreversible.control->head_block_num(), lib3 );
