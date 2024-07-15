@@ -239,8 +239,14 @@ namespace eosio::chain {
          void   set_disable_replay_opts( bool v );
 
          block_handle         head()const;
-         uint32_t             head_block_num()const;
-         time_point           head_block_time()const;
+
+         [[deprecated("Use head().block_num().")]]  uint32_t             head_block_num()const;
+         [[deprecated("Use head().block_time().")]] time_point           head_block_time()const;
+         [[deprecated("Use head().timestamp().")]]  block_timestamp_type head_block_timestamp()const;
+         [[deprecated("Use head().id().")]]         block_id_type        head_block_id()const;
+         [[deprecated("Use head().producer().")]]   account_name         head_block_producer()const;
+         [[deprecated("Use head().header().")]]     const block_header&  head_block_header()const;
+         [[deprecated("Use head().block().")]]      const signed_block_ptr& head_block()const;
 
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;
