@@ -1235,10 +1235,11 @@ namespace eosio { namespace chain {
       return my->read_block_header_by_num(block_num);
    }
 
-   block_id_type block_log::read_block_id_by_num(uint32_t block_num) const {
+   std::optional<block_id_type> block_log::read_block_id_by_num(uint32_t block_num) const {
       // read_block_header_by_num acquires mutex
       auto bh = read_block_header_by_num(block_num);
-      if (bh) { return bh->calculate_id(); }
+      if (bh)
+         return std::optional<block_id_type>{bh->calculate_id()};
       return {};
    }
 
