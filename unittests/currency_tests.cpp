@@ -35,7 +35,7 @@ class currency_tester : public T {
          trx.actions.emplace_back(std::move(act));
 
          T::set_transaction_headers(trx);
-         trx.sign(T::get_private_key(signer, "active"), T::control->get_chain_id());
+         trx.sign(T::get_private_key(signer, "active"), T::get_chain_id());
          return T::push_transaction(trx);
       }
 
@@ -434,14 +434,14 @@ BOOST_FIXTURE_TEST_CASE( test_proxy_deferred, pre_disable_deferred_trx_currency_
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("proxy"_n, "active"), control->get_chain_id());
+      trx.sign(get_private_key("proxy"_n, "active"), get_chain_id());
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));
    }
 
    // for now wasm "time" is in seconds, so we have to truncate off any parts of a second that may have applied
-   fc::time_point expected_delivery(fc::seconds(control->head().block_time().sec_since_epoch()) + fc::seconds(10));
+   fc::time_point expected_delivery(fc::seconds(head().block_time().sec_since_epoch()) + fc::seconds(10));
    {
       auto trace = push_action("eosio.token"_n, "transfer"_n, mutable_variant_object()
          ("from", eosio_token)
@@ -451,7 +451,7 @@ BOOST_FIXTURE_TEST_CASE( test_proxy_deferred, pre_disable_deferred_trx_currency_
       );
    }
 
-   while(control->head().block_time() < expected_delivery) {
+   while(head().block_time() < expected_delivery) {
       produce_block();
       BOOST_REQUIRE_EQUAL(get_balance( "proxy"_n), asset::from_string("5.0000 CUR"));
       BOOST_REQUIRE_EQUAL(get_balance( "alice"_n),   asset::from_string("0.0000 CUR"));
@@ -490,7 +490,7 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("proxy"_n, "active"), control->get_chain_id());
+      trx.sign(get_private_key("proxy"_n, "active"), get_chain_id());
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));
@@ -541,7 +541,7 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
-      trx.sign(get_private_key("bob"_n, "active"), control->get_chain_id());
+      trx.sign(get_private_key("bob"_n, "active"), get_chain_id());
       push_transaction(trx);
       produce_block();
       BOOST_REQUIRE_EQUAL(true, chain_has_transaction(trx.id()));

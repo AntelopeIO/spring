@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    act.data = fc::raw::pack(act_data);
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.control->get_chain_id());
+   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.get_chain_id());
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(signed_tx);
    copy_b->transactions.back().trx = std::move(invalid_packed_tx);
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    signed_tx.actions[0].name = "something"_n;
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.control->get_chain_id());
+   signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.get_chain_id());
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(std::move(signed_tx), packed_trx.get_compression());
    copy_b->transactions.back().trx = std::move(invalid_packed_tx);
@@ -118,7 +118,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
    auto signed_tx = packed_trx.get_signed_transaction();
    // Corrupt one signature
    signed_tx.signatures.clear();
-   signed_tx.sign(main.get_private_key(act_name, "active"), main.control->get_chain_id());
+   signed_tx.sign(main.get_private_key(act_name, "active"), main.get_chain_id());
 
    // Replace the valid transaction with the invalid transaction
    auto invalid_packed_tx = packed_transaction(signed_tx, packed_trx.get_compression());
@@ -283,10 +283,10 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
                                       .active   = authority( get_public_key( a, "active" ) )
                                 });
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+      trx.sign( get_private_key( creator, "active" ), get_chain_id()  );
       auto trace = push_transaction( trx );
 
-      control->get_account( a ); // throws if it does not exist
+      get_account( a ); // throws if it does not exist
 
       deque<transaction_metadata_ptr> unapplied_trxs = control->abort_block();
 
@@ -295,7 +295,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions, validating_tester) { try {
       BOOST_REQUIRE_EQUAL( trx.id(), unapplied_trxs.at(0)->id() );
 
       // account does not exist block was aborted which had transaction
-      BOOST_REQUIRE_EXCEPTION(control->get_account( a ), fc::exception,
+      BOOST_REQUIRE_EXCEPTION(get_account( a ), fc::exception,
                               [a] (const fc::exception& e)->bool {
                                  return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                               }) ;
@@ -316,7 +316,7 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { t
       account_name creator = config::system_account_name;
 
       // account does not exist before test
-      BOOST_REQUIRE_EXCEPTION(control->get_account( a ), fc::exception,
+      BOOST_REQUIRE_EXCEPTION(get_account( a ), fc::exception,
                               [a] (const fc::exception& e)->bool {
                                  return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                               }) ;
@@ -330,14 +330,14 @@ BOOST_FIXTURE_TEST_CASE( abort_block_transactions_tester, validating_tester) { t
                                       .active   = authority( get_public_key( a, "active" ) )
                                 });
       set_transaction_headers(trx);
-      trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+      trx.sign( get_private_key( creator, "active" ), get_chain_id()  );
       auto trace = push_transaction( trx );
 
-      control->get_account( a ); // throws if it does not exist
+      get_account( a ); // throws if it does not exist
 
       produce_block( fc::milliseconds(config::block_interval_ms*2) ); // aborts block, tester should reapply trx
 
-      control->get_account( a ); // throws if it does not exist
+      get_account( a ); // throws if it does not exist
 
       deque<transaction_metadata_ptr> unapplied_trxs = control->abort_block(); // should be empty now
 

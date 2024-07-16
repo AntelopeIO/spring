@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_over_limit, T, testers ) try {
        std::vector<eosio::chain::permission_level>{{"testapi"_n, eosio::chain::config::active_name}}, da);
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
-   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.control->get_chain_id());
+   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
 
    // pack
    packed_transaction pt(trx, packed_transaction::compression_type::zlib);
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( decompressed_size_under_limit, T, testers ) try {
        std::vector<eosio::chain::permission_level>{{"testapi"_n, eosio::chain::config::active_name}}, da);
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
-   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.control->get_chain_id());
+   auto sig = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
 
    // pack
    packed_transaction pt(trx, packed_transaction::compression_type::zlib);
@@ -160,9 +160,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_validated_blocks, T, testers ) try {
       const auto& [ block, id ] = t;
       auto block_num = block->block_num();
       BOOST_CHECK(block);
-      BOOST_CHECK(chain.control->fetch_block_by_id(id) == block);
-      BOOST_CHECK(chain.control->block_exists(id));
-      BOOST_CHECK(chain.control->fetch_block_by_number(block_num) == block);
+      BOOST_CHECK(chain.fetch_block_by_id(id) == block);
+      BOOST_CHECK(chain.block_exists(id));
+      BOOST_CHECK(chain.fetch_block_by_number(block_num) == block);
       BOOST_REQUIRE(chain.control->fetch_block_header_by_number(block_num));
       BOOST_CHECK(chain.control->fetch_block_header_by_number(block_num)->calculate_id() == id);
       BOOST_REQUIRE(chain.control->fetch_block_header_by_id(id));
@@ -176,9 +176,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( signal_validated_blocks, T, testers ) try {
       const auto& [ block, id ] = t;
       auto block_num = block->block_num();
       BOOST_CHECK(block);
-      BOOST_CHECK(validator.control->fetch_block_by_id(id) == block);
-      BOOST_CHECK(validator.control->block_exists(id));
-      BOOST_CHECK(validator.control->fetch_block_by_number(block_num) == block);
+      BOOST_CHECK(validator.fetch_block_by_id(id) == block);
+      BOOST_CHECK(validator.block_exists(id));
+      BOOST_CHECK(validator.fetch_block_by_number(block_num) == block);
       BOOST_REQUIRE(validator.control->fetch_block_header_by_number(block_num));
       BOOST_CHECK(validator.control->fetch_block_header_by_number(block_num)->calculate_id() == id);
       BOOST_REQUIRE(validator.control->fetch_block_header_by_id(id));

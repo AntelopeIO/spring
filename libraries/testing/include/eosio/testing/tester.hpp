@@ -507,11 +507,28 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
-         // ideally, users of `tester` should not access the controller directly
-         // so we provide APIs to access the chain head and fork_db head
-         // --------------------------------------------------------------------
-         block_handle head() const { return control->head(); }
-         block_handle fork_db_head() const { return control->fork_db_head(); }
+         // ideally, users of `tester` should not access the controller directly,
+         // so we provide APIs to access the chain head and fork_db head, and some
+         // other commonly used APIs.
+         // ----------------------------------------------------------------------
+         block_handle     head() const { return control->head(); }
+         block_handle     fork_db_head() const { return control->fork_db_head(); }
+
+         chain_id_type    get_chain_id() const { return control->get_chain_id(); }
+         uint32_t         last_irreversible_block_num() const { return control->last_irreversible_block_num(); }
+         bool             block_exists(const block_id_type& id) const { return  control->block_exists(id); }
+
+         signed_block_ptr fetch_block_by_id(const block_id_type& id) const {
+            return control->fetch_block_by_id(id);
+         }
+
+         signed_block_ptr fetch_block_by_number(uint32_t block_num) const {
+            return control->fetch_block_by_number(block_num);
+         }
+
+         const account_object& get_account(account_name name) const {
+            return control->get_account(name);
+         }
 
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
@@ -565,6 +582,7 @@ namespace eosio::testing {
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
          signed_block_ptr                              lib_block; // updated via irreversible_block signal
          block_id_type                                 lib_id;    // updated via irreversible_block signal
+         uint32_t                                      lib_number {0}; // updated via irreversible_block signal
 
       private:
          std::vector<builtin_protocol_feature_t> get_all_builtin_protocol_features();
