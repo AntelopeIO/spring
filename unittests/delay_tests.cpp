@@ -192,7 +192,7 @@ BOOST_FIXTURE_TEST_CASE( delay_error_create_account, validating_tester_no_disabl
                              });
    set_transaction_headers(trx);
    trx.delay_sec = 3;
-   trx.sign( get_private_key( creator, "active" ), control->get_chain_id()  );
+   trx.sign( get_private_key( creator, "active" ), get_chain_id()  );
 
    ilog( fc::json::to_pretty_string(trx) );
    auto trace = push_transaction( trx );
@@ -1520,7 +1520,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test ) { try {
                             chain::canceldelay{{"tester"_n, config::active_name}, ids[0]});
 
    chain.set_transaction_headers(trx);
-   trx.sign(chain.get_private_key("tester"_n, "active"), chain.control->get_chain_id());
+   trx.sign(chain.get_private_key("tester"_n, "active"), chain.get_chain_id());
    // first push as a dry_run trx
    trace = chain.push_transaction(trx, fc::time_point::maximum(), base_tester::DEFAULT_BILLED_CPU_TIME_US, false, transaction_metadata::trx_type::dry_run);
    BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
@@ -1702,7 +1702,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
          trx.actions.emplace_back(vector<permission_level>{{"tester"_n, config::active_name}},
                                   chain::canceldelay{{"tester"_n, config::active_name}, trx_id});
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key("tester"_n, "active"), chain.control->get_chain_id());
+         trx.sign(chain.get_private_key("tester"_n, "active"), chain.get_chain_id());
          BOOST_REQUIRE_EXCEPTION( chain.push_transaction(trx), action_validate_exception,
                                   fc_exception_message_is("canceling_auth in canceldelay action was not found as authorization in the original delayed transaction") );
       }
@@ -1713,7 +1713,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
          trx.actions.emplace_back(vector<permission_level>{{"tester"_n, "second"_n}},
                                   chain::canceldelay{{"tester"_n, "first"_n}, trx_id});
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key("tester"_n, "second"), chain.control->get_chain_id());
+         trx.sign(chain.get_private_key("tester"_n, "second"), chain.get_chain_id());
          BOOST_REQUIRE_THROW( chain.push_transaction(trx), irrelevant_auth_exception );
          BOOST_REQUIRE_EXCEPTION( chain.push_transaction(trx), irrelevant_auth_exception,
                                   fc_exception_message_starts_with("canceldelay action declares irrelevant authority") );
@@ -1724,7 +1724,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
       trx.actions.emplace_back(vector<permission_level>{{"tester"_n, config::active_name}},
                                chain::canceldelay{{"tester"_n, "first"_n}, trx_id});
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("tester"_n, "active"), chain.control->get_chain_id());
+      trx.sign(chain.get_private_key("tester"_n, "active"), chain.get_chain_id());
       trace = chain.push_transaction(trx);
 
       BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
@@ -1790,7 +1790,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
       trx.actions.emplace_back(vector<permission_level>{{"tester"_n, "first"_n}},
                                chain::canceldelay{{"tester"_n, "second"_n}, trx_id});
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("tester"_n, "first"), chain.control->get_chain_id());
+      trx.sign(chain.get_private_key("tester"_n, "first"), chain.get_chain_id());
       trace = chain.push_transaction(trx);
 
       BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);
@@ -1843,7 +1843,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
          trx.actions.emplace_back(vector<permission_level>{{"tester"_n, "active"_n}},
                                   chain::canceldelay{{"tester"_n, config::owner_name}, trx_id});
          chain.set_transaction_headers(trx);
-         trx.sign(chain.get_private_key("tester"_n, "active"), chain.control->get_chain_id());
+         trx.sign(chain.get_private_key("tester"_n, "active"), chain.get_chain_id());
          BOOST_REQUIRE_THROW( chain.push_transaction(trx), irrelevant_auth_exception );
       }
 
@@ -1852,7 +1852,7 @@ BOOST_AUTO_TEST_CASE( canceldelay_test2 ) { try {
       trx.actions.emplace_back(vector<permission_level>{{"tester"_n, config::owner_name}},
                                chain::canceldelay{{"tester"_n, config::owner_name}, trx_id});
       chain.set_transaction_headers(trx);
-      trx.sign(chain.get_private_key("tester"_n, "owner"), chain.control->get_chain_id());
+      trx.sign(chain.get_private_key("tester"_n, "owner"), chain.get_chain_id());
       trace = chain.push_transaction(trx);
 
       BOOST_REQUIRE_EQUAL(transaction_receipt::executed, trace->receipt->status);

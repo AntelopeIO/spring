@@ -49,9 +49,9 @@ struct restart_from_block_log_tester : T {
       cutoff_block_num  = cutoff_block->block_num();
       chain.produce_block();
 
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay1"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay2"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay3"_n));
 
       chain.close();
    }
@@ -70,9 +70,9 @@ struct restart_from_block_log_tester : T {
       remove_existing_states(copied_config);
       T from_block_log_chain(copied_config, *genesis);
       using namespace eosio::chain;
-      BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay1"_n));
-      BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay2"_n));
-      BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay3"_n));
+      BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay1"_n));
+      BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay2"_n));
+      BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay3"_n));
    }
 };
 
@@ -112,23 +112,23 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log, T, eosio::testing::testers ) {
    BOOST_CHECK(std::filesystem::exists(blocks_dir / "blocks-121-140.log"));
    BOOST_CHECK(std::filesystem::exists(blocks_dir / "blocks-121-140.index"));
 
-   BOOST_CHECK(!chain.control->fetch_block_by_number(40));
+   BOOST_CHECK(!chain.fetch_block_by_number(40));
 
-   BOOST_CHECK(chain.control->fetch_block_by_number(81)->block_num() == 81u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(90)->block_num() == 90u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(100)->block_num() == 100u);
+   BOOST_CHECK(chain.fetch_block_by_number(81)->block_num() == 81u);
+   BOOST_CHECK(chain.fetch_block_by_number(90)->block_num() == 90u);
+   BOOST_CHECK(chain.fetch_block_by_number(100)->block_num() == 100u);
 
-   BOOST_CHECK(chain.control->fetch_block_by_number(41)->block_num() == 41u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(50)->block_num() == 50u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(60)->block_num() == 60u);
+   BOOST_CHECK(chain.fetch_block_by_number(41)->block_num() == 41u);
+   BOOST_CHECK(chain.fetch_block_by_number(50)->block_num() == 50u);
+   BOOST_CHECK(chain.fetch_block_by_number(60)->block_num() == 60u);
 
-   BOOST_CHECK(chain.control->fetch_block_by_number(121)->block_num() == 121u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(130)->block_num() == 130u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(140)->block_num() == 140u);
+   BOOST_CHECK(chain.fetch_block_by_number(121)->block_num() == 121u);
+   BOOST_CHECK(chain.fetch_block_by_number(130)->block_num() == 130u);
+   BOOST_CHECK(chain.fetch_block_by_number(140)->block_num() == 140u);
 
-   BOOST_CHECK(chain.control->fetch_block_by_number(145)->block_num() == 145u);
+   BOOST_CHECK(chain.fetch_block_by_number(145)->block_num() == 145u);
 
-   BOOST_CHECK(!chain.control->fetch_block_by_number(160));
+   BOOST_CHECK(!chain.fetch_block_by_number(160));
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_zero_retained_file, T, eosio::testing::testers ) {
@@ -185,7 +185,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
    T chain;
    chain.produce_blocks(160);
 
-   uint32_t head_block_num = chain.control->head().block_num();
+   uint32_t head_block_num = chain.head().block_num();
    uint32_t lib_block_num;
    if constexpr (std::is_same_v<T, eosio::testing::savanna_tester>) {
       lib_block_num = head_block_num - 3; // three-chain
@@ -231,10 +231,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
                                                                    .max_retained_files = 5 };
 
    T from_block_log_chain(copied_config, *genesis);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(150)->block_num() == 150u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(1)->block_num() == 1u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(75)->block_num() == 75u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(100)->block_num() == 100u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(150)->block_num() == 150u);
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_no_archive, T, eosio::testing::testers ) {
@@ -272,9 +272,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_no_archive, T, eosio::testing::tes
    BOOST_CHECK(std::filesystem::exists(blocks_dir / "blocks-61-70.log"));
    BOOST_CHECK(std::filesystem::exists(blocks_dir / "blocks-61-70.index"));
 
-   BOOST_CHECK(!chain.control->fetch_block_by_number(10));
-   BOOST_CHECK(chain.control->fetch_block_by_number(70));
-   BOOST_CHECK(!chain.control->fetch_block_by_number(80));
+   BOOST_CHECK(!chain.fetch_block_by_number(10));
+   BOOST_CHECK(chain.fetch_block_by_number(70));
+   BOOST_CHECK(!chain.fetch_block_by_number(80));
 }
 
 template <typename T>
@@ -306,23 +306,23 @@ void split_log_replay(uint32_t replay_max_retained_block_files) {
          eosio::chain::partitioned_blocklog_config{ .stride             = stride,
                                                     .max_retained_files = replay_max_retained_block_files };
    T from_block_log_chain(copied_config, *genesis);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(150)->block_num() == 150);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(1)->block_num() == 1);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(75)->block_num() == 75);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(100)->block_num() == 100);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(150)->block_num() == 150);
 
    // produce new blocks to cross the blocks_log_stride boundary
    from_block_log_chain.produce_blocks(stride);
 
-   const auto previous_chunk_end_block_num = (from_block_log_chain.control->head().block_num() / stride) * stride;
+   const auto previous_chunk_end_block_num = (from_block_log_chain.head().block_num() / stride) * stride;
    const auto num_removed_blocks = std::min(stride * replay_max_retained_block_files, previous_chunk_end_block_num);
    const auto min_retained_block_number = previous_chunk_end_block_num - num_removed_blocks + 1;
 
    if (min_retained_block_number > 1) {
       // old blocks beyond the max_retained_block_files will no longer be available
-      BOOST_CHECK(!from_block_log_chain.control->fetch_block_by_number(min_retained_block_number - 1));
+      BOOST_CHECK(!from_block_log_chain.fetch_block_by_number(min_retained_block_number - 1));
    }
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(min_retained_block_number)->block_num() ==
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(min_retained_block_number)->block_num() ==
                min_retained_block_number);
 }
 
@@ -369,10 +369,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_without_blocks_log_file, T, eosio::t
    std::filesystem::remove(copied_config.blocks_dir / "blocks.index");
    copied_config.blog = eosio::chain::partitioned_blocklog_config{ .stride = stride, .max_retained_files = 10 };
    T from_block_log_chain(copied_config, *genesis);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(1)->block_num() == 1u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(75)->block_num() == 75u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(100)->block_num() == 100u);
-   BOOST_CHECK(from_block_log_chain.control->fetch_block_by_number(160)->block_num() == 160u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(1)->block_num() == 1u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(75)->block_num() == 75u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(100)->block_num() == 100u);
+   BOOST_CHECK(from_block_log_chain.fetch_block_by_number(160)->block_num() == 160u);
 
    from_block_log_chain.produce_blocks(10);
 }
@@ -441,10 +441,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_from_v1_log, T, eosio::testing::tester
           true);
    chain.produce_blocks(75);
 
-   BOOST_CHECK(chain.control->fetch_block_by_number(1)->block_num() == 1u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(21)->block_num() == 21u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(41)->block_num() == 41u);
-   BOOST_CHECK(chain.control->fetch_block_by_number(75)->block_num() == 75u);
+   BOOST_CHECK(chain.fetch_block_by_number(1)->block_num() == 1u);
+   BOOST_CHECK(chain.fetch_block_by_number(21)->block_num() == 21u);
+   BOOST_CHECK(chain.fetch_block_by_number(41)->block_num() == 41u);
+   BOOST_CHECK(chain.fetch_block_by_number(75)->block_num() == 75u);
 }
 
 template <class T>

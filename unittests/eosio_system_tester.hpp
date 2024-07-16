@@ -121,7 +121,7 @@ public:
                                 );
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::control->get_chain_id()  );
+      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
       return T::push_transaction( trx );
    }
 
@@ -164,7 +164,7 @@ public:
                                 );
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::control->get_chain_id()  );
+      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
       return T::push_transaction( trx );
    }
 
@@ -205,7 +205,7 @@ public:
       }
 
       T::set_transaction_headers(trx);
-      trx.sign( T::get_private_key( creator, "active" ), T::control->get_chain_id()  );
+      trx.sign( T::get_private_key( creator, "active" ), T::get_chain_id()  );
       return T::push_transaction( trx );
    }
 
@@ -371,7 +371,7 @@ public:
    }
 
    uint32_t last_block_time() const {
-      return time_point_sec( T::control->head_block_time() ).sec_since_epoch();
+      return time_point_sec( T::head().block_time() ).sec_since_epoch();
    }
 
    asset get_balance( const account_name& act ) {
@@ -445,7 +445,7 @@ public:
                                    );
       }
       T::set_transaction_headers( trx );
-      trx.sign( T::get_private_key( manager, "active" ), T::control->get_chain_id()  );
+      trx.sign( T::get_private_key( manager, "active" ), T::get_chain_id()  );
       T::push_transaction( trx );
    }
 
@@ -611,8 +611,8 @@ public:
                                  );
 
          T::set_transaction_headers(trx);
-         trx.sign( T::get_private_key( config::system_account_name, "active" ), T::control->get_chain_id()  );
-         trx.sign( T::get_private_key( "producer1111"_n, "active" ), T::control->get_chain_id()  );
+         trx.sign( T::get_private_key( config::system_account_name, "active" ), T::get_chain_id()  );
+         trx.sign( T::get_private_key( "producer1111"_n, "active" ), T::get_chain_id()  );
          T::push_transaction( trx );
       }
    }
