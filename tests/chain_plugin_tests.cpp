@@ -84,7 +84,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
    produce_block();
 
    // retrieve block num
-   uint32_t headnum = this->control->head_block_num();
+   uint32_t headnum = this->control->head().block_num();
 
    char headnumstr[20];
    sprintf(headnumstr, "%d", headnum);

@@ -507,7 +507,11 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         // ideally, users of `tester` should not access the controller directly
+         // so we provide APIs to access the chain head and fork_db head
+         // --------------------------------------------------------------------
          block_handle head() const { return control->head(); }
+         block_handle fork_db_head() const { return control->fork_db_head(); }
 
          uint32_t forkdb_head_num() const { return control->fork_db_head_block_num(); }
 
@@ -516,7 +520,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
-            auto finpol = active_finalizer_policy(control->head_block_header().calculate_id());
+            auto finpol = active_finalizer_policy(control->head().header().calculate_id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
             BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
@@ -792,9 +796,9 @@ namespace eosio::testing {
       }
 
       bool validate() {
-        const auto& hbh = control->head_block_header();
-        const auto& vn_hbh = validating_node->head_block_header();
-        bool ok = control->head_block_id() == validating_node->head_block_id() &&
+        const auto& hbh = control->head().header();
+        const auto& vn_hbh = validating_node->head().header();
+        bool ok = control->head().id() == validating_node->head().id() &&
                hbh.previous == vn_hbh.previous &&
                hbh.timestamp == vn_hbh.timestamp &&
                hbh.transaction_mroot == vn_hbh.transaction_mroot &&

@@ -9,8 +9,8 @@ public_key_type  get_public_key( name keyname, string role ){
 }
 
 void push_blocks( tester& from, tester& to, uint32_t block_num_limit ) {
-   block_num_type from_head_num = std::min( from.control->fork_db_head_block_num(), block_num_limit );
-   block_num_type to_head_num = to.control->fork_db_head_block_num();
+   block_num_type from_head_num = std::min( from.control->fork_db_head().block_num(), block_num_limit );
+   block_num_type to_head_num = to.control->fork_db_head().block_num();
    while( to_head_num < from_head_num) {
       auto fb = from.control->fetch_block_by_number( ++to_head_num );
       to.push_block( fb );
@@ -38,7 +38,7 @@ bool produce_until_transition( base_tester& t,
                                uint32_t max_num_blocks_to_produce )
 {
    return produce_empty_blocks_until(t, max_num_blocks_to_produce, [&t, last_producer, next_producer]() {
-      return t.control->pending_block_producer() == next_producer && t.control->head_block_producer() == last_producer;
+      return t.control->pending_block_producer() == next_producer && t.control->head().producer() == last_producer;
    });
 }
 
@@ -55,7 +55,7 @@ bool produce_until_blocks_from( base_tester& t,
 {
    auto remaining_producers = expected_producers;
    return produce_empty_blocks_until(t, max_num_blocks_to_produce, [&t, &remaining_producers]() {
-      remaining_producers.erase(t.control->head_block_producer());
+      remaining_producers.erase(t.control->head().producer());
       return remaining_producers.size() == 0;
    });
 }
