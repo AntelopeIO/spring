@@ -2075,12 +2075,8 @@ struct controller_impl {
          section.add_row(chain_snapshot_header(), db);
       });
 
-      block_handle_accessor::apply<void>(chain_head, [&](const auto& head) {
-         snapshot_detail::snapshot_block_state_data_v7 block_state_data(get_block_state_to_snapshot());
-
-         snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-            section.add_row(block_state_data, db);
-         });
+      snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
+         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
       });
       
       controller_index_set::walk_indices([this, &snapshot]( auto utils ){
