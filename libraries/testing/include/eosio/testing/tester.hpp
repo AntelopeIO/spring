@@ -513,8 +513,6 @@ namespace eosio::testing {
          block_handle head() const { return control->head(); }
          block_handle fork_db_head() const { return control->fork_db_head(); }
 
-         uint32_t forkdb_head_num() const { return control->fork_db_head_block_num(); }
-
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
          // -----------------------------------------------------------------

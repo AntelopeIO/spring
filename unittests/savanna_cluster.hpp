@@ -70,9 +70,9 @@ namespace savanna_cluster {
       uint32_t lib_num() const { return lib_block->block_num(); }
 
       void push_blocks(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         auto limit = std::min(forkdb_head_num(), block_num_limit);
-         while (to.forkdb_head_num() < limit) {
-            auto sb = control->fetch_block_by_number(to.forkdb_head_num() + 1);
+         auto limit = std::min(fork_db_head().block_num(), block_num_limit);
+         while (to.fork_db_head().block_num() < limit) {
+            auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
             to.push_block(sb);
          }
       }
@@ -280,7 +280,7 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];
-         auto end_block_num   = src.forkdb_head_num();
+         auto end_block_num   = src.fork_db_head().block_num();
 
          for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
             auto sb = src.control->fetch_block_by_number(i);
