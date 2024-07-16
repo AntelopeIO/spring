@@ -9,8 +9,8 @@ public_key_type  get_public_key( name keyname, string role ){
 }
 
 void push_blocks( tester& from, tester& to, uint32_t block_num_limit ) {
-   block_num_type from_head_num = std::min( from.control->fork_db_head_block_num(), block_num_limit );
-   block_num_type to_head_num = to.control->fork_db_head_block_num();
+   block_num_type from_head_num = std::min( from.control->fork_db_head().block_num(), block_num_limit );
+   block_num_type to_head_num = to.control->fork_db_head().block_num();
    while( to_head_num < from_head_num) {
       auto fb = from.control->fetch_block_by_number( ++to_head_num );
       to.push_block( fb );

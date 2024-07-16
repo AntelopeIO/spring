@@ -1291,7 +1291,7 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
 
    auto head_id = db.head().id();
    auto lib_id = db.last_irreversible_block_id();
-   auto fhead_id = db.fork_db_head_block_id();
+   auto fhead_id = db.fork_db_head().id();
 
    return {
       itoh(static_cast<uint32_t>(app().version())),

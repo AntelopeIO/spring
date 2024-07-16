@@ -1049,6 +1049,13 @@ struct controller_impl {
    }
 
    // --------------- access fork_db head ----------------------------------------------------------------------
+   block_handle fork_db_head()const {
+      return fork_db.apply<block_handle>(
+         [&](const auto& forkdb) {
+            return block_handle{forkdb.head(include_root_t::yes)};
+         });
+   }
+
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
@@ -2989,7 +2996,7 @@ struct controller_impl {
 
       EOS_ASSERT( skip_db_sessions(s) || db.revision() == chain_head.block_num(), database_exception,
                   "db revision is not on par with head block",
-                  ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head_block_num()) );
+                  ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head().block_num()) );
 
       block_handle_accessor::apply<void>(chain_head, overloaded{
                     [&](const block_state_legacy_ptr& head) {
@@ -5118,6 +5125,10 @@ const signed_block_ptr& controller::head_block()const {
 
 std::optional<finality_data_t> controller::head_finality_data() const {
    return my->head_finality_data();
+}
+
+block_handle controller::fork_db_head()const {
+   return my->fork_db_head();
 }
 
 uint32_t controller::fork_db_head_block_num()const {

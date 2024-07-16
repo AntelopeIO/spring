@@ -240,6 +240,7 @@ namespace eosio::chain {
          void   set_disable_replay_opts( bool v );
 
          block_handle         head()const;
+         block_handle         fork_db_head()const;
 
          [[deprecated("Use head().block_num().")]]  uint32_t             head_block_num()const;
          [[deprecated("Use head().block_time().")]] time_point           head_block_time()const;
@@ -255,8 +256,8 @@ namespace eosio::chain {
          // std::nullopt in Legacy
          std::optional<finality_data_t> head_finality_data() const;
 
-         uint32_t             fork_db_head_block_num()const;
-         block_id_type        fork_db_head_block_id()const;
+         [[deprecated("Use fork_db_head().block_num().")]] uint32_t      fork_db_head_block_num()const;
+         [[deprecated("Use fork_db_head().id().")]]        block_id_type fork_db_head_block_id()const;
 
          time_point                     pending_block_time()const;
          block_timestamp_type           pending_block_timestamp()const;

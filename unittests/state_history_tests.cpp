@@ -782,10 +782,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_splitted_log, T, state_history_testers) {
 }
 
 void push_blocks( tester& from, tester& to ) {
-   while( to.control->fork_db_head_block_num()
-            < from.control->fork_db_head_block_num() )
+   while( to.control->fork_db_head().block_num()
+            < from.control->fork_db_head().block_num() )
    {
-      auto fb = from.control->fetch_block_by_number( to.control->fork_db_head_block_num()+1 );
+      auto fb = from.control->fetch_block_by_number( to.control->fork_db_head().block_num()+1 );
       to.push_block( fb );
    }
 }
