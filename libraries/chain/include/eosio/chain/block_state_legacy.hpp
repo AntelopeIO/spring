@@ -43,11 +43,13 @@ namespace eosio::chain {
       // internal use only, not thread safe
       const block_id_type&   id()                    const { return block_header_state_legacy::id; }
       const block_id_type&   previous()              const { return block_header_state_legacy::previous(); }
-      uint32_t               irreversible_blocknum() const { return dpos_irreversible_blocknum; }
-      uint32_t               block_num()             const { return block_header_state_legacy::block_num; }
+      block_num_type         block_num()             const { return block_header_state_legacy::block_num; }
       block_timestamp_type   timestamp()             const { return header.timestamp; }
       account_name           producer()              const { return header.producer; }
       const extensions_type& header_extensions()     const { return header.header_extensions; }
+
+      block_num_type                irreversible_blocknum() const;
+      std::optional<block_num_type> savanna_genesis_block_num() const;
 
       const producer_authority_schedule&     active_schedule_auth()  const { return block_header_state_legacy_common::active_schedule; }
       const producer_authority_schedule*     pending_schedule_auth() const { return &block_header_state_legacy::pending_schedule.schedule; }

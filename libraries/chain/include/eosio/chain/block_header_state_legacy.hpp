@@ -53,7 +53,8 @@ struct pending_block_header_state_legacy : public detail::block_header_state_leg
    uint16_t                             confirmed = 1;
    std::optional<qc_claim_t>            qc_claim; // transition to savanna has begun
 
-   bool is_if_transition_block() const { return !!qc_claim;  }
+   bool savanna_transition_block() const { return !!qc_claim;  }
+   std::optional<block_num_type> savanna_genesis_block_num() const;
 
    signed_block_header make_block_header( const checksum256_type& transaction_mroot,
                                           const checksum256_type& action_mroot,
