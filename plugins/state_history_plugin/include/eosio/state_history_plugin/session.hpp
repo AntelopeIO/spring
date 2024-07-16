@@ -250,16 +250,25 @@ private:
                      block_to_send->blocks_result_base.this_block  = {self.current_blocks_request.start_block_num, *this_block_id};
                      if(const std::optional<chain::block_id_type> last_block_id = self.get_block_id(self.next_block_cursor - 1))
                         block_to_send->blocks_result_base.prev_block = {self.next_block_cursor - 1, *last_block_id};
-                     if(chain::signed_block_ptr sbp = get_block(*this_block_id); sbp && self.current_blocks_request.fetch_block)
-                         block_to_send->blocks_result_base.block = fc::raw::pack(*sbp);
+                     if (self.current_blocks_request.fetch_block) {
+                        if (chain::signed_block_ptr sbp = get_block(*this_block_id)) {
+                           block_to_send->blocks_result_base.block = fc::raw::pack(*sbp);
+                        } else {
+                           fc_wlog(logger, "Unable to retrieve block ${bn} : ${id}",
+                                   ("bn", chain::block_header::num_from_id(*this_block_id))("id", *this_block_id));
+                        }
+                     }
                      if(self.current_blocks_request.fetch_traces && self.trace_log)
                         block_to_send->trace_entry = self.trace_log->get_entry(self.next_block_cursor);
                      if(self.current_blocks_request.fetch_deltas && self.chain_state_log)
                         block_to_send->state_entry = self.chain_state_log->get_entry(self.next_block_cursor);
                      if(block_to_send->is_v1_request && *self.current_blocks_request_v1_finality && self.finality_data_log)
                         block_to_send->finality_entry = self.finality_data_log->get_entry(self.next_block_cursor);
-                     ++self.next_block_cursor;
+                  } else {
+                     fc_wlog(logger, "Unable to retrieve block id for block ${bn}", ("bn", self.next_block_cursor));
                   }
+                  // increment next_block_cursor even if unable to retrieve block to avoid tight busy loop
+                  ++self.next_block_cursor;
                   --self.send_credits;
                }
 
