@@ -185,7 +185,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
    T chain;
    chain.produce_blocks(160);
 
-   uint32_t head_block_num = chain.control->head_block_num();
+   uint32_t head_block_num = chain.control->head().block_num();
    uint32_t lib_block_num;
    if constexpr (std::is_same_v<T, eosio::testing::savanna_tester>) {
       lib_block_num = head_block_num - 3; // three-chain
@@ -314,7 +314,7 @@ void split_log_replay(uint32_t replay_max_retained_block_files) {
    // produce new blocks to cross the blocks_log_stride boundary
    from_block_log_chain.produce_blocks(stride);
 
-   const auto previous_chunk_end_block_num = (from_block_log_chain.control->head_block_num() / stride) * stride;
+   const auto previous_chunk_end_block_num = (from_block_log_chain.control->head().block_num() / stride) * stride;
    const auto num_removed_blocks = std::min(stride * replay_max_retained_block_files, previous_chunk_end_block_num);
    const auto min_retained_block_number = previous_chunk_end_block_num - num_removed_blocks + 1;
 

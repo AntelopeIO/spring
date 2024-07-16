@@ -58,7 +58,7 @@ namespace eosio::chain {
          undo_session.emplace(c.mutable_db().start_undo_session(true));
       }
       trace->id = id;
-      trace->block_num = c.head_block_num() + 1;
+      trace->block_num = c.head().block_num() + 1;
       trace->block_time = c.pending_block_time();
       trace->producer_block_id = c.pending_producer_block_id();
 
@@ -838,7 +838,7 @@ namespace eosio::chain {
       EOS_ASSERT(producers.size() <= config::max_proposers, wasm_execution_error,
                  "Producer schedule exceeds the maximum proposer count for this chain");
 
-      trx_blk_context.proposed_schedule_block_num = control.head_block_num() + 1;
+      trx_blk_context.proposed_schedule_block_num = control.head().block_num() + 1;
       // proposed_schedule.version is set in assemble_block
       trx_blk_context.proposed_schedule.producers = std::move(producers);
 
@@ -846,7 +846,7 @@ namespace eosio::chain {
    }
 
    void transaction_context::set_proposed_finalizers(finalizer_policy&& fin_pol) {
-      trx_blk_context.proposed_fin_pol_block_num = control.head_block_num() + 1;
+      trx_blk_context.proposed_fin_pol_block_num = control.head().block_num() + 1;
       trx_blk_context.proposed_fin_pol = std::move(fin_pol);
    }
 

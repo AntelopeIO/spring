@@ -129,7 +129,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
    // and all blocks from the forks are validated, which is why we expect an exception when the last
    // block of the fork is pushed.
    // -------------------------------------------------------------------------------------------------
-   auto node0_head = _nodes[0].control->head_block_id();
+   auto node0_head = _nodes[0].control->head().id();
    for (size_t i = 0; i < forks.size(); i++) {
       BOOST_TEST_CONTEXT("Testing Fork: " << i) {
          const auto& fork = forks.at(i);
@@ -145,7 +145,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_if, savanna_cluster::cluster_t) try 
          // push the block which should attempt the corrupted fork and fail
          BOOST_REQUIRE_EXCEPTION(_nodes[0].push_block(fork.blocks.back()), fc::exception,
                                  fc_exception_message_starts_with( "finality_mroot does not match"));
-         BOOST_REQUIRE_EQUAL(_nodes[0].control->head_block_id(), node0_head);
+         BOOST_REQUIRE_EQUAL(_nodes[0].control->head().id(), node0_head);
       }
    }
 

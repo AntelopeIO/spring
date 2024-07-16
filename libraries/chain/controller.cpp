@@ -1049,6 +1049,13 @@ struct controller_impl {
    }
 
    // --------------- access fork_db head ----------------------------------------------------------------------
+   block_handle fork_db_head()const {
+      return fork_db.apply<block_handle>(
+         [&](const auto& forkdb) {
+            return block_handle{forkdb.head(include_root_t::yes)};
+         });
+   }
+
    uint32_t fork_db_head_block_num() const {
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
@@ -2977,7 +2984,7 @@ struct controller_impl {
 
       EOS_ASSERT( skip_db_sessions(s) || db.revision() == chain_head.block_num(), database_exception,
                   "db revision is not on par with head block",
-                  ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head_block_num()) );
+                  ("db.revision()", db.revision())("controller_head_block", chain_head.block_num())("fork_db_head_block", fork_db_head().block_num()) );
 
       block_handle_accessor::apply<void>(chain_head, overloaded{
                     [&](const block_state_legacy_ptr& head) {
@@ -4307,7 +4314,7 @@ struct controller_impl {
       //Look for expired transactions in the deduplication list, and remove them.
       auto& transaction_idx = db.get_mutable_index<transaction_multi_index>();
       const auto& dedupe_index = transaction_idx.indices().get<by_expiration>();
-      auto now = is_building_block() ? pending_block_time() : chain_head.block_time().to_time_point();
+      auto now = is_building_block() ? pending_block_time() : chain_head.timestamp().to_time_point();
       const auto total = dedupe_index.size();
       uint32_t num_removed = 0;
       while( (!dedupe_index.empty()) && ( now > dedupe_index.begin()->expiration.to_time_point() ) ) {
@@ -5106,6 +5113,10 @@ const signed_block_ptr& controller::head_block()const {
 
 std::optional<finality_data_t> controller::head_finality_data() const {
    return my->head_finality_data();
+}
+
+block_handle controller::fork_db_head()const {
+   return my->fork_db_head();
 }
 
 uint32_t controller::fork_db_head_block_num()const {

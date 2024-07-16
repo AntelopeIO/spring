@@ -66,11 +66,11 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
-      uint32_t head_num() const { return control->fork_db_head_block_num(); }
+      uint32_t head_num() const { return control->fork_db_head().block_num(); }
 
       void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          while (to.head_num() < std::min(head_num(), block_num_limit)) {
-            auto sb = control->fetch_block_by_number(to.control->fork_db_head_block_num() + 1);
+            auto sb = control->fetch_block_by_number(to.control->fork_db_head().block_num() + 1);
             to.push_block(sb);
          }
       }

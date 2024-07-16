@@ -1012,7 +1012,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             } );
 
       get_head_block_id_provider = app().get_method<methods::get_head_block_id>().register_provider( [this]() {
-         return chain->head_block_id();
+         return chain->head().id();
       } );
 
       get_last_irreversible_block_number_provider = app().get_method<methods::get_last_irreversible_block_number>().register_provider(
@@ -1125,10 +1125,10 @@ void chain_plugin_impl::plugin_startup()
 
    if (genesis) {
       ilog("Blockchain started; head block is #${num}, genesis timestamp is ${ts}",
-           ("num", chain->head_block_num())("ts", genesis->initial_timestamp));
+           ("num", chain->head().block_num())("ts", genesis->initial_timestamp));
    }
    else {
-      ilog("Blockchain started; head block is #${num}", ("num", chain->head_block_num()));
+      ilog("Blockchain started; head block is #${num}", ("num", chain->head().block_num()));
    }
 
    chain_config.reset();
@@ -1282,9 +1282,9 @@ const string read_only::KEYi64 = "i64";
 read_only::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
    const auto& rm = db.get_resource_limits_manager();
 
-   auto head_id = db.head_block_id();
+   auto head_id = db.head().id();
    auto lib_id = db.last_irreversible_block_id();
-   auto fhead_id = db.fork_db_head_block_id();
+   auto fhead_id = db.fork_db_head().id();
 
    return {
       itoh(static_cast<uint32_t>(app().version())),
@@ -1293,8 +1293,8 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       block_header::num_from_id(lib_id),
       lib_id,
       head_id,
-      db.head_block_time(),
-      db.head_block_producer(),
+      db.head().block_time(),
+      db.head().producer(),
       rm.get_virtual_block_cpu_limit(),
       rm.get_virtual_block_net_limit(),
       rm.get_block_cpu_limit(),
@@ -2385,8 +2385,8 @@ read_only::get_account_return_t read_only::get_account( const get_account_params
    const auto& d = db.db();
    const auto& rm = db.get_resource_limits_manager();
 
-   result.head_block_num  = db.head_block_num();
-   result.head_block_time = db.head_block_time();
+   result.head_block_num  = db.head().block_num();
+   result.head_block_time = db.head().block_time();
 
    rm.get_account_limits( result.account_name, result.ram_quota, result.net_weight, result.cpu_weight );
 
@@ -2398,7 +2398,7 @@ read_only::get_account_return_t read_only::get_account( const get_account_params
    result.created          = accnt_obj.creation_date;
 
    uint32_t greylist_limit = db.is_resource_greylisted(result.account_name) ? 1 : config::maximum_elastic_resource_multiplier;
-   const block_timestamp_type current_usage_time (db.head_block_time());
+   const block_timestamp_type current_usage_time (db.head().block_time());
    result.net_limit.set( rm.get_account_net_limit_ex( result.account_name, greylist_limit, current_usage_time).first );
    if ( result.net_limit.last_usage_update_time && (result.net_limit.last_usage_update_time->slot == 0) ) {   // account has no action yet
       result.net_limit.last_usage_update_time = accnt_obj.creation_date;
