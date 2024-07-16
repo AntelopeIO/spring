@@ -1113,11 +1113,11 @@ struct controller_impl {
    signed_block_ptr fork_db_fetch_block_by_id( const block_id_type& id ) const {
       return fork_db.apply<signed_block_ptr>([&](const auto& forkdb) {
          auto bsp = forkdb.get_block(id);
-         return bsp ? bsp->block : nullptr;
+         return bsp ? bsp->block : signed_block_ptr{};
       });
    }
 
-   signed_block_ptr fetch_block_on_head_branch_by_num(uint32_t block_num) const {
+   signed_block_ptr fork_db_fetch_block_on_best_branch_by_num(uint32_t block_num) const {
       return fork_db.apply<signed_block_ptr>([&](const auto& forkdb) {
          auto bsp = forkdb.search_on_head_branch(block_num);
          if (bsp) return bsp->block;
@@ -1125,31 +1125,30 @@ struct controller_impl {
       });
    }
 
-   std::optional<block_id_type> fetch_block_id_on_head_branch_by_num(uint32_t block_num) const {
+   std::optional<block_id_type> fork_db_fetch_block_id_on_best_branch_by_num(uint32_t block_num) const {
       return fork_db.apply<std::optional<block_id_type>>([&](const auto& forkdb) -> std::optional<block_id_type> {
          auto bsp = forkdb.search_on_head_branch(block_num, include_root_t::yes);
-         if (bsp) return bsp->id();
+         if (bsp)
+            return std::optional<block_id_type>{bsp->id()};
          return {};
       });
    }
 
-   // search on the branch of head
-   block_state_ptr fetch_bsp_on_head_branch_by_num(uint32_t block_num) const {
-      return fork_db.apply<block_state_ptr>(
-         overloaded{
-            [](const fork_database_legacy_t&) -> block_state_ptr { return nullptr; },
-            [&](const fork_database_if_t& forkdb) -> block_state_ptr {
-               return forkdb.search_on_head_branch(block_num, include_root_t::yes);
-            }
-         }
-      );
+   // not thread-safe
+   std::optional<block_id_type> fork_db_fetch_block_id_on_chain_head_branch_by_num(uint32_t block_num) const {
+      return fork_db.apply<std::optional<block_id_type>>([&](const auto& forkdb) -> std::optional<block_id_type> {
+         auto bsp = forkdb.search_on_branch(chain_head.id(), block_num, include_root_t::yes);
+         if (bsp)
+            return std::optional<block_id_type>{bsp->id()};
+         return {};
+      });
    }
 
    // search on the branch of given id
-   block_state_ptr fetch_bsp_on_branch_by_num(const block_id_type& id, uint32_t block_num) const {
+   block_state_ptr fork_db_fetch_bsp_on_branch_by_num(const block_id_type& id, uint32_t block_num) const {
       return fork_db.apply<block_state_ptr>(
          overloaded{
-            [](const fork_database_legacy_t&) -> block_state_ptr { return nullptr; },
+            [](const fork_database_legacy_t&) -> block_state_ptr { return block_state_ptr{}; },
             [&](const fork_database_if_t& forkdb) -> block_state_ptr {
                return forkdb.search_on_branch(id, block_num, include_root_t::yes);
             }
@@ -1158,22 +1157,11 @@ struct controller_impl {
    }
 
    finalizer_policy_ptr active_finalizer_policy(const block_id_type& id, block_num_type block_num)const {
-      block_state_ptr bsp = fetch_bsp_on_branch_by_num(id, block_num);
+      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, block_num);
       if (bsp) {
          return bsp->active_finalizer_policy;
       }
-      return nullptr;
-   }
-
-   block_state_ptr fetch_bsp(const block_id_type& id) const {
-      return fork_db.apply<block_state_ptr>(
-         overloaded{
-            [](const fork_database_legacy_t&) -> block_state_ptr { return nullptr; },
-            [&](const fork_database_if_t& forkdb) -> block_state_ptr {
-               return forkdb.get_block(id, include_root_t::yes);
-            }
-         }
-      );
+      return {};
    }
 
    void pop_block() {
@@ -3815,7 +3803,7 @@ struct controller_impl {
                   ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
-      auto bsp = fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
+      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
       EOS_ASSERT( bsp,
                   invalid_qc_claim,
                   "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
@@ -3930,7 +3918,7 @@ struct controller_impl {
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const auto& received_qc = qc_ext.qc.data;
 
-      const auto claimed = fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
+      const auto claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
@@ -5202,45 +5190,39 @@ bool controller::validated_block_exists(const block_id_type& id) const {
 
 std::optional<signed_block_header> controller::fetch_block_header_by_id( const block_id_type& id )const {
    auto sb_ptr = my->fork_db_fetch_block_by_id(id);
-   if( sb_ptr ) return *static_cast<signed_block_header*>(sb_ptr.get());
+   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<signed_block_header*>(sb_ptr.get())};
    auto result = my->blog.read_block_header_by_num( block_header::num_from_id(id) );
    if( result && result->calculate_id() == id ) return result;
    return {};
 }
 
 signed_block_ptr controller::fetch_block_by_number( uint32_t block_num )const  { try {
-   auto b = my->fetch_block_on_head_branch_by_num( block_num );
-   if (b)
+   if (signed_block_ptr b = my->fork_db_fetch_block_on_best_branch_by_num(block_num))
       return b;
 
    return my->blog.read_block_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
 std::optional<signed_block_header> controller::fetch_block_header_by_number( uint32_t block_num )const  { try {
-   auto b = my->fetch_block_on_head_branch_by_num(block_num);
+   auto b = my->fork_db_fetch_block_on_best_branch_by_num(block_num);
    if (b)
-      return *b;
+      return std::optional<signed_block_header>{*b};
 
    return my->blog.read_block_header_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
 
-block_id_type controller::get_block_id_for_num( uint32_t block_num )const { try {
-   const auto& blog_head = my->blog.head();
+std::optional<block_id_type> controller::fork_block_id_for_num( uint32_t block_num )const { try {
+   if (std::optional<block_id_type> id = my->fork_db_fetch_block_id_on_best_branch_by_num(block_num))
+      return id;
+   return my->blog.read_block_id_by_num(block_num);
+} FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
-   bool find_in_blog = (blog_head && block_num <= blog_head->block_num());
-
-   if( !find_in_blog ) {
-      std::optional<block_id_type> id = my->fetch_block_id_on_head_branch_by_num(block_num);
-      if (id) return *id;
-   }
-
-   auto id = my->blog.read_block_id_by_num(block_num);
-
-   EOS_ASSERT( BOOST_LIKELY( id != block_id_type() ), unknown_block_exception,
-               "Could not find block: ${block}", ("block", block_num) );
-
-   return id;
+// not thread-safe
+std::optional<block_id_type> controller::chain_block_id_for_num( uint32_t block_num )const { try {
+   if (std::optional<block_id_type> id = my->fork_db_fetch_block_id_on_chain_head_branch_by_num(block_num))
+      return id;
+   return my->blog.read_block_id_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
 digest_type controller::get_strong_digest_by_id( const block_id_type& id ) const {

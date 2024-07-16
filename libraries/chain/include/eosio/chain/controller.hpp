@@ -280,23 +280,28 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
+         // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
+         // thread-safe, applied LIB, fork db root
          block_id_type last_irreversible_block_id() const;
+         // thread-safe, applied LIB, fork db root
          time_point last_irreversible_block_time() const;
 
-         // thread-safe
+         // thread-safe, retrieves block according to fork db best branch which can change at any moment
          signed_block_ptr fetch_block_by_number( uint32_t block_num )const;
          // thread-safe
          signed_block_ptr fetch_block_by_id( const block_id_type& id )const;
          // thread-safe
          bool block_exists(const block_id_type& id) const;
          bool validated_block_exists(const block_id_type& id) const;
-         // thread-safe
+         // thread-safe, retrieves block according to fork db best branch which can change at any moment
          std::optional<signed_block_header> fetch_block_header_by_number( uint32_t block_num )const;
          // thread-safe
          std::optional<signed_block_header> fetch_block_header_by_id( const block_id_type& id )const;
-         // thread-safe
-         block_id_type get_block_id_for_num( uint32_t block_num )const;
+         // thread-safe, retrieves block id according to fork db best branch which can change at any moment
+         std::optional<block_id_type> fork_block_id_for_num( uint32_t block_num )const;
+         // not thread-safe, retrieves block id according to applied chain head
+         std::optional<block_id_type> chain_block_id_for_num( uint32_t block_num )const;
          // thread-safe
          digest_type get_strong_digest_by_id( const block_id_type& id ) const; // used in unittests
 

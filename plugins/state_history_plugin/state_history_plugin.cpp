@@ -90,7 +90,8 @@ public:
             return id;
       }
       try {
-         return chain_plug->chain().get_block_id_for_num(block_num);
+         // not thread safe, only call from main application thread
+         return chain_plug->chain().chain_block_id_for_num(block_num);
       } catch(...) {
       }
       return {};
