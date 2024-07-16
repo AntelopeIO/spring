@@ -5001,6 +5001,10 @@ void controller::allow_voting(bool val) {
    my->allow_voting = val;
 }
 
+bool controller::get_allow_voting_flag() {
+   return my->allow_voting;
+}
+
 void controller::set_async_voting(async_t val) {
    my->async_voting = val;
 }
