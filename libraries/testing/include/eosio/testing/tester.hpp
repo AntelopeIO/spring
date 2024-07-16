@@ -507,7 +507,11 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         // ideally, users of `tester` should not access the controller directly
+         // so we provide APIs to access the chain head and fork_db head
+         // --------------------------------------------------------------------
          block_handle head() const { return control->head(); }
+         block_handle fork_db_head() const { return control->fork_db_head(); }
 
          // checks that the active `finalizer_policy` for `block` matches the
          // passed `generation` and `keys_span`.
