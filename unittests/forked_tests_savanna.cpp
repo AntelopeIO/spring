@@ -410,7 +410,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    _nodes[0].produce_blocks(3);
    auto hbn1 = _nodes[0].head().block_num(); // common block before network partitioned
    [[maybe_unused]] auto lib1 = _nodes[0].last_irreversible_block_num();
-   wlog("lib1 = ${lib1}", ("lib1", lib1)); // 36
+   dlog("lib1 = ${lib1}", ("lib1", lib1)); // 36
 
 
    // partition node3. lib will not advance on node3 anymore, but will advance on the other 3 nodes
@@ -420,14 +420,14 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    // produce blocks on _nodes[3], creating account "bob"_n. Finality will not advance
    // --------------------------------------------------------------------------------
    auto fork_first_block_id = _nodes[3].produce_block(_block_interval_us * 10)->calculate_id();
-   wlog( "fork_first_block_id = ${w}", ("w", fork_first_block_id));
+   dlog( "fork_first_block_id = ${w}", ("w", fork_first_block_id));
    _nodes[3].create_accounts( {"bob"_n} );
    _nodes[3].produce_blocks(4);
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[3], "bob"_n ), true );
 
    auto hbn3 = _nodes[3].head().block_num();
    auto lib3 = _nodes[3].last_irreversible_block_num();
-   wlog("lib3 = ${lib3}", ("lib3", lib3)); // 37
+   dlog("lib3 = ${lib3}", ("lib3", lib3)); // 37
 
    // produce blocks on _nodes[0], creating account "carol"_n. Finality will  advance
    // --------------------------------------------------------------------------------
@@ -440,7 +440,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "dave"_n ), true );
    auto hbn0 = _nodes[0].head().block_num();
    auto lib0 = _nodes[0].last_irreversible_block_num();
-   wlog("lib0 = ${lib0}", ("lib0", lib0)); // 41
+   dlog("lib0 = ${lib0}", ("lib0", lib0)); // 41
 
    BOOST_CHECK_GT(lib0, lib3);
 
@@ -504,7 +504,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
    auto lib0 = _nodes[0].last_irreversible_block_num();
-   wlog("lib0 = ${lib0}", ("lib0", lib0)); // 45
+   dlog("lib0 = ${lib0}", ("lib0", lib0)); // 45
 
    // split the network
    const std::vector<size_t> partition {2, 3};
@@ -537,7 +537,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    _nodes[0].produce_blocks(6);
    auto lib2 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_EQUAL(lib2, lib0 + 12 + 7 );   // 12 when network was split, 7 just above (6 + 1)
-   wlog("lib2 = ${lib2}", ("lib2", lib2)); // 65
+   dlog("lib2 = ${lib2}", ("lib2", lib2)); // 65
 
 } FC_LOG_AND_RETHROW()
 
@@ -553,7 +553,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    auto lib0           = _nodes[0].last_irreversible_block_num();
    auto fork_block_num = _nodes[0].head().block_num();
 
-   wlog("lib0 = ${lib0}, fork_block_num = ${fbn}", ("lib0", lib0)("fbn", fork_block_num));
+   dlog("lib0 = ${lib0}, fork_block_num = ${fbn}", ("lib0", lib0)("fbn", fork_block_num));
 
    signed_block_ptr cb;
 
@@ -565,7 +565,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
 
    // after this, finality will not advance anymore
 
-   wlog( "_nodes[2] produces 36 blocks:" );
+   dlog( "_nodes[2] produces 36 blocks:" );
    _nodes[2].produce_blocks(12);
    auto c2b = _nodes[2].produce_block( fc::milliseconds(config::block_interval_ms * 14) ); // skip 13 blocks
    // save blocks for verification of forking later
@@ -575,7 +575,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    }
 
 
-   wlog( "_nodes[0] blocks:" );
+   dlog( "_nodes[0] blocks:" );
    auto b = _nodes[0].produce_block( fc::milliseconds(config::block_interval_ms * 13) ); // skip 12 blocks
    // create accounts on _nodes[0] which will be forked out
    _nodes[0].produce_block();
@@ -658,7 +658,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    } );
 
    // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
-   wlog( "push _nodes[2] blocks to _nodes[0]" );
+   dlog( "push _nodes[2] blocks to _nodes[0]" );
    for( uint32_t start = fork_block_num + 1, end = _nodes[2].head().block_num(); start <= end; ++start ) {
       auto fb = _nodes[2].fetch_block_by_number( start );
       push_block( 0, fb );
