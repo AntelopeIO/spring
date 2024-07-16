@@ -315,8 +315,8 @@ void replay_over_snapshot_test()
    // replay the block log from the snapshot child, from the snapshot
    using config_file_handling = snapshotted_tester::config_file_handling;
    snapshotted_tester replay_chain(snap_chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), ordinal++, config_file_handling::copy_config_files);
-   const auto replay_head = replay_chain.control->head_block_num();
-   auto snap_head = snap_chain.control->head_block_num();
+   const auto replay_head = replay_chain.control->head().block_num();
+   auto snap_head = snap_chain.control->head().block_num();
    BOOST_REQUIRE_EQUAL(replay_head, snap_chain.control->last_irreversible_block_num());
    for (auto block_num = replay_head + 1; block_num <= snap_head; ++block_num) {
       auto block = snap_chain.control->fetch_block_by_number(block_num);
@@ -332,8 +332,8 @@ void replay_over_snapshot_test()
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *replay_chain.control);
 
    snapshotted_tester replay2_chain(snap_chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), ordinal++, config_file_handling::copy_config_files);
-   const auto replay2_head = replay2_chain.control->head_block_num();
-   snap_head = snap_chain.control->head_block_num();
+   const auto replay2_head = replay2_chain.control->head().block_num();
+   snap_head = snap_chain.control->head().block_num();
    BOOST_REQUIRE_EQUAL(replay2_head, snap_chain.control->last_irreversible_block_num());
    for (auto block_num = replay2_head + 1; block_num <= snap_head; ++block_num) {
       auto block = snap_chain.control->fetch_block_by_number(block_num);
@@ -346,7 +346,7 @@ void replay_over_snapshot_test()
    auto genesis = chain::block_log::extract_genesis_state(chain.get_config().blocks_dir);
    BOOST_REQUIRE(genesis);
    tester from_block_log_chain(copied_config, *genesis);
-   const auto from_block_log_head = from_block_log_chain.control->head_block_num();
+   const auto from_block_log_head = from_block_log_chain.control->head().block_num();
    BOOST_REQUIRE_EQUAL(from_block_log_head, snap_chain.control->last_irreversible_block_num());
    for (auto block_num = from_block_log_head + 1; block_num <= snap_head; ++block_num) {
       auto block = snap_chain.control->fetch_block_by_number(block_num);
@@ -428,7 +428,7 @@ void compatible_versions_test()
       chain.control->abort_block();
 
       // continue until all the above blocks are in the blocks.log
-      auto head_block_num = chain.control->head_block_num();
+      auto head_block_num = chain.control->head().block_num();
       while (chain.control->last_irreversible_block_num() < head_block_num) {
          chain.produce_block();
       }

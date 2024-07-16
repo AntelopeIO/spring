@@ -470,7 +470,7 @@ void apply_context::schedule_deferred_transaction( const uint128_t& sender_id, a
       trx.ref_block_prefix = 0;
    } else {
       trx.expiration = time_point_sec{control.pending_block_time() + fc::microseconds(999'999)}; // Rounds up to nearest second (makes expiration check unnecessary)
-      trx.set_reference_block(control.head_block_id()); // No TaPoS check necessary
+      trx.set_reference_block(control.head().id()); // No TaPoS check necessary
    }
 
    // Charge ahead of time for the additional net usage needed to retire the deferred transaction

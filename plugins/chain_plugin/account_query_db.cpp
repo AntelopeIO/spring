@@ -146,7 +146,7 @@ namespace eosio::chain_apis {
 
          // build a initial time to block number map
          const auto lib_num = controller.last_irreversible_block_num();
-         const auto head_num = controller.head_block_num();
+         const auto head_num = controller.head().block_num();
 
          for (uint32_t block_num = lib_num + 1; block_num <= head_num; block_num++) {
             const auto block_p = controller.fetch_block_by_number(block_num);

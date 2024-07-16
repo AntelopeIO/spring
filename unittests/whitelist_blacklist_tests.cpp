@@ -320,15 +320,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( blacklist_eosio, T, whitelist_blacklist_testers )
    T tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
    tester1.chain->produce_block();
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 } FC_LOG_AND_RETHROW() }
@@ -362,8 +362,8 @@ BOOST_AUTO_TEST_CASE( deferred_blacklist_failure ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -379,8 +379,8 @@ BOOST_AUTO_TEST_CASE( deferred_blacklist_failure ) { try {
                         );
    tester1.chain->produce_blocks(2, true); // Produce 2 empty blocks (other than onblock of course).
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 } FC_LOG_AND_RETHROW() }
@@ -479,8 +479,8 @@ BOOST_AUTO_TEST_CASE( actor_blacklist_inline_deferred ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -535,8 +535,8 @@ BOOST_AUTO_TEST_CASE( actor_blacklist_inline_deferred ) { try {
 
    c1.disconnect();
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -717,8 +717,8 @@ BOOST_AUTO_TEST_CASE( blacklist_sender_bypass ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head_block_num() < tester1.chain->control->head_block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head_block_num()+1 );
+   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
+      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
