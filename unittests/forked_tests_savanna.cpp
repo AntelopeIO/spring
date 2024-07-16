@@ -172,7 +172,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
          for (size_t fidx = 0; fidx < fork.blocks.size() - 1; fidx++) {
             const auto& b = fork.blocks.at(fidx);
             // push the block only if its not known already
-            if (!_nodes[0].control->fetch_block_by_id(b->calculate_id())) {
+            if (!_nodes[0].fetch_block_by_id(b->calculate_id())) {
                _nodes[0].push_block(b);
             }
          }
@@ -357,7 +357,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
    _nodes[0].produce_block();
 
    auto hbn1 = _nodes[0].head().block_num();
-   auto lib1 = _nodes[0].control->last_irreversible_block_num();
+   auto lib1 = _nodes[0].last_irreversible_block_num();
 
    legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
 
@@ -369,7 +369,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
    _nodes[0].produce_blocks(3); // produce a few blocks
 
    auto hbn2 = _nodes[0].head().block_num();
-   auto lib2 = _nodes[0].control->last_irreversible_block_num();
+   auto lib2 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_GT(lib2, lib1);
 
    _nodes[0].push_blocks(irreversible, hbn2);
@@ -380,7 +380,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
    _nodes[0].produce_blocks(4); // produce a few blocks
 
    auto hbn3 = _nodes[0].head().block_num();
-   auto lib3 = _nodes[0].control->last_irreversible_block_num();
+   auto lib3 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_GT(lib3, lib2);
 
    _nodes[0].push_blocks(irreversible, hbn3);
@@ -409,7 +409,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(3);
    auto hbn1 = _nodes[0].head().block_num(); // common block before network partitioned
-   [[maybe_unused]] auto lib1 = _nodes[0].control->last_irreversible_block_num();
+   [[maybe_unused]] auto lib1 = _nodes[0].last_irreversible_block_num();
    wlog("lib1 = ${lib1}", ("lib1", lib1)); // 36
 
 
@@ -426,7 +426,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[3], "bob"_n ), true );
 
    auto hbn3 = _nodes[3].head().block_num();
-   auto lib3 = _nodes[3].control->last_irreversible_block_num();
+   auto lib3 = _nodes[3].last_irreversible_block_num();
    wlog("lib3 = ${lib3}", ("lib3", lib3)); // 37
 
    // produce blocks on _nodes[0], creating account "carol"_n. Finality will  advance
@@ -439,7 +439,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "carol"_n ), true );
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "dave"_n ), true );
    auto hbn0 = _nodes[0].head().block_num();
-   auto lib0 = _nodes[0].control->last_irreversible_block_num();
+   auto lib0 = _nodes[0].last_irreversible_block_num();
    wlog("lib0 = ${lib0}", ("lib0", lib0)); // 41
 
    BOOST_CHECK_GT(lib0, lib3);
@@ -456,16 +456,16 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "bob"_n ), false );
 
    {
-      auto b = irreversible.control->fetch_block_by_id( fork_first_block_id );
+      auto b = irreversible.fetch_block_by_id( fork_first_block_id );
       BOOST_REQUIRE( b && b->calculate_id() == fork_first_block_id );
-      BOOST_TEST( irreversible.control->block_exists(fork_first_block_id) );
+      BOOST_TEST( irreversible.block_exists(fork_first_block_id) );
    }
 
    // push the branch where `lib` has advanced past lib1 (creating a new branch in
    // irreversible's fork database which will be preferred because lib advanced).
    // ----------------------------------------------------------------------------
    for( uint32_t n = hbn1 + 1; n <= hbn0; ++n ) {
-      auto fb = _nodes[0].control->fetch_block_by_number( n );
+      auto fb = _nodes[0].fetch_block_by_number( n );
       irreversible.push_block( fb );
    }
 
@@ -478,9 +478,9 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
    {
       // verify that a block from the worse branch that was not in the better branch
       // has been pruned out of the fork database after LIB advances past the fork block.
-      auto b = irreversible.control->fetch_block_by_id( fork_first_block_id );
+      auto b = irreversible.fetch_block_by_id( fork_first_block_id );
       BOOST_CHECK( !b );
-      BOOST_CHECK( !irreversible.control->block_exists(fork_first_block_id) );
+      BOOST_CHECK( !irreversible.block_exists(fork_first_block_id) );
    }
 
 } FC_LOG_AND_RETHROW()
@@ -503,7 +503,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
-   auto lib0 = _nodes[0].control->last_irreversible_block_num();
+   auto lib0 = _nodes[0].last_irreversible_block_num();
    wlog("lib0 = ${lib0}", ("lib0", lib0)); // 45
 
    // split the network
@@ -513,7 +513,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    // produce 12 blocks on _nodes[0]'s partition
    _nodes[0].create_accounts( {"bob"_n} );
    _nodes[0].produce_blocks(12);
-   BOOST_CHECK_EQUAL( _nodes[0].control->last_irreversible_block_num(), lib0 + 1);
+   BOOST_CHECK_EQUAL( _nodes[0].last_irreversible_block_num(), lib0 + 1);
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "alice"_n ), true );
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[0], "bob"_n ),   true );
 
@@ -521,7 +521,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    _nodes[2].produce_block(_block_interval_us * 13);
    _nodes[2].create_accounts( {"carol"_n} );
    _nodes[2].produce_blocks(11);
-   BOOST_CHECK_EQUAL( _nodes[2].control->last_irreversible_block_num(), lib0 + 1);
+   BOOST_CHECK_EQUAL( _nodes[2].last_irreversible_block_num(), lib0 + 1);
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "alice"_n ), true );
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "bob"_n ),   false );
    BOOST_CHECK_EQUAL( does_account_exist( _nodes[2], "carol"_n ), true );
@@ -535,7 +535,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    // and restart producing on _nodes[0]
    _nodes[0].produce_block(_block_interval_us * 26, true);
    _nodes[0].produce_blocks(6);
-   auto lib2 = _nodes[0].control->last_irreversible_block_num();
+   auto lib2 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_EQUAL(lib2, lib0 + 12 + 7 );   // 12 when network was split, 7 just above (6 + 1)
    wlog("lib2 = ${lib2}", ("lib2", lib2)); // 65
 
@@ -550,7 +550,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
-   auto lib0           = _nodes[0].control->last_irreversible_block_num();
+   auto lib0           = _nodes[0].last_irreversible_block_num();
    auto fork_block_num = _nodes[0].head().block_num();
 
    wlog("lib0 = ${lib0}, fork_block_num = ${fbn}", ("lib0", lib0)("fbn", fork_block_num));
@@ -594,7 +594,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].control->get_chain_id()  );
+      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
       trace1 = _nodes[0].push_transaction( trx );
    }
    _nodes[0].produce_block();
@@ -611,7 +611,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].control->get_chain_id()  );
+      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
       trace2 = _nodes[0].push_transaction( trx );
    }
    {
@@ -627,7 +627,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( cb->calculate_id() );
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].control->get_chain_id()  );
+      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
       trace3 = _nodes[0].push_transaction( trx );
    }
    {
@@ -643,7 +643,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
                                 });
       trx.expiration = fc::time_point_sec{_nodes[0].head().block_time() + fc::seconds( 60 )};
       trx.set_reference_block( b->calculate_id() ); // tapos to dan's block should be rejected on fork switch
-      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].control->get_chain_id()  );
+      trx.sign( get_private_key( config::system_account_name, "active" ), _nodes[0].get_chain_id()  );
       trace4 = _nodes[0].push_transaction( trx );
       BOOST_CHECK( trace4->receipt->status == transaction_receipt_header::executed );
    }
@@ -660,7 +660,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    // dan on chain 1 now gets all of the blocks from chain 2 which should cause fork switch
    wlog( "push _nodes[2] blocks to _nodes[0]" );
    for( uint32_t start = fork_block_num + 1, end = _nodes[2].head().block_num(); start <= end; ++start ) {
-      auto fb = _nodes[2].control->fetch_block_by_number( start );
+      auto fb = _nodes[2].fetch_block_by_number( start );
       push_block( 0, fb );
    }
 
@@ -682,19 +682,19 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    BOOST_REQUIRE_EQUAL( trace3->id, (++(++_nodes[0].get_unapplied_transaction_queue().begin()))->id() );
    BOOST_REQUIRE_EQUAL( trace4->id, (++(++(++_nodes[0].get_unapplied_transaction_queue().begin())))->id() );
 
-   BOOST_REQUIRE_EXCEPTION(_nodes[0].control->get_account( "test1"_n ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(_nodes[0].get_account( "test1"_n ), fc::exception,
                            [a="test1"_n] (const fc::exception& e)->bool {
                               return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                            }) ;
-   BOOST_REQUIRE_EXCEPTION(_nodes[0].control->get_account( "test2"_n ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(_nodes[0].get_account( "test2"_n ), fc::exception,
                            [a="test2"_n] (const fc::exception& e)->bool {
                               return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                            }) ;
-   BOOST_REQUIRE_EXCEPTION(_nodes[0].control->get_account( "test3"_n ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(_nodes[0].get_account( "test3"_n ), fc::exception,
                            [a="test3"_n] (const fc::exception& e)->bool {
                               return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                            }) ;
-   BOOST_REQUIRE_EXCEPTION(_nodes[0].control->get_account( "test4"_n ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(_nodes[0].get_account( "test4"_n ), fc::exception,
                            [a="test4"_n] (const fc::exception& e)->bool {
                               return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                            }) ;
@@ -716,12 +716,12 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    BOOST_CHECK( traces.at(3)->except );
 
    // verify unapplied transactions ran
-   BOOST_REQUIRE_EQUAL( _nodes[0].control->get_account( "test1"_n ).name,  "test1"_n );
-   BOOST_REQUIRE_EQUAL( _nodes[0].control->get_account( "test2"_n ).name,  "test2"_n );
-   BOOST_REQUIRE_EQUAL( _nodes[0].control->get_account( "test3"_n ).name,  "test3"_n );
+   BOOST_REQUIRE_EQUAL( _nodes[0].get_account( "test1"_n ).name,  "test1"_n );
+   BOOST_REQUIRE_EQUAL( _nodes[0].get_account( "test2"_n ).name,  "test2"_n );
+   BOOST_REQUIRE_EQUAL( _nodes[0].get_account( "test3"_n ).name,  "test3"_n );
 
    // failed because of tapos to forked out block
-   BOOST_REQUIRE_EXCEPTION(_nodes[0].control->get_account( "test4"_n ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(_nodes[0].get_account( "test4"_n ), fc::exception,
                            [a="test4"_n] (const fc::exception& e)->bool {
                               return std::string( e.what() ).find( a.to_string() ) != std::string::npos;
                            }) ;
