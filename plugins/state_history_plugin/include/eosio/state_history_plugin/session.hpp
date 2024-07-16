@@ -258,8 +258,8 @@ private:
                         block_to_send->state_entry = self.chain_state_log->get_entry(self.next_block_cursor);
                      if(block_to_send->is_v1_request && *self.current_blocks_request_v1_finality && self.finality_data_log)
                         block_to_send->finality_entry = self.finality_data_log->get_entry(self.next_block_cursor);
+                     ++self.next_block_cursor;
                   }
-                  ++self.next_block_cursor;
                   --self.send_credits;
                }
 
