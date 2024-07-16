@@ -207,9 +207,6 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
-   while (_nodes[0].head().block_num() < 3) {
-      _nodes[0].produce_block();
-   }
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
@@ -237,7 +234,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"cam"_n} );
    const vector<account_name> new_producers { "dan"_n, "sam"_n, "pam"_n, "cam"_n };
-   auto new_prod = set_producers(0, new_producers);             // set new producers and produce blocks until the switch is pending
+   auto new_prod = set_producers(0, new_producers);
 
    sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
@@ -250,7 +247,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    // will be ahead of those of _nodes[0].
    //
    // _nodes[3] is still having just produced the 2nd block by "sam", and with the `producers` schedule.
-   // skip 23 blocks in the future so that "pam" produces
+   // skip 22 blocks in the future so that "pam" produces
    auto node3_head = _nodes[3].produce_block(_block_interval_us * 22);
    BOOST_REQUIRE_EQUAL(node3_head->producer, producers[1]);    // should be sam's last block
    push_block(0, node3_head);
@@ -284,11 +281,19 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    BOOST_REQUIRE_EQUAL(_nodes[0].lib_block->block_num(), _nodes[3].lib_block->block_num());
 } FC_LOG_AND_RETHROW()
 
-// ---------------------------- prune_remove_branch ---------------------------------
+// ---------------------------- verify_savanna_fork_choice --------------------------
 // Verify fork choice criteria for Savanna:
 //   last_final_block_num > last_qc_block_num > timestamp
+//
+// - Simulate two network partitions: P0 (node {0}) and P1 (nodes {1, 2, 3}).
+// - produce 2 blocks on P1. finality will advance by 2 blocks.
+// - produce 2 blocks on P0. finality will advance by 1 block only (because no quorum)
+//   but they'll have a later timestamp
+// - push the 2 newly produced blocks from P1 to P0
+// - check that we fork-switched to P1's head (despite P0's head timestamp being later)
+// - Unpartition the network, veerify lib advances.
 // ----------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE( prune_remove_branch_savanna, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t) try {
    while (_nodes[0].head().block_num() < 3) {
       _nodes[0].produce_block();
    }
@@ -484,6 +489,13 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 // demonstrates a worst-case scenario of finalizers split apart for different branches,
 // then rejoin together, and need to reach consensus on one of the branches through their
 // votes.
+//
+// - simulate 2 disconnected partitions:  P0: nodes {0, 1} and P1: node {2, 3}
+// - produce 12 blocks on P0 (no quorum, finality does not advance)
+// - produce 12 blocks on P1 (no quorum, finality does not advance)
+// - update the network split so that {0, 1, 2} are in one partition,
+//   enough for finality to start advancing again
+// - and restart producing on P1, check that finality advances again
 // ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
@@ -530,6 +542,8 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------- push_block_returns_forked_transactions_savanna ---------------------------------
+// Verify that a fork switch applies the blocks, and the included transactions in order.
+// -------------------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna_cluster::cluster_t  ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
