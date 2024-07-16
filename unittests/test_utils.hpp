@@ -66,7 +66,7 @@ auto make_bios_ro_trx(eosio::chain::controller& control) {
 // If account is eosio then signs with the default private key
 auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, signed_transaction& trx) {
    trx.expiration = fc::time_point_sec{fc::time_point::now() + fc::seconds(30)};
-   trx.set_reference_block( control.head_block_id() );
+   trx.set_reference_block( control.head().id() );
    if (account == config::system_account_name) {
       auto default_priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
       trx.sign(default_priv_key, control.get_chain_id());

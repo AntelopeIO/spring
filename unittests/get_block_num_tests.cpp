@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE( get_block_num ) { try {
    c.produce_block();
 
    c.push_action( tester1_account, "testblock"_n, tester1_account, mutable_variant_object()
-      ("expected_result", c.control->head_block_num()+1)
+      ("expected_result", c.control->head().block_num()+1)
    );
 
 } FC_LOG_AND_RETHROW() }

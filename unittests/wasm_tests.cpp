@@ -645,7 +645,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( simple_no_memory_check, T, validating_testers ) t
    act.name = ""_n;
    act.authorization = vector<permission_level>{{"nomem"_n,config::active_name}};
    trx.actions.push_back(act);
-   trx.expiration = fc::time_point_sec{chain.control->head_block_time()};
+   trx.expiration = fc::time_point_sec{chain.control->head().block_time()};
    chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "nomem"_n, "active" ), chain.control->get_chain_id());
    BOOST_CHECK_THROW(chain.push_transaction( trx ), wasm_execution_error);

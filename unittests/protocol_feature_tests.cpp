@@ -87,14 +87,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(activate_and_restart, T, testers) try {
    c.schedule_protocol_features_wo_preactivation({ *d });
    c.produce_block();
 
-   auto head_block_num = c.control->head_block_num();
+   auto head_block_num = c.control->head().block_num();
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 
    c.close();
    c.open( std::move( pfs ) );
 
-   BOOST_CHECK_EQUAL( head_block_num, c.control->head_block_num() );
+   BOOST_CHECK_EQUAL( head_block_num, c.control->head().block_num() );
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 
@@ -185,7 +185,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(require_preactivation_test, T, testers) try {
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 
    BOOST_CHECK_EXCEPTION( c.control->start_block(
-                              c.control->head_block_time() + fc::milliseconds(config::block_interval_ms),
+                              c.control->head().block_time() + fc::milliseconds(config::block_interval_ms),
                               0,
                               {},
                               controller::block_status::incomplete
@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    BOOST_CHECK_EXCEPTION(  c.produce_block(),
                            protocol_feature_exception,
                            fc_exception_message_starts_with(
-                              c.control->head_block_time().to_iso_string() +
+                              c.control->head().block_time().to_iso_string() +
                               " is too early for the earliest allowed activation time of the protocol feature"
                            )
    );
@@ -340,7 +340,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    BOOST_CHECK_EXCEPTION(  c.preactivate_protocol_features({only_link_to_existing_permission_digest}),
                            subjective_block_production_exception,
                            fc_exception_message_starts_with(
-                              (c.control->head_block_time() + fc::milliseconds(config::block_interval_ms)).to_iso_string() +
+                              (c.control->head().block_time() + fc::milliseconds(config::block_interval_ms)).to_iso_string() +
                               " is too early for the earliest allowed activation time of the protocol feature"
                            )
    );

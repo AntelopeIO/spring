@@ -450,7 +450,7 @@ public:
          reschedule.cancel();
       }
 
-      return {chain.head_block_id(), chain.calculate_integrity_hash()};
+      return {chain.head().id(), chain.calculate_integrity_hash()};
    }
 
    void create_snapshot(producer_plugin::next_function<chain::snapshot_scheduler::snapshot_information> next) {
@@ -825,7 +825,7 @@ public:
       }
 
       now             = fc::time_point::now();
-      if (chain.head_block_timestamp().next().to_time_point() >= now) {
+      if (chain.head().timestamp().next().to_time_point() >= now) {
          _production_enabled = true;
       }
 
@@ -845,7 +845,7 @@ public:
 
    void restart_speculative_block() {
       // log message is used by Node.py verifyStartingBlockMessages in distributed-transactions-test.py test
-      fc_dlog(_log, "Restarting exhausted speculative block #${n}", ("n", chain_plug->chain().head_block_num() + 1));
+      fc_dlog(_log, "Restarting exhausted speculative block #${n}", ("n", chain_plug->chain().head().block_num() + 1));
       // abort the pending block
       abort_block();
       schedule_production_loop();
@@ -955,7 +955,7 @@ public:
       try {
          const auto& id = trx->id();
 
-         fc::time_point       bt     = chain.is_building_block() ? chain.pending_block_time() : chain.head_block_time();
+         fc::time_point       bt     = chain.is_building_block() ? chain.pending_block_time() : chain.head().block_time();
          const fc::time_point expire = trx->packed_trx()->expiration().to_time_point();
          if (expire < bt) {
             auto except_ptr = std::static_pointer_cast<fc::exception>(std::make_shared<expired_tx_exception>(
@@ -1087,7 +1087,7 @@ void new_chain_banner(const eosio::chain::controller& db)
       "*******************************\n"
       "\n";
 
-   if( db.head_block_time() < (fc::time_point::now() - fc::milliseconds(200 * config::block_interval_ms))) {
+   if( db.head().block_time() < (fc::time_point::now() - fc::milliseconds(200 * config::block_interval_ms))) {
       std::cerr << "Your genesis seems to have an old timestamp\n"
          "Please consider using the --genesis-timestamp option to give your genesis a recent timestamp\n\n";
    }
@@ -1456,7 +1456,7 @@ void producer_plugin_impl::plugin_startup() {
             ilog("Launching block production for ${n} producers at ${time}.", ("n", _producers.size())("time", fc::time_point::now()));
 
             if (_production_enabled) {
-               if (chain.head_block_num() == 0) {
+               if (chain.head().block_num() == 0) {
                   new_chain_banner(chain);
                }
             }
@@ -1628,7 +1628,7 @@ void producer_plugin::create_snapshot(producer_plugin::next_function<chain::snap
 chain::snapshot_scheduler::snapshot_schedule_result
 producer_plugin::schedule_snapshot(const chain::snapshot_scheduler::snapshot_request_params& srp) {
    chain::controller& chain = my->chain_plug->chain();
-   const auto head_block_num = chain.head_block_num();
+   const auto head_block_num = chain.head().block_num();
 
    // missing start/end is set to head block num, missing end to UINT32_MAX
    chain::snapshot_scheduler::snapshot_request_information sri = {
@@ -1679,7 +1679,7 @@ fc::variants producer_plugin::get_supported_protocol_features(const get_supporte
    fc::variants             results;
    const chain::controller& chain           = my->chain_plug->chain();
    const auto&              pfs             = chain.get_protocol_feature_manager().get_protocol_feature_set();
-   const auto               next_block_time = chain.head_block_time() + fc::milliseconds(config::block_interval_ms);
+   const auto               next_block_time = chain.head().block_time() + fc::milliseconds(config::block_interval_ms);
 
    flat_map<digest_type, bool> visited_protocol_features;
    visited_protocol_features.reserve(pfs.size());
@@ -1836,7 +1836,7 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {
    const chain::controller& chain = chain_plug->chain();
    const fc::time_point     now   = fc::time_point::now();
-   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head_block_time());
+   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head().block_time());
    return block_timestamp_type(base).next();
 }
 
@@ -1859,7 +1859,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-   uint32_t head_block_num = chain.head_block_num();
+   uint32_t head_block_num = chain.head().block_num();
 
    if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
       ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
@@ -1926,7 +1926,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head_block_time();
+         auto head_block_age = now - chain.head().block_time();
          if (head_block_age > fc::seconds(5))
             return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
       }
@@ -2176,17 +2176,17 @@ void producer_plugin_impl::log_trx_results(const packed_transaction_ptr& trx,
       if (in_producing_mode()) {
          fc_dlog(is_transient ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
                  "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING ${desc}tx: ${txid}, auth: ${a}, ${details}",
-                 ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())("desc", is_transient ? "transient " : "")
+                 ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("desc", is_transient ? "transient " : "")
                  ("txid", trx->id())("a", trx->get_transaction().first_authorizer())
                  ("details", get_detailed_contract_except_info(trx, trace, except_ptr)));
 
          if (!is_transient) {
             fc_dlog(_trx_log, "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING tx: ${trx}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                     ("trx", chain_plug->get_log_trx(trx->get_transaction())));
             fc_dlog(_trx_trace_failure_log,
                     "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING tx: ${entire_trace}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                     ("entire_trace", get_trace(trace, except_ptr)));
          }
       } else {
@@ -2206,14 +2206,14 @@ void producer_plugin_impl::log_trx_results(const packed_transaction_ptr& trx,
       if (in_producing_mode()) {
          fc_dlog(is_transient ? _transient_trx_successful_trace_log : _trx_successful_trace_log,
                  "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING ${desc}tx: ${txid}, auth: ${a}, cpu: ${cpu}",
-                 ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())("desc", is_transient ? "transient " : "")
+                 ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("desc", is_transient ? "transient " : "")
                  ("txid", trx->id())("a", trx->get_transaction().first_authorizer())("cpu", billed_cpu_us));
          if (!is_transient) {
             fc_dlog(_trx_log, "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING tx: ${trx}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                     ("trx", chain_plug->get_log_trx(trx->get_transaction())));
             fc_dlog(_trx_trace_success_log, "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING tx: ${entire_trace}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                     ("entire_trace", get_trace(trace, except_ptr)));
          }
       } else {
@@ -2255,7 +2255,7 @@ producer_plugin_impl::push_result producer_plugin_impl::push_transaction(const f
          auto except_ptr = std::static_pointer_cast<fc::exception>(std::make_shared<tx_cpu_usage_exceeded>(
             FC_LOG_MESSAGE(error, "transaction ${id} exceeded failure limit for account ${a} until ${next_reset_time}",
                            ("id", trx->id())("a", first_auth)
-                           ("next_reset_time", _account_fails.next_reset_timepoint(chain.head_block_num(), chain.head_block_time())))));
+                           ("next_reset_time", _account_fails.next_reset_timepoint(chain.head().block_num(), chain.head().block_time())))));
          log_trx_results(trx, except_ptr);
          next(except_ptr);
       }
@@ -2310,7 +2310,7 @@ producer_plugin_impl::handle_push_result(const transaction_metadata_ptr&        
          if( in_producing_mode() ) {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
                     "[TRX_TRACE] Block ${block_num} for producer ${prod} COULD NOT FIT, tx: ${txid} RETRYING ",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())("txid", trx->id()));
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx->id()));
          } else {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
                     "[TRX_TRACE] Speculative execution COULD NOT FIT tx: ${txid} RETRYING", ("txid", trx->id()));
@@ -2461,11 +2461,11 @@ bool producer_plugin_impl::retire_deferred_trxs(const fc::time_point& deadline) 
             } else {
                fc_dlog(_trx_failed_trace_log,
                        "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING scheduled tx: ${txid}, time: ${r}, auth: ${a} : ${details}",
-                       ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
+                       ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
                        ("a", get_first_authorizer(trace))("details", get_detailed_contract_except_info(nullptr, trace, nullptr)));
                fc_dlog(_trx_trace_failure_log,
                        "[TRX_TRACE] Block ${block_num} for producer ${prod} is REJECTING scheduled tx: ${entire_trace}",
-                       ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                       ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                        ("entire_trace", chain_plug->get_log_trx_trace(trace)));
                num_failed++;
             }
@@ -2473,11 +2473,11 @@ bool producer_plugin_impl::retire_deferred_trxs(const fc::time_point& deadline) 
             trx_tracker.trx_success();
             fc_dlog(_trx_successful_trace_log,
                     "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING scheduled tx: ${txid}, time: ${r}, auth: ${a}, cpu: ${cpu}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx_id)("r", end - start)
                     ("a", get_first_authorizer(trace))("cpu", trace->receipt ? trace->receipt->cpu_usage_us : 0));
             fc_dlog(_trx_trace_success_log,
                     "[TRX_TRACE] Block ${block_num} for producer ${prod} is ACCEPTING scheduled tx: ${entire_trace}",
-                    ("block_num", chain.head_block_num() + 1)("prod", get_pending_block_producer())
+                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())
                     ("entire_trace", chain_plug->get_log_trx_trace(trace)));
             num_applied++;
          }
@@ -2578,7 +2578,7 @@ void producer_plugin_impl::schedule_production_loop() {
       if (!_producers.empty() && !production_disabled_by_policy()) {
          chain::controller& chain = chain_plug->chain();
          fc_dlog(_log, "Waiting till another block is received and scheduling Speculative/Production Change");
-         auto wake_time = block_timing_util::calculate_producer_wake_up_time(_produce_block_cpu_effort, chain.head_block_num(), calculate_pending_block_time(),
+         auto wake_time = block_timing_util::calculate_producer_wake_up_time(_produce_block_cpu_effort, chain.head().block_num(), calculate_pending_block_time(),
                                                                              _producers, chain.head_active_producers().producers,
                                                                              _producer_watermarks);
          schedule_delayed_production_loop(weak_from_this(), wake_time);
@@ -2625,12 +2625,12 @@ void producer_plugin_impl::schedule_maybe_produce_block(bool exhausted) {
       EOS_ASSERT(chain.is_building_block(), missing_pending_block_state, "producing without pending_block_state, start_block succeeded");
       _timer.expires_at(epoch + boost::posix_time::microseconds(deadline.time_since_epoch().count()));
       fc_dlog(_log, "Scheduling Block Production on Normal Block #${num} for ${time}",
-              ("num", chain.head_block_num() + 1)("time", deadline));
+              ("num", chain.head().block_num() + 1)("time", deadline));
    } else {
       EOS_ASSERT(chain.is_building_block(), missing_pending_block_state, "producing without pending_block_state");
       _timer.expires_from_now(boost::posix_time::microseconds(0));
       fc_dlog(_log, "Scheduling Block Production on ${desc} Block #${num} immediately",
-              ("num", chain.head_block_num() + 1)("desc", block_is_exhausted() ? "Exhausted" : "Deadline exceeded"));
+              ("num", chain.head().block_num() + 1)("desc", block_is_exhausted() ? "Exhausted" : "Deadline exceeded"));
    }
 
    _timer.async_wait(app().executor().wrap(
@@ -2640,7 +2640,7 @@ void producer_plugin_impl::schedule_maybe_produce_block(bool exhausted) {
          auto self = weak_this.lock();
          if (self && ec != boost::asio::error::operation_aborted && cid == self->_timer_corelation_id) {
             // pending_block_state expected, but can't assert inside async_wait
-            auto block_num = chain.is_building_block() ? chain.head_block_num() + 1 : 0;
+            auto block_num = chain.is_building_block() ? chain.head().block_num() + 1 : 0;
             fc_dlog(_log, "Produce block timer for ${num} running at ${time}", ("num", block_num)("time", fc::time_point::now()));
             auto res = self->maybe_produce_block();
             fc_dlog(_log, "Producing Block #${num} returned: ${res}", ("num", block_num)("res", res));
@@ -2741,7 +2741,7 @@ void producer_plugin_impl::produce_block() {
    br.total_time += fc::time_point::now() - start;
    chain.commit_block(br);
 
-   const auto& new_b = chain.head_block();
+   const auto& new_b = chain.head().block();
    if (_update_produced_block_metrics) {
       producer_plugin::produced_block_metrics metrics;
       metrics.unapplied_transactions_total = _unapplied_transactions.size();
@@ -2753,7 +2753,7 @@ void producer_plugin_impl::produce_block() {
       metrics.total_time_us = br.total_time.count();
       metrics.net_usage_us = br.total_net_usage;
       metrics.last_irreversible = chain.last_irreversible_block_num();
-      metrics.head_block_num = chain.head_block_num();
+      metrics.head_block_num = chain.head().block_num();
       _update_produced_block_metrics(metrics);
 
       _time_tracker.add_other_time();
@@ -2840,7 +2840,7 @@ void producer_plugin_impl::switch_to_read_window() {
    fc_dlog(_log, "Read only queue size ${s1}, read exclusive size ${s2}",
            ("s1", app().executor().read_only_queue_size())("s2", app().executor().read_exclusive_queue_size()));
 
-   uint32_t pending_block_num = chain.head_block_num() + 1;
+   uint32_t pending_block_num = chain.head().block_num() + 1;
    _ro_read_window_start_time = fc::time_point::now();
    _ro_window_deadline        = _ro_read_window_start_time + _ro_read_window_effective_time_us;
    app().executor().set_to_read_window([received_block = &_received_block, pending_block_num, ro_window_deadline = _ro_window_deadline]() {
