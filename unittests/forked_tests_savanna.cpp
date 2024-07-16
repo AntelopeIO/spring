@@ -294,9 +294,6 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
 // - Unpartition the network, veerify lib advances.
 // ----------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t) try {
-   while (_nodes[0].head().block_num() < 3) {
-      _nodes[0].produce_block();
-   }
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
