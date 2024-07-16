@@ -446,6 +446,8 @@ namespace eosio::chain {
       if( include_root == include_root_t::yes && root->id() == h && root->block_num() == block_num ) {
          return root;
       }
+      if (block_num <= root->block_num())
+         return {};
 
       for( auto i = index.find(h); i != index.end(); i = index.find( (*i)->previous() ) ) {
          if ((*i)->block_num() == block_num)
