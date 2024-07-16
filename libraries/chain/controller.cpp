@@ -1441,8 +1441,26 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
-      const block_id_type new_lib_id = fork_db.pending_lib_id(irreversible_mode() ? block_id_type{} : chain_head.id());
+      auto pending_lib_id = [&]() {
+         return fork_db.apply<block_id_type>(
+            [&](const fork_database_legacy_t& forkdb) -> block_id_type {
+               // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
+               block_state_legacy_ptr head = irreversible_mode() ? forkdb.head() : forkdb.get_block(chain_head.id());
+               if (!head)
+                  return {};
+               block_num_type lib_num = head->irreversible_blocknum();
+               block_state_legacy_ptr lib = forkdb.search_on_branch(head->id(), lib_num, include_root_t::no);
+               if (!lib)
+                  return {};
+               return lib->id();
+            },
+            [&](const fork_database_if_t& forkdb) -> block_id_type {
+               return forkdb.pending_savanna_lib_id();
+            }
+         );
+      };
+
+      const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
 
       if( new_lib_num <= lib_num )
@@ -1452,7 +1470,7 @@ struct controller_impl {
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.head());
          const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
-         auto branch = forkdb.fetch_branch( head_id, new_lib_id);
+         auto branch = forkdb.fetch_branch( head_id, new_lib_id); // verifies lib is on head branch
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
@@ -3210,7 +3228,7 @@ struct controller_impl {
             overloaded{
                [&](building_block::building_block_legacy& bb) -> void {
                   // Make sure new_finalizer_policy is set only once in Legacy
-                  if (bb.trx_blk_context.proposed_fin_pol_block_num && !bb.pending_block_header_state.is_if_transition_block()) {
+                  if (bb.trx_blk_context.proposed_fin_pol_block_num && !bb.pending_block_header_state.savanna_transition_block()) {
                      new_finalizer_policy = std::move(bb.trx_blk_context.proposed_fin_pol);
                      new_finalizer_policy->generation = 1;
                   }
@@ -5355,9 +5373,9 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    auto& bb = std::get<building_block>(pending->_block_stage);
    bool transition_block = bb.apply_l<bool>([&](building_block::building_block_legacy& bl) {
       // The check for if there is a finalizer policy set is required because
-      // is_if_transition_block() is set in assemble_block so it is not set
+      // savanna_transition_block() is set in assemble_block so it is not set
       // for the if genesis block.
-      return bl.pending_block_header_state.is_if_transition_block() || bl.trx_blk_context.proposed_fin_pol_block_num.has_value();
+      return bl.pending_block_header_state.savanna_transition_block() || bl.trx_blk_context.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
       return -1;

@@ -177,11 +177,6 @@ namespace eosio::chain {
       // see fork_database_t::fetch_branch(forkdb->head()->id())
       block_branch_t fetch_branch_from_head() const;
 
-      /// The pending LIB.
-      /// - legacy  returns dpos_irreversible_blocknum according to head_id or pending head if head_id is empty
-      /// - savanna returns the current pending_savanna_lib_id
-      block_id_type pending_lib_id(const block_id_type& head_id) const;
-
       template <class R, class F>
       R apply(const F& f) const {
          if constexpr (std::is_same_v<void, R>) {
