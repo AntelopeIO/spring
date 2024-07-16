@@ -1351,6 +1351,15 @@ struct controller_impl {
       forkdb.add(new_bsp, ignore_duplicate_t::yes);
    }
 
+   void transition_to_savanna_if_needed() {
+      block_handle_accessor::apply_l<void>(irreversible_mode() ? fork_db_head() : chain_head,
+         [&](const block_state_legacy_ptr& head) {
+            if (head->is_savanna_critical_block()) {
+               transition_to_savanna();
+            }
+         });
+   }
+
    void transition_to_savanna() {
       assert(chain_head.header().contains_header_extension(finality_extension::extension_id()));
       // copy head branch from legacy forkdb legacy to savanna forkdb
@@ -1455,8 +1464,8 @@ struct controller_impl {
                block_state_legacy_ptr head = irreversible_mode() ? forkdb.head() : forkdb.get_block(chain_head.id());
                if (!head)
                   return {};
-               block_num_type lib_num = head->irreversible_blocknum();
-               block_state_legacy_ptr lib = forkdb.search_on_branch(head->id(), lib_num, include_root_t::no);
+               block_num_type dpos_lib_num = head->irreversible_blocknum();
+               block_state_legacy_ptr lib = forkdb.search_on_branch(head->id(), dpos_lib_num, include_root_t::no);
                if (!lib)
                   return {};
                return lib->id();
@@ -1473,7 +1482,6 @@ struct controller_impl {
       if( new_lib_num <= lib_num )
          return;
 
-      bool savanna_transition_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.head());
          const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
@@ -1511,24 +1519,9 @@ struct controller_impl {
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
 
-               if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(*bitr)>>) {
-                  if ((*bitr)->header.contains_header_extension(finality_extension::extension_id())) {
-                     savanna_transition_required = true;
-                     // Do not advance irreversible past IF Genesis Block
-                     break;
-                  }
-               } else if ((*bitr)->block->is_proper_svnn_block() && fork_db.version_in_use() == fork_database::in_use_t::both) {
+               if ((*bitr)->block->is_proper_svnn_block() && fork_db.version_in_use() == fork_database::in_use_t::both) {
                   fork_db.switch_to(fork_database::in_use_t::savanna);
                   break;
-               }
-            }
-            if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(*branch.rbegin())>>) {
-               // If after restoring from a snapshot dpos LIB does not advance, still do the transition
-               // This depends on the <= of new_lib_num <= lib_num, the dpos LIB will advance to at least snapshot lib.
-               if (chain_head_trans_svnn_block && branch.empty()) {
-                  if (chain_head.header().contains_header_extension(finality_extension::extension_id())) {
-                     savanna_transition_required = true;
-                  }
                }
             }
          } catch( const std::exception& e ) {
@@ -1556,9 +1549,6 @@ struct controller_impl {
       };
 
       fork_db.apply<void>(mark_branch_irreversible);
-      if (savanna_transition_required) {
-         transition_to_savanna();
-      }
    }
 
    void initialize_blockchain_state(const genesis_state& genesis) {
@@ -3314,6 +3304,7 @@ struct controller_impl {
 
          if( s == controller::block_status::incomplete ) {
             log_irreversible();
+            transition_to_savanna_if_needed();
          }
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
@@ -4100,6 +4091,7 @@ struct controller_impl {
                   maybe_switch_forks( br, forkdb.head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
+               transition_to_savanna_if_needed();
             }
          };
 
@@ -4296,6 +4288,7 @@ struct controller_impl {
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
          log_irreversible();
+         transition_to_savanna_if_needed();
       };
 
       fork_db.apply<void>(do_maybe_switch_forks);

@@ -50,6 +50,8 @@ namespace eosio::chain {
 
       block_num_type                irreversible_blocknum() const;
       std::optional<block_num_type> savanna_genesis_block_num() const;
+      // true if last block_state_legacy block, next block is proper savanna block
+      bool is_savanna_critical_block() const;
 
       const producer_authority_schedule&     active_schedule_auth()  const { return block_header_state_legacy_common::active_schedule; }
       const producer_authority_schedule*     pending_schedule_auth() const { return &block_header_state_legacy::pending_schedule.schedule; }
