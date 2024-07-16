@@ -149,9 +149,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_from_block_log, T, testers ) {
    chain.create_account("replay3"_n);
    chain.produce_block(); // replay3 will be in fork_db.dat
 
-   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
-   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
-   BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
+   BOOST_REQUIRE_NO_THROW(chain.get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(chain.get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(chain.get_account("replay3"_n));
 
    chain.close();
 
@@ -164,9 +164,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_restart_from_block_log, T, testers ) {
 
    tester from_block_log_chain(copied_config, *genesis);
 
-   BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay1"_n));
-   BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay2"_n));
-   BOOST_REQUIRE_NO_THROW(from_block_log_chain.control->get_account("replay3"_n));
+   BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(from_block_log_chain.get_account("replay3"_n));
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, testers ) {
@@ -190,7 +190,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, 
    trx.actions.push_back(act1);
    chain.set_transaction_headers(trx);
    // run normal passing case
-   auto sigs  = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.control->get_chain_id());
+   auto sigs  = trx.sign(chain.get_private_key("testapi"_n, "active"), chain.get_chain_id());
    auto trace = chain.push_transaction(trx);
    chain.produce_block();
 
