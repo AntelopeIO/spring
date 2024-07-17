@@ -1372,6 +1372,8 @@ struct controller_impl {
       });
 
       assert(!!legacy_root);
+      if (irreversible_mode() && !legacy_root->savanna_genesis_block_num())
+         return;
       assert(read_mode == db_read_mode::IRREVERSIBLE || !legacy_branch.empty());
       ilog("Transitioning to savanna, IF Genesis Block ${gb}, IF Critical Block ${cb}", ("gb", legacy_root->block_num())("cb", chain_head.block_num()));
       if (chain_head_trans_svnn_block) {
