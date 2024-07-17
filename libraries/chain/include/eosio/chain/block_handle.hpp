@@ -14,7 +14,7 @@ private:
 
    friend struct fc::reflector<block_handle>;
    friend struct controller_impl;       // for `internal()` access below from controller
-   friend struct block_handle_accessor; // for `internal()` access below from controller
+   friend struct block_handle_accessor; // for `internal()` access below from controller or tests
 
    // Avoid using internal block_state/block_state_legacy as those types are internal to controller.
    const auto& internal() const { return _bsp; }

@@ -5,6 +5,7 @@
 
 #include <eosio/testing/tester.hpp>
 #include <ranges>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 namespace savanna_cluster {
    namespace ranges = std::ranges;
@@ -23,6 +24,8 @@ namespace savanna_cluster {
    using finalizer_keys   = eosio::testing::finalizer_keys<tester>;
 
    class cluster_t;
+
+   enum class skip_self_t : uint8_t { no, yes };
 
    // ----------------------------------------------------------------------------
    class node_t : public tester {
@@ -66,11 +69,10 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
-      uint32_t head_num() const { return control->fork_db_head().block_num(); }
-
-      void push_blocks(node_t& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         while (to.head_num() < std::min(head_num(), block_num_limit)) {
-            auto sb = control->fetch_block_by_number(to.control->fork_db_head().block_num() + 1);
+      void push_blocks(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+         auto limit = std::min(fork_db_head().block_num(), block_num_limit);
+         while (to.fork_db_head().block_num() < limit) {
+            auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
             to.push_block(sb);
          }
       }
@@ -89,7 +91,7 @@ namespace savanna_cluster {
    //
    // They are all finalizers (Each node has one finalizer) and can all produce blocks.
    // quorum is computed using the same formula as in the system contracts
-   // (so quorum == 3)
+   // (so quorum == (N * 2) / 3 + 1)
    //
    //
    // By default they are all connected, receive all produced blocks, vote on them,
@@ -103,13 +105,14 @@ namespace savanna_cluster {
          : _num_nodes(num_nodes)
          , _keys_per_node(keys_per_node)
       {
-         assert(_num_nodes > 3); // cluster should have a minimum of 3 nodes (quorum = 2)
+         assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
 
          _nodes.reserve(_num_nodes);
          _nodes.emplace_back(0, *this, setup_policy::full_except_do_not_transition_to_savanna);
          for (size_t i=1; i<_num_nodes; ++i)
             _nodes.emplace_back(i, *this);
 
+         set_partition({}); // initialize to no partition
 
          // make sure we push _nodes[0] initialization (full_except_do_not_transition_to_savanna)
          // to the other nodes. Needed because the tester was initialized before `node_t`.
@@ -156,13 +159,12 @@ namespace savanna_cluster {
       // propagated to connected nodes), and wait until one of the new producers is pending.
       // return the index of the pending new producer (we assume no duplicates in producer list)
       // -----------------------------------------------------------------------------------
-      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers) {
+      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers, bool create_accounts = true) {
          node_t& n = _nodes[node_idx];
          n.set_producers(producers);
          account_name pending;
-         signed_block_ptr sb;
          while (1) {
-            sb = n.produce_block();
+            signed_block_ptr sb = n.produce_block();
             pending = n.control->pending_block_producer();
             if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
                break;
@@ -170,56 +172,85 @@ namespace savanna_cluster {
          return ranges::find(producers, pending) - producers.begin();
       }
 
-      // provide a set of node indices which will be disconnected from other nodes of the network,
-      // creating two separate networks.
-      // within each of the two partitions, nodes are still fully connected
+      // `set_partitions` allows to configure logical network connections between nodes.
+      // - an empty list will connect each node of the cluster to every other nodes.
+      // - a non-empty list partitions the network into two or more partitions.
+      //   each vector of node indices specifies a separate partition, and the unaccounted
+      //   for nodes (`complement`) form another partition
+      //   (within each partition, nodes are fully connected)
       // -----------------------------------------------------------------------------------------
-      void set_partition(std::vector<size_t> indices) {
-         _partition = std::move(indices);
+      void set_partitions(std::initializer_list<std::vector<size_t>> l) {
+         auto inside = [&](size_t node_idx) {
+            return ranges::any_of(l, [node_idx](const auto& v) {
+               return ranges::any_of(v, [node_idx](auto i) { return i == node_idx; }); });
+         };
+
+         std::vector<size_t> complement;
+         for (size_t i = 0; i < _nodes.size(); ++i)
+            if (!inside(i))
+               complement.push_back(i);
+
+         auto set_peers = [&](const std::vector<size_t>& v) { for (auto i : v)  _peers[i] = v; };
+
+         _peers.clear();
+         for (const auto& v : l)
+            set_peers(v);
+         set_peers(complement);
       }
 
-      void push_blocks(node_t& node, const std::vector<size_t> &indices,
-                       uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
-         for (auto i : indices)
-            node.push_blocks(_nodes[i], block_num_limit);
+      // this is a convenience function for the most common case where we want to partition
+      // the nodes into two separate disconnected partitions.
+      // Simply provide a set of indices for nodes that need to be logically disconnected
+      // from the rest of the network.
+      // ----------------------------------------------------------------------------------
+      void set_partition(const std::vector<size_t>& indices) {
+         set_partitions({indices});
       }
 
-      // After creating forks on different nodes on a partitioned network,
-      // make sure that all chain heads of any node are also pushed to all other nodes
+      // After creating forks on different nodes on a partitioned network, make sure that,
+      // within any partition, all chain heads of any node are also pushed to all other nodes.
+      //
+      // Constraining the propagation within partitions may be useful for example if we had
+      // forks on 3 partitions, and we switch to having two partitions.
+      // -------------------------------------------------------------------------------------
       void propagate_heads() {
          struct head_track { digest_type id; size_t node_idx; };
-         std::vector<head_track> heads;
 
-         // store all different chain head found in cluster into `heads` vector
-         for (size_t i = 0; i < _nodes.size(); ++i) {
-            auto& n = _nodes[i];
-            auto head = n.head();
-            if (!ranges::any_of(heads, [&](auto& h) { return h.id == head.id(); }))
-               heads.emplace_back(head.id(), i);
-         }
+         // propagate heads only within the same partition
+         for (const auto& [_, peers] : _peers) {
+            std::vector<head_track> heads;
 
-         for (auto& dest : _nodes) {
-            for (auto& h : heads) {
-               if (h.id == dest.head().id())
-                  continue;
+            // store all different chain head found in cluster into `heads` vector
+            for (auto i : peers) {
+               auto head = _nodes[i].head();
+               if (!ranges::any_of(heads, [&](auto& h) { return h.id == head.id(); }))
+                  heads.emplace_back(head.id(), i);
+            }
 
-               // propagate blocks from `h.node_idx` to `dest`.
-               // We assume all nodes have at least a parent irreversible block in common
-               auto& src = _nodes[h.node_idx];
-               std::vector<signed_block_ptr> push_queue;
-               digest_type id = h.id;
-               while (!dest.control->fetch_block_by_id(id)) {
-                  auto sb = src.control->fetch_block_by_id(id);
-                  assert(sb);
-                  push_queue.push_back(sb);
-                  id = sb->previous;
+            for (auto i : peers) {
+               auto& dest = _nodes[i];
+
+               for (auto& h : heads) {
+                  if (i == h.node_idx || dest.head().id() == h.id)
+                     continue;
+
+                  // propagate blocks from `h.node_idx` to `dest`.
+                  // We assume all nodes have at least a parent irreversible block in common
+                  auto& src = _nodes[h.node_idx];
+                  std::vector<signed_block_ptr> push_queue;
+                  digest_type id = h.id;
+                  while (!dest.control->fetch_block_by_id(id)) {
+                     auto sb = src.control->fetch_block_by_id(id);
+                     assert(sb);
+                     push_queue.push_back(sb);
+                     id = sb->previous;
+                  }
+
+                  for (auto& b : push_queue | ranges::views::reverse)
+                     dest.push_block(b);
                }
-
-               for (auto& b : push_queue | ranges::views::reverse)
-                  dest.push_block(b);
             }
          }
-
       }
 
       // returns the number of nodes on which `lib` advanced since we last checked
@@ -230,51 +261,91 @@ namespace savanna_cluster {
 
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
+      void verify_lib_advances() {
+         auto lib = _nodes[0].lib_block->block_num();
+         size_t tries = 0;
+         while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
+            _nodes[0].produce_block();
+         }
+         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
+      }
+
+      void push_block(size_t dst_idx, const signed_block_ptr& sb) {
+         push_block_to_peers(dst_idx, skip_self_t::no, sb);
+      }
+
+      // Push new blocks from src_idx node to all nodes in partition of dst_idx.
+      // This is used when pushing one fork from a node to another node which has
+      // another fork, so we can't use `dst.forkdb_head_num() + 1` for start_block_num
+      // -----------------------------------------------------------------------------
+      void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
+         auto& src = _nodes[src_idx];
+         auto end_block_num   = src.fork_db_head().block_num();
+
+         for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
+            auto sb = src.control->fetch_block_by_number(i);
+            push_block(dst_idx, sb);
+         }
+      }
+
+      // Push new blocks from src_idx node to a specific list of nodes.
+      // this can be useful after we removed a network partition, and we want to push unseen blocks
+      // to the nodes of a pre-existing partition, so that they vote on them.
+      // ------------------------------------------------------------------------------------------
+      void push_blocks(size_t src_idx, const std::vector<size_t> &indices,
+                       uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
+         auto& src = _nodes[src_idx];
+         for (auto i : indices)
+            src.push_blocks(_nodes[i], block_num_limit);
+      }
+
       size_t num_nodes() const { return _num_nodes; }
 
    public:
       std::vector<node_t>             _nodes;
 
+      static constexpr fc::microseconds _block_interval_us =
+         fc::milliseconds(eosio::chain::config::block_interval_ms);
+
    private:
-      std::vector<size_t>             _partition;
-      size_t                          _num_nodes;
-      size_t                          _keys_per_node;
-      bool                            _shutting_down {false};
+      using peers_t = boost::unordered_flat_map<size_t, std::vector<size_t>>;
+
+      peers_t   _peers;
+      size_t    _num_nodes;
+      size_t    _keys_per_node;
+      bool      _shutting_down {false};
 
       friend node_t;
 
-      void dispatch_vote_to_peers(size_t node_idx, const vote_message_ptr& msg) {
+      void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
-         for_each_peer(node_idx, [&](node_t& n) {
+         for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.control->process_vote_message(++connection_id, msg);
          });
       }
 
-      void push_block_to_peers(size_t node_idx, const signed_block_ptr& b) {
-         for_each_peer(node_idx, [&](node_t& n) {
+      void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
+         for_each_peer(node_idx, skip_self, [&](node_t& n) {
             n.push_block(b);
          });
       }
 
       template<class CB>
-      void for_each_peer(size_t node_idx, const CB& cb) {
+      void for_each_peer(size_t node_idx, skip_self_t skip_self, const CB& cb) {
          if (_shutting_down)
             return;
-
-         if (_partition.empty()) {
-            for (size_t i=0; i<_num_nodes; ++i)
-               if (i != node_idx)
-                  cb(_nodes[i]);
-         } else {
-            auto in_partition = [&](size_t node_idx) {
-               return ranges::any_of(_partition, [&](auto i) { return i == node_idx; });
-            };
-            bool in = in_partition(node_idx);
-            for (size_t i=0; i<_num_nodes; ++i)
-               if (i != node_idx && in == in_partition(i))
-                  cb(_nodes[i]);
-         }
+         assert(_peers.find(node_idx) != _peers.end());
+         const auto& peers = _peers[node_idx];
+         for (auto i : peers)
+            if (skip_self == skip_self_t::no || i != node_idx)
+               cb(_nodes[i]);
       }
 
+   };
+
+   class cluster_6_t : cluster_t {
+   public:
+      cluster_6_t(size_t num_nodes = 6, size_t keys_per_node = 10)
+         : cluster_t(num_nodes, keys_per_node) {}
    };
 }

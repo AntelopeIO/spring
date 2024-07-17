@@ -127,8 +127,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( actor_whitelist, T, whitelist_blacklist_validatin
                              })
                            );
    test.chain->set_transaction_headers(trx);
-   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->control->get_chain_id() );
-   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->control->get_chain_id() );
+   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->get_chain_id() );
+   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->get_chain_id() );
    BOOST_CHECK_EXCEPTION( test.chain->push_transaction( trx ),
                           actor_whitelist_exception,
                           fc_exception_message_starts_with("authorizing actor(s) in transaction are not on the actor whitelist: [\"bob\"]")
@@ -161,8 +161,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( actor_blacklist, T, whitelist_blacklist_validatin
                              })
                            );
    test.chain->set_transaction_headers(trx);
-   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->control->get_chain_id() );
-   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->control->get_chain_id() );
+   trx.sign( test.chain->get_private_key( "alice"_n, "active" ), test.chain->get_chain_id() );
+   trx.sign( test.chain->get_private_key( "bob"_n, "active" ), test.chain->get_chain_id() );
    BOOST_CHECK_EXCEPTION( test.chain->push_transaction( trx ),
                           actor_blacklist_exception,
                           fc_exception_message_starts_with("authorizing actor(s) in transaction are on the actor blacklist: [\"bob\"]")
@@ -320,15 +320,15 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( blacklist_eosio, T, whitelist_blacklist_testers )
    T tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
    tester1.chain->produce_block();
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 } FC_LOG_AND_RETHROW() }
@@ -362,8 +362,8 @@ BOOST_AUTO_TEST_CASE( deferred_blacklist_failure ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -379,8 +379,8 @@ BOOST_AUTO_TEST_CASE( deferred_blacklist_failure ) { try {
                         );
    tester1.chain->produce_blocks(2, true); // Produce 2 empty blocks (other than onblock of course).
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 } FC_LOG_AND_RETHROW() }
@@ -479,8 +479,8 @@ BOOST_AUTO_TEST_CASE( actor_blacklist_inline_deferred ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -535,8 +535,8 @@ BOOST_AUTO_TEST_CASE( actor_blacklist_inline_deferred ) { try {
 
    c1.disconnect();
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -717,8 +717,8 @@ BOOST_AUTO_TEST_CASE( blacklist_sender_bypass ) { try {
    whitelist_blacklist_tester<tester> tester2;
    tester2.init(false);
 
-   while( tester2.chain->control->head().block_num() < tester1.chain->control->head().block_num() ) {
-      auto b = tester1.chain->control->fetch_block_by_number( tester2.chain->control->head().block_num()+1 );
+   while( tester2.chain->head().block_num() < tester1.chain->head().block_num() ) {
+      auto b = tester1.chain->fetch_block_by_number( tester2.chain->head().block_num()+1 );
       tester2.chain->push_block( b );
    }
 
@@ -772,7 +772,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( greylist_limit_tests, T, testers ) { try {
                                               std::vector<permission_level>{{acnt, perm}},
                                               fc::mutable_variant_object()("from", acnt) ) );
       c.set_transaction_headers( trx, 6, 0 );
-      trx.sign( c.get_private_key( acnt, perm.to_string() ), c.control->get_chain_id() );
+      trx.sign( c.get_private_key( acnt, perm.to_string() ), c.get_chain_id() );
       // This transaction is charged 104 bytes of NET.
 
       return c.push_transaction( trx, fc::time_point::maximum(), billed_cpu_time_us );

@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
 
    // lib_block is IF Genesis Block
    // block is IF Critical Block
-   auto fb = t.control->fetch_block_by_id(t.lib_id);
+   auto fb = t.fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
    BOOST_TEST(fb->calculate_id() == t.lib_id);
    ext = fb->extract_header_extension(finality_extension::extension_id());
@@ -89,7 +89,7 @@ void test_finality_transition(const vector<account_name>& accounts,
    }
    // lib_block is IF Genesis Block
    // block is IF Critical Block
-   auto fb = t.control->fetch_block_by_id(t.lib_id);
+   auto fb = t.fetch_block_by_id(t.lib_id);
    BOOST_REQUIRE(!!fb);
    BOOST_TEST(fb->calculate_id() == t.lib_id);
    ext = fb->extract_header_extension(finality_extension::extension_id());
