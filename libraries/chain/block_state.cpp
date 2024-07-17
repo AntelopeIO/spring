@@ -59,6 +59,7 @@ block_state::block_state(const block_header_state&                bhs,
 
 // Used for transition from dpos to Savanna.
 block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& bsp) {
+   dlog("Create if genesis block ${bn}", ("bn", bsp.block_num()));
    assert(bsp.action_mroot_savanna);
 
    auto result_ptr = std::make_shared<block_state>();
@@ -131,6 +132,7 @@ block_state_ptr block_state::create_transition_block(
                    const validator_t&                validator,
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
+   dlog("Create transition block ${bn}", ("bn", prev.block_num()+1));
    auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
 
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();

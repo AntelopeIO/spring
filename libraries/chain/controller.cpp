@@ -1386,7 +1386,6 @@ struct controller_impl {
             // legacy_root can be one past the snapshot start block when running in irreversible mode as LIB is advanced
             // before transition_to_savanna is called.
             const bool skip_validate_signee = true; // validated already
-            dlog("Create irreversible transition block ${bn}", ("bn", legacy_root->block_num()));
             auto new_root = block_state::create_transition_block(
                   *chain_head_trans_svnn_block,
                   legacy_root->block,
@@ -1407,7 +1406,6 @@ struct controller_impl {
             if (!irreversible_mode() && !(*bitr)->is_valid())
                break;
             const bool skip_validate_signee = true; // validated already
-            dlog("Create transition block ${bn}", ("bn", (*bitr)->block_num()));
             auto new_bsp = block_state::create_transition_block(
                   *prev,
                   (*bitr)->block,
