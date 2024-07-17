@@ -946,7 +946,7 @@ struct controller_impl {
    authorization_manager           authorization;
    protocol_feature_manager        protocol_features;
    controller::config              conf;
-   // write out chain_head after vote_processor has stopped to avoid concurrent access while writing
+   // persist chain_head after vote_processor shutdown, avoids concurrent access, after chain_head & conf since this uses them
    fc::scoped_exit<std::function<void()>> write_chain_head = [&]() { chain_head.write(conf.state_dir / config::chain_head_filename); };
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
