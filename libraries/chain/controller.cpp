@@ -946,6 +946,8 @@ struct controller_impl {
    authorization_manager           authorization;
    protocol_feature_manager        protocol_features;
    controller::config              conf;
+   // write out chain_head after vote_processor has stopped to avoid concurrent access while writing
+   fc::scoped_exit<std::function<void()>> write_chain_head = [&]() { chain_head.write(conf.state_dir / config::chain_head_filename); };
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
@@ -1983,7 +1985,6 @@ struct controller_impl {
    }
 
    ~controller_impl() {
-      chain_head.write(conf.state_dir / config::chain_head_filename);
       pending.reset();
       //only log this not just if configured to, but also if initialization made it to the point we'd log the startup too
       if(okay_to_print_integrity_hash_on_stop && conf.integrity_hash_on_stop)
