@@ -66,9 +66,9 @@ namespace eosio { namespace chain { namespace webassembly {
       *ret = lhs;
    }
 
-   void interface::__multi3(legacy_ptr<__int128> ret, uint64_t la, uint64_t ha, uint64_t lb, uint64_t hb) const {
-      __int128 lhs = ha;
-      __int128 rhs = hb;
+   void interface::__multi3(legacy_ptr<uint128_t> ret, uint64_t la, uint64_t ha, uint64_t lb, uint64_t hb) const {
+      uint128_t lhs = ha;
+      uint128_t rhs = hb;
 
       lhs <<= 64;
       lhs |=  la;
