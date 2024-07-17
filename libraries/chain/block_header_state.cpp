@@ -241,8 +241,8 @@ void finish_next(const block_header_state& prev,
    if (f_ext.new_finalizer_policy_diff) {
       new_finalizer_policy = prev.get_last_proposed_finalizer_policy().apply_diff(*f_ext.new_finalizer_policy_diff);
 
-      // a new `finalizer_policy` was proposed in the previous block, and is present in the previous
-      // block's header extensions.
+      // a new `finalizer_policy` was proposed in this block, and is present in the finality_extension for
+      // this new block.
       // Add this new proposal to the `proposed_finalizer_policies` which tracks the in-flight proposals.
       // ------------------------------------------------------------------------------------------------
       assert(new_finalizer_policy.generation > prev.finalizer_policy_generation);
@@ -258,19 +258,21 @@ void finish_next(const block_header_state& prev,
    next_header_state.block_id = next_header_state.header.calculate_id();
 
    if (log) {
+      auto& id = next_header_state.block_id;
+
       // Now that we have the block id of the new block, log what changed.
       // -----------------------------------------------------------------
       if (f_ext.new_finalizer_policy_diff) {
-         dlog("New finalizer policy proposed in block ${id}: ${pol}",
-              ("id", next_header_state.block_id)("pol", new_finalizer_policy));
+         dlog("New finalizer policy proposed in block ${n}:${id}: ${pol}",
+               ("n",block_header::num_from_id(id))("id", id)("pol", new_finalizer_policy));
       }
 
       if (next_header_state.active_finalizer_policy != prev.active_finalizer_policy) {
          const auto& act = next_header_state.active_finalizer_policy;
          ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
               ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
-         ilog("New finalizer policy becoming active in block ${id}: ${pol}",
-              ("id", next_header_state.block_id)("pol", *act));
+         ilog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+              ("n",block_header::num_from_id(id))("id", id)("pol", *act));
       }
    }
 }
