@@ -253,9 +253,6 @@ private:
                      if (self.current_blocks_request.fetch_block) {
                         if (chain::signed_block_ptr sbp = get_block(*this_block_id)) {
                            block_to_send->blocks_result_base.block = fc::raw::pack(*sbp);
-                        } else {
-                           fc_wlog(logger, "Unable to retrieve block ${bn} : ${id}",
-                                   ("bn", chain::block_header::num_from_id(*this_block_id))("id", *this_block_id));
                         }
                      }
                      if(self.current_blocks_request.fetch_traces && self.trace_log)
@@ -264,8 +261,6 @@ private:
                         block_to_send->state_entry = self.chain_state_log->get_entry(self.next_block_cursor);
                      if(block_to_send->is_v1_request && *self.current_blocks_request_v1_finality && self.finality_data_log)
                         block_to_send->finality_entry = self.finality_data_log->get_entry(self.next_block_cursor);
-                  } else {
-                     fc_wlog(logger, "Unable to retrieve block id for block ${bn}", ("bn", self.next_block_cursor));
                   }
                   // increment next_block_cursor even if unable to retrieve block to avoid tight busy loop
                   ++self.next_block_cursor;
