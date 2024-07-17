@@ -1361,7 +1361,6 @@ struct controller_impl {
    }
 
    void transition_to_savanna() {
-      assert(chain_head.header().contains_header_extension(finality_extension::extension_id()));
       // copy head branch from legacy forkdb legacy to savanna forkdb
       if (check_shutdown())
          return;
@@ -4237,6 +4236,9 @@ struct controller_impl {
                      shutdown();
                      break;
                   }
+                  log_irreversible();
+                  transition_to_savanna_if_needed();
+
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {

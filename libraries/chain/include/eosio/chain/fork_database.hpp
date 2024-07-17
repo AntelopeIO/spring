@@ -77,6 +77,7 @@ namespace eosio::chain {
 
       /**
        * Root of the fork database, not part of the index. Corresponds to head of the block log. Is an irreversible block.
+       * On startup from a snapshot the root->block will be nullptr until root is advanced.
        * Undefined if !has_root()
        */
       bsp_t  root() const;
