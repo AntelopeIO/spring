@@ -16,6 +16,7 @@ namespace fc {
         static constexpr microseconds minimum() { return microseconds(std::numeric_limits<int64_t>::min()); }
         friend constexpr microseconds operator + (const  microseconds& l, const microseconds& r ) { return microseconds(l._count+r._count); }
         friend constexpr microseconds operator - (const  microseconds& l, const microseconds& r ) { return microseconds(l._count-r._count); }
+        friend constexpr microseconds operator * (const  microseconds& l, int64_t f) { return microseconds(l._count * f); }
 
         constexpr bool operator==(const microseconds& c)const { return _count == c._count; }
         constexpr bool operator!=(const microseconds& c)const { return _count != c._count; }
@@ -65,14 +66,14 @@ namespace fc {
 
         constexpr const microseconds& time_since_epoch()const { return elapsed; }
         constexpr uint32_t            sec_since_epoch()const  { return elapsed.count() / 1000000; }
-        constexpr bool   operator > ( const time_point& t )const                              { return elapsed._count > t.elapsed._count; }
-        constexpr bool   operator >=( const time_point& t )const                              { return elapsed._count >=t.elapsed._count; }
-        constexpr bool   operator < ( const time_point& t )const                              { return elapsed._count < t.elapsed._count; }
-        constexpr bool   operator <=( const time_point& t )const                              { return elapsed._count <=t.elapsed._count; }
-        constexpr bool   operator ==( const time_point& t )const                              { return elapsed._count ==t.elapsed._count; }
-        constexpr bool   operator !=( const time_point& t )const                              { return elapsed._count !=t.elapsed._count; }
-        constexpr time_point&  operator += ( const microseconds& m)                           { elapsed+=m; return *this;                 }
-        constexpr time_point&  operator -= ( const microseconds& m)                           { elapsed-=m; return *this;                 }
+        constexpr bool   operator > ( const time_point& t )const    { return elapsed._count > t.elapsed._count; }
+        constexpr bool   operator >=( const time_point& t )const    { return elapsed._count >=t.elapsed._count; }
+        constexpr bool   operator < ( const time_point& t )const    { return elapsed._count < t.elapsed._count; }
+        constexpr bool   operator <=( const time_point& t )const    { return elapsed._count <=t.elapsed._count; }
+        constexpr bool   operator ==( const time_point& t )const    { return elapsed._count ==t.elapsed._count; }
+        constexpr bool   operator !=( const time_point& t )const    { return elapsed._count !=t.elapsed._count; }
+        constexpr time_point&  operator += ( const microseconds& m) { elapsed+=m; return *this;                 }
+        constexpr time_point&  operator -= ( const microseconds& m) { elapsed-=m; return *this;                 }
         constexpr time_point   operator + (const microseconds& m) const { return time_point(elapsed+m); }
         constexpr time_point   operator - (const microseconds& m) const { return time_point(elapsed-m); }
        constexpr microseconds operator - (const time_point& m) const { return microseconds(elapsed.count() - m.elapsed.count()); }

@@ -51,9 +51,9 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
          control->abort_block(); // abort started block in produce_block so activate_producers() is off head
 
          // Check if the producer is the same as what we expect
-         const auto block_time = control->head().block_time();
+         const auto block_time = head().block_time();
          const auto& expected_producer = get_expected_producer(current_schedule, block_time);
-         BOOST_TEST(control->head().producer() == expected_producer);
+         BOOST_TEST(head().producer() == expected_producer);
 
          if (scheduled_changed_to_new)
             break;
@@ -61,7 +61,7 @@ BOOST_FIXTURE_TEST_CASE( verify_producer_schedule, legacy_validating_tester ) tr
 
       BOOST_TEST(scheduled_changed_to_new);
 
-      const auto current_schd_ver = control->head().header().schedule_version;
+      const auto current_schd_ver = head().header().schedule_version;
       BOOST_TEST(current_schd_ver == expected_schd_ver);
    };
 
@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(verify_producers, T, validating_testers) try {
 
 BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (control->head().block_num() < 3) {
+   while (head().block_num() < 3) {
       produce_block();
    }
 
@@ -178,7 +178,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
    produce_block();
    produce_blocks(23); // Alice produces the last block of her first round.
                     // Bob's first block (which advances LIB to Alice's last block) is started but not finalized.
-   BOOST_REQUIRE_EQUAL( control->head().producer(), "alice"_n );
+   BOOST_REQUIRE_EQUAL( head().producer(), "alice"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "bob"_n );
    BOOST_REQUIRE(control->pending_producers_legacy());
    BOOST_CHECK_EQUAL( control->pending_producers_legacy()->version, 2u );
@@ -187,7 +187,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
    produce_blocks(12); // Bob produces his 12th block.
                     // Alice's first block of the second round is started but not finalized (which advances LIB to Bob's last block).
-   BOOST_REQUIRE_EQUAL( control->head().producer(), "alice"_n );
+   BOOST_REQUIRE_EQUAL( head().producer(), "alice"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "bob"_n );
    BOOST_CHECK_EQUAL( control->active_producers().version, 2u );
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
@@ -196,14 +196,14 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_promotion_test, legacy_validating_tes
 
    // The next block will be produced according to the new schedule
    produce_block();
-   BOOST_CHECK_EQUAL( control->head().producer(), "carol"_n ); // And that next block happens to be produced by Carol.
+   BOOST_CHECK_EQUAL( head().producer(), "carol"_n ); // And that next block happens to be produced by Carol.
 
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
 
 BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (control->head().block_num() < 3) {
+   while (head().block_num() < 3) {
       produce_block();
    }
 
@@ -242,7 +242,7 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, *control->proposed_producers_legacy() ) );
 
    produce_blocks(48);
-   BOOST_REQUIRE_EQUAL( control->head().producer(), "bob"_n );
+   BOOST_REQUIRE_EQUAL( head().producer(), "bob"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "carol"_n );
    BOOST_REQUIRE(control->pending_producers_legacy());
    BOOST_CHECK_EQUAL( control->pending_producers_legacy()->version, 2u );
@@ -251,13 +251,13 @@ BOOST_FIXTURE_TEST_CASE( producer_schedule_reduction, legacy_tester ) try {
    BOOST_CHECK_EQUAL( control->active_producers().version, 1u );
    produce_blocks(1);
 
-   BOOST_REQUIRE_EQUAL( control->head().producer(), "carol"_n );
+   BOOST_REQUIRE_EQUAL( head().producer(), "carol"_n );
    BOOST_REQUIRE_EQUAL( control->pending_block_producer(), "alice"_n );
    BOOST_CHECK_EQUAL( control->active_producers().version, 2u );
    BOOST_CHECK_EQUAL( true, compare_schedules( sch2, control->active_producers() ) );
 
    produce_blocks(2);
-   BOOST_CHECK_EQUAL( control->head().producer(), "bob"_n );
+   BOOST_CHECK_EQUAL( head().producer(), "bob"_n );
 
    BOOST_REQUIRE_EQUAL( validate(), true );
 } FC_LOG_AND_RETHROW()
@@ -268,7 +268,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(empty_producer_schedule_has_no_effect, T, validati
    c.execute_setup_policy( setup_policy::preactivate_feature_and_new_bios );
 
    c.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
-   while (c.control->head().block_num() < 3) {
+   while (c.head().block_num() < 3) {
       c.produce_block();
    }
 
@@ -438,7 +438,7 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "carol"_n );
    BOOST_REQUIRE_EQUAL( c.control->active_producers().version, 2u );
 
-   auto carol_last_produced_block_num = c.control->head().block_num() + 1;
+   auto carol_last_produced_block_num = c.head().block_num() + 1;
    wdump((carol_last_produced_block_num));
 
    c.produce_block();
@@ -451,12 +451,12 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
 
    produce_until_transition( c, "bob"_n, "alice"_n );
 
-   auto bob_last_produced_block_num = c.control->head().block_num();
+   auto bob_last_produced_block_num = c.head().block_num();
    wdump((bob_last_produced_block_num));
 
    produce_until_transition( c, "alice"_n, "bob"_n );
 
-   auto alice_last_produced_block_num = c.control->head().block_num();
+   auto alice_last_produced_block_num = c.head().block_num();
    wdump((alice_last_produced_block_num));
 
    {
@@ -485,14 +485,14 @@ BOOST_AUTO_TEST_CASE( producer_watermark_test ) try {
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "bob"_n );
    c.finish_block();
 
-   auto carol_block_num = c.control->head().block_num() + 1;
-   auto carol_block_time = c.control->head().block_time() + fc::milliseconds(config::block_interval_ms);
+   auto carol_block_num = c.head().block_num() + 1;
+   auto carol_block_time = c.head().block_time() + fc::milliseconds(config::block_interval_ms);
    auto confirmed = carol_block_num - carol_last_produced_block_num - 1;
 
    c.control->start_block( carol_block_time, confirmed, {}, controller::block_status::incomplete );
    BOOST_CHECK_EQUAL( c.control->pending_block_producer(), "carol"_n );
    c.produce_block();
-   auto h = c.control->head().header();
+   auto h = c.head().header();
 
    BOOST_CHECK_EQUAL( h.producer, "carol"_n );
    BOOST_CHECK_EQUAL( h.confirmed,  confirmed );

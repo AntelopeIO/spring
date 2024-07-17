@@ -315,11 +315,11 @@ void replay_over_snapshot_test()
    // replay the block log from the snapshot child, from the snapshot
    using config_file_handling = snapshotted_tester::config_file_handling;
    snapshotted_tester replay_chain(snap_chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), ordinal++, config_file_handling::copy_config_files);
-   const auto replay_head = replay_chain.control->head().block_num();
-   auto snap_head = snap_chain.control->head().block_num();
-   BOOST_REQUIRE_EQUAL(replay_head, snap_chain.control->last_irreversible_block_num());
+   const auto replay_head = replay_chain.head().block_num();
+   auto snap_head = snap_chain.head().block_num();
+   BOOST_REQUIRE_EQUAL(replay_head, snap_chain.last_irreversible_block_num());
    for (auto block_num = replay_head + 1; block_num <= snap_head; ++block_num) {
-      auto block = snap_chain.control->fetch_block_by_number(block_num);
+      auto block = snap_chain.fetch_block_by_number(block_num);
       replay_chain.push_block(block);
    }
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *replay_chain.control);
@@ -332,11 +332,11 @@ void replay_over_snapshot_test()
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *replay_chain.control);
 
    snapshotted_tester replay2_chain(snap_chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), ordinal++, config_file_handling::copy_config_files);
-   const auto replay2_head = replay2_chain.control->head().block_num();
-   snap_head = snap_chain.control->head().block_num();
-   BOOST_REQUIRE_EQUAL(replay2_head, snap_chain.control->last_irreversible_block_num());
+   const auto replay2_head = replay2_chain.head().block_num();
+   snap_head = snap_chain.head().block_num();
+   BOOST_REQUIRE_EQUAL(replay2_head, snap_chain.last_irreversible_block_num());
    for (auto block_num = replay2_head + 1; block_num <= snap_head; ++block_num) {
-      auto block = snap_chain.control->fetch_block_by_number(block_num);
+      auto block = snap_chain.fetch_block_by_number(block_num);
       replay2_chain.push_block(block);
    }
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *replay2_chain.control);
@@ -346,10 +346,10 @@ void replay_over_snapshot_test()
    auto genesis = chain::block_log::extract_genesis_state(chain.get_config().blocks_dir);
    BOOST_REQUIRE(genesis);
    tester from_block_log_chain(copied_config, *genesis);
-   const auto from_block_log_head = from_block_log_chain.control->head().block_num();
-   BOOST_REQUIRE_EQUAL(from_block_log_head, snap_chain.control->last_irreversible_block_num());
+   const auto from_block_log_head = from_block_log_chain.head().block_num();
+   BOOST_REQUIRE_EQUAL(from_block_log_head, snap_chain.last_irreversible_block_num());
    for (auto block_num = from_block_log_head + 1; block_num <= snap_head; ++block_num) {
-      auto block = snap_chain.control->fetch_block_by_number(block_num);
+      auto block = snap_chain.fetch_block_by_number(block_num);
       from_block_log_chain.push_block(block);
    }
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *from_block_log_chain.control);
@@ -380,7 +380,7 @@ void chain_id_in_snapshot_test()
    auto snapshot = SNAPSHOT_SUITE::finalize(writer);
 
    snapshotted_tester snap_chain(chain.get_config(), SNAPSHOT_SUITE::get_reader(snapshot), 0);
-   BOOST_REQUIRE_EQUAL(chain.control->get_chain_id(), snap_chain.control->get_chain_id());
+   BOOST_REQUIRE_EQUAL(chain.get_chain_id(), snap_chain.get_chain_id());
    verify_integrity_hash<SNAPSHOT_SUITE>(*chain.control, *snap_chain.control);
 }
 
@@ -428,8 +428,8 @@ void compatible_versions_test()
       chain.control->abort_block();
 
       // continue until all the above blocks are in the blocks.log
-      auto head_block_num = chain.control->head().block_num();
-      while (chain.control->last_irreversible_block_num() < head_block_num) {
+      auto head_block_num = chain.head().block_num();
+      while (chain.last_irreversible_block_num() < head_block_num) {
          chain.produce_block();
       }
 
@@ -736,7 +736,7 @@ void jumbo_row_test()
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
-   trx.sign(tester::get_private_key("jumbo"_n, "active"), chain.control->get_chain_id());
+   trx.sign(tester::get_private_key("jumbo"_n, "active"), chain.get_chain_id());
    chain.push_transaction(trx);
    chain.produce_block();
 

@@ -29,13 +29,13 @@ struct blog_replay_fixture {
       chain.produce_blocks(10);
 
       // Make sure the accounts were created
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay1"_n));
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay2"_n));
-      BOOST_REQUIRE_NO_THROW(chain.control->get_account("replay3"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay1"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay2"_n));
+      BOOST_REQUIRE_NO_THROW(chain.get_account("replay3"_n));
 
       // Store head_block_num and irreversible_block_num when the node is stopped
-      last_head_block_num = chain.control->head().block_num();
-      last_irreversible_block_num = chain.control->last_irreversible_block_num();
+      last_head_block_num = chain.head().block_num();
+      last_irreversible_block_num = chain.last_irreversible_block_num();
 
       // Stop the node and save blocks_log
       chain.close();
@@ -92,14 +92,14 @@ struct blog_replay_fixture {
       });
 
       // Make sure new chain contain the account created by original chain
-      BOOST_REQUIRE_NO_THROW(replay_chain_1.control->get_account("replay1"_n));
-      BOOST_REQUIRE_NO_THROW(replay_chain_1.control->get_account("replay2"_n));
-      BOOST_REQUIRE_NO_THROW(replay_chain_1.control->get_account("replay3"_n));
+      BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay1"_n));
+      BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay2"_n));
+      BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay3"_n));
 
       // Make sure replayed irreversible_block_num and head_block_num match
       // with last_irreversible_block_num and last_head_block_num
-      BOOST_CHECK(replay_chain_1.control->last_irreversible_block_num() == last_irreversible_block_num);
-      BOOST_CHECK(replay_chain_1.control->head().block_num() == last_head_block_num);
+      BOOST_CHECK(replay_chain_1.last_irreversible_block_num() == last_irreversible_block_num);
+      BOOST_CHECK(replay_chain_1.head().block_num() == last_head_block_num);
    } FC_LOG_AND_RETHROW()
 
    void remove_existing_states(std::filesystem::path& state_path) {
@@ -120,14 +120,14 @@ BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
    eosio::testing::tester replay_chain(copied_config, *genesis);
 
    // Make sure new chain contain the account created by original chain
-   BOOST_REQUIRE_NO_THROW(replay_chain.control->get_account("replay1"_n));
-   BOOST_REQUIRE_NO_THROW(replay_chain.control->get_account("replay2"_n));
-   BOOST_REQUIRE_NO_THROW(replay_chain.control->get_account("replay3"_n));
+   BOOST_REQUIRE_NO_THROW(replay_chain.get_account("replay1"_n));
+   BOOST_REQUIRE_NO_THROW(replay_chain.get_account("replay2"_n));
+   BOOST_REQUIRE_NO_THROW(replay_chain.get_account("replay3"_n));
 
    // Make sure replayed irreversible_block_num and head_block_num match
    // with last_irreversible_block_num and last_head_block_num
-   BOOST_CHECK(replay_chain.control->last_irreversible_block_num() == last_irreversible_block_num);
-   BOOST_CHECK(replay_chain.control->head().block_num() == last_head_block_num);
+   BOOST_CHECK(replay_chain.last_irreversible_block_num() == last_irreversible_block_num);
+   BOOST_CHECK(replay_chain.head().block_num() == last_head_block_num);
 } FC_LOG_AND_RETHROW()
 
 // Test replay stopping in the middle of blocks log and resuming

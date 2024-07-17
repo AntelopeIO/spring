@@ -87,14 +87,14 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(activate_and_restart, T, testers) try {
    c.schedule_protocol_features_wo_preactivation({ *d });
    c.produce_block();
 
-   auto head_block_num = c.control->head().block_num();
+   auto head_block_num = c.head().block_num();
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 
    c.close();
    c.open( std::move( pfs ) );
 
-   BOOST_CHECK_EQUAL( head_block_num, c.control->head().block_num() );
+   BOOST_CHECK_EQUAL( head_block_num, c.head().block_num() );
 
    BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::preactivate_feature ) );
 
@@ -185,7 +185,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(require_preactivation_test, T, testers) try {
    BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::only_link_to_existing_permission ) );
 
    BOOST_CHECK_EXCEPTION( c.control->start_block(
-                              c.control->head().block_time() + fc::milliseconds(config::block_interval_ms),
+                              c.head().block_time() + fc::milliseconds(config::block_interval_ms),
                               0,
                               {},
                               controller::block_status::incomplete
@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    BOOST_CHECK_EXCEPTION(  c.produce_block(),
                            protocol_feature_exception,
                            fc_exception_message_starts_with(
-                              c.control->head().block_time().to_iso_string() +
+                              c.head().block_time().to_iso_string() +
                               " is too early for the earliest allowed activation time of the protocol feature"
                            )
    );
@@ -340,7 +340,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(subjective_restrictions_test, T, testers) try {
    BOOST_CHECK_EXCEPTION(  c.preactivate_protocol_features({only_link_to_existing_permission_digest}),
                            subjective_block_production_exception,
                            fc_exception_message_starts_with(
-                              (c.control->head().block_time() + fc::milliseconds(config::block_interval_ms)).to_iso_string() +
+                              (c.head().block_time() + fc::milliseconds(config::block_interval_ms)).to_iso_string() +
                               " is too early for the earliest allowed activation time of the protocol feature"
                            )
    );
@@ -891,8 +891,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
       trx.actions.emplace_back(std::move(act));
       chain.set_transaction_headers(trx);
 
-      trx.sign(get_private_key(tester_account, "active"), chain.control->get_chain_id());
-      trx.sign(get_private_key(tester_account2, "active"), chain.control->get_chain_id());
+      trx.sign(get_private_key(tester_account, "active"), chain.get_chain_id());
+      trx.sign(get_private_key(tester_account2, "active"), chain.get_chain_id());
 
 
       auto tester_cpu_limit0  = mgr.get_account_cpu_limit_ex(tester_account).first;
@@ -936,8 +936,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
       trx.actions.emplace_back(std::move(act));
       chain.set_transaction_headers(trx);
 
-      trx.sign(get_private_key(tester_account, "active"), chain.control->get_chain_id());
-      trx.sign(get_private_key(tester_account2, "active"), chain.control->get_chain_id());
+      trx.sign(get_private_key(tester_account, "active"), chain.get_chain_id());
+      trx.sign(get_private_key(tester_account2, "active"), chain.get_chain_id());
 
       auto tester_cpu_limit0  = mgr.get_account_cpu_limit_ex(tester_account).first;
       auto tester2_cpu_limit0 = mgr.get_account_cpu_limit_ex(tester_account2).first;
@@ -1381,7 +1381,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_create_account, T, testers) { try {
                               });
 
    c.set_transaction_headers(trx);
-   trx.sign(get_private_key(config::system_account_name, "active"), c.control->get_chain_id());
+   trx.sign(get_private_key(config::system_account_name, "active"), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_key_type);
 
    c.preactivate_protocol_features( {*d} );
@@ -1459,7 +1459,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_recover_key, T, testers) { try {
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key( "bob"_n, "active" ), c.control->get_chain_id());
+   trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
    c.preactivate_protocol_features( {*d} );
@@ -1507,7 +1507,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_assert_recover_key, T, testers) { try {
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key( "bob"_n, "active" ), c.control->get_chain_id());
+   trx.sign(c.get_private_key( "bob"_n, "active" ), c.get_chain_id());
    BOOST_CHECK_THROW(c.push_transaction(trx), eosio::chain::unactivated_signature_type);
 
    c.preactivate_protocol_features( {*d} );
@@ -2022,7 +2022,7 @@ BOOST_AUTO_TEST_CASE( disable_deferred_trxs_stage_1_no_op_test ) { try {
       canceldelay{{"payloadless"_n, config::active_name}, payloadless_trx_id}
    );
    c.set_transaction_headers(trx);
-   trx.sign(c.get_private_key("payloadless"_n, "active"), c.control->get_chain_id());
+   trx.sign(c.get_private_key("payloadless"_n, "active"), c.get_chain_id());
    c.push_transaction(trx);
    c.produce_block();
 
@@ -2226,7 +2226,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    signed_tx.delay_sec = 120;
    // Re-sign the transaction
    signed_tx.signatures.clear();
-   signed_tx.sign(tester1.get_private_key(config::system_account_name, "active"), tester1.control->get_chain_id());
+   signed_tx.sign(tester1.get_private_key(config::system_account_name, "active"), tester1.get_chain_id());
    // Replace the original transaction with the delayed  transaction
    auto delayed_tx = packed_transaction(signed_tx);
    copy_b->transactions.back().trx = std::move(delayed_tx);

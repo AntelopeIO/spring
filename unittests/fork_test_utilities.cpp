@@ -42,6 +42,13 @@ bool produce_until_transition( base_tester& t,
    });
 }
 
+void produce_until_transition( base_tester& t) {
+   account_name pending = t.control->pending_block_producer();
+   do {
+      t.produce_block();
+   } while (t.control->pending_block_producer() == pending) ;
+}
+
 bool produce_until_blocks_from( base_tester& t,
                                 const std::set<account_name>& expected_producers,
                                 uint32_t max_num_blocks_to_produce )
