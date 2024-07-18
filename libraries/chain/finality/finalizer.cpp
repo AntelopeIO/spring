@@ -125,7 +125,7 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
 }
 
 // ----------------------------------------------------------------------------------------
-inline bool has_voted_strong(const std::vector<finalizer_authority>& active_finalizers, const valid_quorum_certificate& qc, const bls_public_key& key) {
+inline bool has_voted_strong(const std::vector<finalizer_authority>& active_finalizers, const quorum_certificate_sig& qc, const bls_public_key& key) {
    assert(qc.is_strong());
    auto it = std::find_if(active_finalizers.begin(),
                           active_finalizers.end(),
@@ -139,7 +139,7 @@ inline bool has_voted_strong(const std::vector<finalizer_authority>& active_fina
    return false;
 }
 
-void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc) {
+void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const quorum_certificate_sig& received_qc) {
    if (finalizers.empty())
       return;
 

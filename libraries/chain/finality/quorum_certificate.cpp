@@ -164,21 +164,21 @@ vote_status pending_quorum_certificate::add_vote(uint32_t connection_id, block_n
 }
 
 // called by get_best_qc which acquires a mutex
-valid_quorum_certificate pending_quorum_certificate::to_valid_quorum_certificate() const {
-   valid_quorum_certificate valid_qc;
+quorum_certificate_sig pending_quorum_certificate::to_valid_quorum_certificate() const {
+   quorum_certificate_sig valid_qc_sig;
 
    if( pending_state == state_t::strong ) {
-      valid_qc.strong_votes = strong_votes.bitset;
-      valid_qc.sig          = strong_votes.sig;
+      valid_qc_sig.strong_votes = strong_votes.bitset;
+      valid_qc_sig.sig          = strong_votes.sig;
    } else if (is_quorum_met_no_lock()) {
-      valid_qc.strong_votes = strong_votes.bitset;
-      valid_qc.weak_votes   = weak_votes.bitset;
-      valid_qc.sig          = strong_votes.sig;
-      valid_qc.sig.aggregate(weak_votes.sig);
+      valid_qc_sig.strong_votes = strong_votes.bitset;
+      valid_qc_sig.weak_votes   = weak_votes.bitset;
+      valid_qc_sig.sig          = strong_votes.sig;
+      valid_qc_sig.sig.aggregate(weak_votes.sig);
    } else
       assert(0); // this should be called only when we have a valid qc.
 
-   return valid_qc;
+   return valid_qc_sig;
 }
 
 std::optional<quorum_certificate> pending_quorum_certificate::get_best_qc(block_num_type block_num) const {
@@ -193,7 +193,7 @@ std::optional<quorum_certificate> pending_quorum_certificate::get_best_qc(block_
    }
 
    // extract valid QC from pending_qc
-   valid_quorum_certificate valid_qc_from_pending = to_valid_quorum_certificate();
+   quorum_certificate_sig valid_qc_from_pending = to_valid_quorum_certificate();
 
    // if valid_qc does not have value, consider valid_qc_from_pending only
    if( !valid_qc ) {
@@ -209,7 +209,7 @@ std::optional<quorum_certificate> pending_quorum_certificate::get_best_qc(block_
    return std::optional{quorum_certificate{ block_num, best_qc }};
 }
 
-void pending_quorum_certificate::set_valid_qc(const valid_quorum_certificate& qc) {
+void pending_quorum_certificate::set_valid_qc(const quorum_certificate_sig& qc) {
    std::lock_guard g(*_mtx);
    valid_qc = qc;
 }

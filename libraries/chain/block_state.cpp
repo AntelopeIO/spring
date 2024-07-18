@@ -226,7 +226,7 @@ vote_info_vec block_state::get_votes() const {
 }
 
 // Called from net threads
-void block_state::verify_qc(const valid_quorum_certificate& qc) const {
+void block_state::verify_qc(const quorum_certificate_sig& qc) const {
    const auto& finalizers = active_finalizer_policy->finalizers;
    auto num_finalizers = finalizers.size();
 

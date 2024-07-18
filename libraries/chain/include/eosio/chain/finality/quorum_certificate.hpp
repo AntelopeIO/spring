@@ -28,8 +28,8 @@ namespace eosio::chain {
       max_exceeded           // received too many votes for a connection
    };
 
-   // valid_quorum_certificate
-   struct valid_quorum_certificate {
+   // quorum_certificate_sig
+   struct quorum_certificate_sig {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
 
@@ -41,7 +41,7 @@ namespace eosio::chain {
    // quorum_certificate
    struct quorum_certificate {
       uint32_t                 block_num;
-      valid_quorum_certificate data;
+      quorum_certificate_sig   data;
 
       qc_claim_t to_qc_claim() const {
          return {.block_num = block_num, .is_strong_qc = data.is_strong()};
@@ -132,13 +132,13 @@ namespace eosio::chain {
       state_t state() const { std::lock_guard g(*_mtx); return pending_state; };
 
       std::optional<quorum_certificate> get_best_qc(block_num_type block_num) const;
-      void set_valid_qc(const valid_quorum_certificate& qc);
+      void set_valid_qc(const quorum_certificate_sig& qc);
       bool valid_qc_is_strong() const;
    private:
       friend struct fc::reflector<pending_quorum_certificate>;
       friend class qc_chain;
       std::unique_ptr<std::mutex> _mtx;
-      std::optional<valid_quorum_certificate> valid_qc; // best qc received from the network inside block extension
+      std::optional<quorum_certificate_sig> valid_qc; // best qc received from the network inside block extension
       uint64_t             quorum {0};
       uint64_t             max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
       state_t              pending_state { state_t::unrestricted };
@@ -159,13 +159,13 @@ namespace eosio::chain {
 
       bool is_quorum_met_no_lock() const;
       bool has_voted_no_lock(bool strong, size_t index) const;
-      valid_quorum_certificate to_valid_quorum_certificate() const;
+      quorum_certificate_sig to_valid_quorum_certificate() const;
    };
 } //eosio::chain
 
 
 FC_REFLECT_ENUM(eosio::chain::vote_status, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
-FC_REFLECT(eosio::chain::valid_quorum_certificate, (strong_votes)(weak_votes)(sig));
+FC_REFLECT(eosio::chain::quorum_certificate_sig, (strong_votes)(weak_votes)(sig));
 FC_REFLECT(eosio::chain::pending_quorum_certificate, (valid_qc)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
 FC_REFLECT_ENUM(eosio::chain::pending_quorum_certificate::state_t, (unrestricted)(restricted)(weak_achieved)(weak_final)(strong));
 FC_REFLECT(eosio::chain::pending_quorum_certificate::votes_t, (bitset)(sig));

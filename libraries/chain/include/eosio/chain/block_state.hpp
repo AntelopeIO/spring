@@ -126,7 +126,7 @@ public:
 
    std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
    bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
-   void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
+   void set_valid_qc(const quorum_certificate_sig& qc) { pending_qc.set_valid_qc(qc); }
    // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 
@@ -153,7 +153,7 @@ public:
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
    vote_status_t has_voted(const bls_public_key& key) const;
    vote_info_vec get_votes() const;                          // for testing, returns vote info from pending_qc
-   void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
+   void verify_qc(const quorum_certificate_sig& qc) const; // verify given qc is valid with respect block_state
 
    using bhs_t  = block_header_state;
    using bhsp_t = block_header_state_ptr;

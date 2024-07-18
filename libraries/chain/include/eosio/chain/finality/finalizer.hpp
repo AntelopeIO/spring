@@ -128,7 +128,7 @@ namespace eosio::chain {
          }
       }
 
-      void maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc);
+      void maybe_update_fsi(const block_state_ptr& bsp, const quorum_certificate_sig& received_qc);
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
