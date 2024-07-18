@@ -1341,8 +1341,16 @@ struct controller_impl {
       forkdb.add(new_bsp, ignore_duplicate_t::yes);
    }
 
+   void transition_to_savanna_if_needed() {
+      block_handle_accessor::apply_l<void>(irreversible_mode() ? fork_db_head() : chain_head,
+         [&](const block_state_legacy_ptr& head) {
+            if (head->is_savanna_critical_block()) {
+               transition_to_savanna();
+            }
+         });
+   }
+
    void transition_to_savanna() {
-      assert(chain_head.header().contains_header_extension(finality_extension::extension_id()));
       // copy head branch from legacy forkdb legacy to savanna forkdb
       if (check_shutdown())
          return;
@@ -1354,10 +1362,34 @@ struct controller_impl {
       });
 
       assert(!!legacy_root);
+      if (irreversible_mode() && !legacy_root->savanna_genesis_block_num())
+         return;
       assert(read_mode == db_read_mode::IRREVERSIBLE || !legacy_branch.empty());
       ilog("Transitioning to savanna, IF Genesis Block ${gb}, IF Critical Block ${cb}", ("gb", legacy_root->block_num())("cb", chain_head.block_num()));
-      auto new_root = block_state::create_if_genesis_block(*legacy_root);
-      fork_db.switch_from_legacy(new_root);
+      if (chain_head_trans_svnn_block) {
+         // chain_head_trans_svnn_block is set if started from a snapshot created during the transition
+         // If the snapshot is from during transition then the IF genesis block should not be created, instead
+         // chain_head_trans_svnn_block contains the block_state to build from
+         if (legacy_root->id() == chain_head_trans_svnn_block->id()) {
+            // setup savanna forkdb with the block_state from the snapshot
+            fork_db.switch_from_legacy(chain_head_trans_svnn_block);
+         } else {
+            // root has moved from chain_head_trans_svnn_block, so transition the legacy root
+            // legacy_root can be one past the snapshot start block when running in irreversible mode as LIB is advanced
+            // before transition_to_savanna is called.
+            const bool skip_validate_signee = true; // validated already
+            auto new_root = block_state::create_transition_block(
+                  *chain_head_trans_svnn_block,
+                  legacy_root->block,
+                  protocol_features.get_protocol_feature_set(),
+                  validator_t{}, skip_validate_signee,
+                  legacy_root->action_mroot_savanna);
+            fork_db.switch_from_legacy(new_root);
+         }
+      } else {
+         auto new_root = block_state::create_if_genesis_block(*legacy_root);
+         fork_db.switch_from_legacy(new_root);
+      }
       fork_db.apply_s<void>([&](auto& forkdb) {
          block_state_ptr prev = forkdb.root();
          assert(prev);
@@ -1390,8 +1422,8 @@ struct controller_impl {
          auto lib_block   = chain_head;
          my_finalizers.set_default_safety_information(
             finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                          .last_vote = {start_block.id(), start_block.block_time(), 1},
-                                          .lock      = {lib_block.id(),   lib_block.block_time(),   1} });
+                                          .last_vote = {start_block.id(), start_block.block_time()},
+                                          .lock      = {lib_block.id(),   lib_block.block_time()} });
       }
    }
 
@@ -1414,18 +1446,38 @@ struct controller_impl {
                      ("lib_num", lib_num)("bn", fork_db_root_block_num()) );
       }
 
-      // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
-      const block_id_type new_lib_id = fork_db.pending_lib_id(irreversible_mode() ? block_id_type{} : chain_head.id());
+      auto pending_lib_id = [&]() {
+         return fork_db.apply<block_id_type>(
+            [&](const fork_database_legacy_t& forkdb) -> block_id_type {
+               // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
+               block_state_legacy_ptr head = irreversible_mode() ? forkdb.head() : forkdb.get_block(chain_head.id());
+               if (!head)
+                  return {};
+               block_num_type dpos_lib_num = head->irreversible_blocknum();
+               block_state_legacy_ptr lib = forkdb.search_on_branch(head->id(), dpos_lib_num, include_root_t::no);
+               if (!lib)
+                  return {};
+               return lib->id();
+            },
+            [&](const fork_database_if_t& forkdb) -> block_id_type {
+               return forkdb.pending_savanna_lib_id();
+            }
+         );
+      };
+
+      const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
 
       if( new_lib_num <= lib_num )
          return;
 
-      bool savanna_transition_required = false;
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.head());
          const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
-         auto branch = forkdb.fetch_branch( head_id, new_lib_id);
+         // verifies lib is on head branch, otherwise returns an empty branch
+         // The new lib needs to be on the head branch because the forkdb.advance_root() below could purge blocks that
+         // would be needed to be re-applied on a fork switch from the exiting chain_head.
+         auto branch = forkdb.fetch_branch(head_id, new_lib_id);
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
@@ -1459,13 +1511,7 @@ struct controller_impl {
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
 
-               if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(*bitr)>>) {
-                  if ((*bitr)->header.contains_header_extension(finality_extension::extension_id())) {
-                     savanna_transition_required = true;
-                     // Do not advance irreversible past IF Genesis Block
-                     break;
-                  }
-               } else if ((*bitr)->block->is_proper_svnn_block() && fork_db.version_in_use() == fork_database::in_use_t::both) {
+               if ((*bitr)->block->is_proper_svnn_block() && fork_db.version_in_use() == fork_database::in_use_t::both) {
                   fork_db.switch_to(fork_database::in_use_t::savanna);
                   break;
                }
@@ -1495,9 +1541,6 @@ struct controller_impl {
       };
 
       fork_db.apply<void>(mark_branch_irreversible);
-      if (savanna_transition_required) {
-         transition_to_savanna();
-      }
    }
 
    void initialize_blockchain_state(const genesis_state& genesis) {
@@ -1578,8 +1621,8 @@ struct controller_impl {
                         auto lib_block   = chain_head;
                         my_finalizers.set_default_safety_information(
                            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = {start_block.id(), start_block.block_time(), 1},
-                                                         .lock      = {lib_block.id(),   lib_block.block_time(),   1} });
+                                                         .last_vote = {start_block.id(), start_block.block_time()},
+                                                         .lock      = {lib_block.id(),   lib_block.block_time()} });
                      }
                   }
                });
@@ -1955,7 +1998,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp(), 1} });
+                                                .lock      = {lib->id(), lib->timestamp()} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -1965,7 +2008,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp(), 1} });
+                                                .lock      = {lib->id(), lib->timestamp()} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
@@ -3170,7 +3213,7 @@ struct controller_impl {
             overloaded{
                [&](building_block::building_block_legacy& bb) -> void {
                   // Make sure new_finalizer_policy is set only once in Legacy
-                  if (bb.trx_blk_context.proposed_fin_pol_block_num && !bb.pending_block_header_state.is_if_transition_block()) {
+                  if (bb.trx_blk_context.proposed_fin_pol_block_num && !bb.pending_block_header_state.savanna_transition_block()) {
                      new_finalizer_policy = std::move(bb.trx_blk_context.proposed_fin_pol);
                      new_finalizer_policy->generation = 1;
                   }
@@ -3249,6 +3292,7 @@ struct controller_impl {
 
          if( s == controller::block_status::incomplete ) {
             log_irreversible();
+            transition_to_savanna_if_needed();
          }
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
@@ -4035,6 +4079,7 @@ struct controller_impl {
                   maybe_switch_forks( br, forkdb.head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
+               transition_to_savanna_if_needed();
             }
          };
 
@@ -4180,6 +4225,9 @@ struct controller_impl {
                      shutdown();
                      break;
                   }
+                  log_irreversible();
+                  transition_to_savanna_if_needed();
+
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {
@@ -4231,6 +4279,7 @@ struct controller_impl {
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
          log_irreversible();
+         transition_to_savanna_if_needed();
       };
 
       fork_db.apply<void>(do_maybe_switch_forks);
@@ -5313,9 +5362,9 @@ int64_t controller_impl::set_proposed_producers_legacy( vector<producer_authorit
    auto& bb = std::get<building_block>(pending->_block_stage);
    bool transition_block = bb.apply_l<bool>([&](building_block::building_block_legacy& bl) {
       // The check for if there is a finalizer policy set is required because
-      // is_if_transition_block() is set in assemble_block so it is not set
+      // savanna_transition_block() is set in assemble_block so it is not set
       // for the if genesis block.
-      return bl.pending_block_header_state.is_if_transition_block() || bl.trx_blk_context.proposed_fin_pol_block_num.has_value();
+      return bl.pending_block_header_state.savanna_transition_block() || bl.trx_blk_context.proposed_fin_pol_block_num.has_value();
    });
    if (transition_block)
       return -1;

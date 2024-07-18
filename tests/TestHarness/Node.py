@@ -553,6 +553,16 @@ class Node(Transactions):
        snapshotDirContents.sort()
        return os.path.join(snapshotDir, snapshotDirContents[-1])
 
+    def removeDataDir(self, rmState=True, rmBlocks=True, rmStateHist=True, rmFinalizersSafetyDir=True):
+        if rmState:
+            shutil.rmtree(Utils.getNodeDataDir(self.nodeId, "state"))
+        if rmBlocks:
+            shutil.rmtree(Utils.getNodeDataDir(self.nodeId, "blocks"))
+        if rmStateHist:
+            shutil.rmtree(Utils.getNodeDataDir(self.nodeId, "state-history"), ignore_errors=True)
+        if rmFinalizersSafetyDir:
+            shutil.rmtree(Utils.getNodeDataDir(self.nodeId, "finalizers"), ignore_errors=True)
+
     def removeState(self):
        dataDir = Utils.getNodeDataDir(self.nodeId)
        state = os.path.join(dataDir, "state")

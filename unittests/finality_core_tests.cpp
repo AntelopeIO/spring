@@ -18,7 +18,7 @@ struct test_core {
    block_time_type timestamp;
 
    test_core() {
-      block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}, 1};
+      block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
       core = finality_core::create_core_for_genesis_block(genesis_ref);
 
       next(0, qc_claim_t{.block_num = 0, .is_strong_qc = true});
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_SUITE(finality_core_tests)
 
 // Verify post conditions of IF genesis block core
 BOOST_AUTO_TEST_CASE(create_core_for_genesis_block_test) { try {
-   block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}, 1};
+   block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
    finality_core core = finality_core::create_core_for_genesis_block(genesis_ref);
 
    BOOST_REQUIRE_EQUAL(core.current_block_num(), 0u);
