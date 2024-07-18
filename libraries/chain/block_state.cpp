@@ -59,6 +59,7 @@ block_state::block_state(const block_header_state&                bhs,
 
 // Used for transition from dpos to Savanna.
 block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& bsp) {
+   dlog("Create if genesis block ${bn}", ("bn", bsp.block_num()));
    assert(bsp.action_mroot_savanna);
 
    auto result_ptr = std::make_shared<block_state>();
@@ -69,8 +70,8 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.header = bsp.header;
    result.activated_protocol_features = bsp.activated_protocol_features;
 
-   assert(bsp.block->contains_header_extension(finality_extension::extension_id())); // required by transition mechanism
-   finality_extension f_ext = bsp.block->extract_header_extension<finality_extension>();
+   assert(bsp.header.contains_header_extension(finality_extension::extension_id())); // required by transition mechanism
+   finality_extension f_ext = bsp.header.extract_header_extension<finality_extension>();
    assert(f_ext.new_finalizer_policy_diff); // required by transition mechanism
    result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*f_ext.new_finalizer_policy_diff)));
 
@@ -130,6 +131,7 @@ block_state_ptr block_state::create_transition_block(
                    const validator_t&                validator,
                    bool                              skip_validate_signee,
                    const std::optional<digest_type>& action_mroot_savanna) {
+   dlog("Create transition block ${bn}", ("bn", prev.block_num()+1));
    auto result_ptr = std::make_shared<block_state>(prev, b, pfs, validator, skip_validate_signee);
 
    result_ptr->action_mroot = action_mroot_savanna.has_value() ? *action_mroot_savanna : digest_type();

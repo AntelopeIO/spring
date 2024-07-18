@@ -84,4 +84,26 @@ namespace eosio::chain {
    {
    }
 
+   block_num_type block_state_legacy::irreversible_blocknum() const {
+      if (std::optional<block_num_type> gen_block_num = savanna_genesis_block_num()) {
+         return std::min<block_num_type>(*gen_block_num, dpos_irreversible_blocknum);
+      }
+      return dpos_irreversible_blocknum;
+   }
+
+   std::optional<block_num_type> block_state_legacy::savanna_genesis_block_num() const {
+      if (auto itr = header_exts.lower_bound(finality_extension::extension_id()); itr != header_exts.end()) {
+         const auto& f_ext = std::get<finality_extension>(itr->second);
+         return std::optional<block_num_type>{f_ext.qc_claim.block_num};
+      }
+      return {};
+   }
+
+   bool block_state_legacy::is_savanna_critical_block() const {
+      if (std::optional<block_num_type> gen_block_num = savanna_genesis_block_num()) {
+         return dpos_irreversible_blocknum >= *gen_block_num;
+      }
+      return false;
+   }
+
 } /// eosio::chain

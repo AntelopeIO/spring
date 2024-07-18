@@ -165,6 +165,13 @@ namespace eosio::chain {
       return result;
    }
 
+   std::optional<block_num_type> pending_block_header_state_legacy::savanna_genesis_block_num() const {
+      if (qc_claim) {
+         return std::optional<block_num_type>{qc_claim->block_num};
+      }
+      return {};
+   }
+
    signed_block_header pending_block_header_state_legacy::make_block_header(
                                                       const checksum256_type& transaction_mroot,
                                                       const checksum256_type& action_mroot,

@@ -733,11 +733,14 @@ namespace eosio::chain {
       if (in_use == in_use_t::legacy) {
          fork_db_s.reset_root(root);
          if (fork_db_l.has_root()) {
+            dlog("Switching forkdb from legacy to both");
             in_use = in_use_t::both;
          } else {
+            dlog("Switching forkdb from legacy to savanna");
             in_use = in_use_t::savanna;
          }
       } else if (in_use == in_use_t::both) {
+         dlog("Switching forkdb from legacy, already both root ${rid}, forkdb root ${fid}", ("rid", root->id())("fid", fork_db_s.root()->id()));
          assert(fork_db_s.root()->id() == root->id()); // should always set the same root
       } else {
          assert(false);
@@ -751,26 +754,6 @@ namespace eosio::chain {
             return forkdb.fetch_block_branch(head->id());
          return block_branch_t{};
       });
-   }
-
-   block_id_type fork_database::pending_lib_id(const block_id_type& head_id) const {
-      if (in_use.load() == in_use_t::legacy) {
-         block_state_legacy_ptr head;
-         if (head_id.empty()) {
-            head = fork_db_l.head();
-         } else {
-            head = fork_db_l.get_block(head_id);
-         }
-         if (!head)
-            return {};
-         block_num_type lib_num = head->irreversible_blocknum();
-         auto           lib     = fork_db_l.search_on_branch(head->id(), lib_num, include_root_t::no);
-         if (!lib)
-            return {};
-         return lib->id();
-      } else {
-         return fork_db_s.pending_savanna_lib_id();
-      }
    }
 
    // do class instantiations
