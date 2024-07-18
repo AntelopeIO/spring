@@ -7,10 +7,6 @@
 
 namespace eosio::chain {
 
-   namespace snapshot_detail {
-      struct snapshot_block_state_legacy_v7;
-   }
-
    struct block_state_legacy_accessor;
 
    struct block_state_legacy : public block_header_state_legacy {
@@ -32,8 +28,6 @@ namespace eosio::chain {
                           const validator_t& validator,
                           const signer_callback_type& signer
                 );
-
-      explicit block_state_legacy(snapshot_detail::snapshot_block_state_legacy_v7&& sbs);
 
       block_state_legacy() = default;
 
