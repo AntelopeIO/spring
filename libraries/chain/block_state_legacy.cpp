@@ -78,10 +78,4 @@ namespace eosio::chain {
    ,action_mroot_savanna( action_receipt_digests_savanna ? std::optional<digest_type>(calculate_merkle(*action_receipt_digests_savanna)) : std::nullopt )
    {}
 
-   block_state_legacy::block_state_legacy(snapshot_detail::snapshot_block_state_legacy_v7&& sbs)
-      : block_header_state_legacy(std::move(static_cast<snapshot_detail::snapshot_block_header_state_legacy_v3&>(sbs)))
-        // , valid(std::move(sbs.valid) // [snapshot todo]
-   {
-   }
-
 } /// eosio::chain

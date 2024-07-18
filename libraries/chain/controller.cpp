@@ -2134,7 +2134,8 @@ struct controller_impl {
                section.read_row(block_state_data, db);
                assert(block_state_data.bs_l || block_state_data.bs);
                if (block_state_data.bs_l) {
-                  auto legacy_ptr = std::make_shared<block_state_legacy>(std::move(*block_state_data.bs_l));
+                  auto legacy_ptr = std::make_shared<block_state_legacy>();
+                  static_cast<block_header_state_legacy&>(*legacy_ptr) = block_header_state_legacy(std::move(*block_state_data.bs_l));
                   chain_head = block_handle{legacy_ptr};
                   result.first = std::move(legacy_ptr);
 
