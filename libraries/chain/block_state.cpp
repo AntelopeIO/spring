@@ -76,8 +76,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
 
    block_ref genesis_block_ref {
       .block_id  = bsp.id(),
-      .timestamp = bsp.timestamp(),
-      .finalizer_policy_generation = result.active_finalizer_policy->generation
+      .timestamp = bsp.timestamp()
    };
    result.core = finality_core::create_core_for_genesis_block(genesis_block_ref);
 
