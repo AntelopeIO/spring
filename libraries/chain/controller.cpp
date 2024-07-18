@@ -1484,7 +1484,10 @@ struct controller_impl {
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.head());
          const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
-         auto branch = forkdb.fetch_branch( head_id, new_lib_id); // verifies lib is on head branch
+         // verifies lib is on head branch, otherwise returns an empty branch
+         // The new lib needs to be on the head branch because the forkdb.advance_root() below could purge blocks that
+         // would be needed to be re-applied on a fork switch from the exiting chain_head.
+         auto branch = forkdb.fetch_branch(head_id, new_lib_id);
          try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
