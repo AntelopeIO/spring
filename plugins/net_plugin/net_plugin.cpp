@@ -1528,10 +1528,9 @@ namespace eosio {
       if( !on_fork ) {
          try {
             const controller& cc = my_impl->chain_plug->chain();
-            block_id_type my_id = cc.get_block_id_for_num( msg_head_num ); // thread-safe
+            std::optional<block_id_type> my_id = cc.fork_block_id_for_num( msg_head_num ); // thread-safe
+            unknown_block = !my_id;
             on_fork = my_id != msg_head_id;
-         } catch( const unknown_block_exception& ) {
-            unknown_block = true;
          } catch( ... ) {
             on_fork = true;
          }
@@ -2347,7 +2346,7 @@ namespace eosio {
          bool on_fork = true;
          try {
             controller& cc = my_impl->chain_plug->chain();
-            on_fork = cc.get_block_id_for_num( msg.fork_head_num ) != msg.fork_head_id; // thread-safe
+            on_fork = cc.fork_block_id_for_num( msg.fork_head_num ) != msg.fork_head_id; // thread-safe
          } catch( ... ) {}
          if( on_fork ) {
             request_message req;
@@ -3517,11 +3516,11 @@ namespace eosio {
             bool on_fork = false;
             try {
                controller& cc = my_impl->chain_plug->chain();
-               block_id_type peer_lib_id = cc.get_block_id_for_num( peer_lib ); // thread-safe
+               std::optional<block_id_type> peer_lib_id = cc.fork_block_id_for_num( peer_lib ); // thread-safe
+               if (!peer_lib_id) {
+                  peer_dlog( this, "peer last irreversible block ${pl} is unknown", ("pl", peer_lib) );
+               }
                on_fork = (msg.last_irreversible_block_id != peer_lib_id);
-            } catch( const unknown_block_exception& ) {
-               // allow this for now, will be checked on sync
-               peer_dlog( this, "peer last irreversible block ${pl} is unknown", ("pl", peer_lib) );
             } catch( ... ) {
                peer_wlog( this, "caught an exception getting block id for ${pl}", ("pl", peer_lib) );
                on_fork = true;

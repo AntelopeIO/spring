@@ -55,7 +55,7 @@ namespace eosio { namespace chain {
 
          signed_block_ptr read_block_by_num(uint32_t block_num)const;
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num)const;
-         block_id_type    read_block_id_by_num(uint32_t block_num)const;
+         std::optional<block_id_type>       read_block_id_by_num(uint32_t block_num)const;
 
          signed_block_ptr read_block_by_id(const block_id_type& id)const {
             return read_block_by_num(block_header::num_from_id(id));

@@ -90,7 +90,8 @@ public:
             return id;
       }
       try {
-         return chain_plug->chain().get_block_id_for_num(block_num);
+         // not thread safe, only call from main application thread
+         return chain_plug->chain().chain_block_id_for_num(block_num);
       } catch(...) {
       }
       return {};
@@ -107,8 +108,8 @@ public:
                                             [this](const chain::block_num_type block_num) {
                                                return get_block_id(block_num);
                                             },
-                                            [this](const chain::block_num_type block_num) {
-                                               return chain_plug->chain().fetch_block_by_number(block_num);
+                                            [this](const chain::block_id_type& block_id) {
+                                               return chain_plug->chain().fetch_block_by_id(block_id);
                                             },
                                             [this](session_base* conn) {
                                                boost::asio::post(app().get_io_service(), [conn, this]() {
