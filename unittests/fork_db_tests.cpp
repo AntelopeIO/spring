@@ -23,7 +23,7 @@ struct test_block_state_accessor {
       block_id_type genesis_id = make_block_id(10);
       root->block_id = genesis_id;
       root->header.timestamp = block_timestamp_type{10};
-      root->core = finality_core::create_core_for_genesis_block(block_ref{ root->block_id, root->header.timestamp, 1 });
+      root->core = finality_core::create_core_for_genesis_block(block_ref{ root->block_id, root->header.timestamp });
       return root;
    }
 
@@ -35,8 +35,7 @@ struct test_block_state_accessor {
       bsp->header.previous = prev->id();
       block_ref prev_block {
          .block_id  = prev->id(),
-         .timestamp = prev->timestamp(),
-         .finalizer_policy_generation = 1
+         .timestamp = prev->timestamp()
       };
       bsp->core = prev->core.next(prev_block, prev->core.latest_qc_claim());
       return bsp;

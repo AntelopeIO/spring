@@ -100,17 +100,6 @@ block_time_type finality_core::latest_qc_block_timestamp() const {
 /**
  *  @pre  all finality_core invariants
  *  @post same
- *  @returns finalizer_policy_generation of latest qc_claim made by the core
- */
-uint32_t finality_core::latest_qc_block_finalizer_policy_generation() const {
-   assert(!links.empty()); // Satisfied by invariant 1.
-
-   return get_block_reference(links.back().target_block_num).finalizer_policy_generation;
-}
-
-/**
- *  @pre  all finality_core invariants
- *  @post same
  *  @returns boolean indicating whether `id` is an ancestor of this block
  */
 bool finality_core::extends(const block_id_type& id) const {
@@ -288,7 +277,6 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
    
    assert(refs.empty() || (refs.back().block_num() + 1 == current_block.block_num())); // Satisfied by precondition 2.
    assert(refs.empty() || (refs.back().timestamp < current_block.timestamp)); // Satisfied by precondition 2.
-   assert(refs.empty() || (refs.back().finalizer_policy_generation <= current_block.finalizer_policy_generation)); // Satisfied by precondition 2.
 
    assert(most_recent_ancestor_with_qc.block_num <= current_block_num()); // Satisfied by precondition 3.
 

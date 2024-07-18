@@ -33,17 +33,16 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       // to participate in liveness when they come back into active finalizer policy.
       // This allows restoration of liveness if a replica is locked on a stale proposal
       // -------------------------------------------------------------------------------
-      res.liveness_check = bsp->core.latest_qc_block_finalizer_policy_generation() == fsi.lock.finalizer_policy_generation &&
-                           bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
+      res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
       if (!res.liveness_check) {
          // might be locked on an old timestamp if finalizer was active in the past and is now active again
          res.liveness_check = bsp->core.last_final_block_timestamp() >= fsi.lock.timestamp;
       }
 
       if (!res.liveness_check) {
-         dlog("liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid} ${lg}, latest_qc_claim: ${qc}",
+         dlog("liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
               ("bn", bsp->block_num())("id", bsp->id())("c", bsp->core.latest_qc_block_timestamp())("l", fsi.lock.timestamp)
-              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)("lg", fsi.lock.finalizer_policy_generation)
+              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)
               ("qc", bsp->core.latest_qc_claim()));
          // Safety check : check if this proposal extends the proposal we're locked on
          res.safety_check = bsp->core.extends(fsi.lock.block_id);
@@ -76,7 +75,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          voting_strong = bsp->core.extends(fsi.last_vote.block_id);
       }
 
-      fsi.last_vote             = { bsp->id(), bsp->timestamp(), bsp->core.latest_qc_block_finalizer_policy_generation() };
+      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
       fsi.last_vote_range_start = p_start;
 
       auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
@@ -99,7 +98,7 @@ bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
    if (final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
       fsi.lock = final_on_strong_qc_block_ref;
-      fsi.last_vote             = { bsp->id(), bsp->timestamp(), bsp->core.latest_qc_block_finalizer_policy_generation() };
+      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
       fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
       return true;
    }
