@@ -38,19 +38,24 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   combined_base_digests_t combined_base_digests_data {
-         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+   level_3_commitments_t level_3_commitments {
          .reversible_blocks_mroot     = core.get_reversible_blocks_mroot(),
          .base_digest                 = compute_base_digest()
    };
-   auto combined_base_digests = fc::sha256::hash(combined_base_digests_data);
+
+   level_2_commitments_t level_2_commitments {
+         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+         .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
+   };
+
+   //auto combined_base_digests = fc::sha256::hash(combined_base_digests_data);
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation  = active_finalizer_policy->generation,
       .final_on_strong_qc_block_num        = core.final_on_strong_qc_block_num,
       .finality_tree_digest                = finality_mroot(),
-      .combined_base_digests                = combined_base_digests
+      .l2_commitments_digest               = fc::sha256::hash(level_2_commitments)
    };
 
    return fc::sha256::hash(finality_digest_data);

@@ -241,11 +241,23 @@ namespace savanna {
       }; 
    };
 
-   struct combined_base_digests_t {
+/*   struct combined_base_digests_t {
       checksum256 last_pending_fin_pol_digest{};
       checksum256 reversible_blocks_mroot{};
       checksum256 base_digest{};
+   };*/
+
+   struct level_3_commitments_t {
+      checksum256 reversible_blocks_mroot{};
+      checksum256 base_digest{};
    };
+
+   // commitments used in the context of finalizer policy transitions
+   struct level_2_commitments_t {
+      checksum256 last_pending_fin_pol_digest{};
+      checksum256 l3_commitments_digest{};
+   };
+
 
    struct dynamic_data_v0 {
       //block_num is always present
@@ -308,15 +320,22 @@ namespace savanna {
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
             //checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
-            auto cbd_result = eosio::pack(combined_base_digests_t{
-               .last_pending_fin_pol_digest  = policy_digest, 
+
+            auto l3_packed = eosio::pack(level_3_commitments_t{
                .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
                .base_digest = witness_hash
             });
 
-            checksum256 cbd_digest = sha256(cbd_result.data(), cbd_result.size());
+            checksum256 l3_digest = sha256(l3_packed.data(), l3_packed.size());
 
-            return cbd_digest;
+            auto l2_packed = eosio::pack(level_2_commitments_t{
+               .last_pending_fin_pol_digest  = policy_digest, 
+               .l3_commitments_digest = l3_digest
+            });
+
+            checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
+
+            return l2_digest;
          }
          else {
             check(!new_finalizer_policy.has_value() && !reversible_blocks_mroot.has_value(), "must either provide witness_hash hash alone, or provide witness_hash, new_finalizer_policy and reversible_blocks_mroot");
