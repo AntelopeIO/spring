@@ -77,6 +77,7 @@ namespace eosio::chain {
 
       /**
        * Root of the fork database, not part of the index. Corresponds to head of the block log. Is an irreversible block.
+       * On startup from a snapshot the root->block will be nullptr until root is advanced.
        * Undefined if !has_root()
        */
       bsp_t  root() const;
@@ -176,11 +177,6 @@ namespace eosio::chain {
 
       // see fork_database_t::fetch_branch(forkdb->head()->id())
       block_branch_t fetch_branch_from_head() const;
-
-      /// The pending LIB.
-      /// - legacy  returns dpos_irreversible_blocknum according to head_id or pending head if head_id is empty
-      /// - savanna returns the current pending_savanna_lib_id
-      block_id_type pending_lib_id(const block_id_type& head_id) const;
 
       template <class R, class F>
       R apply(const F& f) const {

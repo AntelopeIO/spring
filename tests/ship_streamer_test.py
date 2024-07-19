@@ -226,7 +226,7 @@ try:
     nonProdNode.kill(signal.SIGTERM)
 
     Print("Test starting ship from snapshot")
-    Utils.rmNodeDataDir(shipNodeNum)
+    shipNode.removeDataDir()
     isRelaunchSuccess = shipNode.relaunch(chainArg=" --snapshot {}".format(shipNode.getLatestSnapshot()))
     assert isRelaunchSuccess, "relaunch from snapshot failed"
 

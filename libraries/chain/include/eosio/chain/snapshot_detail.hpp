@@ -94,20 +94,6 @@ namespace eosio::chain::snapshot_detail {
     *      Snapshot V7 Data structures
     *      ---------------------------
     */
-   struct snapshot_block_state_legacy_v7 : public snapshot_block_header_state_legacy_v3 {
-      // additional member that can be present in `Transition Legacy Block` and
-      // is needed to convert to `Transition IF Block` (see https://github.com/AntelopeIO/leap/issues/2080)
-      using valid_t = uint32_t; // snapshot todo
-      std::optional<valid_t> valid;
-
-      snapshot_block_state_legacy_v7() = default;
-
-      explicit snapshot_block_state_legacy_v7(const block_state_legacy& bs)
-         : snapshot_block_header_state_legacy_v3(bs)
-         , valid(0)  // snapshot todo
-      {}
-   };
-
    struct snapshot_block_state_v7 {
       // from block_header_state
       block_id_type                                       block_id;
@@ -148,15 +134,15 @@ namespace eosio::chain::snapshot_detail {
       static constexpr uint32_t minimum_version = 7;
       static constexpr uint32_t maximum_version = 7;
 
-      std::optional<snapshot_block_state_legacy_v7> bs_l;
-      std::optional<snapshot_block_state_v7>        bs;
+      std::optional<snapshot_block_header_state_legacy_v3> bs_l;
+      std::optional<snapshot_block_state_v7>               bs;
 
       snapshot_block_state_data_v7() = default;
 
       explicit snapshot_block_state_data_v7(const block_state_pair& p)
       {
          if (p.first)
-            bs_l = snapshot_block_state_legacy_v7(*p.first);
+            bs_l = snapshot_block_header_state_legacy_v3(*p.first);
          if (p.second)
             bs = snapshot_block_state_v7(*p.second);
       }
@@ -204,11 +190,6 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_header_state_legacy_v3
           ( activated_protocol_features )
           ( additional_signatures )
 )
-
-FC_REFLECT_DERIVED( eosio::chain::snapshot_detail::snapshot_block_state_legacy_v7,
-                    (eosio::chain::snapshot_detail::snapshot_block_header_state_legacy_v3),
-                    (valid)
-   )
 
 FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
             (block_id)
