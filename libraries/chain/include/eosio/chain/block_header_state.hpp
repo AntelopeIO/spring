@@ -33,7 +33,6 @@ struct finality_digest_data_v1 {
    uint32_t    active_finalizer_policy_generation {0};
    uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest{};
-   digest_type digest{};
    digest_type reversible_blocks_mroot{};
    digest_type combined_base_digsts;
 };
