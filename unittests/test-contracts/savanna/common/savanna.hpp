@@ -241,6 +241,12 @@ namespace savanna {
       }; 
    };
 
+   struct combined_base_digests_t {
+      checksum256 last_pending_fin_pol_digest{};
+      checksum256 reversible_blocks_mroot{};
+      checksum256 base_digest{};
+   };
+
    struct dynamic_data_v0 {
       //block_num is always present
       uint32_t block_num = 0;
@@ -288,6 +294,8 @@ namespace savanna {
       //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
 
+      std::optional<checksum256> reversible_blocks_mroot;
+
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
@@ -296,12 +304,22 @@ namespace savanna {
       
       //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
       checksum256 resolve_witness() const {
-         if (new_finalizer_policy.has_value()){
+         if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
             checksum256 policy_digest = new_finalizer_policy.value().digest();
-            checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
-            return base_fpolicy_digest;
+            
+            //checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
+            auto cbd_result = eosio::pack(combined_base_digests_t{
+               .last_pending_fin_pol_digest  = policy_digest, 
+               .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
+               .base_digest = witness_hash
+            });
+
+            checksum256 cbd_digest = sha256(cbd_result.data(), cbd_result.size());
+
+            return cbd_digest;
          }
          else {
+            check(!new_finalizer_policy.has_value() && !reversible_blocks_mroot.has_value(), "must either provide witness_hash hash alone, or provide witness_hash, new_finalizer_policy and reversible_blocks_mroot");
             check(witness_hash!=checksum256(), "witness hash cannot be null");
             return witness_hash;
          }
