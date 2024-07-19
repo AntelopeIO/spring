@@ -218,7 +218,7 @@ namespace finality_proof {
                .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = finality_root,
-               .combined_base_digsts                    = afp_base_digest
+               .combined_base_digests                    = afp_base_digest
             });
 
          // compute finality leaf
