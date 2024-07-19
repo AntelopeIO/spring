@@ -155,10 +155,13 @@ const block_ref& finality_core::get_block_reference(block_num_type block_num) co
  *  @returns Merkle root digest of a sequence of block_refs
  */
 digest_type finality_core::get_reversible_blocks_mroot() const {
+   // Parent block timestamp is not availale as parent block does not exist
    if (refs.size() <= 1) {
       return {};
    }
 
+   // Build a merkle tree of a sequence of records including block number,
+   // block timestamp, finality digest, and the timestamp of the parent block.
    deque<digest_type> block_ref_digests;
    for (size_t i = 1; i < refs.size(); i++) {
       block_ref_digest_data data = {
