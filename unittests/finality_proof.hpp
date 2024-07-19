@@ -205,11 +205,13 @@ namespace finality_proof {
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
 
+         // compute commitments used for proving finality violations
          digest_type level_3_commitments_digest = fc::sha256::hash(level_3_commitments_t{
             .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
             .base_digest = base_digest
          });
 
+         // compute commitments used for proving finalizer policy changes
          digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
             .l3_commitments_digest = level_3_commitments_digest

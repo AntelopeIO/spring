@@ -38,11 +38,14 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
+
+   // compute commitments related to finality violation proofs
    level_3_commitments_t level_3_commitments {
          .reversible_blocks_mroot     = core.get_reversible_blocks_mroot(),
          .base_digest                 = compute_base_digest()
    };
 
+   // compute commitments related to finalizer policy transitions
    level_2_commitments_t level_2_commitments {
          .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
          .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
