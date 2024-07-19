@@ -23,7 +23,6 @@ namespace finality_proof {
       digest_type last_pending_finalizer_policy_digest;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
-      //digest_type computed_finality_digest;
       digest_type level_3_commitments_digest;
       digest_type level_2_commitments_digest;
       digest_type finality_leaf;
@@ -215,9 +214,6 @@ namespace finality_proof {
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
             .l3_commitments_digest = level_3_commitments_digest
          });
-
-         //digest_type combined_base_digests = hash_pair(last_pending_finalizer_policy_digest, base_digest);
-         //digest_type finality_digest;
 
          // during IF transition, finality_root is always set to an empty digest
          digest_type finality_root = digest_type();

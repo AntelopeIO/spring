@@ -48,8 +48,6 @@ digest_type block_header_state::compute_finality_digest() const {
          .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
    };
 
-   //auto combined_base_digests = fc::sha256::hash(combined_base_digests_data);
-
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation  = active_finalizer_policy->generation,

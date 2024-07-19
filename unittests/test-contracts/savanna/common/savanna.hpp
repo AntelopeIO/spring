@@ -241,12 +241,6 @@ namespace savanna {
       }; 
    };
 
-/*   struct combined_base_digests_t {
-      checksum256 last_pending_fin_pol_digest{};
-      checksum256 reversible_blocks_mroot{};
-      checksum256 base_digest{};
-   };*/
-
    struct level_3_commitments_t {
       checksum256 reversible_blocks_mroot{};
       checksum256 base_digest{};
@@ -257,7 +251,6 @@ namespace savanna {
       checksum256 last_pending_fin_pol_digest{};
       checksum256 l3_commitments_digest{};
    };
-
 
    struct dynamic_data_v0 {
       //block_num is always present
@@ -319,8 +312,6 @@ namespace savanna {
          if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
-            //checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
-
             auto l3_packed = eosio::pack(level_3_commitments_t{
                .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
                .base_digest = witness_hash
