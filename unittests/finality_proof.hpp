@@ -24,7 +24,7 @@ namespace finality_proof {
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
       //digest_type computed_finality_digest;
-      digest_type afp_base_digest;
+      digest_type combined_base_digests;
       digest_type finality_leaf;
       digest_type finality_root;
    };
@@ -204,7 +204,7 @@ namespace finality_proof {
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, base_digest);
+         digest_type combined_base_digests = hash_pair(last_pending_finalizer_policy_digest, base_digest);
          //digest_type finality_digest;
 
          // during IF transition, finality_root is always set to an empty digest
@@ -218,7 +218,8 @@ namespace finality_proof {
                .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
                .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
                .finality_tree_digest                    = finality_root,
-               .combined_base_digests                    = afp_base_digest
+               .reversible_blocks_mroot                 = finality_data.reversible_blocks_mroot,
+               .combined_base_digests                   = combined_base_digests
             });
 
          // compute finality leaf
@@ -237,7 +238,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, afp_base_digest, finality_leaf, finality_root };
+         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, combined_base_digests, finality_leaf, finality_root };
 
       }
 
