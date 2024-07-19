@@ -23,6 +23,7 @@ constexpr uint32_t light_header_protocol_version_minor = 0;
 // base digest and any other digests at the same level as base digest
 struct combined_base_digests_t {
    digest_type last_pending_fin_pol_digest{};
+   digest_type reversible_blocks_mroot{};
    digest_type base_digest{};
 };
 
@@ -33,7 +34,6 @@ struct finality_digest_data_v1 {
    uint32_t    active_finalizer_policy_generation {0};
    uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest{};
-   digest_type reversible_blocks_mroot{};
    digest_type combined_base_digests;
 };
 
@@ -159,6 +159,6 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (pending_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest))
 
-FC_REFLECT( eosio::chain::combined_base_digests_t, (last_pending_fin_pol_digest)(base_digest) )
+FC_REFLECT( eosio::chain::combined_base_digests_t, (last_pending_fin_pol_digest)(reversible_blocks_mroot)(base_digest) )
 
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(reversible_blocks_mroot)(combined_base_digests) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(combined_base_digests) )

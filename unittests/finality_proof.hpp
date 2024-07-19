@@ -204,7 +204,14 @@ namespace finality_proof {
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type combined_base_digests = hash_pair(last_pending_finalizer_policy_digest, base_digest);
+
+         digest_type combined_base_digests = fc::sha256::hash(combined_base_digests_t{
+            .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+            .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
+            .base_digest = base_digest
+         });
+
+         //digest_type combined_base_digests = hash_pair(last_pending_finalizer_policy_digest, base_digest);
          //digest_type finality_digest;
 
          // during IF transition, finality_root is always set to an empty digest
@@ -215,12 +222,11 @@ namespace finality_proof {
 
          // compute digest for verification purposes
          digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
-               .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
-               .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
-               .finality_tree_digest                    = finality_root,
-               .reversible_blocks_mroot                 = finality_data.reversible_blocks_mroot,
-               .combined_base_digests                   = combined_base_digests
-            });
+            .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
+            .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
+            .finality_tree_digest                    = finality_root,
+            .combined_base_digests                   = combined_base_digests
+         });
 
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
