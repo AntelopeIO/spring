@@ -32,7 +32,7 @@ struct level_2_commitments_t {
    digest_type l3_commitments_digest{};
 };
 
-// finalty digest
+// finality digest
 struct finality_digest_data_v1 {
    uint32_t    major_version{light_header_protocol_version_major};
    uint32_t    minor_version{light_header_protocol_version_minor};
