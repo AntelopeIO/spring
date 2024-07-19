@@ -38,16 +38,19 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   auto base_digest = compute_base_digest();
-   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
-   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
+   combined_base_digsts_t combined_base_digsts_data {
+         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+         .base_digest                 = compute_base_digest()
+   };
+   auto combined_base_digsts = fc::sha256::hash(combined_base_digsts_data);
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
-      .active_finalizer_policy_generation      = active_finalizer_policy->generation,
-      .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
-      .finality_tree_digest                    = finality_mroot(),
-      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
+      .active_finalizer_policy_generation  = active_finalizer_policy->generation,
+      .final_on_strong_qc_block_num        = core.final_on_strong_qc_block_num,
+      .finality_tree_digest                = finality_mroot(),
+      .reversible_blocks_mroot             = core.get_reversible_blocks_mroot(),
+      .combined_base_digsts                = combined_base_digsts
    };
 
    return fc::sha256::hash(finality_digest_data);
@@ -222,8 +225,9 @@ void finish_next(const block_header_state& prev,
    // finality_core
    // -------------
    block_ref parent_block {
-      .block_id  = prev.block_id,
-      .timestamp = prev.timestamp(),
+      .block_id        = prev.block_id,
+      .timestamp       = prev.timestamp(),
+      .finality_digest = prev.compute_finality_digest()
    };
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
