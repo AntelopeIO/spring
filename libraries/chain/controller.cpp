@@ -3707,7 +3707,7 @@ struct controller_impl {
             [&](const block_state_legacy_ptr& bsp) { return false; },
             [&](const block_state_ptr& bsp) {
                return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
-                  return bsp->has_voted(k) == vote_status_t::not_voted;
+                  return bsp->has_voted(k) == has_vote_status_t::not_voted;
                });
             }},
          bh.internal());
@@ -3974,11 +3974,11 @@ struct controller_impl {
          return;
       }
 
-      // Don't save the QC from block extension if the claimed block has a better or same qc_sig.
-      // claimed->valid_qc_sig_is_strong() acquires a mutex.
+      // Don't save the QC from block extension if the claimed block has a better or same received_qc_sig.
+      // claimed->received_qc_sig_is_strong() acquires a mutex.
       if (received_qc.is_weak() || claimed->valid_qc_is_strong()) {
          dlog("qc not better, claimed->valid: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
-              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on valid_qc_sig_is_strong()
+              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_sig_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
          return;
       }

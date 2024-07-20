@@ -128,7 +128,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
       }
    }
 
-   BOOST_REQUIRE_EQUAL(bsp->open_qc.active_policy_sig.is_quorum_met(), expected_quorum);
+   BOOST_REQUIRE_EQUAL(bsp->open_qc.is_quorum_met(), expected_quorum);
 }
 
 BOOST_AUTO_TEST_CASE(quorum_test) try {
@@ -205,6 +205,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, finalizers );
+   bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 

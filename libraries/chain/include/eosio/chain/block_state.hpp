@@ -63,8 +63,6 @@ struct finality_data_t {
    std::optional<finalizer_policy_with_string_key> pending_finalizer_policy;
 };
 
-enum class vote_status_t { voted, not_voted, irrelevant_finalizer };
-
 struct block_state : public block_header_state {     // block_header_state provides parent link
    // ------ data members -------------------------------------------------------------
    signed_block_ptr           block;
@@ -115,8 +113,8 @@ public:
    uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
 
    std::optional<qc_t> get_best_qc() const { return open_qc.get_best_qc(block_num()); } // thread safe
-   bool valid_qc_is_strong() const { return open_qc.valid_qc_is_strong(); } // thread safe
-   void set_valid_qc(const qc_t& qc) { open_qc.set_valid_qc(qc); }
+   bool valid_qc_is_strong() const { return open_qc.received_qc_is_strong(); } // thread safe
+   void set_valid_qc(const qc_t& qc) { open_qc.set_received_qc(qc); }
    // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 
@@ -141,8 +139,8 @@ public:
 
    // connection_id only for logging
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into open_qc
-   vote_status_t has_voted(const bls_public_key& key) const;
-   vote_info_vec get_votes() const;                    // for testing, returns vote info from open_qc
+   has_vote_status_t has_voted(const bls_public_key& key) const;
+   vote_info_vec get_votes() const;      // for testing, returns vote info from open_qc
    void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
    using bhs_t  = block_header_state;

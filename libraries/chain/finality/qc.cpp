@@ -22,8 +22,8 @@ inline std::vector<uint32_t> bitset_to_vector(const vote_bitset& bs) {
 }
 
 void qc_sig_t::verify(const finalizer_policy_ptr& fin_policy,
-                                    const digest_type& strong_digest,
-                                    const weak_digest_t& weak_digest) const {
+                      const digest_type& strong_digest,
+                      const weak_digest_t& weak_digest) const {
 
    const auto& finalizers = fin_policy->finalizers;
    auto num_finalizers = finalizers.size();
@@ -248,10 +248,10 @@ qc_sig_t open_qc_sig_t::to_valid_qc_sig() const {
 
 std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
    std::lock_guard g(*_mtx);
-   // if this does not have a valid QC, consider qc_sig only
+   // if this does not have a valid QC, consider received_qc_sig only
    if( !is_quorum_met_no_lock() ) {
-      if( qc_sig ) {
-         return std::optional{*qc_sig};
+      if( received_qc_sig ) {
+         return std::optional{*received_qc_sig};
       }
       return {};
    }
@@ -259,28 +259,28 @@ std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
    // extract valid QC sig from open qc sig
    qc_sig_t valid_qc_sig_from_open = to_valid_qc_sig();
 
-   // if qc_sig does not have value, consider valid_qc_sig_from_open only
-   if( !qc_sig ) {
+   // if received_qc_sig does not have value, consider valid_qc_sig_from_open only
+   if( !received_qc_sig ) {
       return std::optional{std::move(valid_qc_sig_from_open)};
    }
 
-   // Both qc_sig and valid_qc_sig_from_open have value. Compare them and select a better one.
-   // Strong beats weak. Tie-break by qc_sig, strong beats weak
-   const bool use_qc_sig = qc_sig->is_strong() == valid_qc_sig_from_open.is_strong() ? qc_sig->is_strong() : false;
+   // Both received_qc_sig and valid_qc_sig_from_open have value. Compare them and select a better one.
+   // Strong beats weak. Tie-break by received_qc_sig, strong beats weak
+   const bool use_qc_sig = received_qc_sig->is_strong() == valid_qc_sig_from_open.is_strong() ? received_qc_sig->is_strong() : false;
    if (use_qc_sig) {
-      return std::optional{qc_sig_t{ *qc_sig }};
+      return std::optional{qc_sig_t{ *received_qc_sig }};
    }
    return std::optional{qc_sig_t{ std::move(valid_qc_sig_from_open) }};
 }
 
-void open_qc_sig_t::set_valid_qc_sig(const qc_sig_t& qc) {
+void open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    std::lock_guard g(*_mtx);
-   qc_sig = qc;
+   received_qc_sig = qc;
 }
 
-bool open_qc_sig_t::valid_qc_sig_is_strong() const {
+bool open_qc_sig_t::received_qc_sig_is_strong() const {
    std::lock_guard g(*_mtx);
-   return qc_sig && qc_sig->is_strong();
+   return received_qc_sig && received_qc_sig->is_strong();
 }
 
 bool open_qc_sig_t::is_quorum_met_no_lock() const {
@@ -304,19 +304,121 @@ std::optional<qc_t> open_qc_t::get_best_qc(block_num_type block_num) const {
    return {};
 }
 
-void open_qc_t::set_valid_qc(const qc_t& qc) {
-   active_policy_sig.set_valid_qc_sig(qc.active_policy_sig);
+void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
    if (qc.pending_policy_sig) {
-      assert(pending_policy_sig);
-      pending_policy_sig->set_valid_qc_sig(*qc.pending_policy_sig);
+      EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
+                 "qc contains pending policy signature for nonexistent pending finalizer policy");
+   } else if (pending_finalizer_policy) {
+      EOS_ASSERT(false, invalid_qc_claim,
+                 "qc does not contain pending policy signature for pending finalizer policy");
+   }
+
+   qc.active_policy_sig.verify(active_finalizer_policy, strong_digest, weak_digest);
+   if (pending_finalizer_policy) {
+      qc.pending_policy_sig->verify(pending_finalizer_policy, strong_digest, weak_digest);
    }
 }
 
-bool open_qc_t::valid_qc_is_strong() const {
-   if (!pending_policy_sig) { // consider only active
-      return active_policy_sig.valid_qc_sig_is_strong();
+void open_qc_t::set_received_qc(const qc_t& qc) {
+   active_policy_sig.set_received_qc_sig(qc.active_policy_sig);
+   if (qc.pending_policy_sig) {
+      assert(pending_policy_sig);
+      pending_policy_sig->set_received_qc_sig(*qc.pending_policy_sig);
    }
-   return active_policy_sig.valid_qc_sig_is_strong() && pending_policy_sig->valid_qc_sig_is_strong();
+}
+
+bool open_qc_t::received_qc_is_strong() const {
+   if (!pending_policy_sig) { // consider only active
+      return active_policy_sig.received_qc_sig_is_strong();
+   }
+   return active_policy_sig.received_qc_sig_is_strong() && pending_policy_sig->received_qc_sig_is_strong();
+}
+
+vote_status open_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                      block_num_type block_num, std::span<const uint8_t> finalizer_digest)
+{
+   bool verified_sig = false;
+   auto verify_sig = [&]() -> vote_status {
+      if (!verified_sig && !fc::crypto::blslib::verify(vote.finalizer_key, finalizer_digest, vote.sig)) {
+         fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified",
+                 ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
+         return vote_status::invalid_signature;
+      }
+      verified_sig = true;
+      return vote_status::success;
+   };
+
+   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, open_qc_sig_t& open_qc_sig) -> vote_status {
+      const auto& finalizers = finalizer_policy->finalizers;
+      auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
+      vote_status s = vote_status::unknown_public_key;
+      if (itr != finalizers.end()) {
+         auto index = std::distance(finalizers.begin(), itr);
+         if (open_qc_sig.has_voted(vote.strong, index)) {
+            fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
+            return vote_status::duplicate;
+         }
+         if (vote_status vs = verify_sig(); vs != vote_status::success)
+            return vs;
+         s = open_qc_sig.add_vote(connection_id, block_num,
+                                  vote.strong,
+                                  index,
+                                  vote.sig,
+                                  finalizers[index].weight);
+
+      }
+      return s;
+   };
+
+   vote_status s = add_vote(active_finalizer_policy, active_policy_sig);
+   if (s != vote_status::success && s != vote_status::unknown_public_key)
+      return s;
+
+   if (pending_finalizer_policy) {
+      assert(pending_policy_sig);
+      vote_status ps = add_vote(pending_finalizer_policy, *pending_policy_sig);
+      if (ps != vote_status::unknown_public_key)
+         s = ps;
+   }
+
+   if (s != vote_status::unknown_public_key)
+      return s;
+
+   fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
+           ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
+   return s;
+}
+
+has_vote_status_t open_qc_t::has_voted(const bls_public_key& key) const {
+   auto finalizer_has_voted = [](const finalizer_policy_ptr& policy,
+                                 const open_qc_sig_t& open_qc_sig,
+                                 const bls_public_key& key) -> has_vote_status_t {
+      const auto& finalizers = policy->finalizers;
+      auto it = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == key; });
+      if (it != finalizers.end()) {
+         auto index = std::distance(finalizers.begin(), it);
+         return open_qc_sig.has_voted(index) ? has_vote_status_t::voted : has_vote_status_t::not_voted;
+      }
+      return has_vote_status_t::irrelevant_finalizer;
+   };
+
+   has_vote_status_t active_status = finalizer_has_voted(active_finalizer_policy, active_policy_sig, key);
+   if (!pending_finalizer_policy || active_status == has_vote_status_t::not_voted) {
+      return active_status;
+   }
+
+   EOS_ASSERT(pending_policy_sig, invalid_qc_claim,
+              "qc does not contain pending policy signature for pending finalizer policy");
+   has_vote_status_t pending_status = finalizer_has_voted(pending_finalizer_policy, *pending_policy_sig, key);
+
+   if (pending_status == has_vote_status_t::irrelevant_finalizer) {
+      return active_status;
+   }
+   return pending_status;
+}
+
+bool open_qc_t::is_quorum_met() const {
+   return active_policy_sig.is_quorum_met() && (!pending_policy_sig || pending_policy_sig->is_quorum_met());
 }
 
 } // namespace eosio::chain

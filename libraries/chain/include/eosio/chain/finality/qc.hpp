@@ -2,6 +2,7 @@
 
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 #include <eosio/chain/block_timestamp.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_public_key.hpp>
@@ -40,6 +41,12 @@ namespace eosio::chain {
       invalid_signature,     // signature is invalid, indicates invalid vote
       unknown_block,         // block not available, possibly less than LIB, or too far in the future
       max_exceeded           // received too many votes for a connection
+   };
+
+   enum class has_vote_status_t {
+      voted,
+      not_voted,
+      irrelevant_finalizer
    };
 
    struct qc_sig_t {
@@ -158,13 +165,13 @@ namespace eosio::chain {
       state_t state() const { std::lock_guard g(*_mtx); return pending_state; };
 
       std::optional<qc_sig_t> get_best_qc() const;
-      void set_valid_qc_sig(const qc_sig_t& qc);
-      bool valid_qc_sig_is_strong() const;
+      void set_received_qc_sig(const qc_sig_t& qc);
+      bool received_qc_sig_is_strong() const;
    private:
       friend struct fc::reflector<open_qc_sig_t>;
       friend class qc_chain;
       std::unique_ptr<std::mutex> _mtx;
-      std::optional<qc_sig_t> qc_sig; // best qc_t received from the network inside block extension
+      std::optional<qc_sig_t> received_qc_sig; // best qc_t received from the network inside block extension
       uint64_t             quorum {0};
       uint64_t             max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
       state_t              pending_state { state_t::unrestricted };
@@ -190,10 +197,13 @@ namespace eosio::chain {
    /**
     * All public methods are thread-safe, pending_policy_sig optional set at construction time.
     */
-   struct open_qc_t {
+   class open_qc_t {
+   public:
       open_qc_t(const finalizer_policy_ptr& active_finalizer_policy,
                 const finalizer_policy_ptr& pending_finalizer_policy)
-         : active_policy_sig{open_qc_sig_t{active_finalizer_policy->finalizers.size(),
+         : active_finalizer_policy(active_finalizer_policy)
+         , pending_finalizer_policy(pending_finalizer_policy)
+         , active_policy_sig{open_qc_sig_t{active_finalizer_policy->finalizers.size(),
                                               active_finalizer_policy->threshold,
                                               active_finalizer_policy->max_weak_sum_before_weak_final()}}
          , pending_policy_sig{!pending_finalizer_policy
@@ -201,15 +211,25 @@ namespace eosio::chain {
                                  : std::optional<open_qc_sig_t>{std::in_place,
                                                                    pending_finalizer_policy->finalizers.size(),
                                                                    pending_finalizer_policy->threshold,
-                                                                   pending_finalizer_policy->
-                                                                   max_weak_sum_before_weak_final()}} {}
+                                                                   pending_finalizer_policy->max_weak_sum_before_weak_final()}}
+      {}
 
       open_qc_t() = default;
 
       std::optional<qc_t> get_best_qc(block_num_type block_num) const;
-      void set_valid_qc(const qc_t& qc);
-      bool valid_qc_is_strong() const;
+      // verify qc against active and pending policy
+      void verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+      void set_received_qc(const qc_t& qc);
+      bool received_qc_is_strong() const;
+      vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                 block_num_type block_num, std::span<const uint8_t> finalizer_digest);
+      has_vote_status_t has_voted(const bls_public_key& key) const;
+      bool is_quorum_met() const;
 
+   private:
+      friend struct fc::reflector<open_qc_t>;
+      finalizer_policy_ptr         active_finalizer_policy;  // not modified after construction
+      finalizer_policy_ptr         pending_finalizer_policy; // not modified after construction
       open_qc_sig_t                active_policy_sig;
       std::optional<open_qc_sig_t> pending_policy_sig;
    };
@@ -219,8 +239,8 @@ namespace eosio::chain {
 
 FC_REFLECT_ENUM(eosio::chain::vote_status, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
 FC_REFLECT(eosio::chain::qc_sig_t, (strong_votes)(weak_votes)(sig));
-FC_REFLECT(eosio::chain::open_qc_sig_t, (qc_sig)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
-FC_REFLECT(eosio::chain::open_qc_t, (active_policy_sig)(pending_policy_sig));
+FC_REFLECT(eosio::chain::open_qc_sig_t, (received_qc_sig)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
+FC_REFLECT(eosio::chain::open_qc_t, (active_finalizer_policy)(pending_finalizer_policy)(active_policy_sig)(pending_policy_sig));
 FC_REFLECT_ENUM(eosio::chain::open_qc_sig_t::state_t, (unrestricted)(restricted)(weak_achieved)(weak_final)(strong));
 FC_REFLECT(eosio::chain::open_qc_sig_t::votes_t, (bitset)(sig));
 FC_REFLECT(eosio::chain::qc_t, (block_num)(active_policy_sig)(pending_policy_sig));
