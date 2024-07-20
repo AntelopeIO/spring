@@ -47,14 +47,19 @@ std::string binary_to_hex(const std::string& bin) {
    }
    return bitset_to_input_string(bitset);
 }
-/* TODO update tests
 
-auto finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
-   return bitset_to_input_string(bd.qc_data.qc.value().data.strong_votes.value());
+auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
+   return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
+};
+
+auto pending_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
+   return bitset_to_input_string(bd.qc_data.qc.value().pending_policy_sig.value().strong_votes.value());
 };
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
+BOOST_AUTO_TEST_CASE(TODO_temp) {}
+/*
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
@@ -654,6 +659,5 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       );
 
    } FC_LOG_AND_RETHROW() }
-
-BOOST_AUTO_TEST_SUITE_END()
 */
+BOOST_AUTO_TEST_SUITE_END()
