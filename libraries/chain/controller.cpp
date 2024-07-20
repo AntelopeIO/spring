@@ -30,7 +30,7 @@
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
 
@@ -250,7 +250,7 @@ struct assembled_block {
                                                                    // Carried over to put into block_state (optimization for fork reorgs)
       deque<transaction_receipt>        trx_receipts;              // Comes from building_block::pending_trx_receipts
       std::optional<valid_t>            valid;                     // Comes from assemble_block
-      std::optional<quorum_certificate> qc;                        // QC to add as block extension to new block
+      std::optional<qc_t>               qc;                        // QC to add as block extension to new block
       digest_type                       action_mroot;
 
       block_header_state& get_bhs() { return bhs; }
@@ -686,7 +686,7 @@ struct building_block {
                if( parent.is_needed(qc_claim) ) {
                   return qc_data_t{ *qc, qc_claim };
                } else {
-                  // no new qc info, repeat existing
+                  // no new qc_t info, repeat existing
                   return qc_data_t{ {},  parent.core.latest_qc_claim() };
                }
             }
@@ -3741,15 +3741,14 @@ struct controller_impl {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
 
-              // also aggregate our own vote into the pending_qc for this block, 0 connection_id indicates our own vote
+              // also aggregate our own vote into the open_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }
 
    // Verify QC claim made by finality_extension in header extension
    // and quorum_certificate_extension in block extension are valid.
-   // Called from net-threads. It is thread safe as signed_block is never modified
-   // after creation.
+   // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
    void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3757,8 +3756,8 @@ struct controller_impl {
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(f_ext_id);
-      std::optional<block_header_extension> header_ext      = b->extract_header_extension(f_ext_id);
+      std::optional<finality_extension> prev_header_ext = prev.header_extension<finality_extension>();
+      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
@@ -3800,7 +3799,7 @@ struct controller_impl {
       // ----------------------------------------------------------------------------------------
       assert(header_ext && prev_header_ext);
 
-      const auto& prev_f_ext    = std::get<finality_extension>(*prev_header_ext);
+      const auto& prev_f_ext    = *prev_header_ext;
       const auto  prev_qc_claim = prev_f_ext.qc_claim;
 
       // validate QC claim against previous block QC info
@@ -3846,10 +3845,10 @@ struct controller_impl {
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.data.is_strong() == new_qc_claim.is_strong_qc,
+      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc,
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
-                  ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+                  ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
       auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
@@ -3859,7 +3858,7 @@ struct controller_impl {
                   ("q", new_qc_claim.block_num)("b", block_num) );
 
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof.data);
+      bsp->verify_qc(qc_proof);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -3958,27 +3957,28 @@ struct controller_impl {
       return fork_db.apply<std::optional<block_handle>>(unlinkable, f);
    }
 
-   // thread safe
+   // thread safe, QC already verified by verify_qc_claim
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
+      assert(bsp_in->block);
       if (!bsp_in->block->contains_extension(quorum_certificate_extension::extension_id()))
          return;
 
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
-      const auto& received_qc = qc_ext.qc.data;
+      const qc_t& received_qc = qc_ext.qc;
 
-      const auto claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
+      block_state_ptr claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
 
-      // Don't save the QC from block extension if the claimed block has a better or same valid_qc.
-      // claimed->valid_qc_is_strong() acquires a mutex.
+      // Don't save the QC from block extension if the claimed block has a better or same qc_sig.
+      // claimed->valid_qc_sig_is_strong() acquires a mutex.
       if (received_qc.is_weak() || claimed->valid_qc_is_strong()) {
          dlog("qc not better, claimed->valid: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
-              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on valid_qc_is_strong()
+              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on valid_qc_sig_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
          return;
       }

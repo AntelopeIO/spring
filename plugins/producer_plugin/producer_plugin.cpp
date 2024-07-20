@@ -630,7 +630,7 @@ public:
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
                           const finalizer_policy_ptr& active_finalizer_policy,
-                          const quorum_certificate_sig& qc) {
+                          const qc_sig_t& qc) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::vector<std::string> not_voted;
@@ -663,7 +663,7 @@ public:
 
    void update_vote_block_metrics(block_num_type block_num,
                                   const finalizer_policy_ptr& active_finalizer_policy,
-                                  const quorum_certificate_sig& qc) {
+                                  const qc_sig_t& qc) {
       if (_update_vote_block_metrics) {
          producer_plugin::vote_block_metrics m;
          m.block_num = block_num;
@@ -709,9 +709,10 @@ public:
          if (block->contains_extension(quorum_certificate_extension::extension_id())) {
             const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
             if (const auto& active_finalizers = chain.active_finalizer_policy(id, qc_ext.qc.block_num)) {
-               const auto& qc = qc_ext.qc.data;
-               log_missing_votes(block, id, active_finalizers, qc);
-               update_vote_block_metrics(block->block_num(), active_finalizers, qc);
+               // TODO: update
+               // const auto& qc = qc_ext.qc.data;
+               // log_missing_votes(block, id, active_finalizers, qc);
+               // update_vote_block_metrics(block->block_num(), active_finalizers, qc);
             }
          }
       }

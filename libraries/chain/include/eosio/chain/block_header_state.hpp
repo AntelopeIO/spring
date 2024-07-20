@@ -2,7 +2,7 @@
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/finality/finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
@@ -129,7 +129,7 @@ struct block_header_state {
    // Returns true if the block is a Proper Savanna Block
    bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
-   // block descending from this need the provided qc in the block extension
+   // block descending from this need the provided qc_t in the block extension
    bool is_needed(const qc_claim_t& qc_claim) const {
       return qc_claim > core.latest_qc_claim();
    }
@@ -140,6 +140,13 @@ struct block_header_state {
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
+
+   template<typename Ext> std::optional<Ext> header_extension() const {
+      if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
+         return std::optional<Ext>{std::get<Ext>(itr->second)};
+      }
+      return {};
+   }
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;

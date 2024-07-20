@@ -98,7 +98,7 @@ auto create_test_block_state(const block_state_ptr& prev) {
       deque<transaction_metadata_ptr>{},
       deque<transaction_receipt>{},
       std::optional<valid_t>{},
-      std::optional<quorum_certificate>{},
+      std::optional<qc_t>{},
       signer,
       block_signing_authority_v0{ 1, {{pub_key, 1}} },
       digest_type{});

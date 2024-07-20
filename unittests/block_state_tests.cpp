@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, finalizers );
       bsp->strong_digest = strong_digest;
       bsp->weak_digest = weak_digest;
-      bsp->pending_qc = pending_quorum_certificate{ num_finalizers, 1, bsp->active_finalizer_policy->max_weak_sum_before_weak_final() };
+      bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       for (size_t i = 0; i < num_finalizers; ++i) {
          bool strong = (i % 2 == 0); // alternate strong and weak
@@ -57,7 +57,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->pending_qc = pending_quorum_certificate{ num_finalizers, 1, bsp->active_finalizer_policy->max_weak_sum_before_weak_final() };
+      bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, public_key[0], private_key[1].sign(strong_digest.to_uint8_span()) };
       BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_status::success);
@@ -67,7 +67,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->pending_qc = pending_quorum_certificate{ num_finalizers, 1, bsp->active_finalizer_policy->max_weak_sum_before_weak_final() };
+      bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, public_key[0], private_key[0].sign(strong_digest.to_uint8_span()) };
       BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
@@ -78,7 +78,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->pending_qc = pending_quorum_certificate{ num_finalizers, 1, bsp->active_finalizer_policy->max_weak_sum_before_weak_final() };
+      bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       bls_private_key new_private_key{ "PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK" };
       bls_public_key new_public_key{ new_private_key.get_public_key() };
@@ -118,7 +118,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, finalizers );
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
-   bsp->pending_qc = pending_quorum_certificate{ num_finalizers, threshold, bsp->active_finalizer_policy->max_weak_sum_before_weak_final() };
+   bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
    for (size_t i = 0; i < num_finalizers; ++i) {
       if( to_vote[i] ) {
@@ -128,7 +128,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
       }
    }
 
-   BOOST_REQUIRE_EQUAL(bsp->pending_qc.is_quorum_met(), expected_quorum);
+   BOOST_REQUIRE_EQUAL(bsp->open_qc.active_policy_sig.is_quorum_met(), expected_quorum);
 }
 
 BOOST_AUTO_TEST_CASE(quorum_test) try {
@@ -219,8 +219,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       agg_sig.aggregate(sig_0);
       agg_sig.aggregate(sig_2);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc{strong_votes, {}, agg_sig};
+      // create a qc_sig_t
+      qc_sig_t qc_sig{strong_votes, {}, agg_sig};
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_REQUIRE_NO_THROW( bsp->verify_qc(qc) );
    }
@@ -238,7 +239,8 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       agg_sig.aggregate(strong_sig);
       agg_sig.aggregate(weak_sig);
 
-      quorum_certificate_sig qc(strong_votes, weak_votes, agg_sig);
+      qc_sig_t qc_sig(strong_votes, weak_votes, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
       BOOST_REQUIRE_NO_THROW( bsp->verify_qc(qc) );
    }
 
@@ -253,8 +255,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
          agg_sig.aggregate(sigs[i]);
       }
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc(strong_votes, {}, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig(strong_votes, {}, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_REQUIRE_NO_THROW( bsp->verify_qc(qc) );
    }
@@ -270,8 +273,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
          agg_sig.aggregate(sigs[i]);
       }
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc({}, weak_votes, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig({}, weak_votes, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_REQUIRE_NO_THROW( bsp->verify_qc(qc) );
    }
@@ -284,8 +288,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_signature sig_2 = private_key[2].sign(strong_digest.to_uint8_span());
       agg_sig.aggregate(sig_2);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc(strong_votes, {}, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig(strong_votes, {}, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("strong quorum is not met") );
    }
@@ -298,8 +303,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_signature sig_2 = private_key[2].sign(weak_digest);
       agg_sig.aggregate(sig_2);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc({}, weak_votes, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig({}, weak_votes, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("weak quorum is not met") );
    }
@@ -317,8 +323,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_signature sig = private_key[0].sign(strong_digest.to_uint8_span());
       agg_sig.aggregate(sig);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc(strong_votes, {}, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig(strong_votes, {}, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("vote bitset size is not the same as the number of finalizers") );
    }
@@ -336,8 +343,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       bls_signature sig = private_key[0].sign(weak_digest);
       agg_sig.aggregate(sig);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc({}, weak_votes, agg_sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig({}, weak_votes, agg_sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_starts_with("vote bitset size is not the same as the number of finalizers") );
    }
@@ -353,10 +361,11 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(sig_0);
       sig.aggregate(sig_2);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc(strong_votes, {}, sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig(strong_votes, {}, sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("qc signature validation failed") );
    }
 
    {  // strong QC with a wrong digest
@@ -370,10 +379,11 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(sig_0);
       sig.aggregate(sig_2);
 
-      // create a quorum_certificate_sig
-      quorum_certificate_sig qc(strong_votes, {}, sig);
+      // create a qc_sig_t
+      qc_sig_t qc_sig(strong_votes, {}, sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
 
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("qc signature validation failed") );
    }
 
    {  // weak QC with a wrong signing private key
@@ -389,8 +399,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(strong_sig);
       sig.aggregate(weak_sig);
 
-      quorum_certificate_sig qc(strong_votes, weak_votes, sig);
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
+      qc_sig_t qc_sig(strong_votes, weak_votes, sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("qc signature validation failed") );
    }
 
    {  // weak QC with a wrong digest
@@ -406,8 +417,9 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
       sig.aggregate(strong_sig);
       sig.aggregate(weak_sig);
 
-      quorum_certificate_sig qc(strong_votes, weak_votes, sig);
-      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("signature validation failed") );
+      qc_sig_t qc_sig(strong_votes, weak_votes, sig);
+      qc_t qc{bsp->block_num(), qc_sig, {}};
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("qc signature validation failed") );
    }
 } FC_LOG_AND_RETHROW();
 

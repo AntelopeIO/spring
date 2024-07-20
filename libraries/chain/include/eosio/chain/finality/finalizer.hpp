@@ -90,7 +90,6 @@ namespace eosio::chain {
 
       template<class F> // thread safe
       void maybe_vote(const block_state_ptr& bsp, F&& process_vote) {
-
          if (finalizers.empty())
             return;
 
@@ -99,9 +98,7 @@ namespace eosio::chain {
                return;
             enable_voting.store(true, std::memory_order_relaxed);
          }
-
          assert(bsp->active_finalizer_policy);
-         const auto& fin_pol = *bsp->active_finalizer_policy;
 
          std::vector<vote_message_ptr> votes;
          votes.reserve(finalizers.size());
@@ -111,13 +108,25 @@ namespace eosio::chain {
          std::unique_lock g(mtx);
 
          // first accumulate all the votes
-         for (const auto& f : fin_pol.finalizers) {
-            if (auto it = finalizers.find(f.public_key); it != finalizers.end()) {
-               vote_message_ptr vote_msg = it->second.maybe_vote(it->first, bsp, bsp->strong_digest);
+         // optimized for finalizers of size one which should be the normal configuration outside of tests
+         for (auto& f : finalizers) {
+            auto it = std::ranges::find_if(bsp->active_finalizer_policy->finalizers, [&](const auto& fin) { return fin.public_key == f.first; });
+            if (it != bsp->active_finalizer_policy->finalizers.end()) {
+               vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
                   votes.push_back(std::move(vote_msg));
+            } else if (bsp->pending_finalizer_policy) {
+               auto itr = std::ranges::find_if(bsp->pending_finalizer_policy->second->finalizers, [&](const auto& fin) { return fin.public_key == f.first; });
+               if (itr != bsp->pending_finalizer_policy->second->finalizers.end()) {
+                  if (std::ranges::find_if(votes, [&](const vote_message_ptr& vote_msg) { return vote_msg->finalizer_key == f.first; }) == votes.end()) {
+                     vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
+                     if (vote_msg)
+                        votes.push_back(std::move(vote_msg));
+                  }
+               }
             }
          }
+
          // then save the safety info and, if successful, gossip the votes
          if (!votes.empty()) {
             save_finalizer_safety_info();
@@ -128,7 +137,7 @@ namespace eosio::chain {
          }
       }
 
-      void maybe_update_fsi(const block_state_ptr& bsp, const quorum_certificate_sig& received_qc);
+      void maybe_update_fsi(const block_state_ptr& bsp, const qc_t& received_qc);
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
