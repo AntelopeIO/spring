@@ -183,14 +183,6 @@ has_vote_status_t block_state::has_voted(const bls_public_key& key) const {
    return open_qc.has_voted(key);
 }
 
-vote_info_vec block_state::get_votes() const {
-   const auto& finalizers = active_finalizer_policy->finalizers;
-   vote_info_vec res;
-   res.reserve(finalizers.size());
-   //todo: open_qc.visit_votes([&](size_t idx, bool strong) { res.emplace_back(finalizers[idx].public_key, strong); });
-   return res;
-}
-
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
    open_qc.verify_qc(qc, strong_digest, weak_digest);

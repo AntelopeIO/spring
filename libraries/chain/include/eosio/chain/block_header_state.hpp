@@ -129,7 +129,7 @@ struct block_header_state {
    // Returns true if the block is a Proper Savanna Block
    bool is_proper_svnn_block() const { return header.is_proper_svnn_block(); }
 
-   // block descending from this need the provided qc_t in the block extension
+   // block descending from this need the provided qc in the block extension
    bool is_needed(const qc_claim_t& qc_claim) const {
       return qc_claim > core.latest_qc_claim();
    }

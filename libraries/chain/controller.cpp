@@ -1165,14 +1165,6 @@ struct controller_impl {
       );
    }
 
-   finalizer_policy_ptr active_finalizer_policy(const block_id_type& id, block_num_type block_num)const {
-      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, block_num);
-      if (bsp) {
-         return bsp->active_finalizer_policy;
-      }
-      return {};
-   }
-
    void pop_block() {
       uint32_t prev_block_num = fork_db.apply<uint32_t>([&](auto& forkdb) {
          return pop_block(forkdb);
@@ -3713,15 +3705,6 @@ struct controller_impl {
          bh.internal());
    }
 
-   vote_info_vec get_votes(const block_id_type& id) const {
-       return fork_db.apply_s<vote_info_vec>([&](auto& forkdb) -> vote_info_vec {
-          auto bsp = forkdb.get_block(id);
-          if (bsp)
-             return bsp->get_votes();
-          return {};
-       });
-   }
-
    std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
       return fork_db.apply_s<std::optional<finalizer_policy>>([&](auto& forkdb) -> std::optional<finalizer_policy> {
          auto bsp = forkdb.get_block(id);
@@ -3729,6 +3712,21 @@ struct controller_impl {
             return *bsp->active_finalizer_policy;
          return {};
       });
+   }
+
+   qc_vote_metrics_t vote_metrics(const block_id_type& id, const qc_t& qc) const {
+      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
+      if (!bsp)
+         return {};
+      return bsp->open_qc.vote_metrics(qc);
+   }
+
+
+   std::set<finalizer_authority_ptr> missing_votes(const block_id_type& id, const qc_t& qc) const {
+      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
+      if (!bsp)
+         return {};
+      return bsp->open_qc.missing_votes(qc);
    }
 
    // thread safe
@@ -5395,10 +5393,6 @@ bool controller::is_block_missing_finalizer_votes(const block_handle& bh) const 
    return my->is_block_missing_finalizer_votes(bh);
 }
 
-vote_info_vec controller::get_votes(const block_id_type& id) const {
-   return my->get_votes(id);
-}
-
 std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
    return my->active_finalizer_policy(id);
 }
@@ -5436,10 +5430,13 @@ finalizer_policy_ptr controller::head_active_finalizer_policy()const {
    });
 }
 
-finalizer_policy_ptr controller::active_finalizer_policy(const block_id_type& id, block_num_type block_num) const {
-   return my->active_finalizer_policy(id, block_num);
+qc_vote_metrics_t controller::vote_metrics(const block_id_type& id, const qc_t& qc) const {
+   return my->vote_metrics(id, qc);
 }
 
+std::set<finalizer_authority_ptr> controller::missing_votes(const block_id_type& id, const qc_t& qc) const {
+   return my->missing_votes(id, qc);
+}
 
 bool controller::light_validation_allowed() const {
    return my->light_validation_allowed();

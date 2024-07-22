@@ -421,4 +421,79 @@ bool open_qc_t::is_quorum_met() const {
    return active_policy_sig.is_quorum_met() && (!pending_policy_sig || pending_policy_sig->is_quorum_met());
 }
 
+qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
+   qc_vote_metrics_t result;
+
+   auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, std::set<finalizer_authority_ptr>& results) {
+      assert(votes.size() == finalizer_policy->finalizers.size());
+      size_t added = 0;
+      for (size_t i = 0; i < votes.size(); ++i) {
+         if (votes[i]) {
+            results.insert(finalizer_authority_ptr{finalizer_policy, &finalizer_policy->finalizers[i]}); // use aliasing shared_ptr constructor
+            ++added;
+         }
+      }
+      return added;
+   };
+   auto add_policy_votes = [&](const finalizer_policy_ptr& finalizer_policy, const qc_sig_t& qc_sig) {
+      size_t added = 0;
+      if (qc_sig.strong_votes) {
+         added = add_votes(finalizer_policy, *qc_sig.strong_votes, result.strong_votes);
+      }
+      if (qc_sig.weak_votes) {
+         added = add_votes(finalizer_policy, *qc_sig.weak_votes, result.weak_votes);
+      }
+      if (added != finalizer_policy->finalizers.size()) {
+         vote_bitset not_voted(finalizer_policy->finalizers.size());
+         if (qc_sig.strong_votes) {
+            not_voted = *qc_sig.strong_votes;
+         }
+         if (qc_sig.weak_votes) {
+            assert(not_voted.size() == qc_sig.weak_votes->size());
+            not_voted |= *qc_sig.weak_votes;
+         }
+         not_voted.flip();
+         add_votes(finalizer_policy, not_voted, result.missing_votes);
+      }
+   };
+
+   add_policy_votes(active_finalizer_policy, qc.active_policy_sig);
+   if (pending_finalizer_policy) {
+      assert(pending_policy_sig);
+      add_policy_votes(pending_finalizer_policy, *qc.pending_policy_sig);
+   }
+
+   return result;
+}
+
+std::set<finalizer_authority_ptr> open_qc_t::missing_votes(const qc_t& qc) const {
+   // all asserts are verified by verify_qc()
+   std::set<finalizer_authority_ptr> not_voted;
+
+   auto check_other = [](const auto& other_votes, size_t i) {
+      return other_votes && (*other_votes)[i];
+   };
+   auto add_not_voted = [&](const finalizer_policy_ptr& finalizer_policy, const qc_sig_t& qc_sig) {
+      assert(qc_sig.strong_votes || qc_sig.weak_votes);
+      const vote_bitset& votes                      = qc_sig.strong_votes ? *qc_sig.strong_votes : *qc_sig.weak_votes;
+      const std::optional<vote_bitset>& other_votes = qc_sig.strong_votes ? qc_sig.weak_votes : qc_sig.strong_votes;
+      const auto& finalizers = finalizer_policy->finalizers;
+      assert(votes.size() == finalizers.size());
+      assert(!other_votes || other_votes->size() == finalizers.size());
+      for (size_t i = 0; i < votes.size(); ++i) {
+         if (!votes[i] && !check_other(other_votes, i)) {
+            not_voted.insert(finalizer_authority_ptr{finalizer_policy, &finalizers[i]}); // use aliasing shared_ptr constructor
+         }
+      }
+   };
+
+   add_not_voted(active_finalizer_policy, qc.active_policy_sig);
+   if (pending_finalizer_policy) {
+      assert(pending_policy_sig);
+      add_not_voted(pending_finalizer_policy, *qc.pending_policy_sig);
+   }
+
+   return not_voted;
+}
+
 } // namespace eosio::chain

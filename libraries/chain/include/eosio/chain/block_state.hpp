@@ -11,9 +11,6 @@ namespace eosio::chain {
 
 struct vote_message;
 
-struct vote_info { bls_public_key finalizer; bool strong; };
-using vote_info_vec = std::vector<vote_info>;
-
 using signer_callback_type = std::function<std::vector<signature_type>(const digest_type&)>;
 
 struct block_state_legacy;
@@ -140,7 +137,6 @@ public:
    // connection_id only for logging
    vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into open_qc
    has_vote_status_t has_voted(const bls_public_key& key) const;
-   vote_info_vec get_votes() const;      // for testing, returns vote info from open_qc
    void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
    using bhs_t  = block_header_state;
