@@ -23,9 +23,9 @@ struct block_ref
 
 struct block_ref_digest_data
 {
-   block_num_type   block_num;
+   block_num_type   block_num{0};
    block_time_type  timestamp;
-   digest_type      finality_digest{};
+   digest_type      finality_digest;
    block_time_type  parent_timestamp;
 };
 

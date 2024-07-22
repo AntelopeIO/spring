@@ -162,7 +162,8 @@ digest_type finality_core::get_reversible_blocks_mroot() const {
 
    // Build a merkle tree of a sequence of records including block number,
    // block timestamp, finality digest, and the timestamp of the parent block.
-   deque<digest_type> block_ref_digests;
+   std::vector<digest_type> block_ref_digests;
+   block_ref_digests.reserve(refs.size() - 1);
    for (size_t i = 1; i < refs.size(); i++) {
       block_ref_digest_data data = {
          .block_num        = refs[i].block_num(),
