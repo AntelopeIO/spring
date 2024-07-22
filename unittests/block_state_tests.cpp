@@ -153,12 +153,12 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
    std::vector<bls_private_key> active_private_keys {
       bls_private_key("PVT_BLS_foNjZTu0k6qM5ftIrqC5G_sim1Rg7wq3cRUaJGvNtm2rM89K"),
       bls_private_key("PVT_BLS_FWK1sk_DJnoxNvUNhwvJAYJFcQAFtt_mCtdQCUPQ4jN1K7eT"),
-      bls_private_key("PVT_BLS_tNAkC5MnI-fjHWSX7la1CPC2GIYgzW5TBfuKFPagmwVVsOeW"),
+      bls_private_key("PVT_BLS_tNAkC5MnI-fjHWSX7la1CPC2GIYgzW5TBfuKFPagmwVVsOeW")
    };
    std::vector<bls_private_key> pending_private_keys {
       bls_private_key("PVT_BLS_0d8dsux83r42Qg8CHgAqIuSsn9AV-QdCzx3tPj0K8yOJA_qb"),
       bls_private_key("PVT_BLS_74crPc__6BlpoQGvWjkHmUdzcDKh8QaiN_GtU4SD0QAi4BHY"),
-      bls_private_key("PVT_BLS_foNjZTu0k6qM5ftIrqC5G_sim1Rg7wq3cRUaJGvNtm2rM89K"),
+      bls_private_key("PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK")
    };
 
    const size_t num_finalizers = active_private_keys.size();
@@ -168,7 +168,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
    std::vector<finalizer_authority> active_finalizers(num_finalizers);
    for (size_t i = 0; i < num_finalizers; ++i) {
       active_public_keys[i] = active_private_keys[i].get_public_key();
-      active_finalizers[i] = finalizer_authority{ "test", weights[i], active_public_keys[i] };
+      active_finalizers[i] = finalizer_authority{ "active", weights[i], active_public_keys[i] };
    }
 
    // construct pending finalizers
@@ -176,7 +176,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
    std::vector<finalizer_authority> pending_finalizers(num_finalizers);
    for (size_t i = 0; include_pending && i < num_finalizers; ++i) {
       pending_public_keys[i] = pending_private_keys[i].get_public_key();
-      pending_finalizers[i] = finalizer_authority{ "test", 1, pending_public_keys[i] };
+      pending_finalizers[i] = finalizer_authority{ "pending", weights[i], pending_public_keys[i] };
    }
 
    block_state_ptr bsp = std::make_shared<block_state>();
@@ -196,8 +196,11 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
          BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
       }
    }
-   for (size_t i = num_finalizers; i < to_vote.size(); ++i) {
-      if( to_vote[i] ) {
+   for (size_t i = 0; i < num_finalizers; ++i) {
+      auto vote_index = i + num_finalizers;
+      if (vote_index >= to_vote.size())
+         break;
+      if( to_vote.at(vote_index) ) {
          auto sig = strong ? pending_private_keys[i].sign(strong_digest.to_uint8_span()) : pending_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, pending_public_keys[i], sig };
          BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
