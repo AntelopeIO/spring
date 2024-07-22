@@ -90,11 +90,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // block_3 contains a QC over block_2
       auto block_3_result = cluster.produce_block(); //block num : 7
 
-      // block_4 contains a QC over block_3
+      // block_4 contains a QC over block_3, which completes the 2-chain for block_2 and
+      // erves as a proof of finality for it
       auto block_4_result = cluster.produce_block(); //block num : 8
 
-      // block_5 contains a QC over block_4, which completes the 3-chain for block_2 and
-      // serves as a proof of finality for it
+      // block_5 contains a QC over block_4.
       auto block_5_result = cluster.produce_block(); //block num : 9
       auto block_6_result = cluster.produce_block(); //block num : 10
 
@@ -112,12 +112,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_strong_qc_block_num", 6)
-                  ("witness_hash", block_4_result.level_2_commitments_digest)
-                  ("finality_mroot", block_4_result.finality_root)
+                  ("witness_hash", block_3_result.level_2_commitments_digest)
+                  ("finality_mroot", block_3_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_4_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_4_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 

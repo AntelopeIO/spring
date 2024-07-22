@@ -209,7 +209,7 @@ public:
       clear_votes_and_reset_lib();
 
       produce_and_push_block();
-      for (auto i = 0; i < 3; ++i) {
+      for (size_t i = 0; i < eosio::testing::num_chains_to_final; ++i) {
          process_votes(1, num_needed_for_quorum);
          produce_and_push_block();
          if (num_lib_advancing() < num_nodes)
