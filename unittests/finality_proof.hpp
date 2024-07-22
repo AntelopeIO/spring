@@ -23,8 +23,8 @@ namespace finality_proof {
       digest_type last_pending_finalizer_policy_digest;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
-      //digest_type computed_finality_digest;
-      digest_type afp_base_digest;
+      digest_type level_3_commitments_digest;
+      digest_type level_2_commitments_digest;
       digest_type finality_leaf;
       digest_type finality_root;
    };
@@ -204,8 +204,18 @@ namespace finality_proof {
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
-         digest_type afp_base_digest = hash_pair(last_pending_finalizer_policy_digest, base_digest);
-         //digest_type finality_digest;
+
+         // compute commitments used for proving finality violations
+         digest_type level_3_commitments_digest = fc::sha256::hash(level_3_commitments_t{
+            .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
+            .base_digest = base_digest
+         });
+
+         // compute commitments used for proving finalizer policy changes
+         digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
+            .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+            .l3_commitments_digest = level_3_commitments_digest
+         });
 
          // during IF transition, finality_root is always set to an empty digest
          digest_type finality_root = digest_type();
@@ -215,11 +225,11 @@ namespace finality_proof {
 
          // compute digest for verification purposes
          digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
-               .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
-               .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
-               .finality_tree_digest                    = finality_root,
-               .last_pending_finalizer_policy_and_base_digest = afp_base_digest
-            });
+            .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
+            .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
+            .finality_tree_digest                    = finality_root,
+            .l2_commitments_digest                   = level_2_commitments_digest
+         });
 
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
@@ -237,7 +247,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, afp_base_digest, finality_leaf, finality_root };
+         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, level_3_commitments_digest, level_2_commitments_digest, finality_leaf, finality_root };
 
       }
 

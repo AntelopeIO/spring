@@ -12,12 +12,21 @@ struct block_ref
 {
    block_id_type    block_id;
    block_time_type  timestamp;
+   digest_type      finality_digest;  // finality digest associated with the block
 
    bool           empty() const { return block_id.empty(); }
    block_num_type block_num() const; // Extract from block_id.
 
    auto operator<=>(const block_ref&) const = default;
    bool operator==(const block_ref& o) const = default;
+};
+
+struct block_ref_digest_data
+{
+   block_num_type   block_num{0};
+   block_time_type  timestamp;
+   digest_type      finality_digest;
+   block_time_type  parent_timestamp;
 };
 
 struct qc_link
@@ -136,6 +145,13 @@ struct finality_core
    const block_ref& get_block_reference(block_num_type block_num) const;
 
    /**
+    *  @pre  all finality_core invariants
+    *  @post same
+    *  @returns Merkle root digest of a sequence of block_refs
+    */
+   digest_type get_reversible_blocks_mroot() const;
+
+   /**
     *  @pre links.front().source_block_num <= block_num <= current_block_num()
     *
     *  @post returned qc_link has source_block_num == block_num
@@ -176,7 +192,7 @@ struct finality_core
 namespace std {
    // define std ostream output so we can use BOOST_CHECK_EQUAL in tests
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::block_ref& br) {
-      os << "block_ref(" << br.block_id << ", " << br.timestamp << ")";
+      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ")";
       return os;
    }
 
@@ -197,7 +213,8 @@ namespace std {
    }
 }
 
-FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp) )
+FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest) )
+FC_REFLECT( eosio::chain::block_ref_digest_data, (block_num)(timestamp)(finality_digest)(parent_timestamp) )
 FC_REFLECT( eosio::chain::qc_link, (source_block_num)(target_block_num)(is_link_strong) )
 FC_REFLECT( eosio::chain::qc_claim_t, (block_num)(is_strong_qc) )
 FC_REFLECT( eosio::chain::core_metadata, (last_final_block_num)(final_on_strong_qc_block_num)(latest_qc_claim_block_num))

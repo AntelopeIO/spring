@@ -241,6 +241,17 @@ namespace savanna {
       }; 
    };
 
+   struct level_3_commitments_t {
+      checksum256 reversible_blocks_mroot{};
+      checksum256 base_digest{};
+   };
+
+   // commitments used in the context of finalizer policy transitions
+   struct level_2_commitments_t {
+      checksum256 last_pending_fin_pol_digest{};
+      checksum256 l3_commitments_digest{};
+   };
+
    struct dynamic_data_v0 {
       //block_num is always present
       uint32_t block_num = 0;
@@ -288,6 +299,8 @@ namespace savanna {
       //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
 
+      std::optional<checksum256> reversible_blocks_mroot;
+
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
@@ -296,12 +309,27 @@ namespace savanna {
       
       //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
       checksum256 resolve_witness() const {
-         if (new_finalizer_policy.has_value()){
+         if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
             checksum256 policy_digest = new_finalizer_policy.value().digest();
-            checksum256 base_fpolicy_digest = hash_pair( std::make_pair( policy_digest, witness_hash) );
-            return base_fpolicy_digest;
+            
+            auto l3_packed = eosio::pack(level_3_commitments_t{
+               .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
+               .base_digest = witness_hash
+            });
+
+            checksum256 l3_digest = sha256(l3_packed.data(), l3_packed.size());
+
+            auto l2_packed = eosio::pack(level_2_commitments_t{
+               .last_pending_fin_pol_digest  = policy_digest, 
+               .l3_commitments_digest = l3_digest
+            });
+
+            checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
+
+            return l2_digest;
          }
          else {
+            check(!new_finalizer_policy.has_value() && !reversible_blocks_mroot.has_value(), "must either provide witness_hash hash alone, or provide witness_hash, new_finalizer_policy and reversible_blocks_mroot");
             check(witness_hash!=checksum256(), "witness hash cannot be null");
             return witness_hash;
          }
