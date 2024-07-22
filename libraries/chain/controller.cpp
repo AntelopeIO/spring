@@ -686,7 +686,7 @@ struct building_block {
                if( parent.is_needed(qc_claim) ) {
                   return qc_data_t{ *qc, qc_claim };
                } else {
-                  // no new qc_t info, repeat existing
+                  // no new qc info, repeat existing
                   return qc_data_t{ {},  parent.core.latest_qc_claim() };
                }
             }
