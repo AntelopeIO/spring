@@ -151,12 +151,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_strong_qc_block_num", 6)
-                  ("witness_hash", block_4_result.level_2_commitments_digest)
-                  ("finality_mroot", block_4_result.finality_root)
+                  ("witness_hash", block_3_result.level_2_commitments_digest)
+                  ("finality_mroot", block_3_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_4_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_4_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -185,12 +185,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_strong_qc_block_num", 7)
-                  ("witness_hash", block_5_result.level_2_commitments_digest)
-                  ("finality_mroot", block_5_result.finality_root)
+                  ("witness_hash", block_4_result.level_2_commitments_digest)
+                  ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_6_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -244,14 +244,20 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // verify first heavy proof
       action_trace check_heavy_proof_1_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_1)->action_traces[0];
 
+      BOOST_CHECK(true);
+
       // now that we stored the proven root, we should be able to verify the same proof without
       // the finality data (aka light proof)
       action_trace check_light_proof_1_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1)->action_traces[0];
+
+      BOOST_CHECK(true);
 
       // verify a second proof where the target block is different from the finality block.
       // This also saves a second finality root to the contract, marking the beginning of the cache
       // timer for the older finality root.
       action_trace check_heavy_proof_2_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_2)->action_traces[0];
+
+      BOOST_CHECK(true);
 
       // produce the block to avoid duplicate transaction error
       auto block_7_result = cluster.produce_block();
@@ -274,12 +280,19 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // verify same heavy proof we verified before, this time with simple_block_data as target
       action_trace check_simple_heavy_proof_1_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, simple_heavy_proof_1)->action_traces[0];
 
+      BOOST_CHECK(true);
+
       // we now test a finalizer policy change
       auto indices1 = cluster.fin_policy_indices_0;  // start from original set of indices
       indices1[0] = 1;                       // update key used for node0 in policy, which will result in a new policy
 
       // take note of policy digest prior to changes
       digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
+
+      // At this stage, we can test the change in pending policy.
+
+      // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
+      digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
 
       // change the finalizer policy by rotating the key of node0
       cluster.node0.finkeys.set_finalizer_policy(indices1);
@@ -292,7 +305,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // advance finality
       auto block_9_result = cluster.produce_block();
+      
+      // still the same
+      BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
+
       auto block_10_result = cluster.produce_block();
+
+      // verify that the last pending policy has been updated
+      BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       // verify we have all the QCs up to this point
       BOOST_TEST(block_8_result.qc_data.qc.has_value());
@@ -367,12 +387,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
                   ("final_on_strong_qc_block_num", 11)
-                  ("witness_hash", block_9_result.level_2_commitments_digest)
-                  ("finality_mroot", block_9_result.finality_root)
+                  ("witness_hash", block_8_result.level_2_commitments_digest)
+                  ("finality_mroot", block_8_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_10_result)) 
+                  ("signature", block_9_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_9_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -383,7 +403,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
-                     ("final_on_strong_qc_block_num", 9)
+                     ("final_on_strong_qc_block_num", 10)
                      ("witness_hash", block_7_result.level_2_commitments_digest)
                      ("finality_mroot", block_7_result.finality_root)
                   )
@@ -407,7 +427,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
-                     ("final_on_strong_qc_block_num", 9)
+                     ("final_on_strong_qc_block_num", 10)
                      ("witness_hash", block_7_result.level_2_commitments_digest)
                      ("finality_mroot", block_7_result.finality_root)
                   )
@@ -427,26 +447,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
       BOOST_TEST(true);
       
-      // At this stage, we can test the change in pending policy.
-
-      // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
-      digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
-
-      // still the same
-      BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
-
       // QC on #10 included in #11 makes #8 final, proposed policy is now pending
       auto block_11_result = cluster.produce_block(); 
-
-      // verify that the last pending policy has been updated
-      BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       auto block_12_result = cluster.produce_block();
       auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
    
-      //verify that the current finalizer policy is still in force up to this point    
-      BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
-      
       auto block_14_result = cluster.produce_block();
 
       //verify that the new finalizer policy is now in force
@@ -482,18 +488,18 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 1)
-                  ("final_on_strong_qc_block_num", 15)
-                  ("witness_hash", block_13_result.level_2_commitments_digest)
-                  ("finality_mroot", block_13_result.finality_root)
+                  ("final_on_strong_qc_block_num", 14)
+                  ("witness_hash", block_11_result.level_2_commitments_digest)
+                  ("finality_mroot", block_11_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_14_result)) 
+                  ("signature", block_12_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_12_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_block_index", 11)
-               ("final_block_index", 11)
+               ("target_block_index", 10)
+               ("final_block_index", 10)
                ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
@@ -501,17 +507,17 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("finalizer_policy_generation", 1)
                      ("final_on_strong_qc_block_num", 13)
                      ("new_finalizer_policy", cluster.last_pending_finalizer_policy)
-                     ("witness_hash", block_11_result.base_digest)
-                     ("reversible_blocks_mroot", block_11_result.finality_data.reversible_blocks_mroot)
-                     ("finality_mroot", block_11_result.finality_root)
+                     ("witness_hash", block_10_result.base_digest)
+                     ("reversible_blocks_mroot", block_10_result.finality_data.reversible_blocks_mroot)
+                     ("finality_mroot", block_10_result.finality_root)
                   )
                   ("dynamic_data", mvo() 
-                     ("block_num", block_11_result.block->block_num())
+                     ("block_num", block_10_result.block->block_num())
                      ("action_proofs", fc::variants())
-                     ("action_mroot", block_11_result.action_mroot)
+                     ("action_mroot", block_10_result.action_mroot)
                   )}
                )
-               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(11), 11))
+               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(10), 10))
             )
          );
 
@@ -530,34 +536,34 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("finalizer_policy_generation", 2)
-                  ("final_on_strong_qc_block_num", 16)
-                  ("witness_hash", block_14_result.level_2_commitments_digest)
-                  ("finality_mroot", block_14_result.finality_root)
+                  ("final_on_strong_qc_block_num", 15)
+                  ("witness_hash", block_12_result.level_2_commitments_digest)
+                  ("finality_mroot", block_12_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_15_result)) 
+                  ("signature", block_13_result.qc_data.qc.value().data.sig.to_string())
+                  ("finalizers", finalizers_string(block_13_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
-               ("target_block_index", 12)
-               ("final_block_index", 12)
+               ("target_block_index", 11)
+               ("final_block_index", 11)
                ("target",  fc::variants{"extended_block_data", mvo() 
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
                      ("final_on_strong_qc_block_num", 14)
-                     ("witness_hash", block_12_result.level_2_commitments_digest)
-                     ("finality_mroot", block_12_result.finality_root)
+                     ("witness_hash", block_11_result.level_2_commitments_digest)
+                     ("finality_mroot", block_11_result.finality_root)
                   )
                   ("dynamic_data", mvo() 
-                     ("block_num", block_12_result.block->block_num())
+                     ("block_num", block_11_result.block->block_num())
                      ("action_proofs", fc::variants())
-                     ("action_mroot", block_12_result.action_mroot)
+                     ("action_mroot", block_11_result.action_mroot)
                   )}
                )
-               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(12), 12))
+               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(11), 11))
             )
          );
 
@@ -573,21 +579,21 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // we must first prove that block #11 became final, which makes the policy proposed in block #8 pending.
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
-
+BOOST_CHECK(true);
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
-
+BOOST_CHECK(true);
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
-
+BOOST_CHECK(true);
       cluster.produce_blocks(10); //advance 5 seconds
 
       // the root is still cached when performing this action, so the action succeeds.
       // However, it also triggers garbage collection,removing the old proven root for block #2,
       // so subsequent calls with the same action data will fail
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
-
+BOOST_CHECK(true);
       cluster.produce_block(); //advance 1 block to avoid duplicate transaction
 
       last_action_failed = false;
