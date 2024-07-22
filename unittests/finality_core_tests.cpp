@@ -21,26 +21,21 @@ struct test_core {
       block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
       core = finality_core::create_core_for_genesis_block(genesis_ref);
 
+      // current block 0, next block 1
       next(0, qc_claim_t{.block_num = 0, .is_strong_qc = true});
-      verify_post_conditions(0, 0);
-      // block 1 -- last_final_block_num: 0, final_on_strong_qc_block_num: 0 
+      verify_post_conditions(0, 0); // block 1 -- last_final_block_num: 0, final_on_strong_qc_block_num: 0
 
+      // current block 1, next block 2. 2-chains formed
       next(1, qc_claim_t{.block_num = 1, .is_strong_qc = true});
-      verify_post_conditions(0, 0);
+      verify_post_conditions(0, 1);
       // block 2 -- last_final_block_num: 0, final_on_strong_qc_block_num: 0 
 
       // Make a strong qc_claim on block 2.
       // block 2 has a strong qc_claim on block 1, which makes final_on_strong_qc_block_num 1;
       // block 1 has a qc_claim on block 0, which makes last_final_block_num 0
       next(2, qc_claim_t{.block_num = 2, .is_strong_qc = true});
-      verify_post_conditions(0, 1);
-      // block 3 -- last_final_block_num: 0, final_on_strong_qc_block_num: 1 
-
-      // Make a strong QC claim on block 3.
-      // block 3 has a strong qc_claim on block 2, which makes final_on_strong_qc_block_num 2;
-      // block 2 has a qc_claim on block 1, which makes last_final_block_num 1
-      next(3, qc_claim_t{.block_num = 3, .is_strong_qc = true});
       verify_post_conditions(1, 2);
+      // block 3 -- last_final_block_num: 0, final_on_strong_qc_block_num: 1 
    }
 
    void next(block_num_type curr_block_num, qc_claim_t qc_claim) {
@@ -84,28 +79,29 @@ BOOST_AUTO_TEST_CASE(create_core_for_genesis_block_test) { try {
 
 // verify straight strong qc claims work
 BOOST_AUTO_TEST_CASE(strong_qc_claim_test) { try {
-   {
+   {  // same QC claim
+
       test_core core;
       // post conditions of core::
-      // current_block_num() == 4,
+      // current_block_num() == 3,
       // last_final_block_num() == 1,
       // final_on_strong_qc_block_num == 2
       // latest qc_claim == {"block_num":3,"is_strong_qc":true}
 
       // Strong QC claim on block 3 is the same as the latest qc_claim;
       // Nothing changes.
-      core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+      core.next(3, qc_claim_t{.block_num = 2, .is_strong_qc = true });
       core.verify_post_conditions(1, 2);
    }
    {
       test_core core;
 
-      // strong QC claim on block 4 will advance LIB to 2
-      core.next(4, qc_claim_t{.block_num = 4, .is_strong_qc = true });
+      // strong QC claim on block 3 will advance LIB to 2
+      core.next(3, qc_claim_t{.block_num = 3, .is_strong_qc = true });
       core.verify_post_conditions(2, 3);
 
-      // strong QC claim on block 5 will advance LIB to 2
-      core.next(5, qc_claim_t{.block_num = 5, .is_strong_qc = true });
+      // strong QC claim on block 4 will advance LIB to 3
+      core.next(4, qc_claim_t{.block_num = 4, .is_strong_qc = true });
       core.verify_post_conditions(3, 4);
    }
 } FC_LOG_AND_RETHROW() }
@@ -119,26 +115,28 @@ BOOST_AUTO_TEST_CASE(same_strong_qc_claim_test_1) { try {
    // final_on_strong_qc_block_num == 2
    // latest qc_claim == {"block_num":3,"is_strong_qc":true}
 
-   // same QC claim on block 3 will not advance last_final_block_num
-   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+   // same QC claim on block 2 will not advance last_final_block_num
+   core.next(3, qc_claim_t{.block_num = 2, .is_strong_qc = true });
    core.verify_post_conditions(1, 2);
 
-   // same QC claim on block 3 will not advance last_final_block_num
+   // same QC claim on block 2 will not advance last_final_block_num
+   core.next(4, qc_claim_t{.block_num = 2, .is_strong_qc = true });
+   core.verify_post_conditions(1, 2);
+
+   // strong QC claim on block 3. Now a 2-chain forms for block 2
    core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = true });
-   core.verify_post_conditions(1, 2);
-
-   // strong QC claim on block 4.
-   core.next(6, qc_claim_t{.block_num = 4, .is_strong_qc = true });
    core.verify_post_conditions(2, 3);
 
-   core.next(7, qc_claim_t{.block_num = 5, .is_strong_qc = true });
-   core.verify_post_conditions(2, 3);
+   // 1-chain for block3
+   core.next(6, qc_claim_t{.block_num = 5, .is_strong_qc = true });
+   core.verify_post_conditions(2, 5);
 
-   core.next(8, qc_claim_t{.block_num = 6, .is_strong_qc = true });
-   core.verify_post_conditions(2, 3);
+   // 2-chains for block3, 1-chain for block5
+   core.next(7, qc_claim_t{.block_num = 6, .is_strong_qc = true });
+   core.verify_post_conditions(3, 6);
 
-   core.next(9, qc_claim_t{.block_num = 7, .is_strong_qc = true });
-   core.verify_post_conditions(3, 4);
+   core.next(8, qc_claim_t{.block_num = 7, .is_strong_qc = true });
+   core.verify_post_conditions(5, 7);
 } FC_LOG_AND_RETHROW() }
 
 // verify blocks b4, b5 and b6 have same strong qc claims on b3 and
@@ -151,21 +149,21 @@ BOOST_AUTO_TEST_CASE(same_strong_qc_claim_test_2) { try {
    // final_on_strong_qc_block_num == 2
    // latest qc_claim == {"block_num":3,"is_strong_qc":true}
 
-   // same QC claim on block 3 will not advance last_final_block_num
-   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+   // same QC claim on block 2 will not advance last_final_block_num
+   core.next(3, qc_claim_t{.block_num = 2, .is_strong_qc = true });
    core.verify_post_conditions(1, 2);
 
-   // same QC claim on block 3 will not advance last_final_block_num
-   core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+   // same QC claim on block 2 will not advance last_final_block_num
+   core.next(4, qc_claim_t{.block_num = 2, .is_strong_qc = true });
    core.verify_post_conditions(1, 2);
 
-   // Skip qc claim on block 4. Make a strong QC claim on block 5.
-   core.next(6, qc_claim_t{.block_num = 5, .is_strong_qc = true });
-   core.verify_post_conditions(2, 3);
+   // Skip qc claim on block 3. Make a strong QC claim on block 4.
+   core.next(5, qc_claim_t{.block_num = 4, .is_strong_qc = true });
+   core.verify_post_conditions(2, 4);
 
    // A new qc claim advances last_final_block_num
-   core.next(7, qc_claim_t{.block_num = 7, .is_strong_qc = true });
-   core.verify_post_conditions(3, 5);
+   core.next(6, qc_claim_t{.block_num = 6, .is_strong_qc = true });
+   core.verify_post_conditions(4, 6);
 } FC_LOG_AND_RETHROW() }
 
 // verify blocks b4, b5 and b6 have same strong qc claims on b3 and then
@@ -179,16 +177,16 @@ BOOST_AUTO_TEST_CASE(same_strong_qc_claim_test_3) { try {
    // latest qc_claim == {"block_num":3,"is_strong_qc":true}
 
    // same QC claim on block 3 will not advance last_final_block_num
-   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+   core.next(3, qc_claim_t{.block_num = 2, .is_strong_qc = true });
    core.verify_post_conditions(1, 2);
 
    // same QC claim on block 3 will not advance last_final_block_num
-   core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = true });
+   core.next(4, qc_claim_t{.block_num = 2, .is_strong_qc = true });
    core.verify_post_conditions(1, 2);
 
-   // Skip qc claim on block 4, 5. Make a strong QC claim on block 6.
-   core.next(6, qc_claim_t{.block_num = 6, .is_strong_qc = true });
-   core.verify_post_conditions(2, 3);
+   // Skip qc claim on block 4. Make a strong QC claim on block 5.
+   core.next(5, qc_claim_t{.block_num = 5, .is_strong_qc = true });
+   core.verify_post_conditions(2, 5);
 } FC_LOG_AND_RETHROW() }
 
 // verify blocks b5, b6 and b7 have same weak qc claims on b4 and then
@@ -196,41 +194,35 @@ BOOST_AUTO_TEST_CASE(same_strong_qc_claim_test_3) { try {
 BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_1) { try {
    test_core core;
    // post conditions of core::
-   // current_block_num() == 4,
+   // current_block_num() == 3,
    // last_final_block_num() == 1,
    // final_on_strong_qc_block_num == 2
-   // latest qc_claim == {"block_num":3,"is_strong_qc":true}
+   // latest qc_claim == {"block_num":2,"is_strong_qc":true}
 
-   // weak QC claim on block 4; nothing changes
-   core.next(4, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   // weak QC claim on block 3; nothing changes
+   core.next(3, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
    // same weak QC claim on block 4; nothing changes
-   core.next(5, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
    // same weak QC claim on block 4; nothing changes
-   core.next(6, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
-   // strong QC claim on block 4
-   core.next(7, qc_claim_t{.block_num = 4, .is_strong_qc = true });
+   // strong QC claim on block 3
+   core.next(6, qc_claim_t{.block_num = 3, .is_strong_qc = true });
    core.verify_post_conditions(2, 3);
 
-   core.next(8, qc_claim_t{.block_num = 5, .is_strong_qc = true });
-   core.verify_post_conditions(2, 4);
-
-   core.next(9, qc_claim_t{.block_num = 6, .is_strong_qc = true });
-   core.verify_post_conditions(2, 4);
-
-   core.next(10, qc_claim_t{.block_num = 7, .is_strong_qc = true });
-   core.verify_post_conditions(2, 4);
-
-   core.next(11, qc_claim_t{.block_num = 8, .is_strong_qc = true });
+   core.next(7, qc_claim_t{.block_num = 4, .is_strong_qc = true });
    core.verify_post_conditions(3, 4);
 
-   core.next(12, qc_claim_t{.block_num = 9, .is_strong_qc = true });
-   core.verify_post_conditions(4, 5);
+   core.next(8, qc_claim_t{.block_num = 6, .is_strong_qc = true });
+   core.verify_post_conditions(3, 6);
+
+   core.next(9, qc_claim_t{.block_num = 7, .is_strong_qc = true });
+   core.verify_post_conditions(3, 7);
 } FC_LOG_AND_RETHROW() }
 
 // verify blocks b5, b6 and b7 have same weak qc claims on b4 and then
@@ -238,44 +230,32 @@ BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_1) { try {
 BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_2) { try {
    test_core core;
    // post conditions of core::
-   // current_block_num() == 4,
+   // current_block_num() == 3,
    // last_final_block_num() == 1,
    // final_on_strong_qc_block_num == 2
-   // latest qc_claim == {"block_num":3,"is_strong_qc":true}
+   // latest qc_claim == {"block_num":2,"is_strong_qc":true}
 
-   // weak QC claim on block 4; nothing changes
-   core.next(4, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   // weak QC claim on block 3; nothing changes
+   core.next(3, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
-   // same weak QC claim on block 4; nothing changes
-   core.next(5, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   // same weak QC claim on block 3; nothing changes
+   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
-   // same weak QC claim on block 4; nothing changes
-   core.next(6, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   // same weak QC claim on block 3; nothing changes
+   core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
-   // strong QC claim on block 5
+   // strong QC claim on block 4
+   core.next(6, qc_claim_t{.block_num = 4, .is_strong_qc = true });
+   core.verify_post_conditions(3, 4);
+
    core.next(7, qc_claim_t{.block_num = 5, .is_strong_qc = true });
-   core.verify_post_conditions(1, 4);
+   core.verify_post_conditions(3, 5);
 
    core.next(8, qc_claim_t{.block_num = 6, .is_strong_qc = true });
-   core.verify_post_conditions(1, 4);
-
-   core.next(9, qc_claim_t{.block_num = 7, .is_strong_qc = true });
-   core.verify_post_conditions(1, 4);
-
-   core.next(10, qc_claim_t{.block_num = 8, .is_strong_qc = true });
-   core.verify_post_conditions(4, 5);
-
-   core.next(11, qc_claim_t{.block_num = 9, .is_strong_qc = true });
-   core.verify_post_conditions(4, 6);
-
-   core.next(12, qc_claim_t{.block_num = 10, .is_strong_qc = true });
-   core.verify_post_conditions(4, 7);
-
-   core.next(13, qc_claim_t{.block_num = 11, .is_strong_qc = true });
-   core.verify_post_conditions(5, 8);
+   core.verify_post_conditions(3, 6);
 } FC_LOG_AND_RETHROW() }
 
 // verify blocks b5, b6 and b7 have same weak qc claims on b4 and then
@@ -283,41 +263,35 @@ BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_2) { try {
 BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_3) { try {
    test_core core;
    // post conditions of core::
-   // current_block_num() == 4,
+   // current_block_num() == 3,
    // last_final_block_num() == 1,
    // final_on_strong_qc_block_num == 2
-   // latest qc_claim == {"block_num":3,"is_strong_qc":true}
+   // latest qc_claim == {"block_num":2,"is_strong_qc":true}
 
    // weak QC claim on block 4; nothing changes
-   core.next(4, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   core.next(3, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
    // same weak QC claim on block 4; nothing changes
-   core.next(5, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   core.next(4, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
    // same weak QC claim on block 4; nothing changes
-   core.next(6, qc_claim_t{.block_num = 4, .is_strong_qc = false });
+   core.next(5, qc_claim_t{.block_num = 3, .is_strong_qc = false });
    core.verify_post_conditions(1, 2);
 
-   // strong QC claim on block 6
+   // strong QC claim on block 5
+   core.next(6, qc_claim_t{.block_num = 5, .is_strong_qc = true });
+   core.verify_post_conditions(3, 5);
+
    core.next(7, qc_claim_t{.block_num = 6, .is_strong_qc = true });
-   core.verify_post_conditions(1, 4);
+   core.verify_post_conditions(3, 6);
 
    core.next(8, qc_claim_t{.block_num = 7, .is_strong_qc = true });
-   core.verify_post_conditions(1, 4);
+   core.verify_post_conditions(5, 7);
 
    core.next(9, qc_claim_t{.block_num = 8, .is_strong_qc = true });
-   core.verify_post_conditions(4, 6);
-
-   core.next(10, qc_claim_t{.block_num = 9, .is_strong_qc = true });
-   core.verify_post_conditions(4, 7);
-
-   core.next(11, qc_claim_t{.block_num = 10, .is_strong_qc = true });
    core.verify_post_conditions(6, 8);
-
-   core.next(12, qc_claim_t{.block_num = 11, .is_strong_qc = true });
-   core.verify_post_conditions(7, 9);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
