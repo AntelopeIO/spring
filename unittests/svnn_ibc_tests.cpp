@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_3_result = cluster.produce_block(); //block num : 7
 
       // block_4 contains a QC over block_3, which completes the 2-chain for block_2 and
-      // erves as a proof of finality for it
+      // serves as a proof of finality for it
       auto block_4_result = cluster.produce_block(); //block num : 8
 
       // block_5 contains a QC over block_4.
@@ -289,9 +289,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // take note of policy digest prior to changes
       digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
 
-      // At this stage, we can test the change in pending policy.
+      // at this stage, we can test the change in pending policy.
 
-      // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
+      // we first take a note of the pending policy. When we get a QC on block #9, the pending policy will update.
       digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
 
       // change the finalizer policy by rotating the key of node0
@@ -305,10 +305,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // advance finality
       auto block_9_result = cluster.produce_block();
-      
-      // still the same
+
+      // pending policy is still the same
       BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
 
+      // QC on #9 included in #10 makes #8 final, proposed policy is now pending
       auto block_10_result = cluster.produce_block();
 
       // verify that the last pending policy has been updated
@@ -398,7 +399,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             ("target_block_proof_of_inclusion", mvo() 
                ("target_block_index", 7)
                ("final_block_index", 7)
-               ("target", fc::variants{"extended_block_data", mvo() //target block #2
+               ("target", fc::variants{"extended_block_data", mvo() //target block #7
                   ("finality_data", mvo() 
                      ("major_version", 1)
                      ("minor_version", 0)
@@ -447,17 +448,16 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
       BOOST_TEST(true);
       
-      // QC on #10 included in #11 makes #8 final, proposed policy is now pending
-      auto block_11_result = cluster.produce_block(); 
-
-      auto block_12_result = cluster.produce_block();
-      auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
-   
-      auto block_14_result = cluster.produce_block();
+      auto block_11_result = cluster.produce_block();  //new policy takes effect on next block
 
       //verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
+      
+      auto block_12_result = cluster.produce_block();
 
+
+      auto block_13_result = cluster.produce_block();
+      auto block_14_result = cluster.produce_block();
       auto block_15_result = cluster.produce_block();
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
