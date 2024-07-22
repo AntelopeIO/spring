@@ -450,11 +450,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       
       auto block_11_result = cluster.produce_block();  //new policy takes effect on next block
 
-      //verify that the new finalizer policy is now in force
-      BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
-      
       auto block_12_result = cluster.produce_block();
 
+      //verify that the new finalizer policy is now in force
+      BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_13_result = cluster.produce_block();
       auto block_14_result = cluster.produce_block();
@@ -472,12 +471,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // heavy proof #3. 
       
-      // Proving finality of block #11 using block #11 finality root. 
+      // Proving finality of block #10 using block #10 finality root. 
       
-      // A QC on block #13 makes #11 final, which also sets the finalizer policy proposed in #8 as the last pending policy.
+      // A QC on block #11 makes #10 final, which also sets the finalizer policy proposed in #8 as the last pending policy.
 
       // This also implies finalizers are comitting to this finalizer policy as part of the canonical history of any 
-      // chain extending from block #11 (even if the policy never becomes active).
+      // chain extending from block #10 (even if the policy never becomes active).
       
       // This allows us to prove this finalizer policy to the IBC contract, and use it to prove finality of subsequent blocks.
 
@@ -523,9 +522,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // heavy proof #4.
 
-      // Proving finality of block #12 using block #12 finality root.
+      // Proving finality of block #11 using block #11 finality root.
 
-      // The QC provided in this proof (over block #14) is signed by the second generation of finalizers.
+      // The QC provided in this proof (over block #12) is signed by the second generation of finalizers.
       
       // heavy_proof_3 must be proven before we can prove heavy_proof_4.
 
@@ -576,7 +575,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // checkproof action has failed, as expected.
       BOOST_CHECK(last_action_failed); 
 
-      // we must first prove that block #11 became final, which makes the policy proposed in block #8 pending.
+      // we must first prove that block #10 became final, which makes the policy proposed in block #8 pending.
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
 BOOST_CHECK(true);
