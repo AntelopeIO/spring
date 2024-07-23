@@ -235,21 +235,21 @@ vote_status open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block
 }
 
 // called by get_best_qc which acquires a mutex
-qc_sig_t open_qc_sig_t::to_valid_qc_sig() const {
-   qc_sig_t valid_qc_sig;
+qc_sig_t open_qc_sig_t::extract_qc_sig_from_open() const {
+   qc_sig_t qc_sig;
 
    if( pending_state == state_t::strong ) {
-      valid_qc_sig.strong_votes = strong_votes.bitset;
-      valid_qc_sig.sig          = strong_votes.sig;
+      qc_sig.strong_votes = strong_votes.bitset;
+      qc_sig.sig          = strong_votes.sig;
    } else if (is_quorum_met_no_lock()) {
-      valid_qc_sig.strong_votes = strong_votes.bitset;
-      valid_qc_sig.weak_votes   = weak_votes.bitset;
-      valid_qc_sig.sig          = strong_votes.sig;
-      valid_qc_sig.sig.aggregate(weak_votes.sig);
+      qc_sig.strong_votes = strong_votes.bitset;
+      qc_sig.weak_votes   = weak_votes.bitset;
+      qc_sig.sig          = strong_votes.sig;
+      qc_sig.sig.aggregate(weak_votes.sig);
    } else
-      assert(0); // this should be called only when we have a valid qc_t.
+      assert(0); // this should be called only when we have an open qc with a quorum
 
-   return valid_qc_sig;
+   return qc_sig;
 }
 
 std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
@@ -262,21 +262,19 @@ std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
       return {};
    }
 
-   // extract valid QC sig from open qc sig
-   qc_sig_t valid_qc_sig_from_open = to_valid_qc_sig();
+   qc_sig_t qc_sig_from_open = extract_qc_sig_from_open();
 
    // if received_qc_sig does not have value, consider valid_qc_sig_from_open only
    if( !received_qc_sig ) {
-      return std::optional{std::move(valid_qc_sig_from_open)};
+      return std::optional{std::move(qc_sig_from_open)};
    }
 
-   // Both received_qc_sig and valid_qc_sig_from_open have value. Compare them and select a better one.
+   // Both received_qc_sig and qc_sig_from_open have value. Compare them and select a better one.
    // Strong beats weak. Tie-break by received_qc_sig, strong beats weak
-   const bool use_qc_sig = received_qc_sig->is_strong() == valid_qc_sig_from_open.is_strong() ? received_qc_sig->is_strong() : false;
-   if (use_qc_sig) {
+   if (received_qc_sig->is_strong() || qc_sig_from_open.is_weak()) {
       return std::optional{qc_sig_t{ *received_qc_sig }};
    }
-   return std::optional{qc_sig_t{ std::move(valid_qc_sig_from_open) }};
+   return std::optional{qc_sig_t{ std::move(qc_sig_from_open) }};
 }
 
 void open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
@@ -295,19 +293,18 @@ bool open_qc_sig_t::is_quorum_met_no_lock() const {
 
 std::optional<qc_t> open_qc_t::get_best_qc(block_num_type block_num) const {
    std::optional<qc_sig_t> active_best_qc = active_policy_sig.get_best_qc();
-
-   if (!pending_policy_sig) { // consider only active
-      if (active_best_qc) {
-         return std::optional{qc_t{ block_num, std::move(*active_best_qc), {} }};
-      }
+   if (!active_best_qc) // active is always required
       return {};
+
+   if (pending_policy_sig) {
+      std::optional<qc_sig_t> pending_best_qc = pending_policy_sig->get_best_qc();
+      if (pending_best_qc)
+         return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), std::move(pending_best_qc)}};
+      return {}; // no quorum on pending_policy_sig so no qc for this block
    }
-   // consider both
-   std::optional<qc_sig_t> pending_best_qc = pending_policy_sig->get_best_qc();
-   if (pending_best_qc) {
-      return std::optional{qc_t{ block_num, std::move(*active_best_qc), std::move(*pending_best_qc) }};
-   }
-   return {};
+
+   // no pending_policy_sig so only need active
+   return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
 }
 
 void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {

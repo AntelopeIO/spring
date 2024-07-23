@@ -196,7 +196,7 @@ namespace eosio::chain {
                                 uint64_t weight);
 
       bool is_quorum_met_no_lock() const;
-      qc_sig_t to_valid_qc_sig() const;
+      qc_sig_t extract_qc_sig_from_open() const;
    };
 
    // finalizer authority of strong, weak, or missing votes
