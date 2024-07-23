@@ -4,6 +4,7 @@
 #include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
 #include <eosio/chain/block_timestamp.hpp>
+#include <eosio/chain/thread_utils.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 #include <fc/crypto/bls_public_key.hpp>
 #include <fc/crypto/bls_signature.hpp>
@@ -113,7 +114,11 @@ namespace eosio::chain {
 
          vote_bitset                    bitset;
          bls_aggregate_signature        sig;
-         std::vector<std::atomic<bool>> processed; // avoid locking mutex for _bitset duplicate check
+         struct bit_processed {
+            alignas(hardware_destructive_interference_size)
+            std::atomic<bool> value;
+         };
+         std::vector<bit_processed> processed; // avoid locking mutex for _bitset duplicate check
 
          void reflector_init();
       public:

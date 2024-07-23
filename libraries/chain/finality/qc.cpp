@@ -108,17 +108,17 @@ bool open_qc_sig_t::has_voted(bool strong, size_t index) const {
 }
 
 void open_qc_sig_t::votes_t::reflector_init() {
-   processed = std::vector<std::atomic<bool>>(bitset.size());
+   processed = std::vector<bit_processed>(bitset.size());
    for (size_t i = 0; i < bitset.size(); ++i) {
       if (bitset[i]) {
-         processed[i].store(true, std::memory_order_relaxed);
+         processed[i].value.store(true, std::memory_order_relaxed);
       }
    }
 }
 
 bool open_qc_sig_t::votes_t::has_voted(size_t index) const {
    assert(index < processed.size());
-   return processed[index].load(std::memory_order_relaxed);
+   return processed[index].value.load(std::memory_order_relaxed);
 }
 
 
@@ -126,7 +126,7 @@ vote_status open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& 
    if (bitset[index]) { // check here as could have come in while unlocked
       return vote_status::duplicate; // shouldn't be already present
    }
-   processed[index].store(true, std::memory_order_relaxed);
+   processed[index].value.store(true, std::memory_order_relaxed);
    bitset.set(index);
    sig.aggregate(signature); // works even if _sig is default initialized (fp2::zero())
    return vote_status::success;
