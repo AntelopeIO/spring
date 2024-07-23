@@ -444,6 +444,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
       // QC on #10 included in #11 makes #8 final, proposed policy is now pending
       auto block_11_result = cluster.produce_block(); 
 
+      BOOST_TEST(!block_11_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       // verify that the last pending policy has been updated
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
