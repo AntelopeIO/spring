@@ -203,7 +203,7 @@ namespace finality_proof {
             }
          }
 
-         std::cout << "block num : " <<  block->block_num() << " : lpfp_sn -> "  << last_pending_finalizer_policy_start_num << "\n";
+         ilog("block num : ${bn} : lpfp_sn -> ${sn}", ("bn", block->block_num())("sn", last_pending_finalizer_policy_start_num));
 
          //process votes and collect / compute the IBC-relevant data
          this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
