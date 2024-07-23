@@ -59,7 +59,7 @@ auto pending_finalizers_string = [](const finality_proof::ibc_block_data_t& bd) 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
 BOOST_AUTO_TEST_CASE(TODO_temp) {}
-/*
+
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
@@ -122,8 +122,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -161,8 +161,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -195,8 +195,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_5_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_6_result)) 
+                  ("signature", block_6_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_6_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -377,8 +377,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_10_result)) 
+                  ("signature", block_10_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_10_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -493,8 +493,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_13_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_14_result)) 
+                  ("signature", block_14_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_14_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -540,8 +540,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_14_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_15_result)) 
+                  ("signature", block_15_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_15_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -659,5 +659,5 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
       );
 
    } FC_LOG_AND_RETHROW() }
-*/
+
 BOOST_AUTO_TEST_SUITE_END()
