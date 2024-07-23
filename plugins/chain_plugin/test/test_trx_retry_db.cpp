@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE(trx_retry_logic) {
          const auto& genesis_chain_id = gs.compute_chain_id();
          protocol_feature_set pfs;
          chain.emplace( chain_config, std::move( pfs ), genesis_chain_id );
-         chain->add_indices();
+         controller::add_indices(chain->db());
       }
 
       // control time by using set_now, call before spawning any threads

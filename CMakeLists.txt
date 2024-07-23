@@ -122,6 +122,7 @@ if(ENABLE_WEXTRA)
   set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra" )
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(EOSIO_ENABLE_DEVELOPER_OPTIONS "enable developer options for Spring" OFF)
 

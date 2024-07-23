@@ -92,7 +92,7 @@ int snapshot_actions::run_subcommand() {
       auto shutdown = []() { throw; };
 
       control.reset(new controller(cfg, std::move(pfs), chain_id));
-      control->add_indices();
+      controller::add_indices(control->db());
       control->startup(shutdown, check_shutdown, reader);
       infile.close();
 

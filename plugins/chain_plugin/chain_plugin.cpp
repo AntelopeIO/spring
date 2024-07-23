@@ -23,13 +23,23 @@
 #include <boost/signals2/connection.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/device/array.hpp>
+#include <boost/iostreams/device/file.hpp>
 
+///XXX maybe these should be added directly in our incbin.h copy
+#define INCBIN_PREFIX incbin_
+#define INCBIN_STYLE INCBIN_STYLE_SNAKE
+#include <fc/io/incbin.h>
 #include <fc/io/json.hpp>
 #include <fc/variant.hpp>
 #include <cstdlib>
+#include <dlfcn.h>
 
 const std::string deep_mind_logger_name("deep-mind");
 eosio::chain::deep_mind_handler _deep_mind_log;
+
+INCBIN(char, snapshotterlib, "libsnapshotter.so");
 
 namespace eosio {
 
@@ -201,6 +211,8 @@ public:
    static void handle_guard_exception(const chain::guard_exception& e);
    void do_hard_replay(const variables_map& options);
    void enable_accept_transactions();
+   void do_CHAINB01_upgrade(const std::filesystem::path& protocol_features_dir);
+   bool check_db_upgrade(const std::filesystem::path& protocol_features_dir);
    void plugin_initialize(const variables_map& options);
    void plugin_startup();
    void plugin_shutdown();
@@ -480,6 +492,53 @@ chain_plugin_impl::do_hard_replay(const variables_map& options) {
          auto backup_dir = block_log::repair_log( blocks_dir, options.at( "truncate-at-block" ).as<uint32_t>(), config::reversible_blocks_dir_name);
 }
 
+void chain_plugin_impl::do_CHAINB01_upgrade(const std::filesystem::path& protocol_features_dir) {
+   const std::filesystem::path db_path         = chain_config->state_dir / config::chainbasedb_filename;
+   const std::filesystem::path forkdb_path     = blocks_dir / config::reversible_blocks_dir_name / config::forkdb_filename;
+   const std::filesystem::path tmp_ss_path     = chain_config->state_dir / "upgrade.snap";
+   const std::filesystem::path upgrader_path   = chain_config->state_dir / "upgrader.bin";
+   const std::filesystem::path chain_head_path = chain_config->state_dir / config::chain_head_filename;
+
+   void* upgrader_handle = dlmopen(LM_ID_BASE, upgrader_path.native().c_str(), RTLD_NOW);
+   FC_ASSERT(upgrader_handle, "Failed to open upgrader");
+   auto close_upgrader_handle = fc::make_scoped_exit([&upgrader_handle](){ dlclose(upgrader_handle); });
+
+   int (*makesnap)(const char*, const char*, const char*, const char*) = (int(*)(const char*, const char*, const char*, const char*)) dlsym(upgrader_handle, "makesnap"); ///XXX header file me
+   FC_ASSERT(upgrader_handle, "Failed to find snapshot export");
+
+   FC_ASSERT(makesnap(db_path.c_str(), forkdb_path.c_str(), protocol_features_dir.c_str(), tmp_ss_path.c_str()) == 0, "Failed to create migration snapshot");
+   //XXX creation failure might leave items in broken state.. should we do anything more above on failure?
+   snapshot_path = tmp_ss_path; //XXX need some way to remove it after loading
+   if(std::filesystem::exists(chain_head_path))
+      std::filesystem::remove(chain_head_path);
+   std::filesystem::remove(db_path);
+}
+
+//this function deliberately does its checks manually instead of trying to catch appropriate exceptions etc. tbd is this good idea? yes probably
+bool chain_plugin_impl::check_db_upgrade(const std::filesystem::path& protocol_features_dir) {
+   namespace bio = boost::iostreams;
+   char db_header_buff[1024];
+   {
+      bio::file_source header_file_source((chain_config->state_dir / "shared_memory.bin").native());
+      if(bio::read(header_file_source, db_header_buff, sizeof(db_header_buff)) != sizeof(db_header_buff))
+         return false;
+   }
+   chainbase::db_header* dbheader = reinterpret_cast<chainbase::db_header*>(db_header_buff);
+
+   try {
+      if(dbheader->id == 0x3130424e49414843ULL) {
+         //"CHAINB01"; used in spring 1.0+
+         ///XXX should really check more here; like that _only_ compiler is different (e.g. still should be Linux == Linux, etc)
+         if(memcmp(dbheader->dbenviron.compiler, chainbase::environment().compiler, sizeof(chainbase::environment::compiler))) {
+            do_CHAINB01_upgrade(protocol_features_dir);
+            return true;
+         }
+      }
+   } FC_LOG_AND_DROP(("A DB migration was attempted but failed"));
+
+   return false;
+}
+
 void chain_plugin_impl::plugin_initialize(const variables_map& options) {
    try {
       ilog("initializing chain plugin");
@@ -569,8 +628,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
 
       protocol_feature_set pfs;
+      std::filesystem::path protocol_features_dir;
       {
-         std::filesystem::path protocol_features_dir;
          auto pfd = options.at( "protocol-features-dir" ).as<std::filesystem::path>();
          if( pfd.is_relative())
             protocol_features_dir = app().config_dir() / pfd;
@@ -799,7 +858,13 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                            ("block_log_chain_id", *block_log_chain_id)
                );
          }
-
+      } else if(check_db_upgrade(protocol_features_dir)) {
+         std::ifstream infile(chain_config->state_dir / "upgrade.snap", (std::ios::in | std::ios::binary));
+         istream_snapshot_reader reader(infile);
+         reader.validate();
+         chain_id = controller::extract_chain_id(reader);
+         infile.close();
+         ///XXX how much additional validation
       } else {
 
          chain_id = controller::extract_chain_id_from_db( chain_config->state_dir );
@@ -1086,7 +1151,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                }
             } );
       }
-      chain->add_indices();
+      chain->add_indices(chain->db());
    } FC_LOG_AND_RETHROW()
 }
 
@@ -1130,6 +1195,9 @@ void chain_plugin_impl::plugin_startup()
    else {
       ilog("Blockchain started; head block is #${num}", ("num", chain->head().block_num()));
    }
+
+   namespace bio = boost::iostreams;
+   bio::copy(bio::array_source(incbin_snapshotterlib_data, incbin_snapshotterlib_size), bio::file_sink((chain_config->state_dir / "upgrader.bin").native()));
 
    chain_config.reset();
 

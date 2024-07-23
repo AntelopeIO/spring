@@ -1,0 +1,2 @@
+add_library(snapshotter SHARED snapshotter.cpp)
+target_link_libraries(snapshotter eosio_chain)

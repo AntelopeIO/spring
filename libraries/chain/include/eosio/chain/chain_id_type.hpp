@@ -41,9 +41,10 @@ namespace chain {
       static chain_id_type empty_chain_id() {
          return {};
       }
+      chain_id_type() = default;
 
       private:
-         chain_id_type() = default;
+
 
          // Some exceptions are unfortunately necessary:
          template<typename T>

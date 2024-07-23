@@ -1205,11 +1205,11 @@ struct controller_impl {
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
    :rnh(),
     self(s),
-    db( cfg.state_dir,
+    db( cfg.state_dir / config::chainbasedb_filename,
         cfg.read_only ? database::read_only : database::read_write,
         cfg.state_size, false, cfg.db_map_mode ),
     blog( cfg.blocks_dir, cfg.blog ),
-    fork_db(cfg.blocks_dir / config::reversible_blocks_dir_name),
+    fork_db(cfg.blocks_dir / config::reversible_blocks_dir_name / config::forkdb_filename),
     resource_limits( db, [&s](bool is_trx_transient) { return s.get_deep_mind_logger(is_trx_transient); }),
     authorization( s, db ),
     protocol_features( std::move(pfs), [&s](bool is_trx_transient) { return s.get_deep_mind_logger(is_trx_transient); } ),
@@ -2022,12 +2022,12 @@ struct controller_impl {
          ilog( "chain database stopped with hash: ${hash}", ("hash", calculate_integrity_hash()) );
    }
 
-   void add_indices() {
+   static void add_indices(chainbase::database& db) {
       controller_index_set::add_indices(db);
       contract_database_index_set::add_indices(db);
 
-      authorization.add_indices();
-      resource_limits.add_indices();
+      authorization_manager::add_indices(db);
+      resource_limits_manager::add_indices(db);
    }
 
    void clear_all_undo() {
@@ -2035,14 +2035,14 @@ struct controller_impl {
       db.undo_all();
    }
 
-   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      snapshot->write_section("contract_tables", [this]( auto& section ) {
-         index_utils<table_id_multi_index>::walk(db, [this, &section]( const table_id_object& table_row ){
+   static void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db ) {
+      snapshot->write_section("contract_tables", [&db]( auto& section ) {
+         index_utils<table_id_multi_index>::walk(db, [&db, &section]( const table_id_object& table_row ){
             // add a row for the table
             section.add_row(table_row, db);
 
             // followed by a size row and then N data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &table_row]( auto utils ) {
+            contract_database_index_set::walk_indices([&db, &section, &table_row]( auto utils ) {
                using utils_t = decltype(utils);
                using value_t = typename decltype(utils)::index_t::value_type;
                using by_table_id = object_to_table_id_tag_t<value_t>;
@@ -2053,7 +2053,7 @@ struct controller_impl {
                unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
                section.add_row(size, db);
 
-               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section]( const auto &row ) {
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [&db, &section]( const auto &row ) {
                   section.add_row(row, db);
                });
             });
@@ -2090,35 +2090,28 @@ struct controller_impl {
       });
    }
 
-   block_state_pair get_block_state_to_snapshot() const
-   {
-       return block_handle_accessor::apply<block_state_pair>(chain_head, overloaded{
-          [&](const block_state_legacy_ptr& head) -> block_state_pair {
-             if (head->header.contains_header_extension(finality_extension::extension_id())) {
-                // During transition to Savanna, we need to build Transition Savanna block
-                // from Savanna Genesis block
-                return { head, get_transition_savanna_block(head) };
-             }
-             return block_state_pair{ head, {} };
-          },
-          [](const block_state_ptr& head) {
-             return block_state_pair{ {}, head };
-          }});
+   block_state_pair get_block_state_to_snapshot() const {
+      return controller::block_state_for_snapshot(fork_db, protocol_features, chain_head);
    }
 
    void add_to_snapshot( const snapshot_writer_ptr& snapshot ) {
       // clear in case the previous call to clear did not finish in time of deadline
       clear_expired_input_transactions( fc::time_point::maximum() );
 
-      snapshot->write_section<chain_snapshot_header>([this]( auto &section ){
+      add_to_snapshot_no_expired(snapshot, db, get_block_state_to_snapshot());
+   }
+
+   ///XXX we'll assume there are no expired transactions in this case: should purge all expired txns on shutdown
+   static void add_to_snapshot_no_expired( const snapshot_writer_ptr& snapshot, database& db, const block_state_pair& bstate_pair) {
+      snapshot->write_section<chain_snapshot_header>([&db]( auto &section ){
          section.add_row(chain_snapshot_header(), db);
       });
 
       snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
+         section.add_row(snapshot_detail::snapshot_block_state_data_v7(bstate_pair), db);
       });
       
-      controller_index_set::walk_indices([this, &snapshot]( auto utils ){
+      controller_index_set::walk_indices([&db, &snapshot]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2131,17 +2124,17 @@ struct controller_impl {
             return;
          }
 
-         snapshot->write_section<value_t>([this]( auto& section ){
-            decltype(utils)::walk(db, [this, &section]( const auto &row ) {
+         snapshot->write_section<value_t>([&db]( auto& section ){
+            decltype(utils)::walk(db, [&db, &section]( const auto &row ) {
                section.add_row(row, db);
             });
          });
       });
 
-      add_contract_tables_to_snapshot(snapshot);
+      add_contract_tables_to_snapshot(snapshot, db);
 
-      authorization.add_to_snapshot(snapshot);
-      resource_limits.add_to_snapshot(snapshot);
+      authorization_manager::add_to_snapshot(snapshot, db);
+      resource_limits_manager::add_to_snapshot(snapshot, db);
    }
 
    static std::optional<genesis_state> extract_legacy_genesis_state( snapshot_reader& snapshot, uint32_t version ) {
@@ -3313,7 +3306,7 @@ struct controller_impl {
             block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(finality_extension::extension_id())) {
-                              auto bsp = get_transition_savanna_block(head);
+                              auto bsp = get_transition_savanna_block(fork_db, protocol_features, head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
                               dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
@@ -4542,7 +4535,7 @@ struct controller_impl {
    }
 
    // Returns corresponding Transition Savanna block for a given Legacy block.
-   block_state_ptr get_transition_savanna_block(const block_state_legacy_ptr& head) const {
+   static block_state_ptr get_transition_savanna_block(const fork_database& fork_db, const protocol_feature_manager& protocol_features, const block_state_legacy_ptr& head) {
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
       fork_db.apply_l<void>([&](const auto& forkdb) {
@@ -4576,7 +4569,7 @@ struct controller_impl {
       const bool skip_validate_signee = true; // validated already
 
       for (; bitr != legacy_branch.rend(); ++bitr) {
-         assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
+         ///assert(read_mode == db_read_mode::IRREVERSIBLE || (*bitr)->action_mroot_savanna.has_value());
          auto new_bsp = block_state::create_transition_block(
                *prev,
                (*bitr)->block,
@@ -4593,7 +4586,7 @@ struct controller_impl {
    }
 
    std::optional<finality_data_t> get_transition_block_finality_data(const block_state_legacy_ptr& head) const {
-      return get_transition_savanna_block(head)->get_finality_data();
+      return get_transition_savanna_block(fork_db, protocol_features, head)->get_finality_data();
    }
 
    std::optional<finality_data_t> head_finality_data() const {
@@ -4819,8 +4812,8 @@ controller::~controller() {
    my->thread_pool.stop();
 }
 
-void controller::add_indices() {
-   my->add_indices();
+void controller::add_indices(chainbase::database& db) {
+   controller_impl::add_indices(db);
 }
 
 void controller::startup( std::function<void()> shutdown, std::function<bool()> check_shutdown, const snapshot_reader_ptr& snapshot ) {
@@ -4835,7 +4828,8 @@ void controller::startup(std::function<void()> shutdown, std::function<bool()> c
    my->startup(shutdown, check_shutdown);
 }
 
-const chainbase::database& controller::db()const { return my->db; }
+//XXX restore const somehow
+chainbase::database& controller::db() const { return my->db; }
 
 chainbase::database& controller::mutable_db()const { return my->db; }
 
@@ -5300,6 +5294,26 @@ void controller::write_snapshot( const snapshot_writer_ptr& snapshot ) {
    my->add_to_snapshot(snapshot);
 }
 
+void controller::write_nonlive_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db, const protocol_feature_manager& protocol_features, const fork_database& forkdb, const block_handle& chain_head ) {
+   controller_impl::add_to_snapshot_no_expired(snapshot, db, block_state_for_snapshot(forkdb, protocol_features, chain_head));
+}
+
+block_state_pair controller::block_state_for_snapshot( const fork_database& fork_db, const protocol_feature_manager& protocol_features, const block_handle& chain_head ) {
+   return block_handle_accessor::apply<block_state_pair>(chain_head, overloaded{
+      [&](const block_state_legacy_ptr& head) -> block_state_pair {
+         if (head->header.contains_header_extension(finality_extension::extension_id())) {
+            // During transition to Savanna, we need to build Transition Savanna block
+            // from Savanna Genesis block
+            return { head, controller_impl::get_transition_savanna_block(fork_db, protocol_features, head) };
+         }
+         return block_state_pair{ head, {} };
+      },
+      [](const block_state_ptr& head) {
+         return block_state_pair{ {}, head };
+      }
+   });
+}
+
 bool controller::is_writing_snapshot() const {
    return my->writing_snapshot.load(std::memory_order_acquire);
 }
@@ -5737,7 +5751,7 @@ chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
 
 std::optional<chain_id_type> controller::extract_chain_id_from_db( const path& state_dir ) {
    try {
-      chainbase::database db( state_dir, chainbase::database::read_only );
+      chainbase::database db( state_dir / chain::config::chainbasedb_filename, chainbase::database::read_only );
 
       db.add_index<database_header_multi_index>();
       db.add_index<global_property_multi_index>();

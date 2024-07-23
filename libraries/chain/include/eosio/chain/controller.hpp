@@ -10,6 +10,9 @@
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
 
+///XXX needed for block_state_for_snapshot(), hm?
+#include <eosio/chain/fork_database.hpp>
+
 #include <chainbase/pinnable_mapped_file.hpp>
 
 #include <boost/signals2/signal.hpp>
@@ -130,7 +133,7 @@ namespace eosio::chain {
          controller( const config& cfg, protocol_feature_set&& pfs, const chain_id_type& chain_id );
          ~controller();
 
-         void add_indices();
+         static void add_indices(chainbase::database& db);
          void startup( std::function<void()> shutdown, std::function<bool()> check_shutdown, const snapshot_reader_ptr& snapshot);
          void startup( std::function<void()> shutdown, std::function<bool()> check_shutdown, const genesis_state& genesis);
          void startup( std::function<void()> shutdown, std::function<bool()> check_shutdown);
@@ -210,7 +213,7 @@ namespace eosio::chain {
 
          boost::asio::io_context& get_thread_pool();
 
-         const chainbase::database& db()const;
+         chainbase::database& db() const;
 
          const account_object&                 get_account( account_name n )const;
          const global_property_object&         get_global_properties()const;
@@ -310,6 +313,8 @@ namespace eosio::chain {
 
          fc::sha256 calculate_integrity_hash();
          void write_snapshot( const snapshot_writer_ptr& snapshot );
+         static void write_nonlive_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db, const protocol_feature_manager& protocol_features, const fork_database& forkdb, const block_handle& chain_head );
+         static block_state_pair block_state_for_snapshot( const fork_database& fork_db, const protocol_feature_manager& protocol_features, const block_handle& chain_head );
          // thread-safe
          bool is_writing_snapshot()const;
 
