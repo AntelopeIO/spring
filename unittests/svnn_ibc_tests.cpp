@@ -52,13 +52,7 @@ auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  
    return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
 };
 
-auto pending_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
-   return bitset_to_input_string(bd.qc_data.qc.value().pending_policy_sig.value().strong_votes.value());
-};
-
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
-
-BOOST_AUTO_TEST_CASE(TODO_temp) {}
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
