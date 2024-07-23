@@ -255,7 +255,26 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_pending_finalizer_policy_start_num, last_proposed_finalizer_policy_digest, finality_digest, level_3_commitments_digest, level_2_commitments_digest, finality_leaf, finality_root };
+         return ibc_block_data_t{
+            .block = block, 
+            .qc_data = qc_data, 
+            .onblock_trace = onblock_trace, 
+            .finality_data = finality_data, 
+            .active_finalizer_policy_generation = active_finalizer_policy.generation, 
+            .last_pending_finalizer_policy_generation = last_pending_finalizer_policy.generation, 
+            .last_proposed_finalizer_policy_generation = last_proposed_finalizer_policy.generation, 
+            .action_mroot = action_mroot, 
+            .base_digest = base_digest, 
+            .active_finalizer_policy_digest = active_finalizer_policy_digest, 
+            .last_pending_finalizer_policy_digest = last_pending_finalizer_policy_digest, 
+            .last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num, 
+            .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
+            .finality_digest = finality_digest, 
+            .level_3_commitments_digest = level_3_commitments_digest, 
+            .level_2_commitments_digest = level_2_commitments_digest, 
+            .finality_leaf = finality_leaf,
+            .finality_root = finality_root 
+         };
 
       }
 
