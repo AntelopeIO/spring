@@ -249,6 +249,7 @@ namespace savanna {
    // commitments used in the context of finalizer policy transitions
    struct level_2_commitments_t {
       checksum256 last_pending_fin_pol_digest{};
+      uint32_t last_pending_fin_pol_start_num{0};
       checksum256 l3_commitments_digest{};
    };
 
@@ -301,6 +302,8 @@ namespace savanna {
 
       std::optional<checksum256> reversible_blocks_mroot;
 
+      std::optional<uint32_t> last_pending_finalizer_policy_start_num;
+
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
@@ -312,6 +315,11 @@ namespace savanna {
          if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
+            uint32_t resolved_last_pending_finalizer_policy_start_num = 0;
+
+            if (last_pending_finalizer_policy_start_num.has_value()) 
+               resolved_last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num.value();
+
             auto l3_packed = eosio::pack(level_3_commitments_t{
                .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
                .base_digest = witness_hash
@@ -321,6 +329,7 @@ namespace savanna {
 
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
+               .last_pending_fin_pol_start_num = resolved_last_pending_finalizer_policy_start_num,
                .l3_commitments_digest = l3_digest
             });
 
