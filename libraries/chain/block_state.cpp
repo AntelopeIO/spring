@@ -109,6 +109,16 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
       .finality_digest  = result.strong_digest,
       .action_mroot     = *bsp.action_mroot_savanna
    };
+
+   auto ts = fc::raw::pack(bsp.timestamp());
+   auto pts = fc::raw::pack(block_timestamp_type());
+   wlog("block_num : ${block_num} - timestamp -> ${bsp_ts} ${ts}, parent_timestamp -> ${parent_timestamp} ${pts}",  
+      ("block_num", bsp.block_num())
+      ("bsp_ts", bsp.timestamp())
+      ("parent_timestamp", block_timestamp_type())
+      ("ts", ts)
+      ("pts", pts));
+
    // construct valid structure
    incremental_merkle_tree validation_tree;
    validation_tree.append(fc::sha256::hash(leaf_node));
@@ -330,6 +340,16 @@ valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_
       .finality_digest  = strong_digest,
       .action_mroot     = action_mroot
    };
+
+   auto ts = fc::raw::pack(next_bhs.timestamp());
+   auto pts = fc::raw::pack(timestamp());
+   wlog("block_num : ${block_num} - timestamp -> ${bsp_ts} ${ts}, parent_timestamp -> ${parent_timestamp} ${pts}",  
+      ("block_num", next_bhs.block_num())
+      ("bsp_ts", next_bhs.timestamp())
+      ("parent_timestamp", timestamp())
+      ("ts", ts)
+      ("pts", pts));
+   
    auto leaf_node_digest = fc::sha256::hash(leaf_node);
 
    // append new finality leaf node digest to validation_tree
