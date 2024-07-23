@@ -109,6 +109,10 @@
                     "type": "finalizer_policy_input?"
                 },
                 {
+                    "name": "reversible_blocks_mroot",
+                    "type": "checksum256?"
+                },
+                {
                     "name": "witness_hash",
                     "type": "checksum256"
                 },

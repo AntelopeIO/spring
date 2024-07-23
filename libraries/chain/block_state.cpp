@@ -275,6 +275,7 @@ finality_data_t block_state::get_finality_data() {
       .active_finalizer_policy_generation = active_finalizer_policy->generation,
       .final_on_strong_qc_block_num       = core.final_on_strong_qc_block_num,
       .action_mroot                       = action_mroot,
+      .reversible_blocks_mroot            = core.get_reversible_blocks_mroot(),
       .base_digest                        = *base_digest,
       .pending_finalizer_policy           = std::move(pending_fin_pol)
    };

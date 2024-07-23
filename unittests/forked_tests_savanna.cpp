@@ -229,7 +229,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
 
    // verify that lib doesn't advance
-   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0);
+   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0u);
 
    // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"cam"_n} );
@@ -239,7 +239,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
    BOOST_REQUIRE_GT(new_prod, prod);
-   BOOST_REQUIRE_EQUAL(new_prod, 1);
+   BOOST_REQUIRE_EQUAL(new_prod, 1u);
 
    _nodes[0].produce_blocks(3);                                 // sam produces 3 more blocks
 

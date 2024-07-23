@@ -38,16 +38,25 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   auto base_digest = compute_base_digest();
-   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
-   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
+
+   // compute commitments related to finality violation proofs
+   level_3_commitments_t level_3_commitments {
+         .reversible_blocks_mroot     = core.get_reversible_blocks_mroot(),
+         .base_digest                 = compute_base_digest()
+   };
+
+   // compute commitments related to finalizer policy transitions
+   level_2_commitments_t level_2_commitments {
+         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+         .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
+   };
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
-      .active_finalizer_policy_generation      = active_finalizer_policy->generation,
-      .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
-      .finality_tree_digest                    = finality_mroot(),
-      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
+      .active_finalizer_policy_generation  = active_finalizer_policy->generation,
+      .final_on_strong_qc_block_num        = core.final_on_strong_qc_block_num,
+      .finality_tree_digest                = finality_mroot(),
+      .l2_commitments_digest               = fc::sha256::hash(level_2_commitments)
    };
 
    return fc::sha256::hash(finality_digest_data);
@@ -222,8 +231,9 @@ void finish_next(const block_header_state& prev,
    // finality_core
    // -------------
    block_ref parent_block {
-      .block_id  = prev.block_id,
-      .timestamp = prev.timestamp(),
+      .block_id        = prev.block_id,
+      .timestamp       = prev.timestamp(),
+      .finality_digest = prev.compute_finality_digest()
    };
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 

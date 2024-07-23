@@ -1,5 +1,6 @@
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/block_header.hpp>
+#include <eosio/chain/merkle.hpp>
 
 namespace eosio::chain {
 
@@ -27,12 +28,12 @@ finality_core finality_core::create_core_for_genesis_block(const block_ref& gene
          qc_link{
             .source_block_num = block_num,
             .target_block_num = block_num,
-            .is_link_strong    = false,
+            .is_link_strong   = false,
          },
       },
       .refs                         = {},
       .final_on_strong_qc_block_num = block_num,
-      .genesis_timestamp = genesis_block.timestamp
+      .genesis_timestamp            = genesis_block.timestamp
    };
 
    // Invariants 1 to 7 can be easily verified to be satisfied for the returned core.
@@ -146,6 +147,35 @@ const block_ref& finality_core::get_block_reference(block_num_type block_num) co
 
    return refs[ref_index];
    // By invariants 4 and 6, tail[ref_index].block_num() == block_num, which satisfies the post-condition.
+}
+
+/**
+ *  @pre  all finality_core invariants
+ *  @post same
+ *  @returns Merkle root digest of a sequence of block_refs
+ */
+digest_type finality_core::get_reversible_blocks_mroot() const {
+   // Parent block timestamp is not availale as parent block does not exist
+   if (refs.size() <= 1) {
+      return {};
+   }
+
+   // Build a merkle tree of a sequence of records including block number,
+   // block timestamp, finality digest, and the timestamp of the parent block.
+   std::vector<digest_type> block_ref_digests;
+   block_ref_digests.reserve(refs.size() - 1);
+   for (size_t i = 1; i < refs.size(); i++) {
+      block_ref_digest_data data = {
+         .block_num        = refs[i].block_num(),
+         .timestamp        = refs[i].timestamp,
+         .finality_digest  = refs[i].finality_digest,
+         .parent_timestamp = refs[i-1].timestamp
+      };
+
+      block_ref_digests.emplace_back(fc::sha256::hash(data));
+   }
+
+   return calculate_merkle(block_ref_digests);
 }
 
 /**
