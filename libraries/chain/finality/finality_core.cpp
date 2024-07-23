@@ -212,6 +212,7 @@ const qc_link& finality_core::get_qc_link_from(block_num_type block_num) const
 std::tuple<block_num_type, block_num_type, block_num_type> get_new_block_numbers(const finality_core& c, const qc_claim_t& most_recent_ancestor_with_qc)
 {
    assert(most_recent_ancestor_with_qc.block_num <= c.current_block_num()); // Satisfied by the precondition.
+   assert(c.latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num); // Satisfied by the precondition.
 
    // Invariant 2 of core guarantees that:
    // c.last_final_block_num() <= c.links.front().source_block_num <= c.final_on_strong_qc_block_num  <= c.latest_qc_claim().block_num
@@ -225,8 +226,28 @@ std::tuple<block_num_type, block_num_type, block_num_type> get_new_block_numbers
 
    const auto& link = c.get_qc_link_from(most_recent_ancestor_with_qc.block_num);
 
-   assert(c.last_final_block_num() <= link.target_block_num);
-   assert(c.links.front().source_block_num <= link.source_block_num);
+   // Wherever link is found within c.links, it must be either c.links.front() or
+   // a link after c.links.front() in c.links.
+   // In both cases, by invariant 7 of core,
+   // c.links.front().target_block_num <= link.target_block_num
+   // c.links.front().source_block_num <= link.source_block_num
+   assert(c.last_final_block_num() <= link.target_block_num); // by justification above and c.last_final_block_num() == c.links.front().target_block_num
+   assert(c.links.front().source_block_num <= link.source_block_num); // by justification above
+
+   // 1. By the post-condition of get_qc_link_from, link.source_block_num == most_recent_ancestor_with_qc.block_num.
+   //    By the invariant on qc_link, link.target_block_num <= link.source_block_num.
+   //    Therefore, link.target_block_num <= most_recent_ancestor_with_qc.block_num.
+   //
+   // 2. There must exist some link, call it link0, within c.links where
+   //    link0.target_block_num == c.final_on_strong_qc_block_num and link0.source_block_num <= c.latest_qc_claim().block_num.
+   //    By the precondition, link0.source_block_num <= most_recent_ancestor_with_qc.block_num.
+   //    Since most_recent_ancestor_with_qc.block_num == link.source_block_num,
+   //    we have link0.source_block_num <= link.source_block_num.
+   //    If c.links.size() > 1, then by invariant 7 of core, link0.target_block_num <= link.target_block_num.
+   //    Otherwise if c.links.size() == 1, then link0 == link and so link0.target_block_num == link.target_block_num.
+   //    Therefore, c.final_on_strong_qc_block_num <= link.target_block_num.
+   //
+   //    From 1 and 2, we have c.final_on_strong_qc_block_num <= most_recent_ancestor_with_qc.block_num
    assert(c.final_on_strong_qc_block_num <= most_recent_ancestor_with_qc.block_num);
 
    // Use two-chain for finality advance
