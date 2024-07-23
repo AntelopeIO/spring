@@ -59,7 +59,7 @@ auto pending_finalizers_string = [](const finality_proof::ibc_block_data_t& bd) 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
 BOOST_AUTO_TEST_CASE(TODO_temp) {}
-/*
+
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
@@ -122,8 +122,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -161,8 +161,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -195,8 +195,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_5_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_6_result)) 
+                  ("signature", block_6_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_6_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -377,8 +377,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_10_result)) 
+                  ("signature", block_10_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_10_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -448,17 +448,28 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       auto block_12_result = cluster.produce_block();
+
+      // block #12 contains our first joint policies QCs
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
    
+      BOOST_TEST(block_13_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the current finalizer policy is still in force up to this point    
       BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
       
       auto block_14_result = cluster.produce_block();
 
+      BOOST_TEST(block_14_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_15_result = cluster.produce_block();
+
+      BOOST_TEST(!block_15_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
@@ -493,8 +504,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_13_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_14_result)) 
+                  ("signature", block_14_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_14_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -541,8 +552,8 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
                   ("finality_mroot", block_14_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_15_result)) 
+                  ("signature", block_15_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_15_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -660,5 +671,5 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
       );
 
    } FC_LOG_AND_RETHROW() }
-*/
+
 BOOST_AUTO_TEST_SUITE_END()
