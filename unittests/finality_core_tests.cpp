@@ -286,17 +286,17 @@ BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_3) { try {
    // latest qc_claim == {"block_num":2,"is_strong_qc":true}
    // new chain: 2 <-- 3
 
-   // weak QC claim on block 4; nothing changes
+   // weak QC claim on block 3; nothing changes
    core.next(qc_claim_t{.block_num = 3, .is_strong_qc = false });
    // new chain: 3 <--w 4 (w indicates weak)
    core.check_conditions(1, 2);
 
-   // same weak QC claim on block 4; nothing changes
+   // same weak QC claim on block 3; nothing changes
    core.next(qc_claim_t{.block_num = 3, .is_strong_qc = false });
    // new chain: 3 <--w 5
    core.check_conditions(1, 2);
 
-   // same weak QC claim on block 4; nothing changes
+   // same weak QC claim on block 3; nothing changes
    core.next(qc_claim_t{.block_num = 3, .is_strong_qc = false });
    // new chain: 3 <--w 6
    core.check_conditions(1, 2);
@@ -317,6 +317,36 @@ BOOST_AUTO_TEST_CASE(same_weak_qc_claim_test_3) { try {
    core.next(qc_claim_t{.block_num = 8, .is_strong_qc = true });
    // new chain: 8 <-- 10, two-chain: 6 <-- 8 <-- 10
    core.check_conditions(6, 8);
+} FC_LOG_AND_RETHROW() }
+
+BOOST_AUTO_TEST_CASE(interwined_strong_and_weak_test) { try {
+   test_core core;
+   // current conditions of core:
+   // current_block_num() == 3,
+   // last_final_block_num() == 1,
+   // final_on_strong_qc_block_num == 2
+   // latest qc_claim == {"block_num":2,"is_strong_qc":true}
+   // new chain: 2 <-- 3
+
+   // weak QC claim on block 3, finality does not change
+   core.next(qc_claim_t{.block_num = 3, .is_strong_qc = false });
+   // new chain: 3 <--w 4 (w indicates weak)
+   core.check_conditions(1, 2);
+
+   // strong QC claim on block 4
+   core.next(qc_claim_t{.block_num = 4, .is_strong_qc = true });
+   // new chain: 4 <-- 5, , two-chain: 3 <--w 4 <-- 5
+   core.check_conditions(3, 4);
+
+   // weak QC claim on block 5, finality does not change
+   core.next(qc_claim_t{.block_num = 5, .is_strong_qc = false });
+   // new chain: 5 <--w 6
+   core.check_conditions(3, 4);
+
+   // strong QC claim on block 6
+   core.next(qc_claim_t{.block_num = 6, .is_strong_qc = true });
+   // new chain: 6 <-- 7, two-chain: 5 <--w 6 <-- 7
+   core.check_conditions(5, 6);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
