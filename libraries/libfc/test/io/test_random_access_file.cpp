@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE(long_write_sink) try {
 
       for(unsigned wrote = 0; wrote < target_file_size; ) {
          const unsigned to_write = std::min(target_file_size-wrote, write_stride);
-         char b[to_write];
+         char b[write_stride];
          fc::rand_bytes(b, sizeof(b));
 
          boost::iostreams::write(device, b, to_write);
