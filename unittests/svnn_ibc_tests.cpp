@@ -448,17 +448,28 @@ BOOST_AUTO_TEST_CASE(TODO_temp) {}
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       auto block_12_result = cluster.produce_block();
+
+      // block #12 contains our first joint policies QCs
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
    
+      BOOST_TEST(block_13_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the current finalizer policy is still in force up to this point    
       BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
       
       auto block_14_result = cluster.produce_block();
 
+      BOOST_TEST(block_14_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_15_result = cluster.produce_block();
+
+      BOOST_TEST(!block_15_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
