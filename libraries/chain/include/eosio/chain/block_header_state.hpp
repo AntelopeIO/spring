@@ -28,8 +28,9 @@ struct level_3_commitments_t {
 
 // commitments used in the context of finalizer policy transitions
 struct level_2_commitments_t {
-   digest_type last_pending_fin_pol_digest{};
-   digest_type l3_commitments_digest{};
+   digest_type     last_pending_fin_pol_digest{};
+   block_num_type  last_pending_fin_pol_start_num{0};
+   digest_type     l3_commitments_digest{};
 };
 
 // finality digest
@@ -110,6 +111,9 @@ struct block_header_state {
    // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
    digest_type                         last_pending_finalizer_policy_digest;
 
+   // tracks the block number at which the last pending finalizer policy first became pending
+   block_num_type                      last_pending_finalizer_policy_start_num {0};
+
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
 
@@ -172,6 +176,6 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (last_pending_finalizer_policy_digest))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(base_digest) )
-FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(l3_commitments_digest) )
+FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
 
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(l2_commitments_digest) )
