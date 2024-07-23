@@ -53,7 +53,6 @@ namespace eosio::chain {
    struct qc_sig_t {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
-      size_t vote_count() const;
 
       std::optional<vote_bitset> strong_votes;
       std::optional<vote_bitset> weak_votes;
