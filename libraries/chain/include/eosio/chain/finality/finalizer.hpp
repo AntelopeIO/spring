@@ -103,6 +103,12 @@ namespace eosio::chain {
          std::vector<vote_message_ptr> votes;
          votes.reserve(finalizers.size());
 
+         auto in_policy = [](const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
+            return std::ranges::any_of(finalizer_policy->finalizers, [&key](const finalizer_authority& fin_auth) {
+               return fin_auth.public_key == key;
+            });
+         };
+
          // Possible improvement in the future, look at locking only individual finalizers and releasing the lock for writing the file.
          // Would require making sure that only the latest is ever written to the file and that the file access was protected separately.
          std::unique_lock g(mtx);
@@ -110,20 +116,12 @@ namespace eosio::chain {
          // first accumulate all the votes
          // optimized for finalizers of size one which should be the normal configuration outside of tests
          for (auto& f : finalizers) {
-            auto it = std::ranges::find_if(bsp->active_finalizer_policy->finalizers, [&](const auto& fin) { return fin.public_key == f.first; });
-            if (it != bsp->active_finalizer_policy->finalizers.end()) {
+            if (in_policy(bsp->active_finalizer_policy, f.first)
+                || (bsp->pending_finalizer_policy && in_policy(bsp->pending_finalizer_policy->second, f.first))) {
+
                vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
                   votes.push_back(std::move(vote_msg));
-            } else if (bsp->pending_finalizer_policy) {
-               auto itr = std::ranges::find_if(bsp->pending_finalizer_policy->second->finalizers, [&](const auto& fin) { return fin.public_key == f.first; });
-               if (itr != bsp->pending_finalizer_policy->second->finalizers.end()) {
-                  if (std::ranges::find_if(votes, [&](const vote_message_ptr& vote_msg) { return vote_msg->finalizer_key == f.first; }) == votes.end()) {
-                     vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
-                     if (vote_msg)
-                        votes.push_back(std::move(vote_msg));
-                  }
-               }
             }
          }
 
