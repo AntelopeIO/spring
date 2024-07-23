@@ -271,8 +271,7 @@ std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
 
    // Both received_qc_sig and qc_sig_from_open have value. Compare them and select a better one.
    // Strong beats weak. Tie-break by received_qc_sig, strong beats weak
-   bool use_received_qc_sig = received_qc_sig->is_strong() || (received_qc_sig->is_weak() && qc_sig_from_open.is_weak());
-   if (use_received_qc_sig) {
+   if (received_qc_sig->is_strong() || qc_sig_from_open.is_weak()) {
       return std::optional{qc_sig_t{ *received_qc_sig }};
    }
    return std::optional{qc_sig_t{ std::move(qc_sig_from_open) }};
