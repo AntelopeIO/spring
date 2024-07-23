@@ -53,6 +53,7 @@ namespace eosio::chain {
    struct qc_sig_t {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
+      size_t vote_count() const;
 
       std::optional<vote_bitset> strong_votes;
       std::optional<vote_bitset> weak_votes;
@@ -72,10 +73,7 @@ namespace eosio::chain {
       bool is_strong() const {
          return active_policy_sig.is_strong() && (!pending_policy_sig || pending_policy_sig->is_strong());
       }
-
-      bool is_weak() const {
-         return active_policy_sig.is_weak() || (pending_policy_sig && pending_policy_sig->is_weak());
-      }
+      bool is_weak() const { return !is_strong(); }
 
       qc_claim_t to_qc_claim() const {
          return { .block_num = block_num, .is_strong_qc = is_strong() };
@@ -170,7 +168,8 @@ namespace eosio::chain {
       state_t state() const { std::lock_guard g(*_mtx); return pending_state; };
 
       std::optional<qc_sig_t> get_best_qc() const;
-      void set_received_qc_sig(const qc_sig_t& qc);
+      // return true if better qc
+      bool set_received_qc_sig(const qc_sig_t& qc);
       bool received_qc_sig_is_strong() const;
    private:
       friend struct fc::reflector<open_qc_sig_t>;
@@ -229,7 +228,8 @@ namespace eosio::chain {
       qc_vote_metrics_t vote_metrics(const qc_t& qc) const;
       // return qc missing vote's finalizers
       std::set<finalizer_authority_ptr> missing_votes(const qc_t& qc) const;
-      void set_received_qc(const qc_t& qc);
+      // return true if better qc
+      bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
       vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                  block_num_type block_num, std::span<const uint8_t> finalizer_digest);

@@ -111,8 +111,9 @@ public:
    uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
 
    std::optional<qc_t> get_best_qc() const { return open_qc.get_best_qc(block_num()); } // thread safe
-   bool valid_qc_is_strong() const { return open_qc.received_qc_is_strong(); } // thread safe
-   void set_valid_qc(const qc_t& qc) { open_qc.set_received_qc(qc); }
+   bool received_qc_is_strong() const { return open_qc.received_qc_is_strong(); } // thread safe
+   // return true if better qc, thread safe
+   bool set_received_qc(const qc_t& qc) { return open_qc.set_received_qc(qc); }
    // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 

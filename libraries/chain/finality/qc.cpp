@@ -21,6 +21,11 @@ inline std::vector<uint32_t> bitset_to_vector(const vote_bitset& bs) {
    return r;
 }
 
+size_t qc_sig_t::vote_count() const {
+   return (strong_votes ? strong_votes->count() : 0u) +
+          (weak_votes   ? weak_votes->count()   : 0u);
+}
+
 void qc_sig_t::verify(const finalizer_policy_ptr& fin_policy,
                       const digest_type& strong_digest,
                       const weak_digest_t& weak_digest) const {
@@ -277,9 +282,18 @@ std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
    return std::optional{qc_sig_t{ std::move(qc_sig_from_open) }};
 }
 
-void open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
+bool open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    std::lock_guard g(*_mtx);
-   received_qc_sig = qc;
+   const bool qc_is_better =
+      !received_qc_sig
+   || (received_qc_sig->is_weak() && qc.is_strong())
+   || received_qc_sig->vote_count() < qc.vote_count();
+
+   if (qc_is_better) {
+      received_qc_sig = qc;
+      return true;
+   }
+   return false;
 }
 
 bool open_qc_sig_t::received_qc_sig_is_strong() const {
@@ -322,12 +336,14 @@ void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, cons
    }
 }
 
-void open_qc_t::set_received_qc(const qc_t& qc) {
-   active_policy_sig.set_received_qc_sig(qc.active_policy_sig);
+bool open_qc_t::set_received_qc(const qc_t& qc) {
+   bool active_better = active_policy_sig.set_received_qc_sig(qc.active_policy_sig);
+   bool pending_better = false;
    if (qc.pending_policy_sig) {
       assert(pending_policy_sig);
-      pending_policy_sig->set_received_qc_sig(*qc.pending_policy_sig);
+      pending_better = pending_policy_sig->set_received_qc_sig(*qc.pending_policy_sig);
    }
+   return active_better || pending_better;
 }
 
 bool open_qc_t::received_qc_is_strong() const {
