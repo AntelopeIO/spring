@@ -141,8 +141,8 @@ namespace eosio::chain {
       };
 
       open_qc_sig_t();
-
-      explicit open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final);
+      open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final);
+      explicit open_qc_sig_t(const finalizer_policy_ptr& finalizer_policy);
 
       bool is_quorum_met() const;
       static bool is_quorum_met(state_t s) {
@@ -215,15 +215,10 @@ namespace eosio::chain {
                 const finalizer_policy_ptr& pending_finalizer_policy)
          : active_finalizer_policy(active_finalizer_policy)
          , pending_finalizer_policy(pending_finalizer_policy)
-         , active_policy_sig{open_qc_sig_t{active_finalizer_policy->finalizers.size(),
-                                              active_finalizer_policy->threshold,
-                                              active_finalizer_policy->max_weak_sum_before_weak_final()}}
+         , active_policy_sig{active_finalizer_policy}
          , pending_policy_sig{!pending_finalizer_policy
                                  ? std::optional<open_qc_sig_t>{}
-                                 : std::optional<open_qc_sig_t>{std::in_place,
-                                                                   pending_finalizer_policy->finalizers.size(),
-                                                                   pending_finalizer_policy->threshold,
-                                                                   pending_finalizer_policy->max_weak_sum_before_weak_final()}}
+                                 : std::optional<open_qc_sig_t>{pending_finalizer_policy}}
       {}
 
       open_qc_t() = default;

@@ -144,6 +144,12 @@ open_qc_sig_t::open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t ma
    , strong_votes(num_finalizers) {
 }
 
+open_qc_sig_t::open_qc_sig_t(const finalizer_policy_ptr& finalizer_policy)
+   : open_qc_sig_t(finalizer_policy->finalizers.size(),
+                   finalizer_policy->threshold,
+                   finalizer_policy->max_weak_sum_before_weak_final()) {
+}
+
 bool open_qc_sig_t::is_quorum_met() const {
    std::lock_guard g(*_mtx);
    return is_quorum_met_no_lock();
