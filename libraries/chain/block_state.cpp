@@ -78,6 +78,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.core = finality_core::create_core_for_genesis_block(genesis_block_ref);
 
    result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
+   result.last_pending_finalizer_policy_start_num = bsp.block_num();
    result.active_proposer_policy = std::make_shared<proposer_policy>();
    result.active_proposer_policy->active_time = bsp.timestamp();
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
@@ -150,7 +151,8 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
          .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
          .finalizer_policy_generation = sbs.finalizer_policy_generation,
-         .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest
+         .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest,
+         .last_pending_finalizer_policy_start_num = sbs.last_pending_finalizer_policy_start_num
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
