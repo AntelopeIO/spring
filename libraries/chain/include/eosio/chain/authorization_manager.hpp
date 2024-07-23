@@ -22,9 +22,9 @@ namespace eosio { namespace chain {
 
          explicit authorization_manager(controller& c, chainbase::database& d);
 
-         void add_indices();
+         static void add_indices(chainbase::database& db);
          void initialize_database();
-         void add_to_snapshot( const snapshot_writer_ptr& snapshot ) const;
+         static void add_to_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db );
          void read_from_snapshot( const snapshot_reader_ptr& snapshot );
 
          const permission_object& create_permission( account_name account,

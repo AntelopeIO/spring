@@ -336,7 +336,7 @@ namespace eosio::testing {
       }
 
       control.reset( new controller(cfg, std::move(pfs), *expected_chain_id) );
-      control->add_indices();
+      controller::add_indices(control->db());
       if (lambda) lambda();
       chain_transactions.clear();
       [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
@@ -1450,7 +1450,7 @@ namespace eosio::testing {
 
    unique_ptr<controller> validating_tester::create_validating_node(controller::config vcfg, const genesis_state& genesis, bool use_genesis, deep_mind_handler* dmlog) {
       unique_ptr<controller> validating_node = std::make_unique<controller>(vcfg, make_protocol_feature_set(), genesis.compute_chain_id());
-      validating_node->add_indices();
+      controller::add_indices(validating_node->db());
 
       if(dmlog)
       {

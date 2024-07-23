@@ -611,8 +611,8 @@ namespace eosio::chain {
 
 // ------------------ fork_database -------------------------
 
-   fork_database::fork_database(const std::filesystem::path& data_dir)
-      : data_dir(data_dir)
+   fork_database::fork_database(const std::filesystem::path& path)
+      : forkdb_path(path)
    {
    }
 
@@ -621,7 +621,6 @@ namespace eosio::chain {
    }
 
    void fork_database::close() {
-      auto fork_db_file {data_dir / config::forkdb_filename};
       bool legacy_valid  = fork_db_l.is_valid();
       bool savanna_valid = fork_db_s.is_valid();
 
@@ -637,8 +636,8 @@ namespace eosio::chain {
               (savanna_valid && (in_use_value == in_use_t::savanna)) ||
               (legacy_valid && savanna_valid && (in_use_value == in_use_t::both)) );
 
-      ilog("Persisting to fork_database file: ${f}", ("f", fork_db_file));
-      std::ofstream out( fork_db_file.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
+      ilog("Persisting to fork_database file: ${f}", ("f", forkdb_path));
+      std::ofstream out( forkdb_path.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
 
       fc::raw::pack( out, magic_number );
       fc::raw::pack( out, max_supported_version ); // write out current version which is always max_supported_version
@@ -658,16 +657,15 @@ namespace eosio::chain {
    }
 
    void fork_database::open( validator_t& validator ) {
-      if (!std::filesystem::is_directory(data_dir))
-         std::filesystem::create_directories(data_dir);
+      if (!std::filesystem::is_directory(forkdb_path.parent_path()))
+         std::filesystem::create_directories(forkdb_path.parent_path());
 
       assert(!fork_db_l.is_valid() && !fork_db_s.is_valid());
 
-      auto fork_db_file = data_dir / config::forkdb_filename;
-      if( std::filesystem::exists( fork_db_file ) ) {
+      if( std::filesystem::exists( forkdb_path ) ) {
          try {
             fc::cfile f;
-            f.set_file_path(fork_db_file);
+            f.set_file_path(forkdb_path);
             f.open("rb");
 
             fc::cfile_datastream ds(f);
@@ -677,7 +675,7 @@ namespace eosio::chain {
             fc::raw::unpack( ds, totem );
             EOS_ASSERT( totem == magic_number, fork_database_exception,
                         "Fork database file '${filename}' has unexpected magic number: ${actual_totem}. Expected ${t}",
-                        ("filename", fork_db_file)("actual_totem", totem)("t", magic_number));
+                        ("filename", forkdb_path)("actual_totem", totem)("t", magic_number));
 
             uint32_t version = 0;
             fc::raw::unpack( ds, version );
@@ -685,14 +683,14 @@ namespace eosio::chain {
                         fork_database_exception,
                        "Unsupported version of fork database file '${filename}'. "
                        "Fork database version is ${version} while code supports version(s) [${min},${max}]",
-                       ("filename", fork_db_file)("version", version)("min", min_supported_version)("max", max_supported_version));
+                       ("filename", forkdb_path)("version", version)("min", min_supported_version)("max", max_supported_version));
 
             switch(version) {
             case 1:
             {
                // ---------- pre-Savanna format. Just a single fork_database_l ----------------
                in_use = in_use_t::legacy;
-               fork_db_l.open("legacy", fork_db_file, ds, validator);
+               fork_db_l.open("legacy", forkdb_path, ds, validator);
                break;
             }
 
@@ -706,13 +704,13 @@ namespace eosio::chain {
                bool legacy_valid { false };
                fc::raw::unpack( ds, legacy_valid );
                if (legacy_valid) {
-                  fork_db_l.open("legacy", fork_db_file, ds, validator);
+                  fork_db_l.open("legacy", forkdb_path, ds, validator);
                }
 
                bool savanna_valid { false };
                fc::raw::unpack( ds, savanna_valid );
                if (savanna_valid) {
-                  fork_db_s.open("savanna", fork_db_file, ds, validator);
+                  fork_db_s.open("savanna", forkdb_path, ds, validator);
                }
                break;
             }
@@ -721,8 +719,8 @@ namespace eosio::chain {
                assert(0);
                break;
             }
-         } FC_CAPTURE_AND_RETHROW( (fork_db_file) );
-         std::filesystem::remove( fork_db_file );
+         } FC_CAPTURE_AND_RETHROW( (forkdb_path) );
+         std::filesystem::remove( forkdb_path );
       }
    }
 

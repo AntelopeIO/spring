@@ -13,5 +13,7 @@ endif()
 
 target_link_libraries( chain_plugin eosio_chain custom_appbase appbase resource_monitor_plugin Boost::bimap )
 target_include_directories( chain_plugin PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_SOURCE_DIR}/../chain_interface/include" "${CMAKE_CURRENT_SOURCE_DIR}/../../libraries/appbase/include" "${CMAKE_CURRENT_SOURCE_DIR}/../resource_monitor_plugin/include")
+add_dependencies( chain_plugin snapshotter)
+set_source_files_properties(chain_plugin.cpp PROPERTIES COMPILE_FLAGS "-Wa,-I$<TARGET_FILE_DIR:snapshotter>")
 
 add_subdirectory( test )

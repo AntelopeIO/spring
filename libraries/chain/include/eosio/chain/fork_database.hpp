@@ -156,13 +156,13 @@ namespace eosio::chain {
    private:
       static constexpr uint32_t magic_number = 0x30510FDB;
 
-      const std::filesystem::path data_dir;
+      const std::filesystem::path forkdb_path;
       std::atomic<in_use_t>  in_use = in_use_t::legacy;
       fork_database_legacy_t fork_db_l; // legacy
       fork_database_if_t     fork_db_s; // savanna
 
    public:
-      explicit fork_database(const std::filesystem::path& data_dir);
+      explicit fork_database(const std::filesystem::path& path);
       ~fork_database(); // close on destruction
 
       // not thread safe, expected to be called from main thread before allowing concurrent access

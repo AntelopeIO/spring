@@ -69,9 +69,9 @@ namespace eosio { namespace chain {
          {
          }
 
-         void add_indices();
+         static void add_indices(chainbase::database& db);
          void initialize_database();
-         void add_to_snapshot( const snapshot_writer_ptr& snapshot ) const;
+         static void add_to_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db );
          void read_from_snapshot( const snapshot_reader_ptr& snapshot );
 
          void initialize_account( const account_name& account, bool is_trx_transient );

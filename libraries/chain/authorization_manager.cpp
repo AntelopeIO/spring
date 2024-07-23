@@ -24,8 +24,8 @@ namespace eosio { namespace chain {
    authorization_manager::authorization_manager(controller& c, database& d)
    :_control(c),_db(d){}
 
-   void authorization_manager::add_indices() {
-      authorization_index_set::add_indices(_db);
+   void authorization_manager::add_indices(chainbase::database& db) {
+      authorization_index_set::add_indices(db);
    }
 
    void authorization_manager::initialize_database() {
@@ -93,8 +93,8 @@ namespace eosio { namespace chain {
       };
    }
 
-   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      authorization_index_set::walk_indices([this, &snapshot]( auto utils ){
+   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot, chainbase::database& db ) {
+      authorization_index_set::walk_indices([&db, &snapshot]( auto utils ){
          using section_t = typename decltype(utils)::index_t::value_type;
 
          // skip the permission_usage_index as its inlined with permission_index
@@ -102,9 +102,9 @@ namespace eosio { namespace chain {
             return;
          }
 
-         snapshot->write_section<section_t>([this]( auto& section ){
-            decltype(utils)::walk(_db, [this, &section]( const auto &row ) {
-               section.add_row(row, _db);
+         snapshot->write_section<section_t>([&db]( auto& section ){
+            decltype(utils)::walk(db, [&db, &section]( const auto &row ) {
+               section.add_row(row, db);
             });
          });
       });

@@ -822,7 +822,7 @@ namespace eosio::testing {
 
         validating_node.reset();
         validating_node = std::make_unique<controller>(vcfg, make_protocol_feature_set(), control->get_chain_id());
-        validating_node->add_indices();
+        controller::add_indices(validating_node->db());
         validating_node->startup( [](){}, []() { return false; } );
 
         return ok;
