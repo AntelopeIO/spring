@@ -200,9 +200,14 @@ namespace eosio::chain {
 
    // finalizer authority of strong, weak, or missing votes
    struct qc_vote_metrics_t {
-      std::set<finalizer_authority_ptr> strong_votes;
-      std::set<finalizer_authority_ptr> weak_votes;
-      std::set<finalizer_authority_ptr> missing_votes;
+      static bool fin_auth_less(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) {
+         return lhs->public_key < rhs->public_key;
+      };
+      using fin_auth_set = std::set<finalizer_authority_ptr, decltype(&fin_auth_less)>;
+
+      fin_auth_set strong_votes;
+      fin_auth_set weak_votes;
+      fin_auth_set missing_votes;
    };
 
    /**
@@ -227,7 +232,7 @@ namespace eosio::chain {
       void verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
       qc_vote_metrics_t vote_metrics(const qc_t& qc) const;
       // return qc missing vote's finalizers
-      std::set<finalizer_authority_ptr> missing_votes(const qc_t& qc) const;
+      qc_vote_metrics_t::fin_auth_set missing_votes(const qc_t& qc) const;
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;

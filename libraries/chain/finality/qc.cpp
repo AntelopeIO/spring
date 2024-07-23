@@ -443,7 +443,7 @@ bool open_qc_t::is_quorum_met() const {
 qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
    qc_vote_metrics_t result;
 
-   auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, std::set<finalizer_authority_ptr>& results) {
+   auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, qc_vote_metrics_t::fin_auth_set& results) {
       assert(votes.size() == finalizer_policy->finalizers.size());
       size_t added = 0;
       for (size_t i = 0; i < votes.size(); ++i) {
@@ -485,9 +485,9 @@ qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
    return result;
 }
 
-std::set<finalizer_authority_ptr> open_qc_t::missing_votes(const qc_t& qc) const {
+qc_vote_metrics_t::fin_auth_set open_qc_t::missing_votes(const qc_t& qc) const {
    // all asserts are verified by verify_qc()
-   std::set<finalizer_authority_ptr> not_voted;
+   qc_vote_metrics_t::fin_auth_set not_voted;
 
    auto check_other = [](const auto& other_votes, size_t i) {
       return other_votes && (*other_votes)[i];

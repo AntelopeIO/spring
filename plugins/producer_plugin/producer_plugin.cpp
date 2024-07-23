@@ -629,7 +629,7 @@ public:
    }
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const std::set<finalizer_authority_ptr>& missing_votes) {
+                          const qc_vote_metrics_t::fin_auth_set& missing_votes) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
