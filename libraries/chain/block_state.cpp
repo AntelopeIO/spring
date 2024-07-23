@@ -105,7 +105,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    valid_t::finality_leaf_node_t leaf_node {
       .block_num        = bsp.block_num(),
       .timestamp        = bsp.timestamp(),
-      .parent_timestamp = block_timestamp_type(), // for genesis block, the parent_timestamp is the the earliest representable timestamp.
+      .parent_timestamp = block_timestamp_type(), // for the genesis block, the parent_timestamp is the the earliest representable timestamp.
       .finality_digest  = result.strong_digest,
       .action_mroot     = *bsp.action_mroot_savanna
    };
@@ -113,7 +113,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    incremental_merkle_tree validation_tree;
    validation_tree.append(fc::sha256::hash(leaf_node));
    result.valid = valid_t {
-      .validation_tree   = std::move(validation_tree),
+      .validation_tree   = validation_tree,
       .validation_mroots = { validation_tree.get_root() }
    };
 
