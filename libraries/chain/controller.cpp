@@ -3754,7 +3754,7 @@ struct controller_impl {
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<finality_extension> prev_header_ext = prev.header_extension<finality_extension>();
+      const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
       std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
@@ -3769,7 +3769,7 @@ struct controller_impl {
                      "Block #${b} includes a QC block extension, but doesn't have a finality header extension",
                      ("b", block_num) );
 
-         EOS_ASSERT( !prev_header_ext,
+         EOS_ASSERT( !prev_finality_ext,
                      invalid_qc_claim,
                      "Block #${b} doesn't have a finality header extension even though its predecessor does.",
                      ("b", block_num) );
@@ -3784,7 +3784,7 @@ struct controller_impl {
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
       // of the current block’s number and that it is a claim of a weak QC. Then return early.
       // -------------------------------------------------------------------------------------------------
-      if (!prev_header_ext) {
+      if (!prev_finality_ext) {
          EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
                      invalid_qc_claim,
                      "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
@@ -3795,10 +3795,9 @@ struct controller_impl {
       // at this point both current block and its parent have IF extensions, and we are past the
       // IF transition block
       // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_header_ext);
+      assert(header_ext && prev_finality_ext);
 
-      const auto& prev_f_ext    = *prev_header_ext;
-      const auto  prev_qc_claim = prev_f_ext.qc_claim;
+      const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
 
