@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
       bsp->strong_digest = strong_digest;
       bsp->weak_digest = weak_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, {} };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
 
       for (size_t i = 0; i < num_finalizers; ++i) {
          bool strong = (i % 2 == 0); // alternate strong and weak
@@ -71,7 +71,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 10, 15, pending_finalizers ) };
       bsp->strong_digest = strong_digest;
       bsp->weak_digest = weak_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
 
       for (size_t i = 0; i < num_finalizers; ++i) {
          bool strong = (i % 2 == 0); // alternate strong and weak
@@ -94,7 +94,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, {} };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, active_public_keys[0], active_private_keys[1].sign(strong_digest.to_uint8_span()) };
       BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_result_t::success);
@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, {} };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, active_public_keys[0], active_private_keys[0].sign(strong_digest.to_uint8_span()) };
       BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
@@ -115,7 +115,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
       bsp->strong_digest = strong_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, {} };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
 
       bls_private_key new_private_key{ "PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK" };
       bls_public_key new_public_key{ new_private_key.get_public_key() };
@@ -129,7 +129,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
       bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 10, 15, pending_finalizers ) };
       bsp->strong_digest = strong_digest;
-      bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+      bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
 
       bls_private_key new_private_key{ "PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK" };
       bls_public_key new_public_key{ new_private_key.get_public_key() };
@@ -187,7 +187,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
    }
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
-   bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy ? bsp->pending_finalizer_policy->second : finalizer_policy_ptr{} };
+   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy ? bsp->pending_finalizer_policy->second : finalizer_policy_ptr{} };
 
    for (size_t i = 0; i < num_finalizers; ++i) {
       if( to_vote.at(i) ) {
@@ -207,7 +207,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
       }
    }
 
-   BOOST_REQUIRE_EQUAL(bsp->in_progress_qc.is_quorum_met(), expected_quorum);
+   BOOST_REQUIRE_EQUAL(bsp->aggregating_qc.is_quorum_met(), expected_quorum);
 }
 
 BOOST_AUTO_TEST_CASE(quorum_test) try {
@@ -334,7 +334,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
-   bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, {} };
+   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
@@ -596,7 +596,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
    bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation, threshold, pending_finalizers ) };
-   bsp->in_progress_qc = in_progress_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 

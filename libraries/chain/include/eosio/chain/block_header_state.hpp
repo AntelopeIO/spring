@@ -111,7 +111,9 @@ struct block_header_state {
    // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
    digest_type                         last_pending_finalizer_policy_digest;
 
-   // tracks the block number at which the last pending finalizer policy first became pending
+   // Block number at which the last pending finalizer policy first was promoted to pending.
+   // If the last pending finalizer policy is the current active finalizer policy, then it is the block number at which
+   // that active finalizer policy first was promoted to pending. Savanna genesis block it is the genesis block number.
    block_num_type                      last_pending_finalizer_policy_start_num {0};
 
    // ------ data members caching information available elsewhere ----------------------
