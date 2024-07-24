@@ -27,6 +27,7 @@ namespace finality_proof {
       digest_type level_2_commitments_digest;
       digest_type finality_leaf;
       digest_type finality_root;
+      block_timestamp_type parent_timestamp;
    };
 
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
@@ -139,8 +140,8 @@ namespace finality_proof {
       finalizer_policy active_finalizer_policy;
       digest_type active_finalizer_policy_digest;
 
-      block_timestamp_type parent_timestamp{};
-      block_timestamp_type timestamp{};
+      block_timestamp_type parent_timestamp = block_timestamp_type();
+      block_timestamp_type timestamp;
 
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
@@ -237,20 +238,18 @@ namespace finality_proof {
             .l2_commitments_digest                   = level_2_commitments_digest
          });
 
+         std::cout << "block " << block->block_num() << " timestamp " << timestamp.slot << " " << timestamp.to_time_point().to_iso_string() << "\n";
+         std::cout << "block " << block->block_num() << " parent_timestamp " << parent_timestamp.slot << " " << parent_timestamp.to_time_point().to_iso_string() << "\n";
+
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
             .block_num = block->block_num(),
-/*            .timestamp = timestamp,
-            .parent_timestamp = parent_timestamp,*/
+            .timestamp = timestamp,
+            .parent_timestamp = parent_timestamp,
             .finality_digest = finality_digest,
             .action_mroot = action_mroot
          });
 
-/*         auto ts = fc::raw::pack(timestamp);
-         auto pts = fc::raw::pack(parent_timestamp);
-
-         std::cout << "block_num -> " <<  block->block_num() << " parent_timestamp : " << parent_timestamp << "), timestamp : " << timestamp <<  "\n";
-*/
          // add finality leaf to the internal list
          finality_leaves.push_back(finality_leaf);
 
@@ -260,7 +259,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, level_3_commitments_digest, level_2_commitments_digest, finality_leaf, finality_root };
+         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, level_3_commitments_digest, level_2_commitments_digest, finality_leaf, finality_root, parent_timestamp };
 
       }
 
