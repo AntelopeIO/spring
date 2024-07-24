@@ -3973,14 +3973,13 @@ struct controller_impl {
       }
 
       // Don't save the QC from block extension if the claimed block has a better or same received_qc
-      if (!claimed->set_received_qc(received_qc)) {
+      if (claimed->set_received_qc(received_qc)) {
+         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
+      } else {
          dlog("qc not better, claimed->received: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
               ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
-         return;
       }
-
-      dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
 
       if( received_qc.is_strong() ) {
          // Update finalizer safety information based on vote evidence
