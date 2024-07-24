@@ -264,10 +264,10 @@ namespace savanna_cluster {
       void verify_lib_advances() {
          auto lib = _nodes[0].lib_block->block_num();
          size_t tries = 0;
-         while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
+         while (_nodes[0].lib_block->block_num() <= (lib + eosio::testing::num_chains_to_final) && ++tries < 10) {
             _nodes[0].produce_block();
          }
-         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
+         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + eosio::testing::num_chains_to_final);
       }
 
       void push_block(size_t dst_idx, const signed_block_ptr& sb) {

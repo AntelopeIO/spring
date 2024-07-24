@@ -2,6 +2,7 @@
 #include <eosio/chain/block_header_state.hpp>
 
 using namespace eosio::chain;
+using namespace eosio::testing;
 
 // Function to be tested. Implemented in block_header_state.cpp`
 namespace eosio::chain {
@@ -366,15 +367,15 @@ BOOST_FIXTURE_TEST_CASE(finalizer_policies_change_edge_case_strong_qc_test, fina
    key_indices[0] = 2;
    auto policy_c_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
 
-   // We did produce_and_push_block() after proposing Policy B; need 5 more rounds
-   // of strong QC to make two 3-chains for Policy B to be activated.
-   for (size_t i=0; i<5; ++i) {
+   // We did produce_and_push_block() after proposing Policy B; need `2*num_chains_to_final - 1`
+   // more rounds of strong QC to make two 2-chains for Policy B to be activated.
+   for (size_t i=0; i<(2*num_chains_to_final - 1); ++i) {
       produce_and_push_block();
       process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
       node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
    }
 
-   // we just completed the two 3-chains, so the next block we produce will have
+   // we just completed the two 2-chains, so the next block we produce will have
    // Policy B activated
    produce_and_push_block();
    node0.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
@@ -418,29 +419,27 @@ BOOST_FIXTURE_TEST_CASE(finalizer_policies_change_edge_case_weak_qc_test, finali
    key_indices[0] = 2;
    auto policy_c_pubkeys = node0.finkeys.set_finalizer_policy(key_indices).pubkeys;
 
-   // Produce 4 rounds; all the votes are strong votes.
-   for (size_t i=0; i<4; ++i) {
+   // Require 2*num_chains_to_final rounds for a policy to become active;
+   // reserve 2 rounds below. That's why produce (2*num_chains_to_final - 2) first.
+   for (size_t i=0; i<(2*num_chains_to_final - 2); ++i) {
       produce_and_push_block();
       process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
       node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
    }
 
    produce_and_push_block();
-   // node1 votes strong
-   process_vote(node1_index);
-   // node2 votes weak
+   // make a weak QC
+   process_vote(node1_index); // node1 votes strong
    process_vote(node2_index, (size_t)-1 /*not used*/, vote_mode::weak); // node2 votes weak
    // active policy should still stay at Policy A as LIB has not advanced due to weak vote
    node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0);
 
-   // produce 2 rounds of strong QC blocks
-   for (size_t i=0; i<2; ++i) {
-      produce_and_push_block();
-      process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
-      node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
-   }
+   // produce 1 round of strong QC block
+   produce_and_push_block();
+   process_votes(node1_index, num_nodes - 1); // all non-producing nodes vote strong
+   node0.check_head_finalizer_policy(policy_a_generation, fin_policy_pubkeys_0); // original policy still active
 
-   // Now a weak-strong-strong chain is formed. LIB advances. Policy B becomes active.
+   // Now a weak-strong chain is formed. LIB advances. Policy B becomes active.
    produce_and_push_block();
    node0.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
    node1.check_head_finalizer_policy(policy_b_generation, policy_b_pubkeys);
