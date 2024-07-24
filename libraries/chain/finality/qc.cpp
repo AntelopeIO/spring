@@ -96,18 +96,11 @@ void qc_sig_t::verify(const finalizer_policy_ptr& fin_policy,
 
 }
 
-bool open_qc_sig_t::has_voted(size_t index) const {
+bool in_progess_qc_sig_t::has_voted(size_t index) const {
    return strong_votes.has_voted(index) || weak_votes.has_voted(index);
 }
 
-bool open_qc_sig_t::has_voted(bool strong, size_t index) const {
-   if (strong) {
-      return strong_votes.has_voted(index);
-   }
-   return weak_votes.has_voted(index);
-}
-
-void open_qc_sig_t::votes_t::reflector_init() {
+void in_progess_qc_sig_t::votes_t::reflector_init() {
    processed = std::vector<bit_processed>(bitset.size());
    for (size_t i = 0; i < bitset.size(); ++i) {
       if (bitset[i]) {
@@ -116,27 +109,23 @@ void open_qc_sig_t::votes_t::reflector_init() {
    }
 }
 
-bool open_qc_sig_t::votes_t::has_voted(size_t index) const {
+bool in_progess_qc_sig_t::votes_t::has_voted(size_t index) const {
    assert(index < processed.size());
    return processed[index].value.load(std::memory_order_relaxed);
 }
 
 
-vote_result_t open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
-   if (bitset[index]) { // check here as could have come in while unlocked
-      return vote_result_t::duplicate; // shouldn't be already present
-   }
+void in_progess_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
    processed[index].value.store(true, std::memory_order_relaxed);
    bitset.set(index);
    sig.aggregate(signature); // works even if _sig is default initialized (fp2::zero())
-   return vote_result_t::success;
 }
 
-open_qc_sig_t::open_qc_sig_t()
+in_progess_qc_sig_t::in_progess_qc_sig_t()
    : _mtx(std::make_unique<std::mutex>()) {
 }
 
-open_qc_sig_t::open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final)
+in_progess_qc_sig_t::in_progess_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final)
    : _mtx(std::make_unique<std::mutex>())
    , quorum(quorum)
    , max_weak_sum_before_weak_final(max_weak_sum_before_weak_final)
@@ -144,22 +133,27 @@ open_qc_sig_t::open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t ma
    , strong_votes(num_finalizers) {
 }
 
-open_qc_sig_t::open_qc_sig_t(const finalizer_policy_ptr& finalizer_policy)
-   : open_qc_sig_t(finalizer_policy->finalizers.size(),
-                   finalizer_policy->threshold,
-                   finalizer_policy->max_weak_sum_before_weak_final()) {
+in_progess_qc_sig_t::in_progess_qc_sig_t(const finalizer_policy_ptr& finalizer_policy)
+   : in_progess_qc_sig_t(finalizer_policy->finalizers.size(),
+                         finalizer_policy->threshold,
+                         finalizer_policy->max_weak_sum_before_weak_final()) {
 }
 
-bool open_qc_sig_t::is_quorum_met() const {
+bool in_progess_qc_sig_t::is_quorum_met() const {
    std::lock_guard g(*_mtx);
    return is_quorum_met_no_lock();
 }
 
+// called with held mutex
+vote_result_t in_progess_qc_sig_t::check_duplicate(size_t index) {
+   if (strong_votes.bitset[index] || weak_votes.bitset[index])
+      return vote_result_t::duplicate;
+   return vote_result_t::success;
+}
+
 // called by add_vote, already protected by mutex
-vote_result_t open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = strong_votes.add_vote(index, sig); s != vote_result_t::success) {
-      return s;
-   }
+vote_result_t in_progess_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+   strong_votes.add_vote(index, sig);
    strong_sum += weight;
 
    switch (pending_state) {
@@ -186,9 +180,8 @@ vote_result_t open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& 
 }
 
 // called by add_vote, already protected by mutex
-vote_result_t open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = weak_votes.add_vote(index, sig); s != vote_result_t::success)
-      return s;
+vote_result_t in_progess_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+   weak_votes.add_vote(index, sig);
    weak_sum += weight;
 
    switch (pending_state) {
@@ -219,13 +212,18 @@ vote_result_t open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& si
 }
 
 // thread safe
-vote_result_t open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
+vote_result_t in_progess_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
                                       bool strong, size_t index,
                                       const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
    state_t pre_state = pending_state;
-   vote_result_t s = strong ? add_strong_vote(index, sig, weight)
-                          : add_weak_vote(index, sig, weight);
+   vote_result_t s = check_duplicate(index);
+   if (s == vote_result_t::success) {
+      if (strong)
+         s = add_strong_vote(index, sig, weight);
+      else
+         s = add_weak_vote(index, sig, weight);
+   }
    state_t post_state = pending_state;
    g.unlock();
 
@@ -235,7 +233,7 @@ vote_result_t open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type blo
 }
 
 // called by get_best_qc which acquires a mutex
-qc_sig_t open_qc_sig_t::extract_qc_sig_from_open() const {
+qc_sig_t in_progess_qc_sig_t::extract_qc_sig_from_open() const {
    qc_sig_t qc_sig;
 
    if( pending_state == state_t::strong ) {
@@ -252,7 +250,7 @@ qc_sig_t open_qc_sig_t::extract_qc_sig_from_open() const {
    return qc_sig;
 }
 
-std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
+std::optional<qc_sig_t> in_progess_qc_sig_t::get_best_qc() const {
    std::lock_guard g(*_mtx);
    // if this does not have a valid QC, consider received_qc_sig only
    if( !is_quorum_met_no_lock() ) {
@@ -277,7 +275,7 @@ std::optional<qc_sig_t> open_qc_sig_t::get_best_qc() const {
    return std::optional{qc_sig_t{ std::move(qc_sig_from_open) }};
 }
 
-bool open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
+bool in_progess_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    std::lock_guard g(*_mtx);
    if (!received_qc_sig || (received_qc_sig->is_weak() && qc.is_strong())) {
       received_qc_sig = qc;
@@ -286,16 +284,16 @@ bool open_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    return false;
 }
 
-bool open_qc_sig_t::received_qc_sig_is_strong() const {
+bool in_progess_qc_sig_t::received_qc_sig_is_strong() const {
    std::lock_guard g(*_mtx);
    return received_qc_sig && received_qc_sig->is_strong();
 }
 
-bool open_qc_sig_t::is_quorum_met_no_lock() const {
+bool in_progess_qc_sig_t::is_quorum_met_no_lock() const {
    return is_quorum_met(pending_state);
 }
 
-std::optional<qc_t> open_qc_t::get_best_qc(block_num_type block_num) const {
+std::optional<qc_t> in_progress_qc_t::get_best_qc(block_num_type block_num) const {
    std::optional<qc_sig_t> active_best_qc = active_policy_sig.get_best_qc();
    if (!active_best_qc) // active is always required
       return {};
@@ -311,7 +309,7 @@ std::optional<qc_t> open_qc_t::get_best_qc(block_num_type block_num) const {
    return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
 }
 
-void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
+void in_progress_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
    if (qc.pending_policy_sig) {
       EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
                  "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
@@ -326,7 +324,7 @@ void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, cons
    }
 }
 
-bool open_qc_t::set_received_qc(const qc_t& qc) {
+bool in_progress_qc_t::set_received_qc(const qc_t& qc) {
    // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
    EOS_ASSERT(!pending_policy_sig || qc.pending_policy_sig, invalid_qc_claim,
               "qc ${bn} expected to have a pending policy signature", ("bn", qc.block_num));
@@ -338,14 +336,14 @@ bool open_qc_t::set_received_qc(const qc_t& qc) {
    return active_better || pending_better;
 }
 
-bool open_qc_t::received_qc_is_strong() const {
+bool in_progress_qc_t::received_qc_is_strong() const {
    if (!pending_policy_sig) { // consider only active
       return active_policy_sig.received_qc_sig_is_strong();
    }
    return active_policy_sig.received_qc_sig_is_strong() && pending_policy_sig->received_qc_sig_is_strong();
 }
 
-vote_result_t open_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
+vote_result_t in_progress_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                       block_num_type block_num, std::span<const uint8_t> finalizer_digest)
 {
    bool verified_sig = false;
@@ -359,13 +357,13 @@ vote_result_t open_qc_t::aggregate_vote(uint32_t connection_id, const vote_messa
       return vote_result_t::success;
    };
 
-   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, open_qc_sig_t& open_qc_sig) -> vote_result_t {
+   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, in_progess_qc_sig_t& open_qc_sig) -> vote_result_t {
       const auto& finalizers = finalizer_policy->finalizers;
       auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
       vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), itr);
-         if (open_qc_sig.has_voted(vote.strong, index)) {
+         if (open_qc_sig.has_voted(index)) {
             fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
             return vote_result_t::duplicate;
          }
@@ -399,9 +397,9 @@ vote_result_t open_qc_t::aggregate_vote(uint32_t connection_id, const vote_messa
    return s;
 }
 
-vote_status_t open_qc_t::has_voted(const bls_public_key& key) const {
+vote_status_t in_progress_qc_t::has_voted(const bls_public_key& key) const {
    auto finalizer_has_voted = [](const finalizer_policy_ptr& policy,
-                                 const open_qc_sig_t& open_qc_sig,
+                                 const in_progess_qc_sig_t& open_qc_sig,
                                  const bls_public_key& key) -> vote_status_t {
       const auto& finalizers = policy->finalizers;
       auto it = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == key; });
@@ -427,11 +425,11 @@ vote_status_t open_qc_t::has_voted(const bls_public_key& key) const {
    return pending_status;
 }
 
-bool open_qc_t::is_quorum_met() const {
+bool in_progress_qc_t::is_quorum_met() const {
    return active_policy_sig.is_quorum_met() && (!pending_policy_sig || pending_policy_sig->is_quorum_met());
 }
 
-qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
+qc_vote_metrics_t in_progress_qc_t::vote_metrics(const qc_t& qc) const {
    qc_vote_metrics_t result;
 
    auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, qc_vote_metrics_t::fin_auth_set_t& results) {
@@ -476,7 +474,7 @@ qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
    return result;
 }
 
-qc_vote_metrics_t::fin_auth_set_t open_qc_t::missing_votes(const qc_t& qc) const {
+qc_vote_metrics_t::fin_auth_set_t in_progress_qc_t::missing_votes(const qc_t& qc) const {
    // all asserts are verified by verify_qc()
    qc_vote_metrics_t::fin_auth_set_t not_voted;
 

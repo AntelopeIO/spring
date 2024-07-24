@@ -90,9 +90,9 @@ namespace eosio::chain {
    /**
     * All public methods are thread-safe.
     * Used for incorporating votes into a qc signature.
-    * "open" in that it allows new votes to be added at any time.
+    * "in progress" in that it allows new votes to be added at any time.
     */
-   class open_qc_sig_t {
+   class in_progess_qc_sig_t {
    public:
       enum class state_t {
          unrestricted,  // No quorum reached yet, still possible to achieve any state.
@@ -107,7 +107,7 @@ namespace eosio::chain {
          friend struct fc::reflector<votes_t>;
          friend struct fc::reflector_init_visitor<votes_t>;
          friend struct fc::has_reflector_init<votes_t>;
-         friend class open_qc_sig_t;
+         friend class in_progess_qc_sig_t;
          struct bit_processed {
             alignas(hardware_destructive_interference_size)
             std::atomic<bool> value;
@@ -126,7 +126,7 @@ namespace eosio::chain {
          // thread safe
          bool has_voted(size_t index) const;
 
-         vote_result_t add_vote(size_t index, const bls_signature& sig);
+         void add_vote(size_t index, const bls_signature& sig);
 
          template<class CB>
          void visit_bitset(const CB& cb) const {
@@ -137,9 +137,9 @@ namespace eosio::chain {
          }
       };
 
-      open_qc_sig_t();
-      open_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final);
-      explicit open_qc_sig_t(const finalizer_policy_ptr& finalizer_policy);
+      in_progess_qc_sig_t();
+      in_progess_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final);
+      explicit in_progess_qc_sig_t(const finalizer_policy_ptr& finalizer_policy);
 
       bool is_quorum_met() const;
       static bool is_quorum_met(state_t s) {
@@ -154,7 +154,6 @@ namespace eosio::chain {
                              uint64_t weight);
 
       bool has_voted(size_t index) const;
-      bool has_voted(bool strong, size_t index) const;
 
       // for debugging, thread safe
       template<class CB>
@@ -171,7 +170,7 @@ namespace eosio::chain {
       bool set_received_qc_sig(const qc_sig_t& qc);
       bool received_qc_sig_is_strong() const;
    private:
-      friend struct fc::reflector<open_qc_sig_t>;
+      friend struct fc::reflector<in_progess_qc_sig_t>;
       friend class qc_chain;
       std::unique_ptr<std::mutex> _mtx;
       std::optional<qc_sig_t>     received_qc_sig; // best qc_t received from the network inside block extension
@@ -183,9 +182,10 @@ namespace eosio::chain {
       votes_t                     weak_votes {0};
       votes_t                     strong_votes {0};
 
+      // called with mutex held
+      vote_result_t check_duplicate(size_t index);
       // called by add_vote, already protected by mutex
       vote_result_t add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight);
-
       // called by add_vote, already protected by mutex
       vote_result_t add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight);
 
@@ -210,19 +210,19 @@ namespace eosio::chain {
    /**
     * All public methods are thread-safe, pending_policy_sig optional set at construction time.
     */
-   class open_qc_t {
+   class in_progress_qc_t {
    public:
-      open_qc_t(const finalizer_policy_ptr& active_finalizer_policy,
-                const finalizer_policy_ptr& pending_finalizer_policy)
+      in_progress_qc_t(const finalizer_policy_ptr& active_finalizer_policy,
+                       const finalizer_policy_ptr& pending_finalizer_policy)
          : active_finalizer_policy(active_finalizer_policy)
          , pending_finalizer_policy(pending_finalizer_policy)
          , active_policy_sig{active_finalizer_policy}
          , pending_policy_sig{!pending_finalizer_policy
-                                 ? std::optional<open_qc_sig_t>{}
-                                 : std::optional<open_qc_sig_t>{pending_finalizer_policy}}
+                                 ? std::optional<in_progess_qc_sig_t>{}
+                                 : std::optional<in_progess_qc_sig_t>{pending_finalizer_policy}}
       {}
 
-      open_qc_t() = default;
+      in_progress_qc_t() = default;
 
       std::optional<qc_t> get_best_qc(block_num_type block_num) const;
       // verify qc against active and pending policy
@@ -239,11 +239,11 @@ namespace eosio::chain {
       bool is_quorum_met() const;
 
    private:
-      friend struct fc::reflector<open_qc_t>;
-      finalizer_policy_ptr         active_finalizer_policy;  // not modified after construction
-      finalizer_policy_ptr         pending_finalizer_policy; // not modified after construction
-      open_qc_sig_t                active_policy_sig;
-      std::optional<open_qc_sig_t> pending_policy_sig;
+      friend struct fc::reflector<in_progress_qc_t>;
+      finalizer_policy_ptr               active_finalizer_policy;  // not modified after construction
+      finalizer_policy_ptr               pending_finalizer_policy; // not modified after construction
+      in_progess_qc_sig_t                active_policy_sig;
+      std::optional<in_progess_qc_sig_t> pending_policy_sig;
    };
 
 } //eosio::chain
@@ -251,8 +251,8 @@ namespace eosio::chain {
 
 FC_REFLECT_ENUM(eosio::chain::vote_result_t, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
 FC_REFLECT(eosio::chain::qc_sig_t, (strong_votes)(weak_votes)(sig));
-FC_REFLECT(eosio::chain::open_qc_sig_t, (received_qc_sig)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
-FC_REFLECT(eosio::chain::open_qc_t, (active_finalizer_policy)(pending_finalizer_policy)(active_policy_sig)(pending_policy_sig));
-FC_REFLECT_ENUM(eosio::chain::open_qc_sig_t::state_t, (unrestricted)(restricted)(weak_achieved)(weak_final)(strong));
-FC_REFLECT(eosio::chain::open_qc_sig_t::votes_t, (bitset)(sig));
+FC_REFLECT(eosio::chain::in_progess_qc_sig_t, (received_qc_sig)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
+FC_REFLECT(eosio::chain::in_progress_qc_t, (active_finalizer_policy)(pending_finalizer_policy)(active_policy_sig)(pending_policy_sig));
+FC_REFLECT_ENUM(eosio::chain::in_progess_qc_sig_t::state_t, (unrestricted)(restricted)(weak_achieved)(weak_final)(strong));
+FC_REFLECT(eosio::chain::in_progess_qc_sig_t::votes_t, (bitset)(sig));
 FC_REFLECT(eosio::chain::qc_t, (block_num)(active_policy_sig)(pending_policy_sig));

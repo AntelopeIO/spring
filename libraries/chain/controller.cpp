@@ -3724,7 +3724,7 @@ struct controller_impl {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
-      return bsp->open_qc.vote_metrics(qc);
+      return bsp->in_progress_qc.vote_metrics(qc);
    }
 
 
@@ -3732,7 +3732,7 @@ struct controller_impl {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
-      return bsp->open_qc.missing_votes(qc);
+      return bsp->in_progress_qc.missing_votes(qc);
    }
 
    // thread safe
@@ -3745,7 +3745,7 @@ struct controller_impl {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
 
-              // also aggregate our own vote into the open_qc for this block, 0 connection_id indicates our own vote
+              // also aggregate our own vote into the in_progress_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }
@@ -3760,7 +3760,7 @@ struct controller_impl {
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<finality_extension> prev_header_ext = prev.header_extension<finality_extension>();
+      const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
       std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
@@ -3775,7 +3775,7 @@ struct controller_impl {
                      "Block #${b} includes a QC block extension, but doesn't have a finality header extension",
                      ("b", block_num) );
 
-         EOS_ASSERT( !prev_header_ext,
+         EOS_ASSERT( !prev_finality_ext,
                      invalid_qc_claim,
                      "Block #${b} doesn't have a finality header extension even though its predecessor does.",
                      ("b", block_num) );
@@ -3790,7 +3790,7 @@ struct controller_impl {
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
       // of the current block’s number and that it is a claim of a weak QC. Then return early.
       // -------------------------------------------------------------------------------------------------
-      if (!prev_header_ext) {
+      if (!prev_finality_ext) {
          EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
                      invalid_qc_claim,
                      "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
@@ -3801,10 +3801,9 @@ struct controller_impl {
       // at this point both current block and its parent have IF extensions, and we are past the
       // IF transition block
       // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_header_ext);
+      assert(header_ext && prev_finality_ext);
 
-      const auto& prev_f_ext    = *prev_header_ext;
-      const auto  prev_qc_claim = prev_f_ext.qc_claim;
+      const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
 
@@ -3971,25 +3970,27 @@ struct controller_impl {
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const qc_t& received_qc = qc_ext.qc;
 
-      block_state_ptr claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
-      if( !claimed ) {
+      block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
+      if( !claimed_bsp ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
 
       // Don't save the QC from block extension if the claimed block has a better or same received_qc
-      if (claimed->set_received_qc(received_qc)) {
-         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
+      if (claimed_bsp->set_received_qc(received_qc)) {
+         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())
+              ("bn", claimed_bsp->block_num())("id", claimed_bsp->id()));
       } else {
          dlog("qc not better, claimed->received: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
-              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
+              ("qbn", claimed_bsp->block_num())("qid", claimed_bsp->id())
+              ("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
       }
 
-      if( received_qc.is_strong() ) {
+      if (received_qc.is_strong()) {
          // Update finalizer safety information based on vote evidence
-         my_finalizers.maybe_update_fsi(claimed, received_qc);
+         my_finalizers.maybe_update_fsi(claimed_bsp, received_qc);
       }
    }
 

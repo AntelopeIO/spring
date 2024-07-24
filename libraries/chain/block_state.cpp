@@ -15,7 +15,7 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , open_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
+   , in_progress_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
 {
    // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
    if( !skip_validate_signee ) {
@@ -37,7 +37,7 @@ block_state::block_state(const block_header_state&                bhs,
    , block(std::make_shared<signed_block>(signed_block_header{bhs.header}))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , open_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
+   , in_progress_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
    , valid(valid)
    , pub_keys_recovered(true) // called by produce_block so signature recovery of trxs must have been done
    , cached_trxs(std::move(trx_metas))
@@ -93,8 +93,8 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.strong_digest = result.compute_finality_digest(); // all block_header_state data populated in result at this point
    result.weak_digest = create_weak_digest(result.strong_digest);
 
-   // open_qc will not be used in the genesis block as finalizers will not vote on it, but still create it for consistency.
-   result.open_qc = open_qc_t{result.active_finalizer_policy, finalizer_policy_ptr{}};
+   // in_progress_qc will not be used in the genesis block as finalizers will not vote on it, but still create it for consistency.
+   result.in_progress_qc = in_progress_qc_t{result.active_finalizer_policy, finalizer_policy_ptr{}};
 
    // build leaf_node and validation_tree
    valid_t::finality_leaf_node_t leaf_node {
@@ -159,7 +159,7 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , open_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
+   , in_progress_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
    , valid(std::move(sbs.valid))
 {
    header_exts = header.validate_and_extract_header_extensions();
@@ -180,17 +180,17 @@ void block_state::set_trxs_metas( deque<transaction_metadata_ptr>&& trxs_metas, 
 // Called from vote threads
 vote_result_t block_state::aggregate_vote(uint32_t connection_id, const vote_message& vote) {
    auto finalizer_digest = vote.strong ? strong_digest.to_uint8_span() : std::span<const uint8_t>(weak_digest);
-   return open_qc.aggregate_vote(connection_id, vote, block_num(), finalizer_digest);
+   return in_progress_qc.aggregate_vote(connection_id, vote, block_num(), finalizer_digest);
 }
 
 // Only used for testing
 vote_status_t block_state::has_voted(const bls_public_key& key) const {
-   return open_qc.has_voted(key);
+   return in_progress_qc.has_voted(key);
 }
 
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
-   open_qc.verify_qc(qc, strong_digest, weak_digest);
+   in_progress_qc.verify_qc(qc, strong_digest, weak_digest);
 }
 
 qc_claim_t block_state::extract_qc_claim() const {

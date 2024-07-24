@@ -157,11 +157,11 @@ struct block_header_state {
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
 
-   template<typename Ext> std::optional<Ext> header_extension() const {
+   template<typename Ext> const Ext* header_extension() const {
       if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
-         return std::optional<Ext>{std::get<Ext>(itr->second)};
+         return &std::get<Ext>(itr->second);
       }
-      return {};
+      return nullptr;
    }
 };
 

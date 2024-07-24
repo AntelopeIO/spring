@@ -9,10 +9,10 @@
 #include <boost/test/unit_test.hpp>
 
 // -----------------------------------------------------------------------------
-//            Allow boost to print `open_qc_sig_t::state_t`
+//            Allow boost to print `in_progess_qc_sig_t::state_t`
 // -----------------------------------------------------------------------------
 namespace std {
-   using state_t = eosio::chain::open_qc_sig_t::state_t;
+   using state_t = eosio::chain::in_progess_qc_sig_t::state_t;
    std::ostream& operator<<(std::ostream& os, state_t s)
    {
       switch(s) {
@@ -31,7 +31,7 @@ BOOST_AUTO_TEST_SUITE(finality_misc_tests)
 BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    using namespace eosio::chain;
    using namespace fc::crypto::blslib;
-   using state_t = open_qc_sig_t::state_t;
+   using state_t = in_progess_qc_sig_t::state_t;
 
    digest_type d(fc::sha256("0000000000000000000000000000001"));
    std::vector<uint8_t> digest(d.data(), d.data() + d.data_size());
@@ -50,11 +50,11 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    for (const auto& k : sk)
       pubkey.push_back(k.get_public_key());
 
-   auto weak_vote = [&](open_qc_sig_t& qc, const std::vector<uint8_t>& digest_to_sign, size_t index, uint64_t weight) {
+   auto weak_vote = [&](in_progess_qc_sig_t& qc, const std::vector<uint8_t>& digest_to_sign, size_t index, uint64_t weight) {
       return qc.add_vote(0, 0, false, index, sk[index].sign(digest_to_sign), weight);
    };
 
-   auto strong_vote = [&](open_qc_sig_t& qc, const std::vector<uint8_t>& digest_to_sign, size_t index, uint64_t weight) {
+   auto strong_vote = [&](in_progess_qc_sig_t& qc, const std::vector<uint8_t>& digest_to_sign, size_t index, uint64_t weight) {
       return qc.add_vote(0, 0, true, index, sk[index].sign(digest_to_sign), weight);
    };
 
@@ -63,7 +63,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 1;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers
+      in_progess_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers
       BOOST_CHECK_EQUAL(qc.state(), state_t::unrestricted);
 
       // add one weak vote
@@ -88,7 +88,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 1;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers
+      in_progess_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers
       BOOST_CHECK_EQUAL(qc.state(), state_t::unrestricted);
 
       // add a weak vote
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 1;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers, weight_sum_minus_quorum = 1
+      in_progess_qc_sig_t qc(2, quorum, max_weak_sum_before_weak_final); // 2 finalizers, weight_sum_minus_quorum = 1
       BOOST_CHECK_EQUAL(qc.state(), state_t::unrestricted);
 
       // add a strong vote
@@ -126,7 +126,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 2;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers
+      in_progess_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers
 
       // add a weak vote
       // ---------------
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
       BOOST_CHECK(qc.is_quorum_met());
 
       {
-         open_qc_sig_t qc2(std::move(qc));
+         in_progess_qc_sig_t qc2(std::move(qc));
 
          // add a weak vote
          // ---------------
@@ -154,7 +154,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 2;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
+      in_progess_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
 
       // add a weak vote
       // ---------------
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
       BOOST_CHECK(qc.is_quorum_met());
 
       {
-         open_qc_sig_t qc2(std::move(qc));
+         in_progess_qc_sig_t qc2(std::move(qc));
 
          // add a strong vote
          // -----------------
@@ -182,7 +182,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 2;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
+      in_progess_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
 
       // add a weak vote
       // ---------------
@@ -197,7 +197,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
       BOOST_CHECK(qc.is_quorum_met());
 
       {
-         open_qc_sig_t qc2(std::move(qc));
+         in_progess_qc_sig_t qc2(std::move(qc));
 
          // add a weak vote
          // ---------------
@@ -210,7 +210,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
    {
       constexpr uint64_t quorum = 2;
       constexpr uint64_t max_weak_sum_before_weak_final = 1;
-      open_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
+      in_progess_qc_sig_t qc(3, quorum, max_weak_sum_before_weak_final); // 3 finalizers, quorum = 2
 
       // add a weak vote
       // ---------------
@@ -225,7 +225,7 @@ BOOST_AUTO_TEST_CASE(qc_state_transitions) try {
       BOOST_CHECK(qc.is_quorum_met());
 
       {
-         open_qc_sig_t qc2(std::move(qc));
+         in_progess_qc_sig_t qc2(std::move(qc));
 
          // add a strong vote
          // -----------------
