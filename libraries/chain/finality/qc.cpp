@@ -314,10 +314,10 @@ std::optional<qc_t> open_qc_t::get_best_qc(block_num_type block_num) const {
 void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
    if (qc.pending_policy_sig) {
       EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
-                 "qc contains pending policy signature for nonexistent pending finalizer policy");
+                 "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
    } else if (pending_finalizer_policy) {
       EOS_ASSERT(false, invalid_qc_claim,
-                 "qc does not contain pending policy signature for pending finalizer policy");
+                 "qc ${bn} does not contain pending policy signature for pending finalizer policy", ("bn", qc.block_num));
    }
 
    qc.active_policy_sig.verify(active_finalizer_policy, strong_digest, weak_digest);
@@ -327,10 +327,12 @@ void open_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, cons
 }
 
 bool open_qc_t::set_received_qc(const qc_t& qc) {
+   // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
+   EOS_ASSERT(!pending_policy_sig || qc.pending_policy_sig, invalid_qc_claim,
+              "qc ${bn} expected to have a pending policy signature", ("bn", qc.block_num));
    bool active_better = active_policy_sig.set_received_qc_sig(qc.active_policy_sig);
    bool pending_better = false;
-   if (qc.pending_policy_sig) {
-      assert(pending_policy_sig);
+   if (pending_policy_sig) {
       pending_better = pending_policy_sig->set_received_qc_sig(*qc.pending_policy_sig);
    }
    return active_better || pending_better;
