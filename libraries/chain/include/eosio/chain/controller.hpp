@@ -58,7 +58,7 @@ namespace eosio::chain {
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
    //                                connection_id, vote result status, vote_message processed
-   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
+   using vote_signal_params  = std::tuple<uint32_t, vote_result_t, const vote_message_ptr&>;
    using vote_signal_t       = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {

@@ -137,8 +137,8 @@ public:
    finality_data_t get_finality_data();
 
    // connection_id only for logging
-   vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into open_qc
-   has_vote_status_t has_voted(const bls_public_key& key) const;
+   vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into open_qc
+   vote_status_t has_voted(const bls_public_key& key) const;
    void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
    using bhs_t  = block_header_state;

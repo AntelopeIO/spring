@@ -3699,7 +3699,7 @@ struct controller_impl {
             [&](const block_state_legacy_ptr& bsp) { return false; },
             [&](const block_state_ptr& bsp) {
                return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
-                  return bsp->has_voted(k) == has_vote_status_t::not_voted;
+                  return bsp->has_voted(k) == vote_status_t::not_voted;
                });
             }},
          bh.internal());
@@ -3737,7 +3737,7 @@ struct controller_impl {
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
       my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
+              emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
 
               // also aggregate our own vote into the open_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);

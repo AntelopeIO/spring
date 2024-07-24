@@ -11,7 +11,7 @@ namespace savanna_cluster {
    namespace ranges = std::ranges;
 
    using vote_message_ptr = eosio::chain::vote_message_ptr;
-   using vote_status      = eosio::chain::vote_status;
+   using vote_result_t    = eosio::chain::vote_result_t;
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using account_name     = eosio::chain::account_name;
    using finalizer_policy = eosio::chain::finalizer_policy;

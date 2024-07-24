@@ -122,14 +122,14 @@ bool open_qc_sig_t::votes_t::has_voted(size_t index) const {
 }
 
 
-vote_status open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
+vote_result_t open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
    if (bitset[index]) { // check here as could have come in while unlocked
-      return vote_status::duplicate; // shouldn't be already present
+      return vote_result_t::duplicate; // shouldn't be already present
    }
    processed[index].value.store(true, std::memory_order_relaxed);
    bitset.set(index);
    sig.aggregate(signature); // works even if _sig is default initialized (fp2::zero())
-   return vote_status::success;
+   return vote_result_t::success;
 }
 
 open_qc_sig_t::open_qc_sig_t()
@@ -156,8 +156,8 @@ bool open_qc_sig_t::is_quorum_met() const {
 }
 
 // called by add_vote, already protected by mutex
-vote_status open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = strong_votes.add_vote(index, sig); s != vote_status::success) {
+vote_result_t open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+   if (auto s = strong_votes.add_vote(index, sig); s != vote_result_t::success) {
       return s;
    }
    strong_sum += weight;
@@ -182,12 +182,12 @@ vote_status open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& si
       // getting another strong vote...nothing to do
       break;
    }
-   return vote_status::success;
+   return vote_result_t::success;
 }
 
 // called by add_vote, already protected by mutex
-vote_status open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = weak_votes.add_vote(index, sig); s != vote_status::success)
+vote_result_t open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+   if (auto s = weak_votes.add_vote(index, sig); s != vote_result_t::success)
       return s;
    weak_sum += weight;
 
@@ -215,16 +215,16 @@ vote_status open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig,
       // getting another weak vote... nothing to do
       break;
    }
-   return vote_status::success;
+   return vote_result_t::success;
 }
 
 // thread safe
-vote_status open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
+vote_result_t open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
                                     bool strong, size_t index,
                                     const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
    state_t pre_state = pending_state;
-   vote_status s = strong ? add_strong_vote(index, sig, weight)
+   vote_result_t s = strong ? add_strong_vote(index, sig, weight)
                           : add_weak_vote(index, sig, weight);
    state_t post_state = pending_state;
    g.unlock();
@@ -343,31 +343,31 @@ bool open_qc_t::received_qc_is_strong() const {
    return active_policy_sig.received_qc_sig_is_strong() && pending_policy_sig->received_qc_sig_is_strong();
 }
 
-vote_status open_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
+vote_result_t open_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                       block_num_type block_num, std::span<const uint8_t> finalizer_digest)
 {
    bool verified_sig = false;
-   auto verify_sig = [&]() -> vote_status {
+   auto verify_sig = [&]() -> vote_result_t {
       if (!verified_sig && !fc::crypto::blslib::verify(vote.finalizer_key, finalizer_digest, vote.sig)) {
          fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified",
                  ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
-         return vote_status::invalid_signature;
+         return vote_result_t::invalid_signature;
       }
       verified_sig = true;
-      return vote_status::success;
+      return vote_result_t::success;
    };
 
-   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, open_qc_sig_t& open_qc_sig) -> vote_status {
+   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, open_qc_sig_t& open_qc_sig) -> vote_result_t {
       const auto& finalizers = finalizer_policy->finalizers;
       auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
-      vote_status s = vote_status::unknown_public_key;
+      vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), itr);
          if (open_qc_sig.has_voted(vote.strong, index)) {
             fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
-            return vote_status::duplicate;
+            return vote_result_t::duplicate;
          }
-         if (vote_status vs = verify_sig(); vs != vote_status::success)
+         if (vote_result_t vs = verify_sig(); vs != vote_result_t::success)
             return vs;
          s = open_qc_sig.add_vote(connection_id, block_num,
                                   vote.strong,
@@ -379,48 +379,47 @@ vote_status open_qc_t::aggregate_vote(uint32_t connection_id, const vote_message
       return s;
    };
 
-   vote_status s = add_vote(active_finalizer_policy, active_policy_sig);
-   if (s != vote_status::success && s != vote_status::unknown_public_key)
+   vote_result_t s = add_vote(active_finalizer_policy, active_policy_sig);
+   if (s != vote_result_t::success && s != vote_result_t::unknown_public_key)
       return s;
 
    if (pending_finalizer_policy) {
       assert(pending_policy_sig);
-      vote_status ps = add_vote(pending_finalizer_policy, *pending_policy_sig);
-      if (ps != vote_status::unknown_public_key)
+      vote_result_t ps = add_vote(pending_finalizer_policy, *pending_policy_sig);
+      if (ps != vote_result_t::unknown_public_key)
          s = ps;
    }
 
-   if (s != vote_status::unknown_public_key)
-      return s;
-
-   fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
-           ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
+   if (s == vote_result_t::unknown_public_key) {
+      fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
+              ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
+   }
    return s;
 }
 
-has_vote_status_t open_qc_t::has_voted(const bls_public_key& key) const {
+vote_status_t open_qc_t::has_voted(const bls_public_key& key) const {
    auto finalizer_has_voted = [](const finalizer_policy_ptr& policy,
                                  const open_qc_sig_t& open_qc_sig,
-                                 const bls_public_key& key) -> has_vote_status_t {
+                                 const bls_public_key& key) -> vote_status_t {
       const auto& finalizers = policy->finalizers;
       auto it = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == key; });
       if (it != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), it);
-         return open_qc_sig.has_voted(index) ? has_vote_status_t::voted : has_vote_status_t::not_voted;
+         return open_qc_sig.has_voted(index) ? vote_status_t::voted : vote_status_t::not_voted;
       }
-      return has_vote_status_t::irrelevant_finalizer;
+      return vote_status_t::irrelevant_finalizer;
    };
 
-   has_vote_status_t active_status = finalizer_has_voted(active_finalizer_policy, active_policy_sig, key);
-   if (!pending_finalizer_policy || active_status == has_vote_status_t::not_voted) {
+   vote_status_t active_status = finalizer_has_voted(active_finalizer_policy, active_policy_sig, key);
+   if (!pending_finalizer_policy || active_status == vote_status_t::not_voted) {
       return active_status;
    }
 
    EOS_ASSERT(pending_policy_sig, invalid_qc_claim,
               "qc does not contain pending policy signature for pending finalizer policy");
-   has_vote_status_t pending_status = finalizer_has_voted(pending_finalizer_policy, *pending_policy_sig, key);
+   vote_status_t pending_status = finalizer_has_voted(pending_finalizer_policy, *pending_policy_sig, key);
 
-   if (pending_status == has_vote_status_t::irrelevant_finalizer) {
+   if (pending_status == vote_status_t::irrelevant_finalizer) {
       return active_status;
    }
    return pending_status;

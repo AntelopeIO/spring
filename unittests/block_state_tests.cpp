@@ -61,7 +61,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
          bool strong = (i % 2 == 0); // alternate strong and weak
          auto sig = strong ? active_private_keys[i].sign(strong_digest.to_uint8_span()) : active_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, active_public_keys[i], sig };
-         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
+         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
       }
    }
 
@@ -77,12 +77,12 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
          bool strong = (i % 2 == 0); // alternate strong and weak
          auto sig = strong ? active_private_keys[i].sign(strong_digest.to_uint8_span()) : active_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, active_public_keys[i], sig };
-         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
+         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
       }
       for (size_t i = 0; i < num_finalizers; ++i) {
-         vote_status expected_vote_status = vote_status::success;
+         vote_result_t expected_vote_status = vote_result_t::success;
          if (std::ranges::find(active_public_keys, pending_public_keys[i]) != active_public_keys.end())
-            expected_vote_status = vote_status::duplicate;
+            expected_vote_status = vote_result_t::duplicate;
          bool strong = (i % 2 == 0); // alternate strong and weak
          auto sig = strong ? pending_private_keys[i].sign(strong_digest.to_uint8_span()) : pending_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, pending_public_keys[i], sig };
@@ -97,7 +97,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, active_public_keys[0], active_private_keys[1].sign(strong_digest.to_uint8_span()) };
-      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_status::success);
+      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_result_t::success);
    }
 
    {  // duplicate votes
@@ -107,8 +107,8 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bsp->open_qc = open_qc_t{ bsp->active_finalizer_policy, {} };
 
       vote_message vote {block_id, true, active_public_keys[0], active_private_keys[0].sign(strong_digest.to_uint8_span()) };
-      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
-      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::duplicate);
+      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
+      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::duplicate);
    }
 
    {  // public key does not exist in active finalizer set
@@ -121,7 +121,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bls_public_key new_public_key{ new_private_key.get_public_key() };
 
       vote_message vote {block_id, true, new_public_key, active_private_keys[0].sign(strong_digest.to_uint8_span()) };
-      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_status::success);
+      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) != vote_result_t::success);
    }
 
    {  // public key does not exist in active & pending finalizer sets
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
       bls_public_key new_public_key{ new_private_key.get_public_key() };
 
       vote_message vote {block_id, true, new_public_key, active_private_keys[0].sign(strong_digest.to_uint8_span()) };
-      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::unknown_public_key);
+      BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::unknown_public_key);
    }
 } FC_LOG_AND_RETHROW();
 
@@ -193,7 +193,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
       if( to_vote.at(i) ) {
          auto sig = strong ? active_private_keys[i].sign(strong_digest.to_uint8_span()) : active_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, active_public_keys[i], sig };
-         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
+         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
       }
    }
    for (size_t i = 0; i < num_finalizers; ++i) {
@@ -203,7 +203,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
       if( to_vote.at(vote_index) ) {
          auto sig = strong ? pending_private_keys[i].sign(strong_digest.to_uint8_span()) : pending_private_keys[i].sign(weak_digest);
          vote_message vote{ block_id, strong, pending_public_keys[i], sig };
-         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_status::success);
+         BOOST_REQUIRE(bsp->aggregate_vote(0, vote) == vote_result_t::success);
       }
    }
 

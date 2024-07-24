@@ -35,7 +35,7 @@ namespace eosio::chain {
       return res;
    }
 
-   enum class vote_status {
+   enum class vote_result_t {
       success,
       duplicate,             // duplicate vote, expected as votes arrive on multiple connections
       unknown_public_key,    // public key is invalid, indicates invalid vote
@@ -44,7 +44,7 @@ namespace eosio::chain {
       max_exceeded           // received too many votes for a connection
    };
 
-   enum class has_vote_status_t {
+   enum class vote_status_t {
       voted,
       not_voted,
       irrelevant_finalizer
@@ -126,7 +126,7 @@ namespace eosio::chain {
          // thread safe
          bool has_voted(size_t index) const;
 
-         vote_status add_vote(size_t index, const bls_signature& sig);
+         vote_result_t add_vote(size_t index, const bls_signature& sig);
 
          template<class CB>
          void visit_bitset(const CB& cb) const {
@@ -146,7 +146,7 @@ namespace eosio::chain {
          return s == state_t::strong || s == state_t::weak_achieved || s == state_t::weak_final;
       }
 
-      vote_status add_vote(uint32_t connection_id,
+      vote_result_t add_vote(uint32_t connection_id,
                            block_num_type block_num,
                            bool strong,
                            size_t index,
@@ -184,12 +184,12 @@ namespace eosio::chain {
       votes_t              strong_votes {0};
 
       // called by add_vote, already protected by mutex
-      vote_status add_strong_vote(size_t index,
+      vote_result_t add_strong_vote(size_t index,
                                   const bls_signature& sig,
                                   uint64_t weight);
 
       // called by add_vote, already protected by mutex
-      vote_status add_weak_vote(size_t index,
+      vote_result_t add_weak_vote(size_t index,
                                 const bls_signature& sig,
                                 uint64_t weight);
 
@@ -237,9 +237,9 @@ namespace eosio::chain {
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
-      vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote,
+      vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                  block_num_type block_num, std::span<const uint8_t> finalizer_digest);
-      has_vote_status_t has_voted(const bls_public_key& key) const;
+      vote_status_t has_voted(const bls_public_key& key) const;
       bool is_quorum_met() const;
 
    private:
@@ -253,7 +253,7 @@ namespace eosio::chain {
 } //eosio::chain
 
 
-FC_REFLECT_ENUM(eosio::chain::vote_status, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
+FC_REFLECT_ENUM(eosio::chain::vote_result_t, (success)(duplicate)(unknown_public_key)(invalid_signature)(unknown_block)(max_exceeded))
 FC_REFLECT(eosio::chain::qc_sig_t, (strong_votes)(weak_votes)(sig));
 FC_REFLECT(eosio::chain::open_qc_sig_t, (received_qc_sig)(quorum)(max_weak_sum_before_weak_final)(pending_state)(strong_sum)(weak_sum)(weak_votes)(strong_votes));
 FC_REFLECT(eosio::chain::open_qc_t, (active_finalizer_policy)(pending_finalizer_policy)(active_policy_sig)(pending_policy_sig));

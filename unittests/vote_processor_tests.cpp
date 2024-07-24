@@ -11,8 +11,8 @@ std::ostream& operator<<(std::ostream& os, const eosio::chain::vote_message& v) 
    os << "vote_message{" << v.block_id << std::endl;
    return os;
 }
-std::ostream& operator<<(std::ostream& os, const eosio::chain::vote_status& v) {
-   os << fc::reflector<eosio::chain::vote_status>::to_string(v) << std::endl;
+std::ostream& operator<<(std::ostream& os, const eosio::chain::vote_result_t& v) {
+   os << fc::reflector<eosio::chain::vote_result_t>::to_string(v) << std::endl;
    return os;
 }
 }
@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    vote_signal_t voted_block;
 
    uint32_t received_connection_id = 0;
-   vote_status received_vote_status = vote_status::unknown_block;
+   vote_result_t received_vote_status = vote_result_t::unknown_block;
    vote_message_ptr received_vote_message{};
 
    std::atomic<size_t> signaled = 0;
@@ -186,7 +186,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       }
       BOOST_TEST(signaled.load() == 1u);
       BOOST_TEST(1u == received_connection_id);
-      BOOST_TEST(vote_status::success == received_vote_status);
+      BOOST_TEST(vote_result_t::success == received_vote_status);
       BOOST_TEST(m1 == received_vote_message);
    }
    { // process an invalid signature vote
@@ -203,7 +203,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       }
       BOOST_TEST(signaled.load() == 1u);
       BOOST_TEST(1u == received_connection_id);
-      BOOST_TEST(vote_status::invalid_signature == received_vote_status);
+      BOOST_TEST(vote_result_t::invalid_signature == received_vote_status);
       BOOST_TEST(m1 == received_vote_message);
    }
    { // process two diff block votes
@@ -229,7 +229,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       }
       BOOST_TEST(signaled.load() == 1u);
       BOOST_TEST(2u == received_connection_id);
-      BOOST_TEST(vote_status::success == received_vote_status);
+      BOOST_TEST(vote_result_t::success == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message);
 
       add_to_forkdb(bsp2);
@@ -239,7 +239,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       }
       BOOST_TEST(signaled.load() == 2u);
       BOOST_TEST(3u == received_connection_id);
-      BOOST_TEST(vote_status::success == received_vote_status);
+      BOOST_TEST(vote_result_t::success == received_vote_status);
       BOOST_CHECK(m2 == received_vote_message);
    }
 }
