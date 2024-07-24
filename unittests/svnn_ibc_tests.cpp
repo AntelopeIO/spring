@@ -422,11 +422,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // action proof verification
       action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
-      BOOST_TEST(true);
 
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
-      BOOST_TEST(true);
-      
+
       // At this stage, we can test the change in pending policy.
 
       // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
@@ -588,27 +586,19 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
 
-      BOOST_CHECK(true);
-
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
-
-      BOOST_CHECK(true);
 
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
       
-      BOOST_CHECK(true);
-
       cluster.produce_blocks(10); //advance 5 seconds
 
       // the root is still cached when performing this action, so the action succeeds.
       // However, it also triggers garbage collection,removing the old proven root for block #2,
       // so subsequent calls with the same action data will fail
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
-
-      BOOST_CHECK(true);
 
       cluster.produce_block(); //advance 1 block to avoid duplicate transaction
 
