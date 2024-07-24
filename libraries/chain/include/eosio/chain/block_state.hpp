@@ -30,11 +30,13 @@ struct block_state_accessor;
  * */
 struct valid_t {
    struct finality_leaf_node_t {
-      uint32_t       major_version{light_header_protocol_version_major};
-      uint32_t       minor_version{light_header_protocol_version_minor};
-      block_num_type block_num{0};   // the block number
-      digest_type    finality_digest; // finality digest for the block
-      digest_type    action_mroot;    // digest of the root of the action Merkle tree of the block
+      uint32_t             major_version{light_header_protocol_version_major};
+      uint32_t             minor_version{light_header_protocol_version_minor};
+      block_num_type       block_num{0};     // the block number
+      fc::time_point       timestamp;
+      fc::time_point       parent_timestamp;
+      digest_type          finality_digest;  // finality digest for the block
+      digest_type          action_mroot;     // digest of the root of the action Merkle tree of the block
    };
 
    // The Finality Merkle Tree, containing leaf nodes from IF genesis block to current block
@@ -182,7 +184,7 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 
 } // namespace eosio::chain
 
-FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(finality_digest)(action_mroot) )
+FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(timestamp)(parent_timestamp)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
 FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(reversible_blocks_mroot)(base_digest)(pending_finalizer_policy) )
 FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(open_qc)(valid)(validated) )
