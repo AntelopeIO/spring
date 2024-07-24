@@ -53,8 +53,8 @@ BOOST_AUTO_TEST_CASE(initial_set_finalizer_test) { try {
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
-   // lib must advance after 3 blocks
-   t.produce_blocks(3);
+   // lib must advance after num_chains_to_final blocks
+   t.produce_blocks(num_chains_to_final);
    BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
 } FC_LOG_AND_RETHROW() }
 
@@ -100,7 +100,7 @@ void test_finality_transition(const vector<account_name>& accounts,
    // block after IF Critical Block is IF Proper Block
    block = t.produce_block();
 
-   t.produce_blocks(4);
+   t.produce_blocks(num_chains_to_final);
    if( lib_advancing_expected ) {
       BOOST_CHECK_GT(t.lib_block->block_num(), lib_after_transition);
    } else {
@@ -678,14 +678,14 @@ BOOST_FIXTURE_TEST_CASE(second_set_finalizers, finality_test_cluster<4>) { try {
    indices1[0] = 1;                       // update key used for node0 in policy
    auto pubkeys1 = node0.finkeys.set_finalizer_policy(indices1).pubkeys;
 
-   // we need two 3-chains for the new finalizer policy to be activated
-   for (size_t i=0; i<6; ++i) {
+   // we need two 2-chains for the new finalizer policy to be activated
+   for (size_t i=0; i<(2*num_chains_to_final); ++i) {
       produce_and_push_block();
       process_votes(1, num_nodes - 1);
       node0.check_head_finalizer_policy(1, fin_policy_pubkeys_0); // original policy still active
    }
 
-   // we just completed the two 3-chains, so the next block we produce will have the new finalizer policy activated
+   // we just completed the two 2-chains, so the next block we produce will have the new finalizer policy activated
    produce_and_push_block();
    node0.check_head_finalizer_policy(2u, pubkeys1);
    node1.check_head_finalizer_policy(2u, pubkeys1);
@@ -715,24 +715,23 @@ BOOST_FIXTURE_TEST_CASE(finality_skip, finality_test_cluster<4>) { try {
 
    clear_votes_and_reset_lib();
 
-   // produce 2 blocks that will be made final after the three `add_set_finalizers` below
+   // produce num_chains_to_final blocks that will be made final after the three `add_set_finalizers` below
    // ------------------------------------------------------------------------------------
-   for (size_t i=0; i<4; ++i) {
+   for (size_t i=0; i<num_chains_to_final; ++i) {
       produce_and_push_block();
       process_votes(1, num_nodes - 1);
    }
 
-   // run three set_finalizers in 3 blocks without voting
+   // run three set_finalizers in 2 blocks (assuming 2-chain finality) without voting
    // they will be in `proposed` state with different block numbers.
    // -------------------------------------------------------------
    auto pubkeys1 = add_set_finalizers(1); // will be generation == 2
    auto pubkeys2 = add_set_finalizers(2); // will be generation == 3
-   auto pubkeys3 = add_set_finalizers(3); // will be generation == 4
 
-   // produce_and_push 3 blocks. The last one will make finality skip over the three
-   // `add_set_finalizers` blocks above, so that they all become `pending` on the same block.
+   // produce_and_push num_chains_to_final blocks. The last one will make finality skip over the three
+   // `add_set_finalizers` blocks above, so that it becomes `pending` on the same block.
    // ---------------------------------------------------------------------------------------
-   for (size_t i=0; i<3; ++i) {
+   for (size_t i=0; i<num_chains_to_final; ++i) {
       produce_and_push_block();
       process_votes(1, num_nodes - 1);
 
@@ -742,28 +741,24 @@ BOOST_FIXTURE_TEST_CASE(finality_skip, finality_test_cluster<4>) { try {
       node0.check_head_finalizer_policy(1u, fin_policy_pubkeys_0);
    }
 
-   // now *only* the third `set_finalizers` should be `pending`, the one with
-   // `generation == 4`. The other policies must have been overwritten since they all
-   // became `pending` at the same block.
+   // now *only* the second `set_finalizers` should be `pending`, the one with
+   // `generation == 3`. The other policy must have been overwritten since it is
+   // at the same block.
    //
-   // we need another 3-chain to make that block final.
+   // we need another 2-chain to make that block final.
    // -------------------------------------------------------------------------------
-   for (size_t i=0; i<3; ++i) {
+   for (size_t i=0; i<num_chains_to_final; ++i) {
       produce_and_push_block();
       process_votes(1, num_nodes - 1);
       node0.check_head_finalizer_policy(1u, fin_policy_pubkeys_0);
    }
 
-   // when we receive the votes of that last block finishing the 3-chain, the active
+   // when we receive the votes of that last block finishing the 2-chain, the active
    // `finalizer_policy` finally changes.
    // ------------------------------------------------------------------------------
    produce_and_push_block();
    process_votes(1, num_nodes - 1);
-   node0.check_head_finalizer_policy(4u, pubkeys3);
-
+   node0.check_head_finalizer_policy(3u, pubkeys2);
 } FC_LOG_AND_RETHROW() }
-
-
-
 
 BOOST_AUTO_TEST_SUITE_END()
