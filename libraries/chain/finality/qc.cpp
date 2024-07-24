@@ -4,17 +4,17 @@
 
 namespace eosio::chain {
 
-inline std::string bitset_to_string(const vote_bitset& bs) {
+inline std::string bitset_to_string(const vote_bitset_t& bs) {
    std::string r;
    boost::to_string(bs, r);
    return r;
 }
 
-inline vote_bitset vector_to_bitset(const std::vector<uint32_t>& v) {
+inline vote_bitset_t vector_to_bitset(const std::vector<uint32_t>& v) {
    return {v.cbegin(), v.cend()};
 }
 
-inline std::vector<uint32_t> bitset_to_vector(const vote_bitset& bs) {
+inline std::vector<uint32_t> bitset_to_vector(const vote_bitset_t& bs) {
    std::vector<uint32_t> r;
    r.resize(bs.num_blocks());
    boost::to_block_range(bs, r.begin());
@@ -29,7 +29,7 @@ void qc_sig_t::verify(const finalizer_policy_ptr& fin_policy,
    auto num_finalizers = finalizers.size();
 
    // utility to accumulate voted weights
-   auto weights = [&] ( const vote_bitset& votes_bitset ) -> uint64_t {
+   auto weights = [&] ( const vote_bitset_t& votes_bitset ) -> uint64_t {
       EOS_ASSERT( num_finalizers == votes_bitset.size(), invalid_qc_claim,
                   "vote bitset size is not the same as the number of finalizers for the policy it refers to, "
                   "vote bitset size: ${s}, num of finalizers for the policy: ${n}",
@@ -220,8 +220,8 @@ vote_result_t open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& si
 
 // thread safe
 vote_result_t open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
-                                    bool strong, size_t index,
-                                    const bls_signature& sig, uint64_t weight) {
+                                      bool strong, size_t index,
+                                      const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
    state_t pre_state = pending_state;
    vote_result_t s = strong ? add_strong_vote(index, sig, weight)
@@ -432,7 +432,7 @@ bool open_qc_t::is_quorum_met() const {
 qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
    qc_vote_metrics_t result;
 
-   auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, qc_vote_metrics_t::fin_auth_set& results) {
+   auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, qc_vote_metrics_t::fin_auth_set_t& results) {
       assert(votes.size() == finalizer_policy->finalizers.size());
       size_t added = 0;
       for (size_t i = 0; i < votes.size(); ++i) {
@@ -452,7 +452,7 @@ qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
          added = add_votes(finalizer_policy, *qc_sig.weak_votes, result.weak_votes);
       }
       if (added != finalizer_policy->finalizers.size()) {
-         vote_bitset not_voted(finalizer_policy->finalizers.size());
+         vote_bitset_t not_voted(finalizer_policy->finalizers.size());
          if (qc_sig.strong_votes) {
             not_voted = *qc_sig.strong_votes;
          }
@@ -474,17 +474,17 @@ qc_vote_metrics_t open_qc_t::vote_metrics(const qc_t& qc) const {
    return result;
 }
 
-qc_vote_metrics_t::fin_auth_set open_qc_t::missing_votes(const qc_t& qc) const {
+qc_vote_metrics_t::fin_auth_set_t open_qc_t::missing_votes(const qc_t& qc) const {
    // all asserts are verified by verify_qc()
-   qc_vote_metrics_t::fin_auth_set not_voted;
+   qc_vote_metrics_t::fin_auth_set_t not_voted;
 
    auto check_other = [](const auto& other_votes, size_t i) {
       return other_votes && (*other_votes)[i];
    };
    auto add_not_voted = [&](const finalizer_policy_ptr& finalizer_policy, const qc_sig_t& qc_sig) {
       assert(qc_sig.strong_votes || qc_sig.weak_votes);
-      const vote_bitset& votes                      = qc_sig.strong_votes ? *qc_sig.strong_votes : *qc_sig.weak_votes;
-      const std::optional<vote_bitset>& other_votes = qc_sig.strong_votes ? qc_sig.weak_votes : qc_sig.strong_votes;
+      const vote_bitset_t& votes                      = qc_sig.strong_votes ? *qc_sig.strong_votes : *qc_sig.weak_votes;
+      const std::optional<vote_bitset_t>& other_votes = qc_sig.strong_votes ? qc_sig.weak_votes : qc_sig.strong_votes;
       const auto& finalizers = finalizer_policy->finalizers;
       assert(votes.size() == finalizers.size());
       assert(!other_votes || other_votes->size() == finalizers.size());

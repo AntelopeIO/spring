@@ -22,7 +22,7 @@ namespace eosio::chain {
    using bls_aggregate_signature = fc::crypto::blslib::bls_aggregate_signature;
    using bls_private_key         = fc::crypto::blslib::bls_private_key;
 
-   using vote_bitset   = fc::dynamic_bitset;
+   using vote_bitset_t = fc::dynamic_bitset;
    using bls_key_map_t = std::map<bls_public_key, bls_private_key>;
 
    constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
@@ -54,9 +54,9 @@ namespace eosio::chain {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
 
-      std::optional<vote_bitset> strong_votes;
-      std::optional<vote_bitset> weak_votes;
-      bls_aggregate_signature    sig;
+      std::optional<vote_bitset_t> strong_votes;
+      std::optional<vote_bitset_t> weak_votes;
+      bls_aggregate_signature      sig;
 
       // called from net threads
       void verify(const finalizer_policy_ptr& fin_policy, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
@@ -108,14 +108,14 @@ namespace eosio::chain {
          friend struct fc::reflector_init_visitor<votes_t>;
          friend struct fc::has_reflector_init<votes_t>;
          friend class open_qc_sig_t;
-
-         vote_bitset                    bitset;
-         bls_aggregate_signature        sig;
          struct bit_processed {
             alignas(hardware_destructive_interference_size)
             std::atomic<bool> value;
          };
-         std::vector<bit_processed> processed; // avoid locking mutex for _bitset duplicate check
+
+         vote_bitset_t                  bitset;
+         bls_aggregate_signature        sig;
+         std::vector<bit_processed>     processed; // avoid locking mutex for bitset duplicate check
 
          void reflector_init();
       public:
@@ -147,11 +147,11 @@ namespace eosio::chain {
       }
 
       vote_result_t add_vote(uint32_t connection_id,
-                           block_num_type block_num,
-                           bool strong,
-                           size_t index,
-                           const bls_signature& sig,
-                           uint64_t weight);
+                             block_num_type block_num,
+                             bool strong,
+                             size_t index,
+                             const bls_signature& sig,
+                             uint64_t weight);
 
       bool has_voted(size_t index) const;
       bool has_voted(bool strong, size_t index) const;
@@ -174,24 +174,20 @@ namespace eosio::chain {
       friend struct fc::reflector<open_qc_sig_t>;
       friend class qc_chain;
       std::unique_ptr<std::mutex> _mtx;
-      std::optional<qc_sig_t> received_qc_sig; // best qc_t received from the network inside block extension
-      uint64_t             quorum {0};
-      uint64_t             max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
-      state_t              pending_state { state_t::unrestricted };
-      uint64_t             strong_sum {0}; // accumulated sum of strong votes so far
-      uint64_t             weak_sum {0}; // accumulated sum of weak votes so far
-      votes_t              weak_votes {0};
-      votes_t              strong_votes {0};
+      std::optional<qc_sig_t>     received_qc_sig; // best qc_t received from the network inside block extension
+      uint64_t                    quorum {0};
+      uint64_t                    max_weak_sum_before_weak_final {0}; // max weak sum before becoming weak_final
+      state_t                     pending_state { state_t::unrestricted };
+      uint64_t                    strong_sum {0}; // accumulated sum of strong votes so far
+      uint64_t                    weak_sum {0}; // accumulated sum of weak votes so far
+      votes_t                     weak_votes {0};
+      votes_t                     strong_votes {0};
 
       // called by add_vote, already protected by mutex
-      vote_result_t add_strong_vote(size_t index,
-                                  const bls_signature& sig,
-                                  uint64_t weight);
+      vote_result_t add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight);
 
       // called by add_vote, already protected by mutex
-      vote_result_t add_weak_vote(size_t index,
-                                const bls_signature& sig,
-                                uint64_t weight);
+      vote_result_t add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight);
 
       bool is_quorum_met_no_lock() const;
       qc_sig_t extract_qc_sig_from_open() const;
@@ -204,11 +200,11 @@ namespace eosio::chain {
             return lhs->public_key < rhs->public_key;
          };
       };
-      using fin_auth_set = std::set<finalizer_authority_ptr, fin_auth_less>;
+      using fin_auth_set_t = std::set<finalizer_authority_ptr, fin_auth_less>;
 
-      fin_auth_set strong_votes;
-      fin_auth_set weak_votes;
-      fin_auth_set missing_votes;
+      fin_auth_set_t strong_votes;
+      fin_auth_set_t weak_votes;
+      fin_auth_set_t missing_votes;
    };
 
    /**
@@ -233,12 +229,12 @@ namespace eosio::chain {
       void verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
       qc_vote_metrics_t vote_metrics(const qc_t& qc) const;
       // return qc missing vote's finalizers
-      qc_vote_metrics_t::fin_auth_set missing_votes(const qc_t& qc) const;
+      qc_vote_metrics_t::fin_auth_set_t missing_votes(const qc_t& qc) const;
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
       vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                 block_num_type block_num, std::span<const uint8_t> finalizer_digest);
+                                   block_num_type block_num, std::span<const uint8_t> finalizer_digest);
       vote_status_t has_voted(const bls_public_key& key) const;
       bool is_quorum_met() const;
 

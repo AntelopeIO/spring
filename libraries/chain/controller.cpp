@@ -3722,7 +3722,7 @@ struct controller_impl {
    }
 
 
-   qc_vote_metrics_t::fin_auth_set missing_votes(const block_id_type& id, const qc_t& qc) const {
+   qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
@@ -5431,7 +5431,7 @@ qc_vote_metrics_t controller::vote_metrics(const block_id_type& id, const qc_t& 
    return my->vote_metrics(id, qc);
 }
 
-qc_vote_metrics_t::fin_auth_set controller::missing_votes(const block_id_type& id, const qc_t& qc) const {
+qc_vote_metrics_t::fin_auth_set_t controller::missing_votes(const block_id_type& id, const qc_t& qc) const {
    return my->missing_votes(id, qc);
 }
 
