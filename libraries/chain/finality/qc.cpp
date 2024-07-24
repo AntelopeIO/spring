@@ -96,11 +96,11 @@ void qc_sig_t::verify(const finalizer_policy_ptr& fin_policy,
 
 }
 
-bool in_progess_qc_sig_t::has_voted(size_t index) const {
+bool aggregating_qc_sig_t::has_voted(size_t index) const {
    return strong_votes.has_voted(index) || weak_votes.has_voted(index);
 }
 
-void in_progess_qc_sig_t::votes_t::reflector_init() {
+void aggregating_qc_sig_t::votes_t::reflector_init() {
    processed = std::vector<bit_processed>(bitset.size());
    for (size_t i = 0; i < bitset.size(); ++i) {
       if (bitset[i]) {
@@ -109,23 +109,23 @@ void in_progess_qc_sig_t::votes_t::reflector_init() {
    }
 }
 
-bool in_progess_qc_sig_t::votes_t::has_voted(size_t index) const {
+bool aggregating_qc_sig_t::votes_t::has_voted(size_t index) const {
    assert(index < processed.size());
    return processed[index].value.load(std::memory_order_relaxed);
 }
 
 
-void in_progess_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
+void aggregating_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
    processed[index].value.store(true, std::memory_order_relaxed);
    bitset.set(index);
    sig.aggregate(signature); // works even if _sig is default initialized (fp2::zero())
 }
 
-in_progess_qc_sig_t::in_progess_qc_sig_t()
+aggregating_qc_sig_t::aggregating_qc_sig_t()
    : _mtx(std::make_unique<std::mutex>()) {
 }
 
-in_progess_qc_sig_t::in_progess_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final)
+aggregating_qc_sig_t::aggregating_qc_sig_t(size_t num_finalizers, uint64_t quorum, uint64_t max_weak_sum_before_weak_final)
    : _mtx(std::make_unique<std::mutex>())
    , quorum(quorum)
    , max_weak_sum_before_weak_final(max_weak_sum_before_weak_final)
@@ -133,42 +133,42 @@ in_progess_qc_sig_t::in_progess_qc_sig_t(size_t num_finalizers, uint64_t quorum,
    , strong_votes(num_finalizers) {
 }
 
-in_progess_qc_sig_t::in_progess_qc_sig_t(const finalizer_policy_ptr& finalizer_policy)
-   : in_progess_qc_sig_t(finalizer_policy->finalizers.size(),
-                         finalizer_policy->threshold,
-                         finalizer_policy->max_weak_sum_before_weak_final()) {
+aggregating_qc_sig_t::aggregating_qc_sig_t(const finalizer_policy_ptr& finalizer_policy)
+   : aggregating_qc_sig_t(finalizer_policy->finalizers.size(),
+                          finalizer_policy->threshold,
+                          finalizer_policy->max_weak_sum_before_weak_final()) {
 }
 
-bool in_progess_qc_sig_t::is_quorum_met() const {
+bool aggregating_qc_sig_t::is_quorum_met() const {
    std::lock_guard g(*_mtx);
    return is_quorum_met_no_lock();
 }
 
 // called with held mutex
-vote_result_t in_progess_qc_sig_t::check_duplicate(size_t index) {
+vote_result_t aggregating_qc_sig_t::check_duplicate(size_t index) {
    if (strong_votes.bitset[index] || weak_votes.bitset[index])
       return vote_result_t::duplicate;
    return vote_result_t::success;
 }
 
 // called by add_vote, already protected by mutex
-vote_result_t in_progess_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+vote_result_t aggregating_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
    strong_votes.add_vote(index, sig);
    strong_sum += weight;
 
-   switch (pending_state) {
+   switch (aggregating_state) {
    case state_t::unrestricted:
    case state_t::restricted:
       if (strong_sum >= quorum) {
-         assert(pending_state != state_t::restricted);
-         pending_state = state_t::strong;
+         assert(aggregating_state != state_t::restricted);
+         aggregating_state = state_t::strong;
       } else if (weak_sum + strong_sum >= quorum)
-         pending_state = (pending_state == state_t::restricted) ? state_t::weak_final : state_t::weak_achieved;
+         aggregating_state = (aggregating_state == state_t::restricted) ? state_t::weak_final : state_t::weak_achieved;
       break;
 
    case state_t::weak_achieved:
       if (strong_sum >= quorum)
-         pending_state = state_t::strong;
+         aggregating_state = state_t::strong;
       break;
 
    case state_t::weak_final:
@@ -180,27 +180,27 @@ vote_result_t in_progess_qc_sig_t::add_strong_vote(size_t index, const bls_signa
 }
 
 // called by add_vote, already protected by mutex
-vote_result_t in_progess_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
+vote_result_t aggregating_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
    weak_votes.add_vote(index, sig);
    weak_sum += weight;
 
-   switch (pending_state) {
+   switch (aggregating_state) {
    case state_t::unrestricted:
    case state_t::restricted:
       if (weak_sum + strong_sum >= quorum)
-         pending_state = state_t::weak_achieved;
+         aggregating_state = state_t::weak_achieved;
 
       if (weak_sum > max_weak_sum_before_weak_final) {
-         if (pending_state == state_t::weak_achieved)
-            pending_state = state_t::weak_final;
-         else if (pending_state == state_t::unrestricted)
-            pending_state = state_t::restricted;
+         if (aggregating_state == state_t::weak_achieved)
+            aggregating_state = state_t::weak_final;
+         else if (aggregating_state == state_t::unrestricted)
+            aggregating_state = state_t::restricted;
       }
       break;
 
    case state_t::weak_achieved:
       if (weak_sum >= max_weak_sum_before_weak_final)
-         pending_state = state_t::weak_final;
+         aggregating_state = state_t::weak_final;
       break;
 
    case state_t::weak_final:
@@ -212,11 +212,11 @@ vote_result_t in_progess_qc_sig_t::add_weak_vote(size_t index, const bls_signatu
 }
 
 // thread safe
-vote_result_t in_progess_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
+vote_result_t aggregating_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
                                       bool strong, size_t index,
                                       const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
-   state_t pre_state = pending_state;
+   state_t pre_state = aggregating_state;
    vote_result_t s = check_duplicate(index);
    if (s == vote_result_t::success) {
       if (strong)
@@ -224,7 +224,7 @@ vote_result_t in_progess_qc_sig_t::add_vote(uint32_t connection_id, block_num_ty
       else
          s = add_weak_vote(index, sig, weight);
    }
-   state_t post_state = pending_state;
+   state_t post_state = aggregating_state;
    g.unlock();
 
    fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, vote strong: ${sv}, status: ${s}, pre-state: ${pre}, post-state: ${state}, quorum_met: ${q}",
@@ -233,10 +233,10 @@ vote_result_t in_progess_qc_sig_t::add_vote(uint32_t connection_id, block_num_ty
 }
 
 // called by get_best_qc which acquires a mutex
-qc_sig_t in_progess_qc_sig_t::extract_qc_sig_from_open() const {
+qc_sig_t aggregating_qc_sig_t::extract_qc_sig_from_aggregating() const {
    qc_sig_t qc_sig;
 
-   if( pending_state == state_t::strong ) {
+   if( aggregating_state == state_t::strong ) {
       qc_sig.strong_votes = strong_votes.bitset;
       qc_sig.sig          = strong_votes.sig;
    } else if (is_quorum_met_no_lock()) {
@@ -245,12 +245,12 @@ qc_sig_t in_progess_qc_sig_t::extract_qc_sig_from_open() const {
       qc_sig.sig          = strong_votes.sig;
       qc_sig.sig.aggregate(weak_votes.sig);
    } else
-      assert(0); // this should be called only when we have an open qc with a quorum
+      assert(0); // this should be called only when we have an aggregating_qc_sig_t with a quorum
 
    return qc_sig;
 }
 
-std::optional<qc_sig_t> in_progess_qc_sig_t::get_best_qc() const {
+std::optional<qc_sig_t> aggregating_qc_sig_t::get_best_qc() const {
    std::lock_guard g(*_mtx);
    // if this does not have a valid QC, consider received_qc_sig only
    if( !is_quorum_met_no_lock() ) {
@@ -260,22 +260,22 @@ std::optional<qc_sig_t> in_progess_qc_sig_t::get_best_qc() const {
       return {};
    }
 
-   qc_sig_t qc_sig_from_open = extract_qc_sig_from_open();
+   qc_sig_t qc_sig_from_agg = extract_qc_sig_from_aggregating();
 
-   // if received_qc_sig does not have value, consider valid_qc_sig_from_open only
+   // if received_qc_sig does not have value, consider qc_sig_from_agg only
    if( !received_qc_sig ) {
-      return std::optional{std::move(qc_sig_from_open)};
+      return std::optional{std::move(qc_sig_from_agg)};
    }
 
-   // Both received_qc_sig and qc_sig_from_open have value. Compare them and select a better one.
+   // Both received_qc_sig and qc_sig_from_agg have value. Compare them and select a better one.
    // Strong beats weak. Tie-break by received_qc_sig, strong beats weak
-   if (received_qc_sig->is_strong() || qc_sig_from_open.is_weak()) {
+   if (received_qc_sig->is_strong() || qc_sig_from_agg.is_weak()) {
       return std::optional{qc_sig_t{ *received_qc_sig }};
    }
-   return std::optional{qc_sig_t{ std::move(qc_sig_from_open) }};
+   return std::optional{qc_sig_t{ std::move(qc_sig_from_agg) }};
 }
 
-bool in_progess_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
+bool aggregating_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    std::lock_guard g(*_mtx);
    if (!received_qc_sig || (received_qc_sig->is_weak() && qc.is_strong())) {
       received_qc_sig = qc;
@@ -284,16 +284,16 @@ bool in_progess_qc_sig_t::set_received_qc_sig(const qc_sig_t& qc) {
    return false;
 }
 
-bool in_progess_qc_sig_t::received_qc_sig_is_strong() const {
+bool aggregating_qc_sig_t::received_qc_sig_is_strong() const {
    std::lock_guard g(*_mtx);
    return received_qc_sig && received_qc_sig->is_strong();
 }
 
-bool in_progess_qc_sig_t::is_quorum_met_no_lock() const {
-   return is_quorum_met(pending_state);
+bool aggregating_qc_sig_t::is_quorum_met_no_lock() const {
+   return is_quorum_met(aggregating_state);
 }
 
-std::optional<qc_t> in_progress_qc_t::get_best_qc(block_num_type block_num) const {
+std::optional<qc_t> aggregating_qc_t::get_best_qc(block_num_type block_num) const {
    std::optional<qc_sig_t> active_best_qc = active_policy_sig.get_best_qc();
    if (!active_best_qc) // active is always required
       return {};
@@ -309,7 +309,7 @@ std::optional<qc_t> in_progress_qc_t::get_best_qc(block_num_type block_num) cons
    return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
 }
 
-void in_progress_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
+void aggregating_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
    if (qc.pending_policy_sig) {
       EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
                  "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
@@ -324,7 +324,7 @@ void in_progress_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_diges
    }
 }
 
-bool in_progress_qc_t::set_received_qc(const qc_t& qc) {
+bool aggregating_qc_t::set_received_qc(const qc_t& qc) {
    // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
    EOS_ASSERT(!pending_policy_sig || qc.pending_policy_sig, invalid_qc_claim,
               "qc ${bn} expected to have a pending policy signature", ("bn", qc.block_num));
@@ -336,15 +336,15 @@ bool in_progress_qc_t::set_received_qc(const qc_t& qc) {
    return active_better || pending_better;
 }
 
-bool in_progress_qc_t::received_qc_is_strong() const {
+bool aggregating_qc_t::received_qc_is_strong() const {
    if (!pending_policy_sig) { // consider only active
       return active_policy_sig.received_qc_sig_is_strong();
    }
    return active_policy_sig.received_qc_sig_is_strong() && pending_policy_sig->received_qc_sig_is_strong();
 }
 
-vote_result_t in_progress_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                      block_num_type block_num, std::span<const uint8_t> finalizer_digest)
+vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                               block_num_type block_num, std::span<const uint8_t> finalizer_digest)
 {
    bool verified_sig = false;
    auto verify_sig = [&]() -> vote_result_t {
@@ -357,19 +357,19 @@ vote_result_t in_progress_qc_t::aggregate_vote(uint32_t connection_id, const vot
       return vote_result_t::success;
    };
 
-   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, in_progess_qc_sig_t& open_qc_sig) -> vote_result_t {
+   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, aggregating_qc_sig_t& agg_qc_sig) -> vote_result_t {
       const auto& finalizers = finalizer_policy->finalizers;
       auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
       vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), itr);
-         if (open_qc_sig.has_voted(index)) {
+         if (agg_qc_sig.has_voted(index)) {
             fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
             return vote_result_t::duplicate;
          }
          if (vote_result_t vs = verify_sig(); vs != vote_result_t::success)
             return vs;
-         s = open_qc_sig.add_vote(connection_id, block_num,
+         s = agg_qc_sig.add_vote(connection_id, block_num,
                                   vote.strong,
                                   index,
                                   vote.sig,
@@ -397,15 +397,15 @@ vote_result_t in_progress_qc_t::aggregate_vote(uint32_t connection_id, const vot
    return s;
 }
 
-vote_status_t in_progress_qc_t::has_voted(const bls_public_key& key) const {
+vote_status_t aggregating_qc_t::has_voted(const bls_public_key& key) const {
    auto finalizer_has_voted = [](const finalizer_policy_ptr& policy,
-                                 const in_progess_qc_sig_t& open_qc_sig,
+                                 const aggregating_qc_sig_t& agg_qc_sig,
                                  const bls_public_key& key) -> vote_status_t {
       const auto& finalizers = policy->finalizers;
       auto it = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == key; });
       if (it != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), it);
-         return open_qc_sig.has_voted(index) ? vote_status_t::voted : vote_status_t::not_voted;
+         return agg_qc_sig.has_voted(index) ? vote_status_t::voted : vote_status_t::not_voted;
       }
       return vote_status_t::irrelevant_finalizer;
    };
@@ -425,11 +425,11 @@ vote_status_t in_progress_qc_t::has_voted(const bls_public_key& key) const {
    return pending_status;
 }
 
-bool in_progress_qc_t::is_quorum_met() const {
+bool aggregating_qc_t::is_quorum_met() const {
    return active_policy_sig.is_quorum_met() && (!pending_policy_sig || pending_policy_sig->is_quorum_met());
 }
 
-qc_vote_metrics_t in_progress_qc_t::vote_metrics(const qc_t& qc) const {
+qc_vote_metrics_t aggregating_qc_t::vote_metrics(const qc_t& qc) const {
    qc_vote_metrics_t result;
 
    auto add_votes = [&](const finalizer_policy_ptr& finalizer_policy, const auto& votes, qc_vote_metrics_t::fin_auth_set_t& results) {
@@ -474,7 +474,7 @@ qc_vote_metrics_t in_progress_qc_t::vote_metrics(const qc_t& qc) const {
    return result;
 }
 
-qc_vote_metrics_t::fin_auth_set_t in_progress_qc_t::missing_votes(const qc_t& qc) const {
+qc_vote_metrics_t::fin_auth_set_t aggregating_qc_t::missing_votes(const qc_t& qc) const {
    // all asserts are verified by verify_qc()
    qc_vote_metrics_t::fin_auth_set_t not_voted;
 

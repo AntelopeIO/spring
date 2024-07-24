@@ -3718,7 +3718,7 @@ struct controller_impl {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
-      return bsp->in_progress_qc.vote_metrics(qc);
+      return bsp->aggregating_qc.vote_metrics(qc);
    }
 
 
@@ -3726,7 +3726,7 @@ struct controller_impl {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
-      return bsp->in_progress_qc.missing_votes(qc);
+      return bsp->aggregating_qc.missing_votes(qc);
    }
 
    // thread safe
@@ -3739,7 +3739,7 @@ struct controller_impl {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
               emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
 
-              // also aggregate our own vote into the in_progress_qc for this block, 0 connection_id indicates our own vote
+              // also aggregate our own vote into the aggregating_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }
