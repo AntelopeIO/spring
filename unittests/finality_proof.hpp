@@ -238,9 +238,6 @@ namespace finality_proof {
             .l2_commitments_digest                   = level_2_commitments_digest
          });
 
-         std::cout << "block " << block->block_num() << " timestamp " << timestamp.slot << " " << timestamp.to_time_point().to_iso_string() << "\n";
-         std::cout << "block " << block->block_num() << " parent_timestamp " << parent_timestamp.slot << " " << parent_timestamp.to_time_point().to_iso_string() << "\n";
-
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
             .block_num = block->block_num(),

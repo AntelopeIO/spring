@@ -102,9 +102,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(block_5_result.qc_data.qc.has_value());
       BOOST_TEST(block_6_result.qc_data.qc.has_value());
 
-      std::cout << block_2_result.block->timestamp.to_time_point() << "\n";
-      std::cout << block_2_result.parent_timestamp.to_time_point() << "\n";
-
       // create a few proofs we'll use to perform tests
       // heavy proof #1. Proving finality of block #2 using block #2 finality root
       mutable_variant_object heavy_proof_1 = mvo()
