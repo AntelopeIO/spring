@@ -199,10 +199,12 @@ namespace eosio::chain {
 
    // finalizer authority of strong, weak, or missing votes
    struct qc_vote_metrics_t {
-      static bool fin_auth_less(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) {
-         return lhs->public_key < rhs->public_key;
+      struct fin_auth_less {
+         bool operator()(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) const {
+            return lhs->public_key < rhs->public_key;
+         };
       };
-      using fin_auth_set = std::set<finalizer_authority_ptr, decltype(&fin_auth_less)>;
+      using fin_auth_set = std::set<finalizer_authority_ptr, fin_auth_less>;
 
       fin_auth_set strong_votes;
       fin_auth_set weak_votes;
