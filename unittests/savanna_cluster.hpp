@@ -270,6 +270,13 @@ namespace savanna_cluster {
          BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
       }
 
+      template<class F>
+      void require_lib_advancing_by(uint32_t cnt, F &&f) {
+         auto lib = _nodes[0].lib_block->block_num();
+         std::forward<F>(f)();
+         BOOST_REQUIRE_EQUAL(_nodes[0].lib_block->block_num(), lib + cnt);
+      }
+
       void push_block(size_t dst_idx, const signed_block_ptr& sb) {
          push_block_to_peers(dst_idx, skip_self_t::no, sb);
       }

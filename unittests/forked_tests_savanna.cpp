@@ -1,8 +1,5 @@
 #include "savanna_cluster.hpp"
 
-#include <eosio/chain/abi_serializer.hpp>
-#include <eosio/chain/fork_database.hpp>
-
 #include "fork_test_utilities.hpp"
 
 using namespace eosio::chain;

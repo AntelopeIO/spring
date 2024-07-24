@@ -192,7 +192,10 @@ namespace eosio::testing {
          void              open( const snapshot_reader_ptr& snapshot );
          void              open( const genesis_state& genesis, call_startup_t call_startup );
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
-         bool              is_same_chain( base_tester& other );
+         bool              is_open() const;
+
+
+         bool              is_same_chain( base_tester& other ) const;
 
          // `produce_block_ex` does the same thing as produce_block, but returns a struct including
          // the transaction traces in addition to the `signed_block_ptr`.

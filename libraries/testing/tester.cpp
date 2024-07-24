@@ -181,7 +181,7 @@ namespace eosio::testing {
       return pfs;
    }
 
-   bool base_tester::is_same_chain( base_tester& other ) {
+   bool base_tester::is_same_chain( base_tester& other ) const {
      return control->head().id() == other.control->head().id();
    }
 
@@ -307,6 +307,8 @@ namespace eosio::testing {
       control.reset();
       chain_transactions.clear();
    }
+
+   bool base_tester::is_open() const { return !!control; }
 
    void base_tester::open( const snapshot_reader_ptr& snapshot ) {
       open( make_protocol_feature_set(), snapshot );
