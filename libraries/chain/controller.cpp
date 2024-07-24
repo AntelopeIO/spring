@@ -2053,8 +2053,8 @@ struct controller_impl {
       });
    }
 
-   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot ) {
-      snapshot->read_section("contract_tables", [this]( auto& section ) {
+   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
+      snapshot->read_section("contract_tables", [this, &row_counter]( auto& section ) {
          bool more = !section.empty();
          while (more) {
             // read the row for the table
@@ -2063,19 +2063,22 @@ struct controller_impl {
                section.read_row(row, db);
                t_id = row.id;
             });
+            row_counter.progress();
 
             // read the size and data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &t_id, &more](auto utils) {
+            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &row_counter](auto utils) {
                using utils_t = decltype(utils);
 
                unsigned_int size;
                more = section.read_row(size, db);
+               row_counter.progress();
 
                for (size_t idx = 0; idx < size.value; idx++) {
                   utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
                      more = section.read_row(row, db);
                   });
+                  row_counter.progress();
                }
             });
          }
@@ -2150,6 +2153,8 @@ struct controller_impl {
    }
 
    block_state_pair read_from_snapshot( const snapshot_reader_ptr& snapshot, uint32_t blog_start, uint32_t blog_end ) {
+      snapshot_loaded_row_counter row_counter(snapshot->total_row_count());
+
       chain_snapshot_header header;
       snapshot->read_section<chain_snapshot_header>([this, &header]( auto &section ){
          section.read_row(header, db);
@@ -2222,7 +2227,7 @@ struct controller_impl {
                   ("block_log_last_num", blog_end)
       );
 
-      controller_index_set::walk_indices([this, &snapshot, &header]( auto utils ){
+      controller_index_set::walk_indices([this, &snapshot, &header, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2295,20 +2300,21 @@ struct controller_impl {
             }
          }
 
-         snapshot->read_section<value_t>([this]( auto& section ) {
+         snapshot->read_section<value_t>([this,&row_counter]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, db);
                });
+               row_counter.progress();
             }
          });
       });
 
-      read_contract_tables_from_snapshot(snapshot);
+      read_contract_tables_from_snapshot(snapshot, row_counter);
 
-      authorization.read_from_snapshot(snapshot);
-      resource_limits.read_from_snapshot(snapshot);
+      authorization.read_from_snapshot(snapshot, row_counter);
+      resource_limits.read_from_snapshot(snapshot, row_counter);
 
       db.set_revision( chain_head.block_num() );
       db.create<database_header_object>([](const auto& header){

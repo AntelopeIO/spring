@@ -77,6 +77,10 @@ namespace eosio::testing {
       yes // tester calls startup() during initialization.
    };
 
+   // Number of chains required for a block to become final.
+   // Current protocol is 2: strong-strong or weak-strong.
+   constexpr size_t num_chains_to_final = 2;
+
    std::ostream& operator<<(std::ostream& os, setup_policy p);
 
    std::vector<uint8_t> read_wasm( const char* fn );
@@ -956,9 +960,9 @@ namespace eosio::testing {
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
          }
 
-         // lib must advance after 3 blocks
+         // lib must advance after num_chains_to_final blocks
          // -------------------------------
-         for (size_t i=0; i<3; ++i)
+         for (size_t i=0; i<num_chains_to_final; ++i)
             auto b = produce_block();
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
