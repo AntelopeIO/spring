@@ -99,8 +99,8 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    // build leaf_node and validation_tree
    valid_t::finality_leaf_node_t leaf_node {
       .block_num        = bsp.block_num(),
-      .timestamp        = bsp.timestamp().to_time_point(),
-      .parent_timestamp = block_timestamp_type().to_time_point(), // for the genesis block, the parent_timestamp is the the earliest representable timestamp.
+      .timestamp        = bsp.timestamp(),
+      .parent_timestamp = block_timestamp_type(), // for the genesis block, the parent_timestamp is the the earliest representable timestamp.
       .finality_digest  = result.strong_digest,
       .action_mroot     = *bsp.action_mroot_savanna
    };
@@ -217,8 +217,8 @@ valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_
    // construct block's finality leaf node.
    valid_t::finality_leaf_node_t leaf_node{
       .block_num        = next_bhs.block_num(),
-      .timestamp        = next_bhs.timestamp().to_time_point(),
-      .parent_timestamp = timestamp().to_time_point(),
+      .timestamp        = next_bhs.timestamp(),
+      .parent_timestamp = timestamp(),
       .finality_digest  = strong_digest,
       .action_mroot     = action_mroot
    };

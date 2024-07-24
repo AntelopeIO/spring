@@ -33,8 +33,8 @@ struct valid_t {
       uint32_t             major_version{light_header_protocol_version_major};
       uint32_t             minor_version{light_header_protocol_version_minor};
       block_num_type       block_num{0};     // the block number
-      fc::time_point       timestamp;
-      fc::time_point       parent_timestamp;
+      block_timestamp_type timestamp;
+      block_timestamp_type parent_timestamp;
       digest_type          finality_digest;  // finality digest for the block
       digest_type          action_mroot;     // digest of the root of the action Merkle tree of the block
    };
