@@ -118,6 +118,16 @@ void variant_snapshot_reader::return_to_header() {
    clear_section();
 }
 
+size_t variant_snapshot_reader::total_row_count() {
+   size_t total = 0;
+
+   const fc::variants& sections = snapshot["sections"].get_array();
+   for(const fc::variant& section : sections)
+      total += section["rows"].get_array().size();
+
+   return total;
+}
+
 ostream_snapshot_writer::ostream_snapshot_writer(std::ostream& snapshot)
 :snapshot(snapshot)
 ,header_pos(snapshot.tellp())
@@ -337,6 +347,34 @@ void istream_snapshot_reader::return_to_header() {
    clear_section();
 }
 
+size_t istream_snapshot_reader::total_row_count() {
+   size_t total = 0;
+
+   auto restore_pos = fc::make_scoped_exit([this,pos=snapshot.tellg()](){
+      snapshot.seekg(pos);
+   });
+
+   const std::streamoff header_size = sizeof(ostream_snapshot_writer::magic_number) + sizeof(current_snapshot_version);
+
+   std::streamoff next_section_pos = header_pos + header_size;
+
+   while(true) {
+      snapshot.seekg(next_section_pos);
+      uint64_t section_size = 0;
+      snapshot.read((char*)&section_size, sizeof(section_size));
+      if(section_size == std::numeric_limits<uint64_t>::max())
+         break;
+      next_section_pos = snapshot.tellg() + std::streamoff(section_size);
+
+      uint64_t row_count = 0;
+      snapshot.read((char*)&row_count, sizeof(row_count));
+
+      total += row_count;
+   }
+
+   return total;
+}
+
 struct istream_json_snapshot_reader_impl {
    uint64_t num_rows;
    uint64_t cur_row;
@@ -420,6 +458,16 @@ void istream_json_snapshot_reader::clear_section() {
 
 void istream_json_snapshot_reader::return_to_header() {
    clear_section();
+}
+
+size_t istream_json_snapshot_reader::total_row_count() {
+   size_t total = 0;
+
+   for(const auto& section : impl->doc.GetObject())
+      if(section.value.IsObject() && section.value.HasMember("num_rows"))
+        total += section.value["num_rows"].GetUint64();
+
+   return total;
 }
 
 integrity_hash_snapshot_writer::integrity_hash_snapshot_writer(fc::sha256::encoder& enc)
