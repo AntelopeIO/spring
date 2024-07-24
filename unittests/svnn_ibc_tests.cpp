@@ -288,9 +288,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // take note of policy digest prior to changes
       digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
 
-      // at this stage, we can test the change in pending policy.
+      // At this stage, we can prepare to test the change of pending policy.
 
-      // we first take a note of the pending policy. When we get a QC on block #9, the pending policy will update.
+      // We first take a note of the pending policy. When we get a QC on block #9, the pending policy will update.
       digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
 
       // change the finalizer policy by rotating the key of node0
@@ -299,11 +299,16 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce a new block. This block contains a new proposed finalizer policy
       auto block_8_result = cluster.produce_block();
 
+      // verify we have all the QCs up to this point
+      BOOST_TEST(block_8_result.qc_data.qc.has_value());
+
       // verify the block header contains the proposed finalizer policy differences
       BOOST_TEST(finality_proof::has_finalizer_policy_diffs(block_8_result.block));
 
       // advance finality
       auto block_9_result = cluster.produce_block();
+
+      BOOST_TEST(block_9_result.qc_data.qc.has_value());
 
       // pending policy is still the same
       BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
@@ -311,13 +316,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // QC on #9 included in #10 makes #8 final, proposed policy is now pending
       auto block_10_result = cluster.produce_block();
 
-      // verify that the last pending policy has been updated
+      BOOST_TEST(block_10_result.qc_data.qc.has_value());
+      BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block requires a single QC
+
+      // Verify that the last pending policy has been updated
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
-      // verify we have all the QCs up to this point
-      BOOST_TEST(block_8_result.qc_data.qc.has_value());
-      BOOST_TEST(block_9_result.qc_data.qc.has_value());
-      BOOST_TEST(block_10_result.qc_data.qc.has_value());
 
       // At this stage, we can prove the inclusion of actions into block #7.
 
@@ -448,63 +452,22 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
 
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
-/*<<<<<<< HEAD
-
-      // At this stage, we can test the change in pending policy.
-
-      // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
-      digest_type pending_policy_digest = cluster.last_pending_finalizer_policy_digest;
-
-      // still the same
-      BOOST_TEST(pending_policy_digest==cluster.last_pending_finalizer_policy_digest);
-
-      // QC on #10 included in #11 makes #8 final, proposed policy is now pending
-      auto block_11_result = cluster.produce_block(); 
-
-      BOOST_TEST(!block_11_result.qc_data.qc.value().pending_policy_sig.has_value());
-
-      // verify that the last pending policy has been updated
-      BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
+      
+      auto block_11_result = cluster.produce_block();  // last pending policy (proposed in #8) takes effect and becomes active on next block
+      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block requires joint policies QCs
 
       auto block_12_result = cluster.produce_block();
-
-      // block #12 contains our first joint policies QCs
-      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value());
-
-      auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
-   
-      BOOST_TEST(block_13_result.qc_data.qc.value().pending_policy_sig.has_value());
-
-      //verify that the current finalizer policy is still in force up to this point    
-      BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
-      
-      auto block_14_result = cluster.produce_block();
-=======*/
-      
-      auto block_11_result = cluster.produce_block();  //new policy takes effect on next block
-
-      auto block_12_result = cluster.produce_block();
-
-      //BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
-
-      auto block_13_result = cluster.produce_block(); 
-   
-      auto block_14_result = cluster.produce_block();
-
-      //BOOST_TEST(block_13_result.qc_data.qc.value().pending_policy_sig.has_value());
-
-//>>>>>>> 8e47281c97e5425f30367f4b065c13e2c7c3c5d2
-
-      //BOOST_TEST(block_14_result.qc_data.qc.value().pending_policy_sig.has_value());
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block requires joint policies QCs
 
       //verify that the new finalizer policy is now in force
-      //BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
+      BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
-      //auto block_13_result = cluster.produce_block();
-      //auto block_14_result = cluster.produce_block();
+      auto block_13_result = cluster.produce_block(); 
+      BOOST_TEST(!block_13_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block requires a single QC
+   
+      auto block_14_result = cluster.produce_block();
+
       auto block_15_result = cluster.produce_block();
-
-      //BOOST_TEST(!block_15_result.qc_data.qc.value().pending_policy_sig.has_value());
 
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
