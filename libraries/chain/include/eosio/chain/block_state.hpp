@@ -66,7 +66,7 @@ struct block_state : public block_header_state {     // block_header_state provi
    signed_block_ptr           block;
    digest_type                strong_digest;         // finalizer_digest (strong, cached so we can quickly validate votes)
    weak_digest_t              weak_digest;           // finalizer_digest (weak, cached so we can quickly validate votes)
-   open_qc_t                  open_qc;               // where we accumulate votes we receive
+   in_progress_qc_t           in_progress_qc;        // where we accumulate votes we receive
    std::optional<valid_t>     valid;
 
    // ------ updated for votes, used for fork_db ordering ------------------------------
@@ -110,10 +110,10 @@ public:
 
    uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
 
-   std::optional<qc_t> get_best_qc() const { return open_qc.get_best_qc(block_num()); } // thread safe
-   bool received_qc_is_strong() const { return open_qc.received_qc_is_strong(); } // thread safe
+   std::optional<qc_t> get_best_qc() const { return in_progress_qc.get_best_qc(block_num()); } // thread safe
+   bool received_qc_is_strong() const { return in_progress_qc.received_qc_is_strong(); } // thread safe
    // return true if better qc, thread safe
-   bool set_received_qc(const qc_t& qc) { return open_qc.set_received_qc(qc); }
+   bool set_received_qc(const qc_t& qc) { return in_progress_qc.set_received_qc(qc); }
    // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 
@@ -137,7 +137,7 @@ public:
    finality_data_t get_finality_data();
 
    // connection_id only for logging
-   vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into open_qc
+   vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into in_progress_qc
    vote_status_t has_voted(const bls_public_key& key) const;
    void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
@@ -185,4 +185,4 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
 FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(reversible_blocks_mroot)(base_digest)(pending_finalizer_policy) )
-FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(open_qc)(valid)(validated) )
+FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(in_progress_qc)(valid)(validated) )
