@@ -125,21 +125,18 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
 }
 
 // ----------------------------------------------------------------------------------------
-inline bool has_voted_strong(const std::vector<finalizer_authority>& active_finalizers, const valid_quorum_certificate& qc, const bls_public_key& key) {
+inline bool has_voted_strong(const std::vector<finalizer_authority>& finalizers, const qc_sig_t& qc, const bls_public_key& key) {
    assert(qc.is_strong());
-   auto it = std::find_if(active_finalizers.begin(),
-                          active_finalizers.end(),
-                          [&](const auto& finalizer) { return finalizer.public_key == key; });
-
-   if (it != active_finalizers.end()) {
-      auto index = std::distance(active_finalizers.begin(), it);
+   auto it = std::ranges::find_if(finalizers, [&](const auto& fin) { return fin.public_key == key; });
+   if (it != finalizers.end()) {
+      auto index = std::distance(finalizers.begin(), it);
       assert(qc.strong_votes);
       return qc.strong_votes->test(index);
    }
    return false;
 }
 
-void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc) {
+void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& received_qc) {
    if (finalizers.empty())
       return;
 
@@ -148,13 +145,19 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const valid_q
       return;
 
    assert(bsp->active_finalizer_policy);
+   // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
+   EOS_ASSERT(!bsp->pending_finalizer_policy || received_qc.pending_policy_sig, invalid_qc_claim,
+              "qc ${bn} expected to have a pending policy signature", ("bn", received_qc.block_num));
+
 
    // see comment on possible optimization in maybe_vote
    std::lock_guard g(mtx);
 
    bool updated = false;
    for (auto& f : finalizers) {
-      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc, f.first)) {
+      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc.active_policy_sig, f.first)
+          || (bsp->pending_finalizer_policy &&
+              has_voted_strong(bsp->pending_finalizer_policy->second->finalizers, *received_qc.pending_policy_sig, f.first))) {
          updated |= f.second.maybe_update_fsi(bsp);
       }
    }

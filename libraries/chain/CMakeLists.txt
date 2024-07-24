@@ -81,7 +81,7 @@ set(CHAIN_WEBASSEMBLY_SOURCES
 
 set(CHAIN_FINALITY_SOURCES
         finality/finalizer.cpp
-        finality/quorum_certificate.cpp
+        finality/qc.cpp
         finality/finality_core.cpp
 )
 
