@@ -188,7 +188,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
    uint32_t head_block_num = chain.head().block_num();
    uint32_t lib_block_num;
    if constexpr (std::is_same_v<T, eosio::testing::savanna_tester>) {
-      lib_block_num = head_block_num - 3; // three-chain
+      lib_block_num = head_block_num - eosio::testing::num_chains_to_final; // two-chain
    } else {
       lib_block_num = head_block_num - 1; // legacy, one producer
    }

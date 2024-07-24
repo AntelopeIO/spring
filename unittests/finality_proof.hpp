@@ -174,13 +174,15 @@ namespace finality_proof {
          if (!is_genesis){
             parent_timestamp = timestamp;
             for (const auto& p : blocks_since_proposed_policy){
+
                //under the happy path with strong QCs in every block, a policy becomes active 6 blocks after being proposed
-               if (p.second.blocks_since_proposed == 6 && p.first != active_finalizer_policy_digest){
+               if (p.second.blocks_since_proposed == 2 * eosio::testing::num_chains_to_final && p.first != active_finalizer_policy_digest){
                   active_finalizer_policy = p.second.policy;
                   active_finalizer_policy_digest = p.first;
                }
                //under the happy path with strong QCs in every block, a policy becomes pending 3 blocks after being proposed
-               else if (p.second.blocks_since_proposed == 3 && p.first != last_pending_finalizer_policy_digest){
+               else if (p.second.blocks_since_proposed == eosio::testing::num_chains_to_final && p.first != last_pending_finalizer_policy_digest){
+
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
                   last_pending_finalizer_policy_start_num = block->block_num();
