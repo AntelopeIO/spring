@@ -226,7 +226,6 @@ namespace finality_proof {
          // compute digest for verification purposes
          digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
             .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
-            .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
             .finality_tree_digest                    = finality_root,
             .l2_commitments_digest                   = level_2_commitments_digest
          });
