@@ -375,20 +375,8 @@ namespace savanna {
          resolved_finality_digest = block_finality_data_internal(base.finality_data).finality_digest();
          resolved_action_mroot = base.dynamic_data.get_action_mroot();
 
-         print("base.timestamp ", base.timestamp.elapsed.count(), "\n");
-         print("base.parent_timestamp ", base.parent_timestamp.elapsed.count(), "\n");
-
-         print("base.timestamp ", base.timestamp.to_string(), "\n");
-         print("base.parent_timestamp ", base.parent_timestamp.to_string(), "\n");
-
          resolved_timestamp = base.timestamp;
          resolved_parent_timestamp = base.parent_timestamp;
-
-         print("resolved_timestamp ", resolved_timestamp.elapsed.count(), "\n");
-         print("resolved_parent_timestamp ", resolved_parent_timestamp.elapsed.count(), "\n");
-
-         print("resolved_timestamp ", resolved_timestamp.to_string(), "\n");
-         print("resolved_parent_timestamp ", resolved_parent_timestamp.to_string(), "\n");
 
       }
 
@@ -417,15 +405,15 @@ namespace savanna {
    struct simple_block_data_internal : simple_block_data {
       checksum256 resolved_action_mroot;
 
-      time_point timestamp;
-      time_point parent_timestamp;
+      time_point resolved_timestamp;
+      time_point resolved_parent_timestamp;
 
       simple_block_data_internal(const simple_block_data& base) : simple_block_data(base){
          
          resolved_action_mroot = base.dynamic_data.get_action_mroot();
 
-         timestamp = base.timestamp;
-         parent_timestamp = base.parent_timestamp;
+         resolved_timestamp = base.timestamp;
+         resolved_parent_timestamp = base.parent_timestamp;
       }
 
       checksum256 finality_leaf() const {
@@ -434,7 +422,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(timestamp)(parent_timestamp)(finality_digest)(resolved_action_mroot))
+      EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(resolved_timestamp)(resolved_parent_timestamp)(finality_digest)(resolved_action_mroot))
    };
 
    using block_data_type = std::variant<simple_block_data, extended_block_data>;
