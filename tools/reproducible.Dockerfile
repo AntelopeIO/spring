@@ -56,7 +56,8 @@ RUN tar xf cmake-*.tar.gz && \
     cd cmake*[0-9] && \
     echo 'set(CMAKE_USE_OPENSSL OFF CACHE BOOL "" FORCE)' > spring-init.cmake && \
     ./bootstrap --parallel=$(nproc) --init=spring-init.cmake --generator=Ninja && \
-    ninja install
+    ninja install && \
+    rm -rf cmake*
 
 RUN tar xf llvm-project-${_SPRING_CLANG_VERSION}.src.tar.xz && \
     cmake -S llvm-project-${_SPRING_CLANG_VERSION}.src/llvm -B build-toolchain -GNinja -DLLVM_INCLUDE_DOCS=Off -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_BUILD_TYPE=Release \
@@ -64,7 +65,8 @@ RUN tar xf llvm-project-${_SPRING_CLANG_VERSION}.src.tar.xz && \
                                                                                      -DCOMPILER_RT_BUILD_SANITIZERS=Off \
                                                                                      -DLLVM_ENABLE_PROJECTS='lld;clang;clang-tools-extra' \
                                                                                      -DLLVM_ENABLE_RUNTIMES='compiler-rt;libc;libcxx;libcxxabi;libunwind' && \
-    cmake --build build-toolchain -t install
+    cmake --build build-toolchain -t install && \
+    rm -rf build*
 
 COPY <<-"EOF" /pinnedtoolchain/pinnedtoolchain.cmake
    set(CMAKE_C_COMPILER ${CMAKE_CURRENT_LIST_DIR}/bin/clang)
@@ -89,9 +91,8 @@ RUN tar xf llvm-project-${_SPRING_LLVM_VERSION}.src.tar.xz && \
     cmake -S llvm-project-${_SPRING_LLVM_VERSION}.src/llvm -B build-pinllvm -GNinja -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_BUILD_TOOLS=Off \
                                                                                   -DLLVM_ENABLE_RTTI=On -DLLVM_ENABLE_TERMINFO=Off -DLLVM_ENABLE_PIC=Off \
                                                                                   -DCMAKE_INSTALL_PREFIX=/pinnedtoolchain/pinllvm && \
-    cmake --build build-pinllvm -t install
-
-RUN rm -rf llvm* build* cmake*
+    cmake --build build-pinllvm -t install && \
+    rm -rf build* llvm*
 
 FROM builder AS build
 
