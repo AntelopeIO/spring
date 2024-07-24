@@ -126,7 +126,7 @@ namespace eosio::chain {
          // thread safe
          bool has_voted(size_t index) const;
 
-         vote_result_t add_vote(size_t index, const bls_signature& sig);
+         void add_vote(size_t index, const bls_signature& sig);
 
          template<class CB>
          void visit_bitset(const CB& cb) const {
@@ -154,7 +154,6 @@ namespace eosio::chain {
                              uint64_t weight);
 
       bool has_voted(size_t index) const;
-      bool has_voted(bool strong, size_t index) const;
 
       // for debugging, thread safe
       template<class CB>
@@ -183,9 +182,10 @@ namespace eosio::chain {
       votes_t                     weak_votes {0};
       votes_t                     strong_votes {0};
 
+      // called with mutex held
+      vote_result_t check_duplicate(size_t index);
       // called by add_vote, already protected by mutex
       vote_result_t add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight);
-
       // called by add_vote, already protected by mutex
       vote_result_t add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight);
 

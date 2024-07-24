@@ -100,13 +100,6 @@ bool open_qc_sig_t::has_voted(size_t index) const {
    return strong_votes.has_voted(index) || weak_votes.has_voted(index);
 }
 
-bool open_qc_sig_t::has_voted(bool strong, size_t index) const {
-   if (strong) {
-      return strong_votes.has_voted(index);
-   }
-   return weak_votes.has_voted(index);
-}
-
 void open_qc_sig_t::votes_t::reflector_init() {
    processed = std::vector<bit_processed>(bitset.size());
    for (size_t i = 0; i < bitset.size(); ++i) {
@@ -122,14 +115,10 @@ bool open_qc_sig_t::votes_t::has_voted(size_t index) const {
 }
 
 
-vote_result_t open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
-   if (bitset[index]) { // check here as could have come in while unlocked
-      return vote_result_t::duplicate; // shouldn't be already present
-   }
+void open_qc_sig_t::votes_t::add_vote(size_t index, const bls_signature& signature) {
    processed[index].value.store(true, std::memory_order_relaxed);
    bitset.set(index);
    sig.aggregate(signature); // works even if _sig is default initialized (fp2::zero())
-   return vote_result_t::success;
 }
 
 open_qc_sig_t::open_qc_sig_t()
@@ -155,11 +144,16 @@ bool open_qc_sig_t::is_quorum_met() const {
    return is_quorum_met_no_lock();
 }
 
+// called with held mutex
+vote_result_t open_qc_sig_t::check_duplicate(size_t index) {
+   if (strong_votes.bitset[index] || weak_votes.bitset[index])
+      return vote_result_t::duplicate;
+   return vote_result_t::success;
+}
+
 // called by add_vote, already protected by mutex
 vote_result_t open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = strong_votes.add_vote(index, sig); s != vote_result_t::success) {
-      return s;
-   }
+   strong_votes.add_vote(index, sig);
    strong_sum += weight;
 
    switch (pending_state) {
@@ -187,8 +181,7 @@ vote_result_t open_qc_sig_t::add_strong_vote(size_t index, const bls_signature& 
 
 // called by add_vote, already protected by mutex
 vote_result_t open_qc_sig_t::add_weak_vote(size_t index, const bls_signature& sig, uint64_t weight) {
-   if (auto s = weak_votes.add_vote(index, sig); s != vote_result_t::success)
-      return s;
+   weak_votes.add_vote(index, sig);
    weak_sum += weight;
 
    switch (pending_state) {
@@ -224,8 +217,13 @@ vote_result_t open_qc_sig_t::add_vote(uint32_t connection_id, block_num_type blo
                                       const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
    state_t pre_state = pending_state;
-   vote_result_t s = strong ? add_strong_vote(index, sig, weight)
-                          : add_weak_vote(index, sig, weight);
+   vote_result_t s = check_duplicate(index);
+   if (s == vote_result_t::success) {
+      if (strong)
+         s = add_strong_vote(index, sig, weight);
+      else
+         s = add_weak_vote(index, sig, weight);
+   }
    state_t post_state = pending_state;
    g.unlock();
 
@@ -365,7 +363,7 @@ vote_result_t open_qc_t::aggregate_vote(uint32_t connection_id, const vote_messa
       vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), itr);
-         if (open_qc_sig.has_voted(vote.strong, index)) {
+         if (open_qc_sig.has_voted(index)) {
             fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
             return vote_result_t::duplicate;
          }
