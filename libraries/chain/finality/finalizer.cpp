@@ -145,19 +145,20 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
       return;
 
    assert(bsp->active_finalizer_policy);
+   // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
+   EOS_ASSERT(!bsp->pending_finalizer_policy || received_qc.pending_policy_sig, invalid_qc_claim,
+              "qc ${bn} expected to have a pending policy signature", ("bn", received_qc.block_num));
+
 
    // see comment on possible optimization in maybe_vote
    std::lock_guard g(mtx);
 
    bool updated = false;
    for (auto& f : finalizers) {
-      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc.active_policy_sig, f.first)) {
+      if (has_voted_strong(bsp->active_finalizer_policy->finalizers, received_qc.active_policy_sig, f.first)
+          || (bsp->pending_finalizer_policy &&
+              has_voted_strong(bsp->pending_finalizer_policy->second->finalizers, *received_qc.pending_policy_sig, f.first))) {
          updated |= f.second.maybe_update_fsi(bsp);
-      } else if (bsp->pending_finalizer_policy) {
-         assert(received_qc.pending_policy_sig);
-         if (has_voted_strong(bsp->pending_finalizer_policy->second->finalizers, *received_qc.pending_policy_sig, f.first)) {
-            updated |= f.second.maybe_update_fsi(bsp);
-         }
       }
    }
 
