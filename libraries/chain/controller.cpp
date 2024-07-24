@@ -3964,25 +3964,27 @@ struct controller_impl {
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const qc_t& received_qc = qc_ext.qc;
 
-      block_state_ptr claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
-      if( !claimed ) {
+      block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
+      if( !claimed_bsp ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
 
       // Don't save the QC from block extension if the claimed block has a better or same received_qc
-      if (claimed->set_received_qc(received_qc)) {
-         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
+      if (claimed_bsp->set_received_qc(received_qc)) {
+         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())
+              ("bn", claimed_bsp->block_num())("id", claimed_bsp->id()));
       } else {
          dlog("qc not better, claimed->received: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
-              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
+              ("qbn", claimed_bsp->block_num())("qid", claimed_bsp->id())
+              ("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
       }
 
-      if( received_qc.is_strong() ) {
+      if (received_qc.is_strong()) {
          // Update finalizer safety information based on vote evidence
-         my_finalizers.maybe_update_fsi(claimed, received_qc);
+         my_finalizers.maybe_update_fsi(claimed_bsp, received_qc);
       }
    }
 
