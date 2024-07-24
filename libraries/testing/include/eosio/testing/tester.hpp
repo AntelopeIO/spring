@@ -552,7 +552,6 @@ namespace eosio::testing {
 
          void set_produce_block_callback(std::function<void(const signed_block_ptr&)> cb) { _produce_block_callback = std::move(cb); }
          void do_check_for_votes(bool val) { _expect_votes = val; }
-         vote_info_vec get_votes(const block_id_type& id) const { return control->get_votes(id); }
 
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );

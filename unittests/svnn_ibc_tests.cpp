@@ -48,8 +48,8 @@ std::string binary_to_hex(const std::string& bin) {
    return bitset_to_input_string(bitset);
 }
 
-auto finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
-   return bitset_to_input_string(bd.qc_data.qc.value().data.strong_votes.value());
+auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
+   return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
 };
 
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
@@ -116,8 +116,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -155,8 +155,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_5_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_5_result)) 
+                  ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_5_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -189,8 +189,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_5_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_6_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_6_result)) 
+                  ("signature", block_6_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_6_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -371,8 +371,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_9_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_10_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_10_result)) 
+                  ("signature", block_10_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_10_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -422,11 +422,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // action proof verification
       action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
-      BOOST_TEST(true);
 
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
-      BOOST_TEST(true);
-      
+
       // At this stage, we can test the change in pending policy.
 
       // We first take a note of the pending policy. When we get a QC on block #10, the pending policy will update.
@@ -438,21 +436,34 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // QC on #10 included in #11 makes #8 final, proposed policy is now pending
       auto block_11_result = cluster.produce_block(); 
 
+      BOOST_TEST(!block_11_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       // verify that the last pending policy has been updated
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
 
       auto block_12_result = cluster.produce_block();
+
+      // block #12 contains our first joint policies QCs
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_13_result = cluster.produce_block(); //new policy takes effect on next block
    
+      BOOST_TEST(block_13_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the current finalizer policy is still in force up to this point    
       BOOST_TEST(previous_policy_digest==cluster.active_finalizer_policy_digest);
       
       auto block_14_result = cluster.produce_block();
 
+      BOOST_TEST(block_14_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       //verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_15_result = cluster.produce_block();
+
+      BOOST_TEST(!block_15_result.qc_data.qc.value().pending_policy_sig.has_value());
+
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
@@ -487,8 +498,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_13_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_14_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_14_result)) 
+                  ("signature", block_14_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_14_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -499,6 +510,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("finalizer_policy_generation", 1)
+                     ("last_pending_finalizer_policy_start_num", block_11_result.block->block_num())
                      ("final_on_strong_qc_block_num", 13)
                      ("new_finalizer_policy", cluster.last_pending_finalizer_policy)
                      ("witness_hash", block_11_result.base_digest)
@@ -535,8 +547,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("finality_mroot", block_14_result.finality_root)
                )
                ("qc", mvo()
-                  ("signature", block_15_result.qc_data.qc.value().data.sig.to_string())
-                  ("finalizers", finalizers_string(block_15_result)) 
+                  ("signature", block_15_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_15_result)) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -580,7 +592,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
-
+      
       cluster.produce_blocks(10); //advance 5 seconds
 
       // the root is still cached when performing this action, so the action succeeds.
