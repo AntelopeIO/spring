@@ -26,9 +26,9 @@ namespace savanna {
    };
 
    struct finalizer_policy_internal {
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
+      uint32_t                         generation = 0; // sequentially incrementing version number
+      uint64_t                         threshold = 0;  // vote weight threshold to finalize blocks
+      std::vector<finalizer_authority_internal> finalizers; // Instant Finality voter set
 
       checksum256 digest() const {
           std::vector<char> serialized = pack(*this);
@@ -43,9 +43,9 @@ namespace savanna {
    };
 
    struct finalizer_policy_input {
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
+      uint32_t                         generation = 0;
+      uint64_t                         threshold = 0;
+      std::vector<finalizer_authority_input> finalizers;
 
       checksum256 digest() const {
 
@@ -83,7 +83,7 @@ namespace savanna {
       return tp;
    }
 
-   //compute proof path
+   //compute path for proof of inclusion
    std::vector<bool> _get_proof_path(uint64_t leaf_index, const uint64_t leaf_count) {
        std::vector<bool> proof_path;
        uint64_t current_leaf_count = leaf_count;
@@ -117,13 +117,14 @@ namespace savanna {
        return hash;
    }
 
-   //add two numbers from the g1 group (aggregation)
+   //add two numbers from the g1 group (key aggregation)
    bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2) {
       bls_g1 r;
       bls_g1_add(op1, op2, r);
       return r;
    }
 
+   // verify signature
    bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
       return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
    }
@@ -301,7 +302,6 @@ namespace savanna {
       //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
-      //std::optional<checksum256> level_3_commitments_digest;
 
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
