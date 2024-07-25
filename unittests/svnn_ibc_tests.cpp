@@ -102,7 +102,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(block_6_result.qc_data.qc.has_value());
 
       // create a few proofs we'll use to perform tests
-      // heavy proof #1. Proving finality of block #2 using block #2 finality root
+
+      // heavy proof #1. Proving finality of block #2 using block #2 finality root. 
+
+      // Under 2-chains finality, a QC over block #2 (delivered by block #3) and a strong QC on block #3 
+      // (delivered by block #4) constitutes a valid 2-chains and results in #2 becoming final.  
       mutable_variant_object heavy_proof_1 = mvo()
          ("proof", mvo() 
             ("finality_proof", mvo() //proves finality of block #2
