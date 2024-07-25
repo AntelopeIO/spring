@@ -594,7 +594,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // we must first prove that block #10 became final, which makes the policy proposed in block #8 pending.
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
-      
+
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
 
