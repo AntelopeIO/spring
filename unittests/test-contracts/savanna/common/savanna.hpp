@@ -357,6 +357,7 @@ namespace savanna {
       EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
    };
 
+   //used in "heavy" proofs, where verification of finality digest is performed
    struct extended_block_data {
       //finality data
       block_finality_data finality_data;
@@ -394,6 +395,7 @@ namespace savanna {
       EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_timestamp)(resolved_parent_timestamp)(resolved_finality_digest)(resolved_action_mroot))
    };
 
+   //used in "light" proofs
    struct simple_block_data {
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
