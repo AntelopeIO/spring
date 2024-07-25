@@ -7,6 +7,8 @@
 #include <ranges>
 #include <boost/unordered/unordered_flat_map.hpp>
 
+#include "snapshot_suites.hpp"
+
 namespace savanna_cluster {
    namespace ranges = std::ranges;
 
@@ -80,6 +82,40 @@ namespace savanna_cluster {
       bool is_head_missing_finalizer_votes() {
          return control->is_block_missing_finalizer_votes(head());
       }
+
+      std::string snapshot() const {
+         auto writer = buffered_snapshot_suite::get_writer();
+         control->write_snapshot(writer);
+         return buffered_snapshot_suite::finalize(writer);
+      }
+
+      void open_from_snapshot(const std::string& snapshot) {
+         open(buffered_snapshot_suite::get_reader(snapshot));
+      }
+
+      std::vector<uint8_t> save_fsi() const {
+         auto finalizer_path = cfg.finalizers_dir / config::safety_filename;
+         std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
+         std::streamsize size = file.tellg();
+         file.seekg(0, std::ios::beg);
+
+         std::vector<uint8_t> buffer(size);
+         file.read((char *)buffer.data(), size);
+         return buffer;
+      }
+
+      void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
+         auto finalizer_path = cfg.finalizers_dir / config::safety_filename;
+         std::ofstream file(finalizer_path.generic_string(), std::ofstream::binary);
+         file.write((const char *)fsi.data(), fsi.size());
+      }
+
+      void remove_state() {
+         auto state_path = cfg.state_dir;
+         remove_all(state_path);
+         std::filesystem::create_directories(state_path);
+      }
+
    };
 
    // ---------------------------------------------------------------------------------------
