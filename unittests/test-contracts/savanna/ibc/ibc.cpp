@@ -95,7 +95,23 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.finalizer_policy_generation);
 
     //verify QC. If QC is valid, it means that we have reached finality on the block referenced by the finality_mroot
-    _check_qc(finality_proof.qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy);
+    _check_qc(finality_proof.active_policy_qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy);
+
+    if (std::holds_alternative<extended_block_data>(target_block_proof_of_inclusion.target)){
+
+        auto target = std::get<extended_block_data>(target_block_proof_of_inclusion.target);
+
+        if (target.finality_data.new_finalizer_policy.has_value()){
+
+            check(finality_proof.pending_policy_qc.has_value(), "must provide QC from pending finalizer policy when attempting to prove finalizer policy transition");
+            
+            _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.new_finalizer_policy.value());
+    
+            _maybe_set_finalizer_policy(target.finality_data.new_finalizer_policy.value(), target.dynamic_data.block_num);
+
+        }
+
+    }
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
     _check_target_block_proof_of_inclusion(target_block_proof_of_inclusion, finality_proof.qc_block.finality_mroot);
@@ -123,15 +139,6 @@ void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion&
         check(itr!= merkle_index.end(), "proof of inclusion is invalid");
     }
 
-    if (std::holds_alternative<extended_block_data>(proof.target)){
-
-        auto target = std::get<extended_block_data>(proof.target);
-
-        if (target.finality_data.new_finalizer_policy.has_value()){
-            _maybe_set_finalizer_policy(target.finality_data.new_finalizer_policy.value(), target.dynamic_data.block_num);
-        }
-
-    }
 }
 
 ACTION ibc::setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num){

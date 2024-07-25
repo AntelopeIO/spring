@@ -199,8 +199,12 @@
                     "type": "block_finality_data"
                 },
                 {
-                    "name": "qc",
+                    "name": "active_policy_qc",
                     "type": "quorum_certificate"
+                },
+                {
+                    "name": "pending_policy_qc",
+                    "type": "quorum_certificate?"
                 }
             ]
         },

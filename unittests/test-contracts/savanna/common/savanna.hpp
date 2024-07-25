@@ -459,8 +459,12 @@ namespace savanna {
       //block finality data over which we validate a QC
       block_finality_data qc_block;
 
-      //signature over finality_digest() of qc_block. 
-      quorum_certificate qc;
+      //signature over finality_digest() of qc_block by active policy generation 
+      quorum_certificate active_policy_qc;
+
+      //signature over finality_digest() of qc_block by pending policy generation (required during transitions, prohibited otherwise)
+      std::optional<quorum_certificate> pending_policy_qc;
+
    };
 
    struct proof {
