@@ -264,7 +264,6 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-
          return ibc_block_data_t{
             .block = block, 
             .qc_data = qc_data, 
