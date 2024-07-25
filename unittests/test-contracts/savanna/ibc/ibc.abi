@@ -185,6 +185,14 @@
                     "type": "block_finality_data"
                 },
                 {
+                    "name": "timestamp",
+                    "type": "time_point"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "time_point"
+                },
+                {
                     "name": "dynamic_data",
                     "type": "dynamic_data_v0"
                 }
@@ -325,6 +333,14 @@
                 {
                     "name": "minor_version",
                     "type": "uint32"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "time_point"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "time_point"
                 },
                 {
                     "name": "finality_digest",
