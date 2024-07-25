@@ -72,7 +72,7 @@ namespace eosio { namespace chain {
          void add_indices();
          void initialize_database();
          void add_to_snapshot( const snapshot_writer_ptr& snapshot ) const;
-         void read_from_snapshot( const snapshot_reader_ptr& snapshot );
+         void read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter );
 
          void initialize_account( const account_name& account, bool is_trx_transient );
          void set_block_parameters( const elastic_limit_parameters& cpu_limit_parameters, const elastic_limit_parameters& net_limit_parameters );

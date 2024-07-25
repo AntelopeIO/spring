@@ -277,6 +277,8 @@ namespace eosio { namespace chain {
 
       virtual void return_to_header() = 0;
 
+      virtual size_t total_row_count() = 0;
+
       virtual ~snapshot_reader(){};
 
       protected:
@@ -313,6 +315,7 @@ namespace eosio { namespace chain {
          bool empty ( ) override;
          void clear_section() override;
          void return_to_header() override;
+         size_t total_row_count() override;
 
       private:
          const fc::variant& snapshot;
@@ -364,6 +367,7 @@ namespace eosio { namespace chain {
          bool empty ( ) override;
          void clear_section() override;
          void return_to_header() override;
+         size_t total_row_count() override;
 
       private:
          bool validate_section() const;
@@ -385,6 +389,7 @@ namespace eosio { namespace chain {
          bool empty ( ) override;
          void clear_section() override;
          void return_to_header() override;
+         size_t total_row_count() override;
 
       private:
          bool validate_section() const;
@@ -406,4 +411,16 @@ namespace eosio { namespace chain {
 
    };
 
+   struct snapshot_loaded_row_counter {
+      snapshot_loaded_row_counter(const size_t total) : total(total) {}
+      void progress() {
+         if(++count % 50000 == 0 && time(NULL) - last_print >= 5) {
+            ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)count/total)*100)));
+            last_print = time(NULL);
+         }
+      }
+      size_t count = 0;
+      const size_t total = 0;
+      time_t last_print = time(NULL);
+   };
 }}

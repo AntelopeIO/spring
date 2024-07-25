@@ -2,7 +2,7 @@
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/finality/finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
@@ -32,8 +32,9 @@ struct level_3_commitments_t {
 
 // commitments used in the context of finalizer policy transitions
 struct level_2_commitments_t {
-   digest_type last_pending_fin_pol_digest{};
-   digest_type l3_commitments_digest{};
+   digest_type     last_pending_fin_pol_digest{};
+   block_num_type  last_pending_fin_pol_start_num{0};
+   digest_type     l3_commitments_digest{};
 };
 
 // finality digest
@@ -113,6 +114,11 @@ struct block_header_state {
    // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
    digest_type                         last_pending_finalizer_policy_digest;
 
+   // Block number at which the last pending finalizer policy first was promoted to pending.
+   // If the last pending finalizer policy is the current active finalizer policy, then it is the block number at which
+   // that active finalizer policy first was promoted to pending. Savanna genesis block it is the genesis block number.
+   block_num_type                      last_pending_finalizer_policy_start_num {0};
+
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
 
@@ -155,6 +161,13 @@ struct block_header_state {
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
+
+   template<typename Ext> const Ext* header_extension() const {
+      if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
+         return &std::get<Ext>(itr->second);
+      }
+      return nullptr;
+   }
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
@@ -168,6 +181,5 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (last_pending_finalizer_policy_digest))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
-FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(l3_commitments_digest) )
-
+FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )
