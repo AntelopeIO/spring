@@ -13,7 +13,7 @@ BOOST_FIXTURE_TEST_CASE(nodes_go_down, savanna_cluster::cluster_t) try {
    C.close();
    require_lib_advancing_by(4, [&]() { A.produce_blocks(4); });
    C.open();
-   A.push_blocks(C);
+   A.push_blocks_to(C);
    verify_lib_advances();
 } FC_LOG_AND_RETHROW()
 

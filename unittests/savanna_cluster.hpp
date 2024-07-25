@@ -69,7 +69,7 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
-      void push_blocks(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+      void push_blocks_to(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          auto limit = std::min(fork_db_head().block_num(), block_num_limit);
          while (to.fork_db_head().block_num() < limit) {
             auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
@@ -118,7 +118,7 @@ namespace savanna_cluster {
          // to the other nodes. Needed because the tester was initialized before `node_t`.
          // ------------------------------------------------------------------------------------
          for (size_t i = 0; i < _nodes.size(); ++i)
-            _nodes[0].push_blocks(_nodes[i]);
+            _nodes[0].push_blocks_to(_nodes[i]);
 
          // from now on, propagation of blocks and votes happens automatically (thanks to the
          // callbacks registered in `node_t` constructor).
@@ -314,7 +314,7 @@ namespace savanna_cluster {
 
          for (auto i : indices)
             if (_nodes[i].is_open())
-               src.push_blocks(_nodes[i], block_num_limit);
+               src.push_blocks_to(_nodes[i], block_num_limit);
       }
 
       size_t num_nodes() const { return _num_nodes; }
