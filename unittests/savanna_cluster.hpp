@@ -73,6 +73,14 @@ namespace savanna_cluster {
 
       uint32_t lib_num() const { return lib_block->block_num(); }
 
+      template<class F>
+      void require_lib_advancing_by(uint32_t cnt, F &&f) {
+         assert(is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
+         auto lib = lib_block->block_num();
+         std::forward<F>(f)();
+         BOOST_REQUIRE_EQUAL(lib_block->block_num(), lib + cnt);
+      }
+
       void push_blocks_to(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          auto limit = std::min(fork_db_head().block_num(), block_num_limit);
          while (to.fork_db_head().block_num() < limit) {
@@ -318,14 +326,6 @@ namespace savanna_cluster {
             _nodes[0].produce_block();
          }
          BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + eosio::testing::num_chains_to_final);
-      }
-
-      template<class F>
-      void require_lib_advancing_by(uint32_t cnt, F &&f) {
-         assert(_nodes[0].is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
-         auto lib = _nodes[0].lib_block->block_num();
-         std::forward<F>(f)();
-         BOOST_REQUIRE_EQUAL(_nodes[0].lib_block->block_num(), lib + cnt);
       }
 
       void push_block(size_t dst_idx, const signed_block_ptr& sb) {
