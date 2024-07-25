@@ -22,8 +22,12 @@ constexpr uint32_t light_header_protocol_version_minor = 0;
 
 // commitments used in the context of finality violation proofs
 struct level_3_commitments_t {
-   digest_type reversible_blocks_mroot{};
-   digest_type base_digest{};
+   digest_type          reversible_blocks_mroot{};
+   block_num_type       latest_qc_claim_block_num{0};
+   digest_type          latest_qc_claim_finality_digest;
+   block_timestamp_type latest_qc_claim_timestamp;
+   block_timestamp_type timestamp; // This is the timestamp of the current block.
+   digest_type          base_digest{};
 };
 
 // commitments used in the context of finalizer policy transitions
@@ -38,7 +42,6 @@ struct finality_digest_data_v1 {
    uint32_t    major_version{light_header_protocol_version_major};
    uint32_t    minor_version{light_header_protocol_version_minor};
    uint32_t    active_finalizer_policy_generation {0};
-   uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest{};
    digest_type l2_commitments_digest{};
 };
@@ -177,7 +180,6 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (pending_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest))
 
-FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(base_digest) )
+FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
 FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
-
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(l2_commitments_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )
