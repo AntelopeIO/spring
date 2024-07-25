@@ -74,7 +74,7 @@ try:
     qc_ext = block["qc_extension"]
     Print(f'{qc_ext}')
     # "11111" is the representation of a bitset showing which finalizers have voted (we have five total finalizers)
-    assert qc_ext["qc"]["data"]["strong_votes"] == "11111", 'Not all finalizers voted' 
+    assert qc_ext["qc"]["active_policy_sig"]["strong_votes"] == "11111", 'Not all finalizers voted'
 
     testSuccessful=True
 finally:

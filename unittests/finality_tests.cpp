@@ -624,7 +624,7 @@ BOOST_FIXTURE_TEST_CASE(unknown_finalizer_key_votes, finality_test_cluster<4>) {
 
    // process the corrupted vote. LIB should not advance
    process_vote(1, 0);
-   BOOST_REQUIRE(process_vote(1, 0) == eosio::chain::vote_status::unknown_public_key);
+   BOOST_REQUIRE(process_vote(1, 0) == eosio::chain::vote_result_t::unknown_public_key);
 
    // restore to original vote
    node1.restore_to_original_vote(0u);

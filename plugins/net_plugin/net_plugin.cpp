@@ -536,7 +536,7 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
-      void broadcast_vote_message( uint32_t connection_id, vote_status stauts, const vote_message_ptr& vote );
+      void broadcast_vote_message( uint32_t connection_id, vote_result_t stauts, const vote_message_ptr& vote );
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
@@ -4059,18 +4059,18 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_status status, const vote_message_ptr& msg) {
+   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg) {
       fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
                 ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
 
       switch( status ) {
-      case vote_status::success:
+      case vote_result_t::success:
          bcast_vote_message(connection_id, msg);
          break;
-      case vote_status::unknown_public_key:
-      case vote_status::invalid_signature:
-      case vote_status::max_exceeded:  // close peer immediately
+      case vote_result_t::unknown_public_key:
+      case vote_result_t::invalid_signature:
+      case vote_result_t::max_exceeded:  // close peer immediately
          fc_elog(vote_logger, "Exceeded max votes per connection for ${c}", ("c", connection_id));
          my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
@@ -4078,7 +4078,7 @@ namespace eosio {
             }
          });
          break;
-      case vote_status::unknown_block: // track the failure
+      case vote_result_t::unknown_block: // track the failure
          fc_dlog(vote_logger, "connection - ${c} vote unknown block #${bn}:${id}..",
                  ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
          my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
@@ -4087,7 +4087,7 @@ namespace eosio {
             }
          });
          break;
-      case vote_status::duplicate: // do nothing
+      case vote_result_t::duplicate: // do nothing
          break;
       default:
          assert(false); // should never happen

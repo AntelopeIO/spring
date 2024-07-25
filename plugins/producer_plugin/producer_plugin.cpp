@@ -629,31 +629,20 @@ public:
    }
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const finalizer_policy_ptr& active_finalizer_policy,
-                          const valid_quorum_certificate& qc) {
+                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
-            std::vector<std::string> not_voted;
-
-            auto check_weak = [](const auto& weak_votes, size_t i) {
-               return weak_votes && (*weak_votes)[i];
-            };
-
-            if (qc.strong_votes) {
-               const auto& votes      = *qc.strong_votes;
-               auto&       finalizers = active_finalizer_policy->finalizers;
-               assert(votes.size() == finalizers.size());
-               for (size_t i = 0; i < votes.size(); ++i) {
-                  if (!votes[i] && !check_weak(qc.weak_votes, i)) {
-                     not_voted.push_back(finalizers[i].description);
-                     if (_finalizers.contains(finalizers[i].public_key)) {
-                        fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n}:${id}",
-                                ("f", finalizers[i].description)("n", block->block_num())("id", id.str().substr(8,16)));
-                     }
-                  }
+            std::string not_voted;
+            for (const auto& f : missing_votes) {
+               if (_finalizers.contains(f->public_key)) {
+                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
+                          ("f", f->description)("n", block->block_num())("id", id.str().substr(8,16)));
                }
+               not_voted += f->description;
+               not_voted += ',';
             }
             if (!not_voted.empty()) {
+               not_voted.resize(not_voted.size() - 1); // remove ','
                fc_ilog(vote_logger, "Block ${n}:${id} has no votes from finalizers: ${v}",
                        ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
             }
@@ -661,40 +650,17 @@ public:
       }
    }
 
-   void update_vote_block_metrics(block_num_type block_num,
-                                  const finalizer_policy_ptr& active_finalizer_policy,
-                                  const valid_quorum_certificate& qc) {
-      if (_update_vote_block_metrics) {
-         producer_plugin::vote_block_metrics m;
-         m.block_num = block_num;
-         auto add_votes = [&](const auto& votes, std::vector<string>& desc) {
-            assert(votes.size() == active_finalizer_policy->finalizers.size());
-            for (size_t i = 0; i < votes.size(); ++i) {
-               if (votes[i]) {
-                  desc.push_back(active_finalizer_policy->finalizers[i].description);
-               }
-            }
-         };
-         if (qc.strong_votes) {
-            add_votes(*qc.strong_votes, m.strong_votes);
-         }
-         if (qc.weak_votes) {
-            add_votes(*qc.weak_votes, m.weak_votes);
-         }
-         if (m.strong_votes.size() + m.weak_votes.size() != active_finalizer_policy->finalizers.size()) {
-            fc::dynamic_bitset not_voted(active_finalizer_policy->finalizers.size());
-            if (qc.strong_votes) {
-               not_voted = *qc.strong_votes;
-            }
-            if (qc.weak_votes) {
-               assert(not_voted.size() == qc.weak_votes->size());
-               not_voted |= *qc.weak_votes;
-            }
-            not_voted.flip();
-            add_votes(not_voted, m.no_votes);
-         }
-         _update_vote_block_metrics(std::move(m));
-      }
+   void update_vote_block_metrics(block_num_type block_num, const qc_vote_metrics_t& vm) {
+      producer_plugin::vote_block_metrics m;
+      m.block_num = block_num;
+      m.strong_votes.resize(vm.strong_votes.size());
+      m.weak_votes.resize(vm.weak_votes.size());
+      m.no_votes.resize(vm.missing_votes.size());
+
+      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f->description; });
+      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f->description; });
+      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f->description; });
+      _update_vote_block_metrics(std::move(m));
    }
 
    void on_block(const signed_block_ptr& block, const block_id_type& id) {
@@ -708,10 +674,13 @@ public:
       if (vote_logger.is_enabled(fc::log_level::info) || _update_vote_block_metrics) {
          if (block->contains_extension(quorum_certificate_extension::extension_id())) {
             const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
-            if (const auto& active_finalizers = chain.active_finalizer_policy(id, qc_ext.qc.block_num)) {
-               const auto& qc = qc_ext.qc.data;
-               log_missing_votes(block, id, active_finalizers, qc);
-               update_vote_block_metrics(block->block_num(), active_finalizers, qc);
+            if (_update_vote_block_metrics) {
+               qc_vote_metrics_t vm = chain.vote_metrics(id, qc_ext.qc);
+               log_missing_votes(block, id, vm.missing_votes);
+               update_vote_block_metrics(block->block_num(), vm);
+            } else {
+               auto missing = chain.missing_votes(id, qc_ext.qc);
+               log_missing_votes(block, id, missing);
             }
          }
       }

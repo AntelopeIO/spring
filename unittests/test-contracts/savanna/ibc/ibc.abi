@@ -113,6 +113,10 @@
                     "type": "checksum256?"
                 },
                 {
+                    "name": "last_pending_finalizer_policy_start_num",
+                    "type": "uint32?"
+                },
+                {
                     "name": "witness_hash",
                     "type": "checksum256"
                 },

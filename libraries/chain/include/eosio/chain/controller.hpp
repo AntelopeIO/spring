@@ -58,7 +58,7 @@ namespace eosio::chain {
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
    //                                connection_id, vote result status, vote_message processed
-   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
+   using vote_signal_params  = std::tuple<uint32_t, vote_result_t, const vote_message_ptr&>;
    using vote_signal_t       = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
@@ -278,8 +278,16 @@ namespace eosio::chain {
 
          // returns nullptr pre-savanna
          finalizer_policy_ptr                       head_active_finalizer_policy()const;
-         // returns nullptr pre-savanna, thread-safe, block_num according to branch curresponding to id
-         finalizer_policy_ptr                       active_finalizer_policy(const block_id_type& id, block_num_type block_num)const;
+         // returns nullptr pre-savanna, thread-safe, block_num according to branch corresponding to id
+
+         /// Return the vote metrics for qc.block_num
+         /// thread-safe
+         /// @param id the block which contains the qc
+         /// @param qc the qc from the block which refers to qc.block_num
+         qc_vote_metrics_t vote_metrics(const block_id_type& id, const qc_t& qc) const;
+         // return qc missing vote's finalizers, use instead of vote_metrics when only missing votes are needed
+         // thread-safe
+         qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
          void set_savanna_lib_id(const block_id_type& id);
 
@@ -351,9 +359,6 @@ namespace eosio::chain {
          void process_vote_message( uint32_t connection_id, const vote_message_ptr& msg );
          // thread safe, for testing
          bool is_block_missing_finalizer_votes(const block_handle& bh) const;
-
-         // for testing
-         vote_info_vec get_votes(const block_id_type& id) const;
 
          // thread safe, for testing
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const;
