@@ -317,7 +317,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // verify we have a QC
       BOOST_TEST(block_10_result.qc_data.qc.has_value());
-      BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block requires a single QC
 
       // Verify that the last pending policy has been updated
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
@@ -448,35 +447,43 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       action_trace check_action_heavy_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_heavy_proof)->action_traces[0];
 
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
-      
+
       auto block_11_result = cluster.produce_block();  // last pending policy (proposed in #8) takes effect and becomes active on next block
-      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
 
       auto block_12_result = cluster.produce_block();
-      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
 
-      //verify that the new finalizer policy is now in force
+      // verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
 
       auto block_13_result = cluster.produce_block(); 
-      BOOST_TEST(!block_13_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block requires a single QC
-   
+
+      // we can verify that the blocks containing single policy QCs (#10 and #13) don't have a pending policy QC
+      // and we can verify that policy transition blocks where another policy is pending (#11 and #12) also carry a QC from that policy
+
+      BOOST_TEST(block_10_result.qc_data.qc.has_value());
+      BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC
+
+      BOOST_TEST(block_11_result.qc_data.qc.has_value());
+
+      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
+
+      BOOST_TEST(block_12_result.qc_data.qc.has_value());
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
+
+      BOOST_TEST(block_13_result.qc_data.qc.has_value());
+      BOOST_TEST(!block_13_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC
+
       auto block_14_result = cluster.produce_block();
-
       auto block_15_result = cluster.produce_block();
-
       auto block_16_result = cluster.produce_block();
       auto block_17_result = cluster.produce_block();
 
-      BOOST_TEST(block_11_result.qc_data.qc.has_value());
-      BOOST_TEST(block_12_result.qc_data.qc.has_value());
-      BOOST_TEST(block_13_result.qc_data.qc.has_value());
       BOOST_TEST(block_14_result.qc_data.qc.has_value());
       BOOST_TEST(block_15_result.qc_data.qc.has_value());
       BOOST_TEST(block_16_result.qc_data.qc.has_value());
       BOOST_TEST(block_17_result.qc_data.qc.has_value());
 
-      // heavy proof #3. 
+      // heavy proof #4. 
       
       // Proving finality of block #10 using block #10 finality root. 
       
@@ -487,7 +494,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       
       // This allows us to prove this finalizer policy to the IBC contract, and use it to prove finality of subsequent blocks.
 
-      mutable_variant_object heavy_proof_3 = mvo()
+      mutable_variant_object heavy_proof_4 = mvo()
          ("proof", mvo() 
             ("finality_proof", mvo()
                ("qc_block", mvo()
@@ -531,15 +538,15 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
             )
          );
 
-      // heavy proof #4.
+      // heavy proof #5.
 
       // Proving finality of block #11 using block #11 finality root.
 
       // The QC provided in this proof (over block #12) is signed by the second generation of finalizers.
       
-      // heavy_proof_3 must be proven before we can prove heavy_proof_4.
+      // heavy_proof_4 must be proven before we can prove heavy_proof_5.
 
-      mutable_variant_object heavy_proof_4= mvo()
+      mutable_variant_object heavy_proof_5 = mvo()
          ("proof", mvo() 
             ("finality_proof", mvo()
                ("qc_block", mvo()
@@ -579,8 +586,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       bool last_action_failed = false;
 
-      // since heavy_proof_4 requires finalizer policy generation #2, we cannot prove it yet.
-      try { cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4); }
+      // since heavy_proof_5 requires finalizer policy generation #2, we cannot prove it yet.
+      try { cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_5); }
       catch(const eosio_assert_message_exception& e){ last_action_failed = true; }
 
       // checkproof action has failed, as expected.
@@ -588,10 +595,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // we must first prove that block #10 became final, which makes the policy proposed in block #8 pending.
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
-      action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
-
-      // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_4
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
+
+      // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_5
+      action_trace check_heavy_proof_5_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_5)->action_traces[0];
 
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
