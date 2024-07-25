@@ -113,6 +113,10 @@
                     "type": "checksum256?"
                 },
                 {
+                    "name": "last_pending_finalizer_policy_start_num",
+                    "type": "uint32?"
+                },
+                {
                     "name": "witness_hash",
                     "type": "checksum256"
                 },
@@ -179,6 +183,14 @@
                 {
                     "name": "finality_data",
                     "type": "block_finality_data"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "dynamic_data",
@@ -321,6 +333,14 @@
                 {
                     "name": "minor_version",
                     "type": "uint32"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "finality_digest",

@@ -14,6 +14,8 @@ namespace eosio::chain {
       auto operator<=>(const finalizer_authority&) const = default;
    };
 
+   using finalizer_authority_ptr = std::shared_ptr<const finalizer_authority>;
+
    // This is used by SHiP and Deepmind which require public keys in string format.
    struct finalizer_authority_with_string_key {
       std::string  description;

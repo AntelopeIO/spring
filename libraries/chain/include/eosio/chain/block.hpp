@@ -1,7 +1,7 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/transaction.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 
 namespace eosio { namespace chain {
 
@@ -67,7 +67,7 @@ namespace eosio { namespace chain {
 
       void reflector_init();
 
-      quorum_certificate qc;
+      qc_t qc;
    };
 
    namespace detail {

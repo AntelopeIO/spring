@@ -2,7 +2,7 @@
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/protocol_feature_manager.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
 #include <eosio/chain/finality/finality_extension.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
@@ -22,14 +22,19 @@ constexpr uint32_t light_header_protocol_version_minor = 0;
 
 // commitments used in the context of finality violation proofs
 struct level_3_commitments_t {
-   digest_type reversible_blocks_mroot{};
-   digest_type base_digest{};
+   digest_type          reversible_blocks_mroot{};
+   block_num_type       latest_qc_claim_block_num{0};
+   digest_type          latest_qc_claim_finality_digest;
+   block_timestamp_type latest_qc_claim_timestamp;
+   block_timestamp_type timestamp; // This is the timestamp of the current block.
+   digest_type          base_digest{};
 };
 
 // commitments used in the context of finalizer policy transitions
 struct level_2_commitments_t {
-   digest_type last_pending_fin_pol_digest{};
-   digest_type l3_commitments_digest{};
+   digest_type     last_pending_fin_pol_digest{};
+   block_num_type  last_pending_fin_pol_start_num{0};
+   digest_type     l3_commitments_digest{};
 };
 
 // finality digest
@@ -37,7 +42,6 @@ struct finality_digest_data_v1 {
    uint32_t    major_version{light_header_protocol_version_major};
    uint32_t    minor_version{light_header_protocol_version_minor};
    uint32_t    active_finalizer_policy_generation {0};
-   uint32_t    final_on_strong_qc_block_num {0};
    digest_type finality_tree_digest{};
    digest_type l2_commitments_digest{};
 };
@@ -110,6 +114,11 @@ struct block_header_state {
    // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
    digest_type                         last_pending_finalizer_policy_digest;
 
+   // Block number at which the last pending finalizer policy first was promoted to pending.
+   // If the last pending finalizer policy is the current active finalizer policy, then it is the block number at which
+   // that active finalizer policy first was promoted to pending. Savanna genesis block it is the genesis block number.
+   block_num_type                      last_pending_finalizer_policy_start_num {0};
+
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
 
@@ -152,6 +161,13 @@ struct block_header_state {
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
+
+   template<typename Ext> const Ext* header_extension() const {
+      if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
+         return &std::get<Ext>(itr->second);
+      }
+      return nullptr;
+   }
 };
 
 using block_header_state_ptr = std::shared_ptr<block_header_state>;
@@ -164,7 +180,6 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (pending_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest))
 
-FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(base_digest) )
-FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(l3_commitments_digest) )
-
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_tree_digest)(l2_commitments_digest) )
+FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
+FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )

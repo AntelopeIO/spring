@@ -21,12 +21,14 @@ namespace finality_proof {
       digest_type base_digest;
       digest_type active_finalizer_policy_digest;
       digest_type last_pending_finalizer_policy_digest;
+      uint32_t last_pending_finalizer_policy_start_num = 0 ;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
       digest_type level_3_commitments_digest;
       digest_type level_2_commitments_digest;
       digest_type finality_leaf;
       digest_type finality_root;
+      block_timestamp_type parent_timestamp;
    };
 
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
@@ -139,6 +141,9 @@ namespace finality_proof {
       finalizer_policy active_finalizer_policy;
       digest_type active_finalizer_policy_digest;
 
+      block_timestamp_type timestamp;
+      block_timestamp_type parent_timestamp;
+
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
@@ -161,23 +166,31 @@ namespace finality_proof {
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
+         uint32_t last_pending_finalizer_policy_start_num = 0;
+
          for (auto& p : blocks_since_proposed_policy) p.second.blocks_since_proposed++;
 
          //skip this part on genesis
          if (!is_genesis){
+            parent_timestamp = timestamp;
             for (const auto& p : blocks_since_proposed_policy){
-               //under the happy path with strong QCs in every block, a policy becomes active 6 blocks after being proposed
-               if (p.second.blocks_since_proposed == 6){
+
+               //under the happy path with strong QCs in every block, a policy becomes active 4 blocks after being proposed
+               if (p.second.blocks_since_proposed == 2 * eosio::testing::num_chains_to_final && p.first != active_finalizer_policy_digest){
                   active_finalizer_policy = p.second.policy;
                   active_finalizer_policy_digest = p.first;
                }
-               //under the happy path with strong QCs in every block, a policy becomes pending 3 blocks after being proposed
-               else if (p.second.blocks_since_proposed == 3){
+               //under the happy path with strong QCs in every block, a policy becomes pending 2 blocks after being proposed
+               else if (p.second.blocks_since_proposed == eosio::testing::num_chains_to_final && p.first != last_pending_finalizer_policy_digest){
+
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
+                  last_pending_finalizer_policy_start_num = block->block_num();
                }
             }
          }
+
+         timestamp = block->timestamp;
 
          // if we have policy diffs, process them
          if (has_finalizer_policy_diffs(block)){
@@ -187,6 +200,7 @@ namespace finality_proof {
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
                last_pending_finalizer_policy         = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
+               last_pending_finalizer_policy_start_num = block->block_num();
                active_finalizer_policy               = last_proposed_finalizer_policy;
                active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
@@ -214,6 +228,7 @@ namespace finality_proof {
          // compute commitments used for proving finalizer policy changes
          digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+            .last_pending_fin_pol_start_num = last_pending_finalizer_policy_start_num,
             .l3_commitments_digest = level_3_commitments_digest
          });
 
@@ -226,7 +241,6 @@ namespace finality_proof {
          // compute digest for verification purposes
          digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
             .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
-            .final_on_strong_qc_block_num            = finality_data.final_on_strong_qc_block_num,
             .finality_tree_digest                    = finality_root,
             .l2_commitments_digest                   = level_2_commitments_digest
          });
@@ -234,6 +248,8 @@ namespace finality_proof {
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
             .block_num = block->block_num(),
+            .timestamp = timestamp,
+            .parent_timestamp = parent_timestamp,
             .finality_digest = finality_digest,
             .action_mroot = action_mroot
          });
@@ -247,7 +263,27 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
-         return {block, qc_data, onblock_trace, finality_data, active_finalizer_policy.generation, last_pending_finalizer_policy.generation, last_proposed_finalizer_policy.generation, action_mroot, base_digest, active_finalizer_policy_digest, last_pending_finalizer_policy_digest, last_proposed_finalizer_policy_digest, finality_digest, level_3_commitments_digest, level_2_commitments_digest, finality_leaf, finality_root };
+         return ibc_block_data_t{
+            .block = block, 
+            .qc_data = qc_data, 
+            .onblock_trace = onblock_trace, 
+            .finality_data = finality_data, 
+            .active_finalizer_policy_generation = active_finalizer_policy.generation, 
+            .last_pending_finalizer_policy_generation = last_pending_finalizer_policy.generation, 
+            .last_proposed_finalizer_policy_generation = last_proposed_finalizer_policy.generation, 
+            .action_mroot = action_mroot, 
+            .base_digest = base_digest, 
+            .active_finalizer_policy_digest = active_finalizer_policy_digest, 
+            .last_pending_finalizer_policy_digest = last_pending_finalizer_policy_digest, 
+            .last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num, 
+            .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
+            .finality_digest = finality_digest, 
+            .level_3_commitments_digest = level_3_commitments_digest, 
+            .level_2_commitments_digest = level_2_commitments_digest, 
+            .finality_leaf = finality_leaf,
+            .finality_root = finality_root ,
+            .parent_timestamp = parent_timestamp 
+         };
 
       }
 

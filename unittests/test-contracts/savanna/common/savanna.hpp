@@ -249,6 +249,7 @@ namespace savanna {
    // commitments used in the context of finalizer policy transitions
    struct level_2_commitments_t {
       checksum256 last_pending_fin_pol_digest{};
+      uint32_t last_pending_fin_pol_start_num{0};
       checksum256 l3_commitments_digest{};
    };
 
@@ -301,6 +302,8 @@ namespace savanna {
 
       std::optional<checksum256> reversible_blocks_mroot;
 
+      std::optional<uint32_t> last_pending_finalizer_policy_start_num;
+
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
@@ -312,6 +315,11 @@ namespace savanna {
          if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
+            uint32_t resolved_last_pending_finalizer_policy_start_num = 0;
+
+            if (last_pending_finalizer_policy_start_num.has_value()) 
+               resolved_last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num.value();
+
             auto l3_packed = eosio::pack(level_3_commitments_t{
                .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
                .base_digest = witness_hash
@@ -321,6 +329,7 @@ namespace savanna {
 
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
+               .last_pending_fin_pol_start_num = resolved_last_pending_finalizer_policy_start_num,
                .l3_commitments_digest = l3_digest
             });
 
@@ -356,6 +365,8 @@ namespace savanna {
       //finality data
       block_finality_data finality_data;
 
+      block_timestamp timestamp;
+      block_timestamp parent_timestamp;
 
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
@@ -365,11 +376,17 @@ namespace savanna {
       checksum256 resolved_finality_digest;
       checksum256 resolved_action_mroot;
 
+      block_timestamp resolved_timestamp;
+      block_timestamp resolved_parent_timestamp;
+
       extended_block_data_internal(const extended_block_data& base) : extended_block_data(base){
          
          resolved_finality_digest = block_finality_data_internal(base.finality_data).finality_digest();
-
          resolved_action_mroot = base.dynamic_data.get_action_mroot();
+
+         resolved_timestamp = base.timestamp;
+         resolved_parent_timestamp = base.parent_timestamp;
+
       }
 
       checksum256 finality_leaf() const {
@@ -378,12 +395,15 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_finality_digest)(resolved_action_mroot))
+      EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_timestamp)(resolved_parent_timestamp)(resolved_finality_digest)(resolved_action_mroot))
    };
 
    struct simple_block_data {
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
+
+      block_timestamp timestamp;
+      block_timestamp parent_timestamp;
 
       checksum256 finality_digest;
 
@@ -394,9 +414,15 @@ namespace savanna {
    struct simple_block_data_internal : simple_block_data {
       checksum256 resolved_action_mroot;
 
+      block_timestamp resolved_timestamp;
+      block_timestamp resolved_parent_timestamp;
+
       simple_block_data_internal(const simple_block_data& base) : simple_block_data(base){
          
          resolved_action_mroot = base.dynamic_data.get_action_mroot();
+
+         resolved_timestamp = base.timestamp;
+         resolved_parent_timestamp = base.parent_timestamp;
       }
 
       checksum256 finality_leaf() const {
@@ -405,7 +431,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(finality_digest)(resolved_action_mroot))
+      EOSLIB_SERIALIZE(simple_block_data_internal, (major_version)(minor_version)(dynamic_data.block_num)(resolved_timestamp)(resolved_parent_timestamp)(finality_digest)(resolved_action_mroot))
    };
 
    using block_data_type = std::variant<simple_block_data, extended_block_data>;

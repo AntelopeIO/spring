@@ -204,6 +204,8 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
+   _nodes[0].produce_block(); // produce an extra block at the beginning so that producer schedules align
+   
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
    auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending

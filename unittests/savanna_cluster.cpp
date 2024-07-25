@@ -15,8 +15,8 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
          // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
          // to vote (and emit the `voted_block` signal) synchronously.
          // --------------------------------------------------------------------------------------
-         vote_status status = std::get<1>(v);
-         if (status == vote_status::success)
+         vote_result_t status = std::get<1>(v);
+         if (status == vote_result_t::success)
             cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, std::get<2>(v));
       });
 

@@ -38,23 +38,31 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-
    // compute commitments related to finality violation proofs
+   auto latest_qc_claim_block_num = core.latest_qc_claim().block_num;
+   auto blk_ref = core.is_genesis_core() // Savanna Genesis core does not have block_ref
+                  ? block_ref{}
+                  : core.get_block_reference(latest_qc_claim_block_num);
+
    level_3_commitments_t level_3_commitments {
-         .reversible_blocks_mroot     = core.get_reversible_blocks_mroot(),
-         .base_digest                 = compute_base_digest()
+         .reversible_blocks_mroot         = core.get_reversible_blocks_mroot(),
+         .latest_qc_claim_block_num       = latest_qc_claim_block_num,
+         .latest_qc_claim_finality_digest = blk_ref.finality_digest,
+         .latest_qc_claim_timestamp       = blk_ref.timestamp,
+         .timestamp                       = timestamp(),
+         .base_digest                     = compute_base_digest()
    };
 
    // compute commitments related to finalizer policy transitions
    level_2_commitments_t level_2_commitments {
          .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
+         .last_pending_fin_pol_start_num = last_pending_finalizer_policy_start_num,
          .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
    };
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation  = active_finalizer_policy->generation,
-      .final_on_strong_qc_block_num        = core.final_on_strong_qc_block_num,
       .finality_tree_digest                = finality_mroot(),
       .l2_commitments_digest               = fc::sha256::hash(level_2_commitments)
    };
@@ -164,6 +172,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
          // promote the target to pending
          auto block_num = next_header_state.block_num();
          next_pending.emplace(block_num, target->second);
+         next_header_state.last_pending_finalizer_policy_start_num = block_num;
       } else {
          // leave the target alone in the proposed policies
          next_proposed.emplace_back(*target);

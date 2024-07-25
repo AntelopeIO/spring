@@ -14,7 +14,7 @@
 // ----------------------------------------------------------------------------
 struct finality_node_t : public eosio::testing::tester {
    using vote_message_ptr = eosio::chain::vote_message_ptr;
-   using vote_status      = eosio::chain::vote_status;
+   using vote_result_t    = eosio::chain::vote_result_t;
 
    enum class vote_mode {
       strong,
@@ -102,7 +102,7 @@ template<size_t NUM_NODES> requires (NUM_NODES > 3)
 class finality_test_cluster {
 public:
    using vote_message_ptr = eosio::chain::vote_message_ptr;
-   using vote_status      = eosio::chain::vote_status;
+   using vote_result_t    = eosio::chain::vote_result_t;
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using tester           = eosio::testing::tester;
    using vote_mode        = finality_node_t::vote_mode;
@@ -209,7 +209,7 @@ public:
       clear_votes_and_reset_lib();
 
       produce_and_push_block();
-      for (auto i = 0; i < 3; ++i) {
+      for (size_t i = 0; i < eosio::testing::num_chains_to_final; ++i) {
          process_votes(1, num_needed_for_quorum);
          produce_and_push_block();
          if (num_lib_advancing() < num_nodes)
@@ -228,10 +228,10 @@ public:
       return num_advancing;
    }
 
-   vote_status process_vote(size_t node_idx, size_t vote_index = (size_t)-1,
+   vote_result_t process_vote(size_t node_idx, size_t vote_index = (size_t)-1,
                             vote_mode mode = vote_mode::strong, bool duplicate = false) {
       auto vote = nodes[node_idx].get_vote(vote_index, mode);
-      return vote ? process_vote(vote, duplicate) : vote_status::unknown_block;;
+      return vote ? process_vote(vote, duplicate) : vote_result_t::unknown_block;;
    }
 
    // returns first node to not vote
@@ -258,7 +258,7 @@ public:
 
 private:
    std::atomic<uint32_t>      last_connection_vote{0};
-   std::atomic<vote_status>   last_vote_status{};
+   std::atomic<vote_result_t>   last_vote_status{};
 
 public:
    std::array<finality_node_t, num_nodes>                 nodes;
@@ -276,15 +276,15 @@ private:
    void setup_node(finality_node_t& node, eosio::chain::account_name local_finalizer);
 
    // send the vote message to node0 which is the producer (and Savanna leader), and wait till processed
-   vote_status process_vote(vote_message_ptr& vote, bool duplicate) {
+   vote_result_t process_vote(vote_message_ptr& vote, bool duplicate) {
       static uint32_t connection_id = 0;
       node0.control->process_vote_message( ++connection_id, vote );
       if (eosio::chain::block_header::num_from_id(vote->block_id) > node0.lib_num())
          return wait_on_aggregate_vote(connection_id, duplicate);
-      return vote_status::unknown_block;
+      return vote_result_t::unknown_block;
    }
 
-   vote_status wait_on_aggregate_vote(uint32_t connection_id, bool duplicate)  {
+   vote_result_t wait_on_aggregate_vote(uint32_t connection_id, bool duplicate)  {
       // wait for this node's vote to be processed
       // duplicates are not signaled
       // This wait is not strictly necessary since the controller is set (via `disable_async_aggregation(true)`)
@@ -299,6 +299,6 @@ private:
       } else if (duplicate && last_connection_vote == connection_id) {
          FC_ASSERT(false, "Duplicate should not have been signaled");
       }
-      return duplicate ? vote_status::duplicate : last_vote_status.load();
+      return duplicate ? vote_result_t::duplicate : last_vote_status.load();
    }
 };

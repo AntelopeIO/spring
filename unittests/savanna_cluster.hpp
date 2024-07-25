@@ -11,7 +11,7 @@ namespace savanna_cluster {
    namespace ranges = std::ranges;
 
    using vote_message_ptr = eosio::chain::vote_message_ptr;
-   using vote_status      = eosio::chain::vote_status;
+   using vote_result_t    = eosio::chain::vote_result_t;
    using signed_block_ptr = eosio::chain::signed_block_ptr;
    using account_name     = eosio::chain::account_name;
    using finalizer_policy = eosio::chain::finalizer_policy;
@@ -269,10 +269,10 @@ namespace savanna_cluster {
          assert(_nodes[0].is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
          auto lib = _nodes[0].lib_block->block_num();
          size_t tries = 0;
-         while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
+         while (_nodes[0].lib_block->block_num() <= (lib + eosio::testing::num_chains_to_final) && ++tries < 10) {
             _nodes[0].produce_block();
          }
-         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + 3);
+         BOOST_REQUIRE_GT(_nodes[0].lib_block->block_num(), lib + eosio::testing::num_chains_to_final);
       }
 
       template<class F>
