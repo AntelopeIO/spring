@@ -28,6 +28,7 @@ namespace finality_proof {
       digest_type level_2_commitments_digest;
       digest_type finality_leaf;
       digest_type finality_root;
+      block_timestamp_type parent_timestamp;
    };
 
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
@@ -140,6 +141,9 @@ namespace finality_proof {
       finalizer_policy active_finalizer_policy;
       digest_type active_finalizer_policy_digest;
 
+      block_timestamp_type parent_timestamp = block_timestamp_type();
+      block_timestamp_type timestamp;
+
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
@@ -168,6 +172,7 @@ namespace finality_proof {
 
          //skip this part on genesis
          if (!is_genesis){
+            parent_timestamp = timestamp;
             for (const auto& p : blocks_since_proposed_policy){
 
                //under the happy path with strong QCs in every block, a policy becomes active 6 blocks after being proposed
@@ -184,6 +189,8 @@ namespace finality_proof {
                }
             }
          }
+
+         timestamp = block->timestamp;
 
          // if we have policy diffs, process them
          if (has_finalizer_policy_diffs(block)){
@@ -243,6 +250,8 @@ namespace finality_proof {
          // compute finality leaf
          digest_type finality_leaf = fc::sha256::hash(valid_t::finality_leaf_node_t{
             .block_num = block->block_num(),
+            .timestamp = timestamp,
+            .parent_timestamp = parent_timestamp,
             .finality_digest = finality_digest,
             .action_mroot = action_mroot
          });
@@ -256,6 +265,7 @@ namespace finality_proof {
          qc_data_t qc_data = extract_qc_data(block);
 
          // return relevant IBC information
+
          return ibc_block_data_t{
             .block = block, 
             .qc_data = qc_data, 
