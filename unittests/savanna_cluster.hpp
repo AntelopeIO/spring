@@ -28,6 +28,8 @@ namespace savanna_cluster {
    class cluster_t;
 
    enum class skip_self_t : uint8_t { no, yes };
+   namespace fs = std::filesystem;
+
 
    // ----------------------------------------------------------------------------
    class node_t : public tester {
@@ -94,7 +96,7 @@ namespace savanna_cluster {
       }
 
       std::vector<uint8_t> save_fsi() const {
-         auto finalizer_path = cfg.finalizers_dir / config::safety_filename;
+         auto finalizer_path = get_fsi_path();
          std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
          std::streamsize size = file.tellg();
          file.seekg(0, std::ios::beg);
@@ -105,16 +107,23 @@ namespace savanna_cluster {
       }
 
       void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
-         auto finalizer_path = cfg.finalizers_dir / config::safety_filename;
+         auto finalizer_path = get_fsi_path();
          std::ofstream file(finalizer_path.generic_string(), std::ofstream::binary);
          file.write((const char *)fsi.data(), fsi.size());
+      }
+
+      void remove_fsi() {
+         remove_all(get_fsi_path());
       }
 
       void remove_state() {
          auto state_path = cfg.state_dir;
          remove_all(state_path);
-         std::filesystem::create_directories(state_path);
+         fs::create_directories(state_path);
       }
+
+   private:
+      fs::path get_fsi_path() const { return  cfg.finalizers_dir / config::safety_filename; }
 
    };
 
