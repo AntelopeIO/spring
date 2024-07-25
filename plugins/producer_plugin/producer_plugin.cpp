@@ -631,7 +631,8 @@ public:
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
                           const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
-         if (fc::time_point::now() - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
+         auto now = fc::time_point::now();
+         if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
             for (const auto& f : missing_votes) {
                if (_finalizers.contains(f->public_key)) {
@@ -643,8 +644,9 @@ public:
             }
             if (!not_voted.empty()) {
                not_voted.resize(not_voted.size() - 1); // remove ','
-               fc_ilog(vote_logger, "Block ${n}:${id} has no votes from finalizers: ${v}",
-                       ("n", block->block_num())("id", id.str().substr(8,16))("v", not_voted));
+               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes from finalizers: ${v}",
+                    ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
+                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted));
             }
          }
       }
