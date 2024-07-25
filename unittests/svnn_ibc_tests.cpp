@@ -450,10 +450,10 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       action_trace check_action_light_proof_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, action_light_proof)->action_traces[0];
       
       auto block_11_result = cluster.produce_block();  // last pending policy (proposed in #8) takes effect and becomes active on next block
-      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block requires joint policies QCs
+      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
 
       auto block_12_result = cluster.produce_block();
-      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block requires joint policies QCs
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
 
       //verify that the new finalizer policy is now in force
       BOOST_TEST(previous_policy_digest!=cluster.active_finalizer_policy_digest);
