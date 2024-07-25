@@ -26,9 +26,9 @@ namespace savanna {
    };
 
    struct finalizer_policy_internal {
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_internal> finalizers; ///< Instant Finality voter set
+      uint32_t                         generation = 0; // sequentially incrementing version number
+      uint64_t                         threshold = 0;  // vote weight threshold to finalize blocks
+      std::vector<finalizer_authority_internal> finalizers; // Instant Finality voter set
 
       checksum256 digest() const {
           std::vector<char> serialized = pack(*this);
@@ -43,9 +43,9 @@ namespace savanna {
    };
 
    struct finalizer_policy_input {
-      uint32_t                         generation = 0; ///< sequentially incrementing version number
-      uint64_t                         threshold = 0;  ///< vote weight threshold to finalize blocks
-      std::vector<finalizer_authority_input> finalizers; ///< Instant Finality voter set
+      uint32_t                         generation = 0;
+      uint64_t                         threshold = 0;
+      std::vector<finalizer_authority_input> finalizers;
 
       checksum256 digest() const {
 
@@ -83,7 +83,7 @@ namespace savanna {
       return tp;
    }
 
-   //compute proof path
+   //compute path for proof of inclusion
    std::vector<bool> _get_proof_path(uint64_t leaf_index, const uint64_t leaf_count) {
        std::vector<bool> proof_path;
        uint64_t current_leaf_count = leaf_count;
@@ -117,13 +117,14 @@ namespace savanna {
        return hash;
    }
 
-   //add two numbers from the g1 group (aggregation)
+   //add two numbers from the g1 group (key aggregation)
    bls_g1 _g1add(const bls_g1& op1, const bls_g1& op2) {
       bls_g1 r;
       bls_g1_add(op1, op2, r);
       return r;
    }
 
+   // verify signature
    bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
       return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
    }
@@ -243,6 +244,10 @@ namespace savanna {
 
    struct level_3_commitments_t {
       checksum256 reversible_blocks_mroot{};
+      uint32_t latest_qc_claim_block_num{0};
+      checksum256 latest_qc_claim_finality_digest{};
+      block_timestamp_type latest_qc_claim_timestamp;
+      block_timestamp_type timestamp;
       checksum256 base_digest{};
    };
 
@@ -282,6 +287,7 @@ namespace savanna {
       }; 
    };
 
+   //input representation of finality data 
    struct block_finality_data {
       //major_version for this block
       uint32_t major_version;
@@ -292,45 +298,34 @@ namespace savanna {
       //finalizer_policy_generation for this block
       uint32_t finalizer_policy_generation;
 
-      //if a valid qc is obtained over the digest generated from hashing the content of this message, it is a proof of finality for the block number recorded here
-      uint32_t final_on_strong_qc_block_num = 0;
-
-      //if a new finalizer policy is promoted to last pending status, it could (but is not guaranteed to) become active.
-      //Therefore, we provide a mechanism to include finalizer policies into a proof of finality.
-      //This allows the contract to obtain knowledge about them and to record them in its internal state.
+      //Allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
-
-      std::optional<checksum256> reversible_blocks_mroot;
-
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
 
-      //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
+      //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
+      //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
+      //Otherwise, witness_hash should be level 2 commitments digest
       checksum256 witness_hash;
 
-      //finality merkle root for final_on_strong_qc_block_num
+      //finality merkle root
       checksum256 finality_mroot;
       
-      //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
+      //resolves witness hash if it needs to be calculated
       checksum256 resolve_witness() const {
-         if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
+
+         //todo : add support for finality violation proofs
+
+         //finalizer policy transition proofs 
+         if (new_finalizer_policy.has_value()  
+            && last_pending_finalizer_policy_start_num.has_value()
+            && witness_hash!=checksum256()){
+
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
-            uint32_t resolved_last_pending_finalizer_policy_start_num = 0;
-
-            if (last_pending_finalizer_policy_start_num.has_value()) 
-               resolved_last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num.value();
-
-            auto l3_packed = eosio::pack(level_3_commitments_t{
-               .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
-               .base_digest = witness_hash
-            });
-
-            checksum256 l3_digest = sha256(l3_packed.data(), l3_packed.size());
-
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
-               .last_pending_fin_pol_start_num = resolved_last_pending_finalizer_policy_start_num,
-               .l3_commitments_digest = l3_digest
+               .last_pending_fin_pol_start_num =  last_pending_finalizer_policy_start_num.value(),
+               .l3_commitments_digest = witness_hash
             });
 
             checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
@@ -338,13 +333,14 @@ namespace savanna {
             return l2_digest;
          }
          else {
-            check(!new_finalizer_policy.has_value() && !reversible_blocks_mroot.has_value(), "must either provide witness_hash hash alone, or provide witness_hash, new_finalizer_policy and reversible_blocks_mroot");
-            check(witness_hash!=checksum256(), "witness hash cannot be null");
+            //regular finality + action proofs
+            check(witness_hash!=checksum256(), "witness hash cannot be empty");
             return witness_hash;
          }
       }; 
    };
 
+   //internal representation of finality data
    struct block_finality_data_internal : block_finality_data {
       checksum256 resolved_witness_hash;
 
@@ -358,9 +354,10 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
    };
 
+   //used in "heavy" proofs, where verification of finality digest is performed
    struct extended_block_data {
       //finality data
       block_finality_data finality_data;
@@ -398,10 +395,12 @@ namespace savanna {
       EOSLIB_SERIALIZE(extended_block_data_internal, (finality_data.major_version)(finality_data.minor_version)(dynamic_data.block_num)(resolved_timestamp)(resolved_parent_timestamp)(resolved_finality_digest)(resolved_action_mroot))
    };
 
+   //used in "light" proofs
    struct simple_block_data {
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
 
+      //todo : use 2-level structure to remove the need for passing timestamps
       block_timestamp timestamp;
       block_timestamp parent_timestamp;
 
