@@ -222,13 +222,17 @@ namespace savanna_cluster {
 
             // store all different chain head found in cluster into `heads` vector
             for (auto i : peers) {
-               auto head = _nodes[i].head();
-               if (!ranges::any_of(heads, [&](auto& h) { return h.id == head.id(); }))
-                  heads.emplace_back(head.id(), i);
+               if (_nodes[i].is_open()) {
+                  auto head = _nodes[i].head();
+                  if (!ranges::any_of(heads, [&](auto& h) { return h.id == head.id(); }))
+                     heads.emplace_back(head.id(), i);
+               }
             }
 
             for (auto i : peers) {
                auto& dest = _nodes[i];
+               if (!dest.is_open())
+                  continue;
 
                for (auto& h : heads) {
                   if (i == h.node_idx || dest.head().id() == h.id)
@@ -262,6 +266,7 @@ namespace savanna_cluster {
       void reset_lib() { for (auto& n : _nodes) n.reset_lib();  }
 
       void verify_lib_advances() {
+         assert(_nodes[0].is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
          auto lib = _nodes[0].lib_block->block_num();
          size_t tries = 0;
          while (_nodes[0].lib_block->block_num() <= lib + 3 && ++tries < 10) {
@@ -272,6 +277,7 @@ namespace savanna_cluster {
 
       template<class F>
       void require_lib_advancing_by(uint32_t cnt, F &&f) {
+         assert(_nodes[0].is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
          auto lib = _nodes[0].lib_block->block_num();
          std::forward<F>(f)();
          BOOST_REQUIRE_EQUAL(_nodes[0].lib_block->block_num(), lib + cnt);
@@ -287,6 +293,8 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];
+         assert(src.is_open() &&  _nodes[dst_idx].is_open());
+
          auto end_block_num   = src.fork_db_head().block_num();
 
          for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
@@ -302,8 +310,11 @@ namespace savanna_cluster {
       void push_blocks(size_t src_idx, const std::vector<size_t> &indices,
                        uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) {
          auto& src = _nodes[src_idx];
+         assert(src.is_open());
+
          for (auto i : indices)
-            src.push_blocks(_nodes[i], block_num_limit);
+            if (_nodes[i].is_open())
+               src.push_blocks(_nodes[i], block_num_limit);
       }
 
       size_t num_nodes() const { return _num_nodes; }
@@ -343,9 +354,11 @@ namespace savanna_cluster {
             return;
          assert(_peers.find(node_idx) != _peers.end());
          const auto& peers = _peers[node_idx];
-         for (auto i : peers)
-            if (skip_self == skip_self_t::no || i != node_idx)
+         for (auto i : peers) {
+            bool dont_skip = skip_self == skip_self_t::no || i != node_idx;
+            if (dont_skip && _nodes[i].is_open())
                cb(_nodes[i]);
+         }
       }
 
    };
