@@ -63,6 +63,7 @@ digest_type block_header_state::compute_finality_digest() const {
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation  = active_finalizer_policy->generation,
+      .pending_finalizer_policy_generation = get_last_pending_finalizer_policy().generation,
       .finality_tree_digest                = finality_mroot(),
       .l2_commitments_digest               = fc::sha256::hash(level_2_commitments)
    };

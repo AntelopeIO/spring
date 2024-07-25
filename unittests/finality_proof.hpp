@@ -225,7 +225,7 @@ namespace finality_proof {
             .latest_qc_claim_block_num = finality_data.latest_qc_claim_block_num,
             .latest_qc_claim_finality_digest = finality_data.latest_qc_claim_finality_digest,
             .latest_qc_claim_timestamp = finality_data.latest_qc_claim_timestamp,
-            .timestamp = finality_data.timestamp,
+            .timestamp = timestamp,
             .base_digest = base_digest
          });
 
