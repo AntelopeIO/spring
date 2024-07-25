@@ -301,7 +301,7 @@ namespace savanna {
       //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
-      std::optional<checksum256> level_3_commitments_digest;
+      //std::optional<checksum256> level_3_commitments_digest;
 
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
@@ -313,14 +313,14 @@ namespace savanna {
       checksum256 resolve_witness() const {
          if (new_finalizer_policy.has_value() 
             && last_pending_finalizer_policy_start_num.has_value()
-            && level_3_commitments_digest.has_value()){
+            && witness_hash!=checksum256()){
 
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
                .last_pending_fin_pol_start_num =  last_pending_finalizer_policy_start_num.value(),
-               .l3_commitments_digest = level_3_commitments_digest.value()
+               .l3_commitments_digest = witness_hash
             });
 
             checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());

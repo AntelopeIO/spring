@@ -109,10 +109,6 @@
                     "type": "uint32?"
                 },
                 {
-                    "name": "level_3_commitments_digest",
-                    "type": "checksum256?"
-                },
-                {
                     "name": "witness_hash",
                     "type": "checksum256"
                 },
