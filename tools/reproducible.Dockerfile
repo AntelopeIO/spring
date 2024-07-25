@@ -63,6 +63,7 @@ RUN tar xf llvm-project-${_SPRING_CLANG_VERSION}.src.tar.xz && \
     cmake -S llvm-project-${_SPRING_CLANG_VERSION}.src/llvm -B build-toolchain -GNinja -DLLVM_INCLUDE_DOCS=Off -DLLVM_TARGETS_TO_BUILD=host -DCMAKE_BUILD_TYPE=Release \
                                                                                      -DCMAKE_INSTALL_PREFIX=/pinnedtoolchain \
                                                                                      -DCOMPILER_RT_BUILD_SANITIZERS=Off \
+                                                                                     -DLIBCXX_HARDENING_MODE=fast \
                                                                                      -DLLVM_ENABLE_PROJECTS='lld;clang;clang-tools-extra' \
                                                                                      -DLLVM_ENABLE_RUNTIMES='compiler-rt;libc;libcxx;libcxxabi;libunwind' && \
     cmake --build build-toolchain -t install && \
