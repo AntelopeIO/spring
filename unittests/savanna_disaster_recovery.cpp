@@ -38,5 +38,39 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_old_fsi, savanna_cluster::clust
    BOOST_REQUIRE(!A.is_head_missing_finalizer_votes());         // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_deleted_fsi, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& C=_nodes[2];
+
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+   auto snapshot = C.snapshot();
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+   C.close();
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // lib still advances with 3 finalizers
+   C.remove_state();
+   C.remove_fsi();
+   C.open_from_snapshot(snapshot);
+   A.push_blocks_to(C);
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // all 4 finalizers should be back voting
+   BOOST_REQUIRE(!A.is_head_missing_finalizer_votes());         // let's make sure of that
+} FC_LOG_AND_RETHROW()
+
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(recover_killed_node_while_retaining_fsi, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& C=_nodes[2];
+
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+   auto snapshot = C.snapshot();
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+   C.close();
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // lib still advances with 3 finalizers
+   C.remove_state();
+   C.open_from_snapshot(snapshot);
+   A.push_blocks_to(C);
+   require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // all 4 finalizers should be back voting
+   BOOST_REQUIRE(!A.is_head_missing_finalizer_votes());         // let's make sure of that
+} FC_LOG_AND_RETHROW()
+
+
 
 BOOST_AUTO_TEST_SUITE_END()
