@@ -483,6 +483,47 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       BOOST_TEST(block_16_result.qc_data.qc.has_value());
       BOOST_TEST(block_17_result.qc_data.qc.has_value());
 
+      mutable_variant_object heavy_proof_3 = mvo()
+         ("proof", mvo() 
+            ("finality_proof", mvo()
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("finalizer_policy_generation", 1)
+                  ("witness_hash", block_10_result.level_2_commitments_digest)
+                  ("finality_mroot", block_10_result.finality_root)
+               )
+               ("active_policy_qc", mvo()
+                  ("signature", block_11_result.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", active_finalizers_string(block_11_result)) 
+               )
+            )
+            ("target_block_proof_of_inclusion", mvo() 
+               ("target_block_index", 9)
+               ("final_block_index", 9)
+               ("target",  fc::variants{"extended_block_data", mvo() 
+                  ("finality_data", mvo() 
+                     ("major_version", 1)
+                     ("minor_version", 0)
+                     ("finalizer_policy_generation", 1)
+                     ("witness_hash", block_9_result.level_2_commitments_digest)
+                     ("finality_mroot", block_9_result.finality_root)
+                  )
+                  ("timestamp", block_9_result.block->timestamp)
+                  ("parent_timestamp", block_9_result.parent_timestamp)
+                  ("dynamic_data", mvo() 
+                     ("block_num", block_9_result.block->block_num())
+                     ("action_proofs", fc::variants())
+                     ("action_mroot", block_9_result.action_mroot)
+                  )}
+               )
+               ("merkle_branches", finality_proof::generate_proof_of_inclusion(cluster.get_finality_leaves(9), 9))
+            )
+         );
+
+      // *** SHOULD FAIL, SINCE IT IS MISSING PENDING FINALIZER POLICY QC ***
+      action_trace check_heavy_proof_3_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_3)->action_traces[0];
+
       // heavy proof #4. 
       
       // Proving finality of block #10 using block #10 finality root. 
