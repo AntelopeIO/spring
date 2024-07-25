@@ -287,6 +287,7 @@ namespace savanna {
       }; 
    };
 
+   //input representation of finality data 
    struct block_finality_data {
       //major_version for this block
       uint32_t major_version;
@@ -297,21 +298,25 @@ namespace savanna {
       //finalizer_policy_generation for this block
       uint32_t finalizer_policy_generation;
 
-      //if a new finalizer policy is promoted to last pending status, it could (but is not guaranteed to) become active.
-      //Therefore, we provide a mechanism to include finalizer policies into a proof of finality.
-      //This allows the contract to obtain knowledge about them and to record them in its internal state.
+      //Allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
 
-      //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
+      //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
+      //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
+      //Otherwise, witness_hash should be level 2 commitments digest
       checksum256 witness_hash;
 
       //finality merkle root
       checksum256 finality_mroot;
       
-      //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
+      //resolves witness hash if it needs to be calculated
       checksum256 resolve_witness() const {
-         if (new_finalizer_policy.has_value() 
+
+         //todo : add support for finality violation proofs
+
+         //finalizer policy transition proofs 
+         if (new_finalizer_policy.has_value()  
             && last_pending_finalizer_policy_start_num.has_value()
             && witness_hash!=checksum256()){
 
@@ -328,12 +333,14 @@ namespace savanna {
             return l2_digest;
          }
          else {
-            check(witness_hash!=checksum256(), "witness hash cannot be null");
+            //regular finality + action proofs
+            check(witness_hash!=checksum256(), "witness hash cannot be empty");
             return witness_hash;
          }
       }; 
    };
 
+   //internal representation of finality data
    struct block_finality_data_internal : block_finality_data {
       checksum256 resolved_witness_hash;
 
@@ -391,6 +398,7 @@ namespace savanna {
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
 
+      //todo : use 2-level structure to remove the need for passing timestamps
       block_timestamp timestamp;
       block_timestamp parent_timestamp;
 
