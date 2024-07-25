@@ -299,7 +299,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // produce a new block. This block contains a new proposed finalizer policy
       auto block_8_result = cluster.produce_block();
 
-      // verify we have all the QCs up to this point
+      // verify we have a QC
       BOOST_TEST(block_8_result.qc_data.qc.has_value());
 
       // verify the block header contains the proposed finalizer policy differences
@@ -308,6 +308,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // advance finality
       auto block_9_result = cluster.produce_block();
 
+      // verify we have a QC
       BOOST_TEST(block_9_result.qc_data.qc.has_value());
 
       // pending policy is still the same
@@ -316,12 +317,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // QC on #9 included in #10 makes #8 final, proposed policy is now pending
       auto block_10_result = cluster.produce_block();
 
+      // verify we have a QC
       BOOST_TEST(block_10_result.qc_data.qc.has_value());
       BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block requires a single QC
 
       // Verify that the last pending policy has been updated
       BOOST_TEST(pending_policy_digest!=cluster.last_pending_finalizer_policy_digest);
-
 
       // At this stage, we can prove the inclusion of actions into block #7.
 
