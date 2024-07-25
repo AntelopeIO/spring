@@ -266,16 +266,23 @@ finality_data_t block_state::get_finality_data() {
       base_digest = compute_base_digest(); // cache it
    }
 
-   // Check if there is a finalizer policy promoted to pending in the block
+   auto latest_qc_claim_block_num = core.latest_qc_claim().block_num;
+   block_ref blk_ref{};  // Savanna Genesis does not have block_ref
    std::optional<finalizer_policy_with_string_key> pending_fin_pol;
+
    if (is_savanna_genesis_block()) {
       // For Genesis Block, use the active finalizer policy which went through
       // proposed to pending to active in the single block.
       pending_fin_pol = finalizer_policy_with_string_key(*active_finalizer_policy);
-   } else if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
-      // The `first` element of `pending_finalizer_policy` pair is the block number
-      // when the policy becomes pending
-      pending_fin_pol = finalizer_policy_with_string_key(*pending_finalizer_policy->second);
+   } else {
+      // Check if there is a finalizer policy promoted to pending in the block
+      if (pending_finalizer_policy.has_value() && pending_finalizer_policy->first == block_num()) {
+         // The `first` element of `pending_finalizer_policy` pair is the block number
+         // when the policy becomes pending
+         pending_fin_pol = finalizer_policy_with_string_key(*pending_finalizer_policy->second);
+      }
+
+      blk_ref = core.get_block_reference(latest_qc_claim_block_num);
    }
 
    return {
@@ -284,6 +291,10 @@ finality_data_t block_state::get_finality_data() {
       .final_on_strong_qc_block_num       = core.final_on_strong_qc_block_num,
       .action_mroot                       = action_mroot,
       .reversible_blocks_mroot            = core.get_reversible_blocks_mroot(),
+      .latest_qc_claim_block_num          = latest_qc_claim_block_num,
+      .latest_qc_claim_finality_digest    = blk_ref.finality_digest,
+      .latest_qc_claim_timestamp          = blk_ref.timestamp,
+      .timestamp                          = timestamp(),
       .base_digest                        = *base_digest,
       .pending_finalizer_policy           = std::move(pending_fin_pol)
    };

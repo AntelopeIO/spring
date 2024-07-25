@@ -38,11 +38,19 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-
    // compute commitments related to finality violation proofs
+   auto latest_qc_claim_block_num = core.latest_qc_claim().block_num;
+   auto blk_ref = core.is_genesis_core() // Savanna Genesis core does not have block_ref
+                  ? block_ref{}
+                  : core.get_block_reference(latest_qc_claim_block_num);
+
    level_3_commitments_t level_3_commitments {
-         .reversible_blocks_mroot     = core.get_reversible_blocks_mroot(),
-         .base_digest                 = compute_base_digest()
+         .reversible_blocks_mroot         = core.get_reversible_blocks_mroot(),
+         .latest_qc_claim_block_num       = latest_qc_claim_block_num,
+         .latest_qc_claim_finality_digest = blk_ref.finality_digest,
+         .latest_qc_claim_timestamp       = blk_ref.timestamp,
+         .timestamp                       = timestamp(),
+         .base_digest                     = compute_base_digest()
    };
 
    // compute commitments related to finalizer policy transitions
@@ -55,7 +63,6 @@ digest_type block_header_state::compute_finality_digest() const {
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
       .active_finalizer_policy_generation  = active_finalizer_policy->generation,
-      .final_on_strong_qc_block_num        = core.final_on_strong_qc_block_num,
       .finality_tree_digest                = finality_mroot(),
       .l2_commitments_digest               = fc::sha256::hash(level_2_commitments)
    };
