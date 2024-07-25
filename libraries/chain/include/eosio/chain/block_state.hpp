@@ -184,6 +184,7 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 
 } // namespace eosio::chain
 
+// not exporting pending_qc or valid_qc
 FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(timestamp)(parent_timestamp)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
 FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(reversible_blocks_mroot)(base_digest)(pending_finalizer_policy) )
