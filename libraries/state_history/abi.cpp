@@ -607,7 +607,6 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "major_version", "type": "uint32" },
                 { "name": "minor_version", "type": "uint32" },
                 { "name": "active_finalizer_policy_generation", "type": "uint32" },
-                { "name": "final_on_strong_qc_block_num", "type": "uint32" },
                 { "name": "action_mroot", "type": "checksum256" },
                 { "name": "reversible_blocks_mroot", "type": "checksum256" },
                 { "name": "latest_qc_claim_block_num", "type": "uint32" },
