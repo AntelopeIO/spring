@@ -186,11 +186,11 @@
                 },
                 {
                     "name": "timestamp",
-                    "type": "time_point"
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "parent_timestamp",
-                    "type": "time_point"
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "dynamic_data",
@@ -336,11 +336,11 @@
                 },
                 {
                     "name": "timestamp",
-                    "type": "time_point"
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "parent_timestamp",
-                    "type": "time_point"
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "finality_digest",

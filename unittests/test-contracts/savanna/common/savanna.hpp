@@ -365,8 +365,8 @@ namespace savanna {
       //finality data
       block_finality_data finality_data;
 
-      time_point timestamp;
-      time_point parent_timestamp;
+      block_timestamp timestamp;
+      block_timestamp parent_timestamp;
 
       //dynamic_data to be verified
       dynamic_data_v0 dynamic_data;
@@ -376,8 +376,8 @@ namespace savanna {
       checksum256 resolved_finality_digest;
       checksum256 resolved_action_mroot;
 
-      time_point resolved_timestamp;
-      time_point resolved_parent_timestamp;
+      block_timestamp resolved_timestamp;
+      block_timestamp resolved_parent_timestamp;
 
       extended_block_data_internal(const extended_block_data& base) : extended_block_data(base){
          
@@ -402,8 +402,8 @@ namespace savanna {
       uint32_t major_version = 0 ;
       uint32_t minor_version = 0 ;
 
-      time_point timestamp;
-      time_point parent_timestamp;
+      block_timestamp timestamp;
+      block_timestamp parent_timestamp;
 
       checksum256 finality_digest;
 
@@ -414,8 +414,8 @@ namespace savanna {
    struct simple_block_data_internal : simple_block_data {
       checksum256 resolved_action_mroot;
 
-      time_point resolved_timestamp;
-      time_point resolved_parent_timestamp;
+      block_timestamp resolved_timestamp;
+      block_timestamp resolved_parent_timestamp;
 
       simple_block_data_internal(const simple_block_data& base) : simple_block_data(base){
          
