@@ -222,6 +222,10 @@ namespace finality_proof {
          // compute commitments used for proving finality violations
          digest_type level_3_commitments_digest = fc::sha256::hash(level_3_commitments_t{
             .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
+            .latest_qc_claim_block_num = finality_data.latest_qc_claim_block_num,
+            .latest_qc_claim_finality_digest = finality_data.latest_qc_claim_finality_digest,
+            .latest_qc_claim_timestamp = finality_data.latest_qc_claim_timestamp,
+            .timestamp = finality_data.timestamp,
             .base_digest = base_digest
          });
 

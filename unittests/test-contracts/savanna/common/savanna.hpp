@@ -243,6 +243,10 @@ namespace savanna {
 
    struct level_3_commitments_t {
       checksum256 reversible_blocks_mroot{};
+      uint32_t latest_qc_claim_block_num{0};
+      checksum256 latest_qc_claim_finality_digest{};
+      block_timestamp_type latest_qc_claim_timestamp;
+      block_timestamp_type timestamp;
       checksum256 base_digest{};
    };
 
@@ -292,45 +296,31 @@ namespace savanna {
       //finalizer_policy_generation for this block
       uint32_t finalizer_policy_generation;
 
-      //if a valid qc is obtained over the digest generated from hashing the content of this message, it is a proof of finality for the block number recorded here
-      uint32_t final_on_strong_qc_block_num = 0;
-
       //if a new finalizer policy is promoted to last pending status, it could (but is not guaranteed to) become active.
       //Therefore, we provide a mechanism to include finalizer policies into a proof of finality.
       //This allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
-
-      std::optional<checksum256> reversible_blocks_mroot;
-
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
+      std::optional<checksum256> level_3_commitments_digest;
 
       //if a finalizer policy is present, witness_hash should be the base_digest. Otherwise, witness_hash should be the static_data_digest
       checksum256 witness_hash;
 
-      //finality merkle root for final_on_strong_qc_block_num
+      //finality merkle root
       checksum256 finality_mroot;
       
       //returns hash of digest of new_finalizer_policy + witness_hash if new_finalizer_policy is present, otherwise returns witness_hash
       checksum256 resolve_witness() const {
-         if (new_finalizer_policy.has_value() && reversible_blocks_mroot.has_value()){
+         if (new_finalizer_policy.has_value() 
+            && last_pending_finalizer_policy_start_num.has_value()
+            && level_3_commitments_digest.has_value()){
+
             checksum256 policy_digest = new_finalizer_policy.value().digest();
             
-            uint32_t resolved_last_pending_finalizer_policy_start_num = 0;
-
-            if (last_pending_finalizer_policy_start_num.has_value()) 
-               resolved_last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num.value();
-
-            auto l3_packed = eosio::pack(level_3_commitments_t{
-               .reversible_blocks_mroot  = reversible_blocks_mroot.value() , 
-               .base_digest = witness_hash
-            });
-
-            checksum256 l3_digest = sha256(l3_packed.data(), l3_packed.size());
-
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
-               .last_pending_fin_pol_start_num = resolved_last_pending_finalizer_policy_start_num,
-               .l3_commitments_digest = l3_digest
+               .last_pending_fin_pol_start_num =  last_pending_finalizer_policy_start_num.value(),
+               .l3_commitments_digest = level_3_commitments_digest.value()
             });
 
             checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
@@ -338,7 +328,6 @@ namespace savanna {
             return l2_digest;
          }
          else {
-            check(!new_finalizer_policy.has_value() && !reversible_blocks_mroot.has_value(), "must either provide witness_hash hash alone, or provide witness_hash, new_finalizer_policy and reversible_blocks_mroot");
             check(witness_hash!=checksum256(), "witness hash cannot be null");
             return witness_hash;
          }
@@ -358,7 +347,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(final_on_strong_qc_block_num)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
    };
 
    struct extended_block_data {
