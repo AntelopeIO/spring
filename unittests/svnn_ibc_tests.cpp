@@ -461,17 +461,17 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // and we can verify that policy transition blocks where another policy is pending (#11 and #12) also carry a QC from that policy
 
       BOOST_TEST(block_10_result.qc_data.qc.has_value());
-      BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC
+      BOOST_TEST(!block_10_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC on block #9
 
       BOOST_TEST(block_11_result.qc_data.qc.has_value());
 
-      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
+      BOOST_TEST(block_11_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs on block #10
 
       BOOST_TEST(block_12_result.qc_data.qc.has_value());
-      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs
+      BOOST_TEST(block_12_result.qc_data.qc.value().pending_policy_sig.has_value()); //this block contains joint policies QCs on block #11
 
       BOOST_TEST(block_13_result.qc_data.qc.has_value());
-      BOOST_TEST(!block_13_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC
+      BOOST_TEST(!block_13_result.qc_data.qc.value().pending_policy_sig.has_value()); //verify this block contains a single QC on block #12
 
       auto block_14_result = cluster.produce_block();
       auto block_15_result = cluster.produce_block();

@@ -295,8 +295,9 @@ namespace savanna {
       //minor_version for this block
       uint32_t minor_version;
 
-      //finalizer_policy_generation for this block
-      uint32_t finalizer_policy_generation;
+      //active finalizer policygeneration for this block
+      uint32_t active_finalizer_policy_generation;
+      std::optional<uint32_t> pending_finalizer_policy_generation;
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
       std::optional<finalizer_policy_input> new_finalizer_policy;
@@ -343,9 +344,14 @@ namespace savanna {
    //internal representation of finality data
    struct block_finality_data_internal : block_finality_data {
       checksum256 resolved_witness_hash;
+      uint32_t resolved_pending_finalizer_policy_generation = 0;
 
       block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
          resolved_witness_hash = base.resolve_witness();
+
+         if (base.pending_finalizer_policy_generation.has_value()) resolved_pending_finalizer_policy_generation = base.pending_finalizer_policy_generation.value();
+         else resolved_pending_finalizer_policy_generation = base.active_finalizer_policy_generation;
+
       }
 
       checksum256 finality_digest() const {
@@ -354,7 +360,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(resolved_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
    };
 
    //used in "heavy" proofs, where verification of finality digest is performed
