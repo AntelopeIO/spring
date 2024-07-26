@@ -107,6 +107,7 @@ namespace savanna_cluster {
          auto finalizer_path = get_fsi_path();
          std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
          std::streamsize size = file.tellg();
+         assert(size > 0);
          file.seekg(0, std::ios::beg);
 
          std::vector<uint8_t> buffer(size);
@@ -116,7 +117,8 @@ namespace savanna_cluster {
 
       void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
          auto finalizer_path = get_fsi_path();
-         std::ofstream file(finalizer_path.generic_string(), std::ofstream::binary);
+         std::ofstream file(finalizer_path.generic_string(), std::ios::binary);
+         assert(!fsi.empty());
          file.write((const char *)fsi.data(), fsi.size());
       }
 
