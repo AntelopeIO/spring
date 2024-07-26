@@ -55,9 +55,9 @@ digest_type block_header_state::compute_finality_digest() const {
 
    // compute commitments related to finalizer policy transitions
    level_2_commitments_t level_2_commitments {
-         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
-         .last_pending_fin_pol_start_num = last_pending_finalizer_policy_start_num,
-         .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
+         .last_pending_fin_pol_digest           = last_pending_finalizer_policy_digest,
+         .last_pending_fin_pol_start_timestamp  = last_pending_finalizer_policy_start_timestamp,
+         .l3_commitments_digest                 = fc::sha256::hash(level_3_commitments)
    };
 
    assert(active_finalizer_policy);
@@ -173,7 +173,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
          // promote the target to pending
          auto block_num = next_header_state.block_num();
          next_pending.emplace(block_num, target->second);
-         next_header_state.last_pending_finalizer_policy_start_num = block_num;
+         next_header_state.last_pending_finalizer_policy_start_timestamp = next_header_state.timestamp();
       } else {
          // leave the target alone in the proposed policies
          next_proposed.emplace_back(*target);
