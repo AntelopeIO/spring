@@ -614,7 +614,7 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "latest_qc_claim_timestamp", "type": "block_timestamp_type" },
                 { "name": "base_digest", "type": "checksum256" },
                 { "name": "pending_finalizer_policy", "type": "finalizer_policy_with_string_key?" },
-                { "name": "pending_finalizer_policy_generation", "type": "uint32" }
+                { "name": "last_pending_finalizer_policy_generation", "type": "uint32" }
             ]
         }
     ],

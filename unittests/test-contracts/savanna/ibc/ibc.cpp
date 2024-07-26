@@ -97,7 +97,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     //verify QC. If QC is valid, it means that we have reached finality on the block referenced by the finality_mroot
     _check_qc(finality_proof.active_policy_qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy);
 
-    if (finality_proof.qc_block.pending_finalizer_policy_generation.has_value()){
+    if (finality_proof.qc_block.last_pending_finalizer_policy_generation.has_value()){
 
         check(std::holds_alternative<extended_block_data>(target_block_proof_of_inclusion.target), "must provide extended data for transition blocks");
 
