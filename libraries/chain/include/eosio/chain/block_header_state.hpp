@@ -22,19 +22,19 @@ constexpr uint32_t light_header_protocol_version_minor = 0;
 
 // commitments used in the context of finality violation proofs
 struct level_3_commitments_t {
-   digest_type          reversible_blocks_mroot{};
+   digest_type          reversible_blocks_mroot;
    block_num_type       latest_qc_claim_block_num{0};
    digest_type          latest_qc_claim_finality_digest;
    block_timestamp_type latest_qc_claim_timestamp;
    block_timestamp_type timestamp; // This is the timestamp of the current block.
-   digest_type          base_digest{};
+   digest_type          base_digest;
 };
 
 // commitments used in the context of finalizer policy transitions
 struct level_2_commitments_t {
-   digest_type     last_pending_fin_pol_digest{};
-   block_num_type  last_pending_fin_pol_start_num{0};
-   digest_type     l3_commitments_digest{};
+   digest_type           last_pending_fin_pol_digest;
+   block_timestamp_type  last_pending_fin_pol_start_timestamp;
+   digest_type           l3_commitments_digest;
 };
 
 // finality digest
@@ -43,8 +43,8 @@ struct finality_digest_data_v1 {
    uint32_t    minor_version{light_header_protocol_version_minor};
    uint32_t    active_finalizer_policy_generation{0};
    uint32_t    last_pending_finalizer_policy_generation{0}; // use active_finalizer_policy_generation if pending_finalizer_policy does not exist
-   digest_type finality_tree_digest{};
-   digest_type l2_commitments_digest{};
+   digest_type finality_tree_digest;
+   digest_type l2_commitments_digest;
 };
 
 // ------------------------------------------------------------------------------------------
@@ -115,10 +115,10 @@ struct block_header_state {
    // in the history of the blockchain so far that is not in proposed state (so either pending or active state)
    digest_type                         last_pending_finalizer_policy_digest;
 
-   // Block number at which the last pending finalizer policy first was promoted to pending.
-   // If the last pending finalizer policy is the current active finalizer policy, then it is the block number at which
+   // Timestamp of the block at which the last pending finalizer policy first was promoted to pending.
+   // If the last pending finalizer policy is the current active finalizer policy, then it is the timestamp of the block at which
    // that active finalizer policy first was promoted to pending. Savanna genesis block it is the genesis block number.
-   block_num_type                      last_pending_finalizer_policy_start_num {0};
+   block_timestamp_type                last_pending_finalizer_policy_start_timestamp;
 
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
@@ -182,5 +182,5 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (last_pending_finalizer_policy_digest))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
-FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
+FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_timestamp)(l3_commitments_digest) )
 FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(last_pending_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )
