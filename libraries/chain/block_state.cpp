@@ -254,11 +254,11 @@ digest_type block_state::get_finality_mroot_claim(const qc_claim_t& qc_claim) co
    auto next_core_metadata = core.next_metadata(qc_claim);
 
    // For proper IF blocks that do not have an associated Finality Tree defined
-   if (core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num)) {
+   if (core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num)) {
       return digest_type{};
    }
 
-   return get_validation_mroot(next_core_metadata.final_on_strong_qc_block_num);
+   return get_validation_mroot(next_core_metadata.latest_qc_claim_block_num);
 }
 
 finality_data_t block_state::get_finality_data() {
@@ -287,15 +287,15 @@ finality_data_t block_state::get_finality_data() {
 
    return {
       // major_version and minor_version take the default values set by finality_data_t definition
-      .active_finalizer_policy_generation = active_finalizer_policy->generation,
-      .action_mroot                       = action_mroot,
-      .reversible_blocks_mroot            = core.get_reversible_blocks_mroot(),
-      .latest_qc_claim_block_num          = latest_qc_claim_block_num,
-      .latest_qc_claim_finality_digest    = blk_ref.finality_digest,
-      .latest_qc_claim_timestamp          = blk_ref.timestamp,
-      .timestamp                          = timestamp(),
-      .base_digest                        = *base_digest,
-      .pending_finalizer_policy           = std::move(pending_fin_pol)
+      .active_finalizer_policy_generation       = active_finalizer_policy->generation,
+      .action_mroot                             = action_mroot,
+      .reversible_blocks_mroot                  = core.get_reversible_blocks_mroot(),
+      .latest_qc_claim_block_num                = latest_qc_claim_block_num,
+      .latest_qc_claim_finality_digest          = blk_ref.finality_digest,
+      .latest_qc_claim_timestamp                = blk_ref.timestamp,
+      .base_digest                              = *base_digest,
+      .pending_finalizer_policy                 = std::move(pending_fin_pol),
+      .last_pending_finalizer_policy_generation = get_last_pending_finalizer_policy().generation
    };
 }
 

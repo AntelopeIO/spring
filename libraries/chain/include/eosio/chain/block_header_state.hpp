@@ -41,7 +41,8 @@ struct level_2_commitments_t {
 struct finality_digest_data_v1 {
    uint32_t    major_version{light_header_protocol_version_major};
    uint32_t    minor_version{light_header_protocol_version_minor};
-   uint32_t    active_finalizer_policy_generation {0};
+   uint32_t    active_finalizer_policy_generation{0};
+   uint32_t    last_pending_finalizer_policy_generation{0}; // use active_finalizer_policy_generation if pending_finalizer_policy does not exist
    digest_type finality_tree_digest{};
    digest_type l2_commitments_digest{};
 };
@@ -182,4 +183,4 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
 FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_num)(l3_commitments_digest) )
-FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )
+FC_REFLECT( eosio::chain::finality_digest_data_v1, (major_version)(minor_version)(active_finalizer_policy_generation)(last_pending_finalizer_policy_generation)(finality_tree_digest)(l2_commitments_digest) )

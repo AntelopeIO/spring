@@ -222,6 +222,10 @@ namespace finality_proof {
          // compute commitments used for proving finality violations
          digest_type level_3_commitments_digest = fc::sha256::hash(level_3_commitments_t{
             .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
+            .latest_qc_claim_block_num = finality_data.latest_qc_claim_block_num,
+            .latest_qc_claim_finality_digest = finality_data.latest_qc_claim_finality_digest,
+            .latest_qc_claim_timestamp = finality_data.latest_qc_claim_timestamp,
+            .timestamp = timestamp,
             .base_digest = base_digest
          });
 
@@ -240,9 +244,10 @@ namespace finality_proof {
 
          // compute digest for verification purposes
          digest_type finality_digest = fc::sha256::hash(finality_digest_data_v1{
-            .active_finalizer_policy_generation      = is_genesis ? 1 : active_finalizer_policy.generation,
-            .finality_tree_digest                    = finality_root,
-            .l2_commitments_digest                   = level_2_commitments_digest
+            .active_finalizer_policy_generation       = is_genesis ? 1 : active_finalizer_policy.generation,
+            .last_pending_finalizer_policy_generation = is_genesis ? 1 : last_pending_finalizer_policy.generation,
+            .finality_tree_digest                     = finality_root,
+            .l2_commitments_digest                    = level_2_commitments_digest
          });
 
          // compute finality leaf

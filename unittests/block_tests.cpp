@@ -371,7 +371,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_onblock_test, T, testers) { try {
    // In Legacy, action_mroot is the mroot of all delivered action receipts.
    // In Savanna, action_mroot is the root of the Finality Tree
    // associated with the block, i.e. the root of
-   // validation_tree(core.final_on_strong_qc_block_num).
+   // validation_tree(core.latest_qc_claim().block_num).
    if constexpr (std::is_same_v<T, savanna_tester>) {
       BOOST_TEST(r.block->is_proper_svnn_block());
       BOOST_TEST(!r.block->action_mroot.empty());
