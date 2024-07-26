@@ -3532,8 +3532,6 @@ struct controller_impl {
             auto start = fc::time_point::now();
 
             const bool already_valid = bsp->is_valid();
-            // When bsp was created in create_block_state_i, bsp was considered for voting. At that time, bsp->final_on_strong_qc_block_ref may
-            // not have been validated and we could not vote. At this point bsp->final_on_strong_qc_block_ref has been validated and we can vote.
             // Only need to consider voting if not already validated, if already validated then we have already voted.
             if (!already_valid)
                consider_voting(bsp, use_thread_pool_t::yes);
@@ -3631,8 +3629,8 @@ struct controller_impl {
                // its finality_mroot is empty
                digest_type actual_finality_mroot;
 
-               if (!bsp->core.is_genesis_block_num(bsp->core.final_on_strong_qc_block_num)) {
-                  actual_finality_mroot = bsp->get_validation_mroot(bsp->core.final_on_strong_qc_block_num);
+               if (!bsp->core.is_genesis_block_num(bsp->core.latest_qc_claim().block_num)) {
+                  actual_finality_mroot = bsp->get_validation_mroot(bsp->core.latest_qc_claim().block_num);
                }
 
                EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot,
@@ -3998,24 +3996,24 @@ struct controller_impl {
    void consider_voting(const block_state_legacy_ptr&, use_thread_pool_t) {}
    // thread safe
    void consider_voting(const block_state_ptr& bsp, use_thread_pool_t use_thread_pool) {
-      // 1. Get the `core.final_on_strong_qc_block_num` for the block you are considering to vote on and use that to find the actual block ID
+      // 1. Get the `core.latest_qc_claim().block_num` for the block you are considering to vote on and use that to find the actual block ID
       //    of the ancestor block that has that block number.
       // 2. If that block ID is for a non validated block, then do not vote for that block.
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
-      if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
+      if (!my_finalizers.empty() && bsp->core.latest_qc_claim().block_num > 0) {
          if (bsp->is_recent() || my_finalizers.is_active()) {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
-                  const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-                  if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+                  const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+                  if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
                      create_and_send_vote_msg(bsp);
                   }
                });
             } else {
                // bsp can be used directly instead of copy needed for post
-               const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-               if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+               const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+               if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
             }
@@ -4027,7 +4025,7 @@ struct controller_impl {
    void accept_block(const BSP& bsp) {
       assert(bsp && bsp->block);
 
-      // consider voting again as final_on_strong_qc_block may have been validated since the bsp was created in create_block_state_i
+      // consider voting again as latest_qc_claim__block_ref may have been validated since the bsp was created in create_block_state_i
       consider_voting(bsp, use_thread_pool_t::yes);
 
       auto do_accept_block = [&](auto& forkdb) {

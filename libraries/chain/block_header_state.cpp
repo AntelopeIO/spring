@@ -387,13 +387,13 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
       // if there is no Finality Tree Root associated with the block,
       // then this needs to validate that h.action_mroot is the empty digest
       auto next_core_metadata = core.next_metadata(f_ext.qc_claim);
-      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num);
+      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num);
 
       EOS_ASSERT(no_finality_tree_associated == h.action_mroot.empty(), block_validate_exception,
                  "No Finality Tree Root associated with the block, does not match with empty action_mroot: "
-                 "(${n}), action_mroot empty (${e}), final_on_strong_qc_block_num (${f})",
+                 "(${n}), action_mroot empty (${e}), latest_qc_claim_block_num (${f})",
                  ("n", no_finality_tree_associated)("e", h.action_mroot.empty())
-                 ("f", next_core_metadata.final_on_strong_qc_block_num));
+                 ("f", next_core_metadata.latest_qc_claim_block_num));
    };
 
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), f_ext, false);

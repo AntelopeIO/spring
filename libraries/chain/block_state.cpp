@@ -254,11 +254,11 @@ digest_type block_state::get_finality_mroot_claim(const qc_claim_t& qc_claim) co
    auto next_core_metadata = core.next_metadata(qc_claim);
 
    // For proper IF blocks that do not have an associated Finality Tree defined
-   if (core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num)) {
+   if (core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num)) {
       return digest_type{};
    }
 
-   return get_validation_mroot(next_core_metadata.final_on_strong_qc_block_num);
+   return get_validation_mroot(next_core_metadata.latest_qc_claim_block_num);
 }
 
 finality_data_t block_state::get_finality_data() {

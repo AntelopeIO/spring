@@ -473,7 +473,7 @@ namespace savanna {
 
    struct proof {
       //valid configurations :
-      //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the final_on_strong_qc block represented by the finality_mroot present in header
+      //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the latest_qc_claim_block_num block represented by the finality_mroot present in header
       //2) only a proof_of_inclusion of a target block, which must be included in a merkle tree represented by a root stored in the contract's RAM
       std::optional<finality_proof> finality_proof;
       block_proof_of_inclusion target_block_proof_of_inclusion;
