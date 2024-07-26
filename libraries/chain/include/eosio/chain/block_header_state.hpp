@@ -118,7 +118,7 @@ struct block_header_state {
    // Timestamp of the block at which the last pending finalizer policy first was promoted to pending.
    // If the last pending finalizer policy is the current active finalizer policy, then it is the timestamp of the block at which
    // that active finalizer policy first was promoted to pending. Savanna genesis block it is the genesis block number.
-   block_timestamp_type                      last_pending_finalizer_policy_start_timestamp;
+   block_timestamp_type                last_pending_finalizer_policy_start_timestamp;
 
    // ------ data members caching information available elsewhere ----------------------
    header_extension_multimap           header_exts;     // redundant with the data stored in header
