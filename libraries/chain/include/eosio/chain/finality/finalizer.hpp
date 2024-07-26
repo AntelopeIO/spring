@@ -139,7 +139,6 @@ namespace eosio::chain {
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
-      bool    is_active() const { return !empty() && enable_voting.load(std::memory_order_relaxed); } // thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe

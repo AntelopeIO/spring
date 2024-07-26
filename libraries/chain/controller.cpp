@@ -3296,7 +3296,7 @@ struct controller_impl {
 
             if (!my_finalizers.empty()) {
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
-                  if (head->is_recent() || my_finalizers.is_active()) {
+                  if (head->is_recent()) {
                      if (async_voting == async_t::no)
                         create_and_send_vote_msg(head);
                      else
@@ -4002,7 +4002,7 @@ struct controller_impl {
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
       if (!my_finalizers.empty() && bsp->core.latest_qc_claim().block_num > 0) {
-         if (bsp->is_recent() || my_finalizers.is_active()) {
+         if (bsp->is_recent()) {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
                   const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
