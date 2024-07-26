@@ -107,6 +107,8 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
 
         _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.pending_finalizer_policy.value());
 
+        _maybe_set_finalizer_policy(target.finality_data.pending_finalizer_policy.value(), target.dynamic_data.block_num);
+
     }
 
     //check if the target proof of inclusion correctly resolves to the root of the finality proof
