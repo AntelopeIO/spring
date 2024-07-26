@@ -109,8 +109,8 @@
                     "type": "finalizer_policy_input?"
                 },
                 {
-                    "name": "last_pending_finalizer_policy_start_num",
-                    "type": "uint32?"
+                    "name": "last_pending_finalizer_policy_start_timestamp",
+                    "type": "block_timestamp_type?"
                 },
                 {
                     "name": "witness_hash",

@@ -78,7 +78,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.core = finality_core::create_core_for_genesis_block(genesis_block_ref);
 
    result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
-   result.last_pending_finalizer_policy_start_num = bsp.block_num();
+   result.last_pending_finalizer_policy_start_timestamp = bsp.timestamp();
    result.active_proposer_policy = std::make_shared<proposer_policy>();
    result.active_proposer_policy->active_time = bsp.timestamp();
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
@@ -155,7 +155,7 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
          .finalizer_policy_generation = sbs.finalizer_policy_generation,
          .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest,
-         .last_pending_finalizer_policy_start_num = sbs.last_pending_finalizer_policy_start_num
+         .last_pending_finalizer_policy_start_timestamp = sbs.last_pending_finalizer_policy_start_timestamp
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
@@ -254,11 +254,11 @@ digest_type block_state::get_finality_mroot_claim(const qc_claim_t& qc_claim) co
    auto next_core_metadata = core.next_metadata(qc_claim);
 
    // For proper IF blocks that do not have an associated Finality Tree defined
-   if (core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num)) {
+   if (core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num)) {
       return digest_type{};
    }
 
-   return get_validation_mroot(next_core_metadata.final_on_strong_qc_block_num);
+   return get_validation_mroot(next_core_metadata.latest_qc_claim_block_num);
 }
 
 finality_data_t block_state::get_finality_data() {

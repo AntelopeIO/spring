@@ -55,9 +55,9 @@ digest_type block_header_state::compute_finality_digest() const {
 
    // compute commitments related to finalizer policy transitions
    level_2_commitments_t level_2_commitments {
-         .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
-         .last_pending_fin_pol_start_num = last_pending_finalizer_policy_start_num,
-         .l3_commitments_digest = fc::sha256::hash(level_3_commitments)
+         .last_pending_fin_pol_digest           = last_pending_finalizer_policy_digest,
+         .last_pending_fin_pol_start_timestamp  = last_pending_finalizer_policy_start_timestamp,
+         .l3_commitments_digest                 = fc::sha256::hash(level_3_commitments)
    };
 
    assert(active_finalizer_policy);
@@ -173,7 +173,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
          // promote the target to pending
          auto block_num = next_header_state.block_num();
          next_pending.emplace(block_num, target->second);
-         next_header_state.last_pending_finalizer_policy_start_num = block_num;
+         next_header_state.last_pending_finalizer_policy_start_timestamp = next_header_state.timestamp();
       } else {
          // leave the target alone in the proposed policies
          next_proposed.emplace_back(*target);
@@ -387,13 +387,13 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
       // if there is no Finality Tree Root associated with the block,
       // then this needs to validate that h.action_mroot is the empty digest
       auto next_core_metadata = core.next_metadata(f_ext.qc_claim);
-      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num);
+      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num);
 
       EOS_ASSERT(no_finality_tree_associated == h.action_mroot.empty(), block_validate_exception,
                  "No Finality Tree Root associated with the block, does not match with empty action_mroot: "
-                 "(${n}), action_mroot empty (${e}), final_on_strong_qc_block_num (${f})",
+                 "(${n}), action_mroot empty (${e}), latest_qc_claim_block_num (${f})",
                  ("n", no_finality_tree_associated)("e", h.action_mroot.empty())
-                 ("f", next_core_metadata.final_on_strong_qc_block_num));
+                 ("f", next_core_metadata.latest_qc_claim_block_num));
    };
 
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), f_ext, false);

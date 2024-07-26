@@ -254,7 +254,7 @@ namespace savanna {
    // commitments used in the context of finalizer policy transitions
    struct level_2_commitments_t {
       checksum256 last_pending_fin_pol_digest{};
-      uint32_t last_pending_fin_pol_start_num{0};
+      block_timestamp_type last_pending_fin_pol_start_timestamp;
       checksum256 l3_commitments_digest{};
    };
 
@@ -300,8 +300,9 @@ namespace savanna {
       std::optional<uint32_t> last_pending_finalizer_policy_generation;
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
+
       std::optional<finalizer_policy_input> pending_finalizer_policy;
-      std::optional<uint32_t> last_pending_finalizer_policy_start_num;
+      std::optional<block_timestamp> last_pending_finalizer_policy_start_timestamp;
 
       //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
       //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
@@ -317,15 +318,16 @@ namespace savanna {
          //todo : add support for finality violation proofs
 
          //finalizer policy transition proofs 
+
          if (pending_finalizer_policy.has_value()  
-            && last_pending_finalizer_policy_start_num.has_value()
+            && last_pending_finalizer_policy_start_timestamp.has_value()
             && witness_hash!=checksum256()){
 
             checksum256 policy_digest = pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
-               .last_pending_fin_pol_start_num =  last_pending_finalizer_policy_start_num.value(),
+               .last_pending_fin_pol_start_timestamp =  last_pending_finalizer_policy_start_timestamp.value(),
                .l3_commitments_digest = witness_hash
             });
 
@@ -473,7 +475,7 @@ namespace savanna {
 
    struct proof {
       //valid configurations :
-      //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the final_on_strong_qc block represented by the finality_mroot present in header
+      //1) finality_proof for a QC block, and proof_of_inclusion of a target block within the latest_qc_claim_block_num block represented by the finality_mroot present in header
       //2) only a proof_of_inclusion of a target block, which must be included in a merkle tree represented by a root stored in the contract's RAM
       std::optional<finality_proof> finality_proof;
       block_proof_of_inclusion target_block_proof_of_inclusion;
