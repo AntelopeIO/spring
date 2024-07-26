@@ -59,11 +59,15 @@ struct finality_data_t {
    block_num_type       latest_qc_claim_block_num{0};
    digest_type          latest_qc_claim_finality_digest;
    block_timestamp_type latest_qc_claim_timestamp;
-   block_timestamp_type timestamp; // This is the timestamp of the current block.
    digest_type          base_digest{};
+
    // Finalizer policy if one is promoted to pending in the block.
    // Use string format for public key in the policy for easier uses.
    std::optional<finalizer_policy_with_string_key> pending_finalizer_policy;
+
+   // Hold the generation number of pending_finalizer_policy if it exists,
+   // otherwise hold the same value as active_finalizer_policy_generation
+   uint32_t     pending_finalizer_policy_generation{0};
 };
 
 struct block_state : public block_header_state {     // block_header_state provides parent link
@@ -190,5 +194,5 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 // not exporting pending_qc or valid_qc
 FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(timestamp)(parent_timestamp)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
-FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(action_mroot)(reversible_blocks_mroot)(latest_qc_claim_block_num)(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest)(pending_finalizer_policy) )
+FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(action_mroot)(reversible_blocks_mroot)(latest_qc_claim_block_num)(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(base_digest)(pending_finalizer_policy)(pending_finalizer_policy_generation) )
 FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(aggregating_qc)(valid)(validated) )
