@@ -539,7 +539,7 @@ namespace eosio::testing {
          // This is not the case for tests with forks, so for these tests we should set
          // `_expect_votes` to false by calling `base_tester::do_check_for_votes(false)`
          // ----------------------------------------------------------------------------
-         FC_ASSERT(c.is_block_missing_finalizer_votes(bh) == false, "Missing expected vote");
+         FC_ASSERT(!c.get_testing_allow_voting_flag() || !c.is_block_missing_finalizer_votes(bh), "Missing expected vote");
       }
    }
 

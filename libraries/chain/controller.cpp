@@ -3695,7 +3695,7 @@ struct controller_impl {
    }
 
    bool is_block_missing_finalizer_votes(const block_handle& bh) const {
-      if (!testing_allow_voting || my_finalizers.empty())
+      if (my_finalizers.empty())
          return false;
 
       return std::visit(
@@ -3735,7 +3735,7 @@ struct controller_impl {
 
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!testing_allow_voting || !bsp->block->is_proper_svnn_block())
+      if (!bsp->block->is_proper_svnn_block())
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
