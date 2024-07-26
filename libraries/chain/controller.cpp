@@ -3288,12 +3288,12 @@ struct controller_impl {
          chain_head = block_handle{cb.bsp};
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
-         if( s == controller::block_status::incomplete ) {
-            log_irreversible();
-            transition_to_savanna_if_needed();
-         }
-
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
+            if (!irreversible_mode()) {
+               log_irreversible();
+               transition_to_savanna_if_needed();
+            }
+
             if (!my_finalizers.empty()) {
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || my_finalizers.is_active()) {
@@ -4224,9 +4224,6 @@ struct controller_impl {
                      shutdown();
                      break;
                   }
-                  log_irreversible();
-                  transition_to_savanna_if_needed();
-
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {
@@ -4274,11 +4271,11 @@ struct controller_impl {
                ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
                     ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
             }
+         } else {
+            // irreversible can change even if block not applied to head, integrated qc can move LIB
+            log_irreversible();
+            transition_to_savanna_if_needed();
          }
-
-         // irreversible can change even if block not applied to head, integrated qc can move LIB
-         log_irreversible();
-         transition_to_savanna_if_needed();
       };
 
       fork_db.apply<void>(do_maybe_switch_forks);

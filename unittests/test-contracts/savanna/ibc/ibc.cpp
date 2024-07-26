@@ -92,7 +92,7 @@ finalizer_policy_input ibc::_get_stored_finalizer_policy(const uint64_t finalize
 void ibc::_check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion){
 
     //attempt to retrieve the stored policy with the correct generation number
-    finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.finalizer_policy_generation);
+    finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.active_finalizer_policy_generation);
 
     //verify QC. If QC is valid, it means that we have reached finality on the block referenced by the finality_mroot
     _check_qc(finality_proof.qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy);
