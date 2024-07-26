@@ -201,9 +201,6 @@ BOOST_AUTO_TEST_CASE( decide_vote_normal_vote_sequence ) try {
 
       auto lib { res.new_bsp->core.last_final_block_num() };
       BOOST_CHECK_EQUAL(lib, i <= num_chains_to_final - 1 ? 0 : i - num_chains_to_final);
-
-      auto final_on_strong_qc { res.new_bsp->core.final_on_strong_qc_block_num };
-      BOOST_CHECK_EQUAL(final_on_strong_qc, i == 0 ? 0 : i - (num_chains_to_final - 1));
    }
 } FC_LOG_AND_RETHROW()
 
@@ -233,9 +230,6 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
 
       auto lib { res.new_bsp->core.last_final_block_num() };
       BOOST_CHECK_EQUAL(lib, i <= num_chains_to_final - 1 ? 0 : i - num_chains_to_final);
-
-      auto final_on_strong_qc { res.new_bsp->core.final_on_strong_qc_block_num };
-      BOOST_CHECK_EQUAL(final_on_strong_qc, i == 0 ? 0 : i - (num_chains_to_final - 1));
 
       if (i > (num_chains_to_final - 1))
          BOOST_CHECK_EQUAL(sim.my_finalizer.fsi.lock.block_id, sim.bsp_vec[i-(num_chains_to_final-1)]->id());
@@ -286,9 +280,7 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    // ---------------------------------------------------------------------------------------------------
    BOOST_CHECK_EQUAL(block_header::num_from_id(sim.my_finalizer.fsi.last_vote.block_id), 9u);
    new_claim = sim.bsp_vec[9]->core.latest_qc_claim();
-   ilog("LIN ${c}", ("c", new_claim));
    res = sim.add({20, "n1"}, qc_claim_t{9, true}, res.new_bsp);
-   //res = sim.add({20, "n1"}, new_claim, res.new_bsp);
 
    BOOST_CHECK(res.vote.decision == vote_decision::strong_vote); // because !time_range_disjoint and fsi.last_vote == 9
    BOOST_CHECK_EQUAL(block_header::num_from_id(sim.my_finalizer.fsi.last_vote.block_id), 20u);
@@ -304,26 +296,10 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    BOOST_CHECK_EQUAL(res.vote.liveness_check, true);
    BOOST_CHECK_EQUAL(res.vote.safety_check, false); // because liveness_check is true, safety is not checked.
 
-   // this new proposal we just voted strong on was just building on proposal #6 and we had not advanced
-   // the core until the last proposal which provided a new qc_claim_t.
-   // as a result we now have a final_on_strong_qc = 5 (because the vote on 20 was weak)
-   // --------------------------------------------------------------------------------------------------
-   auto final_on_strong_qc = res.new_bsp->core.final_on_strong_qc_block_num;
-   BOOST_CHECK_EQUAL(final_on_strong_qc, 20u);
-
-   // Our finalizer should still be locked on the initial proposal 7 (we have not updated our lock because
-   // `(final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp)` is false
-   // ----------------------------------------------------------------------------------------------------
-   ilog("LINcsize: ${s}", ("s", sim.bsp_vec.size()));
-   for (auto id: sim.bsp_vec) {
-   ilog("LIN ID ${n}", ("n",id->id()));
-   }
-   ilog("LIINNN ${n}", ("n", block_header::num_from_id(sim.my_finalizer.fsi.lock.block_id)));
    BOOST_CHECK_EQUAL(sim.my_finalizer.fsi.lock.block_id, sim.bsp_vec[22]->id());
 
-   // this new strong vote will finally advance the final_on_strong_qc thanks to the chain
-   // weak 20 - strong 21 (meaning that if we get a strong QC on 22, 20 becomes final, so the core of
-   // 22 has a final_on_strong_qc = 20.
+   // this new strong vote will finally advance the last_final_block_num thanks to the chain
+   // 20 - 21 - 22 (meaning that if we get a strong QC on 22, 20 becomes final)
    // -----------------------------------------------------------------------------------------------
    new_claim = res.new_claim();
    res = sim.add({22, "n1"}, new_claim, res.new_bsp);
@@ -332,8 +308,6 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    BOOST_CHECK_EQUAL(res.vote.monotony_check, true);
    BOOST_CHECK_EQUAL(res.vote.liveness_check, true);
    BOOST_CHECK_EQUAL(res.vote.safety_check, false); // because liveness_check is true, safety is not checked.
-   final_on_strong_qc = res.new_bsp->core.final_on_strong_qc_block_num;
-   BOOST_CHECK_EQUAL(final_on_strong_qc, 21u);
    BOOST_CHECK_EQUAL(res.new_bsp->core.last_final_block_num(), 20u);
 
    // OK, add one proposal + strong vote. This should finally move lib to 20
@@ -345,8 +319,6 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    BOOST_CHECK_EQUAL(res.vote.monotony_check, true);
    BOOST_CHECK_EQUAL(res.vote.liveness_check, true);
    BOOST_CHECK_EQUAL(res.vote.safety_check, false); // because liveness_check is true, safety is not checked.
-   final_on_strong_qc = res.new_bsp->core.final_on_strong_qc_block_num;
-   BOOST_CHECK_EQUAL(final_on_strong_qc, 22u);
    BOOST_CHECK_EQUAL(res.new_bsp->core.last_final_block_num(), 21u);
 
 } FC_LOG_AND_RETHROW()

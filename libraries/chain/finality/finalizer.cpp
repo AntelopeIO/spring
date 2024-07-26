@@ -78,9 +78,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       fsi.last_vote             = { bsp->id(), bsp->timestamp() };
       fsi.last_vote_range_start = p_start;
 
-      auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-      if (voting_strong && final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp) {
-         fsi.lock = final_on_strong_qc_block_ref;
+      auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+      if (voting_strong && latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp) {
+         fsi.lock = latest_qc_claim__block_ref;
       }
 
       res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
@@ -95,9 +95,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 // ----------------------------------------------------------------------------------------
 // finalizer has voted strong on bsp, update finalizer safety info if more recent than the current lock
 bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
-   auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-   if (final_on_strong_qc_block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
-      fsi.lock = final_on_strong_qc_block_ref;
+   auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+   if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
+      fsi.lock = latest_qc_claim__block_ref;
       fsi.last_vote             = { bsp->id(), bsp->timestamp() };
       fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
       return true;

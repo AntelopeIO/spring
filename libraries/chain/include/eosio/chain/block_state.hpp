@@ -25,8 +25,8 @@ struct block_state_accessor;
  *    Tree over Finality Leaf Nodes starting with the one for the IF Genesis Block
  *    and ending with the one for the target Block.
  * 3. The Finality Tree associated with a target block is the Validation Tree of the
- *    block referenced by the target block's final_on_strong_qc_block_num.
- *    That is, validation_tree(core.final_on_strong_qc_block_num))
+ *    block referenced by the target block's latest_qc_claim__block_num.
+ *    That is, validation_tree(core.latest_qc_claim().block_num))
  * */
 struct valid_t {
    struct finality_leaf_node_t {
@@ -112,8 +112,6 @@ public:
 
    uint32_t               latest_qc_block_num() const          { return core.latest_qc_claim().block_num; }
    block_timestamp_type   latest_qc_block_timestamp() const    { return core.latest_qc_block_timestamp(); }
-
-   uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
 
    std::optional<qc_t> get_best_qc() const { return aggregating_qc.get_best_qc(block_num()); } // thread safe
    bool received_qc_is_strong() const { return aggregating_qc.received_qc_is_strong(); } // thread safe
