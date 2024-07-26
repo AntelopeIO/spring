@@ -252,8 +252,8 @@ namespace eosio::chain {
             // just acting as a carrier of this info. It doesn't matter if the block
             // is actually valid as it simply is used as a network message for this data.
             if (auto claimed = search_on_branch_impl(n->previous(), qc_claim.block_num, include_root_t::no)) {
-               auto& final_on_strong_qc_block_ref = claimed->core.get_block_reference(claimed->core.final_on_strong_qc_block_num);
-               set_pending_savanna_lib_id_impl(final_on_strong_qc_block_ref.block_id);
+               auto& latest_qc_claim__block_ref = claimed->core.get_block_reference(claimed->core.latest_qc_claim().block_num);
+               set_pending_savanna_lib_id_impl(latest_qc_claim__block_ref.block_id);
             }
          }
       }
