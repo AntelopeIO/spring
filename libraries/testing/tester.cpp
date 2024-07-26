@@ -337,6 +337,7 @@ namespace eosio::testing {
 
       control.reset( new controller(cfg, std::move(pfs), *expected_chain_id) );
       control->add_indices();
+      control->testing_allow_voting(true);
       if (lambda) lambda();
       chain_transactions.clear();
       [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){

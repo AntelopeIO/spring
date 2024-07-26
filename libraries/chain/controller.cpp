@@ -960,7 +960,7 @@ struct controller_impl {
    named_thread_pool<chain>        thread_pool;
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
-   bool                            testing_allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
+   bool                            testing_allow_voting = false; // used in unit tests to create long forks or simulate not getting votes
    async_t                         async_voting = async_t::yes;  // by default we post `create_and_send_vote_msg()` calls, used in tester
    async_t                         async_aggregation = async_t::yes; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
