@@ -182,8 +182,8 @@ namespace eosio::chain {
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block(block_report& br);
-         void allow_voting(bool val);
-         bool get_allow_voting_flag();
+         void testing_allow_voting(bool val);
+         bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
