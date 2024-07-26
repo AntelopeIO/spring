@@ -300,7 +300,7 @@ namespace savanna {
       std::optional<uint32_t> pending_finalizer_policy_generation;
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
-      std::optional<finalizer_policy_input> new_finalizer_policy;
+      std::optional<finalizer_policy_input> pending_finalizer_policy;
       std::optional<uint32_t> last_pending_finalizer_policy_start_num;
 
       //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
@@ -317,11 +317,11 @@ namespace savanna {
          //todo : add support for finality violation proofs
 
          //finalizer policy transition proofs 
-         if (new_finalizer_policy.has_value()  
+         if (pending_finalizer_policy.has_value()  
             && last_pending_finalizer_policy_start_num.has_value()
             && witness_hash!=checksum256()){
 
-            checksum256 policy_digest = new_finalizer_policy.value().digest();
+            checksum256 policy_digest = pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 

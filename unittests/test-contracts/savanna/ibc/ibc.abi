@@ -105,7 +105,7 @@
                     "type": "uint32?"
                 },
                 {
-                    "name": "new_finalizer_policy",
+                    "name": "pending_finalizer_policy",
                     "type": "finalizer_policy_input?"
                 },
                 {
