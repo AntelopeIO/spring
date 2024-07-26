@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_SUITE(database_tests)
 
          // Check the last irreversible block number is set correctly.
          if constexpr (std::is_same_v<T, savanna_validating_tester>) {
-            // In Savanna, after 3-chain finality is achieved.
+            // In Savanna, after 2-chain finality is achieved.
             const auto expected_last_irreversible_block_number = test.head().block_num() - num_chains_to_final;
             BOOST_TEST(test.last_irreversible_block_num() == expected_last_irreversible_block_number);
          } else {

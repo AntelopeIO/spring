@@ -242,7 +242,7 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    // proposal #6 from "n0" is final (although "n1" may not know it yet).
    // proposal #7 would be final if it receives a strong QC
 
-   /// let's have "n1" build on proposal #6. Default will use timestamp(7) so we will fail the monotony check
+   /// let's have "n1" build on proposal #7. Default will use timestamp(8) so we will fail the monotony check
    auto res = sim.add({8, "n1"}, {}, sim.bsp_vec[7]);
    BOOST_CHECK(res.vote.decision == vote_decision::no_vote);
    BOOST_CHECK_EQUAL(res.vote.monotony_check, false);
@@ -282,7 +282,7 @@ BOOST_AUTO_TEST_CASE( decide_vote_liveness_and_safety_check ) try {
    new_claim = sim.bsp_vec[9]->core.latest_qc_claim();
    res = sim.add({20, "n1"}, qc_claim_t{9, true}, res.new_bsp);
 
-   BOOST_CHECK(res.vote.decision == vote_decision::strong_vote); // because !time_range_disjoint and fsi.last_vote == 9
+   BOOST_CHECK(res.vote.decision == vote_decision::strong_vote);
    BOOST_CHECK_EQUAL(block_header::num_from_id(sim.my_finalizer.fsi.last_vote.block_id), 20u);
    BOOST_CHECK_EQUAL(res.vote.monotony_check, true);
    BOOST_CHECK_EQUAL(res.vote.liveness_check, true);
