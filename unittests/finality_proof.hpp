@@ -21,7 +21,7 @@ namespace finality_proof {
       digest_type base_digest;
       digest_type active_finalizer_policy_digest;
       digest_type last_pending_finalizer_policy_digest;
-      uint32_t last_pending_finalizer_policy_start_num = 0 ;
+      block_timestamp_type last_pending_finalizer_policy_start_timestamp;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
       digest_type level_3_commitments_digest;
@@ -166,7 +166,7 @@ namespace finality_proof {
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
-         uint32_t last_pending_finalizer_policy_start_num = 0;
+         block_timestamp_type last_pending_finalizer_policy_start_timestamp;
 
          for (auto& p : blocks_since_proposed_policy) p.second.blocks_since_proposed++;
 
@@ -185,7 +185,7 @@ namespace finality_proof {
 
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
-                  last_pending_finalizer_policy_start_num = block->block_num();
+                  last_pending_finalizer_policy_start_timestamp = block->timestamp;
                }
             }
          }
@@ -200,7 +200,7 @@ namespace finality_proof {
                last_proposed_finalizer_policy_digest = fc::sha256::hash(last_proposed_finalizer_policy);
                last_pending_finalizer_policy         = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
-               last_pending_finalizer_policy_start_num = block->block_num();
+               last_pending_finalizer_policy_start_timestamp = block->timestamp;
                active_finalizer_policy               = last_proposed_finalizer_policy;
                active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
@@ -232,7 +232,7 @@ namespace finality_proof {
          // compute commitments used for proving finalizer policy changes
          digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
-            .last_pending_fin_pol_start_num = last_pending_finalizer_policy_start_num,
+            .last_pending_fin_pol_start_timestamp = last_pending_finalizer_policy_start_timestamp,
             .l3_commitments_digest = level_3_commitments_digest
          });
 
@@ -280,7 +280,7 @@ namespace finality_proof {
             .base_digest = base_digest, 
             .active_finalizer_policy_digest = active_finalizer_policy_digest, 
             .last_pending_finalizer_policy_digest = last_pending_finalizer_policy_digest, 
-            .last_pending_finalizer_policy_start_num = last_pending_finalizer_policy_start_num, 
+            .last_pending_finalizer_policy_start_timestamp = last_pending_finalizer_policy_start_timestamp,
             .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
             .finality_digest = finality_digest, 
             .level_3_commitments_digest = level_3_commitments_digest, 
