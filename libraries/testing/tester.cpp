@@ -365,6 +365,9 @@ namespace eosio::testing {
          assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
       });
+
+      if (_open_callback)
+         _open_callback();
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot ) {

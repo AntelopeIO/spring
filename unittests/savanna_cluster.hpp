@@ -37,6 +37,9 @@ namespace savanna_cluster {
       size_t                  node_idx;
       finalizer_keys<tester>  finkeys;
       size_t                  cur_key{0}; // index of key used in current policy
+      bool                    pushing_a_block {false };
+      std::function<void(const block_signal_params&)> accepted_block_cb;
+      std::function<void(const vote_signal_params&)>  voted_block_cb;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
@@ -81,7 +84,15 @@ namespace savanna_cluster {
          BOOST_REQUIRE_EQUAL(lib_block->block_num(), lib + cnt);
       }
 
-      void push_blocks_to(tester& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+      void push_block(const signed_block_ptr& b) {
+         assert(!pushing_a_block);
+         pushing_a_block = true;
+         auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
+         tester::push_block(b);
+      }
+
+      template <class Node>
+      void push_blocks_to(Node& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          auto limit = std::min(fork_db_head().block_num(), block_num_limit);
          while (to.fork_db_head().block_num() < limit) {
             auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
@@ -134,7 +145,6 @@ namespace savanna_cluster {
 
    private:
       fs::path get_fsi_path() const { return  cfg.finalizers_dir / config::safety_filename; }
-
    };
 
    // ---------------------------------------------------------------------------------------
@@ -391,7 +401,8 @@ namespace savanna_cluster {
 
       void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            n.push_block(b);
+            if (!n.fetch_block_by_id(b->calculate_id()))
+               n.push_block(b);
          });
       }
 

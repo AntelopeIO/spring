@@ -558,6 +558,7 @@ namespace eosio::testing {
          }
 
          void set_produce_block_callback(std::function<void(const signed_block_ptr&)> cb) { _produce_block_callback = std::move(cb); }
+         void set_open_callback(std::function<void()> cb) { _open_callback = std::move(cb); }
          void do_check_for_votes(bool val) { _expect_votes = val; }
 
       protected:
@@ -572,6 +573,7 @@ namespace eosio::testing {
       protected:
          bool                   _expect_votes {true};                          // if set, ensure the node votes on each block
          std::function<void(const signed_block_ptr&)> _produce_block_callback; // if set, called every time a block is produced
+         std::function<void()>                        _open_callback;          // if set, called every time the tester is opened
 
          // tempdir field must come before control so that during destruction the tempdir is deleted only after controller finishes
          fc::temp_directory                            tempdir;
@@ -891,12 +893,19 @@ namespace eosio::testing {
          }
       }
 
-      // configures local node finalizers - should be done only once.
+      // configures local node finalizers - should be done only once after tester is `open`ed
       // different nodes should use different keys
       // OK to configure keys not used in a finalizer_policy
       // -------------------------------------------------------------
       void set_node_finalizers(size_t first_key, size_t num_keys) {
+         node_first_key = first_key;
+         node_num_keys = num_keys;
          t.set_node_finalizers({&key_names.at(first_key), num_keys});
+      }
+
+      void set_node_finalizers() {
+         if (node_num_keys)
+            t.set_node_finalizers({&key_names.at(node_first_key), node_num_keys});
       }
 
       // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
@@ -983,6 +992,8 @@ namespace eosio::testing {
       vector<bls_public_key>  pubkeys;
       vector<bls_private_key> privkeys;
       size_t                  fin_policy_size {0};
+      size_t                  node_first_key{0};
+      size_t                  node_num_keys{0};
    };
 
 
