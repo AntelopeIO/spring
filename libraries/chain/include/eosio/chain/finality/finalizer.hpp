@@ -75,7 +75,6 @@ namespace eosio::chain {
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
       std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
-      std::atomic<bool>                 enable_voting{false};
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
       std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
@@ -93,11 +92,6 @@ namespace eosio::chain {
          if (finalizers.empty())
             return;
 
-         if (!enable_voting.load(std::memory_order_relaxed)) { // Avoid extra processing while syncing. Once caught up, consider voting
-            if (!bsp->is_recent())
-               return;
-            enable_voting.store(true, std::memory_order_relaxed);
-         }
          assert(bsp->active_finalizer_policy);
 
          std::vector<vote_message_ptr> votes;
@@ -139,7 +133,6 @@ namespace eosio::chain {
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
-      bool    is_active() const { return !empty() && enable_voting.load(std::memory_order_relaxed); } // thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe

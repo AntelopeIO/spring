@@ -453,7 +453,7 @@ namespace eosio::testing {
          }
 
          void allow_voting(bool val) {
-            control->allow_voting(val);
+            control->testing_allow_voting(val);
          }
 
          const controller::config& get_config() const {

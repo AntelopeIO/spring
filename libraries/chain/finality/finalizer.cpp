@@ -288,8 +288,6 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 
    // now only inactive finalizers remain in safety_info => move it to inactive_safety_info
    inactive_safety_info = std::move(safety_info);
-
-   enable_voting = enable_immediate_voting;
 }
 
 

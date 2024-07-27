@@ -337,6 +337,7 @@ namespace eosio::testing {
 
       control.reset( new controller(cfg, std::move(pfs), *expected_chain_id) );
       control->add_indices();
+      control->testing_allow_voting(true);
       if (lambda) lambda();
       chain_transactions.clear();
       [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
@@ -538,22 +539,22 @@ namespace eosio::testing {
          // This is not the case for tests with forks, so for these tests we should set
          // `_expect_votes` to false by calling `base_tester::do_check_for_votes(false)`
          // ----------------------------------------------------------------------------
-         FC_ASSERT(c.is_block_missing_finalizer_votes(bh) == false, "Missing expected vote");
+         FC_ASSERT(!c.get_testing_allow_voting_flag() || !c.is_block_missing_finalizer_votes(bh), "Missing expected vote");
       }
    }
 
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
-      bool allow_voting_originally = control->get_allow_voting_flag();
+      bool allow_voting_originally = control->get_testing_allow_voting_flag();
 
       for (uint32_t i = 0; i < n; ++i) {
          // For performance, only vote on the last four to move finality.
-         // Modify allow_voting only if it was set to true originally;
-         // otherwise the allow_voting would be set to true when `i >= 4` even though the user of
+         // Modify testing_allow_voting only if it was set to true originally;
+         // otherwise the testing_allow_voting would be set to true when `i >= 4` even though the user of
          // `produce_blocks` wants it to be true.
          // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
          if (allow_voting_originally && n > 4)
-            control->allow_voting(i >= n - 4);
+            control->testing_allow_voting(i >= n - 4);
          res = empty ? produce_empty_block() : produce_block();
       }
       return res;
