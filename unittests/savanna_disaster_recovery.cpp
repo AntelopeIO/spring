@@ -86,7 +86,7 @@ BOOST_FIXTURE_TEST_CASE(nodes_go_down, savanna_cluster::cluster_t) try {
    std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
 
    for (auto& N : failing_nodes) N->close();
-   A.require_lib_advancing_by(1, [&]() { A.produce_blocks(4); }); // lib stalls 3 finalizers down
+   A.require_lib_advancing_by(1, [&]() { A.produce_blocks(4); }); // lib stalls with 3 finalizers down
    for (auto& N : failing_nodes) N->open();
    for (auto& N : failing_nodes) A.push_blocks_to(*N);
    A.require_lib_advancing_by(7, [&]() { A.produce_blocks(4); }); // all 4 finalizers should be back voting
@@ -122,19 +122,27 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_old_fsi, savanna_cluster::clus
 
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_deleted_fsi, savanna_cluster::cluster_t) try {
-   auto& A=_nodes[0]; auto& C=_nodes[2];
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
+
+   std::vector<std::vector<uint8_t>> fsis;
+   std::vector<std::string> snapshots;
 
    A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
-   auto snapshot = C.snapshot();
+   for (auto& N : failing_nodes) snapshots.push_back(N->snapshot());
    A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
-   C.close();
-   A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // lib still advances with 3 finalizers
-   C.remove_state();
-   C.remove_fsi();
-   C.open_from_snapshot(snapshot);
-   A.push_blocks_to(C);
-   A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); }); // all 4 finalizers should be back voting
-   BOOST_REQUIRE(!A.is_head_missing_finalizer_votes());           // let's make sure of that
+   for (auto& N : failing_nodes) N->close();
+   A.require_lib_advancing_by(1, [&]() { A.produce_blocks(2); }); // lib stalls 3 finalizers down
+   size_t i = 0;
+   for (auto& N : failing_nodes) {
+      N->remove_state();
+      N->remove_fsi();
+      N->open_from_snapshot(snapshots[i]);
+      A.push_blocks_to(*N);
+      ++i;
+   }
+   A.require_lib_advancing_by(3, [&]() { A.produce_blocks(2); }); // all 4 finalizers should be back voting
+   for (auto& N : failing_nodes) BOOST_REQUIRE(!N->is_head_missing_finalizer_votes());
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
