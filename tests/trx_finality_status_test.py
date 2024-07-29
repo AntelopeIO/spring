@@ -192,14 +192,15 @@ try:
         f"\n\nfinal status: {json.dumps(retStatus, indent=1)}"
     validate(retStatus)
 
+    # The transaction status db is purged on timeouts when blocks are processed, leeway allows small delay in blocks
     leeway=4
-    assert testNode.waitForBlock(blockNum=startingBlockNum+(successDuration*2),timeout=successDuration+leeway)
+    assert testNode.waitForBlock(blockNum=startingBlockNum+(successDuration*2)+leeway,timeout=successDuration+leeway)
 
     recentBlockNum=testNode.getBlockNum()
     retStatus=testNode.getTransactionStatus(transId)
     state = getState(retStatus)
     assert state == unknownState, \
-        f"ERROR: Calling getTransactionStatus after the success_duration should have resulted in an \"{irreversibleState}\" state.\nstatus: {json.dumps(retStatus, indent=1)}"
+        f"ERROR: Calling getTransactionStatus after the success_duration should have resulted in an \"{unknownState}\" state.\nstatus: {json.dumps(retStatus, indent=1)}"
     validateTrxState(retStatus, present=False)
     validate(retStatus, knownTrx=False)
     assert recentBlockNum <= retStatus["head_number"], \
