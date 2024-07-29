@@ -105,16 +105,19 @@ namespace savanna_cluster {
       }
 
       std::string snapshot() const {
+         dlog("node ${i} - taking snapshot", ("i", node_idx));
          auto writer = buffered_snapshot_suite::get_writer();
          control->write_snapshot(writer);
          return buffered_snapshot_suite::finalize(writer);
       }
 
       void open_from_snapshot(const std::string& snapshot) {
+         dlog("node ${i} - restoring from snapshot", ("i", node_idx));
          open(buffered_snapshot_suite::get_reader(snapshot));
       }
 
       std::vector<uint8_t> save_fsi() const {
+         dlog("node ${i} - saving fsi", ("i", node_idx));
          auto finalizer_path = get_fsi_path();
          std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
          std::streamsize size = file.tellg();
@@ -127,6 +130,7 @@ namespace savanna_cluster {
       }
 
       void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
+         dlog("node ${i} - overwriting fsi", ("i", node_idx));
          auto finalizer_path = get_fsi_path();
          std::ofstream file(finalizer_path.generic_string(), std::ios::binary);
          assert(!fsi.empty());
@@ -134,16 +138,37 @@ namespace savanna_cluster {
       }
 
       void remove_fsi() {
+         dlog("node ${i} - removing fsi", ("i", node_idx));
          remove_all(get_fsi_path());
       }
 
       void remove_state() {
          auto state_path = cfg.state_dir;
+         dlog("node ${i} - removing state data from: ${state_path}", ("i", node_idx)("${state_path}", state_path));
          remove_all(state_path);
          fs::create_directories(state_path);
       }
 
+      void remove_reversible_data() {
+         remove_blocks(false);
+      }
+
+      void remove_reversible_data_and_blocks_log() {
+         remove_blocks(true);
+      }
+
    private:
+      // always removes reversible data (`blocks/reversible`)
+      // optionally remove the blocks log as well by deleting the whole `blocks` directory
+      // ---------------------------------------------------------------------------------
+      void remove_blocks(bool rm_blocks_log) {
+         auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
+         auto path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
+         dlog("node ${i} - removing all reversible data from: ${rev_path}", ("i", node_idx)("${rev_path}", path));
+         remove_all(path);
+         fs::create_directories(reversible_path);
+      }
+
       fs::path get_fsi_path() const { return  cfg.finalizers_dir / config::safety_filename; }
    };
 

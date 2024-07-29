@@ -167,6 +167,85 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_while_retaining_fsi, savanna_cluste
    for (auto& N : failing_nodes) BOOST_REQUIRE(!N->is_head_missing_finalizer_votes());
 } FC_LOG_AND_RETHROW()
 
+// ---------------------------------------------------------------------------------------------------
+//                      All nodes are shutdown with reversible blocks lost
+// ---------------------------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   std::array<savanna_cluster::node_t*, 4> failing_nodes { &A, &B, &C, &D };
+
+   A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+
+   // take snapshot
+   // -------------
+   std::string snapshot { C.snapshot() };
+
+   // verify that all nodes have the same last irreversible block ID (lib_id) and head block ID (h_id)
+   // ------------------------------------------------------------------------------------------------
+   auto head_id = A.head().id();
+   auto head_num = A.head().block_num();
+   auto lib_id = A.lib_id;
+   for (auto& N : failing_nodes) {
+      BOOST_REQUIRE_EQUAL(N->head().id(), head_id);
+      BOOST_REQUIRE_EQUAL(N->lib_id, lib_id);
+   }
+
+   A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+
+   // split network { A, B } and { C, D }
+   // A produces two more blocks, so A and B will vote strong but finality will not advance
+   // -------------------------------------------------------------------------------------
+   const std::vector<size_t> partition {2, 3};
+   set_partition(partition);
+   A.require_lib_advancing_by(1, [&]() { A.produce_blocks(2); }); // lib stalls with network partitioned
+
+   // remove network split
+   // --------------------
+   set_partition({});
+
+   // shutdown all four nodes, delete the state and the reversible data for all nodes, but do not
+   // delete the fsi or blocks log restart all four nodes from previously saved snapshot. A and B
+   // finalizers will be locked on lib_id's child which was lost.
+   // -----------------------------------------------------------------------------------------------
+   bool remove_blocks_log = false;
+   for (auto& N : failing_nodes) {
+      N->close();
+      N->remove_state();
+      remove_blocks_log ? N->remove_reversible_data_and_blocks_log() : N->remove_reversible_data();
+      N->open_from_snapshot(snapshot);
+   }
+
+   propagate_heads(); // needed only if we don't remove the blocks log
+
+   // verify that lib does not advance and is stuck at lib_id (because validators A and B are locked on a
+   // reversible block which has been lost, so they cannot vote any since the claim on the lib block
+   // is just copied forward and will always be on a block with a timestamp < that the lock block in
+   // the fsi)
+   // ----------------------------------------------------------------------------------------------
+   A.require_lib_advancing_by(0, [&]() {
+      for (size_t i=0; i<4; ++i) {
+         //size_t j = 0;
+         for (auto& N : failing_nodes) {
+            //std::cout << j++ << '\n';
+            BOOST_CHECK_EQUAL(N->head().block_num(), head_num + i + (remove_blocks_log ? 0 : 1));
+            if (!N->head().block()) // when restarting after removing the blocks log, `head()` has no `block()`
+               continue;
+
+            if (N == &A || N == &B) {
+               // A and B are locked on a lost block so they cannot vote anymore
+               BOOST_CHECK(N->is_head_missing_finalizer_votes());
+            } else {
+               // C and D should be able to vote
+               if (i >= 2)
+                  BOOST_CHECK(!N->is_head_missing_finalizer_votes());
+            }
+         }
+         A.produce_block();
+      }
+   });
+} FC_LOG_AND_RETHROW()
 
 
 
