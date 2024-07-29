@@ -115,8 +115,7 @@ namespace finality_proof {
       int32_t blocks_since_proposed = 0;
    };
 
-   template<size_t NUM_NODES>
-   class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
+   class proof_test_cluster : public finality_test_cluster<4> {
    public:
 
       /*****
@@ -143,6 +142,8 @@ namespace finality_proof {
 
       block_timestamp_type timestamp;
       block_timestamp_type parent_timestamp;
+
+      std::vector<bool> vote_propagation = {1,1,1};
 
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
@@ -211,10 +212,14 @@ namespace finality_proof {
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
             }
          }
+        
+         //process votes
+         if (vote_propagation.size() == 0) this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
+         else this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
 
-         //process votes and collect / compute the IBC-relevant data
-         this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
+         //this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
 
+         // compute the IBC-relevant data
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
@@ -307,7 +312,7 @@ namespace finality_proof {
       }
 
       proof_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = false})
-      : finality_test_cluster<NUM_NODES>(config) {
+      : finality_test_cluster<4>(config) {
 
       }
 

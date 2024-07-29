@@ -56,7 +56,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_proof::proof_test_cluster<4> cluster;
+      finality_proof::proof_test_cluster cluster;
 
       // produce IF Genesis block
       auto genesis_block_result = cluster.produce_block();
@@ -97,9 +97,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_5_result = cluster.produce_block(); //block num : 9
       auto block_6_result = cluster.produce_block(); //block num : 10
 
-      BOOST_TEST(block_4_result.qc_data.qc.has_value());
-      BOOST_TEST(block_5_result.qc_data.qc.has_value());
-      BOOST_TEST(block_6_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_4_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_5_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_6_result.qc_data.qc.has_value());
       
       // create a few proofs we'll use to perform tests
 
