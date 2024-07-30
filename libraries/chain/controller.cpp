@@ -960,7 +960,7 @@ struct controller_impl {
    named_thread_pool<chain>        thread_pool;
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
-   bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
+   bool                            testing_allow_voting = false; // used in unit tests to create long forks or simulate not getting votes
    async_t                         async_voting = async_t::yes;  // by default we post `create_and_send_vote_msg()` calls, used in tester
    async_t                         async_aggregation = async_t::yes; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
@@ -3296,7 +3296,7 @@ struct controller_impl {
 
             if (!my_finalizers.empty()) {
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
-                  if (head->is_recent() || my_finalizers.is_active()) {
+                  if (head->is_recent() || testing_allow_voting) {
                      if (async_voting == async_t::no)
                         create_and_send_vote_msg(head);
                      else
@@ -3695,7 +3695,7 @@ struct controller_impl {
    }
 
    bool is_block_missing_finalizer_votes(const block_handle& bh) const {
-      if (!allow_voting || my_finalizers.empty())
+      if (my_finalizers.empty())
          return false;
 
       return std::visit(
@@ -3735,7 +3735,7 @@ struct controller_impl {
 
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!allow_voting || !bsp->block->is_proper_svnn_block())
+      if (!bsp->block->is_proper_svnn_block())
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
@@ -4002,7 +4002,7 @@ struct controller_impl {
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
       if (!my_finalizers.empty() && bsp->core.latest_qc_claim().block_num > 0) {
-         if (bsp->is_recent() || my_finalizers.is_active()) {
+         if (bsp->is_recent() || testing_allow_voting) {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
                   const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
@@ -5002,12 +5002,12 @@ void controller::commit_block(block_report& br) {
    my->commit_block(br, block_status::incomplete);
 }
 
-void controller::allow_voting(bool val) {
-   my->allow_voting = val;
+void controller::testing_allow_voting(bool val) {
+   my->testing_allow_voting = val;
 }
 
-bool controller::get_allow_voting_flag() {
-   return my->allow_voting;
+bool controller::get_testing_allow_voting_flag() {
+   return my->testing_allow_voting;
 }
 
 void controller::set_async_voting(async_t val) {

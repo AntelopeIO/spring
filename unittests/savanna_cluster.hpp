@@ -101,6 +101,8 @@ namespace savanna_cluster {
       }
 
       bool is_head_missing_finalizer_votes() {
+         if (!control->get_testing_allow_voting_flag())
+            return false;
          return control->is_block_missing_finalizer_votes(head());
       }
 

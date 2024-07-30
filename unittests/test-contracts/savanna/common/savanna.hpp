@@ -254,7 +254,7 @@ namespace savanna {
    // commitments used in the context of finalizer policy transitions
    struct level_2_commitments_t {
       checksum256 last_pending_fin_pol_digest{};
-      uint32_t last_pending_fin_pol_start_num{0};
+      block_timestamp_type last_pending_fin_pol_start_timestamp;
       checksum256 l3_commitments_digest{};
    };
 
@@ -300,8 +300,9 @@ namespace savanna {
       std::optional<uint32_t> last_pending_finalizer_policy_generation;
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
-      std::optional<finalizer_policy_input> new_finalizer_policy;
-      std::optional<uint32_t> last_pending_finalizer_policy_start_num;
+
+      std::optional<finalizer_policy_input> pending_finalizer_policy;
+      std::optional<block_timestamp> last_pending_finalizer_policy_start_timestamp;
 
       //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
       //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
@@ -317,15 +318,16 @@ namespace savanna {
          //todo : add support for finality violation proofs
 
          //finalizer policy transition proofs 
-         if (new_finalizer_policy.has_value()  
-            && last_pending_finalizer_policy_start_num.has_value()
+
+         if (pending_finalizer_policy.has_value()  
+            && last_pending_finalizer_policy_start_timestamp.has_value()
             && witness_hash!=checksum256()){
 
-            checksum256 policy_digest = new_finalizer_policy.value().digest();
+            checksum256 policy_digest = pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
-               .last_pending_fin_pol_start_num =  last_pending_finalizer_policy_start_num.value(),
+               .last_pending_fin_pol_start_timestamp =  last_pending_finalizer_policy_start_timestamp.value(),
                .l3_commitments_digest = witness_hash
             });
 
@@ -344,11 +346,12 @@ namespace savanna {
    //internal representation of finality data
    struct block_finality_data_internal : block_finality_data {
       checksum256 resolved_witness_hash;
-      uint32_t last_pending_finalizer_policy_generation = 0;
+
+      uint32_t resolved_last_pending_finalizer_policy_generation = 0;
 
       block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
          resolved_witness_hash = base.resolve_witness();
-         last_pending_finalizer_policy_generation = base.last_pending_finalizer_policy_generation.has_value() ? base.last_pending_finalizer_policy_generation.value() : active_finalizer_policy_generation;
+         resolved_last_pending_finalizer_policy_generation = base.last_pending_finalizer_policy_generation.has_value() ? base.last_pending_finalizer_policy_generation.value() : active_finalizer_policy_generation;
       }
 
       checksum256 finality_digest() const {
@@ -357,7 +360,7 @@ namespace savanna {
          return hash;
       }
 
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(last_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
+      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(resolved_last_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
    };
 
    //used in "heavy" proofs, where verification of finality digest is performed
@@ -462,8 +465,12 @@ namespace savanna {
       //block finality data over which we validate a QC
       block_finality_data qc_block;
 
-      //signature over finality_digest() of qc_block. 
-      quorum_certificate qc;
+      //signature over finality_digest() of qc_block by active policy generation 
+      quorum_certificate active_policy_qc;
+
+      //signature over finality_digest() of qc_block by pending policy generation (required during transitions, prohibited otherwise)
+      std::optional<quorum_certificate> pending_policy_qc;
+
    };
 
    struct proof {
