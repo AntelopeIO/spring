@@ -273,7 +273,7 @@ namespace eosio { namespace chain {
          read_section(detail::snapshot_section_traits<T>::section_name(), f);
       }
 
-      virtual void validate() const = 0;
+      virtual void validate() = 0;
 
       virtual void return_to_header() = 0;
 
@@ -309,7 +309,7 @@ namespace eosio { namespace chain {
       public:
          explicit variant_snapshot_reader(const fc::variant& snapshot);
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;
@@ -361,7 +361,7 @@ namespace eosio { namespace chain {
       public:
          explicit istream_snapshot_reader(std::istream& snapshot);
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;
@@ -383,7 +383,7 @@ namespace eosio { namespace chain {
          explicit istream_json_snapshot_reader(const std::filesystem::path& p);
          ~istream_json_snapshot_reader();
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;

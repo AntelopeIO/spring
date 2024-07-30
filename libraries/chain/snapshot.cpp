@@ -45,7 +45,7 @@ variant_snapshot_reader::variant_snapshot_reader(const fc::variant& snapshot)
 {
 }
 
-void variant_snapshot_reader::validate() const {
+void variant_snapshot_reader::validate() {
    EOS_ASSERT(snapshot.is_object(), snapshot_validation_exception,
          "Variant snapshot is not an object");
    const fc::variant_object& o = snapshot.get_object();
@@ -241,7 +241,7 @@ istream_snapshot_reader::istream_snapshot_reader(std::istream& snapshot)
 
 }
 
-void istream_snapshot_reader::validate() const {
+void istream_snapshot_reader::validate() {
    // make sure to restore the read pos
    auto restore_pos = fc::make_scoped_exit([this,pos=snapshot.tellg(),ex=snapshot.exceptions()](){
       snapshot.seekg(pos);
@@ -395,7 +395,7 @@ istream_json_snapshot_reader::istream_json_snapshot_reader(const std::filesystem
    impl->doc.ParseStream(is);
 }
 
-void istream_json_snapshot_reader::validate() const {
+void istream_json_snapshot_reader::validate() {
    try {
       // validate totem
       auto expected_totem = ostream_json_snapshot_writer::magic_number;
