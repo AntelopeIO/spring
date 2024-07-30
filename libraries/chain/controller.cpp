@@ -3777,12 +3777,19 @@ struct controller_impl {
                      invalid_qc_claim,
                      "Block #${b} doesn't have a finality header extension even though its predecessor does.",
                      ("b", block_num) );
+
+         dlog("received block: #${bn} ${t} ${prod} ${id}, no qc claim, previous: ${p}",
+              ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)("p", b->previous));
          return;
       }
 
       assert(header_ext);
       const auto& f_ext        = std::get<finality_extension>(*header_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
+
+      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
+           ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
+           ("qc", new_qc_claim)("p", b->previous));
 
       // If there is a header extension, but the previous block does not have a header extension,
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
@@ -3967,10 +3974,6 @@ struct controller_impl {
 
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const qc_t& received_qc = qc_ext.qc;
-
-      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
-           ("bn", bsp_in->block_num())("t", bsp_in->timestamp())("prod", bsp_in->producer())("id", bsp_in->id())
-           ("qc", qc_ext.qc.to_qc_claim())("p", bsp_in->previous()));
 
       block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed_bsp ) {
