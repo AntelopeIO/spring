@@ -19,10 +19,11 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
          cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, std::get<2>(v));
    };
 
+   // called on `commit_block`, for both blocks received from `push_block` and produced blocks
    accepted_block_cb = [&, node_idx](const eosio::chain::block_signal_params& p) {
-      auto& b = std::get<0>(p);
       if (!pushing_a_block) {
          // we want to propagate only blocks we produce, not the ones we receive from the network
+         auto& b = std::get<0>(p);
          cluster.push_block_to_peers(node_idx, skip_self_t::yes, b);
       }
    };
