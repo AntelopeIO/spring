@@ -79,9 +79,9 @@ namespace savanna_cluster {
       template<class F>
       void require_lib_advancing_by(uint32_t cnt, F &&f) {
          assert(is_open()); // cluster expects `_nodes[0]` to never be closed (shutdown)
-         auto lib = lib_block->block_num();
+         auto lib = lib_number;
          std::forward<F>(f)();
-         BOOST_REQUIRE_EQUAL(lib_block->block_num(), lib + cnt);
+         BOOST_REQUIRE_EQUAL(lib_number, lib + cnt);
       }
 
       void push_block(const signed_block_ptr& b) {

@@ -186,13 +186,15 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    // ------------------------------------------------------------------------------------------------
    auto head_id = A.head().id();
    auto head_num = A.head().block_num();
-   auto lib_id = A.lib_id;
-   for (auto& N : failing_nodes) {
-      BOOST_REQUIRE_EQUAL(N->head().id(), head_id);
-      BOOST_REQUIRE_EQUAL(N->lib_id, lib_id);
-   }
+   for (auto& N : failing_nodes) BOOST_REQUIRE_EQUAL(N->head().id(), head_id);
 
+   // produce two blocks so that lib catches up to snapshot's head
    A.require_lib_advancing_by(2, [&]() { A.produce_blocks(2); });
+
+   auto lib_id = A.lib_id;
+   auto lib_num = A.lib_number;
+   BOOST_REQUIRE_EQUAL(lib_id, head_id);
+   for (auto& N : failing_nodes) BOOST_REQUIRE_EQUAL(N->lib_id, lib_id);
 
    // split network { A, B } and { C, D }
    // A produces two more blocks, so A and B will vote strong but finality will not advance
@@ -217,8 +219,11 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
       N->open_from_snapshot(snapshot);
    }
 
-   propagate_heads(); // needed only if we don't remove the blocks log
+   propagate_heads(); // needed only if we don't remove the blocks log, otherwise lib advanced by 1 block
+                      // which was stored in the blocks log, and when replayed after loading A and B's
+                      // snapshots advanced head() by one
 
+   BOOST_CHECK_EQUAL(A.lib_number, lib_num + (remove_blocks_log ? 0 : 1));
    // verify that lib does not advance and is stuck at lib_id (because validators A and B are locked on a
    // reversible block which has been lost, so they cannot vote any since the claim on the lib block
    // is just copied forward and will always be on a block with a timestamp < that the lock block in
@@ -226,23 +231,44 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    // ----------------------------------------------------------------------------------------------
    A.require_lib_advancing_by(0, [&]() {
       for (size_t i=0; i<4; ++i) {
-         //size_t j = 0;
+         A.produce_block();
          for (auto& N : failing_nodes) {
-            //std::cout << j++ << '\n';
-            BOOST_CHECK_EQUAL(N->head().block_num(), head_num + i + (remove_blocks_log ? 0 : 1));
-            if (!N->head().block()) // when restarting after removing the blocks log, `head()` has no `block()`
-               continue;
+            BOOST_CHECK_EQUAL(N->head().block_num(), head_num + (i + 1) + (remove_blocks_log ? 0 : 1));
 
             if (N == &A || N == &B) {
                // A and B are locked on a lost block so they cannot vote anymore
                BOOST_CHECK(N->is_head_missing_finalizer_votes());
             } else {
-               // C and D should be able to vote
+               // C and D should be able to vote after a couple blocks.
+               // monotony check can fail for a couple blocks because we voted on
+               // two blocks after the snapshot and kept the fsi.
+               // NOTE: if `remove_blocks_log == true` C and D may not be able to vote at all because
+               // they are also locked on a lost block.
                if (i >= 2)
                   BOOST_CHECK(!N->is_head_missing_finalizer_votes());
             }
          }
+      }
+   });
+
+   // shutdown all four nodes again
+   // delete every node's fsi
+   // restart all four nodes
+   // A produces 4 blocks, verify that every node is voting strong again on each new block and that lib advances
+   // ----------------------------------------------------------------------------------------------------------
+   for (auto& N : failing_nodes) {
+      N->close();
+      N->remove_fsi();
+      N->open();
+   }
+
+   // 6 because we produced 8 blocks since the snapshot, and lib trails by two.
+   A.require_lib_advancing_by(6, [&]() {
+      for (size_t i=0; i<4; ++i) {
          A.produce_block();
+         for (auto& N : failing_nodes) {
+            BOOST_CHECK(!N->is_head_missing_finalizer_votes());
+         }
       }
    });
 } FC_LOG_AND_RETHROW()
