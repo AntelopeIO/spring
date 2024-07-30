@@ -684,6 +684,10 @@ public:
                auto missing = chain.missing_votes(id, qc_ext.qc);
                log_missing_votes(block, id, missing);
             }
+         } else if (block->is_proper_svnn_block()) {
+            fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
+                 ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
+                 ("l", (fc::time_point::now() - block->timestamp).count() / 1000));
          }
       }
    }
