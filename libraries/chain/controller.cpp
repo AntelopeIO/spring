@@ -3523,8 +3523,7 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
-            if( conf.terminate_at_block > 0 && conf.terminate_at_block < bsp->block_num() ) { // < since checked before apply
-               ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num()-1)("num", conf.terminate_at_block) );
+            if (should_terminate()) {
                shutdown();
                return false;
             }
@@ -3898,6 +3897,8 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
+      // should_terminate() is not thread-safe requires chain_head.block_num()
+      // also when syncing allow many blocks in forkdb queued to be applied
       if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
@@ -4701,6 +4702,25 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
+   bool should_terminate() const {
+      constexpr block_num_type max_reversible_blocks = 1000;
+      block_num_type head_block_num = chain_head.block_num();
+      if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
+         ilog("Block ${n} reached configured maximum block ${num}; terminating",
+              ("n", head_block_num)("num", conf.terminate_at_block) );
+         return true;
+      }
+      if (!replaying) {
+         block_num_type lib = fork_db_root_block_num();
+         if (lib > 0 && head_block_num >= lib + max_reversible_blocks) {
+            elog("Exceeded max reversible blocks allowed, head ${h} > LIB ${lib} + ${m}",
+                 ("h", head_block_num)("lib", lib)("m", max_reversible_blocks));
+            return true;
+         }
+      }
+      return false;
+   }
+
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
       uint32_t current_block_num = chain_head.block_num();
 
@@ -5480,8 +5500,8 @@ validation_mode controller::get_validation_mode()const {
    return my->conf.block_validation_mode;
 }
 
-uint32_t controller::get_terminate_at_block()const {
-   return my->conf.terminate_at_block;
+bool controller::should_terminate()const {
+   return my->should_terminate();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const

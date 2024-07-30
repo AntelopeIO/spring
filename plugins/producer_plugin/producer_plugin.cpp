@@ -1830,14 +1830,13 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-   uint32_t head_block_num = chain.head().block_num();
 
-   if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
-      ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
+   if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
 
+   block_num_type             head_block_num    = chain.head().block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;

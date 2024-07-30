@@ -378,7 +378,8 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         uint32_t get_terminate_at_block()const;
+         /// @return true if terminate-at-block or other conditions are met meanly application should terminate
+         bool should_terminate()const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
