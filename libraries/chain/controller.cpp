@@ -5206,7 +5206,7 @@ uint32_t controller::last_irreversible_block_num() const {
 }
 
 block_id_type controller::last_irreversible_block_id() const {
-   return my->fork_db_root_block_id();
+   return my->fork_db_has_root() ?  my->fork_db_root_block_id() : block_id_type{};
 }
 
 time_point controller::last_irreversible_block_time() const {
