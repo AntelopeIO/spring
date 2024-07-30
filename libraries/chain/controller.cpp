@@ -3968,6 +3968,10 @@ struct controller_impl {
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
       const qc_t& received_qc = qc_ext.qc;
 
+      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
+           ("bn", bsp_in->block_num())("t", bsp_in->timestamp())("prod", bsp_in->producer())("id", bsp_in->id())
+           ("qc", qc_ext.qc.to_qc_claim())("p", bsp_in->previous()));
+
       block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed_bsp ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
