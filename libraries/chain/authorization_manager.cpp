@@ -110,8 +110,8 @@ namespace eosio { namespace chain {
       });
    }
 
-   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
-      authorization_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
+   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+      authorization_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ){
          using section_t = typename decltype(utils)::index_t::value_type;
 
          // skip the permission_usage_index as its inlined with permission_index
@@ -119,13 +119,13 @@ namespace eosio { namespace chain {
             return;
          }
 
-         snapshot->read_section<section_t>([this, &row_counter]( auto& section ) {
+         snapshot->read_section<section_t>([this, &read_row_count]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(_db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, _db);
                });
-               row_counter.progress();
+               read_row_count.fetch_add(1u, std::memory_order_relaxed);
             }
          });
       });

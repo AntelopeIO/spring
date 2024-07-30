@@ -470,6 +470,104 @@ size_t istream_json_snapshot_reader::total_row_count() {
    return total;
 }
 
+threaded_snapshot_reader::threaded_snapshot_reader(const std::filesystem::path& snapshot_path) :
+  snapshot_file(snapshot_path, fc::random_access_file::read_only),
+  mapped_snap(snapshot_file, boost::interprocess::read_only),
+  mapped_snap_addr((char*)mapped_snap.get_address()) {}
+
+void threaded_snapshot_reader::validate() {
+   try {
+      using magic_number_t = std::decay_t<decltype(ostream_snapshot_writer::magic_number)>;
+      using version_t = std::decay_t<decltype(current_snapshot_version)>;
+
+      EOS_ASSERT(snapshot_file.unpack_from<magic_number_t>(0) == ostream_snapshot_writer::magic_number, snapshot_exception, "Binary snapshot has unexpected magic number!");
+
+      const version_t actual_version = snapshot_file.unpack_from<version_t>(sizeof(magic_number_t));
+      EOS_ASSERT(actual_version == current_snapshot_version, snapshot_exception, "Binary snapshot is an unsuppored version.  Expected : ${expected}, Got: ${actual}",
+                                                                                 ("expected", current_snapshot_version)("actual", actual_version));
+
+      uint64_t next_section_offs = sizeof(magic_number_t) + sizeof(version_t);
+      while(true) {
+         const uint64_t this_section_size = snapshot_file.unpack_from<uint64_t>(next_section_offs);
+         if(this_section_size == std::numeric_limits<uint64_t>::max())
+            break;
+         next_section_offs += sizeof(this_section_size) + this_section_size;
+      }
+   } FC_LOG_AND_RETHROW()
+}
+
+void threaded_snapshot_reader::set_section(const string& section_name) {
+   using magic_number_t = std::decay_t<decltype(ostream_snapshot_writer::magic_number)>;
+   using version_t = std::decay_t<decltype(current_snapshot_version)>;
+
+   uint64_t next_section_offs = sizeof(magic_number_t) + sizeof(version_t);
+   while(true) {
+      const uint64_t this_section_size      = snapshot_file.unpack_from<uint64_t>(next_section_offs);
+      const uint64_t this_section_row_count = snapshot_file.unpack_from<uint64_t>(next_section_offs + sizeof(uint64_t));
+      const uint64_t section_name_offset    = next_section_offs + sizeof(uint64_t) + sizeof(uint64_t);
+      const uint64_t section_data_offset    = section_name_offset + section_name.size() + 1;
+
+      //section size does not include the section size record itself, so + sizeof(uint64_t)
+      EOS_ASSERT(next_section_offs + this_section_size + sizeof(uint64_t) < mapped_snap.get_size(), snapshot_exception, "Binary snapshot section too short");
+
+      if(strncmp(section_name.c_str(), mapped_snap_addr+section_name_offset, section_name.size() + 1) == 0) {
+         cur_row = 0;
+         num_rows = this_section_row_count;
+         ds = fc::datastream<const char*>(mapped_snap_addr+section_data_offset, mapped_snap.get_size() - section_data_offset);
+         return;
+      }
+
+      next_section_offs += sizeof(this_section_size) + this_section_size;
+   }
+
+   EOS_THROW(snapshot_exception, "Binary snapshot has no section named ${n}", ("n", section_name));
+}
+
+bool threaded_snapshot_reader::read_row(detail::abstract_snapshot_row_reader& row_reader) {
+   row_reader.provide(ds);
+   return ++cur_row < num_rows;
+}
+
+bool threaded_snapshot_reader::empty ( ) {
+   return num_rows == 0;
+}
+
+void threaded_snapshot_reader::clear_section() {
+#ifdef __linux__
+   //this might work elsewhere, but unsure about alignment requirements on madvise() elsewhere
+   if(num_rows) {
+      uintptr_t endp = (uintptr_t)ds.pos();
+      ds.seekp(0);
+      uintptr_t p = (uintptr_t)ds.pos();
+      madvise((char*)(p & ~(boost::interprocess::mapped_region::get_page_size()-1)), endp-p, MADV_DONTNEED);
+   }
+#endif
+   num_rows = 0;
+   cur_row = 0;
+}
+
+void threaded_snapshot_reader::return_to_header() {
+   clear_section();
+}
+
+size_t threaded_snapshot_reader::total_row_count() {
+   using magic_number_t = std::decay_t<decltype(ostream_snapshot_writer::magic_number)>;
+   using version_t = std::decay_t<decltype(current_snapshot_version)>;
+
+   size_t total = 0;
+   uint64_t next_section_offs = sizeof(magic_number_t) + sizeof(version_t);
+   while(true) {
+      const uint64_t this_section_size = snapshot_file.unpack_from<uint64_t>(next_section_offs);
+      if(this_section_size == std::numeric_limits<uint64_t>::max())
+         break;
+
+      total += snapshot_file.unpack_from<uint64_t>(next_section_offs + sizeof(uint64_t));
+      next_section_offs = next_section_offs + this_section_size + sizeof(uint64_t);
+   }
+
+   return total;
+}
+
 integrity_hash_snapshot_writer::integrity_hash_snapshot_writer(fc::sha256::encoder& enc)
 :enc(enc)
 {

@@ -25,7 +25,7 @@ namespace eosio { namespace chain {
          void add_indices();
          void initialize_database();
          void add_to_snapshot( const snapshot_writer_ptr& snapshot ) const;
-         void read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter );
+         void read_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& row_counter, boost::asio::io_context& ctx );
 
          const permission_object& create_permission( account_name account,
                                                      permission_name name,

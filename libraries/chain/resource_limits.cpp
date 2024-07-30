@@ -81,15 +81,15 @@ void resource_limits_manager::add_to_snapshot( const snapshot_writer_ptr& snapsh
    });
 }
 
-void resource_limits_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
-   resource_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
-      snapshot->read_section<typename decltype(utils)::index_t::value_type>([this, &row_counter]( auto& section ) {
+void resource_limits_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+   resource_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ){
+      snapshot->read_section<typename decltype(utils)::index_t::value_type>([this, &read_row_count]( auto& section ) {
          bool more = !section.empty();
          while(more) {
             decltype(utils)::create(_db, [this, &section, &more]( auto &row ) {
                more = section.read_row(row, _db);
             });
-            row_counter.progress();
+            read_row_count.fetch_add(1u, std::memory_order_relaxed);
          }
       });
    });

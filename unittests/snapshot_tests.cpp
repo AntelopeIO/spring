@@ -169,19 +169,21 @@ namespace {
    void verify_integrity_hash(controller& lhs, controller& rhs) {
       const auto lhs_integrity_hash = lhs.calculate_integrity_hash();
       const auto rhs_integrity_hash = rhs.calculate_integrity_hash();
-      if (std::is_same_v<SNAPSHOT_SUITE, variant_snapshot_suite> && lhs_integrity_hash.str() != rhs_integrity_hash.str()) {
-         auto lhs_latest_writer = SNAPSHOT_SUITE::get_writer();
-         lhs.write_snapshot(lhs_latest_writer);
-         auto lhs_latest = SNAPSHOT_SUITE::finalize(lhs_latest_writer);
+      if constexpr (std::is_same_v<SNAPSHOT_SUITE, variant_snapshot_suite>) {
+         if(lhs_integrity_hash.str() != rhs_integrity_hash.str()) {
+            auto lhs_latest_writer = SNAPSHOT_SUITE::get_writer();
+            lhs.write_snapshot(lhs_latest_writer);
+            auto lhs_latest = SNAPSHOT_SUITE::finalize(lhs_latest_writer);
 
-         auto rhs_latest_writer = SNAPSHOT_SUITE::get_writer();
-         rhs.write_snapshot(rhs_latest_writer);
-         auto rhs_latest = SNAPSHOT_SUITE::finalize(rhs_latest_writer);
+            auto rhs_latest_writer = SNAPSHOT_SUITE::get_writer();
+            rhs.write_snapshot(rhs_latest_writer);
+            auto rhs_latest = SNAPSHOT_SUITE::finalize(rhs_latest_writer);
 
-         print_variant_diff(lhs_latest, rhs_latest);
-         // more than print the different, also save snapshots json gz files under path build/unittests/snapshots
-         SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_lhs", lhs_latest);
-         SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_rhs", rhs_latest);
+            print_variant_diff(lhs_latest, rhs_latest);
+            // more than print the different, also save snapshots json gz files under path build/unittests/snapshots
+            SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_lhs", lhs_latest);
+            SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_rhs", rhs_latest);
+         }
       }
       BOOST_REQUIRE_EQUAL(lhs_integrity_hash.str(), rhs_integrity_hash.str());
    }
