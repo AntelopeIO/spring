@@ -3,8 +3,6 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-// auto& A=_nodes[0]; auto&  B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
-
 BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery)
 
 // ---------------------------------------------------------------------------------------------------
@@ -272,8 +270,5 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
       }
    });
 } FC_LOG_AND_RETHROW()
-
-
-
 
 BOOST_AUTO_TEST_SUITE_END()
