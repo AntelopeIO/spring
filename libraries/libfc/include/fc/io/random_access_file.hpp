@@ -30,7 +30,8 @@ read_ds() and write_ds() may be called from multiple threads simultaneously. The
  fc's pack/unpack. Multiple read_datastream and write_datastream created from the same random_access_file can be used simultaneously from different
  threads, but an individual read/write_datastream must only be used by a single thread at a time. unpack_from() and pack_to() are just
  simple helper functions based on these read/write_datastreams. Be aware that read/write_datastreams are buffered. Write buffers are flushed
- as needed, both upon destruction of the datastream and also when an internal buffer becomes full.
+ on an internal threshold, upon a call to flush(), and upon destruction of the datastream. If a buffered write fails during destruction an
+ exception is NOT thrown. So if acting upon write failure is important call flush() prior to destruction; flush() does throw on failure.
 
 seekable_device() may be called from multiple threads simultaneously. This returns a Boost Iostreams SeekableDevice. Similar to datastreams,
  multiple devices created from the same random_access_file can be used simultaneously from different threads, but an individual
@@ -320,7 +321,13 @@ public:
       }
 
       void do_write() {
-         ctx->write_to(buffer.cdata(), next_pos);
+         try {
+            ctx->write_to(buffer.cdata(), next_pos);
+         } catch(...) {
+            //prevent another write attempt during dtor
+            buffer.clear();
+            throw;
+         }
          if(next_pos != impl::append_t)
             next_pos += buffer.size();
          buffer.clear();
@@ -342,12 +349,19 @@ public:
          return true;
       }
 
+      void flush() {
+         do_write();
+      }
+
       inline bool put(char c) {
          return write(&c, sizeof(char));
       }
+
       ~write_datastream() {
-         if(ctx)
-            do_write();
+         try {
+            if(ctx)
+               do_write();
+         } FC_LOG_AND_DROP(("write failure ignored"));
       }
 
    private:
@@ -419,12 +433,14 @@ public:
    void pack_to(const T& v, const ssize_t offset) {
       write_datastream ds(ctx, offset);
       fc::raw::pack(ds, v);
+      ds.flush();
    }
 
    template<typename T>
    void pack_to_end(const T& v) {
       write_datastream ds(ctx, impl::append_t);
       fc::raw::pack(ds, v);
+      ds.flush();
    }
 
    read_datastream read_ds(const ssize_t offset) {
