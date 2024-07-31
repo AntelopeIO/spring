@@ -3897,9 +3897,7 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      // should_terminate() is not thread-safe requires chain_head.block_num()
-      // also when syncing allow many blocks in forkdb queued to be applied
-      if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
+      if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
@@ -4702,14 +4700,17 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   bool should_terminate() const {
-      block_num_type head_block_num = chain_head.block_num();
+   bool should_terminate(block_num_type head_block_num) const {
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", head_block_num)("num", conf.terminate_at_block) );
          return true;
       }
       return false;
+   }
+
+   bool should_terminate() const {
+      return should_terminate(chain_head.block_num());
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -5491,8 +5492,12 @@ validation_mode controller::get_validation_mode()const {
    return my->conf.block_validation_mode;
 }
 
-bool controller::should_terminate()const {
+bool controller::should_terminate() const {
    return my->should_terminate();
+}
+
+bool controller::should_terminate(block_num_type head_block_num) const {
+   return my->should_terminate(head_block_num);
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
