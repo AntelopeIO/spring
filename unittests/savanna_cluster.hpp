@@ -109,6 +109,22 @@ namespace savanna_cluster {
          BOOST_REQUIRE_EQUAL(lib_block->block_num(), pt_block->block_num());
       }
 
+      // updates producers (producer updates will be propagated to connected nodes), and
+      // wait until one of the new producers is pending.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
+      // -----------------------------------------------------------------------------------
+      size_t set_producers(const std::vector<account_name>& producers) {
+         tester::set_producers(producers);
+         account_name pending;
+         while (1) {
+            signed_block_ptr sb = produce_block();
+            pending = control->pending_block_producer();
+            if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
+               break;
+         }
+         return ranges::find(producers, pending) - producers.begin();
+      }
+
       uint32_t lib_num() const { return lib_block->block_num(); }
 
       template<class F>
@@ -272,23 +288,6 @@ namespace savanna_cluster {
 
       ~cluster_t() {
          _shutting_down = true;
-      }
-
-      // Create accounts and updates producers on node node_idx (producer updates will be
-      // propagated to connected nodes), and wait until one of the new producers is pending.
-      // return the index of the pending new producer (we assume no duplicates in producer list)
-      // -----------------------------------------------------------------------------------
-      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers, bool create_accounts = true) {
-         node_t& n = _nodes[node_idx];
-         n.set_producers(producers);
-         account_name pending;
-         while (1) {
-            signed_block_ptr sb = n.produce_block();
-            pending = n.control->pending_block_producer();
-            if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
-               break;
-         }
-         return ranges::find(producers, pending) - producers.begin();
       }
 
       // `set_partitions` allows to configure logical network connections between nodes.
