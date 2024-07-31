@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 
 import json
-import os
-import re
-import shutil
 import signal
 
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
@@ -11,11 +8,11 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 ###############################################################
 # plugin_http_api_test_savanna.py
 # 
-# Savanna specific HTTP RPC endpoints are placed in this file.
+# Tests of Savanna specific HTTP RPC endpoints are placed in this file.
 #
-# plugin_http_api_test.py does not use test Cluster and need to
-# test protocol feature activation, it is not suitable for tests
-# involving Savanna.
+# Note: plugin_http_api_test.py does not use test Cluster and need to
+#       test protocol feature activation, it is not suitable for tests
+#       involving Savanna.
 ###############################################################
 
 Print=Utils.Print
@@ -27,6 +24,7 @@ cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs
 dumpErrorDetails=args.dump_error_details
 walletPort=TestHelper.DEFAULT_WALLET_PORT
 
+# Setup 4 nodes such that to verify multiple finalizers in get_finalizer_info test
 totalProducerNodes=3
 totalNonProducerNodes=1
 totalNodes=totalProducerNodes+totalNonProducerNodes
