@@ -25,7 +25,7 @@ namespace eosio::chain {
    std::string log_fork_comparison(const block_state& bs) {
       std::string r;
       r += "[ latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;
@@ -35,7 +35,7 @@ namespace eosio::chain {
       std::string r;
       r += "[ irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
       r += "block_num: " + std::to_string(bs.block_num()) + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;

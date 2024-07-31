@@ -3777,12 +3777,19 @@ struct controller_impl {
                      invalid_qc_claim,
                      "Block #${b} doesn't have a finality header extension even though its predecessor does.",
                      ("b", block_num) );
+
+         dlog("received block: #${bn} ${t} ${prod} ${id}, no qc claim, previous: ${p}",
+              ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)("p", b->previous));
          return;
       }
 
       assert(header_ext);
       const auto& f_ext        = std::get<finality_extension>(*header_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
+
+      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
+           ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
+           ("qc", new_qc_claim)("p", b->previous));
 
       // If there is a header extension, but the previous block does not have a header extension,
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
