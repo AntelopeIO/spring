@@ -1834,14 +1834,13 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-   uint32_t head_block_num = chain.head().block_num();
 
-   if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
-      ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
+   if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
 
+   block_num_type             head_block_num    = chain.head().block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1932,7 +1931,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    }
    const auto& preprocess_deadline = _pending_block_deadline;
 
-   fc_dlog(_log, "Starting block #${n} at ${time} producer ${p}", ("n", pending_block_num)("time", now)("p", scheduled_producer.producer_name));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}", ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name));
 
    try {
 
@@ -2653,6 +2652,13 @@ bool producer_plugin_impl::maybe_produce_block() {
 
    fc_dlog(_log, "Aborting block due to produce_block error");
    abort_block();
+   reschedule.cancel();
+
+   // block failed to produce, wait until the next block to try again
+   block_timestamp_type block_time = calculate_pending_block_time();
+   fc_dlog(_log, "Not starting block until ${bt}", ("bt", block_time));
+   schedule_delayed_production_loop(weak_from_this(), block_time);
+
    return false;
 }
 
