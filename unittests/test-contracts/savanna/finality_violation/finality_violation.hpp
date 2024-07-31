@@ -13,6 +13,8 @@ CONTRACT finality_violation : public contract {
    public:
       using contract::contract;
 
-      ACTION test();
+      ACTION violaterule1();
+      ACTION violaterule2();
+      ACTION violaterule3();
       
 };

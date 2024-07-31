@@ -4,15 +4,35 @@
     "types": [],
     "structs": [
         {
-            "name": "test",
+            "name": "violaterule1",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "violaterule2",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "violaterule3",
             "base": "",
             "fields": []
         }
     ],
     "actions": [
         {
-            "name": "test",
-            "type": "test",
+            "name": "violaterule1",
+            "type": "violaterule1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "violaterule2",
+            "type": "violaterule2",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "violaterule3",
+            "type": "violaterule3",
             "ricardian_contract": ""
         }
     ],

@@ -242,13 +242,30 @@ namespace savanna {
       }; 
    };
 
-   struct level_3_commitments_t {
+   // commitments used in the context of finality violation proofs, minus the base digest
+   struct level_3_commitments_input {
       checksum256 reversible_blocks_mroot{};
       uint32_t latest_qc_claim_block_num{0};
       checksum256 latest_qc_claim_finality_digest{};
       block_timestamp_type latest_qc_claim_timestamp;
       block_timestamp_type timestamp;
-      checksum256 base_digest{};
+   };
+
+   struct level_3_commitments_t : level_3_commitments_input {
+      checksum256 base_digest;
+
+      level_3_commitments_t(const level_3_commitments_input& base, const checksum256 _base_digest) : 
+         level_3_commitments_input(base), 
+         base_digest(_base_digest){
+      }
+
+      EOSLIB_SERIALIZE(level_3_commitments_t, 
+         (reversible_blocks_mroot)
+         (latest_qc_claim_block_num)
+         (latest_qc_claim_finality_digest)
+         (latest_qc_claim_timestamp)
+         (timestamp)
+         (base_digest))
    };
 
    // commitments used in the context of finalizer policy transitions
@@ -304,7 +321,9 @@ namespace savanna {
       std::optional<finalizer_policy_input> pending_finalizer_policy;
       std::optional<block_timestamp> last_pending_finalizer_policy_start_timestamp;
 
-      //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
+      std::optional<level_3_commitments_input> level_3_commitments;
+
+      //if level_3_commitments is present, witness_hash should be the base digest. 
       //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
       //Otherwise, witness_hash should be level 2 commitments digest
       checksum256 witness_hash;
@@ -315,20 +334,44 @@ namespace savanna {
       //resolves witness hash if it needs to be calculated
       checksum256 resolve_witness() const {
 
-         //todo : add support for finality violation proofs
+         checksum256 l3_digest;
 
-         //finalizer policy transition proofs 
+         if (level_3_commitments.has_value()){
 
+            check(pending_finalizer_policy.has_value()  
+               && last_pending_finalizer_policy_start_timestamp.has_value()
+               && witness_hash!=checksum256(), "must provide full level 2 commitments when providing level 3 commitments");
+
+            //finality violation proofs
+            auto l3_commitments = level_3_commitments.value();
+
+            auto l3_input = level_3_commitments_input{
+               .reversible_blocks_mroot = l3_commitments.reversible_blocks_mroot,
+               .latest_qc_claim_block_num =  l3_commitments.latest_qc_claim_block_num,
+               .latest_qc_claim_finality_digest =  l3_commitments.latest_qc_claim_finality_digest,
+               .latest_qc_claim_timestamp =  l3_commitments.latest_qc_claim_timestamp,
+               .timestamp = l3_commitments.timestamp
+            };
+
+            auto l3_packed = eosio::pack(level_3_commitments_t{ l3_input, witness_hash});
+
+            l3_digest = sha256(l3_packed.data(), l3_packed.size());
+
+         }
+         else l3_digest = witness_hash;
+         
          if (pending_finalizer_policy.has_value()  
             && last_pending_finalizer_policy_start_timestamp.has_value()
             && witness_hash!=checksum256()){
+
+            //finalizer policy transition information
 
             checksum256 policy_digest = pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
                .last_pending_fin_pol_start_timestamp =  last_pending_finalizer_policy_start_timestamp.value(),
-               .l3_commitments_digest = witness_hash
+               .l3_commitments_digest = l3_digest
             });
 
             checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
