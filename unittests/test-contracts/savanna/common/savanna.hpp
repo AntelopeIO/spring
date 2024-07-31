@@ -251,25 +251,6 @@ namespace savanna {
       block_timestamp_type timestamp;
    };
 
-/*   struct block_finality_data_internal : block_finality_data {
-      checksum256 resolved_witness_hash;
-
-      uint32_t resolved_last_pending_finalizer_policy_generation = 0;
-
-      block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
-         resolved_witness_hash = base.resolve_witness();
-         resolved_last_pending_finalizer_policy_generation = base.last_pending_finalizer_policy_generation.has_value() ? base.last_pending_finalizer_policy_generation.value() : active_finalizer_policy_generation;
-      }
-
-      checksum256 finality_digest() const {
-         auto result = eosio::pack(*this);
-         checksum256 hash = sha256(result.data(), result.size());
-         return hash;
-      }
-
-      EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(resolved_last_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
-   };
-*/
    struct level_3_commitments_t : level_3_commitments_input {
       checksum256 base_digest;
 
