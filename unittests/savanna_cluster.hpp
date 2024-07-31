@@ -234,7 +234,7 @@ namespace savanna_cluster {
    //  --------------------------------------------------------------------------------------
    class cluster_t {
    public:
-      cluster_t(cluster_config cfg = {})
+      explicit cluster_t(cluster_config cfg = {})
          : _fin_keys(cfg.num_nodes, cfg.num_nodes)
          , _num_nodes(cfg.num_nodes)
       {
