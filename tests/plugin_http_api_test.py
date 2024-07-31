@@ -579,10 +579,10 @@ class PluginHttpTest(unittest.TestCase):
         # get_finalizer_info with empty parameter
         command = "get_finalizer_info"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
-        self.assertEqual(type(ret_json["payload"]["active_finalizer_policy"]), None)
+        self.assertEqual(ret_json["payload"]["active_finalizer_policy"], None)
         # get_finalizer_info with empty content parameter
         ret_json = self.nodeos.processUrllibRequest(resource, command, self.empty_content_dict, endpoint=endpoint)
-        self.assertEqual(type(ret_json["payload"]["active_finalizer_policy"]), None)
+        self.assertEqual(ret_json["payload"]["active_finalizer_policy"], None)
         # get_finalizer_info with invalid parameter
         ret_json = self.nodeos.processUrllibRequest(resource, command, self.http_post_invalid_param, endpoint=endpoint)
         self.assertEqual(ret_json["code"], 400)
