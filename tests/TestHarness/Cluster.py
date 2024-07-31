@@ -268,6 +268,9 @@ class Cluster(object):
             nodeosArgs += f" --p2p-max-nodes-per-host {maximumP2pPerHost}"
         if "--max-clients" not in extraNodeosArgs:
             nodeosArgs += f" --max-clients {maximumClients}"
+        if "--connection-cleanup-period" not in extraNodeosArgs:
+            # Quicker retry, default is 30s, since many tests launch multiple nodes at the same time
+            nodeosArgs += f" --connection-cleanup-period 15"
         if Utils.Debug and "--contracts-console" not in extraNodeosArgs:
             nodeosArgs += " --contracts-console"
         if PFSetupPolicy.hasPreactivateFeature(pfSetupPolicy):

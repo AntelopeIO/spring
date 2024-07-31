@@ -122,22 +122,27 @@ try:
         lib = node.getIrreversibleBlockNum()
         assert lib < libN, "Node LIB {lib} >= LIB N {libN}"
 
+    Print("Shutdown all nodes")
     for node in [node0, node1, node2, node3, node4]:
         node.kill(signal.SIGTERM)
 
     for node in [node0, node1, node2, node3, node4]:
         assert not node.verifyAlive(), "Node did not shutdown"
 
+    Print("Remove reversible blocks and state of all nodes")
     for node in [node0, node1, node2, node3, node4]:
         node.removeReversibleBlks()
         node.removeState()
 
+    Print("Restart all nodes and verify LIB advances")
     for i in range(5):
         isRelaunchSuccess = cluster.getNode(i).relaunch(chainArg=" -e --snapshot {}".format(node0.getLatestSnapshot()))
         assert isRelaunchSuccess, f"node {i} relaunch from snapshot failed"
 
-    for node in [node0, node1, node2, node3, node4]:
-        assert node.waitForLibToAdvance(), "Node did not advance LIB after relaunch"
+    # When node0 is launched there will be no nodes to connect to. The default 30 second connection timer will have
+    # to fire first, provide 60 seconds instead of the default 30 seconds to connect and for LIB to advance.
+    for node in [node4, node3, node2, node1, node0]:
+        assert node.waitForLibToAdvance(timeout=60), f"Node {node.nodeId} did not advance LIB after relaunch"
         lib = node.getIrreversibleBlockNum()
         assert lib > libN, "Node LIB {lib} <= LIB N {libN}"
 
