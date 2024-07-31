@@ -80,9 +80,66 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             ("quantity", "1.0000 EOS")
             ("memo", "");
 
+        //setup a light client data cache
+
+        //data retained for every policy change
+        struct policy_sunset_data { 
+            
+            finalizer_policy policy;
+
+            ibc_block_data_t last_qc_block;
+            qc_data_t last_qc;
+
+        }
+
+        struct data_cache {
+
+            //The data_cache stores data relevant to finality violation proofs.
+            //It only operates in optimistic mode, which is sufficient for finality violation proofs testing purposes
+
+            //store the reversible blocks
+            std::vector<ibc_block_data_t> reversible_blocks;
+
+            //store the last block over which we have a QC, as well as said QC
+            ibc_block_data_t high_qc_block;
+            qc_data_t high_qc;
+
+            //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together 
+            ibc_block_data_t last_final_block;
+            qc_data_t last_final_qc;
+
+            //store all policies sunset data
+            std::vector<policy_sunset_data> policy_sunsets;
+
+            //observe a stream of blocks as they are received, and store minimal data required to construct finality violation proofs in the future
+            ibc_block_data_t scan_block(ibc_block_data_t block){
+
+                if (reversible_blocks.size()>=2){
+                    last_final_block = high_qc_block;
+                    last_final_qc = high_qc;
+                    reversible_blocks.erase(reversible_blocks.begin());
+                }
+
+                if (reversible_blocks.size()>=1){
+                    high_qc_block = reversible_blocks[reversible_blocks.size()-1];
+                    high_qc = block.qc_data.qc.value();
+                }
+
+                reversible_blocks.push_back(block);
+
+                return block;
+            }
+
+        };
+
+        data_cache light_client_data;
+
         //setup a "fake" chain and a "real" chain
         finality_proof::proof_test_cluster fake_chain; 
         finality_proof::proof_test_cluster real_chain; 
+
+        //initial finalizer policy A
+        auto policy_a = cluster.fin_policy_indices_0;  // start from original set of indices
 
         //byzantine finalizers 0 and 1 are colluding and partition the network so that honest finalizers 2 and 3 are separated
         fake_chain.vote_propagation = {1,1,0};
@@ -110,11 +167,11 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         real_chain.node0.push_action("eosio.token"_n, "transfer"_n, "eosio"_n, initial_transfer);
 
         //produce a few blocks on the fake chain
-        auto fake_chain_genesis_block_result = fake_chain.produce_block();
-        auto fake_chain_block_1_result = fake_chain.produce_block();
-        auto fake_chain_block_2_result = fake_chain.produce_block();
-        auto fake_chain_block_3_result = fake_chain.produce_block();
-        auto fake_chain_block_4_result = fake_chain.produce_block();
+        auto fake_chain_genesis_block_result = light_client_data.scan_block(fake_chain.produce_block()) ;
+        auto fake_chain_block_1_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto fake_chain_block_2_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto fake_chain_block_3_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto fake_chain_block_4_result = light_client_data.scan_block(fake_chain.produce_block());
 
         BOOST_REQUIRE(fake_chain_block_4_result.qc_data.qc.has_value());
 
@@ -133,11 +190,42 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //create a fork by pushing a transaction on the fake chain
         fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, user1_transfer);
 
-        auto fake_chain_block_5_result = real_chain.produce_block();
+        auto fake_chain_block_5_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_5_result = real_chain.produce_block();
 
-        //verify the chains are forked
+        //verify the chains have diverged
         BOOST_TEST(fake_chain_block_5_result.finality_digest != real_chain_block_5_result.finality_digest);
+
+        //qc over block #5. Policy A is now locked on #5
+        auto fake_chain_block_6_result = light_client_data.scan_block(fake_chain.produce_block()); 
+        auto real_chain_block_6_result = real_chain.produce_block();
+
+        //qc over block #6 makes block #5 final. Since these blocks are different, this is a finality violation.
+        //moving forward, any 
+        auto fake_chain_block_7_result = light_client_data.scan_block(fake_chain.produce_block()); 
+        auto real_chain_block_7_result = real_chain.produce_block();
+
+        //produce more blocks
+        auto fake_chain_block_8_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_8_result = real_chain.produce_block();
+
+        auto fake_chain_block_9_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_9_result = real_chain.produce_block();
+
+        //prove finality violation (violation of rule #1 : Don't vote on different blocks with the same timestamp)
+
+        //on the fake chain, we only retain the last block data for a given finalizer policy (#9 in this case)
+        //#9 contains a QC on #8, which makes #7 final.
+
+        return;
+
+        indices1[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
+
+        // take note of policy digest prior to changes
+        digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
+
+        // change the finalizer policy by rotating the key of node0
+        cluster.node0.finkeys.set_finalizer_policy(indices1);
 
     } FC_LOG_AND_RETHROW() }
 
