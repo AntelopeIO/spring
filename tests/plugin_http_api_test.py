@@ -572,6 +572,22 @@ class PluginHttpTest(unittest.TestCase):
         ret_json = self.nodeos.processUrllibRequest(resource, command, payload, endpoint=endpoint)
         self.assertEqual(ret_json["code"], 400)
 
+        # Make sure calling get_finalizer_info in Legacy does not do any harm and
+        # returns empty JSON.
+        # Tests in Savanna are in plugin_http_api_test_savanna.py.
+        #
+        # get_finalizer_info with empty parameter
+        command = "get_finalizer_info"
+        ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
+        self.assertEqual(type(ret_json["payload"]["active_finalizer_policy"]), None)
+        # get_finalizer_info with empty content parameter
+        ret_json = self.nodeos.processUrllibRequest(resource, command, self.empty_content_dict, endpoint=endpoint)
+        self.assertEqual(type(ret_json["payload"]["active_finalizer_policy"]), None)
+        # get_finalizer_info with invalid parameter
+        ret_json = self.nodeos.processUrllibRequest(resource, command, self.http_post_invalid_param, endpoint=endpoint)
+        self.assertEqual(ret_json["code"], 400)
+        self.assertEqual(ret_json["error"]["code"], 3200006)
+
         # get_producers with empty parameter
         command = "get_producers"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
