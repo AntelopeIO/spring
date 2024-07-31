@@ -24,11 +24,20 @@ namespace finality_proof {
       block_timestamp_type last_pending_finalizer_policy_start_timestamp;
       digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
-      digest_type level_3_commitments_digest;
-      digest_type level_2_commitments_digest;
+      level_3_commitments_t level_3_commitments;
+      level_2_commitments_t level_2_commitments;
       digest_type finality_leaf;
       digest_type finality_root;
       block_timestamp_type parent_timestamp;
+
+      digest_type level_3_commitments_digest() const {
+         return fc::sha256::hash(level_3_commitments);
+      }
+      
+      digest_type level_2_commitments_digest() const {
+         return fc::sha256::hash(level_2_commitments);
+      }
+      
    };
 
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
@@ -235,14 +244,16 @@ namespace finality_proof {
 
 
          // compute commitments used for proving finality violations
-         digest_type level_3_commitments_digest = fc::sha256::hash(lvl3_commitments);
+         //digest_type level_3_commitments_digest = fc::sha256::hash(lvl3_commitments);
 
-         // compute commitments used for proving finalizer policy changes
-         digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
+         level_2_commitments_t lvl2_commitments {
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
             .last_pending_fin_pol_start_timestamp = last_pending_finalizer_policy_start_timestamp,
-            .l3_commitments_digest = level_3_commitments_digest
-         });
+            .l3_commitments_digest = fc::sha256::hash(lvl3_commitments)
+         };
+
+         // compute commitments used for proving finalizer policy changes
+         //digest_type level_2_commitments_digest = fc::sha256::hash(lvl2_commitments);
 
          // during IF transition, finality_root is always set to an empty digest
          digest_type finality_root = digest_type();
@@ -255,7 +266,7 @@ namespace finality_proof {
             .active_finalizer_policy_generation       = is_genesis ? 1 : active_finalizer_policy.generation,
             .last_pending_finalizer_policy_generation = is_genesis ? 1 : last_pending_finalizer_policy.generation,
             .finality_tree_digest                     = finality_root,
-            .l2_commitments_digest                    = level_2_commitments_digest
+            .l2_commitments_digest                    = fc::sha256::hash(lvl2_commitments)
          });
 
          // compute finality leaf
@@ -291,8 +302,8 @@ namespace finality_proof {
             .last_pending_finalizer_policy_start_timestamp = last_pending_finalizer_policy_start_timestamp,
             .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
             .finality_digest = finality_digest, 
-            .level_3_commitments_digest = level_3_commitments_digest, 
-            .level_2_commitments_digest = level_2_commitments_digest, 
+            .level_3_commitments = lvl3_commitments, 
+            .level_2_commitments = lvl2_commitments, 
             .finality_leaf = finality_leaf,
             .finality_root = finality_root ,
             .parent_timestamp = parent_timestamp 
