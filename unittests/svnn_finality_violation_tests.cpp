@@ -16,6 +16,8 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
+using namespace finality_proof;
+
 using mvo = mutable_variant_object;
 
 BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
@@ -90,7 +92,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             ibc_block_data_t last_qc_block;
             qc_data_t last_qc;
 
-        }
+        };
 
         struct data_cache {
 
@@ -102,11 +104,11 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
             //store the last block over which we have a QC, as well as said QC
             ibc_block_data_t high_qc_block;
-            qc_data_t high_qc;
+            qc_t high_qc;
 
             //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together 
             ibc_block_data_t last_final_block;
-            qc_data_t last_final_qc;
+            qc_t last_final_qc;
 
             //store all policies sunset data
             std::vector<policy_sunset_data> policy_sunsets;
@@ -139,7 +141,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         finality_proof::proof_test_cluster real_chain; 
 
         //initial finalizer policy A
-        auto policy_a = cluster.fin_policy_indices_0;  // start from original set of indices
+        auto policy_indices = fake_chain.fin_policy_indices_0;  // start from original set of indices
 
         //byzantine finalizers 0 and 1 are colluding and partition the network so that honest finalizers 2 and 3 are separated
         fake_chain.vote_propagation = {1,1,0};
@@ -205,28 +207,25 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_7_result = light_client_data.scan_block(fake_chain.produce_block()); 
         auto real_chain_block_7_result = real_chain.produce_block();
 
-        //produce more blocks
         auto fake_chain_block_8_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_8_result = real_chain.produce_block();
 
-        auto fake_chain_block_9_result = light_client_data.scan_block(fake_chain.produce_block());
-        auto real_chain_block_9_result = real_chain.produce_block();
-
         //prove finality violation (violation of rule #1 : Don't vote on different blocks with the same timestamp)
 
-        //on the fake chain, we only retain the last block data for a given finalizer policy (#9 in this case)
-        //#9 contains a QC on #8, which makes #7 final.
+        //block #8 on the real chain contains a strong QC over a different block #7 than what the light client recorded from the fake chain
+
+        //this is a rule #1 finality violation proof
 
         return;
 
-        indices1[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
+/*        policy_indices[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
 
         // take note of policy digest prior to changes
-        digest_type previous_policy_digest = cluster.active_finalizer_policy_digest;
+        digest_type previous_policy_digest = fake_chain.active_finalizer_policy_digest;
 
         // change the finalizer policy by rotating the key of node0
-        cluster.node0.finkeys.set_finalizer_policy(indices1);
-
+        cluster.node0.finkeys.set_finalizer_policy(policy_indices);
+*/
     } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
