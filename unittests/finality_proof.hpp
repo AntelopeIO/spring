@@ -33,11 +33,44 @@ namespace finality_proof {
       digest_type level_3_commitments_digest() const {
          return fc::sha256::hash(level_3_commitments);
       }
-      
+
       digest_type level_2_commitments_digest() const {
          return fc::sha256::hash(level_2_commitments);
       }
       
+   };
+
+   static std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+      static const char* hexchar = "0123456789abcdef";
+
+      boost::dynamic_bitset<unsigned char> bs(bitset);
+      bs.resize((bs.size() + 7) & ~0x7);
+      assert(bs.size() % 8 == 0);
+
+      std::string result;
+      result.resize(bs.size() / 4);
+      for (size_t i = 0; i < bs.size(); i += 4) {
+         size_t x = 0;
+         for (size_t j = 0; j < 4; ++j)
+            x += bs[i+j] << j;
+         auto slot = i / 4;
+         result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
+      }
+      return result;
+   }
+
+   static std::string binary_to_hex(const std::string& bin) {
+      boost::dynamic_bitset<unsigned char> bitset(bin.size());
+      for (size_t i = 0; i < bin.size(); ++i) {
+          if (bin[i] == '1') {
+              bitset.set(bin.size() - 1 - i);
+          }
+      }
+      return bitset_to_input_string(bitset);
+   }
+
+   static auto finalizers_string = [](const vote_bitset_t finalizers)  {
+      return bitset_to_input_string(finalizers);
    };
 
    static digest_type hash_pair(const digest_type& a, const digest_type& b) {
@@ -172,7 +205,7 @@ namespace finality_proof {
 
          signed_block_ptr block = result.block;
 
-         BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
+         //BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 

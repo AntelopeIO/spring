@@ -20,6 +20,52 @@ using namespace finality_proof;
 
 using mvo = mutable_variant_object;
 
+
+mvo prepare_proof(  const finalizer_policy active_finalizer_policy, 
+                    const ibc_block_data_t fake_qc_block, 
+                    const ibc_block_data_t fake_proving_block, 
+                    const ibc_block_data_t real_qc_block, 
+                    const ibc_block_data_t real_proving_block){
+
+    return mvo()
+            ("finalizer_policy", active_finalizer_policy)
+            ("proof_1", mvo() 
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("active_finalizer_policy_generation", 1)
+                  ("last_pending_finalizer_policy_generation", 1)
+                  ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
+                  ("pending_finalizer_policy", active_finalizer_policy)
+                  ("level_3_commitments", fake_qc_block.level_3_commitments)
+                  ("witness_hash", fake_qc_block.base_digest)
+                  ("finality_mroot", fake_qc_block.finality_root)
+               )
+               ("active_policy_qc", mvo()
+                  ("signature", fake_proving_block.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", finality_proof::finalizers_string(fake_proving_block.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
+               )
+            )
+            ("proof_2", mvo()
+               ("qc_block", mvo()
+                  ("major_version", 1)
+                  ("minor_version", 0)
+                  ("active_finalizer_policy_generation", 1)
+                  ("last_pending_finalizer_policy_generation", 1)
+                  ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
+                  ("pending_finalizer_policy", active_finalizer_policy)
+                  ("level_3_commitments", real_qc_block.level_3_commitments)
+                  ("witness_hash", real_qc_block.base_digest)
+                  ("finality_mroot", real_qc_block.finality_root)
+               )
+               ("active_policy_qc", mvo()
+                  ("signature", real_proving_block.qc_data.qc.value().active_policy_sig.sig.to_string())
+                  ("finalizers", finality_proof::finalizers_string(real_proving_block.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
+               )
+            );
+
+}
+
 BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
     BOOST_AUTO_TEST_CASE(cluster_vote_propagation_tests) { try {
@@ -114,7 +160,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             std::vector<policy_sunset_data> policy_sunsets;
 
             //observe a stream of blocks as they are received, and store minimal data required to construct finality violation proofs in the future
-            ibc_block_data_t scan_block(ibc_block_data_t block){
+            ibc_block_data_t scan_block(const ibc_block_data_t& block){
 
                 if (reversible_blocks.size()>=2){
                     last_final_block = high_qc_block;
@@ -124,7 +170,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
                 if (reversible_blocks.size()>=1){
                     high_qc_block = reversible_blocks[reversible_blocks.size()-1];
-                    high_qc = block.qc_data.qc.value();
+                    if (block.qc_data.qc.has_value()) high_qc = block.qc_data.qc.value();
                 }
 
                 reversible_blocks.push_back(block);
@@ -170,6 +216,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         //produce a few blocks on the fake chain
         auto fake_chain_genesis_block_result = light_client_data.scan_block(fake_chain.produce_block()) ;
+
         auto fake_chain_block_1_result = light_client_data.scan_block(fake_chain.produce_block());
         auto fake_chain_block_2_result = light_client_data.scan_block(fake_chain.produce_block());
         auto fake_chain_block_3_result = light_client_data.scan_block(fake_chain.produce_block());
@@ -215,8 +262,30 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //block #8 on the real chain contains a strong QC over a different block #7 than what the light client recorded from the fake chain
 
         //this is a rule #1 finality violation proof
+        //it can be demonstrated by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block of the same timestamp
+        mutable_variant_object valid_rule_1_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_7_result, 
+                                                                    fake_chain_block_8_result, 
+                                                                    real_chain_block_7_result, 
+                                                                    real_chain_block_8_result);
 
-        return;
+        //we also prepare an invalid proof
+        mutable_variant_object invalid_rule_1_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_3_result, 
+                                                                    fake_chain_block_4_result, 
+                                                                    real_chain_block_3_result, 
+                                                                    real_chain_block_4_result);
+
+
+        action_trace valid_rule_1_proof_trace = real_chain.node0.push_action("violation"_n, "rule1"_n, "violation"_n, valid_rule_1_proof)->action_traces[0];
+
+        bool last_action_failed = false;
+
+        try {real_chain.node0.push_action("violation"_n, "rule1"_n, "violation"_n, invalid_rule_1_proof);}
+        catch (const eosio_assert_message_exception& e){last_action_failed = true;}
+
+        //verify action has failed, as expected
+        BOOST_CHECK(last_action_failed); 
 
 /*        policy_indices[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
 

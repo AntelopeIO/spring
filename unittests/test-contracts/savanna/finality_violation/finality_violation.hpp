@@ -13,8 +13,8 @@ CONTRACT finality_violation : public contract {
    public:
       using contract::contract;
 
-      ACTION violaterule1();
-      ACTION violaterule2();
-      ACTION violaterule3();
+      ACTION rule1(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2);
+      ACTION rule2();
+      ACTION rule3();
       
 };

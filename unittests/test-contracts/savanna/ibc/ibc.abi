@@ -113,6 +113,10 @@
                     "type": "block_timestamp_type?"
                 },
                 {
+                    "name": "level_3_commitments",
+                    "type": "level_3_commitments_input?"
+                },
+                {
                     "name": "witness_hash",
                     "type": "checksum256"
                 },
@@ -263,6 +267,32 @@
                 {
                     "name": "cache_expiry",
                     "type": "time_point"
+                }
+            ]
+        },
+        {
+            "name": "level_3_commitments_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "reversible_blocks_mroot",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "latest_qc_claim_finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
                 }
             ]
         },
