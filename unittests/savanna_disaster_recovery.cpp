@@ -6,10 +6,6 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery)
 
 // ---------------------------------------------------------------------------------------------------
-//                               Single finalizer goes down
-// ---------------------------------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
@@ -18,7 +14,7 @@ BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
    C.open();
    A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(4);  }), 4); // all 4 finalizers should be back voting
-   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());           // let's make sure of that
+   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
 
@@ -37,7 +33,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_old_fsi, savanna_cluster::clust
    C.open_from_snapshot(snapshot);
    A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(2);  }), 2); // all 4 finalizers should be back voting
-   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());           // let's make sure of that
+   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
@@ -54,7 +50,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_deleted_fsi, savanna_cluster::c
    C.open_from_snapshot(snapshot);
    A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(2);  }), 2); // all 4 finalizers should be back voting
-   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());           // let's make sure of that
+   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
@@ -70,7 +66,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_while_retaining_fsi, savanna_cluster
    C.open_from_snapshot(snapshot);
    A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(2);  }), 2); // all 4 finalizers should be back voting
-   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());           // let's make sure of that
+   BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
 

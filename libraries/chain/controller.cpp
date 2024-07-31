@@ -5208,12 +5208,16 @@ void controller::set_savanna_lib_id(const block_id_type& id) {
    my->set_savanna_lib_id(id);
 }
 
+bool controller::fork_db_has_root() const {
+   return my->fork_db_has_root();
+}
+
 uint32_t controller::last_irreversible_block_num() const {
    return my->fork_db_root_block_num();
 }
 
 block_id_type controller::last_irreversible_block_id() const {
-   return my->fork_db_has_root() ?  my->fork_db_root_block_id() : block_id_type{};
+   return my->fork_db_root_block_id();
 }
 
 time_point controller::last_irreversible_block_time() const {

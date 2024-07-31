@@ -359,7 +359,7 @@ namespace eosio::testing {
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
-      lib_id = control->last_irreversible_block_id();
+      lib_id = control->fork_db_has_root() ? control->last_irreversible_block_id() : block_id_type{};
       lib_number = block_header::num_from_id(lib_id);
       lib_block = control->fetch_block_by_id(lib_id);
       [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
