@@ -1927,7 +1927,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    }
    const auto& preprocess_deadline = _pending_block_deadline;
 
-   fc_dlog(_log, "Starting block #${n} at ${time} producer ${p}", ("n", pending_block_num)("time", now)("p", scheduled_producer.producer_name));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}", ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name));
 
    try {
 
@@ -2648,6 +2648,13 @@ bool producer_plugin_impl::maybe_produce_block() {
 
    fc_dlog(_log, "Aborting block due to produce_block error");
    abort_block();
+   reschedule.cancel();
+
+   // block failed to produce, wait until the next block to try again
+   block_timestamp_type block_time = calculate_pending_block_time();
+   fc_dlog(_log, "Not starting block until ${bt}", ("bt", block_time));
+   schedule_delayed_production_loop(weak_from_this(), block_time);
+
    return false;
 }
 
