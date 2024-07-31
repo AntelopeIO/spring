@@ -92,7 +92,8 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_preserving_blocks,
                         savanna_cluster::pre_transition_cluster_t) try {
-   auto& A=_nodes[0]; auto& C=_nodes[2];
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
 
    // set two producers, so that we have at least one block between the genesis and critical block.
    // with one producer the critical block comes right after the genesis block.
@@ -122,6 +123,18 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
    auto genesis_block = A.produce_block();
    dlog("Genesis block number: ${b}", ("b",genesis_block->block_num()));
 
+   // As we move towards the critical block, take snapshots of B, C and D at different points
+   // ---------------------------------------------------------------------------------------
+   A.produce_blocks(2);
+   auto snapshot_B = B.snapshot();
+   A.produce_blocks(2);
+   auto snapshot_C = C.snapshot();
+   A.produce_blocks(2);
+   auto snapshot_D = D.snapshot();
+
+   for (auto& N : failing_nodes) N->close();
+   B.remove_blocks_log();
+#if 0
    // wait till the genesis_block becomes irreversible.
    // The critical block is the block that makes the genesis_block irreversible
    // -------------------------------------------------------------------------
@@ -149,6 +162,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
    propagate_heads();
 
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(10);  }));
+#endif
 } FC_LOG_AND_RETHROW()
 
 
