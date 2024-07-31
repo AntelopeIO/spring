@@ -50,7 +50,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_single_test) { try {
    // -------------------------------------------------------------------------
    auto pubkeys1 = fin_keys.set_finalizer_policy(1u).pubkeys;
    t.produce_block();
-   t.check_head_finalizer_policy(1u, pubkeys0); // new policy should only be active until after two 3-chains
+   t.check_head_finalizer_policy(1u, pubkeys0); // new policy should only be active until after two 2-chains
 
    t.produce_blocks(num_chains_to_final);
    t.check_head_finalizer_policy(1u, pubkeys0); // one 2-chain - new policy still should not be active
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(savanna_set_finalizer_multiple_test) { try {
    t.produce_block();
    t.check_head_finalizer_policy(2u, pubkeys2); // two 2-chain - new policy pubkeys2 *should* be active
 
-   // run a test with multiple set_finalizers in-flight during the two 3-chains they
+   // run a test with multiple set_finalizers in-flight during the two 2-chains they
    // take to become active
    // ------------------------------------------------------------------------------
    auto pubkeys3 = fin_keys.set_finalizer_policy(3u).pubkeys;
