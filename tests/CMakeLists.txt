@@ -75,6 +75,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_3.py ${CMAKE_CURREN
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_forked_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test_savanna.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test_savanna.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_contrl_c_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_contrl_c_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/read_only_trx_test.py ${CMAKE_CURRENT_BINARY_DIR}/read_only_trx_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/resource_monitor_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/resource_monitor_plugin_test.py COPYONLY)
@@ -372,6 +373,10 @@ set_property(TEST http_plugin_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME plugin_http_api_test COMMAND tests/plugin_http_api_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(plugin_http_api_test PROPERTIES TIMEOUT 50)
 set_property(TEST plugin_http_api_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME plugin_http_api_test_savanna COMMAND tests/plugin_http_api_test_savanna.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(plugin_http_api_test_savanna PROPERTIES TIMEOUT 50)
+set_property(TEST plugin_http_api_test_savanna PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME plugin_http_category_api_test COMMAND tests/plugin_http_api_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_tests_properties(plugin_http_category_api_test PROPERTIES TIMEOUT 50 ENVIRONMENT "PLUGIN_HTTP_TEST_CATEGORY=ON")
