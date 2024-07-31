@@ -4,8 +4,7 @@ namespace savanna_cluster {
 
 node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = setup_policy::none */)
    : tester(policy)
-   , node_idx(node_idx)
-   , finkeys(*this) {
+   , node_idx(node_idx) {
 
    // since we are creating forks, finalizers may be locked on another fork and unable to vote.
    do_check_for_votes(false);
@@ -31,7 +30,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
    auto node_initialization_fn = [&]() {
       [[maybe_unused]] auto _a = control->voted_block().connect(voted_block_cb);
       [[maybe_unused]] auto _b = control->accepted_block().connect(accepted_block_cb);
-      finkeys.set_node_finalizers();
+      tester::set_node_finalizers(node_finalizers);
    };
 
    node_initialization_fn();

@@ -9,11 +9,11 @@ BOOST_AUTO_TEST_SUITE(savanna_cluster_tests)
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
-      reset_lib();
       auto node3_lib = _nodes[3].lib_num();                 // Store initial lib (after Savanna transtion)
-      _nodes[0].produce_block();                            // Blocks & votes are propagated to all connected peers.
-      _nodes[0].produce_block();                            // and by default all nodes are interconnected
-      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes());// Check that lib advances on all nodes
+      BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { // Check that lib advances on all nodes
+         _nodes[0].produce_block();                         // Blocks & votes are propagated to all connected peers.
+         _nodes[0].produce_block();                         // and by default all nodes are interconnected
+      }));
       BOOST_REQUIRE_EQUAL(_nodes[3].lib_num(), node3_lib + 2); // Check that each produced block advances lib by one
 
       const vector<account_name> producers {"a"_n, "b"_n, "c"_n};

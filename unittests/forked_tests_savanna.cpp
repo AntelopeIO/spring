@@ -204,7 +204,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
-   _nodes[0].produce_block(); // produce an extra block at the beginning so that producer schedules align
+   _nodes[0].produce_blocks(2); // produce two extra blocks at the beginning so that producer schedules align
    
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
@@ -221,14 +221,12 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    // process in-flight QC and reset lib
    _nodes[0].produce_block();
    _nodes[3].produce_block();
-   reset_lib();
 
-   // now that the network is split, produce 9 blocks on _nodes[0]
-   sb = _nodes[0].produce_blocks(9);
-   BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
-
-   // verify that lib doesn't advance
-   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0u);
+   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() {
+      // now that the network is split, produce 9 blocks on _nodes[0]
+      sb = _nodes[0].produce_blocks(9);
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
+   }));
 
    // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"cam"_n} );
