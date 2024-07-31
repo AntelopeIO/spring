@@ -202,9 +202,12 @@ namespace eosio::chain {
       };
       using fin_auth_set_t = std::set<finalizer_authority_ptr, fin_auth_less>;
 
-      fin_auth_set_t strong_votes;
-      fin_auth_set_t weak_votes;
-      fin_auth_set_t missing_votes;
+      fin_auth_set_t       strong_votes;
+      fin_auth_set_t       weak_votes;
+      fin_auth_set_t       missing_votes;
+      uint32_t             voted_policy_generation{0}; // pick the pending over the active if both are present
+      block_timestamp_type voted_block_timestamp;
+      block_id_type        voted_block_id;
    };
 
    /**

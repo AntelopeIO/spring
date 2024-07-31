@@ -463,6 +463,14 @@ qc_vote_metrics_t aggregating_qc_t::vote_metrics(const qc_t& qc) const {
          not_voted.flip();
          add_votes(finalizer_policy, not_voted, result.missing_votes);
       }
+
+      if (added) {
+         // add_policy_votes is called on pending_finalizer_policy after
+         // on active_finalizer_policy. Therefore pending_finalizer_policy
+         // generation will be used for voted_policy_generation if there
+         // are votes for pending_finalizer_policy
+         result.voted_policy_generation = finalizer_policy->generation;
+      }
    };
 
    add_policy_votes(active_finalizer_policy, qc.active_policy_sig);
