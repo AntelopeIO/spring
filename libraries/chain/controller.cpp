@@ -4703,20 +4703,11 @@ struct controller_impl {
    }
 
    bool should_terminate() const {
-      constexpr block_num_type max_reversible_blocks = 1000;
       block_num_type head_block_num = chain_head.block_num();
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", head_block_num)("num", conf.terminate_at_block) );
          return true;
-      }
-      if (!replaying) {
-         block_num_type lib = fork_db_root_block_num();
-         if (lib > 0 && head_block_num >= lib + max_reversible_blocks) {
-            elog("Exceeded max reversible blocks allowed, head ${h} > LIB ${lib} + ${m}",
-                 ("h", head_block_num)("lib", lib)("m", max_reversible_blocks));
-            return true;
-         }
       }
       return false;
    }
