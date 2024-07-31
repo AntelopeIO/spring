@@ -812,11 +812,11 @@ struct building_block {
 
                assembled_block::assembled_block_if ab{
                   bb.active_producer_authority,
-                  bhs,
+                  std::move(bhs),
                   std::move(bb.pending_trx_metas),
                   std::move(bb.pending_trx_receipts),
-                  valid,
-                  qc_data.qc,
+                  std::move(valid),
+                  std::move(qc_data.qc),
                   action_mroot // caching for constructing finality_data.
                };
 
