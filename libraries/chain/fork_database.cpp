@@ -302,6 +302,7 @@ namespace eosio::chain {
 
    template<class BSP>
    bool fork_database_t<BSP>::has_root() const {
+      std::lock_guard g( my->mtx );
       return !!my->root;
    }
 
