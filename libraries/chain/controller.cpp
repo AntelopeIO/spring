@@ -4164,8 +4164,6 @@ struct controller_impl {
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_maybe_switch_forks = [&](auto& forkdb) {
-         dlog("maybe switch forks chain_head ${chn} : ${chid}, new_head ${nhn} : ${nhid}, previous ${p}",
-              ("chn", chain_head.block_num())("chid", chain_head.id())("nhn", new_head->block_num())("nhid", new_head->id())("p", new_head->header.previous));
          if( new_head->header.previous == chain_head.id() ) {
             try {
                apply_block( br, new_head, s, trx_lookup );
@@ -4368,8 +4366,10 @@ struct controller_impl {
             break;
          }
       }
-      dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
-           ("n", num_removed)("t", total)("pt", now));
+      if (!replaying && total > 0) {
+         dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
+              ("n", num_removed)("t", total)("pt", now));
+      }
    }
 
    bool sender_avoids_whitelist_blacklist_enforcement( account_name sender )const {
