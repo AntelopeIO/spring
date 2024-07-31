@@ -235,8 +235,8 @@ namespace savanna_cluster {
    class cluster_t {
    public:
       cluster_t(cluster_config cfg = {})
-         : _num_nodes(cfg.num_nodes)
-         , _fin_keys(cfg.num_nodes, cfg.num_nodes)
+         : _fin_keys(cfg.num_nodes, cfg.num_nodes)
+         , _num_nodes(cfg.num_nodes)
       {
          assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
 
@@ -431,7 +431,8 @@ namespace savanna_cluster {
       size_t num_nodes() const { return _num_nodes; }
 
    public:
-      std::vector<node_t>             _nodes;
+      std::vector<node_t>  _nodes;
+      fin_keys_t           _fin_keys;
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);
@@ -442,7 +443,6 @@ namespace savanna_cluster {
       peers_t    _peers;
       size_t     _num_nodes;
       bool       _shutting_down {false};
-      fin_keys_t _fin_keys;
 
       friend node_t;
 
