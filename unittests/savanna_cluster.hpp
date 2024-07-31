@@ -210,6 +210,16 @@ namespace savanna_cluster {
          remove_blocks(true);
       }
 
+      void remove_blocks_log() {
+         auto path = cfg.blocks_dir;
+         for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
+            auto path = dir_entry.path();
+            if (path.filename().generic_string() != "reversible") {
+               remove_all(path);
+            }
+         }
+      }
+
    private:
       // always removes reversible data (`blocks/reversible`)
       // optionally remove the blocks log as well by deleting the whole `blocks` directory
