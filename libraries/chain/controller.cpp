@@ -4648,8 +4648,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+      my_finalizers.set_keys(finalizer_keys);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -5830,8 +5830,8 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+   my->set_node_finalizer_keys(finalizer_keys);
 }
 
 /// Protocol feature activation handlers:

@@ -91,7 +91,7 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       fset.set_fsi(k.pubkey, fsi);
       fset.save_finalizer_safety_info();
@@ -102,7 +102,7 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false); // that's when the finalizer safety file is read
+      fset.set_keys(local_finalizers); // that's when the finalizer safety file is read
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(k.pubkey), fsi);
@@ -124,7 +124,7 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       fset.set_fsi(k.pubkey, fsi);
       fset.save_finalizer_safety_info();
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      BOOST_REQUIRE_THROW(fset.set_keys(local_finalizers, false),     // that's when the finalizer safety file is read
+      BOOST_REQUIRE_THROW(fset.set_keys(local_finalizers),     // that's when the finalizer safety file is read
                           finalizer_safety_exception);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<1, 3, 5, 6>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       set_fsi<decltype(fsi), 1, 3, 5, 6>(fset, keys, fsi);
       fset.save_finalizer_safety_info();
@@ -173,7 +173,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<3>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[3].pubkey), fsi[3]);
@@ -188,7 +188,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<3>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[3].pubkey), fsi[4]);
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<1, 5, 6>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our previously inactive finalizer was preserved
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[1].pubkey), fsi[1]);
