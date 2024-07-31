@@ -28,6 +28,7 @@ namespace eosio::chain_apis {
          std::string          public_key;
          std::string          description;
          bool                 is_vote_strong{false};
+         uint32_t             voted_policy_generation{0};
          chain::block_id_type voted_block_id;
          uint32_t             voted_block_num{0};
          fc::time_point       voted_block_timestamp;
@@ -46,4 +47,4 @@ namespace eosio::chain_apis {
 
 }
 
-FC_REFLECT( eosio::chain_apis::tracked_votes::vote_info, (public_key)(description)(is_vote_strong)(voted_block_id)(voted_block_num)(voted_block_timestamp))
+FC_REFLECT( eosio::chain_apis::tracked_votes::vote_info, (public_key)(description)(is_vote_strong)(voted_policy_generation)(voted_block_id)(voted_block_num)(voted_block_timestamp))
