@@ -262,7 +262,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 }
 
 // ----------------------------------------------------------------------------------------
-void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting) {
+void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys) {
    if (finalizer_keys.empty())
       return;
 
