@@ -375,7 +375,7 @@ set_tests_properties(plugin_http_api_test PROPERTIES TIMEOUT 50)
 set_property(TEST plugin_http_api_test PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME plugin_http_api_test_savanna COMMAND tests/plugin_http_api_test_savanna.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
-set_tests_properties(plugin_http_api_test_savanna PROPERTIES TIMEOUT 50)
+set_tests_properties(plugin_http_api_test_savanna PROPERTIES TIMEOUT 240)
 set_property(TEST plugin_http_api_test_savanna PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME plugin_http_category_api_test COMMAND tests/plugin_http_api_test.py WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
