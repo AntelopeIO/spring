@@ -812,11 +812,11 @@ struct building_block {
 
                assembled_block::assembled_block_if ab{
                   bb.active_producer_authority,
-                  bhs,
+                  std::move(bhs),
                   std::move(bb.pending_trx_metas),
                   std::move(bb.pending_trx_receipts),
-                  valid,
-                  qc_data.qc,
+                  std::move(valid),
+                  std::move(qc_data.qc),
                   action_mroot // caching for constructing finality_data.
                };
 
@@ -3523,8 +3523,7 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
-            if( conf.terminate_at_block > 0 && conf.terminate_at_block < bsp->block_num() ) { // < since checked before apply
-               ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num()-1)("num", conf.terminate_at_block) );
+            if (should_terminate()) {
                shutdown();
                return false;
             }
@@ -3905,7 +3904,7 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
+      if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
@@ -4170,8 +4169,6 @@ struct controller_impl {
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_maybe_switch_forks = [&](auto& forkdb) {
-         dlog("maybe switch forks chain_head ${chn} : ${chid}, new_head ${nhn} : ${nhid}, previous ${p}",
-              ("chn", chain_head.block_num())("chid", chain_head.id())("nhn", new_head->block_num())("nhid", new_head->id())("p", new_head->header.previous));
          if( new_head->header.previous == chain_head.id() ) {
             try {
                apply_block( br, new_head, s, trx_lookup );
@@ -4374,8 +4371,10 @@ struct controller_impl {
             break;
          }
       }
-      dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
-           ("n", num_removed)("t", total)("pt", now));
+      if (!replaying && total > 0) {
+         dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
+              ("n", num_removed)("t", total)("pt", now));
+      }
    }
 
    bool sender_avoids_whitelist_blacklist_enforcement( account_name sender )const {
@@ -4656,8 +4655,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+      my_finalizers.set_keys(finalizer_keys);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -4706,6 +4705,19 @@ struct controller_impl {
 
    bool is_trusted_producer( const account_name& producer) const {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
+   }
+
+   bool should_terminate(block_num_type head_block_num) const {
+      if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
+         ilog("Block ${n} reached configured maximum block ${num}; terminating",
+              ("n", head_block_num)("num", conf.terminate_at_block) );
+         return true;
+      }
+      return false;
+   }
+
+   bool should_terminate() const {
+      return should_terminate(chain_head.block_num());
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -5487,8 +5499,12 @@ validation_mode controller::get_validation_mode()const {
    return my->conf.block_validation_mode;
 }
 
-uint32_t controller::get_terminate_at_block()const {
-   return my->conf.terminate_at_block;
+bool controller::should_terminate() const {
+   return my->should_terminate();
+}
+
+bool controller::should_terminate(block_num_type head_block_num) const {
+   return my->should_terminate(head_block_num);
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
@@ -5821,8 +5837,8 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+   my->set_node_finalizer_keys(finalizer_keys);
 }
 
 /// Protocol feature activation handlers:
