@@ -175,6 +175,13 @@ namespace savanna_cluster {
    };
 
    // ---------------------------------------------------------------------------------------
+   struct cluster_config {
+      bool   transition_to_savanna = true;
+      size_t num_nodes = 4;
+      size_t keys_per_node = 1;
+   };
+
+   // ---------------------------------------------------------------------------------------
    // cluster_t
    // ---------
    //
@@ -189,13 +196,13 @@ namespace savanna_cluster {
    // By default they are all connected, receive all produced blocks, vote on them,
    // and send their votes to all other nodes.
    //
-   // It is possible to split the 'virtual' network using `cluster_t::split()`.
+   // It is possible to split the 'virtual' network using `cluster_t::set_partition()`.
    //  --------------------------------------------------------------------------------------
    class cluster_t {
    public:
-      cluster_t(size_t num_nodes = 4, size_t keys_per_node = 10)
-         : _num_nodes(num_nodes)
-         , _keys_per_node(keys_per_node)
+      cluster_t(cluster_config cfg = {})
+         : _num_nodes(cfg.num_nodes)
+         , _keys_per_node(cfg.keys_per_node)
       {
          assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
 
@@ -212,31 +219,35 @@ namespace savanna_cluster {
          for (size_t i = 0; i < _nodes.size(); ++i)
             _nodes[0].push_blocks_to(_nodes[i]);
 
+         //  -----------------------------------------------------------------------------------
          // from now on, propagation of blocks and votes happens automatically (thanks to the
          // callbacks registered in `node_t` constructor).
-         //
-         // Set one finalizer per node (keys at indices { 0, 10, 20, 30}) and create initial
-         // `finalizer_policy` using these indices.
-         // -----------------------------------------------------------------------------------
+         //  -----------------------------------------------------------------------------------
 
-         // set initial finalizer policy
-         // ----------------------------
-         std::vector<size_t> indices;
+         if (cfg.transition_to_savanna) {
+            // Set one finalizer per node (keys at indices { 0, 10, 20, 30}) and create initial
+            // `finalizer_policy` using these indices.
+            // -----------------------------------------------------------------------------------
 
-         for (size_t i = 0; i < _nodes.size(); ++i) {
-            indices.push_back(i * _keys_per_node);
-            _nodes[i].set_node_finalizers(_keys_per_node, _num_nodes);
+            // set initial finalizer policy
+            // ----------------------------
+            std::vector<size_t> indices;
+
+            for (size_t i = 0; i < _nodes.size(); ++i) {
+               indices.push_back(i * _keys_per_node);
+               _nodes[i].set_node_finalizers(_keys_per_node, _num_nodes);
+            }
+
+            // do the transition to Savanna on _nodes[0]. Blocks will be propagated to the other nodes.
+            // ------------------------------------------------------------------------------------
+            auto [fin_policy_pubkeys, fin_policy] = _nodes[0].transition_to_savanna(indices);
+
+            // at this point, _nodes[0] has a QC to include in next block.
+            // Produce that block and push it, but don't process votes so that
+            // we don't start with an existing QC
+            // ---------------------------------------------------------------
+            _nodes[0].produce_block();
          }
-
-         // do the transition to Savanna on _nodes[0]. Blocks will be propagated to the other nodes.
-         // ------------------------------------------------------------------------------------
-         auto [fin_policy_pubkeys, fin_policy] = _nodes[0].transition_to_savanna(indices);
-
-         // at this point, _nodes[0] has a QC to include in next block.
-         // Produce that block and push it, but don't process votes so that
-         // we don't start with an existing QC
-         // ---------------------------------------------------------------
-         _nodes[0].produce_block();
 
          // reset votes and saved lib, so that each test starts in a clean slate
          // --------------------------------------------------------------------
@@ -448,9 +459,17 @@ namespace savanna_cluster {
 
    };
 
-   class cluster_6_t : cluster_t {
+   // ---------------------------------------------------------------------------------------
+   class cluster_6_t : public cluster_t {
    public:
-      cluster_6_t(size_t num_nodes = 6, size_t keys_per_node = 10)
-         : cluster_t(num_nodes, keys_per_node) {}
+      cluster_6_t()
+         : cluster_t(cluster_config{.transition_to_savanna = true, .num_nodes = 6, .keys_per_node = 10}) {}
+   };
+
+   // ---------------------------------------------------------------------------------------
+   class pre_transition_cluster_t : public cluster_t {
+   public:
+      pre_transition_cluster_t()
+         : cluster_t(cluster_config{.transition_to_savanna = false}) {}
    };
 }
