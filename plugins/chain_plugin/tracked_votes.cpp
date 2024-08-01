@@ -47,7 +47,7 @@ namespace eosio::chain_apis {
                      .voted_block_timestamp    = vm.voted_block_timestamp
                   };
 
-                  last_votes.emplace(f->public_key, v_info); // track the voting information for the finalizer
+                  last_votes.emplace(f->public_key, std::move(v_info)); // track the voting information for the finalizer
                }
             };
 

@@ -494,9 +494,9 @@ public:
    };
 
    struct get_finalizer_info_result {
-      fc::variant                       active_finalizer_policy;
-      fc::variant                       pending_finalizer_policy;
-      vector<tracked_votes::vote_info>  last_tracked_votes;
+      fc::variant                            active_finalizer_policy;
+      fc::variant                            pending_finalizer_policy;
+      std::vector<tracked_votes::vote_info>  last_tracked_votes;
    };
 
    get_finalizer_info_result get_finalizer_info( const get_finalizer_info_params& params, const fc::time_point& deadline )const;
