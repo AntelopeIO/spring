@@ -66,6 +66,26 @@ mvo prepare_proof(  const finalizer_policy active_finalizer_policy,
 
 }
 
+bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
+
+    bool last_action_failed = false;
+    try {chain.node0.push_action("violation"_n, rule, "violation"_n, proof);}
+    catch (const eosio_assert_message_exception& e){last_action_failed = true;}
+
+    return !last_action_failed;
+
+}
+
+bool shouldFail(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
+
+    bool last_action_failed = false;
+    try {chain.node0.push_action("violation"_n, rule, "violation"_n, proof);}
+    catch (const eosio_assert_message_exception& e){last_action_failed = true;}
+
+    return last_action_failed;
+    
+}
+
 BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
     BOOST_AUTO_TEST_CASE(cluster_vote_propagation_tests) { try {
@@ -269,23 +289,28 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     real_chain_block_7_result, 
                                                                     real_chain_block_8_result);
 
-        //we also prepare an invalid proof
-        mutable_variant_object invalid_rule_1_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
+        //we also prepare a few invalid proofs, which the contract must reject
+        mutable_variant_object invalid_rule_1_proof_1 = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_3_result, 
                                                                     fake_chain_block_4_result, 
                                                                     real_chain_block_3_result, 
-                                                                    real_chain_block_4_result);
+                                                                    real_chain_block_4_result); //same finality digest, not a violation
+
+        mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_3_result, 
+                                                                    fake_chain_block_4_result, 
+                                                                    real_chain_block_4_result, 
+                                                                    real_chain_block_5_result); //different timestamps
 
 
-        action_trace valid_rule_1_proof_trace = real_chain.node0.push_action("violation"_n, "rule1"_n, "violation"_n, valid_rule_1_proof)->action_traces[0];
-
-        bool last_action_failed = false;
-
-        try {real_chain.node0.push_action("violation"_n, "rule1"_n, "violation"_n, invalid_rule_1_proof);}
-        catch (const eosio_assert_message_exception& e){last_action_failed = true;}
+        BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof)); 
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1)); 
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2)); 
 
         //verify action has failed, as expected
-        BOOST_CHECK(last_action_failed); 
+        //
+
+        //BOOST_CHECK(); 
 
 /*        policy_indices[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
 

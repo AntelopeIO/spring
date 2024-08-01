@@ -18,7 +18,7 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+/*std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
    static const char* hexchar = "0123456789abcdef";
 
    boost::dynamic_bitset<unsigned char> bs(bitset);
@@ -50,7 +50,7 @@ std::string binary_to_hex(const std::string& bin) {
 auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
    return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
 };
-
+*/
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
@@ -119,7 +119,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_4_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_4_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_4_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -158,7 +158,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_4_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_4_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_4_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -193,7 +193,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_5_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_5_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -393,7 +393,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_9_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_9_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_9_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -495,7 +495,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_11_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_11_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_11_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -554,11 +554,11 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_12_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_12_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_12_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
                ("pending_policy_qc", mvo()
                   ("signature", block_12_result.qc_data.qc.value().pending_policy_sig.value().sig.to_string())
-                  ("finalizers", active_finalizers_string(block_12_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_12_result.qc_data.qc.value().pending_policy_sig.value().strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -607,7 +607,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_13_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_13_result)) 
+                  ("finalizers", finality_proof::finalizers_string(block_13_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -683,12 +683,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       chain.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
       chain.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
 
-      std::string bitset_1 = binary_to_hex("0");
-      std::string bitset_2 = binary_to_hex("011");
-      std::string bitset_3 = binary_to_hex("00011101010");
-      std::string bitset_4 = binary_to_hex("11011000100001");
-      std::string bitset_5 = binary_to_hex("111111111111111111111");
-      std::string bitset_6 = binary_to_hex("000000111111111111111");
+      std::string bitset_1 = finality_proof::binary_to_hex("0");
+      std::string bitset_2 = finality_proof::binary_to_hex("011");
+      std::string bitset_3 = finality_proof::binary_to_hex("00011101010");
+      std::string bitset_4 = finality_proof::binary_to_hex("11011000100001");
+      std::string bitset_5 = finality_proof::binary_to_hex("111111111111111111111");
+      std::string bitset_6 = finality_proof::binary_to_hex("000000111111111111111");
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
          ("bitset_string", "00")
