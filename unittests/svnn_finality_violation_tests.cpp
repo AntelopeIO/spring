@@ -347,14 +347,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof));
 
-/*        policy_indices[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
-
-        // take note of policy digest prior to changes
-        digest_type previous_policy_digest = fake_chain.active_finalizer_policy_digest;
-
-        // change the finalizer policy by rotating the key of node0
-        cluster.node0.finkeys.set_finalizer_policy(policy_indices);
-*/
     } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()

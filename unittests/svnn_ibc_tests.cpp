@@ -18,39 +18,6 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-/*std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
-   static const char* hexchar = "0123456789abcdef";
-
-   boost::dynamic_bitset<unsigned char> bs(bitset);
-   bs.resize((bs.size() + 7) & ~0x7);
-   assert(bs.size() % 8 == 0);
-
-   std::string result;
-   result.resize(bs.size() / 4);
-   for (size_t i = 0; i < bs.size(); i += 4) {
-      size_t x = 0;
-      for (size_t j = 0; j < 4; ++j)
-         x += bs[i+j] << j;
-      auto slot = i / 4;
-      result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
-   }
-   return result;
-}
-
-std::string binary_to_hex(const std::string& bin) {
-   boost::dynamic_bitset<unsigned char> bitset(bin.size());
-   for (size_t i = 0; i < bin.size(); ++i) {
-       if (bin[i] == '1') {
-           bitset.set(bin.size() - 1 - i);
-       }
-   }
-   return bitset_to_input_string(bitset);
-}
-
-auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
-   return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
-};
-*/
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
