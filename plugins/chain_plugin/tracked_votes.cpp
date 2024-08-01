@@ -24,34 +24,36 @@ namespace eosio::chain_apis {
       // Called on accepted_block signal. Retrieve vote information from
       // QC in the block and store it in last_votes.
       void on_accepted_block( const chain::signed_block_ptr& block, const chain::block_id_type& id ) {
-         if (!block->contains_extension(chain::quorum_certificate_extension::extension_id())) {
-            return;
-         }
-
-         // Retrieve vote information from QC
-         const auto& qc_ext = block->extract_extension<chain::quorum_certificate_extension>();
-         chain::qc_vote_metrics_t vm = controller.vote_metrics(id, qc_ext.qc);
-
-         auto track_votes = [&](const chain::qc_vote_metrics_t::fin_auth_set_t& finalizers, bool is_strong) {
-            for (auto& f: finalizers) {
-               assert(f);
-
-               tracked_votes::vote_info v_info {
-                  .public_key               = f->public_key.to_string(),
-                  .description              = f->description,
-                  .is_vote_strong           = is_strong,
-                  .voted_policy_generation  = vm.voted_policy_generation,
-                  .voted_block_id           = vm.voted_block_id,
-                  .voted_block_num          = chain::block_header::num_from_id(vm.voted_block_id),
-                  .voted_block_timestamp    = vm.voted_block_timestamp
-               };
-
-               last_votes.emplace(f->public_key, v_info); // track the voting information for the finalizer
+         try {
+            if (!block->contains_extension(chain::quorum_certificate_extension::extension_id())) {
+               return;
             }
-         };
 
-         track_votes(vm.strong_votes, true);
-         track_votes(vm.weak_votes, false);
+            // Retrieve vote information from QC
+            const auto& qc_ext = block->extract_extension<chain::quorum_certificate_extension>();
+            chain::qc_vote_metrics_t vm = controller.vote_metrics(id, qc_ext.qc);
+
+            auto track_votes = [&](const chain::qc_vote_metrics_t::fin_auth_set_t& finalizers, bool is_strong) {
+               for (auto& f: finalizers) {
+                  assert(f);
+
+                  tracked_votes::vote_info v_info {
+                     .public_key               = f->public_key.to_string(),
+                     .description              = f->description,
+                     .is_vote_strong           = is_strong,
+                     .voted_policy_generation  = vm.voted_policy_generation,
+                     .voted_block_id           = vm.voted_block_id,
+                     .voted_block_num          = chain::block_header::num_from_id(vm.voted_block_id),
+                     .voted_block_timestamp    = vm.voted_block_timestamp
+                  };
+
+                  last_votes.emplace(f->public_key, v_info); // track the voting information for the finalizer
+               }
+            };
+
+            track_votes(vm.strong_votes, true);
+            track_votes(vm.weak_votes, false);
+         } FC_LOG_AND_DROP(("tracked_votes_impl on_accepted_block ERROR"));
       }
 
       // Returns last vote information by a given finalizer
