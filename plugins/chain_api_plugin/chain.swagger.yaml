@@ -93,65 +93,65 @@ paths:
     post:
       description: Returns information about finalizers
       operationId: get_finalizer_info_result
-        responses:
-          "200":
-            description: OK
-            content:
-              application/json:
-                schema:
-                  active_finalizer_policy:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                active_finalizer_policy:
+                  type: object
+                  description: List of current finalizers
+                    generation:
+                      type: integer
+                      description: version number of finalizers set
+                    threshold:
+                      type: integer
+                      description: total weight needed to advance finality
+                    finalizers:
+                      type: array
+                      items:
+                        ref: "#/components/schemas/Finalizer"
+                pending_finalizer_policy:
+                  type: object
+                  description: List of pending finalizers
+                    generation:
+                      type: integer
+                      description: version number of finalizers set
+                    threshold:
+                      type: integer
+                      description: total weight needed to advance finality
+                    finalizers:
+                      type: array
+                      items:
+                        ref: "#/components/schemas/Finalizer"
+                last_tracked_votes:
+                  type: array
+                  description: Record of last votes for top 21 finalizers
+                  items:
                     type: object
-                    description: List of current finalizers
-                      generation:
+                    properties:
+                      public_key:
+                        type: string
+                        description: BLS Public Key for finalizer
+                      description:
+                        type: string
+                        description: Description of finalizer
+                      is_vote_strong:
+                        type: boolean
+                        description: When true indicate strongly voted
+                      voted_policy_generation:
                         type: integer
-                        description: version number of finalizers set
-                      threshold:
+                        description: Policy Generation for vote
+                      voted_block_id:
+                        type: string
+                        description: Block id voted on
+                      voted_block_num:
                         type: integer
-                        description: total weight needed to advance finality
-                      finalizers:
-                        type: array
-                        items:
-                          ref: "#/components/schemas/Finalizer"
-                  pending_finalizer_policy:
-                    type: object
-                    description: List of pending finalizers
-                      generation:
-                        type: integer
-                        description: version number of finalizers set
-                      threshold:
-                        type: integer
-                        description: total weight needed to advance finality
-                      finalizers:
-                        type: array
-                        items:
-                          ref: "#/components/schemas/Finalizer"
-                  last_tracked_votes:
-                    type: array
-                    description: Record of last votes for top 21 finalizers
-                    items:
-                      type: object
-                      properties:
-                        public_key:
-                          type: string
-                          description: BLS Public Key for finalizer
-                        description:
-                          type: string
-                          description: Description of finalizer
-                        is_vote_strong:
-                          type: boolean
-                          description: When true indicate strongly voted
-                        voted_policy_generation:
-                          type: integer
-                          description: Policy Generation for vote
-                        voted_block_id:
-                          type: string
-                          description: Block id voted on
-                        voted_block_num:
-                          type: integer
-                          description: Block number voted on
-                        voted_block_timestamp:
-                          $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
-                          description: Timestamp for the voted on block
+                        description: Block number voted on
+                      voted_block_timestamp:
+                        $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
+                        description: Timestamp for the voted on block
           "400":
             description: client error
             content:
