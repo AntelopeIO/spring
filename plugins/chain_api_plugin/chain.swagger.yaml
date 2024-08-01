@@ -170,7 +170,7 @@ paths:
                               example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
                   last_tracked_votes:
                     type: array
-                    description: Record of last votes for top 21 finalizers
+                    description: Record of last votes for the finalizers in current active finalizer policy and pending finalizer policy.
                     items:
                       type: object
                       properties:
