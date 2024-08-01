@@ -49,10 +49,6 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    // --------------------
    A.set_active_finalizers({&_fin_keys[0], _nodes.size()});
 
-   // -------------------------
-   // and transition to Savanna
-   // -------------------------
-
    // `genesis_block` is the first block where set_finalizers() was executed.
    // It is the genesis block.
    // It will include the first header extension for the instant finality.
@@ -60,21 +56,17 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    auto genesis_block = A.produce_block();
    dlog("Genesis block number: ${b}", ("b",genesis_block->block_num()));
 
-   // wait till the genesis_block becomes irreversible.
-   // The critical block is the block that makes the genesis_block irreversible
-   // -------------------------------------------------------------------------
-   signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-   auto genesis_block_num = genesis_block->block_num();
-   while(genesis_block_num > A.lib_block->block_num())
-      critical_block = A.produce_block();
+   A.produce_blocks(2);
+   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_block->block_num()); // make sure we are before the critical block
 
-   // partition network
+   // partition network and produce blocks
    // ----------------------------------------
    const std::vector<size_t> partition {2, 3};
    set_partition(partition);
+   A.produce_blocks(20);
 
-   // verify that lib doesn't advance even after producing ten more blocks
-   // --------------------------------------------------------------
+   // verify that lib has stalled
+   // ---------------------------
    BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(10);  }));
 
    // remove network split
@@ -82,9 +74,17 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    set_partition({});
    propagate_heads();
 
+   // A produces 1 block. check that we have reached the critical block.
+   // -----------------------------------------------------------------
+   auto b = A.produce_block();
+   BOOST_REQUIRE_GE(A.lib_block->block_num(), genesis_block->block_num()); // lib has reached genesis block
+   BOOST_REQUIRE(b->is_proper_svnn_block());
+
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(10);  }));
+   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(4);  }));
+   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_block->block_num() + 2); // check that lib is 2 behind head
 
 } FC_LOG_AND_RETHROW()
 
@@ -123,46 +123,46 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
    auto genesis_block = A.produce_block();
    dlog("Genesis block number: ${b}", ("b",genesis_block->block_num()));
 
-   // As we move towards the critical block, take snapshots of B, C and D at different points
-   // ---------------------------------------------------------------------------------------
    A.produce_blocks(2);
-   auto snapshot_B = B.snapshot();
-   A.produce_blocks(2);
-   auto snapshot_C = C.snapshot();
-   A.produce_blocks(2);
-   auto snapshot_D = D.snapshot();
+   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_block->block_num()); // make sure we are before the critical block
 
-   for (auto& N : failing_nodes) N->close();
-   B.remove_blocks_log();
-#if 0
-   // wait till the genesis_block becomes irreversible.
-   // The critical block is the block that makes the genesis_block irreversible
-   // -------------------------------------------------------------------------
-   signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
-   auto genesis_block_num = genesis_block->block_num();
-   while(genesis_block_num > A.lib_block->block_num())
-      critical_block = A.produce_block();
-
-   // partition network
+   // partition network and produce blocks
    // ----------------------------------------
    const std::vector<size_t> partition {2, 3};
    set_partition(partition);
+   A.produce_blocks(2);
 
-   // verify that lib doesn't advance even after producing ten more blocks
-   // --------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(10);  }));
+   auto snapshot_C = C.snapshot();
+   A.produce_blocks(15);
 
-   // take snapshot
-   // -------------
-   std::string snapshot { C.snapshot() };
+   // we can't leave the blocks log as it doesn't contain the snapshot's head block.
+   for (auto& N : failing_nodes) {
+      N->close();
+      N->remove_reversible_data_and_blocks_log();
+      // N->remove_blocks_log(); // if we remove the blocks log and leave the fork_db, the test fails.
+      N->remove_state();
+   }
 
    // remove network split
    // --------------------
    set_partition({});
-   propagate_heads();
 
-   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(10);  }));
-#endif
+   for (auto& N : failing_nodes) {
+      N->open_from_snapshot(snapshot_C);
+      A.push_blocks_to(*N);
+   }
+
+   // A produces 1 block. check that we have reached the critical block.
+   // -----------------------------------------------------------------
+   auto b = A.produce_block();
+   BOOST_REQUIRE_GE(A.lib_block->block_num(), genesis_block->block_num()); // lib has reached genesis block
+   BOOST_REQUIRE(b->is_proper_svnn_block());
+
+   // with partition gone, transition to Savanna will complete and lib will start advancing again
+   // -------------------------------------------------------------------------------------------
+   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(30);  }));
+   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_block->block_num() + 2); // check that lib is 2 behind head
 } FC_LOG_AND_RETHROW()
 
 
