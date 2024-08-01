@@ -1054,7 +1054,7 @@ components:
     Finalizer:
       type: object
       description: Description of a finalizer
-        description:
+        'description':
           type: string
           description: Name of finalizer, typicaly a producer acount
           example: finalizerone
