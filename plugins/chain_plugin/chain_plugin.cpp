@@ -1754,7 +1754,7 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
    auto add_policy_to_result = [&](const finalizer_policy_ptr& from_policy, fc::variant& to_policy) {
       if (from_policy) {
          // Use string format of public key for easy uses
-         to_variant(finalizer_policy_with_string_key{*from_policy}, to_policy);
+         to_variant(*from_policy, to_policy);
 
          for (const auto& f: from_policy->finalizers) {
             finalizer_keys.insert(f.public_key);
