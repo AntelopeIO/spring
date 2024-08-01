@@ -302,15 +302,34 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     real_chain_block_4_result, 
                                                                     real_chain_block_5_result); //different timestamps
 
+        BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2));
 
-        BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof)); 
-        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1)); 
-        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2)); 
+        //we temporarilly disable a finalizer on the fake chain, which serves to set up a proof of violation of rule #2
+        fake_chain.vote_propagation = {1,0,0};
 
-        //verify action has failed, as expected
-        //
+        auto fake_chain_block_9_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_9_result = real_chain.produce_block();
 
-        //BOOST_CHECK(); 
+        //fake chain is no longer making progress. Real chain has a QC on #9, but fake chain doesn't
+        auto fake_chain_block_10_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_10_result = real_chain.produce_block();
+
+        BOOST_TEST(!fake_chain_block_10_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_10_result.qc_data.qc.has_value());
+
+        auto fake_chain_block_11_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_11_result = real_chain.produce_block();
+
+        //last recorded QC on fake chain is over #10. #10 claims a QC over #8. Provide real block #9, which is a proof of violation of rule #2
+        mutable_variant_object valid_rule_2_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_10_result, 
+                                                                    fake_chain_block_11_result, 
+                                                                    real_chain_block_9_result, 
+                                                                    real_chain_block_10_result);
+
+        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof));
 
 /*        policy_indices[0] = 1; // update key used for node0 in policy, which will result in a new policy we will call B
 
