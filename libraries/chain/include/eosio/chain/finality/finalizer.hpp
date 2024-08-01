@@ -145,8 +145,7 @@ namespace eosio::chain {
       }
 
       /// only call on startup
-      /// @param enable_immediate_voting if true enable immediate voting on startup (for testing)
-      void    set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting);
+      void    set_keys(const std::map<std::string, std::string>& finalizer_keys);
       void    set_default_safety_information(const fsi_t& fsi);
 
       // following two member functions could be private, but are used in testing, not thread safe
