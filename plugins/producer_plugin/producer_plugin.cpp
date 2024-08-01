@@ -637,7 +637,7 @@ public:
             std::string not_voted;
             for (const auto& f : missing_votes) {
                if (_finalizers.contains(f.fin_auth->public_key)) {
-                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id} for block ${m_n}",
+                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote in block ${n} : ${id} for block ${m_n}",
                           ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
                }
                not_voted += f.fin_auth->description;
@@ -645,9 +645,9 @@ public:
             }
             if (!not_voted.empty()) {
                not_voted.resize(not_voted.size() - 1); // remove ','
-               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes from finalizers: ${v}",
+               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes for block #${m_n} from finalizers: ${v}",
                     ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted));
+                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted)("m_n", missed_block_num));
             }
          }
       }
