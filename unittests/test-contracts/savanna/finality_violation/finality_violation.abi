@@ -160,7 +160,20 @@
         {
             "name": "rule2",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "proof_1",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "proof_2",
+                    "type": "finality_proof"
+                }
+            ]
         },
         {
             "name": "rule3",

@@ -266,6 +266,7 @@ namespace finality_proof {
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
 
+         // compute commitments used for proving finality violations
          level_3_commitments_t lvl3_commitments {
             .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
             .latest_qc_claim_block_num = finality_data.latest_qc_claim_block_num,
@@ -275,18 +276,12 @@ namespace finality_proof {
             .base_digest = base_digest
          };
 
-
-         // compute commitments used for proving finality violations
-         //digest_type level_3_commitments_digest = fc::sha256::hash(lvl3_commitments);
-
+         // compute commitments used for proving finalizer policy changes
          level_2_commitments_t lvl2_commitments {
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
             .last_pending_fin_pol_start_timestamp = last_pending_finalizer_policy_start_timestamp,
             .l3_commitments_digest = fc::sha256::hash(lvl3_commitments)
          };
-
-         // compute commitments used for proving finalizer policy changes
-         //digest_type level_2_commitments_digest = fc::sha256::hash(lvl2_commitments);
 
          // during IF transition, finality_root is always set to an empty digest
          digest_type finality_root = digest_type();

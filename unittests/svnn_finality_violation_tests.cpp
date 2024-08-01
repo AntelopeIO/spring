@@ -23,9 +23,9 @@ using mvo = mutable_variant_object;
 
 mvo prepare_proof(  const finalizer_policy active_finalizer_policy, 
                     const ibc_block_data_t fake_qc_block, 
-                    const ibc_block_data_t fake_proving_block, 
+                    const qc_t fake_qc, 
                     const ibc_block_data_t real_qc_block, 
-                    const ibc_block_data_t real_proving_block){
+                    const qc_t real_qc){
 
     return mvo()
             ("finalizer_policy", active_finalizer_policy)
@@ -42,8 +42,8 @@ mvo prepare_proof(  const finalizer_policy active_finalizer_policy,
                   ("finality_mroot", fake_qc_block.finality_root)
                )
                ("active_policy_qc", mvo()
-                  ("signature", fake_proving_block.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", finality_proof::finalizers_string(fake_proving_block.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
+                  ("signature", fake_qc.active_policy_sig.sig.to_string())
+                  ("finalizers", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
                )
             )
             ("proof_2", mvo()
@@ -59,8 +59,8 @@ mvo prepare_proof(  const finalizer_policy active_finalizer_policy,
                   ("finality_mroot", real_qc_block.finality_root)
                )
                ("active_policy_qc", mvo()
-                  ("signature", real_proving_block.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", finality_proof::finalizers_string(real_proving_block.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
+                  ("signature", real_qc.active_policy_sig.sig.to_string())
+                  ("finalizers", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
                )
             );
 
@@ -285,22 +285,22 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //it can be demonstrated by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block of the same timestamp
         mutable_variant_object valid_rule_1_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_7_result, 
-                                                                    fake_chain_block_8_result, 
+                                                                    fake_chain_block_8_result.qc_data.qc.value(), 
                                                                     real_chain_block_7_result, 
-                                                                    real_chain_block_8_result);
+                                                                    real_chain_block_8_result.qc_data.qc.value());
 
         //we also prepare a few invalid proofs, which the contract must reject
         mutable_variant_object invalid_rule_1_proof_1 = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_3_result, 
-                                                                    fake_chain_block_4_result, 
+                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
                                                                     real_chain_block_3_result, 
-                                                                    real_chain_block_4_result); //same finality digest, not a violation
+                                                                    real_chain_block_4_result.qc_data.qc.value()); //same finality digest, not a violation proof
 
         mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_3_result, 
-                                                                    fake_chain_block_4_result, 
+                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
                                                                     real_chain_block_4_result, 
-                                                                    real_chain_block_5_result); //different timestamps
+                                                                    real_chain_block_5_result.qc_data.qc.value()); //different timestamps, not a violation proof
 
         BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
         BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
@@ -309,25 +309,35 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //we temporarilly disable a finalizer on the fake chain, which serves to set up a proof of violation of rule #2
         fake_chain.vote_propagation = {1,0,0};
 
+        //produce a block on a fake chain without propagating votes to all nodes
         auto fake_chain_block_9_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_9_result = real_chain.produce_block();
 
-        //fake chain is no longer making progress. Real chain has a QC on #9, but fake chain doesn't
+        //restore vote propagation for fake chain. This leaves a one-block gap where no finality progress was achieved
+        fake_chain.vote_propagation = {1,1,0};
+
         auto fake_chain_block_10_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_10_result = real_chain.produce_block();
 
+        //Real chain has a QC on #9, but fake chain doesn't
         BOOST_TEST(!fake_chain_block_10_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_10_result.qc_data.qc.has_value());
-
+        
         auto fake_chain_block_11_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_11_result = real_chain.produce_block();
 
-        //last recorded QC on fake chain is over #10. #10 claims a QC over #8. Provide real block #9, which is a proof of violation of rule #2
+        //Things are back to normal, and we have a QC on both chains
+        BOOST_TEST(fake_chain_block_11_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_11_result.qc_data.qc.has_value());
+        
+        //Light client recorded the last QC on fake chain, which is over block #10. 
+        //Block #10 claims a QC over block #8, skipping #9. We provide fake block #10 and its QC.
+        //We also provide the real block #9 and a QC over it, which is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_10_result, 
-                                                                    fake_chain_block_11_result, 
+                                                                    fake_chain_block_11_result.qc_data.qc.value(), 
                                                                     real_chain_block_9_result, 
-                                                                    real_chain_block_10_result);
+                                                                    real_chain_block_10_result.qc_data.qc.value());
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof));
 
