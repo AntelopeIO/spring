@@ -1748,7 +1748,7 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
 
    // Finalizer keys present in active_finalizer_policy and pending_finalizer_policy.
    // Use std::set for eliminating duplications.
-   std::set<string> finalizer_keys;
+   std::set<fc::crypto::blslib::bls_public_key> finalizer_keys;
 
    // Populate a particular finalizer policy
    auto add_policy_to_result = [&](const finalizer_policy_ptr& from_policy, fc::variant& to_policy) {
@@ -1757,7 +1757,7 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
          to_variant(finalizer_policy_with_string_key{*from_policy}, to_policy);
 
          for (const auto& f: from_policy->finalizers) {
-            finalizer_keys.insert(f.public_key.to_string());
+            finalizer_keys.insert(f.public_key);
          }
       }
    };

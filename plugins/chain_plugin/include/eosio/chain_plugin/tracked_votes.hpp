@@ -39,7 +39,7 @@ namespace eosio::chain_apis {
       void on_accepted_block(const chain::signed_block_ptr& block, const chain::block_id_type& id);
 
       // Returns last vote information by a given finalizer
-      std::optional<vote_info> get_last_vote_info(const std::string& finalizer_pub_key) const;
+      std::optional<vote_info> get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const;
 
    private:
       std::unique_ptr<struct tracked_votes_impl> _impl;

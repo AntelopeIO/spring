@@ -16,7 +16,7 @@ namespace eosio::chain_apis {
 
       // Cache to store last vote information for each known finalizer.
       // A map of finalizer public key --> vote info.
-      std::unordered_map<std::string, tracked_votes::vote_info> last_votes;
+      std::map<fc::crypto::blslib::bls_public_key, tracked_votes::vote_info> last_votes;
 
       // A handle to the controller.
       const chain::controller& controller;
@@ -46,7 +46,7 @@ namespace eosio::chain_apis {
                   .voted_block_timestamp    = vm.voted_block_timestamp
                };
 
-               last_votes.emplace(f->public_key.to_string(), v_info); // track the voting information for the finalizer
+               last_votes.emplace(f->public_key, v_info); // track the voting information for the finalizer
             }
          };
 
@@ -55,7 +55,7 @@ namespace eosio::chain_apis {
       }
 
       // Returns last vote information by a given finalizer
-      std::optional<tracked_votes::vote_info> get_last_vote_info(const std::string& finalizer_pub_key) const {
+      std::optional<tracked_votes::vote_info> get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const {
          auto it = last_votes.find(finalizer_pub_key);
          if (it != last_votes.end()) {
              return it->second;
@@ -76,7 +76,7 @@ namespace eosio::chain_apis {
       _impl->on_accepted_block(block, id);
    }
 
-   std::optional<tracked_votes::vote_info> tracked_votes::get_last_vote_info(const std::string& finalizer_pub_key) const {
+   std::optional<tracked_votes::vote_info> tracked_votes::get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const {
       return _impl->get_last_vote_info(finalizer_pub_key);
    }
 } // namespace eosio::chain_apis
