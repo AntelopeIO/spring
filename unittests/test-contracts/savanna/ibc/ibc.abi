@@ -208,11 +208,11 @@
                 },
                 {
                     "name": "active_policy_qc",
-                    "type": "quorum_certificate"
+                    "type": "quorum_certificate_input"
                 },
                 {
                     "name": "pending_policy_qc",
-                    "type": "quorum_certificate?"
+                    "type": "quorum_certificate_input?"
                 }
             ]
         },
@@ -325,7 +325,7 @@
             ]
         },
         {
-            "name": "quorum_certificate",
+            "name": "quorum_certificate_input",
             "base": "",
             "fields": [
                 {
@@ -335,6 +335,10 @@
                 {
                     "name": "signature",
                     "type": "string"
+                },
+                {
+                    "name": "weak",
+                    "type": "bool?"
                 }
             ]
         },

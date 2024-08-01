@@ -12,11 +12,20 @@ using namespace eosio;
 
 namespace savanna {
 
-   struct quorum_certificate {
+   struct quorum_certificate_input {
        //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
        std::vector<uint8_t>   finalizers;
        //string representation of a BLS signature
        std::string            signature;
+       std::optional<bool>    weak;
+   };
+   
+   struct quorum_certificate : quorum_certificate_input {
+       bool weak = false;
+
+      quorum_certificate(const quorum_certificate_input& base){
+         if (base.weak.has_value()) weak = base.weak.value();
+      }  
    };
    
    struct finalizer_authority_internal {
@@ -509,10 +518,10 @@ namespace savanna {
       block_finality_data qc_block;
 
       //signature over finality_digest() of qc_block by active policy generation 
-      quorum_certificate active_policy_qc;
+      quorum_certificate_input active_policy_qc;
 
       //signature over finality_digest() of qc_block by pending policy generation (required during transitions, prohibited otherwise)
-      std::optional<quorum_certificate> pending_policy_qc;
+      std::optional<quorum_certificate_input> pending_policy_qc;
 
    };
 

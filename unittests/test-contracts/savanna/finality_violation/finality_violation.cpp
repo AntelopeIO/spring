@@ -15,8 +15,8 @@ ACTION finality_violation::rule1(const finalizer_policy_input finalizer_policy, 
 
     check(digest_1 != digest_2, "finality digests must be different");
 
-    _check_qc(proof_1.active_policy_qc, digest_1, finalizer_policy);
-    _check_qc(proof_2.active_policy_qc, digest_2, finalizer_policy);
+    _check_qc(quorum_certificate(proof_1.active_policy_qc), digest_1, finalizer_policy);
+    _check_qc(quorum_certificate(proof_2.active_policy_qc), digest_2, finalizer_policy);
 
 }
 
@@ -38,8 +38,8 @@ ACTION finality_violation::rule2(const finalizer_policy_input finalizer_policy, 
 
     check(lessThanRule || greaterThanRule, "proofs must demonstrate a conflicting time range");
 
-    _check_qc(proof_1.active_policy_qc, digest_1, finalizer_policy);
-    _check_qc(proof_2.active_policy_qc, digest_2, finalizer_policy);
+    _check_qc(quorum_certificate(proof_1.active_policy_qc), digest_1, finalizer_policy);
+    _check_qc(quorum_certificate(proof_2.active_policy_qc), digest_2, finalizer_policy);
 
 }
 
