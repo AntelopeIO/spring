@@ -33,8 +33,8 @@ ACTION finality_violation::rule2(const finalizer_policy_input finalizer_policy, 
     block_timestamp last_claim_timestamp_1 = proof_1.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
     block_timestamp last_claim_timestamp_2 = proof_2.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
-    bool lessThanRule = last_claim_timestamp_2 < timestamp_1 && timestamp_1 < timestamp_2;
-    bool greaterThanRule = last_claim_timestamp_1 < timestamp_2 && timestamp_2 < timestamp_1;
+    bool lessThanRule = last_claim_timestamp_1 < timestamp_2 && timestamp_2 < timestamp_1;
+    bool greaterThanRule = last_claim_timestamp_2 < timestamp_1 && timestamp_1 < timestamp_2;
 
     check(lessThanRule || greaterThanRule, "proofs must demonstrate a conflicting time range");
 
