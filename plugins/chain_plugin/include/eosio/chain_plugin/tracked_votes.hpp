@@ -25,13 +25,13 @@ namespace eosio::chain_apis {
        * vote information for a given finalizer.
        */
       struct vote_info {
-         std::string          public_key;
-         std::string          description;
-         bool                 is_vote_strong{false};
-         uint32_t             voted_policy_generation{0};
-         chain::block_id_type voted_block_id;
-         uint32_t             voted_block_num{0};
-         fc::time_point       voted_block_timestamp;
+         std::string          public_key;  // voting finalizer's public key
+         std::string          description; // voting finalizer's description
+         bool                 is_vote_strong{false}; // indicating the vote is strong or not
+         uint32_t             voted_policy_generation{0}; // the generation of finalizer policy being used to vote
+         chain::block_id_type voted_block_id;  // block id of the block being voted
+         uint32_t             voted_block_num{0}; // block number of the block being voted
+         fc::time_point       voted_block_timestamp; // block timestamp of the block being voted
       };
 
       // Called on accepted_block signal. Retrieve vote information from

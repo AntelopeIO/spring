@@ -494,8 +494,13 @@ public:
    };
 
    struct get_finalizer_info_result {
-      fc::variant                            active_finalizer_policy;
-      fc::variant                            pending_finalizer_policy;
+      fc::variant                            active_finalizer_policy;  // current active policy
+      fc::variant                            pending_finalizer_policy; // current pending policy. Empty if not existing
+
+      // Last tracked vote information for each of the finalizers in
+      // active_finalizer_policy and pending_finalizer_policy.
+      // if a finalizer votes on both active_finalizer_policy and pending_finalizer_policy,
+      // the vote information on pending_finalizer_policy is used.
       std::vector<tracked_votes::vote_info>  last_tracked_votes;
    };
 
