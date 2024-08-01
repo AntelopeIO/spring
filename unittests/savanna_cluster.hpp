@@ -125,7 +125,7 @@ namespace savanna_cluster {
          return ranges::find(producers, pending) - producers.begin();
       }
 
-      uint32_t lib_num() const { return lib_block->block_num(); }
+      uint32_t lib_num() const { return lib_number; }
 
       template<class F>
       uint32_t lib_advances_by(F &&f) {
@@ -215,6 +215,7 @@ namespace savanna_cluster {
          for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
             auto path = dir_entry.path();
             if (path.filename().generic_string() != "reversible") {
+               dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
                remove_all(path);
             }
          }
@@ -226,8 +227,8 @@ namespace savanna_cluster {
       // ---------------------------------------------------------------------------------
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
-         auto path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing all reversible data from: ${rev_path}", ("i", node_idx)("${rev_path}", path));
+         auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
+         dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
