@@ -12,20 +12,22 @@ using namespace eosio;
 
 namespace savanna {
 
+   constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
+   using weak_digest_t = std::array<uint8_t, sizeof(checksum256) + weak_bls_sig_postfix.size()>;
+
+   inline std::string create_weak_digest(const checksum256& digest) {
+      weak_digest_t res;
+      std::memcpy(res.begin(), digest.data(), digest.size());
+      std::memcpy(res.begin() + digest.size(), weak_bls_sig_postfix.data(), weak_bls_sig_postfix.size());
+      return std::string(res.begin(), res.end());
+   }
+
    struct quorum_certificate_input {
        //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
        std::vector<uint8_t>   finalizers;
        //string representation of a BLS signature
        std::string            signature;
-       std::optional<bool>    weak;
-   };
-   
-   struct quorum_certificate : quorum_certificate_input {
-       bool weak = false;
-
-      quorum_certificate(const quorum_certificate_input& base){
-         if (base.weak.has_value()) weak = base.weak.value();
-      }  
+       std::optional<bool>    is_weak;
    };
    
    struct finalizer_authority_internal {
@@ -139,7 +141,7 @@ namespace savanna {
    }
    
    //verify that the quorum certificate over the finality digest is valid
-   void _check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
+   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
       size_t finalizer_count = finalizer_policy.finalizers.size();
@@ -168,14 +170,19 @@ namespace savanna {
 
       //verify that we have enough vote weight to meet the quorum threshold of the target policy
       check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
-      std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
-      std::string message(fd_data.begin(), fd_data.end());
+
+      std::string message;
+
+      if (qc.is_weak.has_value() && qc.is_weak.value() == true) message = create_weak_digest(finality_digest);
+      else {
+         std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
+         message = std::string(fd_data.begin(), fd_data.end());
+      }
 
       std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
       //verify signature validity
       check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
    }
-
 
    struct authseq {
       name account;
@@ -413,6 +420,7 @@ namespace savanna {
       }
 
       EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(resolved_last_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
+   
    };
 
    //used in "heavy" proofs, where verification of finality digest is performed

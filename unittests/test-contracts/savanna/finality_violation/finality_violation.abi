@@ -138,7 +138,7 @@
                     "type": "string"
                 },
                 {
-                    "name": "weak",
+                    "name": "is_weak",
                     "type": "bool?"
                 }
             ]
