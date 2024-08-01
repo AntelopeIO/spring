@@ -180,6 +180,10 @@ void my_finalizers_t::save_finalizer_safety_info() const {
       persist_file.open(fc::cfile::truncate_rw_mode);
    }
    try {
+      static_assert(sizeof(finalizer_safety_information) == 152, "If size changes then need to handle loading old files");
+      static_assert(sizeof(decltype(bls_public_key{}.affine_non_montgomery_le())) == 96,
+                    "If size changes then need to handle loading old files, fc::pack uses affine_non_montgomery_le()");
+
       persist_file.seek(0);
       fc::raw::pack(persist_file, fsi_t::magic);
       fc::raw::pack(persist_file, (uint64_t)(finalizers.size() + inactive_safety_info.size()));
