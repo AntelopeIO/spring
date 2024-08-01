@@ -192,7 +192,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
                     "Unable to finalize valid snapshot of block number ${bn}: [code: ${ec}] ${message}",
                     ("bn", head_block_num)("ec", ec.value())("message", ec.message()));
 
-         ilog("Snapshot creation at block ${bn} complete; snapshot named ${fn}", ("bn", head_block_num)("fn", snapshot_path.filename()));
+         ilog("Snapshot creation at block ${bn} complete; snapshot placed at ${fn}", ("bn", head_block_num)("fn", snapshot_path));
          next(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, snapshot_path.generic_string()});
       }
       CATCH_AND_CALL(next);

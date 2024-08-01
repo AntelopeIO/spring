@@ -51,7 +51,7 @@ public:
                  "Unable to finalize valid snapshot of block number ${bn}: [code: ${ec}] ${message}",
                  ("bn", get_height())("ec", ec.value())("message", ec.message()));
 
-      ilog("Snapshot created at block ${bn} available as file ${fn}", ("bn", block_ptr->block_num())("fn", fs::path(final_path).filename()));
+      ilog("Snapshot created at block ${bn} available at ${fn}", ("bn", block_ptr->block_num())("fn", final_path));
 
       return {block_id, block_ptr->block_num(), block_ptr->timestamp, chain::chain_snapshot_header::current_version, final_path};
    }
