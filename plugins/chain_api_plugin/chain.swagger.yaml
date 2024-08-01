@@ -115,9 +115,11 @@ paths:
                       generation:
                         type: integer
                         description: version number of finalizers set
+                        example: 1
                       threshold:
                         type: integer
                         description: total weight needed to advance finality
+                        example: 15
                       finalizers:
                         type: array
                         items:
@@ -129,9 +131,11 @@ paths:
                       generation:
                         type: integer
                         description: version number of finalizers set
+                        example: 2
                       threshold:
                         type: integer
                         description: total weight needed to advance finality
+                        example: 15
                       finalizers:
                         type: array
                         items:
@@ -145,31 +149,36 @@ paths:
                         public_key:
                           type: string
                           description: BLS Public Key for finalizer
+                          example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
                         description:
                           type: string
                           description: Description of finalizer
+                          example: finalizerone
                         is_vote_strong:
                           type: boolean
                           description: When true indicate strongly voted
                         voted_policy_generation:
                           type: integer
                           description: Policy Generation for vote
+                          example: 2
                         voted_block_id:
                           type: string
                           description: Block id voted on
+                          example: 1234
                         voted_block_num:
                           type: integer
                           description: Block number voted on
+                          example: "00003702056551dbabfab8ed499fb7d74850e92b9ac74d13b64ff2b161341c7a"
                         voted_block_timestamp:
                           $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
                           description: Timestamp for the voted on block
 
-          "400":
-            description: client error
-            content:
-              application/json:
+        "400":
+          description: client error
+          content:
+            application/json:
               schema:
-              $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/Error"
   /get_info:
     post:
       description: Returns an object containing various details about the blockchain.
@@ -1009,9 +1018,6 @@ paths:
             application/json:
               schema:
                 description: Returns Nothing
-components:
-  securitySchemes: {}
-  schemas:
     Error:
       type: object
       properties:
