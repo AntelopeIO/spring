@@ -35,19 +35,19 @@ namespace eosio::chain_apis {
 
             auto track_votes = [&](const chain::qc_vote_metrics_t::fin_auth_set_t& finalizers, bool is_strong) {
                for (auto& f: finalizers) {
-                  assert(f);
+                  assert(f.fin_auth);
 
                   tracked_votes::vote_info v_info {
-                     .public_key               = f->public_key.to_string(),
-                     .description              = f->description,
+                     .public_key               = f.fin_auth->public_key.to_string(),
+                     .description              = f.fin_auth->description,
                      .is_vote_strong           = is_strong,
-                     .voted_policy_generation  = vm.voted_policy_generation,
+                     .voted_policy_generation  = f.generation,
                      .voted_block_id           = vm.voted_block_id,
                      .voted_block_num          = chain::block_header::num_from_id(vm.voted_block_id),
                      .voted_block_timestamp    = vm.voted_block_timestamp
                   };
 
-                  last_votes.emplace(f->public_key, std::move(v_info)); // track the voting information for the finalizer
+                  last_votes.emplace(f.fin_auth->public_key, std::move(v_info)); // track the voting information for the finalizer
                }
             };
 

@@ -635,11 +635,11 @@ public:
          if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
             for (const auto& f : missing_votes) {
-               if (_finalizers.contains(f->public_key)) {
+               if (_finalizers.contains(f.fin_auth->public_key)) {
                   fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
-                          ("f", f->description)("n", block->block_num())("id", id.str().substr(8,16)));
+                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16)));
                }
-               not_voted += f->description;
+               not_voted += f.fin_auth->description;
                not_voted += ',';
             }
             if (!not_voted.empty()) {
@@ -659,9 +659,9 @@ public:
       m.weak_votes.resize(vm.weak_votes.size());
       m.no_votes.resize(vm.missing_votes.size());
 
-      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f->description; });
+      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
       _update_vote_block_metrics(std::move(m));
    }
 

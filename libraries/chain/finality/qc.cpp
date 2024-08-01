@@ -437,7 +437,14 @@ qc_vote_metrics_t aggregating_qc_t::vote_metrics(const qc_t& qc) const {
       size_t added = 0;
       for (size_t i = 0; i < votes.size(); ++i) {
          if (votes[i]) {
-            results.insert(finalizer_authority_ptr{finalizer_policy, &finalizer_policy->finalizers[i]}); // use aliasing shared_ptr constructor
+            results.insert(qc_vote_metrics_t::fin_auth_ele{
+                  .fin_auth   = finalizer_authority_ptr{finalizer_policy, &finalizer_policy->finalizers[i]}, // use aliasing shared_ptr constructor
+                                                                                                           // add_policy_votes and add_votes in turn  is called on
+                                                                                                           // pending_finalizer_policy after on active_finalizer_policy.
+                                                                                                           // Therefore pending_finalizer_policy generation will be used
+                                                                                                           // for generation if the finalizer votes on both active and
+                                                                                                           // pending finalizer policies.
+                  .generation = finalizer_policy->generation});
             ++added;
          }
       }
@@ -462,14 +469,6 @@ qc_vote_metrics_t aggregating_qc_t::vote_metrics(const qc_t& qc) const {
          }
          not_voted.flip();
          add_votes(finalizer_policy, not_voted, result.missing_votes);
-      }
-
-      if (added) {
-         // add_policy_votes is called on pending_finalizer_policy after
-         // on active_finalizer_policy. Therefore pending_finalizer_policy
-         // generation will be used for voted_policy_generation if there
-         // are votes for pending_finalizer_policy
-         result.voted_policy_generation = finalizer_policy->generation;
       }
    };
 
@@ -498,7 +497,9 @@ qc_vote_metrics_t::fin_auth_set_t aggregating_qc_t::missing_votes(const qc_t& qc
       assert(!other_votes || other_votes->size() == finalizers.size());
       for (size_t i = 0; i < votes.size(); ++i) {
          if (!votes[i] && !check_other(other_votes, i)) {
-            not_voted.insert(finalizer_authority_ptr{finalizer_policy, &finalizers[i]}); // use aliasing shared_ptr constructor
+            not_voted.insert(qc_vote_metrics_t::fin_auth_ele{
+                  .fin_auth   = finalizer_authority_ptr{finalizer_policy, &finalizers[i]}, // use aliasing shared_ptr constructor
+                                                                                                           .generation = finalizer_policy->generation});
          }
       }
    };

@@ -195,17 +195,22 @@ namespace eosio::chain {
 
    // finalizer authority of strong, weak, or missing votes
    struct qc_vote_metrics_t {
+      struct fin_auth_ele {
+         finalizer_authority_ptr fin_auth;
+         // If the finalizer votes in both active and pending policies,
+         // use pending finalizer policy's generation.
+         uint32_t                generation{0};
+      };
       struct fin_auth_less {
-         bool operator()(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) const {
-            return lhs->public_key < rhs->public_key;
+         bool operator()(const fin_auth_ele& lhs, const fin_auth_ele& rhs) const {
+            return lhs.fin_auth->public_key < rhs.fin_auth->public_key;
          };
       };
-      using fin_auth_set_t = std::set<finalizer_authority_ptr, fin_auth_less>;
+      using fin_auth_set_t = std::set<fin_auth_ele, fin_auth_less>;
 
       fin_auth_set_t       strong_votes;
       fin_auth_set_t       weak_votes;
       fin_auth_set_t       missing_votes;
-      uint32_t             voted_policy_generation{0}; // pick the pending over the active if both are present
       block_timestamp_type voted_block_timestamp;
       block_id_type        voted_block_id;
    };
