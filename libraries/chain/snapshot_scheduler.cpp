@@ -184,6 +184,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
    // If in irreversible mode, create snapshot and return path to snapshot immediately.
    if(chain.get_read_mode() == db_read_mode::IRREVERSIBLE) {
       try {
+         ilog("Starting snapshot creation at block ${bn}", ("bn", head_block_num));
          write_snapshot(temp_path);
          std::error_code ec;
          fs::rename(temp_path, snapshot_path, ec);
@@ -191,6 +192,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
                     "Unable to finalize valid snapshot of block number ${bn}: [code: ${ec}] ${message}",
                     ("bn", head_block_num)("ec", ec.value())("message", ec.message()));
 
+         ilog("Snapshot creation at block ${bn} complete; snapshot named ${fn}", ("bn", head_block_num)("fn", snapshot_path.filename()));
          next(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, snapshot_path.generic_string()});
       }
       CATCH_AND_CALL(next);
@@ -214,6 +216,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
       const auto& pending_path = pending_snapshot<snapshot_information>::get_pending_path(head_id, _snapshots_dir);
 
       try {
+         ilog("Starting snapshot creation at block ${bn}", ("bn", head_block_num));
          write_snapshot(temp_path);// create a new pending snapshot
 
          std::error_code ec;
@@ -222,6 +225,7 @@ void snapshot_scheduler::create_snapshot(next_function<snapshot_information> nex
                     "Unable to promote temp snapshot ${t} to pending ${p} for block number ${bn}: [code: ${ec}] ${message}",
                     ("t", temp_path.generic_string())("p", pending_path.generic_string())
                     ("bn", head_block_num)("ec", ec.value())("message", ec.message()));
+         ilog("Snapshot creation at block ${bn} complete; snapshot will be available once block becomes irreversible", ("bn", head_block_num));
          _pending_snapshot_index.emplace(head_id, next, pending_path.generic_string(), snapshot_path.generic_string());
          add_pending_snapshot_info(snapshot_information{head_id, head_block_num, head_block_time, chain_snapshot_header::current_version, pending_path.generic_string()});
       }

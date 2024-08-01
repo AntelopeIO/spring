@@ -40,6 +40,7 @@ public:
 
       if(!in_chain) {
          fs::remove(fs::path(pending_path), ec);
+         ilog("Snapshot created at block id ${id} invalidated because block was forked out", ("id", block_id));
          EOS_THROW(chain::snapshot_finalization_exception,
                    "Snapshotted block was forked out of the chain.  ID: ${block_id}",
                    ("block_id", block_id));
@@ -49,6 +50,8 @@ public:
       EOS_ASSERT(!ec, chain::snapshot_finalization_exception,
                  "Unable to finalize valid snapshot of block number ${bn}: [code: ${ec}] ${message}",
                  ("bn", get_height())("ec", ec.value())("message", ec.message()));
+
+      ilog("Snapshot created at block ${bn} available as file ${fn}", ("bn", block_ptr->block_num())("fn", fs::path(final_path).filename()));
 
       return {block_id, block_ptr->block_num(), block_ptr->timestamp, chain::chain_snapshot_header::current_version, final_path};
    }

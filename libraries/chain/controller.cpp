@@ -2027,14 +2027,15 @@ struct controller_impl {
       db.undo_all();
    }
 
-   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      snapshot->write_section("contract_tables", [this]( auto& section ) {
-         index_utils<table_id_multi_index>::walk(db, [this, &section]( const table_id_object& table_row ){
+   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+      snapshot->write_section("contract_tables", [this, &row_counter]( auto& section ) {
+         index_utils<table_id_multi_index>::walk(db, [this, &section, &row_counter]( const table_id_object& table_row ){
             // add a row for the table
             section.add_row(table_row, db);
+            row_counter.progress();
 
             // followed by a size row and then N data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &table_row]( auto utils ) {
+            contract_database_index_set::walk_indices([this, &section, &table_row, &row_counter]( auto utils ) {
                using utils_t = decltype(utils);
                using value_t = typename decltype(utils)::index_t::value_type;
                using by_table_id = object_to_table_id_tag_t<value_t>;
@@ -2045,8 +2046,9 @@ struct controller_impl {
                unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
                section.add_row(size, db);
 
-               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section]( const auto &row ) {
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
                   section.add_row(row, db);
+                  row_counter.progress();
                });
             });
          });
@@ -2101,9 +2103,24 @@ struct controller_impl {
           }});
    }
 
+   size_t expected_snapshot_row_count() const {
+      size_t ret = 0;
+
+      controller_index_set::walk_indices([this, &ret](auto utils){
+         ret += db.get_index<typename decltype(utils)::index_t>().size();
+      });
+      contract_database_index_set::walk_indices([this, &ret](auto utils) {
+         ret += db.get_index<typename decltype(utils)::index_t>().size();
+      });
+
+      return ret + authorization.expected_snapshot_row_count() + resource_limits.expected_snapshot_row_count();
+   }
+
    void add_to_snapshot( const snapshot_writer_ptr& snapshot ) {
       // clear in case the previous call to clear did not finish in time of deadline
       clear_expired_input_transactions( fc::time_point::maximum() );
+
+      snapshot_written_row_counter row_counter(expected_snapshot_row_count());
 
       snapshot->write_section<chain_snapshot_header>([this]( auto &section ){
          section.add_row(chain_snapshot_header(), db);
@@ -2113,7 +2130,7 @@ struct controller_impl {
          section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
       });
       
-      controller_index_set::walk_indices([this, &snapshot]( auto utils ){
+      controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2126,17 +2143,18 @@ struct controller_impl {
             return;
          }
 
-         snapshot->write_section<value_t>([this]( auto& section ){
-            decltype(utils)::walk(db, [this, &section]( const auto &row ) {
+         snapshot->write_section<value_t>([this, &row_counter]( auto& section ){
+            decltype(utils)::walk(db, [this, &section, &row_counter]( const auto &row ) {
                section.add_row(row, db);
+               row_counter.progress();
             });
          });
       });
 
-      add_contract_tables_to_snapshot(snapshot);
+      add_contract_tables_to_snapshot(snapshot, row_counter);
 
-      authorization.add_to_snapshot(snapshot);
-      resource_limits.add_to_snapshot(snapshot);
+      authorization.add_to_snapshot(snapshot, row_counter);
+      resource_limits.add_to_snapshot(snapshot, row_counter);
    }
 
    static std::optional<genesis_state> extract_legacy_genesis_state( snapshot_reader& snapshot, uint32_t version ) {
