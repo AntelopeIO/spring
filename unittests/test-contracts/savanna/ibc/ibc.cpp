@@ -103,11 +103,11 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
 
         auto target = std::get<extended_block_data>(target_block_proof_of_inclusion.target);
 
-        check(target.finality_data.pending_finalizer_policy.has_value(), "must provide pending finalizer policy for transition blocks");
+        check(target.finality_data.last_pending_finalizer_policy.has_value(), "must provide pending finalizer policy for transition blocks");
 
-        _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.pending_finalizer_policy.value());
+        _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.last_pending_finalizer_policy.value());
 
-        _maybe_set_finalizer_policy(target.finality_data.pending_finalizer_policy.value(), target.dynamic_data.block_num);
+        _maybe_set_finalizer_policy(target.finality_data.last_pending_finalizer_policy.value(), target.dynamic_data.block_num);
 
     }
 

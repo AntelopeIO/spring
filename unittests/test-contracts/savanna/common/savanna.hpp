@@ -318,7 +318,7 @@ namespace savanna {
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
 
-      std::optional<finalizer_policy_input> pending_finalizer_policy;
+      std::optional<finalizer_policy_input> last_pending_finalizer_policy;
       std::optional<block_timestamp> last_pending_finalizer_policy_start_timestamp;
 
       std::optional<level_3_commitments_input> level_3_commitments;
@@ -338,7 +338,7 @@ namespace savanna {
 
          if (level_3_commitments.has_value()){
 
-            check(pending_finalizer_policy.has_value()  
+            check(last_pending_finalizer_policy.has_value()  
                && last_pending_finalizer_policy_start_timestamp.has_value()
                && witness_hash!=checksum256(), "must provide full level 2 commitments when providing level 3 commitments");
 
@@ -360,13 +360,13 @@ namespace savanna {
          }
          else l3_digest = witness_hash;
          
-         if (pending_finalizer_policy.has_value()  
+         if (last_pending_finalizer_policy.has_value()  
             && last_pending_finalizer_policy_start_timestamp.has_value()
             && witness_hash!=checksum256()){
 
             //finalizer policy transition information
 
-            checksum256 policy_digest = pending_finalizer_policy.value().digest();
+            checksum256 policy_digest = last_pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 

@@ -24,7 +24,7 @@
                     "type": "uint32?"
                 },
                 {
-                    "name": "pending_finalizer_policy",
+                    "name": "last_pending_finalizer_policy",
                     "type": "finalizer_policy_input?"
                 },
                 {
