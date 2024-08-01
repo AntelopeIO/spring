@@ -20,7 +20,7 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "last_pending_finalizer_policy_generation",
+                    "name": "pending_finalizer_policy_generation",
                     "type": "uint32?"
                 },
                 {
