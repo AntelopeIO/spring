@@ -114,7 +114,7 @@ paths:
                           ref: "#/components/schemas/Finalizer"
                   pending_finalizer_policy:
                     type: object
-                    description: List of current finalizers
+                    description: List of pending finalizers
                       generation:
                         type: integer
                         description: version number of finalizers set
