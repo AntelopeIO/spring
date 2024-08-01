@@ -21,50 +21,124 @@ using namespace finality_proof;
 using mvo = mutable_variant_object;
 
 
-mvo prepare_proof(  const finalizer_policy active_finalizer_policy, 
+mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy, 
                     const ibc_block_data_t fake_qc_block, 
                     const qc_t fake_qc, 
                     const ibc_block_data_t real_qc_block, 
                     const qc_t real_qc){
 
     return mvo()
-            ("finalizer_policy", active_finalizer_policy)
-            ("proof_1", mvo() 
-               ("qc_block", mvo()
-                  ("major_version", 1)
-                  ("minor_version", 0)
-                  ("active_finalizer_policy_generation", 1)
-                  ("pending_finalizer_policy_generation", 1)
-                  ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
-                  ("last_pending_finalizer_policy", active_finalizer_policy)
-                  ("level_3_commitments", fake_qc_block.level_3_commitments)
-                  ("witness_hash", fake_qc_block.base_digest)
-                  ("finality_mroot", fake_qc_block.finality_root)
-               )
-               ("active_policy_qc", mvo()
-                  ("signature", fake_qc.active_policy_sig.sig.to_string())
-                  ("finalizers", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
-               )
-            )
-            ("proof_2", mvo()
-               ("qc_block", mvo()
-                  ("major_version", 1)
-                  ("minor_version", 0)
-                  ("active_finalizer_policy_generation", 1)
-                  ("pending_finalizer_policy_generation", 1)
-                  ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
-                  ("last_pending_finalizer_policy", active_finalizer_policy)
-                  ("level_3_commitments", real_qc_block.level_3_commitments)
-                  ("witness_hash", real_qc_block.base_digest)
-                  ("finality_mroot", real_qc_block.finality_root)
-               )
-               ("active_policy_qc", mvo()
-                  ("signature", real_qc.active_policy_sig.sig.to_string())
-                  ("finalizers", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
-               )
-            );
+        ("finalizer_policy", active_finalizer_policy)
+        ("proof_1", mvo() 
+           ("qc_block", mvo()
+              ("major_version", 1)
+              ("minor_version", 0)
+              ("active_finalizer_policy_generation", 1)
+              ("pending_finalizer_policy_generation", 1)
+              ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
+              ("last_pending_finalizer_policy", active_finalizer_policy)
+              ("level_3_commitments", fake_qc_block.level_3_commitments)
+              ("witness_hash", fake_qc_block.base_digest)
+              ("finality_mroot", fake_qc_block.finality_root)
+           )
+           ("active_policy_qc", mvo()
+              ("signature", fake_qc.active_policy_sig.sig.to_string())
+              ("finalizers", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
+           )
+        )
+        ("proof_2", mvo()
+           ("qc_block", mvo()
+              ("major_version", 1)
+              ("minor_version", 0)
+              ("active_finalizer_policy_generation", 1)
+              ("pending_finalizer_policy_generation", 1)
+              ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
+              ("last_pending_finalizer_policy", active_finalizer_policy)
+              ("level_3_commitments", real_qc_block.level_3_commitments)
+              ("witness_hash", real_qc_block.base_digest)
+              ("finality_mroot", real_qc_block.finality_root)
+           )
+           ("active_policy_qc", mvo()
+              ("signature", real_qc.active_policy_sig.sig.to_string())
+              ("finalizers", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
+           )
+        );
 
 }
+
+mvo prepare_rule_2_lt_proof(  const finalizer_policy active_finalizer_policy, 
+                    const ibc_block_data_t fake_qc_block, 
+                    const qc_t fake_qc, 
+                    const ibc_block_data_t real_qc_block, 
+                    const qc_t real_qc){
+    return prepare_rule_1_proof(active_finalizer_policy, fake_qc_block, fake_qc, real_qc_block, real_qc);
+}
+
+mvo prepare_rule_2_gt_proof(  const finalizer_policy active_finalizer_policy, 
+                    const ibc_block_data_t fake_qc_block, 
+                    const qc_t fake_qc, 
+                    const ibc_block_data_t real_qc_block, 
+                    const qc_t real_qc, 
+                    const ibc_block_data_t real_target_block, 
+                    const uint32_t target_index,
+                    const std::vector<digest_type> merkle_branches){
+
+    return mvo()
+        ("finalizer_policy", active_finalizer_policy)
+        ("proof_1", mvo() 
+           ("qc_block", mvo()
+              ("major_version", 1)
+              ("minor_version", 0)
+              ("active_finalizer_policy_generation", 1)
+              ("pending_finalizer_policy_generation", 1)
+              ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
+              ("last_pending_finalizer_policy", active_finalizer_policy)
+              ("level_3_commitments", fake_qc_block.level_3_commitments)
+              ("witness_hash", fake_qc_block.base_digest)
+              ("finality_mroot", fake_qc_block.finality_root)
+           )
+           ("active_policy_qc", mvo()
+              ("signature", fake_qc.active_policy_sig.sig.to_string())
+              ("finalizers", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
+           )
+        )
+        ("proof_2", mvo()
+           ("qc_block", mvo()
+              ("major_version", 1)
+              ("minor_version", 0)
+              ("active_finalizer_policy_generation", 1)
+              ("pending_finalizer_policy_generation", 1)
+              ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
+              ("last_pending_finalizer_policy", active_finalizer_policy)
+              ("level_3_commitments", real_qc_block.level_3_commitments)
+              ("witness_hash", real_qc_block.base_digest)
+              ("finality_mroot", real_qc_block.finality_root)
+           )
+           ("active_policy_qc", mvo()
+              ("signature", real_qc.active_policy_sig.sig.to_string())
+              ("finalizers", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
+           )
+        )
+        ("target_block_proof_of_inclusion", mvo() 
+           ("target_block_index", target_index)
+           ("final_block_index", target_index)
+           ("target", fc::variants{"extended_block_data", mvo() //target block #2
+              ("major_version", 1)
+              ("minor_version", 0)
+              ("finality_digest", real_target_block.finality_digest)
+              ("timestamp", real_target_block.block->timestamp)
+              ("parent_timestamp", real_target_block.parent_timestamp)
+              ("dynamic_data", mvo() 
+                 ("block_num", real_target_block.block->block_num())
+                 ("action_proofs", fc::variants())
+                 ("action_mroot", real_target_block.action_mroot)
+              )}
+           )
+           ("merkle_branches", merkle_branches)
+        );
+
+}
+
 
 bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
 
@@ -262,7 +336,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_4_result.finality_digest == real_chain_block_4_result.finality_digest);
 
         //at this point, we can prepare some "invalid proofs" that the contract will reject
-        mutable_variant_object invalid_rule_1_proof_1 = prepare_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object invalid_rule_1_proof_1 = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_3_result, 
@@ -270,7 +344,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
 
-        mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object invalid_rule_1_proof_2 = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_2_result, 
@@ -306,7 +380,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //this is a rule #1 finality violation proof
 
         //it can be proven by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block with the same timestamp
-        mutable_variant_object valid_rule_1_proof = prepare_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object valid_rule_1_proof = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_7_result, 
@@ -341,13 +415,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Light client recorded the last QC on fake chain, which is over block #10. 
         //Block #10 claims a QC over block #8 (skipping #9). We provide fake block #10 and its QC.
         //We also provide the real block #9 and a QC over it, which is a proof of violation of rule #2.
-        mutable_variant_object valid_rule_2_proof = prepare_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object valid_rule_2_proof = prepare_rule_2_lt_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_9_result, 
                                                                     real_chain_block_10_result.qc_data.qc.value());
 
-        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof));
+        BOOST_CHECK(shouldPass(real_chain, "rule2a"_n, valid_rule_2_proof));
 
     } FC_LOG_AND_RETHROW() }
 
