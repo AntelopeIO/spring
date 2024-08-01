@@ -21,8 +21,8 @@ namespace finality_proof {
       digest_type base_digest;
       digest_type active_finalizer_policy_digest;
       digest_type last_pending_finalizer_policy_digest;
-      block_timestamp_type last_pending_finalizer_policy_start_timestamp;
       digest_type last_proposed_finalizer_policy_digest;
+      block_timestamp_type last_pending_finalizer_policy_start_timestamp;
       digest_type finality_digest;
       level_3_commitments_t level_3_commitments;
       level_2_commitments_t level_2_commitments;

@@ -179,6 +179,9 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //store all policies sunset data
             std::vector<policy_sunset_data> policy_sunsets;
 
+            //current active finalizer policy
+            finalizer_policy active_finalizer_policy;
+
             //observe a stream of blocks as they are received, and store minimal data required to construct finality violation proofs in the future
             ibc_block_data_t scan_block(const ibc_block_data_t& block){
 
