@@ -18,7 +18,7 @@ namespace eosio::chain_apis {
        * for the life of the tracked votes cache
        * @param chain - controller to read data from
        */
-      tracked_votes( const class eosio::chain::controller& chain );
+      explicit tracked_votes( const class eosio::chain::controller& chain );
       ~tracked_votes();
 
       /**

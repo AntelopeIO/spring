@@ -10,7 +10,7 @@ namespace eosio::chain_apis {
     * Implementation details of the last tracked cache
     */
    struct tracked_votes_impl {
-      tracked_votes_impl(const chain::controller& controller)
+      explicit tracked_votes_impl(const chain::controller& controller)
       :controller(controller)
       {}
 
