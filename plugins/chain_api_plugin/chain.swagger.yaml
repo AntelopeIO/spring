@@ -102,6 +102,7 @@ paths:
                 active_finalizer_policy:
                   type: object
                   description: List of current finalizers
+                  properties:
                     generation:
                       type: integer
                       description: version number of finalizers set
@@ -115,6 +116,7 @@ paths:
                 pending_finalizer_policy:
                   type: object
                   description: List of pending finalizers
+                  properties:
                     generation:
                       type: integer
                       description: version number of finalizers set
