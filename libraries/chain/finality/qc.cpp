@@ -499,7 +499,7 @@ qc_vote_metrics_t::fin_auth_set_t aggregating_qc_t::missing_votes(const qc_t& qc
          if (!votes[i] && !check_other(other_votes, i)) {
             not_voted.insert(qc_vote_metrics_t::fin_auth_ele{
                   .fin_auth   = finalizer_authority_ptr{finalizer_policy, &finalizers[i]}, // use aliasing shared_ptr constructor
-                                                                                                           .generation = finalizer_policy->generation});
+                  .generation = finalizer_policy->generation});
          }
       }
    };
