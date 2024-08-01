@@ -1764,7 +1764,7 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
 
    // Populate active_finalizer_policy and pending_finalizer_policy
    add_policy_to_result(db.head_active_finalizer_policy(), result.active_finalizer_policy);
-   add_policy_to_result(db.head_pending_finalizer_policy(), *result.pending_finalizer_policy);
+   add_policy_to_result(db.head_pending_finalizer_policy(), result.pending_finalizer_policy);
 
    // Populate last_tracked_votes
    if (last_tracked_votes) {

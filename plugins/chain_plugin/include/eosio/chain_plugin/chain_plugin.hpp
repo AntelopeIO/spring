@@ -495,7 +495,7 @@ public:
 
    struct get_finalizer_info_result {
       fc::variant                       active_finalizer_policy;
-      std::optional<fc::variant>        pending_finalizer_policy; // if existing
+      fc::variant                       pending_finalizer_policy;
       vector<tracked_votes::vote_info>  last_tracked_votes;
    };
 
