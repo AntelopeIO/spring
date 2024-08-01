@@ -128,7 +128,7 @@ namespace savanna_cluster {
       uint32_t lib_num() const { return lib_number; }
 
       template<class F>
-      uint32_t lib_advances_by(F &&f) {
+      uint32_t lib_advances_by(F&& f) {
          assert(is_open()); // node better be open if we want to check whether lib advances
          auto lib = lib_number;
          std::forward<F>(f)();
@@ -388,7 +388,7 @@ namespace savanna_cluster {
 
       // returns the number of nodes where `lib` has advanced after executing `f`
       template<class F>
-      size_t num_lib_advancing(F &&f) {
+      size_t num_lib_advancing(F&& f) {
          std::vector<uint32_t> libs(_nodes.size());
          for (size_t i=0; i<_nodes.size(); ++i)
             libs[i] = _nodes[i].lib_num();
