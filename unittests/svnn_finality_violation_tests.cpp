@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             ibc_block_data_t high_qc_block;
             qc_t high_qc;
 
-            //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together 
+            //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together constitute the 2-chains required for finality progress
             ibc_block_data_t last_final_block;
             qc_t last_final_qc;
 
@@ -268,11 +268,15 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     real_chain_block_3_result, 
                                                                     real_chain_block_4_result.qc_data.qc.value()); //same finality digest, not a violation proof
 
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
+
         mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_2_result, 
                                                                     real_chain_block_3_result.qc_data.qc.value()); //different timestamps, not a violation proof
+
+        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2));
 
         //create a fork by pushing a transaction on the fake chain
         fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, user1_transfer);
@@ -301,7 +305,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         //this is a rule #1 finality violation proof
 
-        //it can be demonstrated by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block of the same timestamp
+        //it can be proven by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block with the same timestamp
         mutable_variant_object valid_rule_1_proof = prepare_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
@@ -309,10 +313,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     real_chain_block_8_result.qc_data.qc.value());
 
         BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
-        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
-        BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2));
 
-        //we temporarilly disable a finalizer on the fake chain, which serves to set up a proof of violation of rule #2
+        //we temporarily disable a finalizer on the fake chain, which serves to set up a proof of violation of rule #2
         fake_chain.vote_propagation = {1,0,0};
 
         //produce a block on a fake chain without propagating votes to all nodes
@@ -337,7 +339,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(real_chain_block_11_result.qc_data.qc.has_value());
         
         //Light client recorded the last QC on fake chain, which is over block #10. 
-        //Block #10 claims a QC over block #8, skipping #9. We provide fake block #10 and its QC.
+        //Block #10 claims a QC over block #8 (skipping #9). We provide fake block #10 and its QC.
         //We also provide the real block #9 and a QC over it, which is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof = prepare_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
