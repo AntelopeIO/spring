@@ -30,7 +30,7 @@ ACTION finality_violation::rule2(const finalizer_policy_input finalizer_policy, 
 
     block_timestamp timestamp_1 = proof_1.qc_block.level_3_commitments.value().timestamp;
     block_timestamp timestamp_2 = proof_2.qc_block.level_3_commitments.value().timestamp;
-    block_timestamp last_claim_timestamp_1 = proof_2.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
+    block_timestamp last_claim_timestamp_1 = proof_1.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
     block_timestamp last_claim_timestamp_2 = proof_2.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
     bool lessThanRule = last_claim_timestamp_2 < timestamp_1 && timestamp_1 < timestamp_2;
