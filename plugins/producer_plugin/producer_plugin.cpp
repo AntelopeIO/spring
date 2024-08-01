@@ -629,15 +629,16 @@ public:
    }
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
+                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes,
+                          uint32_t missed_block_num) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          auto now = fc::time_point::now();
          if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
             for (const auto& f : missing_votes) {
                if (_finalizers.contains(f.fin_auth->public_key)) {
-                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
-                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16)));
+                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id} for block ${m_n}",
+                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
                }
                not_voted += f.fin_auth->description;
                not_voted += ',';
@@ -678,11 +679,11 @@ public:
             const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
             if (_update_vote_block_metrics) {
                qc_vote_metrics_t vm = chain.vote_metrics(id, qc_ext.qc);
-               log_missing_votes(block, id, vm.missing_votes);
+               log_missing_votes(block, id, vm.missing_votes, qc_ext.qc.block_num);
                update_vote_block_metrics(block->block_num(), vm);
             } else {
                auto missing = chain.missing_votes(id, qc_ext.qc);
-               log_missing_votes(block, id, missing);
+               log_missing_votes(block, id, missing, qc_ext.qc.block_num);
             }
          } else if (block->is_proper_svnn_block()) {
             fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
