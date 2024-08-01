@@ -14,14 +14,11 @@ namespace finality_proof {
       qc_data_t qc_data;
       action_trace onblock_trace;
       finality_data_t finality_data;
-      uint32_t active_finalizer_policy_generation = 0;
-      uint32_t last_pending_finalizer_policy_generation = 0;
-      uint32_t last_proposed_finalizer_policy_generation = 0;
+      finalizer_policy active_finalizer_policy;
+      finalizer_policy last_pending_finalizer_policy;
+      finalizer_policy last_proposed_finalizer_policy;
       digest_type action_mroot; //this is the real action_mroot, as returned from finality_data
       digest_type base_digest;
-      digest_type active_finalizer_policy_digest;
-      digest_type last_pending_finalizer_policy_digest;
-      digest_type last_proposed_finalizer_policy_digest;
       block_timestamp_type last_pending_finalizer_policy_start_timestamp;
       digest_type finality_digest;
       level_3_commitments_t level_3_commitments;
@@ -320,15 +317,12 @@ namespace finality_proof {
             .qc_data = qc_data, 
             .onblock_trace = onblock_trace, 
             .finality_data = finality_data, 
-            .active_finalizer_policy_generation = active_finalizer_policy.generation, 
-            .last_pending_finalizer_policy_generation = last_pending_finalizer_policy.generation, 
-            .last_proposed_finalizer_policy_generation = last_proposed_finalizer_policy.generation, 
+            .active_finalizer_policy = active_finalizer_policy,
+            .last_pending_finalizer_policy = last_pending_finalizer_policy,
+            .last_proposed_finalizer_policy = last_proposed_finalizer_policy,
             .action_mroot = action_mroot, 
             .base_digest = base_digest, 
-            .active_finalizer_policy_digest = active_finalizer_policy_digest, 
-            .last_pending_finalizer_policy_digest = last_pending_finalizer_policy_digest, 
             .last_pending_finalizer_policy_start_timestamp = last_pending_finalizer_policy_start_timestamp,
-            .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
             .finality_digest = finality_digest, 
             .level_3_commitments = lvl3_commitments, 
             .level_2_commitments = lvl2_commitments, 
