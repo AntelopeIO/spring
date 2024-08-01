@@ -256,6 +256,19 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //verify the two chains are the same so far
         BOOST_TEST(fake_chain_block_4_result.finality_digest == real_chain_block_4_result.finality_digest);
 
+        //at this point, we can prepare some "invalid proofs" that the contract will reject
+        mutable_variant_object invalid_rule_1_proof_1 = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_3_result, 
+                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
+                                                                    real_chain_block_3_result, 
+                                                                    real_chain_block_4_result.qc_data.qc.value()); //same finality digest, not a violation proof
+
+        mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  fake_chain.active_finalizer_policy, 
+                                                                    fake_chain_block_3_result, 
+                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
+                                                                    real_chain_block_2_result, 
+                                                                    real_chain_block_3_result.qc_data.qc.value()); //different timestamps, not a violation proof
+
         //create a fork by pushing a transaction on the fake chain
         fake_chain.node0.push_action("eosio.token"_n, "transfer"_n, "user1"_n, user1_transfer);
 
@@ -282,25 +295,13 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //block #8 on the real chain contains a strong QC over a different block #7 than what the light client recorded from the fake chain
 
         //this is a rule #1 finality violation proof
+
         //it can be demonstrated by verifying that a strong QC on a block of a given timestamp conflicts with another strong QC on a different block of the same timestamp
         mutable_variant_object valid_rule_1_proof = prepare_proof(  fake_chain.active_finalizer_policy, 
                                                                     fake_chain_block_7_result, 
                                                                     fake_chain_block_8_result.qc_data.qc.value(), 
                                                                     real_chain_block_7_result, 
                                                                     real_chain_block_8_result.qc_data.qc.value());
-
-        //we also prepare a few invalid proofs, which the contract must reject
-        mutable_variant_object invalid_rule_1_proof_1 = prepare_proof(  fake_chain.active_finalizer_policy, 
-                                                                    fake_chain_block_3_result, 
-                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
-                                                                    real_chain_block_3_result, 
-                                                                    real_chain_block_4_result.qc_data.qc.value()); //same finality digest, not a violation proof
-
-        mutable_variant_object invalid_rule_1_proof_2 = prepare_proof(  fake_chain.active_finalizer_policy, 
-                                                                    fake_chain_block_3_result, 
-                                                                    fake_chain_block_4_result.qc_data.qc.value(), 
-                                                                    real_chain_block_4_result, 
-                                                                    real_chain_block_5_result.qc_data.qc.value()); //different timestamps, not a violation proof
 
         BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
         BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
