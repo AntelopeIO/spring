@@ -669,7 +669,8 @@ public:
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
-      chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
+      auto now = fc::time_point::now();
+      chain.get_mutable_subjective_billing().on_block(_log, block, now);
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -684,7 +685,7 @@ public:
                auto missing = chain.missing_votes(id, qc_ext.qc);
                log_missing_votes(block, id, missing);
             }
-         } else if (block->is_proper_svnn_block()) {
+         } else if (block->is_proper_svnn_block() && (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) ) {
             fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
                  ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
                  ("l", (fc::time_point::now() - block->timestamp).count() / 1000));
