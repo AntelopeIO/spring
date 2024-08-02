@@ -3744,8 +3744,8 @@ struct controller_impl {
       auto result =  bsp->aggregating_qc.vote_metrics(qc);
 
       // Populate block related information
-      result.voted_block_id        = bsp->id();
-      result.voted_block_timestamp = bsp->timestamp();
+      result.voted_for_block_id        = bsp->id();
+      result.voted_for_block_timestamp = bsp->timestamp();
 
       return result;
    }

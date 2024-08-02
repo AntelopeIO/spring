@@ -211,8 +211,8 @@ namespace eosio::chain {
       fin_auth_set_t       strong_votes;
       fin_auth_set_t       weak_votes;
       fin_auth_set_t       missing_votes;
-      block_timestamp_type voted_block_timestamp;
-      block_id_type        voted_block_id;
+      block_timestamp_type voted_for_block_timestamp;
+      block_id_type        voted_for_block_id;
    };
 
    /**

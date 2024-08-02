@@ -38,13 +38,13 @@ namespace eosio::chain_apis {
                   assert(f.fin_auth);
 
                   tracked_votes::vote_info v_info {
-                     .public_key               = f.fin_auth->public_key.to_string(),
-                     .description              = f.fin_auth->description,
-                     .is_vote_strong           = is_strong,
-                     .voted_policy_generation  = f.generation,
-                     .voted_block_id           = vm.voted_block_id,
-                     .voted_block_num          = chain::block_header::num_from_id(vm.voted_block_id),
-                     .voted_block_timestamp    = vm.voted_block_timestamp
+                     .description                  = f.fin_auth->description,
+                     .public_key                   = f.fin_auth->public_key.to_string(),
+                     .is_vote_strong               = is_strong,
+                     .finalizer_policy_generation  = f.generation,
+                     .voted_for_block_id           = vm.voted_for_block_id,
+                     .voted_for_block_num          = chain::block_header::num_from_id(vm.voted_for_block_id),
+                     .voted_for_block_timestamp    = vm.voted_for_block_timestamp
                   };
 
                   last_votes.emplace(f.fin_auth->public_key, std::move(v_info)); // track the voting information for the finalizer

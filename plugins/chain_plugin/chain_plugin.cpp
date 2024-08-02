@@ -1775,6 +1775,11 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
       }
    }
 
+   // Sort last_tracked_votes by description
+   std::sort( result.last_tracked_votes.begin(), result.last_tracked_votes.end(), []( const tracked_votes::vote_info& lhs, const tracked_votes::vote_info& rhs ) {
+      return lhs.description < rhs.description;
+   });
+
    return result;
 }
 
