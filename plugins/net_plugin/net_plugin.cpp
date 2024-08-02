@@ -2478,7 +2478,8 @@ namespace eosio {
          return;
       }
       c->latest_blk_time = std::chrono::system_clock::now();
-      c->block_status_monitor_.accepted();
+      if (blk_applied)
+         c->block_status_monitor_.accepted();
       if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
          // a peer will not send us a recent block unless it is synced
          c->peer_syncing_from_us = false;
