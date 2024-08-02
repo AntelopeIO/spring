@@ -1532,7 +1532,7 @@ namespace eosio {
             unknown_block = !my_id;
             on_fork = my_id != msg_head_id;
          } catch( ... ) {
-            on_fork = true;
+            unknown_block = true;
          }
       }
       if( unknown_block ) {
@@ -2350,7 +2350,7 @@ namespace eosio {
             if (fork_head_id) { // possible for LIB to move and fork_head_num not be found if running with no block-log
                on_fork = fork_head_id != msg.fork_head_id;
             }
-         } catch( ... ) { on_fork = true; }
+         } catch( ... ) {}
          if( on_fork ) {
             request_message req;
             req.req_blocks.mode = catch_up;
@@ -3528,7 +3528,6 @@ namespace eosio {
                }
             } catch( ... ) {
                peer_wlog( this, "caught an exception getting block id for ${pl}", ("pl", peer_lib) );
-               on_fork = true;
             }
             if( on_fork ) {
                peer_wlog( this, "Peer chain is forked, sending: forked go away" );
