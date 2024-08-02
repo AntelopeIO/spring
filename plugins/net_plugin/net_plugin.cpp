@@ -260,7 +260,7 @@ namespace eosio {
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
       bool is_in_sync() const { return sync_state == in_sync; }
       void sync_reset_lib_num( const connection_ptr& conn, bool closing );
-      void sync_reassign_fetch( const connection_ptr& c, go_away_reason reason );
+      void sync_reassign_fetch( const connection_ptr& c );
       void rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode );
       void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied,
                             const fc::microseconds& blk_latency );
@@ -958,8 +958,8 @@ namespace eosio {
       block_status_monitor    block_status_monitor_;
 
       alignas(hardware_destructive_interference_size)
-      fc::mutex                        response_expected_timer_mtx;
-      boost::asio::steady_timer        response_expected_timer GUARDED_BY(response_expected_timer_mtx);
+      fc::mutex                        sync_response_expected_timer_mtx;
+      boost::asio::steady_timer        sync_response_expected_timer GUARDED_BY(sync_response_expected_timer_mtx);
 
       alignas(hardware_destructive_interference_size)
       std::atomic<go_away_reason>      no_retry{no_reason};
@@ -1066,12 +1066,12 @@ namespace eosio {
       void enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
                            go_away_reason close_after_send,
                            bool to_sync_queue = false);
-      void cancel_sync(go_away_reason reason);
+      void cancel_sync();
       void flush_queues();
       bool enqueue_sync_block();
       void request_sync_blocks(uint32_t start, uint32_t end);
 
-      void cancel_wait();
+      void cancel_sync_wait();
       void sync_wait();
       void sync_timeout(boost::system::error_code ec);
 
@@ -1273,7 +1273,7 @@ namespace eosio {
         listen_address( listen_address ),
         log_p2p_address( endpoint ),
         connection_id( ++my_impl->current_connection_id ),
-        response_expected_timer( my_impl->thread_pool.get_executor() ),
+        sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
         last_handshake_recv(),
         last_handshake_sent(),
         p2p_address( endpoint )
@@ -1290,7 +1290,7 @@ namespace eosio {
         socket( new tcp::socket( std::move(s) ) ),
         listen_address( listen_address ),
         connection_id( ++my_impl->current_connection_id ),
-        response_expected_timer( my_impl->thread_pool.get_executor() ),
+        sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
         last_handshake_recv(),
         last_handshake_sent()
    {
@@ -1472,7 +1472,7 @@ namespace eosio {
       peer_requested.reset();
       sent_handshake_count = 0;
       if( !shutdown) my_impl->sync_master->sync_reset_lib_num( shared_from_this(), true );
-      cancel_wait();
+      cancel_sync_wait();
       sync_last_requested_block = 0;
       org = std::chrono::nanoseconds{0};
       latest_msg_time = std::chrono::system_clock::time_point::min();
@@ -1722,23 +1722,13 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::cancel_sync(go_away_reason reason) {
-      peer_dlog( this, "cancel sync reason = ${m}, write queue size ${o} bytes",
-                 ("m", reason_str( reason ))("o", buffer_queue.write_queue_size()) );
-      cancel_wait();
+   void connection::cancel_sync() {
+      peer_dlog( this, "cancel sync, write queue size ${o} bytes", ("o", buffer_queue.write_queue_size()) );
+      cancel_sync_wait();
       sync_last_requested_block = 0;
       flush_queues();
-      switch (reason) {
-      case validation :
-      case fatal_other : {
-         no_retry = reason;
-         enqueue( go_away_message( reason ));
-         break;
-      }
-      default:
-         peer_ilog(this, "sending empty request but not calling sync wait");
-         enqueue( ( sync_request_message ) {0,0} );
-      }
+      peer_ilog(this, "sending empty request but not calling sync wait");
+      enqueue( ( sync_request_message ) {0,0} );
    }
 
    // called from connection strand
@@ -1933,17 +1923,17 @@ namespace eosio {
    }
 
    // thread safe
-   void connection::cancel_wait() {
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.cancel();
+   void connection::cancel_sync_wait() {
+      fc::lock_guard g( sync_response_expected_timer_mtx );
+      sync_response_expected_timer.cancel();
    }
 
    // thread safe
    void connection::sync_wait() {
       connection_ptr c(shared_from_this());
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.expires_from_now( my_impl->resp_expected_period );
-      response_expected_timer.async_wait(
+      fc::lock_guard g( sync_response_expected_timer_mtx );
+      sync_response_expected_timer.expires_from_now( my_impl->resp_expected_period );
+      sync_response_expected_timer.async_wait(
             boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
                c->sync_timeout( ec );
             } ) );
@@ -1952,7 +1942,7 @@ namespace eosio {
    // called from connection strand
    void connection::sync_timeout( boost::system::error_code ec ) {
       if( !ec ) {
-         my_impl->sync_master->sync_reassign_fetch( shared_from_this(), benign_other );
+         my_impl->sync_master->sync_reassign_fetch( shared_from_this() );
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( this, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
@@ -2206,6 +2196,7 @@ namespace eosio {
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
+         c->sync_wait();
          return;
       }
 
@@ -2213,13 +2204,13 @@ namespace eosio {
    }
 
    // called from connection strand
-   void sync_manager::sync_reassign_fetch(const connection_ptr& c, go_away_reason reason) {
+   void sync_manager::sync_reassign_fetch(const connection_ptr& c) {
       fc::unique_lock g( sync_mtx );
       peer_ilog( c, "reassign_fetch, our last req is ${cc}, next expected is ${ne}",
                ("cc", sync_last_requested_num)("ne", sync_next_expected_num) );
 
       if( c == sync_source ) {
-         c->cancel_sync(reason);
+         c->cancel_sync();
          sync_last_requested_num = 0;
          request_next_chunk();
       }
@@ -2503,9 +2494,9 @@ namespace eosio {
          } else {
             if (!blk_applied) {
                if (blk_num >= c->sync_last_requested_block) {
-                  peer_dlog(c, "calling cancel_wait, block ${b}, sync_last_requested_block ${lrb}",
+                  peer_dlog(c, "calling cancel_sync_wait, block ${b}, sync_last_requested_block ${lrb}",
                             ("b", blk_num)("lrb", c->sync_last_requested_block));
-                  c->cancel_wait();
+                  c->cancel_sync_wait();
                } else {
                   peer_dlog(c, "calling sync_wait, block ${b}", ("b", blk_num));
                   c->sync_wait();
@@ -2552,9 +2543,12 @@ namespace eosio {
                }
             }
          }
-      } else {
-         if (blk_applied)
+      } else { // in_sync
+         if (blk_applied) {
             send_handshakes_if_synced(blk_latency);
+         } else {
+            c->cancel_sync_wait();
+         }
       }
    }
 
@@ -2702,8 +2696,6 @@ namespace eosio {
 
    // called from c's connection strand
    void dispatch_manager::recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum) {
-      peer_dlog(c, "canceling wait");
-      c->cancel_wait();
    }
 
    void dispatch_manager::rejected_block(const block_id_type& id) {
@@ -3062,10 +3054,9 @@ namespace eosio {
       const fc::microseconds age(fc::time_point::now() - bh.timestamp);
       // don't add_peer_block because we have not validated this block header yet
       if( my_impl->dispatcher.have_block( blk_id ) ) {
-         peer_dlog( this, "canceling wait, already received block ${num}, id ${id}..., latency ${l}ms",
+         peer_dlog( this, "already received block ${num}, id ${id}..., latency ${l}ms",
                     ("num", blk_num)("id", blk_id.str().substr(8,16))("l", age.count()/1000) );
          my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, false, age );
-         cancel_wait();
 
          pending_message_buffer.advance_read_ptr( message_length );
          return true;
@@ -3084,7 +3075,7 @@ namespace eosio {
                        ("lib", blk_num < last_sent_lib ? last_sent_lib : lib_num) );
             enqueue( (sync_request_message) {0, 0} );
             send_handshake();
-            cancel_wait();
+            cancel_sync_wait();
 
             pending_message_buffer.advance_read_ptr( message_length );
             return true;
@@ -3092,13 +3083,12 @@ namespace eosio {
       } else {
          block_sync_bytes_received += message_length;
          uint32_t lib_num = my_impl->get_chain_lib_num();
+         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, age);
          if( blk_num <= lib_num ) {
-            cancel_wait();
-
+            peer_dlog( this, "received block ${n} less than lib ${lib} while syncing", ("n", blk_num)("lib", lib_num) );
             pending_message_buffer.advance_read_ptr( message_length );
             return true;
          }
-         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, age);
       }
 
       auto ds = pending_message_buffer.create_datastream();
