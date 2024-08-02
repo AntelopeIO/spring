@@ -2191,12 +2191,11 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup ) {
+      if( sync_state != lib_catchup || !sync_source ) {
          set_state( lib_catchup );
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
-         c->sync_wait();
          return;
       }
 
