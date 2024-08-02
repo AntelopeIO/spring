@@ -276,8 +276,8 @@ namespace eosio::chain {
          // post-instant-finality this always returns nullptr
          const producer_authority_schedule*         pending_producers_legacy()const;
 
-         finalizer_policy_ptr              head_active_finalizer_policy()const; // returns nullptr pre-savanna, thread-safe
-         finalizer_policy_ptr              head_pending_finalizer_policy()const; // returns nullptr pre-savanna
+         finalizer_policy_ptr   head_active_finalizer_policy()const; // returns nullptr pre-savanna
+         finalizer_policy_ptr   head_pending_finalizer_policy()const; // returns nullptr pre-savanna
 
          /// Return the vote metrics for qc.block_num
          /// thread-safe
@@ -289,6 +289,8 @@ namespace eosio::chain {
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
          void set_savanna_lib_id(const block_id_type& id);
+
+         bool fork_db_has_root() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;

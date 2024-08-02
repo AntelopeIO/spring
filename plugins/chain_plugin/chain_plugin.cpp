@@ -1748,16 +1748,16 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
 
    // Finalizer keys present in active_finalizer_policy and pending_finalizer_policy.
    // Use std::set for eliminating duplications.
-   std::set<string> finalizer_keys;
+   std::set<fc::crypto::blslib::bls_public_key> finalizer_keys;
 
    // Populate a particular finalizer policy
    auto add_policy_to_result = [&](const finalizer_policy_ptr& from_policy, fc::variant& to_policy) {
       if (from_policy) {
          // Use string format of public key for easy uses
-         to_variant(finalizer_policy_with_string_key{*from_policy}, to_policy);
+         to_variant(*from_policy, to_policy);
 
          for (const auto& f: from_policy->finalizers) {
-            finalizer_keys.insert(f.public_key.to_string());
+            finalizer_keys.insert(f.public_key);
          }
       }
    };
@@ -1774,6 +1774,11 @@ read_only::get_finalizer_info_result read_only::get_finalizer_info( const read_o
          }
       }
    }
+
+   // Sort last_tracked_votes by description
+   std::sort( result.last_tracked_votes.begin(), result.last_tracked_votes.end(), []( const tracked_votes::vote_info& lhs, const tracked_votes::vote_info& rhs ) {
+      return lhs.description < rhs.description;
+   });
 
    return result;
 }

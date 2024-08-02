@@ -629,24 +629,25 @@ public:
    }
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
+                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes,
+                          uint32_t missed_block_num) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          auto now = fc::time_point::now();
          if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
             for (const auto& f : missing_votes) {
-               if (_finalizers.contains(f->public_key)) {
-                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
-                          ("f", f->description)("n", block->block_num())("id", id.str().substr(8,16)));
+               if (_finalizers.contains(f.fin_auth->public_key)) {
+                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote in block ${n} : ${id} for block ${m_n}",
+                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
                }
-               not_voted += f->description;
+               not_voted += f.fin_auth->description;
                not_voted += ',';
             }
             if (!not_voted.empty()) {
                not_voted.resize(not_voted.size() - 1); // remove ','
-               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes from finalizers: ${v}",
+               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes for block #${m_n} from finalizers: ${v}",
                     ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted));
+                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted)("m_n", missed_block_num));
             }
          }
       }
@@ -659,9 +660,9 @@ public:
       m.weak_votes.resize(vm.weak_votes.size());
       m.no_votes.resize(vm.missing_votes.size());
 
-      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f->description; });
+      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
       _update_vote_block_metrics(std::move(m));
    }
 
@@ -669,7 +670,8 @@ public:
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
-      chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
+      auto now = fc::time_point::now();
+      chain.get_mutable_subjective_billing().on_block(_log, block, now);
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -678,13 +680,13 @@ public:
             const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
             if (_update_vote_block_metrics) {
                qc_vote_metrics_t vm = chain.vote_metrics(id, qc_ext.qc);
-               log_missing_votes(block, id, vm.missing_votes);
+               log_missing_votes(block, id, vm.missing_votes, qc_ext.qc.block_num);
                update_vote_block_metrics(block->block_num(), vm);
             } else {
                auto missing = chain.missing_votes(id, qc_ext.qc);
-               log_missing_votes(block, id, missing);
+               log_missing_votes(block, id, missing, qc_ext.qc.block_num);
             }
-         } else if (block->is_proper_svnn_block()) {
+         } else if (block->is_proper_svnn_block() && (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) ) {
             fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
                  ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
                  ("l", (fc::time_point::now() - block->timestamp).count() / 1000));
