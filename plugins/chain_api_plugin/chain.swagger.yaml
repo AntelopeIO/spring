@@ -89,10 +89,10 @@ paths:
             application/json:
               schema:
                 $ref: "https://eosio.github.io/schemata/v2.1/oas/BlockInfo.yaml"
-  /get_finalizer_info_result:
+  /get_finalizer_info:
     post:
       description: Returns information about finalizers
-      operationId: get_finalizer_info_result
+      operationId: get_finalizer_info
       requestBody:
         required: true
         content:
@@ -114,7 +114,7 @@ paths:
                     properties:
                       generation:
                         type: integer
-                        description: version number of finalizers set
+                        description: generation number of finalizer policy
                         example: 1
                       threshold:
                         type: integer
@@ -128,7 +128,7 @@ paths:
                           properties:
                             'description':
                               type: string
-                              description: Name of finalizer, typicaly a producer acount
+                              description: Name of finalizer, typically a producer account
                               example: finalizerone
                             weight:
                               type: integer
@@ -144,7 +144,7 @@ paths:
                     properties:
                       generation:
                         type: integer
-                        description: version number of finalizers set
+                        description: generation number of finalizer policy
                         example: 2
                       threshold:
                         type: integer
@@ -158,7 +158,7 @@ paths:
                           properties:
                             'description':
                               type: string
-                              description: Name of finalizer, typicaly a producer acount
+                              description: Name of finalizer, typically a producer account
                               example: finalizerone
                             weight:
                               type: integer
@@ -185,19 +185,19 @@ paths:
                         is_vote_strong:
                           type: boolean
                           description: When true indicate strongly voted
-                        voted_policy_generation:
+                        finalizer_policy_generation:
                           type: integer
                           description: Policy Generation for vote
                           example: 2
-                        voted_block_id:
+                        voted_for_block_id:
                           type: string
                           description: Block id voted on
-                          example: 1234
-                        voted_block_num:
+                          example: "00003702056551dbabfab8ed499fb7d74850e92b9ac74d13b64ff2b161341c7a"
+                        voted_for_block_num:
                           type: integer
                           description: Block number voted on
-                          example: "00003702056551dbabfab8ed499fb7d74850e92b9ac74d13b64ff2b161341c7a"
-                        voted_block_timestamp:
+                          example: 1234
+                        voted_for_block_timestamp:
                           $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
                           description: Timestamp for the voted on block
 
