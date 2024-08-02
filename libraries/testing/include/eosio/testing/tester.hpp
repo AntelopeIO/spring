@@ -895,21 +895,21 @@ namespace eosio::testing {
       // different nodes should use different keys
       // OK to configure keys not used in a finalizer_policy
       // -------------------------------------------------------------
-      void set_node_finalizers(size_t first_key, size_t num_keys) {
-         node_first_key = first_key;
+      void set_node_finalizers(size_t first_key_index, size_t num_keys) {
+         node_first_key_idx = first_key_index;
          node_num_keys = num_keys;
-         t.set_node_finalizers({&key_names.at(first_key), num_keys});
+         t.set_node_finalizers({&key_names.at(first_key_index), num_keys});
       }
 
       void set_node_finalizers() {
          if (node_num_keys)
-            t.set_node_finalizers({&key_names.at(node_first_key), node_num_keys});
+            t.set_node_finalizers({&key_names.at(node_first_key_idx), node_num_keys});
       }
 
-      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
-      // ----------------------------------------------------------------------------------
-      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key) {
-         return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key_idx`
+      // --------------------------------------------------------------------------------------
+      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key_idx) {
+         return t.set_active_finalizers({&key_names.at(first_key_idx), fin_policy_size});
       }
 
       base_tester::set_finalizers_output_t  set_finalizer_policy(std::span<const size_t> indices) {
@@ -990,7 +990,7 @@ namespace eosio::testing {
       vector<bls_public_key>  pubkeys;
       vector<bls_private_key> privkeys;
       size_t                  fin_policy_size {0};
-      size_t                  node_first_key{0};
+      size_t                  node_first_key_idx{0};
       size_t                  node_num_keys{0};
    };
 
