@@ -57,7 +57,7 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    dlog("Genesis block number: ${b}", ("b",genesis_block->block_num()));
 
    A.produce_blocks(2);
-   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_block->block_num()); // make sure we are before the critical block
+   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_num()); // make sure we are before the critical block
 
    // partition network and produce blocks
    // ----------------------------------------
@@ -77,14 +77,14 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    // A produces 1 block. check that we have reached the critical block.
    // -----------------------------------------------------------------
    auto b = A.produce_block();
-   BOOST_REQUIRE_GE(A.lib_block->block_num(), genesis_block->block_num()); // lib has reached genesis block
+   BOOST_REQUIRE_GE(A.lib_num(), genesis_block->block_num()); // lib has reached genesis block
    BOOST_REQUIRE(b->is_proper_svnn_block());
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(4);  }));
    BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
-   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_block->block_num() + 2); // check that lib is 2 behind head
+   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + 2); // check that lib is 2 behind head
 
 } FC_LOG_AND_RETHROW()
 
@@ -117,14 +117,13 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
    // -------------------------
 
    // `genesis_block` is the first block where set_finalizers() was executed.
-   // It is the genesis block.
    // It will include the first header extension for the instant finality.
    // -----------------------------------------------------------------------
    auto genesis_block = A.produce_block();
    dlog("Genesis block number: ${b}", ("b",genesis_block->block_num()));
 
    A.produce_blocks(2);
-   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_block->block_num()); // make sure we are before the critical block
+   BOOST_REQUIRE_GT(genesis_block->block_num(), A.lib_num()); // make sure we are before the critical block
 
    // partition network and produce blocks
    // ----------------------------------------
@@ -133,7 +132,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
    A.produce_blocks(2);
 
    auto snapshot_C = C.snapshot();
-   A.produce_blocks(13);
+   A.produce_blocks(5);          // arbitrary number, should be less than 14 so we don't reach the critical block
 
    // we can't leave the blocks log as it doesn't contain the snapshot's head block.
    for (auto& N : failing_nodes) {
@@ -152,24 +151,31 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
       A.push_blocks_to(*N);
    }
 
-   // A produces 1 block. check that we have reached the critical block,
-   // -----------------------------------------------------------------
-   auto b = A.produce_block();
-   BOOST_REQUIRE_GE(A.lib_block->block_num(), genesis_block->block_num()); // lib has reached genesis block
-   BOOST_REQUIRE(!b->is_proper_svnn_block());                              // but not a proper savanna block yet
-   dlog("Critical block number: ${b}", ("b",b->block_num()));
+   // A produces blocks until we reach the critical block (i.e. until lib advances past the genesis block)
+   // ----------------------------------------------------------------------------------------------------
+   signed_block_ptr critical_block = nullptr;
+   while (A.lib_num() < genesis_block->block_num())
+      critical_block = A.produce_block();
+   BOOST_REQUIRE(!critical_block->is_proper_svnn_block());   // critical block is not a proper savanna block yet
+   dlog("Critical block number: ${b}", ("b",critical_block->block_num()));
 
    // A produces 1 block, which will be the first proper savanna block
-   // ----------------------------------------------------------------
-   b = A.produce_block();
+   // it will take 2 more blocks for lib to start advancing again according to Savanna consensus.
+   // -------------------------------------------------------------------------------------------
+   signed_block_ptr b = A.produce_block();
    BOOST_REQUIRE(b->is_proper_svnn_block());
    dlog("First proper block number: ${b}", ("b",b->block_num()));
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(2); }));
+   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(1); }));
+   BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { b = A.produce_blocks(1); }));
+   dlog("Lib starts advancing again according to Savanna consensus at block number: ${b}", ("b",b->block_num()));
+
+   // Check that lib keeps advancing when we produce blocks.
+   // ------------------------------------------------------
    BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
-   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_block->block_num() + num_chains_to_final); // check that lib is 2 behind head
+   BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + num_chains_to_final); // check that lib is 2 behind head
 } FC_LOG_AND_RETHROW()
 
 
