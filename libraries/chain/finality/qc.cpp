@@ -439,11 +439,12 @@ qc_vote_metrics_t aggregating_qc_t::vote_metrics(const qc_t& qc) const {
          if (votes[i]) {
             results.insert(qc_vote_metrics_t::fin_auth{
                   .fin_auth   = finalizer_authority_ptr{finalizer_policy, &finalizer_policy->finalizers[i]}, // use aliasing shared_ptr constructor
-                                                                                                           // add_policy_votes and add_votes in turn  is called on
-                                                                                                           // pending_finalizer_policy after on active_finalizer_policy.
-                                                                                                           // Therefore pending_finalizer_policy generation will be used
-                                                                                                           // for generation if the finalizer votes on both active and
-                                                                                                           // pending finalizer policies.
+
+                  // add_policy_votes and add_votes in turn is called on
+                  // pending_finalizer_policy after on active_finalizer_policy.
+                  // Therefore pending_finalizer_policy generation will be used
+                  // for generation if the finalizer votes on both active and
+                  // pending finalizer policies.
                   .generation = finalizer_policy->generation});
             ++added;
          }
