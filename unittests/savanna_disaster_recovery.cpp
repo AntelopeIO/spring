@@ -5,7 +5,10 @@ using namespace eosio::testing;
 
 BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery)
 
-// ---------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------
+// Check that a node can go down cleanly, restart from its existing state, and start voting
+// normally again.
+// ------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
@@ -18,7 +21,10 @@ BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
 } FC_LOG_AND_RETHROW()
 
 
-// ---------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------
+// Check that a node can go down, lose its state and fsi, restart from a snapshot using an old
+// saved fsi, and start voting normally again.
+// --------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_old_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
@@ -36,7 +42,10 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_old_fsi, savanna_cluster::clust
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
-// ---------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------
+// Check that a node can go down, lose its state and fsi, restart from a snapshot without a fsi, and
+// start voting normally again.
+// --------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_deleted_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
@@ -53,7 +62,10 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_deleted_fsi, savanna_cluster::c
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
 
-// ---------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------
+// Check that a node can go down, lose its state (but not its fsi), restart from a snapshot, and
+// start voting normally again.
+// -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_node_while_retaining_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
@@ -74,13 +86,16 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_while_retaining_fsi, savanna_cluster
 //                               All but one finalizers go down
 // ---------------------------------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
+// Check that three out of four nodes can go down cleanly, restart from their existing states, and
+// start voting normally again.
+// ------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(nodes_go_down, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
 
    for (auto& N : failing_nodes) N->close();
-   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // lib stalls with 3 finalizers down
+   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // lib stalls with 3 finalizers down, 1 QC in flight
    for (auto& N : failing_nodes) N->open();
    for (auto& N : failing_nodes) A.push_blocks_to(*N);
    BOOST_REQUIRE_EQUAL(7, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // all 4 finalizers should be back voting
@@ -88,7 +103,10 @@ BOOST_FIXTURE_TEST_CASE(nodes_go_down, savanna_cluster::cluster_t) try {
 } FC_LOG_AND_RETHROW()
 
 
-// ---------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------
+// Check that three out of four nodes can go down, lose their state and fsi, restart from a snapshot
+// using an old saved fsi, and start voting normally again.
+// --------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_old_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
@@ -101,7 +119,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_old_fsi, savanna_cluster::clus
    for (auto& N : failing_nodes) snapshots.push_back(N->snapshot());
    BOOST_REQUIRE_EQUAL(2, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
    for (auto& N : failing_nodes) N->close();
-   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down
+   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down, 1 QC in flight
    size_t i = 0;
    for (auto& N : failing_nodes) {
       N->remove_state();
@@ -115,6 +133,9 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_old_fsi, savanna_cluster::clus
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
+// Check that three out of four nodes can go down, lose their state and fsi, restart from a snapshot
+// without a fsi, and start voting normally again.
+// ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_deleted_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
@@ -125,7 +146,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_deleted_fsi, savanna_cluster::
    for (auto& N : failing_nodes) snapshots.push_back(N->snapshot());
    BOOST_REQUIRE_EQUAL(2, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
    for (auto& N : failing_nodes) N->close();
-   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down
+   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down, 1 QC in flight
    size_t i = 0;
    for (auto& N : failing_nodes) {
       N->remove_state();
@@ -139,6 +160,9 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_deleted_fsi, savanna_cluster::
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
+// Check that three out of four nodes can go down, lose their state (but not their fsi), restart from
+// a snapshot, and start voting normally again.
+// ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_while_retaining_fsi, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    std::array<savanna_cluster::node_t*, 3> failing_nodes { &B, &C, &D };
@@ -149,7 +173,7 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_while_retaining_fsi, savanna_cluste
    for (auto& N : failing_nodes) snapshots.push_back(N->snapshot());
    BOOST_REQUIRE_EQUAL(2, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
    for (auto& N : failing_nodes) N->close();
-   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down
+   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls 3 finalizers down, 1 QC in flight
    size_t i = 0;
    for (auto& N : failing_nodes) {
       N->remove_state();
@@ -165,6 +189,10 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_while_retaining_fsi, savanna_cluste
 //                      All nodes are shutdown with reversible blocks lost
 // ---------------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------------
+// Check that after the network of 4 nodes becomes split 2/2, and that one side produces two more
+// blocks with finality stalling, all nodes can go down with their reversible blocks lost and restart
+// from an older snapshot.
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
@@ -195,7 +223,7 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    // -------------------------------------------------------------------------------------
    const std::vector<size_t> partition {2, 3};
    set_partition(partition);
-   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls with network partitioned
+   BOOST_REQUIRE_EQUAL(1, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls with network partitioned, 1 QC in flight
 
    // remove network split
    // --------------------
