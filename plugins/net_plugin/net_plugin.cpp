@@ -2113,6 +2113,7 @@ namespace eosio {
       }
       if (conns.size() == 1) { // only one available
          ++sync_ordinal;
+         fc_dlog(logger, "sync from ${c}", ("c", conns.front()->connection_id));
          conns.front()->sync_ordinal = sync_ordinal.load();
          return conns.front();
       }
@@ -2155,23 +2156,27 @@ namespace eosio {
        * a provider is supplied and able to be used, use it.
        * otherwise select the next available from the list, round-robin style.
        */
+      connection_ptr new_sync_source = (conn && conn->current()) ? conn : find_next_sync_node();
 
-      connection_ptr new_sync_source = (conn && conn->current()) ? conn :
-                                                                 find_next_sync_node();
+      auto reset_on_failure = [&]() {
+         sync_source.reset();
+         sync_known_lib_num = chain_info.lib_num;
+         sync_last_requested_num = 0;
+         // not in sync, but need to be out of lib_catchup for start_sync to work
+         set_state( in_sync );
+         send_handshakes();
+      };
 
       // verify there is an available source
       if( !new_sync_source ) {
          fc_wlog( logger, "Unable to continue syncing at this time");
-         sync_source.reset();
-         sync_known_lib_num = chain_info.lib_num;
-         sync_last_requested_num = 0;
-         set_state( in_sync ); // probably not, but we can't do anything else
+         reset_on_failure();
          return;
       }
 
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
-         uint32_t start = sync_next_expected_num;
+         uint32_t start = std::min(sync_next_expected_num, chain_info.lib_num+1);
          uint32_t end = start + sync_req_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
@@ -2186,10 +2191,8 @@ namespace eosio {
          }
       }
       if( !request_sent ) {
-         sync_source.reset();
          fc_wlog(logger, "Unable to request range, sending handshakes to everyone");
-         set_state( in_sync ); // need to be out of lib_catchup so start_sync will work
-         send_handshakes();
+         reset_on_failure();
       }
    }
 
