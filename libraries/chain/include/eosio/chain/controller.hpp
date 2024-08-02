@@ -276,9 +276,8 @@ namespace eosio::chain {
          // post-instant-finality this always returns nullptr
          const producer_authority_schedule*         pending_producers_legacy()const;
 
-         // returns nullptr pre-savanna
-         finalizer_policy_ptr                       head_active_finalizer_policy()const;
-         // returns nullptr pre-savanna, thread-safe, block_num according to branch corresponding to id
+         finalizer_policy_ptr   head_active_finalizer_policy()const; // returns nullptr pre-savanna
+         finalizer_policy_ptr   head_pending_finalizer_policy()const; // returns nullptr pre-savanna
 
          /// Return the vote metrics for qc.block_num
          /// thread-safe

@@ -3739,7 +3739,15 @@ struct controller_impl {
       block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
       if (!bsp)
          return {};
-      return bsp->aggregating_qc.vote_metrics(qc);
+
+      // Get voting metrics from QC
+      auto result =  bsp->aggregating_qc.vote_metrics(qc);
+
+      // Populate block related information
+      result.voted_for_block_id        = bsp->id();
+      result.voted_for_block_timestamp = bsp->timestamp();
+
+      return result;
    }
 
 
@@ -5466,6 +5474,12 @@ const producer_authority_schedule* controller::next_producers()const {
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {
    return block_handle_accessor::apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
       return head->active_finalizer_policy;
+   });
+}
+
+finalizer_policy_ptr controller::head_pending_finalizer_policy()const {
+   return block_handle_accessor::apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+      return (head->pending_finalizer_policy ? head->pending_finalizer_policy->second : nullptr);
    });
 }
 
