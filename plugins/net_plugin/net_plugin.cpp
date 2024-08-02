@@ -2343,11 +2343,14 @@ namespace eosio {
             c->enqueue( note );
          }
          c->peer_syncing_from_us = false;
-         bool on_fork = true;
+         bool on_fork = false;
          try {
             controller& cc = my_impl->chain_plug->chain();
-            on_fork = cc.fork_block_id_for_num( msg.fork_head_num ) != msg.fork_head_id; // thread-safe
-         } catch( ... ) {}
+            std::optional<block_id_type> fork_head_id = cc.fork_block_id_for_num( msg.fork_head_num ); // thread-safe
+            if (fork_head_id) { // possible for LIB to move and fork_head_num not be found if running with no block-log
+               on_fork = fork_head_id != msg.fork_head_id;
+            }
+         } catch( ... ) { on_fork = true; }
          if( on_fork ) {
             request_message req;
             req.req_blocks.mode = catch_up;
@@ -3518,9 +3521,11 @@ namespace eosio {
                controller& cc = my_impl->chain_plug->chain();
                std::optional<block_id_type> peer_lib_id = cc.fork_block_id_for_num( peer_lib ); // thread-safe
                if (!peer_lib_id) {
+                  // can be not found if running with a truncated block log
                   peer_dlog( this, "peer last irreversible block ${pl} is unknown", ("pl", peer_lib) );
+               } else {
+                  on_fork = msg.last_irreversible_block_id != peer_lib_id;
                }
-               on_fork = (msg.last_irreversible_block_id != peer_lib_id);
             } catch( ... ) {
                peer_wlog( this, "caught an exception getting block id for ${pl}", ("pl", peer_lib) );
                on_fork = true;
