@@ -9,10 +9,10 @@ BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery)
 BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2];
 
-   C.close();
+   C.close();                                                                  // shutdown node C
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(4);  }), 4); // lib still advances with 3 finalizers
-   C.open();
-   A.push_blocks_to(C);
+   C.open();                                                                   // restart node C
+   A.push_blocks_to(C);                                                        // propagate blocks A -> C
    BOOST_REQUIRE_EQUAL(A.lib_advances_by([&]() { A.produce_blocks(4);  }), 4); // all 4 finalizers should be back voting
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
