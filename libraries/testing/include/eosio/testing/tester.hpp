@@ -906,10 +906,10 @@ namespace eosio::testing {
             t.set_node_finalizers({&key_names.at(node_first_key_idx), node_num_keys});
       }
 
-      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
-      // ----------------------------------------------------------------------------------
-      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key) {
-         return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key_idx`
+      // --------------------------------------------------------------------------------------
+      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key_idx) {
+         return t.set_active_finalizers({&key_names.at(first_key_idx), fin_policy_size});
       }
 
       base_tester::set_finalizers_output_t  set_finalizer_policy(std::span<const size_t> indices) {
