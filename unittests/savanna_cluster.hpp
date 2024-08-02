@@ -85,7 +85,7 @@ namespace savanna_cluster {
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
          auto genesis_block_num = genesis_block->block_num();
-         while(genesis_block_num > lib_block->block_num())
+         while(genesis_block_num > lib_num())
             critical_block = produce_block();
 
          // Blocks after the critical block are proper IF blocks.
@@ -96,7 +96,7 @@ namespace savanna_cluster {
          // wait till the first proper block becomes irreversible. Transition will be done then
          // -----------------------------------------------------------------------------------
          signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
-         while(first_proper_block->block_num() > lib_block->block_num()) {
+         while(first_proper_block->block_num() > lib_num()) {
             pt_block = produce_block();
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
          }
@@ -106,7 +106,7 @@ namespace savanna_cluster {
          for (size_t i=0; i<num_chains_to_final; ++i)
             auto b = produce_block();
 
-         BOOST_REQUIRE_EQUAL(lib_block->block_num(), pt_block->block_num());
+         BOOST_REQUIRE_EQUAL(lib_num(), pt_block->block_num());
       }
 
       // updates producers (producer updates will be propagated to connected nodes), and
