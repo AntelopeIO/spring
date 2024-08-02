@@ -2349,6 +2349,10 @@ namespace eosio {
             std::optional<block_id_type> fork_head_id = cc.fork_block_id_for_num( msg.fork_head_num ); // thread-safe
             if (fork_head_id) { // possible for LIB to move and fork_head_num not be found if running with no block-log
                on_fork = fork_head_id != msg.fork_head_id;
+               if (on_fork) {
+                  peer_dlog(c, "Sending catch_up request_message sync 4, fhead ${fh} != msg.fhead ${mfh}",
+                            ("fh", *fork_head_id)("mfh", msg.fork_head_id));
+               }
             }
          } catch( ... ) {}
          if( on_fork ) {
