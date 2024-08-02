@@ -295,8 +295,6 @@ namespace eosio {
       void expire_blocks( uint32_t lib_num );
       void recv_notice(const connection_ptr& conn, const notice_message& msg, bool generated);
 
-      void retry_fetch(const connection_ptr& conn);
-
       bool add_peer_block( const block_id_type& blkid, uint32_t connection_id );
       bool peer_has_block(const block_id_type& blkid, uint32_t connection_id) const;
       bool have_block(const block_id_type& blkid) const;
@@ -967,8 +965,7 @@ namespace eosio {
       std::atomic<go_away_reason>      no_retry{no_reason};
 
       alignas(hardware_destructive_interference_size)
-      mutable fc::mutex                conn_mtx; //< mtx for last_req .. remote_endpoint_ip
-      std::optional<request_message>   last_req            GUARDED_BY(conn_mtx);
+      mutable fc::mutex                conn_mtx; //< mtx for last_handshake_recv .. remote_endpoint_ip
       handshake_message                last_handshake_recv GUARDED_BY(conn_mtx);
       handshake_message                last_handshake_sent GUARDED_BY(conn_mtx);
       block_id_type                    conn_fork_head      GUARDED_BY(conn_mtx);
@@ -1076,9 +1073,7 @@ namespace eosio {
 
       void cancel_wait();
       void sync_wait();
-      void fetch_wait();
       void sync_timeout(boost::system::error_code ec);
-      void fetch_timeout(boost::system::error_code ec);
 
       void queue_write(const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback,
@@ -1466,17 +1461,12 @@ namespace eosio {
       peer_syncing_from_us = false;
       block_status_monitor_.reset();
       ++consecutive_immediate_connection_close;
-      bool has_last_req = false;
       {
          fc::lock_guard g_conn( conn_mtx );
-         has_last_req = last_req.has_value();
          last_handshake_recv = handshake_message();
          last_handshake_sent = handshake_message();
          last_close = fc::time_point::now();
          conn_node_id = fc::sha256();
-      }
-      if( has_last_req && !shutdown ) {
-         my_impl->dispatcher.retry_fetch( shared_from_this() );
       }
       peer_lib_num = 0;
       peer_requested.reset();
@@ -1959,17 +1949,6 @@ namespace eosio {
             } ) );
    }
 
-   // thread safe
-   void connection::fetch_wait() {
-      connection_ptr c( shared_from_this() );
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.expires_from_now( my_impl->resp_expected_period );
-      response_expected_timer.async_wait(
-            boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
-               c->fetch_timeout(ec);
-            } ) );
-   }
-
    // called from connection strand
    void connection::sync_timeout( boost::system::error_code ec ) {
       if( !ec ) {
@@ -1977,15 +1956,6 @@ namespace eosio {
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( this, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
-      }
-   }
-
-   // called from connection strand
-   void connection::fetch_timeout( boost::system::error_code ec ) {
-      if( !ec ) {
-         my_impl->dispatcher.retry_fetch( shared_from_this() );
-      } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
-         peer_elog( this, "setting timer for fetch request got error ${ec}", ("ec", ec.message() ) );
       }
    }
 
@@ -2730,17 +2700,6 @@ namespace eosio {
 
    // called from c's connection strand
    void dispatch_manager::recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum) {
-      fc::unique_lock g( c->conn_mtx );
-      if (c &&
-          c->last_req &&
-          c->last_req->req_blocks.mode != none &&
-          !c->last_req->req_blocks.ids.empty() &&
-          c->last_req->req_blocks.ids.back() == id) {
-         peer_dlog( c, "resetting last_req" );
-         c->last_req.reset();
-      }
-      g.unlock();
-
       peer_dlog(c, "canceling wait");
       c->cancel_wait();
    }
@@ -2792,60 +2751,6 @@ namespace eosio {
       } else if (msg.known_blocks.mode != none) {
          peer_wlog( c, "passed a notice_message with something other than a normal on none known_blocks" );
          return;
-      }
-   }
-
-   // called from c's connection strand
-   void dispatch_manager::retry_fetch(const connection_ptr& c) {
-      peer_dlog( c, "retry fetch" );
-      request_message last_req;
-      block_id_type bid;
-      {
-         fc::lock_guard g_c_conn( c->conn_mtx );
-         if( !c->last_req ) {
-            return;
-         }
-         peer_wlog( c, "failed to fetch from peer" );
-         if( c->last_req->req_blocks.mode == normal && !c->last_req->req_blocks.ids.empty() ) {
-            bid = c->last_req->req_blocks.ids.back();
-         } else {
-            peer_wlog( c, "no retry, block mpde = ${b} trx mode = ${t}",
-                       ("b", modes_str( c->last_req->req_blocks.mode ))( "t", modes_str( c->last_req->req_trx.mode ) ) );
-            return;
-         }
-         last_req = *c->last_req;
-      }
-      auto request_from_peer = [this, &c, &last_req, &bid]( auto& conn ) {
-         if( conn == c )
-            return false;
-
-         {
-            fc::lock_guard guard( conn->conn_mtx );
-            if( conn->last_req ) {
-               return false;
-            }
-         }
-
-         bool sendit = peer_has_block( bid, conn->connection_id );
-         if( sendit ) {
-            conn->strand.post( [conn, last_req{std::move(last_req)}]() {
-               conn->enqueue( last_req );
-               conn->fetch_wait();
-               fc::lock_guard g_conn_conn( conn->conn_mtx );
-               conn->last_req = last_req;
-            } );
-            return true;
-         }
-         return false;
-      };
-
-      if (!my_impl->connections.any_of_block_connections(request_from_peer)) {
-         // at this point no other peer has it, re-request or do nothing?
-         peer_wlog(c, "no peer has last_req");
-         if (c->connected()) {
-            c->enqueue(last_req);
-            c->fetch_wait();
-         }
       }
    }
 
