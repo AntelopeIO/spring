@@ -2550,22 +2550,22 @@ namespace eosio {
                   }
                }
                if (blk_num >= sync_known_lib_num) {
-                  peer_dlog(c, "received non-applied block ${bn} > ${kn}, will send handshakes when caught up",
+                  peer_dlog(c, "received non-applied block ${bn} >= ${kn}, will send handshakes when caught up",
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
-               }
-
-               // use chain head instead of fork head so we do not get too far ahead of applied blocks
-               uint32_t head = my_impl->get_chain_head_num();
-               // do not allow to get too far ahead (one sync_req_span) of chain head
-               if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
-                  // block was not applied, possibly because we already have the block
-                  fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                          ("bn", blk_num)("nen", sync_next_expected_num)
-                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                  request_next_chunk();
+               } else {
+                  // use chain head instead of fork head so we do not get too far ahead of applied blocks
+                  uint32_t head = my_impl->get_chain_head_num();
+                  // do not allow to get too far ahead (one sync_req_span) of chain head
+                  if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
+                     // block was not applied, possibly because we already have the block
+                     fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("bn", blk_num)("nen", sync_next_expected_num)
+                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                     request_next_chunk();
+                  }
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
