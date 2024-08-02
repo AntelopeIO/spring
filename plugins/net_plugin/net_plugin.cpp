@@ -2158,7 +2158,7 @@ namespace eosio {
        */
       connection_ptr new_sync_source = (conn && conn->current()) ? conn : find_next_sync_node();
 
-      auto reset_on_failure = [&]() {
+      auto reset_on_failure = [&]() REQUIRES(sync_mtx) {
          sync_source.reset();
          sync_known_lib_num = chain_info.lib_num;
          sync_last_requested_num = 0;
