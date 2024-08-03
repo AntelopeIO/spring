@@ -2549,9 +2549,6 @@ namespace eosio {
       } else { // in_sync
          if (blk_applied) {
             send_handshakes_if_synced(blk_latency);
-         } else {
-            peer_dlog(c, "in_sync, cancel_sync_wait");
-            c->cancel_sync_wait();
          }
       }
    }
