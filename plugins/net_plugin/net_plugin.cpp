@@ -1723,7 +1723,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::cancel_sync() {
-      peer_dlog( this, "cancel sync, write queue size ${o} bytes", ("o", buffer_queue.write_queue_size()) );
+      peer_dlog( this, "cancel sync_wait, write queue size ${o} bytes", ("o", buffer_queue.write_queue_size()) );
       cancel_sync_wait();
       sync_last_requested_block = 0;
       flush_queues();
@@ -1942,6 +1942,7 @@ namespace eosio {
    // called from connection strand
    void connection::sync_timeout( boost::system::error_code ec ) {
       if( !ec ) {
+         peer_dlog(this, "sync timeout");
          my_impl->sync_master->sync_reassign_fetch( shared_from_this() );
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
@@ -1954,6 +1955,7 @@ namespace eosio {
       sync_last_requested_block = end;
       sync_request_message srm = {start,end};
       enqueue( net_message(srm) );
+      peer_dlog(this, "calling sync_wait, sync_request_message ${s} - ${e}", ("s", start)("e", end));
       sync_wait();
    }
 
@@ -2206,10 +2208,9 @@ namespace eosio {
    // called from connection strand
    void sync_manager::sync_reassign_fetch(const connection_ptr& c) {
       fc::unique_lock g( sync_mtx );
-      peer_ilog( c, "reassign_fetch, our last req is ${cc}, next expected is ${ne}",
-               ("cc", sync_last_requested_num)("ne", sync_next_expected_num) );
-
       if( c == sync_source ) {
+         peer_ilog(c, "reassign_fetch, our last req is ${cc}, next expected is ${ne}",
+                   ("cc", sync_last_requested_num)("ne", sync_next_expected_num));
          c->cancel_sync();
          auto lib = my_impl->get_chain_lib_num();
          sync_last_requested_num = 0;
@@ -2549,6 +2550,7 @@ namespace eosio {
          if (blk_applied) {
             send_handshakes_if_synced(blk_latency);
          } else {
+            peer_dlog(c, "in_sync, cancel_sync_wait");
             c->cancel_sync_wait();
          }
       }
