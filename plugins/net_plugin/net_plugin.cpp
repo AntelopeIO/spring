@@ -2136,7 +2136,7 @@ namespace eosio {
 
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
-         uint32_t start = sync_next_expected_num;
+         uint32_t start = std::max(sync_next_expected_num, chain_info.lib_num+1);
          uint32_t end = start + sync_req_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
