@@ -2039,10 +2039,11 @@ namespace eosio {
 
          // if closing the connection we are currently syncing from then request from a diff peer
          if( c == sync_source ) {
-            sync_last_requested_num = 0;
             // if starting to sync need to always start from lib as we might be on our own fork
             uint32_t lib_num = my_impl->get_chain_lib_num();
+            sync_last_requested_num = 0;
             sync_next_expected_num = std::max( lib_num + 1, sync_next_expected_num );
+            sync_source.reset();
             request_next_chunk();
          }
       }
@@ -2122,6 +2123,7 @@ namespace eosio {
          sync_source.reset();
          sync_known_lib_num = chain_info.lib_num;
          sync_last_requested_num = 0;
+         sync_next_expected_num = std::max( sync_known_lib_num + 1, sync_next_expected_num );
          // not in sync, but need to be out of lib_catchup for start_sync to work
          set_state( in_sync );
          send_handshakes();
@@ -2136,7 +2138,7 @@ namespace eosio {
 
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
-         uint32_t start = std::max(sync_next_expected_num, chain_info.lib_num+1);
+         uint32_t start = sync_next_expected_num;
          uint32_t end = start + sync_req_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
@@ -2191,6 +2193,7 @@ namespace eosio {
 
       if( sync_state != lib_catchup || !sync_source ) {
          set_state( lib_catchup );
+         sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2208,7 +2211,9 @@ namespace eosio {
 
       if( c == sync_source ) {
          c->cancel_sync();
+         auto lib = my_impl->get_chain_lib_num();
          sync_last_requested_num = 0;
+         sync_next_expected_num = std::max(sync_next_expected_num, lib + 1);
          request_next_chunk();
       }
    }
