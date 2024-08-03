@@ -271,7 +271,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_end_of_transition_while_preserv
 
 // ---------------------------------------------------------------------------------------------------
 // Verify that Savanna transition works correctly even if the network splits a couple blocks after the
-// genesis block, and some nodes go down and restart from a snapshot
+// genesis block, and some nodes go down and restart from a snapshot with no fsi file.
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_with_lost_fsi,
                         savanna_cluster::pre_transition_cluster_t) try {
