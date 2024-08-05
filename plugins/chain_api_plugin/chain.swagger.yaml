@@ -174,14 +174,14 @@ paths:
                     items:
                       type: object
                       properties:
-                        public_key:
-                          type: string
-                          description: BLS Public Key for finalizer
-                          example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
                         description:
                           type: string
                           description: Description of finalizer
                           example: finalizerone
+                        public_key:
+                          type: string
+                          description: BLS Public Key for finalizer
+                          example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
                         is_vote_strong:
                           type: boolean
                           description: When true indicate strongly voted
