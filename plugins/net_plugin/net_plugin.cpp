@@ -2215,6 +2215,7 @@ namespace eosio {
          auto lib = my_impl->get_chain_lib_num();
          sync_last_requested_num = 0;
          sync_next_expected_num = std::max(sync_next_expected_num, lib + 1);
+         sync_source.reset();
          request_next_chunk();
       }
    }
@@ -2499,6 +2500,7 @@ namespace eosio {
                if (blk_num >= c->sync_last_requested_block) {
                   peer_dlog(c, "calling cancel_sync_wait, block ${b}, sync_last_requested_block ${lrb}",
                             ("b", blk_num)("lrb", c->sync_last_requested_block));
+                  sync_source.reset();
                   c->cancel_sync_wait();
                } else {
                   peer_dlog(c, "calling sync_wait, block ${b}", ("b", blk_num));
