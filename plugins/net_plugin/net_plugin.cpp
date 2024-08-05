@@ -1532,7 +1532,7 @@ namespace eosio {
             unknown_block = !my_id;
             on_fork = my_id != msg_head_id;
          } catch( ... ) {
-            on_fork = true;
+            unknown_block = true;
          }
       }
       if( unknown_block ) {
@@ -2343,17 +2343,18 @@ namespace eosio {
             c->enqueue( note );
          }
          c->peer_syncing_from_us = false;
-         bool on_fork = true;
          try {
             controller& cc = my_impl->chain_plug->chain();
-            on_fork = cc.fork_block_id_for_num( msg.fork_head_num ) != msg.fork_head_id; // thread-safe
+            std::optional<block_id_type> fork_head_id = cc.fork_block_id_for_num( msg.fork_head_num ); // thread-safe
+            if (fork_head_id && fork_head_id != msg.fork_head_id) { // possible for LIB to move and fork_head_num not be found if running with no block-log
+               peer_dlog(c, "Sending catch_up request_message sync 4, fhead ${fh} != msg.fhead ${mfh}",
+                         ("fh", *fork_head_id)("mfh", msg.fork_head_id));
+               request_message req;
+               req.req_blocks.mode = catch_up;
+               req.req_trx.mode = none;
+               c->enqueue( req );
+            }
          } catch( ... ) {}
-         if( on_fork ) {
-            request_message req;
-            req.req_blocks.mode = catch_up;
-            req.req_trx.mode = none;
-            c->enqueue( req );
-         }
          return;
       } else {
          c->peer_syncing_from_us = false;
@@ -3513,22 +3514,19 @@ namespace eosio {
          peer_dlog( this, "handshake check lib_num = ${ln}, peer_lib = ${pl}", ("ln", lib_num)("pl", peer_lib) );
 
          if( peer_lib <= lib_num && peer_lib > 0 ) {
-            bool on_fork = false;
             try {
                controller& cc = my_impl->chain_plug->chain();
                std::optional<block_id_type> peer_lib_id = cc.fork_block_id_for_num( peer_lib ); // thread-safe
                if (!peer_lib_id) {
+                  // can be not found if running with a truncated block log
                   peer_dlog( this, "peer last irreversible block ${pl} is unknown", ("pl", peer_lib) );
+               } else if (msg.last_irreversible_block_id != peer_lib_id) {
+                  peer_wlog( this, "Peer chain is forked, sending: forked go away" );
+                  no_retry = go_away_reason::forked;
+                  enqueue( go_away_message( go_away_reason::forked ) );
                }
-               on_fork = (msg.last_irreversible_block_id != peer_lib_id);
             } catch( ... ) {
                peer_wlog( this, "caught an exception getting block id for ${pl}", ("pl", peer_lib) );
-               on_fork = true;
-            }
-            if( on_fork ) {
-               peer_wlog( this, "Peer chain is forked, sending: forked go away" );
-               no_retry = go_away_reason::forked;
-               enqueue( go_away_message( go_away_reason::forked ) );
             }
          }
 
