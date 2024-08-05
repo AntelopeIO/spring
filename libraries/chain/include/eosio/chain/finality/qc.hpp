@@ -109,7 +109,7 @@ namespace eosio::chain {
          friend struct fc::has_reflector_init<votes_t>;
          friend class aggregating_qc_sig_t;
          struct bit_processed {
-            alignas(hardware_destructive_interference_size)
+            alignas(hardware_destructive_interference_sz)
             std::atomic<bool> value;
          };
 
