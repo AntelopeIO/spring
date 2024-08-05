@@ -22,7 +22,7 @@ BOOST_FIXTURE_TEST_CASE(straightforward_transition,
    A.transition_to_savanna({&_fin_keys[0], num_nodes()});
 
    // A produces blocks, verify lib advances
-   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
 
    // verify that lib has stalled
    // ---------------------------
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(10);  }));
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() { A.produce_blocks(10);  }));
 
    // remove network split
    // --------------------
@@ -84,7 +84,7 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { A.produce_blocks(4);  }));
-   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
    BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + 2); // check that lib is 2 behind head
 
 } FC_LOG_AND_RETHROW()
@@ -171,13 +171,13 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(1); }));
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() { A.produce_blocks(1); }));
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { b = A.produce_blocks(1); }));
    dlog("Lib starts advancing again according to Savanna consensus at block number: ${b}", ("b",b->block_num()));
 
    // Check that lib keeps advancing when we produce blocks.
    // ------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
    BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + num_chains_to_final); // check that lib is 2 behind head
 } FC_LOG_AND_RETHROW()
 
@@ -258,13 +258,13 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_end_of_transition_while_preserv
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(1); }));
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() { A.produce_blocks(1); }));
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { b = A.produce_blocks(1); }));
    dlog("Lib starts advancing again according to Savanna consensus at block number: ${b}", ("b",b->block_num()));
 
    // Check that lib keeps advancing when we produce blocks.
    // ------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
    BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + num_chains_to_final); // check that lib is 2 behind head
 } FC_LOG_AND_RETHROW()
 
@@ -351,13 +351,13 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_with_lo
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
    // -------------------------------------------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() { A.produce_blocks(1); }));
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() { A.produce_blocks(1); }));
    BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { b = A.produce_blocks(1); }));
    dlog("Lib starts advancing again according to Savanna consensus at block number: ${b}", ("b",b->block_num()));
 
    // Check that lib keeps advancing when we produce blocks.
    // ------------------------------------------------------
-   BOOST_REQUIRE_EQUAL(3, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
    BOOST_REQUIRE_EQUAL(A.head().block_num(), A.lib_num() + num_chains_to_final); // check that lib is 2 behind head
 } FC_LOG_AND_RETHROW()
 
