@@ -260,7 +260,7 @@ namespace eosio {
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
       bool is_in_sync() const { return sync_state == in_sync; }
       void sync_reset_lib_num( const connection_ptr& conn, bool closing );
-      void sync_reassign_fetch( const connection_ptr& c, go_away_reason reason );
+      void sync_reassign_fetch( const connection_ptr& c );
       void rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode );
       void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied,
                             const fc::microseconds& blk_latency );
@@ -294,8 +294,6 @@ namespace eosio {
       void recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum);
       void expire_blocks( uint32_t lib_num );
       void recv_notice(const connection_ptr& conn, const notice_message& msg, bool generated);
-
-      void retry_fetch(const connection_ptr& conn);
 
       bool add_peer_block( const block_id_type& blkid, uint32_t connection_id );
       bool peer_has_block(const block_id_type& blkid, uint32_t connection_id) const;
@@ -960,15 +958,14 @@ namespace eosio {
       block_status_monitor    block_status_monitor_;
 
       alignas(hardware_destructive_interference_size)
-      fc::mutex                        response_expected_timer_mtx;
-      boost::asio::steady_timer        response_expected_timer GUARDED_BY(response_expected_timer_mtx);
+      fc::mutex                        sync_response_expected_timer_mtx;
+      boost::asio::steady_timer        sync_response_expected_timer GUARDED_BY(sync_response_expected_timer_mtx);
 
       alignas(hardware_destructive_interference_size)
       std::atomic<go_away_reason>      no_retry{no_reason};
 
       alignas(hardware_destructive_interference_size)
-      mutable fc::mutex                conn_mtx; //< mtx for last_req .. remote_endpoint_ip
-      std::optional<request_message>   last_req            GUARDED_BY(conn_mtx);
+      mutable fc::mutex                conn_mtx; //< mtx for last_handshake_recv .. remote_endpoint_ip
       handshake_message                last_handshake_recv GUARDED_BY(conn_mtx);
       handshake_message                last_handshake_sent GUARDED_BY(conn_mtx);
       block_id_type                    conn_fork_head      GUARDED_BY(conn_mtx);
@@ -1069,16 +1066,14 @@ namespace eosio {
       void enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
                            go_away_reason close_after_send,
                            bool to_sync_queue = false);
-      void cancel_sync(go_away_reason reason);
+      void cancel_sync();
       void flush_queues();
       bool enqueue_sync_block();
       void request_sync_blocks(uint32_t start, uint32_t end);
 
-      void cancel_wait();
+      void cancel_sync_wait();
       void sync_wait();
-      void fetch_wait();
       void sync_timeout(boost::system::error_code ec);
-      void fetch_timeout(boost::system::error_code ec);
 
       void queue_write(const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback,
@@ -1278,7 +1273,7 @@ namespace eosio {
         listen_address( listen_address ),
         log_p2p_address( endpoint ),
         connection_id( ++my_impl->current_connection_id ),
-        response_expected_timer( my_impl->thread_pool.get_executor() ),
+        sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
         last_handshake_recv(),
         last_handshake_sent(),
         p2p_address( endpoint )
@@ -1295,7 +1290,7 @@ namespace eosio {
         socket( new tcp::socket( std::move(s) ) ),
         listen_address( listen_address ),
         connection_id( ++my_impl->current_connection_id ),
-        response_expected_timer( my_impl->thread_pool.get_executor() ),
+        sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
         last_handshake_recv(),
         last_handshake_sent()
    {
@@ -1466,23 +1461,18 @@ namespace eosio {
       peer_syncing_from_us = false;
       block_status_monitor_.reset();
       ++consecutive_immediate_connection_close;
-      bool has_last_req = false;
       {
          fc::lock_guard g_conn( conn_mtx );
-         has_last_req = last_req.has_value();
          last_handshake_recv = handshake_message();
          last_handshake_sent = handshake_message();
          last_close = fc::time_point::now();
          conn_node_id = fc::sha256();
       }
-      if( has_last_req && !shutdown ) {
-         my_impl->dispatcher.retry_fetch( shared_from_this() );
-      }
       peer_lib_num = 0;
       peer_requested.reset();
       sent_handshake_count = 0;
       if( !shutdown) my_impl->sync_master->sync_reset_lib_num( shared_from_this(), true );
-      cancel_wait();
+      cancel_sync_wait();
       sync_last_requested_block = 0;
       org = std::chrono::nanoseconds{0};
       latest_msg_time = std::chrono::system_clock::time_point::min();
@@ -1732,23 +1722,13 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::cancel_sync(go_away_reason reason) {
-      peer_dlog( this, "cancel sync reason = ${m}, write queue size ${o} bytes",
-                 ("m", reason_str( reason ))("o", buffer_queue.write_queue_size()) );
-      cancel_wait();
+   void connection::cancel_sync() {
+      peer_dlog( this, "cancel sync_wait, write queue size ${o} bytes", ("o", buffer_queue.write_queue_size()) );
+      cancel_sync_wait();
       sync_last_requested_block = 0;
       flush_queues();
-      switch (reason) {
-      case validation :
-      case fatal_other : {
-         no_retry = reason;
-         enqueue( go_away_message( reason ));
-         break;
-      }
-      default:
-         peer_ilog(this, "sending empty request but not calling sync wait");
-         enqueue( ( sync_request_message ) {0,0} );
-      }
+      peer_ilog(this, "sending empty request but not calling sync wait");
+      enqueue( ( sync_request_message ) {0,0} );
    }
 
    // called from connection strand
@@ -1943,49 +1923,30 @@ namespace eosio {
    }
 
    // thread safe
-   void connection::cancel_wait() {
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.cancel();
+   void connection::cancel_sync_wait() {
+      fc::lock_guard g( sync_response_expected_timer_mtx );
+      sync_response_expected_timer.cancel();
    }
 
    // thread safe
    void connection::sync_wait() {
       connection_ptr c(shared_from_this());
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.expires_from_now( my_impl->resp_expected_period );
-      response_expected_timer.async_wait(
+      fc::lock_guard g( sync_response_expected_timer_mtx );
+      sync_response_expected_timer.expires_from_now( my_impl->resp_expected_period );
+      sync_response_expected_timer.async_wait(
             boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
                c->sync_timeout( ec );
-            } ) );
-   }
-
-   // thread safe
-   void connection::fetch_wait() {
-      connection_ptr c( shared_from_this() );
-      fc::lock_guard g( response_expected_timer_mtx );
-      response_expected_timer.expires_from_now( my_impl->resp_expected_period );
-      response_expected_timer.async_wait(
-            boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
-               c->fetch_timeout(ec);
             } ) );
    }
 
    // called from connection strand
    void connection::sync_timeout( boost::system::error_code ec ) {
       if( !ec ) {
-         my_impl->sync_master->sync_reassign_fetch( shared_from_this(), benign_other );
+         peer_dlog(this, "sync timeout");
+         my_impl->sync_master->sync_reassign_fetch( shared_from_this() );
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( this, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
-      }
-   }
-
-   // called from connection strand
-   void connection::fetch_timeout( boost::system::error_code ec ) {
-      if( !ec ) {
-         my_impl->dispatcher.retry_fetch( shared_from_this() );
-      } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
-         peer_elog( this, "setting timer for fetch request got error ${ec}", ("ec", ec.message() ) );
       }
    }
 
@@ -1994,6 +1955,7 @@ namespace eosio {
       sync_last_requested_block = end;
       sync_request_message srm = {start,end};
       enqueue( net_message(srm) );
+      peer_dlog(this, "calling sync_wait, sync_request_message ${s} - ${e}", ("s", start)("e", end));
       sync_wait();
    }
 
@@ -2079,10 +2041,11 @@ namespace eosio {
 
          // if closing the connection we are currently syncing from then request from a diff peer
          if( c == sync_source ) {
-            sync_last_requested_num = 0;
             // if starting to sync need to always start from lib as we might be on our own fork
             uint32_t lib_num = my_impl->get_chain_lib_num();
+            sync_last_requested_num = 0;
             sync_next_expected_num = std::max( lib_num + 1, sync_next_expected_num );
+            sync_source.reset();
             request_next_chunk();
          }
       }
@@ -2113,6 +2076,7 @@ namespace eosio {
       }
       if (conns.size() == 1) { // only one available
          ++sync_ordinal;
+         fc_dlog(logger, "sync from ${c}", ("c", conns.front()->connection_id));
          conns.front()->sync_ordinal = sync_ordinal.load();
          return conns.front();
       }
@@ -2155,17 +2119,22 @@ namespace eosio {
        * a provider is supplied and able to be used, use it.
        * otherwise select the next available from the list, round-robin style.
        */
+      connection_ptr new_sync_source = (conn && conn->current()) ? conn : find_next_sync_node();
 
-      connection_ptr new_sync_source = (conn && conn->current()) ? conn :
-                                                                 find_next_sync_node();
+      auto reset_on_failure = [&]() REQUIRES(sync_mtx) {
+         sync_source.reset();
+         sync_known_lib_num = chain_info.lib_num;
+         sync_last_requested_num = 0;
+         sync_next_expected_num = std::max( sync_known_lib_num + 1, sync_next_expected_num );
+         // not in sync, but need to be out of lib_catchup for start_sync to work
+         set_state( in_sync );
+         send_handshakes();
+      };
 
       // verify there is an available source
       if( !new_sync_source ) {
          fc_wlog( logger, "Unable to continue syncing at this time");
-         sync_source.reset();
-         sync_known_lib_num = chain_info.lib_num;
-         sync_last_requested_num = 0;
-         set_state( in_sync ); // probably not, but we can't do anything else
+         reset_on_failure();
          return;
       }
 
@@ -2186,10 +2155,8 @@ namespace eosio {
          }
       }
       if( !request_sent ) {
-         sync_source.reset();
          fc_wlog(logger, "Unable to request range, sending handshakes to everyone");
-         set_state( in_sync ); // need to be out of lib_catchup so start_sync will work
-         send_handshakes();
+         reset_on_failure();
       }
    }
 
@@ -2226,8 +2193,9 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup ) {
+      if( sync_state != lib_catchup || !sync_source ) {
          set_state( lib_catchup );
+         sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2238,14 +2206,16 @@ namespace eosio {
    }
 
    // called from connection strand
-   void sync_manager::sync_reassign_fetch(const connection_ptr& c, go_away_reason reason) {
+   void sync_manager::sync_reassign_fetch(const connection_ptr& c) {
       fc::unique_lock g( sync_mtx );
-      peer_ilog( c, "reassign_fetch, our last req is ${cc}, next expected is ${ne}",
-               ("cc", sync_last_requested_num)("ne", sync_next_expected_num) );
-
       if( c == sync_source ) {
-         c->cancel_sync(reason);
+         peer_ilog(c, "reassign_fetch, our last req is ${cc}, next expected is ${ne}",
+                   ("cc", sync_last_requested_num)("ne", sync_next_expected_num));
+         c->cancel_sync();
+         auto lib = my_impl->get_chain_lib_num();
          sync_last_requested_num = 0;
+         sync_next_expected_num = std::max(sync_next_expected_num, lib + 1);
+         sync_source.reset();
          request_next_chunk();
       }
    }
@@ -2475,7 +2445,8 @@ namespace eosio {
          return;
       }
       c->latest_blk_time = std::chrono::system_clock::now();
-      c->block_status_monitor_.accepted();
+      if (blk_applied)
+         c->block_status_monitor_.accepted();
       if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
          // a peer will not send us a recent block unless it is synced
          c->peer_syncing_from_us = false;
@@ -2527,9 +2498,10 @@ namespace eosio {
          } else {
             if (!blk_applied) {
                if (blk_num >= c->sync_last_requested_block) {
-                  peer_dlog(c, "calling cancel_wait, block ${b}, sync_last_requested_block ${lrb}",
+                  peer_dlog(c, "calling cancel_sync_wait, block ${b}, sync_last_requested_block ${lrb}",
                             ("b", blk_num)("lrb", c->sync_last_requested_block));
-                  c->cancel_wait();
+                  sync_source.reset();
+                  c->cancel_sync_wait();
                } else {
                   peer_dlog(c, "calling sync_wait, block ${b}", ("b", blk_num));
                   c->sync_wait();
@@ -2546,22 +2518,22 @@ namespace eosio {
                   }
                }
                if (blk_num >= sync_known_lib_num) {
-                  peer_dlog(c, "received non-applied block ${bn} > ${kn}, will send handshakes when caught up",
+                  peer_dlog(c, "received non-applied block ${bn} >= ${kn}, will send handshakes when caught up",
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
-               }
-
-               // use chain head instead of fork head so we do not get too far ahead of applied blocks
-               uint32_t head = my_impl->get_chain_head_num();
-               // do not allow to get too far ahead (one sync_req_span) of chain head
-               if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
-                  // block was not applied, possibly because we already have the block
-                  fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                          ("bn", blk_num)("nen", sync_next_expected_num)
-                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                  request_next_chunk();
+               } else {
+                  // use chain head instead of fork head so we do not get too far ahead of applied blocks
+                  uint32_t head = my_impl->get_chain_head_num();
+                  // do not allow to get too far ahead (one sync_req_span) of chain head
+                  if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
+                     // block was not applied, possibly because we already have the block
+                     fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("bn", blk_num)("nen", sync_next_expected_num)
+                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                     request_next_chunk();
+                  }
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
@@ -2576,9 +2548,10 @@ namespace eosio {
                }
             }
          }
-      } else {
-         if (blk_applied)
+      } else { // in_sync
+         if (blk_applied) {
             send_handshakes_if_synced(blk_latency);
+         }
       }
    }
 
@@ -2726,19 +2699,6 @@ namespace eosio {
 
    // called from c's connection strand
    void dispatch_manager::recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum) {
-      fc::unique_lock g( c->conn_mtx );
-      if (c &&
-          c->last_req &&
-          c->last_req->req_blocks.mode != none &&
-          !c->last_req->req_blocks.ids.empty() &&
-          c->last_req->req_blocks.ids.back() == id) {
-         peer_dlog( c, "resetting last_req" );
-         c->last_req.reset();
-      }
-      g.unlock();
-
-      peer_dlog(c, "canceling wait");
-      c->cancel_wait();
    }
 
    void dispatch_manager::rejected_block(const block_id_type& id) {
@@ -2788,60 +2748,6 @@ namespace eosio {
       } else if (msg.known_blocks.mode != none) {
          peer_wlog( c, "passed a notice_message with something other than a normal on none known_blocks" );
          return;
-      }
-   }
-
-   // called from c's connection strand
-   void dispatch_manager::retry_fetch(const connection_ptr& c) {
-      peer_dlog( c, "retry fetch" );
-      request_message last_req;
-      block_id_type bid;
-      {
-         fc::lock_guard g_c_conn( c->conn_mtx );
-         if( !c->last_req ) {
-            return;
-         }
-         peer_wlog( c, "failed to fetch from peer" );
-         if( c->last_req->req_blocks.mode == normal && !c->last_req->req_blocks.ids.empty() ) {
-            bid = c->last_req->req_blocks.ids.back();
-         } else {
-            peer_wlog( c, "no retry, block mpde = ${b} trx mode = ${t}",
-                       ("b", modes_str( c->last_req->req_blocks.mode ))( "t", modes_str( c->last_req->req_trx.mode ) ) );
-            return;
-         }
-         last_req = *c->last_req;
-      }
-      auto request_from_peer = [this, &c, &last_req, &bid]( auto& conn ) {
-         if( conn == c )
-            return false;
-
-         {
-            fc::lock_guard guard( conn->conn_mtx );
-            if( conn->last_req ) {
-               return false;
-            }
-         }
-
-         bool sendit = peer_has_block( bid, conn->connection_id );
-         if( sendit ) {
-            conn->strand.post( [conn, last_req{std::move(last_req)}]() {
-               conn->enqueue( last_req );
-               conn->fetch_wait();
-               fc::lock_guard g_conn_conn( conn->conn_mtx );
-               conn->last_req = last_req;
-            } );
-            return true;
-         }
-         return false;
-      };
-
-      if (!my_impl->connections.any_of_block_connections(request_from_peer)) {
-         // at this point no other peer has it, re-request or do nothing?
-         peer_wlog(c, "no peer has last_req");
-         if (c->connected()) {
-            c->enqueue(last_req);
-            c->fetch_wait();
-         }
       }
    }
 
@@ -3151,10 +3057,9 @@ namespace eosio {
       const fc::microseconds age(fc::time_point::now() - bh.timestamp);
       // don't add_peer_block because we have not validated this block header yet
       if( my_impl->dispatcher.have_block( blk_id ) ) {
-         peer_dlog( this, "canceling wait, already received block ${num}, id ${id}..., latency ${l}ms",
+         peer_dlog( this, "already received block ${num}, id ${id}..., latency ${l}ms",
                     ("num", blk_num)("id", blk_id.str().substr(8,16))("l", age.count()/1000) );
          my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, false, age );
-         cancel_wait();
 
          pending_message_buffer.advance_read_ptr( message_length );
          return true;
@@ -3173,7 +3078,7 @@ namespace eosio {
                        ("lib", blk_num < last_sent_lib ? last_sent_lib : lib_num) );
             enqueue( (sync_request_message) {0, 0} );
             send_handshake();
-            cancel_wait();
+            cancel_sync_wait();
 
             pending_message_buffer.advance_read_ptr( message_length );
             return true;
@@ -3181,13 +3086,12 @@ namespace eosio {
       } else {
          block_sync_bytes_received += message_length;
          uint32_t lib_num = my_impl->get_chain_lib_num();
+         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, age);
          if( blk_num <= lib_num ) {
-            cancel_wait();
-
+            peer_dlog( this, "received block ${n} less than lib ${lib} while syncing", ("n", blk_num)("lib", lib_num) );
             pending_message_buffer.advance_read_ptr( message_length );
             return true;
          }
-         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, age);
       }
 
       auto ds = pending_message_buffer.create_datastream();
