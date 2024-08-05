@@ -290,6 +290,8 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
+         bool fork_db_has_root() const;
+
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
          // thread-safe, applied LIB, fork db root

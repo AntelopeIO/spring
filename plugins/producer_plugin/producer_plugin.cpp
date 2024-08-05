@@ -1880,6 +1880,17 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       _pending_block_mode = pending_block_mode::speculating;
    }
 
+   if (in_speculating_mode()) {
+      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
+      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
+      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
+         auto head_block_age = now - chain.head().block_time();
+         if (head_block_age > fc::seconds(5))
+            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
+      }
+      last_start_block_time = now;
+   }
+
    if (in_producing_mode()) {
       // determine if our watermark excludes us from producing at this point
       if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
@@ -1896,17 +1907,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
             _pending_block_mode = pending_block_mode::speculating;
          }
       }
-   }
-
-   if (in_speculating_mode()) {
-      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
-      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
-      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
-            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
-      }
-      last_start_block_time = now;
    }
 
    if (in_producing_mode()) {

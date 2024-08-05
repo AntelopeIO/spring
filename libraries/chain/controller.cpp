@@ -3719,7 +3719,7 @@ struct controller_impl {
          overloaded{
             [&](const block_state_legacy_ptr& bsp) { return false; },
             [&](const block_state_ptr& bsp) {
-               return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
+               return bsp->block && bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
                   return bsp->has_voted(k) == vote_status_t::not_voted;
                });
             }},
@@ -5244,6 +5244,10 @@ std::optional<block_id_type> controller::pending_producer_block_id()const {
 
 void controller::set_savanna_lib_id(const block_id_type& id) {
    my->set_savanna_lib_id(id);
+}
+
+bool controller::fork_db_has_root() const {
+   return my->fork_db_has_root();
 }
 
 uint32_t controller::last_irreversible_block_num() const {
