@@ -52,12 +52,14 @@ namespace savanna_cluster {
 
    // ----------------------------------------------------------------------------
    class node_t : public tester {
+   private:
       size_t                  node_idx;
       bool                    pushing_a_block {false };
-      std::span<const account_name> node_finalizers;
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
+   public:
+      std::vector<account_name> node_finalizers;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
@@ -67,7 +69,7 @@ namespace savanna_cluster {
       node_t(node_t&&) = default;
 
       void set_node_finalizers(std::span<const account_name> names) {
-         node_finalizers = names;
+         node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
          tester::set_node_finalizers(node_finalizers);
       }
 
@@ -262,7 +264,7 @@ namespace savanna_cluster {
    class cluster_t {
    public:
       explicit cluster_t(cluster_config cfg = {})
-         : _fin_keys(cfg.num_nodes, cfg.num_nodes)
+         : _fin_keys(cfg.num_nodes * 2, cfg.num_nodes) // allow for some spare heys
          , _num_nodes(cfg.num_nodes)
       {
          assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
