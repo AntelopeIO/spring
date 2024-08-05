@@ -222,7 +222,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    _nodes[0].produce_block();
    _nodes[3].produce_block();
 
-   BOOST_REQUIRE_EQUAL(0, num_lib_advancing([&]() {
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() {
       // now that the network is split, produce 9 blocks on _nodes[0]
       sb = _nodes[0].produce_blocks(9);
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
