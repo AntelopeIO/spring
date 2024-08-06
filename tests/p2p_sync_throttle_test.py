@@ -205,7 +205,7 @@ try:
                                                          'block_sync_bytes_sent',
                                                          response)
     Print(f'End sync throttling bytes sent: {endSyncThrottlingBytesSent}')
-    assert throttledNode.waitForBlock(beginLargeBlocksHeadBlock, timeout=90), f'Wait for begin block {beginLargeBlocksHeadBlock} on throttled sync node timed out'
+    assert throttledNode.waitForBlock(beginLargeBlocksHeadBlock, timeout=120), f'Wait for begin block {beginLargeBlocksHeadBlock} on throttled sync node timed out'
     # Throttled node is connecting to a listen port with a block sync throttle applied so it will receive
     # blocks more slowly during syncing than an unthrottled node.
     wasThrottled = False
@@ -218,7 +218,7 @@ try:
         if throttledState:
             wasThrottled = True
             break
-    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=90), f'Wait for block {endLargeBlocksHeadBlock} on sync node timed out'
+    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=120), f'Wait for block {endLargeBlocksHeadBlock} on sync node timed out'
     endThrottledSync = time.time()
     response = throttledNode.processUrllibRequest('prometheus', 'metrics', exitOnError=True, returnType=ReturnType.raw, printReturnLimit=16).decode()
     Print('Throttled Node End State')

@@ -118,14 +118,17 @@ def confirmLibOfIrrMode(nodeToTest, headLibAndForkDbHeadBeforeSwitchMode=None):
 
 # Confirm the head lib and fork db of speculative mode
 # Under any condition of speculative mode:
-# - forkDbHead == head >= lib
+#  - forkDbHead >= head >= lib
+# For a stable network with no forks and all nodes in-sync, the fork db can have one non-processed block received from
+# the network but not yet applied to chain head.
+#  - forDbHead == (head || head+1) >= lib
 # headLibAndForkDbHeadBeforeSwitchMode should be only passed IF production is disabled, otherwise it provides erroneous check
-# When comparing with the the state before node is switched:
+# When comparing with the state before node is switched:
 # - head == forkDbHeadBeforeSwitchMode == forkDbHead and lib == headBeforeSwitchMode == libBeforeSwitchMode
 def confirmHeadLibAndForkDbHeadOfSpecMode(nodeToTest, headLibAndForkDbHeadBeforeSwitchMode=None):
    head, lib, forkDbHead = getHeadLibAndForkDbHead(nodeToTest)
    assert head >= lib, "Head should be larger or equal to lib (head: {}, lib: {})".format(head, lib)
-   assert head == forkDbHead, "Head ({}) should be equal to fork db head ({})".format(head, forkDbHead)
+   assert (forkDbHead == head) or (forkDbHead == head+1), "Head ({}) should be equal to fork db head or one behind ({})".format(head, forkDbHead)
 
    if headLibAndForkDbHeadBeforeSwitchMode:
       headBeforeSwitchMode, libBeforeSwitchMode, forkDbHeadBeforeSwitchMode = headLibAndForkDbHeadBeforeSwitchMode

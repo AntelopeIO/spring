@@ -181,7 +181,7 @@ namespace eosio::testing {
       return pfs;
    }
 
-   bool base_tester::is_same_chain( base_tester& other ) {
+   bool base_tester::is_same_chain( base_tester& other ) const {
      return control->head().id() == other.control->head().id();
    }
 
@@ -308,6 +308,8 @@ namespace eosio::testing {
       chain_transactions.clear();
    }
 
+   bool base_tester::is_open() const { return !!control; }
+
    void base_tester::open( const snapshot_reader_ptr& snapshot ) {
       open( make_protocol_feature_set(), snapshot );
    }
@@ -357,6 +359,9 @@ namespace eosio::testing {
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
+      lib_id = control->fork_db_has_root() ? control->last_irreversible_block_id() : block_id_type{};
+      lib_number = block_header::num_from_id(lib_id);
+      lib_block = control->fetch_block_by_id(lib_id);
       [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
          lib_block = block;
@@ -364,6 +369,9 @@ namespace eosio::testing {
          assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
       });
+
+      if (_open_callback)
+         _open_callback();
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot ) {
@@ -1276,7 +1284,7 @@ namespace eosio::testing {
                ("pop", pop.to_string()));
       }
 
-      control->set_node_finalizer_keys(local_finalizer_keys, true);
+      control->set_node_finalizer_keys(local_finalizer_keys);
 
       fc::mutable_variant_object fin_policy_variant;
       fin_policy_variant("threshold", input.threshold);
@@ -1294,7 +1302,7 @@ namespace eosio::testing {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
       }
-      control->set_node_finalizer_keys(local_finalizer_keys, true);
+      control->set_node_finalizer_keys(local_finalizer_keys);
    }
 
    base_tester::set_finalizers_output_t base_tester::set_active_finalizers(std::span<const account_name> names) {

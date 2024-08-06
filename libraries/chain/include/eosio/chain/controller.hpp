@@ -276,9 +276,8 @@ namespace eosio::chain {
          // post-instant-finality this always returns nullptr
          const producer_authority_schedule*         pending_producers_legacy()const;
 
-         // returns nullptr pre-savanna
-         finalizer_policy_ptr                       head_active_finalizer_policy()const;
-         // returns nullptr pre-savanna, thread-safe, block_num according to branch corresponding to id
+         finalizer_policy_ptr   head_active_finalizer_policy()const; // returns nullptr pre-savanna
+         finalizer_policy_ptr   head_pending_finalizer_policy()const; // returns nullptr pre-savanna
 
          /// Return the vote metrics for qc.block_num
          /// thread-safe
@@ -290,6 +289,8 @@ namespace eosio::chain {
          qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
          void set_savanna_lib_id(const block_id_type& id);
+
+         bool fork_db_has_root() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
@@ -378,7 +379,11 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         uint32_t get_terminate_at_block()const;
+         /// @return true if terminate-at-block reaches terminate block number
+         /// thread-safe
+         bool should_terminate(block_num_type head_block_num) const;
+         /// not-thread-safe
+         bool should_terminate() const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
@@ -432,7 +437,7 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
-      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting = false);
+      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
       private:
          friend class apply_context;

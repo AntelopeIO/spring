@@ -89,6 +89,171 @@ paths:
             application/json:
               schema:
                 $ref: "https://eosio.github.io/schemata/v2.1/oas/BlockInfo.yaml"
+  /get_finalizer_info:
+    post:
+      description: Returns information about finalizers
+      operationId: get_finalizer_info
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              nullable: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active_finalizer_policy:
+                    type: object
+                    description: List of current finalizers
+                    properties:
+                      generation:
+                        type: integer
+                        description: generation number of finalizer policy
+                        example: 1
+                      threshold:
+                        type: integer
+                        description: total weight needed to advance finality
+                        example: 15
+                      finalizers:
+                        type: array
+                        items:
+                          type: object
+                          description: Description of a finalizer
+                          properties:
+                            'description':
+                              type: string
+                              description: Name of finalizer, typically a producer account
+                              example: finalizerone
+                            weight:
+                              type: integer
+                              description: The weight of this finalizer used in determine when threshold of votes is reached
+                              example: 1
+                            public_key:
+                              type: string
+                              description: The BLS Public Key used by this finalizer
+                              example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
+                  pending_finalizer_policy:
+                    type: object
+                    description: List of pending finalizers
+                    properties:
+                      generation:
+                        type: integer
+                        description: generation number of finalizer policy
+                        example: 2
+                      threshold:
+                        type: integer
+                        description: total weight needed to advance finality
+                        example: 15
+                      finalizers:
+                        type: array
+                        items:
+                          type: object
+                          description: Description of a finalizer
+                          properties:
+                            'description':
+                              type: string
+                              description: Name of finalizer, typically a producer account
+                              example: finalizerone
+                            weight:
+                              type: integer
+                              description: The weight of this finalizer used in determine when threshold of votes is reached
+                              example: 1
+                            public_key:
+                              type: string
+                              description: The BLS Public Key used by this finalizer
+                              example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
+                  last_tracked_votes:
+                    type: array
+                    description: Record of last votes for the finalizers in current active finalizer policy and pending finalizer policy.
+                    items:
+                      type: object
+                      properties:
+                        description:
+                          type: string
+                          description: Description of finalizer
+                          example: finalizerone
+                        public_key:
+                          type: string
+                          description: BLS Public Key for finalizer
+                          example: "PUB_BLS_PcJG7lYgwZcsFGe-i4WWYDw1GtP7r5vGWFcRe97TVcp5f5_h6RRRPRhZSGKtRF4CtdJxAP50VewH4VIhMIPfhsu9C4GGH4MgOzSwl51N3EK6XiAiRHQ_lcGvxggipYwIReHkhQ"
+                        is_vote_strong:
+                          type: boolean
+                          description: When true indicate strongly voted
+                        finalizer_policy_generation:
+                          type: integer
+                          description: Policy Generation for vote
+                          example: 2
+                        voted_for_block_id:
+                          type: string
+                          description: Block id voted on
+                          example: "00003702056551dbabfab8ed499fb7d74850e92b9ac74d13b64ff2b161341c7a"
+                        voted_for_block_num:
+                          type: integer
+                          description: Block number voted on
+                          example: 1234
+                        voted_for_block_timestamp:
+                          $ref: "https://docs.eosnetwork.com/openapi/v2.0/DateTimeSeconds.yaml"
+                          description: Timestamp for the voted on block
+
+        "400":
+          description: client error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    description: http return code
+                    example: 400
+                  message:
+                    type: string
+                    description: summary of error
+                    example: Invalid Request
+                  error:
+                    type: object
+                    description: details on the error
+                    properties:
+                      code:
+                        type: integer
+                        description: internal error code
+                        example: 3200006
+                      name:
+                        type: string
+                        description: name of error
+                        example: invalid_http_request
+                      what:
+                        type: string
+                        description: prettier version of error name
+                        example: invalid http request
+                      details:
+                        type: array
+                        description: list of additional information for debugging
+                        items:
+                          type: object
+                          properties:
+                            message:
+                              type: string
+                              description: debugging message
+                              example: Unable to parse valid input from POST body
+                            file:
+                              type: string
+                              description: file where error was thrown
+                              example: http_plugin.hpp
+                            line_number:
+                              type: integer
+                              description: line number in file where error was thrown
+                              example: 246
+                            method:
+                              type: string
+                              description: function executed when error occurred
+                              example: parse_params
   /get_info:
     post:
       description: Returns an object containing various details about the blockchain.
@@ -351,7 +516,7 @@ paths:
                     nullable: true
                     items:
                       $ref: "https://docs.eosnetwork.com/openapi/v2.0/Producer.yaml"
-                  total_producer_vote_weight: 
+                  total_producer_vote_weight:
                     type: string
                     description: The sum of all producer votes.
                   more:
@@ -727,7 +892,7 @@ paths:
               properties:
                 id:
                   type: string
-                  description: The transaction ID of the transaction to retrieve the status for. 
+                  description: The transaction ID of the transaction to retrieve the status for.
       responses:
         "200":
           description: OK
@@ -874,7 +1039,7 @@ paths:
                 properties:
                   active:
                     description: A JSON object that encapsulates the list of active producers schedule and its version.
-                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"                              
+                    $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"
                   pending:
                     description: A JSON object that encapsulates the list of pending producers schedule and its version.
                     $ref: "https://docs.eosnetwork.com/openapi/v2.0/ProducerSchedule.yaml"

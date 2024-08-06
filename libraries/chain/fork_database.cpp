@@ -24,9 +24,8 @@ namespace eosio::chain {
 
    std::string log_fork_comparison(const block_state& bs) {
       std::string r;
-      r += "[ last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "[ latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;
@@ -36,7 +35,7 @@ namespace eosio::chain {
       std::string r;
       r += "[ irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
       r += "block_num: " + std::to_string(bs.block_num()) + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;
@@ -69,11 +68,10 @@ namespace eosio::chain {
       using by_best_branch_if_t = ordered_unique<
          tag<by_best_branch>,
          composite_key<block_state,
-                       const_mem_fun<block_state,     block_timestamp_type, &block_state::last_final_block_timestamp>,
                        const_mem_fun<block_state,     block_timestamp_type, &block_state::latest_qc_block_timestamp>,
                        const_mem_fun<block_state,     block_timestamp_type, &block_state::timestamp>,
                        const_mem_fun<block_state,     const block_id_type&, &block_state::id>>,
-         composite_key_compare<std::greater<block_timestamp_type>, std::greater<block_timestamp_type>,
+         composite_key_compare<std::greater<block_timestamp_type>,
                                std::greater<block_timestamp_type>, std::greater<block_id_type>>>;
 
       using by_best_branch_t = std::conditional_t<std::is_same_v<bs_t, block_state>,
@@ -304,6 +302,7 @@ namespace eosio::chain {
 
    template<class BSP>
    bool fork_database_t<BSP>::has_root() const {
+      std::lock_guard g( my->mtx );
       return !!my->root;
    }
 
