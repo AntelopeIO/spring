@@ -168,7 +168,7 @@ namespace eosio {
             >
       >;
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex            unlinkable_blk_state_mtx;
       unlinkable_block_state_index unlinkable_blk_state GUARDED_BY(unlinkable_blk_state_mtx);
       // 30 should be plenty large enough as any unlinkable block that will be usable is likely to be usable
@@ -218,7 +218,7 @@ namespace eosio {
          in_sync
       };
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       fc::mutex      sync_mtx;
       uint32_t       sync_known_lib_num      GUARDED_BY(sync_mtx) {0};  // highest known lib num from currently connected peers
       uint32_t       sync_last_requested_num GUARDED_BY(sync_mtx) {0};  // end block number of the last requested range, inclusive
@@ -228,7 +228,7 @@ namespace eosio {
       const uint32_t sync_req_span {0};
       const uint32_t sync_peer_limit {0};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<stages> sync_state{in_sync};
       std::atomic<uint32_t> sync_ordinal{0};
       // indicate that we have received blocks to catch us up to head, delay sending out handshakes until we have
@@ -270,11 +270,11 @@ namespace eosio {
    };
 
    class dispatch_manager {
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex      blk_state_mtx;
       peer_block_state_index  blk_state GUARDED_BY(blk_state_mtx);
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex      local_txns_mtx;
       node_transaction_index  local_txns GUARDED_BY(local_txns_mtx);
 
@@ -365,12 +365,12 @@ namespace eosio {
       >;
       enum class timer_type { check, stats };
    private:
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable std::shared_mutex        connections_mtx;
       connection_details_index         connections;
       chain::flat_set<string>          supplied_peers;
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       fc::mutex                             connector_check_timer_mtx;
       unique_ptr<boost::asio::steady_timer> connector_check_timer GUARDED_BY(connector_check_timer_mtx);
       fc::mutex                             connection_stats_timer_mtx;
@@ -489,18 +489,18 @@ namespace eosio {
       bool                                  use_socket_read_watermark = false;
       /** @} */
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       fc::mutex                             expire_timer_mtx;
       boost::asio::steady_timer             expire_timer GUARDED_BY(expire_timer_mtx) {thread_pool.get_executor()};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       fc::mutex                             keepalive_timer_mtx;
       boost::asio::steady_timer             keepalive_timer GUARDED_BY(keepalive_timer_mtx) {thread_pool.get_executor()};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<bool>                     in_shutdown{false};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       compat::channels::transaction_ack::channel_type::handle  incoming_transaction_ack_subscription;
 
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
@@ -520,7 +520,7 @@ namespace eosio {
       std::function<void()> increment_dropped_trxs;
       
    private:
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex             chain_info_mtx; // protects chain_info_t
       chain_info_t                  chain_info GUARDED_BY(chain_info_mtx);
 
@@ -783,7 +783,7 @@ namespace eosio {
          std::function<void( boost::system::error_code, std::size_t )> callback;
       };
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex   _mtx;
       uint32_t            _write_queue_size GUARDED_BY(_mtx) {0};
       deque<queued_write> _write_queue      GUARDED_BY(_mtx);
@@ -887,7 +887,7 @@ namespace eosio {
 
       std::optional<peer_sync_state> peer_requested;  // this peer is requesting info from us
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<bool> socket_open{false};
 
       std::atomic<connection_state> conn_state{connection_state::connecting};
@@ -941,14 +941,14 @@ namespace eosio {
       // when syncing from a peer, the last block expected of the current range
       uint32_t                sync_last_requested_block{0};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<uint32_t>   trx_in_progress_size{0};
 
       fc::time_point          last_dropped_trx_msg_time;
       const uint32_t          connection_id;
       int16_t                 sent_handshake_count = 0;
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<bool>       peer_syncing_from_us{false};
 
       std::atomic<uint16_t>   protocol_version = 0;
@@ -957,14 +957,14 @@ namespace eosio {
       std::atomic<bool>       is_bp_connection = false;
       block_status_monitor    block_status_monitor_;
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       fc::mutex                        sync_response_expected_timer_mtx;
       boost::asio::steady_timer        sync_response_expected_timer GUARDED_BY(sync_response_expected_timer_mtx);
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       std::atomic<go_away_reason>      no_retry{no_reason};
 
-      alignas(hardware_destructive_interference_size)
+      alignas(hardware_destructive_interference_sz)
       mutable fc::mutex                conn_mtx; //< mtx for last_handshake_recv .. remote_endpoint_ip
       handshake_message                last_handshake_recv GUARDED_BY(conn_mtx);
       handshake_message                last_handshake_sent GUARDED_BY(conn_mtx);
