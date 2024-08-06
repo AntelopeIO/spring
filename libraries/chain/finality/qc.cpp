@@ -421,7 +421,7 @@ void aggregating_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_diges
       EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
                  "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
 
-      qc.pending_policy_sig->verify_vote_format(active_finalizer_policy);
+      qc.pending_policy_sig->verify_vote_format(pending_finalizer_policy);
       verify_dual_finalizers_votes(qc);
    } else {
       EOS_ASSERT(!pending_finalizer_policy, invalid_qc_claim,
