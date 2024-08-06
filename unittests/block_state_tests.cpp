@@ -918,7 +918,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       BOOST_CHECK_NO_THROW( bsp->verify_qc(qc) );
    }
 
-   {  // dual finalizers do NOT vote the same
+   {  // dual finalizers do NOT vote the same on strong
 
       // Active finalizer 0 and pending finalizer 1 are configured as
       // the dual finalizers.
@@ -942,6 +942,64 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
       // create qc_sig_t
       qc_sig_t active_qc_sig{active_strong_votes, {}, active_agg_sig};
       qc_sig_t pending_qc_sig{pending_strong_votes, {}, pending_agg_sig};
+      qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
+
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_contains("does not vote the same on active and pending policies") );
+   }
+
+   {  // dual finalizers do NOT vote the same on weak
+
+      // Active finalizer 0 and pending finalizer 1 are configured as
+      // the dual finalizers.
+
+      // dual finalizer (active finalizer 0) does not vote on weak
+      vote_bitset_t active_weak_votes(num_finalizers);
+      active_weak_votes[1] = 1;
+      active_weak_votes[2] = 1;
+      bls_aggregate_signature active_agg_sig;
+      active_agg_sig.aggregate(active_private_keys[1].sign(weak_digest));
+      active_agg_sig.aggregate(active_private_keys[2].sign(weak_digest));
+
+      // dual finalizer (pending finalizer 1) votes on weak
+      vote_bitset_t pending_weak_votes(num_finalizers);
+      pending_weak_votes[1] = 1;
+      pending_weak_votes[2] = 1;
+      bls_aggregate_signature pending_agg_sig;
+      pending_agg_sig.aggregate(pending_private_keys[1].sign(weak_digest));
+      pending_agg_sig.aggregate(pending_private_keys[2].sign(weak_digest));
+
+      // create qc_sig_t
+      qc_sig_t active_qc_sig{{}, active_weak_votes, active_agg_sig};
+      qc_sig_t pending_qc_sig{{}, pending_weak_votes, pending_agg_sig};
+      qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
+
+      BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_contains("does not vote the same on active and pending policies") );
+   }
+
+   {  // dual finalizers do NOT vote the same -- active on strong, pending on weak
+
+      // Active finalizer 0 and pending finalizer 1 are configured as
+      // the dual finalizers.
+
+      // dual finalizer (active finalizer 0) votes on strong
+      vote_bitset_t active_strong_votes(num_finalizers);
+      active_strong_votes[0] = 1;  // dual finalizer 0 voted with weight 1
+      active_strong_votes[2] = 1;  // finalizer 2 voted with weight 3
+      bls_aggregate_signature active_agg_sig;
+      active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
+      active_agg_sig.aggregate(active_private_keys[2].sign(strong_digest.to_uint8_span()));
+
+      // dual finalizer (pending finalizer 1) votes on weak
+      vote_bitset_t pending_weak_votes(num_finalizers);
+      pending_weak_votes[1] = 1;  // dual finalizer
+      pending_weak_votes[2] = 1;  // finalizer 2 voted with weight 3
+      bls_aggregate_signature pending_agg_sig;
+      pending_agg_sig.aggregate(pending_private_keys[1].sign(weak_digest));
+      pending_agg_sig.aggregate(pending_private_keys[2].sign(weak_digest));
+
+      // create qc_sig_t
+      qc_sig_t active_qc_sig{active_strong_votes, {}, active_agg_sig};
+      qc_sig_t pending_qc_sig{{}, pending_weak_votes, pending_agg_sig};
       qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
 
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_contains("does not vote the same on active and pending policies") );
