@@ -14,8 +14,8 @@ CONTRACT finality_violation : public contract {
       using contract::contract;
 
       ACTION rule1(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2);
-      ACTION rule2a(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2);
-      ACTION rule2b(const finalizer_policy_input finalizer_policy, 
+      //ACTION rule2a(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2);
+      ACTION rule2(const finalizer_policy_input finalizer_policy, 
                                     const finality_proof proof_1, 
                                     const finality_proof proof_2, 
                                     const block_proof_of_inclusion proof_of_inclusion);
