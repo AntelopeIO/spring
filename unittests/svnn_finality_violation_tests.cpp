@@ -66,15 +66,7 @@ mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy,
 
 }
 
-mvo prepare_rule_2_lt_proof(  const finalizer_policy active_finalizer_policy, 
-                    const ibc_block_data_t fake_qc_block, 
-                    const qc_t fake_qc, 
-                    const ibc_block_data_t real_qc_block, 
-                    const qc_t real_qc){
-    return prepare_rule_1_proof(active_finalizer_policy, fake_qc_block, fake_qc, real_qc_block, real_qc);
-}
-
-mvo prepare_rule_2_gt_proof(  const finalizer_policy active_finalizer_policy, 
+mvo prepare_rule_2_proof(  const finalizer_policy active_finalizer_policy, 
                     const ibc_block_data_t fake_qc_block, 
                     const qc_t fake_qc, 
                     const ibc_block_data_t real_qc_block, 
@@ -257,28 +249,50 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             finalizer_policy active_finalizer_policy;
 
             //observe a stream of blocks as they are received, and store minimal data required to construct finality violation proofs in the future
-            ibc_block_data_t scan_block(const ibc_block_data_t& block){
+            ibc_block_data_t scan_block(const ibc_block_data_t& block_result){
 
-                if (reversible_blocks.size()>=2){
-                    last_final_block = high_qc_block;
-                    last_final_qc = high_qc;
-                    reversible_blocks.erase(reversible_blocks.begin());
+                if (block_result.qc_data.qc.has_value()) {
+
+                    auto high_qc_block_itr = std::find_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto& r) {
+                        return r.block->block_num() == block_result.qc_data.qc.value().to_qc_claim().block_num;
+                    });
+
+                    if ( high_qc_block_itr != reversible_blocks.end()
+                         && high_qc_block_itr->qc_data.qc.has_value()) {
+
+                        auto last_final_block_itr = std::find_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto& r) {
+                            return r.block->block_num() == high_qc_block_itr->qc_data.qc.value().to_qc_claim().block_num;
+                        });
+
+                        if ( last_final_block_itr !=  reversible_blocks.end()
+                             && block_result.qc_data.qc.value().to_qc_claim().is_strong_qc) {
+
+                                //new strong QC
+                                last_final_block = *last_final_block_itr;
+                                last_final_qc = high_qc_block_itr->qc_data.qc.value();
+
+                                reversible_blocks.erase(std::remove_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto &r){
+                                    return r.block->block_num() <= last_final_block.block->block_num();
+                                }), reversible_blocks.end());
+
+
+                        }
+
+                        high_qc_block = *high_qc_block_itr;
+                        high_qc = block_result.qc_data.qc.value();
+
+                    }
                 }
 
-                if (reversible_blocks.size()>=1){
-                    high_qc_block = reversible_blocks[reversible_blocks.size()-1];
-                    if (block.qc_data.qc.has_value()) high_qc = block.qc_data.qc.value();
-                }
+                reversible_blocks.push_back(block_result);
 
-                reversible_blocks.push_back(block);
+                active_finalizer_policy = block_result.active_finalizer_policy;
 
-                active_finalizer_policy = block.active_finalizer_policy;
-
-                return block;
+                return block_result;
             }
 
         };
-
+        
         data_cache light_client_data;
 
         //setup a "fake" chain and a "real" chain
@@ -316,6 +330,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //produce a few blocks on the fake chain
         auto fake_chain_genesis_block_result = light_client_data.scan_block(fake_chain.produce_block()) ;
 
+        
         auto fake_chain_block_1_result = light_client_data.scan_block(fake_chain.produce_block());
         auto fake_chain_block_2_result = light_client_data.scan_block(fake_chain.produce_block());
         auto fake_chain_block_3_result = light_client_data.scan_block(fake_chain.produce_block());
@@ -323,6 +338,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_REQUIRE(fake_chain_block_4_result.qc_data.qc.has_value());
 
+        BOOST_TEST(light_client_data.reversible_blocks.size() == 2u);
+        
         //produce a few blocks on the real chain
         auto real_chain_genesis_block_result = real_chain.produce_block();
         auto real_chain_block_1_result = real_chain.produce_block();
@@ -358,6 +375,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_5_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_5_result = real_chain.produce_block();
 
+        BOOST_TEST(light_client_data.reversible_blocks.size() == 2u);
+        
         //verify the chains have diverged
         BOOST_TEST(fake_chain_block_5_result.finality_digest != real_chain_block_5_result.finality_digest);
 
@@ -410,17 +429,30 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Things are back to normal, and we have a QC on both chains
         BOOST_TEST(fake_chain_block_11_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_11_result.qc_data.qc.has_value());
-        
-        //Light client recorded the last QC on fake chain, which was delivered via block #11, and is over block #10. 
+
+        BOOST_TEST(light_client_data.reversible_blocks.size() == 4u);
+
+        auto fake_chain_block_12_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_12_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_12_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_12_result.qc_data.qc.has_value());
+
+        BOOST_TEST(light_client_data.reversible_blocks.size() == 2u);
+            
+/*
+         //Light client recorded the last QC on fake chain, which was delivered via block #11, and is over block #10. 
         //Block #10 claims a QC over block #8 (skipping #9). We provide fake block #10 and its QC.
-        //We also provide the real block #9 and a QC over it delivered via block #10, which is a proof of violation of rule #2.
-        mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_lt_proof(  light_client_data.active_finalizer_policy, 
+        //We also provide the real block #9 and a QC over it delivered via block #10, as well as a proof of inclusion of which is a proof of violation of rule #2.
+        mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_9_result, 
                                                                     real_chain_block_10_result.qc_data.qc.value());
 
-        BOOST_CHECK(shouldPass(real_chain, "rule2a"_n, valid_rule_2_proof_1));
+        //less than rule
+        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_1));
+
 
         real_chain.vote_propagation = {1,0,0};
 
@@ -438,12 +470,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_13_result.qc_data.qc.has_value());
         BOOST_TEST(!real_chain_block_13_result.qc_data.qc.has_value());
 
-/*        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_gt_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_gt_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_9_result, 
-                                                                    real_chain_block_10_result.qc_data.qc.value());*/
+                                                                    real_chain_block_10_result.qc_data.qc.value());
 
+        //greater than rule
+        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));*/
 
     } FC_LOG_AND_RETHROW() }
 

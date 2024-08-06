@@ -319,25 +319,7 @@
             ]
         },
         {
-            "name": "rule2a",
-            "base": "",
-            "fields": [
-                {
-                    "name": "finalizer_policy",
-                    "type": "finalizer_policy_input"
-                },
-                {
-                    "name": "proof_1",
-                    "type": "finality_proof"
-                },
-                {
-                    "name": "proof_2",
-                    "type": "finality_proof"
-                }
-            ]
-        },
-        {
-            "name": "rule2b",
+            "name": "rule2",
             "base": "",
             "fields": [
                 {
@@ -401,13 +383,8 @@
             "ricardian_contract": ""
         },
         {
-            "name": "rule2a",
-            "type": "rule2a",
-            "ricardian_contract": ""
-        },
-        {
-            "name": "rule2b",
-            "type": "rule2b",
+            "name": "rule2",
+            "type": "rule2",
             "ricardian_contract": ""
         },
         {
