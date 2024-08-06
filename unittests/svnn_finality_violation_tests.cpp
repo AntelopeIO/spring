@@ -366,7 +366,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto real_chain_block_6_result = real_chain.produce_block();
 
         //qc over block #6 makes block #5 final. Since these blocks are different, this is a finality violation.
-        //moving forward, any 
         auto fake_chain_block_7_result = light_client_data.scan_block(fake_chain.produce_block()); 
         auto real_chain_block_7_result = real_chain.produce_block();
 
@@ -412,16 +411,39 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_11_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_11_result.qc_data.qc.has_value());
         
-        //Light client recorded the last QC on fake chain, which is over block #10. 
+        //Light client recorded the last QC on fake chain, which was delivered via block #11, and is over block #10. 
         //Block #10 claims a QC over block #8 (skipping #9). We provide fake block #10 and its QC.
-        //We also provide the real block #9 and a QC over it, which is a proof of violation of rule #2.
-        mutable_variant_object valid_rule_2_proof = prepare_rule_2_lt_proof(  light_client_data.active_finalizer_policy, 
+        //We also provide the real block #9 and a QC over it delivered via block #10, which is a proof of violation of rule #2.
+        mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_lt_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
                                                                     real_chain_block_9_result, 
                                                                     real_chain_block_10_result.qc_data.qc.value());
 
-        BOOST_CHECK(shouldPass(real_chain, "rule2a"_n, valid_rule_2_proof));
+        BOOST_CHECK(shouldPass(real_chain, "rule2a"_n, valid_rule_2_proof_1));
+
+        real_chain.vote_propagation = {1,0,0};
+
+        auto fake_chain_block_12_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_12_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_12_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_12_result.qc_data.qc.has_value());
+        
+        real_chain.vote_propagation = {1,0,1};
+
+        auto fake_chain_block_13_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_13_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_13_result.qc_data.qc.has_value());
+        BOOST_TEST(!real_chain_block_13_result.qc_data.qc.has_value());
+
+/*        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_gt_proof(  light_client_data.active_finalizer_policy, 
+                                                                    light_client_data.high_qc_block, 
+                                                                    light_client_data.high_qc, 
+                                                                    real_chain_block_9_result, 
+                                                                    real_chain_block_10_result.qc_data.qc.value());*/
+
 
     } FC_LOG_AND_RETHROW() }
 
