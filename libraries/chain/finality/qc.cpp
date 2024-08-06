@@ -34,9 +34,9 @@ bool qc_t::vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index)
 // weak_votes are is the same as the one indicated by other_vote_index
 // in `other` signature's strong_votes or weak_votes
 bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint32_t other_vote_index) const {
-   auto is_vote_same = [&] (std::optional<vote_bitset_t> my_votes,
+   auto is_vote_same = [&] (const std::optional<vote_bitset_t>& my_votes,
                             uint32_t my_vote_index,
-                            std::optional<vote_bitset_t> other_votes,
+                            const std::optional<vote_bitset_t>& other_votes,
                             uint32_t other_vote_index) -> bool {
       // both votes must have the same has_value()
       assert(my_votes.has_value() == other_votes.has_value());
@@ -65,6 +65,10 @@ void qc_sig_t::verify_vote_format(const finalizer_policy_ptr& fin_policy) const 
 
    const auto& finalizers = fin_policy->finalizers;
    auto num_finalizers = finalizers.size();
+
+   EOS_ASSERT( strong_votes || weak_votes, invalid_qc_claim,
+               "Neither strong_votes nor weak_votes present for finalizer policy, generation ${n}",
+               ("n", fin_policy->generation) );
 
    // verify number of finalizers matches with vote bitset size
    if (strong_votes) {
@@ -377,7 +381,9 @@ std::optional<qc_t> aggregating_qc_t::get_best_qc(block_num_type block_num) cons
 
 // A dual finalizer votes on both active and pending finalizer policies
 void aggregating_qc_t::verify_dual_finalizers_votes(const qc_t& qc) const {
-   auto build_vote_index = [&](const std::vector<finalizer_authority> finalizers, std::set<bls_public_key>& keys, std::map<bls_public_key, uint32_t>& index) {
+   auto build_vote_index = [&](const std::vector<finalizer_authority>& finalizers,
+                               std::set<bls_public_key>& keys,
+                               std::map<bls_public_key, uint32_t>& index) {
       uint32_t i = 0;
       for (const auto& f: finalizers) {
          index[f.public_key] = i;
