@@ -30,34 +30,33 @@ bool qc_t::vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index)
                                          pending_vote_index);
 }
 
-// returns true if vote indicated by my_vote_index in strong_votes or
-// weak_votes are is the same as the one indicated by other_vote_index
-// in `other` signature's strong_votes or weak_votes
+// returns true if ithe other and I vote iin the same way on my_vote_index
+// and other's index.
 bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint32_t other_vote_index) const {
-   auto is_vote_same = [&] (const std::optional<vote_bitset_t>& my_votes,
-                            uint32_t my_vote_index,
-                            const std::optional<vote_bitset_t>& other_votes,
-                            uint32_t other_vote_index) -> bool {
-      // both votes must have the same has_value()
-      assert(my_votes.has_value() == other_votes.has_value());
-      // validate indexes
-      assert(my_vote_index < my_votes->size() && other_vote_index < other_votes->size());
+   assert(!strong_votes || my_vote_index < strong_votes->size());
+   assert(!weak_votes || my_vote_index < weak_votes->size());
 
-      return (*my_votes)[my_vote_index] == (*other_votes)[other_vote_index];
-   };
-
-   // if strong_votes exist, both votes the same
-   if (strong_votes) {
-      return is_vote_same(strong_votes, my_vote_index, other.strong_votes, other_vote_index);
+   // I vote strongly on my_vote_index, the other must vote strongly
+   // on other_vote_index too
+   if (strong_votes && (*strong_votes)[my_vote_index]) {
+      return other.strong_votes && (*other.strong_votes)[other_vote_index];
    }
 
-   // if weak_votes exist, both votes the same
-   if (weak_votes) {
-      return is_vote_same(weak_votes, my_vote_index, other.weak_votes, other_vote_index);
+   // I vote weakly on my_vote_index, the other must vote weakly
+   // on other_vote_index too
+   if (weak_votes && (*weak_votes)[my_vote_index]) {
+      return other.weak_votes && (*other.weak_votes)[other_vote_index];
    }
 
-   assert(true); // should never happen
-   return false; // avoid compile warning
+   // I don't vote, the other cannot vote either
+   if (other.strong_votes && (*other.strong_votes)[other_vote_index]) {
+      return false;
+   }
+   if (other.weak_votes && (*other.weak_votes)[other_vote_index]) {
+      return false;
+   }
+
+   return true;
 }
 
 void qc_sig_t::verify_vote_format(const finalizer_policy_ptr& fin_policy) const {
