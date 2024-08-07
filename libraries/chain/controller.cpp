@@ -3312,16 +3312,7 @@ struct controller_impl {
                transition_to_savanna_if_needed();
             }
 
-            bool try_voting = !my_finalizers.empty();
-#if 0
-            // this doesn't seem to work (transition to savanna stalls in cluster test), needs
-            // further investigation [greg]
-            if (s == controller::block_status::complete || s == controller::block_status::validated) {
-               // if the block is complete or validated, we should already have tried voting on it
-               try_voting = false;
-            }
-#endif
-            if (try_voting) {
+            if (!my_finalizers.empty()) {
                // if the block is complete or validated, we have already voted on it
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || testing_allow_voting) {
