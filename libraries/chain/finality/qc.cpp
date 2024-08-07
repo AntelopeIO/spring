@@ -400,7 +400,7 @@ void aggregating_qc_t::verify_dual_finalizers_votes(const qc_t& qc) const {
          auto pending_vote_index = pending_finalizer_vote_index[f.public_key];
          EOS_ASSERT(qc.vote_same_at(active_vote_index, pending_vote_index),
                     invalid_qc_claim,
-                    "qc ${bn} contains contains a dual finalizer ${k} which does not vote the same on active and pending policies", ("bn", qc.block_num)("k", f.public_key));
+                    "qc ${bn} contains a dual finalizer ${k} which does not vote the same on active and pending policies", ("bn", qc.block_num)("k", f.public_key));
       }
    }
 }
