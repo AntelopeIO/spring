@@ -3904,9 +3904,7 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      // use bsp->irreversible_blocknum() instead of fork_db_root_block_num() to avoid mutex lock on forkdb
-      // approximate LIB is fine for max-reversible-blocks option
-      if (!should_terminate(bsp->block_num(), bsp->irreversible_blocknum())) {
+      if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
@@ -4709,28 +4707,23 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   bool should_terminate(block_num_type reversible_block_num, block_num_type lib) const {
+   bool should_terminate(block_num_type reversible_block_num) const {
       assert(reversible_block_num > 0);
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
          return true;
       }
-      if (conf.max_reversible_blocks > 0 && lib > 0 && reversible_block_num >= lib + conf.max_reversible_blocks) {
-         elog("Exceeded max reversible blocks allowed, head ${h} >= LIB ${lib} + ${m}",
-              ("h", reversible_block_num)("lib", lib)("m", conf.max_reversible_blocks));
+      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+         elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
+              ("s", fork_db.size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
    }
 
    bool should_terminate() const {
-      // use bsp->irreversible_blocknum() instead of fork_db_root_block_num() to avoid mutex lock on forkdb
-      // approximate LIB is fine for max-reversible-blocks option
-      block_num_type lib = block_handle_accessor::apply<block_num_type>(chain_head, [](const auto& bsp) {
-         return bsp->irreversible_blocknum();
-      });
-      return should_terminate(chain_head.block_num(), lib);
+      return should_terminate(chain_head.block_num());
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
