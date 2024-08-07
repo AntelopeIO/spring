@@ -380,8 +380,6 @@ namespace eosio::chain {
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
          /// @return true if terminate-at-block reached, or max-reversible-blocks reached
-         /// thread-safe
-         bool should_terminate(block_num_type head_block_num, block_num_type lib) const;
          /// not-thread-safe
          bool should_terminate() const;
 

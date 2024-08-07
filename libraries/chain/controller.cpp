@@ -5515,10 +5515,6 @@ bool controller::should_terminate() const {
    return my->should_terminate();
 }
 
-bool controller::should_terminate(block_num_type head_block_num, block_num_type lib) const {
-   return my->should_terminate(head_block_num, lib);
-}
-
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
 {
    auto native_handler_scope = my->apply_handlers.find( receiver );
