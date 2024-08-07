@@ -186,6 +186,7 @@ void my_finalizers_t::save_finalizer_safety_info() const {
 
       persist_file.seek(0);
       fc::raw::pack(persist_file, fsi_t::magic);
+      fc::raw::pack(persist_file, current_safety_file_version);
       fc::raw::pack(persist_file, (uint64_t)(finalizers.size() + inactive_safety_info.size()));
       for (const auto& [pub_key, f] : finalizers) {
          fc::raw::pack(persist_file, pub_key);
@@ -235,10 +236,26 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    }
    try {
       persist_file.seek(0);
+
+      // read magic number. Can be `fsi_t::magic_unversioned` (for files without embedded version number)
+      // or `fsi_t::magic` (for files with a version number right after `magic`).
+      // ------------------------------------------------------------------------------------------------
       uint64_t magic = 0;
       fc::raw::unpack(persist_file, magic);
-      EOS_ASSERT(magic == fsi_t::magic, finalizer_safety_exception,
+      EOS_ASSERT(magic == fsi_t::magic_unversioned || magic == fsi_t::magic, finalizer_safety_exception,
                  "bad magic number in finalizer safety persistence file: ${p}", ("p", persist_file_path));
+
+      // If we expect the file to contain a version number, read it. We can load files with older
+      // versions, but it better not be a file with a version higher that the running nodeos understands.
+      // ------------------------------------------------------------------------------------------------
+      uint64_t file_version = 0; // default version for file with magic == fsi_t::magic_unversioned
+      if (magic != fsi_t::magic_unversioned)
+         fc::raw::unpack(persist_file, file_version);
+      EOS_ASSERT(file_version <= current_safety_file_version, finalizer_safety_exception,
+                 "Incorrect version number in finalizer safety persistence file: ${p}", ("p", persist_file_path));
+
+      // finally read the `finalizer_safety_information` info
+      // ----------------------------------------------------
       uint64_t num_finalizers {0};
       fc::raw::unpack(persist_file, num_finalizers);
       for (size_t i=0; i<num_finalizers; ++i) {
@@ -248,6 +265,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
          fc::raw::unpack(persist_file, fsi);
          res.emplace(pubkey, fsi);
       }
+
       persist_file.close();
    } FC_LOG_AND_RETHROW()
    // don't remove file we can't load
@@ -303,6 +321,18 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
 
    // save it in case set_keys called afterwards.
    default_fsi = fsi;
+}
+
+bool  my_finalizers_t::are_equivalent(uint32_t version, const fsi_map& old, const fsi_map& current) {
+   assert(version < current_safety_file_version); // this function compares an older version with the current one
+   switch(version) {
+   case 0:
+      return old == current;
+      break;
+   default:
+      assert(0);
+      return false;
+   }
 }
 
 } // namespace eosio::chain
