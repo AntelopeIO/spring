@@ -32,8 +32,8 @@ struct bls_keys_t {
 //                       **DO NOT MODIFY**
 //                       -----------------
 // Do not modify the existing data provided by this function (additions are OK) because
-// it was used for generating the reference files in `test-data/fsi`, and for creating
-// is used to generate the new file used in the test `finalizer_safety_file_versioning`
+// it was used for generating the reference files in `test-data/fsi`, and is used
+// to generate the new file used in the test `finalizer_safety_file_versioning`
 // -------------------------------------------------------------------------------------
 template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
