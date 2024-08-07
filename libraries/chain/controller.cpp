@@ -3313,7 +3313,6 @@ struct controller_impl {
             }
 
             if (!my_finalizers.empty()) {
-               // if the block is complete or validated, we have already voted on it
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || testing_allow_voting) {
                      if (async_voting == async_t::no)
