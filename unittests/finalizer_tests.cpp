@@ -28,6 +28,13 @@ struct bls_keys_t {
    }
 };
 
+// -------------------------------------------------------------------------------------
+//                       **DO NOT MODIFY**
+//                       -----------------
+// Do not modify the existing data provided by this function (additions are OK) because
+// it was used for generating the reference files in `test-data/fsi`, and for creating
+// is used to generate the new file used in the test `finalizer_safety_file_versioning`
+// -------------------------------------------------------------------------------------
 template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
@@ -244,8 +251,15 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
    auto current_version = my_finalizers_t::current_safety_file_version;
 
-   // enable code below to create a new reference version of the finalizer_safety_file
-   if (0)
+   // run this unittest with the option `--save-fsi-ref` to save ref file for the current version.
+   // --------------------------------------------------------------------------------------------
+   bool save_fsi_reference_file = [](){
+      auto argc = boost::unit_test::framework::master_test_suite().argc;
+      auto argv = boost::unit_test::framework::master_test_suite().argv;
+      return std::find(argv, argv + argc, std::string("--save-fsi-ref")) != (argv + argc);
+   }();
+
+   if (save_fsi_reference_file)
       create_fsi_reference_file(mk_versioned_fsi_file_path(current_version));
 
    auto load_fsi_map = [&](const std::filesystem::path& safety_file_path) {
