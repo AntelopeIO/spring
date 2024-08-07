@@ -453,9 +453,8 @@ BOOST_FIXTURE_TEST_CASE( policy_switching_corner_case_test, validating_tester ) 
    // We need 2*config::block_interval_ms: one to skip to the last block
    // of round 2, and another to skip to the first block of round 3
    const auto time_to_skip = fc::milliseconds(2*config::block_interval_ms);
-   produce_block(time_to_skip);
+   b = produce_block(time_to_skip);
    
-   // Now alice's schedule should become active
    vector<producer_authority> alice_sch = {
       producer_authority{
          "alice"_n,
@@ -463,6 +462,10 @@ BOOST_FIXTURE_TEST_CASE( policy_switching_corner_case_test, validating_tester ) 
             1,
             {{get_public_key("alice"_n, "active"), 1}}}}
    };
+
+   // Now alice's schedule should become active.
+   // Make sure the first block of round 3 was produced by alice.
+   BOOST_CHECK_EQUAL(b->producer, "alice"_n);
    BOOST_CHECK_EQUAL(control->active_producers().version, 1u);
    BOOST_CHECK_EQUAL(compare_schedules(alice_sch, control->active_producers()), true);
 } FC_LOG_AND_RETHROW()
