@@ -378,44 +378,43 @@ std::optional<qc_t> aggregating_qc_t::get_best_qc(block_num_type block_num) cons
    return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
 }
 
-// A dual finalizer votes on both active and pending finalizer policies
+// A dual finalizer votes on both active and pending finalizer policies.
 void aggregating_qc_t::verify_dual_finalizers_votes(const qc_t& qc) const {
    auto build_vote_index = [&](const std::vector<finalizer_authority>& finalizers,
-                               std::set<bls_public_key>& keys,
                                std::map<bls_public_key, uint32_t>& index) {
       uint32_t i = 0;
       for (const auto& f: finalizers) {
          index[f.public_key] = i;
-         keys.insert(f.public_key);
          ++i;
       }
    };
 
-   std::set<bls_public_key> active_finalizer_keys; // all active finalizer public keys
    std::map<bls_public_key, uint32_t> active_finalizer_vote_index; // from public key to vote bit index
-   build_vote_index(active_finalizer_policy->finalizers,
-                    active_finalizer_keys,
-                    active_finalizer_vote_index);
+   build_vote_index(active_finalizer_policy->finalizers, active_finalizer_vote_index);
 
-   std::set<bls_public_key> pending_finalizer_keys; // all pending finalizer public keys
    std::map<bls_public_key, uint32_t> pending_finalizer_vote_index; // from public key to vote bit index
-   build_vote_index(pending_finalizer_policy->finalizers,
-                    pending_finalizer_keys,
-                    pending_finalizer_vote_index);
+   build_vote_index(pending_finalizer_policy->finalizers, pending_finalizer_vote_index);
 
-   // Find dual finalizers (which vote on both active and pending policies
-   std::set<bls_public_key> dual_finalizer_keys;
-   std::set_intersection(active_finalizer_keys.begin(), active_finalizer_keys.end(),
-                         pending_finalizer_keys.begin(), pending_finalizer_keys.end(),
-                         std::inserter(dual_finalizer_keys, dual_finalizer_keys.begin()));
+   std::vector<bls_public_key> pending_finalizer_keys_sorted; // all pending finalizer public keys sorted
+   pending_finalizer_keys_sorted.reserve(pending_finalizer_policy->finalizers.size());
+   for (const auto& f: pending_finalizer_policy->finalizers) {
+      pending_finalizer_keys_sorted.emplace_back(f.public_key);
+   }
+   std::sort(pending_finalizer_keys_sorted.begin(), pending_finalizer_keys_sorted.end());
 
-   // Verify each dual finalizer votes in the same way
-   for (const auto& k: dual_finalizer_keys) {
-      auto active_vote_index  = active_finalizer_vote_index[k];
-      auto pending_vote_index = pending_finalizer_vote_index[k];
-      EOS_ASSERT(qc.vote_same_at(active_vote_index, pending_vote_index),
-                 invalid_qc_claim,
-                 "qc ${bn} contains contains a dual finalizer ${k} which does not vote the same on active and pending policies", ("bn", qc.block_num)("k", k));
+   // Find dual finalizers (which vote on both active and pending policies)
+   // and verify each dual finalizer votes in the same way.
+   for (const auto& f: active_finalizer_policy->finalizers) {
+      bool found = std::binary_search(pending_finalizer_keys_sorted.begin(),
+                                      pending_finalizer_keys_sorted.end(),
+                                      f.public_key);
+      if (found) {
+         auto active_vote_index  = active_finalizer_vote_index[f.public_key];
+         auto pending_vote_index = pending_finalizer_vote_index[f.public_key];
+         EOS_ASSERT(qc.vote_same_at(active_vote_index, pending_vote_index),
+                    invalid_qc_claim,
+                    "qc ${bn} contains contains a dual finalizer ${k} which does not vote the same on active and pending policies", ("bn", qc.block_num)("k", f.public_key));
+      }
    }
 }
 
