@@ -216,7 +216,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
               ("p", persist_file_path));
 
    if (!std::filesystem::exists(persist_file_path)) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist",
+      fc_ilog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist (which is expected on the first use of a BLS finalizer key)",
               ("p", persist_file_path));
       return res;
    }
