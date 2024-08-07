@@ -36,41 +36,14 @@ bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint3
    assert(!strong_votes || my_vote_index < strong_votes->size());
    assert(!weak_votes || my_vote_index < weak_votes->size());
 
-   if (strong_votes && (*strong_votes)[my_vote_index]) {
-      if (other.strong_votes) {
-         // I voted strong, returns true if the other voted strong and false
-         // if the other did not vote.
-         return (*other.strong_votes)[other_vote_index];
-      } else {
-         // I voted strong, returns false if other voted weak
-         if (other.weak_votes && (*other.weak_votes)[other_vote_index]) {
-            return false;
-         }
-      }
-   }
+   // We have already verified the same index is not voted on both strong
+   // and weak for a given qc_sig_t (I or other).
+   bool same_strong = ((strong_votes && (*strong_votes)[my_vote_index]) ==
+                       (other.strong_votes && (*other.strong_votes)[other_vote_index]));
+   bool same_weak = ((weak_votes && (*weak_votes)[my_vote_index]) ==
+                     (other.weak_votes && (*other.weak_votes)[other_vote_index]));
 
-   if (weak_votes && (*weak_votes)[my_vote_index]) {
-      if (other.weak_votes) {
-         // I voted weak, returns true if the other voted and false
-         // if the other did not vote.
-         return (*other.weak_votes)[other_vote_index];
-      } else {
-         // I voted weak, returns false if voted strong
-         if (other.strong_votes && (*other.strong_votes)[other_vote_index]) {
-            return false;
-         }
-      }
-   }
-
-   // I didn't vote, the other could not have voted vote neither
-   if (other.strong_votes && (*other.strong_votes)[other_vote_index]) {
-      return false;
-   }
-   if (other.weak_votes && (*other.weak_votes)[other_vote_index]) {
-      return false;
-   }
-
-   return true;
+   return (same_strong || same_weak);
 }
 
 void qc_sig_t::verify_vote_format(const finalizer_policy_ptr& fin_policy) const {
