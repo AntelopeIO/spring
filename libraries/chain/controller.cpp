@@ -3312,7 +3312,7 @@ struct controller_impl {
                transition_to_savanna_if_needed();
             }
 
-            if (s == controller::block_status::incomplete && !my_finalizers.empty()) {
+            if (/*s == controller::block_status::incomplete &&*/ !my_finalizers.empty()) {
                // if the block is complete or validated, we have already voted on it
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
                   if (head->is_recent() || testing_allow_voting) {
