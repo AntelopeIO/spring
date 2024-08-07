@@ -1,89 +1,8 @@
 {
     "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
     "version": "eosio::abi/1.2",
-    "types": [
-        {
-            "new_type_name": "block_data_type",
-            "type": "variant_simple_block_data_extended_block_data"
-        }
-    ],
+    "types": [],
     "structs": [
-        {
-            "name": "action",
-            "base": "action_base",
-            "fields": [
-                {
-                    "name": "data",
-                    "type": "bytes"
-                },
-                {
-                    "name": "return_value",
-                    "type": "bytes"
-                }
-            ]
-        },
-        {
-            "name": "action_base",
-            "base": "",
-            "fields": [
-                {
-                    "name": "account",
-                    "type": "name"
-                },
-                {
-                    "name": "name",
-                    "type": "name"
-                },
-                {
-                    "name": "authorization",
-                    "type": "permission_level[]"
-                }
-            ]
-        },
-        {
-            "name": "action_data",
-            "base": "",
-            "fields": [
-                {
-                    "name": "action",
-                    "type": "action"
-                },
-                {
-                    "name": "receiver",
-                    "type": "name"
-                },
-                {
-                    "name": "recv_sequence",
-                    "type": "uint64"
-                },
-                {
-                    "name": "witness_hash",
-                    "type": "checksum256"
-                }
-            ]
-        },
-        {
-            "name": "action_proof_of_inclusion",
-            "base": "",
-            "fields": [
-                {
-                    "name": "target_block_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "final_block_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "target",
-                    "type": "action_data"
-                },
-                {
-                    "name": "merkle_branches",
-                    "type": "checksum256[]"
-                }
-            ]
-        },
         {
             "name": "block_finality_data",
             "base": "",
@@ -123,68 +42,6 @@
                 {
                     "name": "finality_mroot",
                     "type": "checksum256"
-                }
-            ]
-        },
-        {
-            "name": "block_proof_of_inclusion",
-            "base": "",
-            "fields": [
-                {
-                    "name": "target_block_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "final_block_index",
-                    "type": "uint64"
-                },
-                {
-                    "name": "target",
-                    "type": "block_data_type"
-                },
-                {
-                    "name": "merkle_branches",
-                    "type": "checksum256[]"
-                }
-            ]
-        },
-        {
-            "name": "dynamic_data_v0",
-            "base": "",
-            "fields": [
-                {
-                    "name": "block_num",
-                    "type": "uint32"
-                },
-                {
-                    "name": "action_proofs",
-                    "type": "action_proof_of_inclusion[]"
-                },
-                {
-                    "name": "action_mroot",
-                    "type": "checksum256?"
-                }
-            ]
-        },
-        {
-            "name": "extended_block_data",
-            "base": "",
-            "fields": [
-                {
-                    "name": "finality_data",
-                    "type": "block_finality_data"
-                },
-                {
-                    "name": "timestamp",
-                    "type": "block_timestamp_type"
-                },
-                {
-                    "name": "parent_timestamp",
-                    "type": "block_timestamp_type"
-                },
-                {
-                    "name": "dynamic_data",
-                    "type": "dynamic_data_v0"
                 }
             ]
         },
@@ -269,20 +126,6 @@
             ]
         },
         {
-            "name": "permission_level",
-            "base": "",
-            "fields": [
-                {
-                    "name": "actor",
-                    "type": "name"
-                },
-                {
-                    "name": "permission",
-                    "type": "name"
-                }
-            ]
-        },
-        {
             "name": "quorum_certificate_input",
             "base": "",
             "fields": [
@@ -327,16 +170,16 @@
                     "type": "finalizer_policy_input"
                 },
                 {
-                    "name": "proof_1",
+                    "name": "high_proof",
                     "type": "finality_proof"
                 },
                 {
-                    "name": "proof_2",
+                    "name": "low_proof",
                     "type": "finality_proof"
                 },
                 {
-                    "name": "proof_of_inclusion",
-                    "type": "block_proof_of_inclusion"
+                    "name": "reversible_blocks_digests",
+                    "type": "checksum256[]"
                 }
             ]
         },
@@ -346,32 +189,16 @@
             "fields": []
         },
         {
-            "name": "simple_block_data",
+            "name": "testmroot",
             "base": "",
             "fields": [
                 {
-                    "name": "major_version",
-                    "type": "uint32"
-                },
-                {
-                    "name": "minor_version",
-                    "type": "uint32"
-                },
-                {
-                    "name": "timestamp",
-                    "type": "block_timestamp_type"
-                },
-                {
-                    "name": "parent_timestamp",
-                    "type": "block_timestamp_type"
-                },
-                {
-                    "name": "finality_digest",
+                    "name": "root",
                     "type": "checksum256"
                 },
                 {
-                    "name": "dynamic_data",
-                    "type": "dynamic_data_v0"
+                    "name": "reversible_blocks_digests",
+                    "type": "checksum256[]"
                 }
             ]
         }
@@ -391,15 +218,15 @@
             "name": "rule3",
             "type": "rule3",
             "ricardian_contract": ""
+        },
+        {
+            "name": "testmroot",
+            "type": "testmroot",
+            "ricardian_contract": ""
         }
     ],
     "tables": [],
     "ricardian_clauses": [],
-    "variants": [
-        {
-            "name": "variant_simple_block_data_extended_block_data",
-            "types": ["simple_block_data","extended_block_data"]
-        }
-    ],
+    "variants": [],
     "action_results": []
 }

@@ -184,6 +184,31 @@ namespace savanna {
       check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
    }
 
+   checksum256 get_merkle_root(std::vector<checksum256> leaves) {
+      std::vector<std::vector<checksum256>> tree;
+
+      tree.push_back(leaves);
+
+      std::vector<checksum256> current_level = leaves;
+      while (current_level.size() > 1) {
+         std::vector<checksum256> next_level;
+         for (size_t i = 0; i < current_level.size(); i += 2) {
+            checksum256 left = current_level[i];
+            if (i + 1 < current_level.size()) {
+               checksum256 right = current_level[i + 1];
+               next_level.push_back(hash_pair(std::make_pair(left, right)));
+            } else {
+               next_level.push_back(left);
+            }
+         }
+         tree.insert(tree.begin(), next_level); // Prepend to build the tree upwards
+         current_level = next_level;
+      }
+
+      return current_level.front();
+
+    }
+
    struct authseq {
       name account;
       uint64_t sequence = 0;
@@ -289,6 +314,36 @@ namespace savanna {
       checksum256 last_pending_fin_pol_digest{};
       block_timestamp_type last_pending_fin_pol_start_timestamp;
       checksum256 l3_commitments_digest{};
+   };
+
+   struct block_ref_data {
+      uint32_t                block_num{0};
+      block_timestamp_type    timestamp;
+      checksum256             finality_digest;
+      block_timestamp_type    parent_timestamp;
+
+      checksum256 digest() const {
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
+         return hash;
+      };
+
+   };
+
+   struct reversible_proof_of_inclusion {
+      uint64_t target_block_index = 0;
+      uint64_t final_block_index = 0;
+
+      block_ref_data target;
+
+      std::vector<checksum256> merkle_branches;
+
+      //returns the merkle root obtained by hashing target.digest() with merkle_branches
+      checksum256 root() const {
+         checksum256 digest = target.digest();
+         checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
+         return root;
+      }; 
    };
 
    struct dynamic_data_v0 {
