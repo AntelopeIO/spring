@@ -261,7 +261,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
    for (size_t i=0; i<current_version; ++i) {
       auto fsi_map_vi = load_fsi_map(mk_versioned_fsi_file_path(i));
-      BOOST_REQUIRE(fsi_map_current == fsi_map_vi);
+      BOOST_REQUIRE(my_finalizers_t::are_equivalent(i, fsi_map_vi, fsi_map_current));
    }
 
 } FC_LOG_AND_RETHROW()
