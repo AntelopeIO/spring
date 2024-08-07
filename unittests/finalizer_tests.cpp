@@ -4,10 +4,12 @@
 #include <eosio/testing/tester.hpp>
 #include <eosio/testing/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <test-data.hpp>
 
 using namespace eosio;
 using namespace eosio::chain;
 using namespace eosio::testing;
+using namespace std::string_literals;
 
 using tstamp  = block_timestamp_type;
 using fsi_t   = finalizer_safety_information;
@@ -29,10 +31,16 @@ template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
    res.reserve(count);
-   for (size_t i=0; i<count; ++i) {
-      res.push_back(FSI{tstamp(i),
-                        block_ref{sha256::hash((const char *)"vote"), tstamp(i*100 + 3)},
-                        block_ref{sha256::hash((const char *)"lock"), tstamp(i*100)} });
+   for (size_t i = 0; i < count; ++i) {
+      res.push_back(FSI{
+         .last_vote_range_start = tstamp(i),
+         .last_vote             = block_ref{.block_id        = sha256::hash("vote"s + std::to_string(i)),
+                                            .timestamp       = tstamp(i * 100 + 3),
+                                            .finality_digest = sha256::hash("vote_digest"s + std::to_string(i))},
+         .lock                  = block_ref{.block_id        = sha256::hash("lock"s + std::to_string(i)),
+                                            .timestamp       = tstamp(i * 100),
+                                            .finality_digest = sha256::hash("lock_digest"s + std::to_string(i))}
+      });
       if (i)
          assert(res.back() != res[0]);
    }
@@ -205,6 +213,35 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[1].pubkey), fsi[1]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[5].pubkey), fsi[5]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[6].pubkey), fsi[6]);
+   }
+
+} FC_LOG_AND_RETHROW()
+
+
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
+   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto fsi_path = test_data_path / "fsi";
+
+   auto create_fsi_reference = [&](my_finalizers_t& fset) {
+      std::vector<bls_keys_t> keys = create_keys(3);
+      std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
+
+      bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
+      fset.set_keys(local_finalizers);
+      set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
+   };
+
+   auto create_fsi_reference_file = [&](std::string_view fname) {
+      auto safety_file_path = fsi_path / fname;
+      my_finalizers_t fset{safety_file_path};
+      create_fsi_reference(fset);
+      fset.save_finalizer_safety_info();
+   };
+
+   // enable code below to create a new reference version of the finalizer_safety_file
+   if (0) {
+      // modify file name so that _vX matches my_finalizers_t::current_safety_file_version
+      create_fsi_reference_file("safety_v0.dat");
    }
 
 } FC_LOG_AND_RETHROW()

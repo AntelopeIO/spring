@@ -83,6 +83,8 @@ namespace eosio::chain {
       mutable bool                      inactive_safety_info_written{false};
 
    public:
+      static constexpr uint32_t current_safety_file_version = 0;
+
       explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
          : persist_file_path(persist_file_path)
       {}
