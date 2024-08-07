@@ -13,6 +13,7 @@ using namespace std::string_literals;
 
 using tstamp  = block_timestamp_type;
 using fsi_t   = finalizer_safety_information;
+using fsi_map = my_finalizers_t::fsi_map;
 
 struct bls_keys_t {
    bls_private_key privkey;
@@ -220,7 +221,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
 
 BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
-   auto fsi_path = test_data_path / "fsi";
+   auto fsi_reference_dir = test_data_path / "fsi";
 
    auto create_fsi_reference = [&](my_finalizers_t& fset) {
       std::vector<bls_keys_t> keys = create_keys(3);
@@ -231,17 +232,36 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
       set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
    };
 
-   auto create_fsi_reference_file = [&](std::string_view fname) {
-      auto safety_file_path = fsi_path / fname;
+   auto create_fsi_reference_file = [&](const std::filesystem::path& safety_file_path) {
       my_finalizers_t fset{safety_file_path};
       create_fsi_reference(fset);
       fset.save_finalizer_safety_info();
    };
 
+   auto mk_versioned_fsi_file_path = [&](uint32_t v) {
+      return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+   };
+
+   auto current_version = my_finalizers_t::current_safety_file_version;
+
    // enable code below to create a new reference version of the finalizer_safety_file
-   if (0) {
-      // modify file name so that _vX matches my_finalizers_t::current_safety_file_version
-      create_fsi_reference_file("safety_v0.dat");
+   if (0)
+      create_fsi_reference_file(mk_versioned_fsi_file_path(current_version));
+
+   auto load_fsi_map = [&](const std::filesystem::path& safety_file_path) {
+      BOOST_REQUIRE(std::filesystem::exists(safety_file_path));
+       my_finalizers_t fset{safety_file_path};
+       auto map = fset.load_finalizer_safety_info();
+       return map;
+   };
+
+   // make sure we can read previous versions of the safety file correctly
+   // --------------------------------------------------------------------
+   auto fsi_map_current = load_fsi_map(mk_versioned_fsi_file_path(current_version));
+
+   for (size_t i=0; i<current_version; ++i) {
+      auto fsi_map_vi = load_fsi_map(mk_versioned_fsi_file_path(i));
+      BOOST_REQUIRE(fsi_map_current == fsi_map_vi);
    }
 
 } FC_LOG_AND_RETHROW()

@@ -69,6 +69,9 @@ namespace eosio::chain {
 
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
+   public:
+      static constexpr uint32_t current_safety_file_version = 0;
+
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
 
@@ -83,8 +86,6 @@ namespace eosio::chain {
       mutable bool                      inactive_safety_info_written{false};
 
    public:
-      static constexpr uint32_t current_safety_file_version = 0;
-
       explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
          : persist_file_path(persist_file_path)
       {}
