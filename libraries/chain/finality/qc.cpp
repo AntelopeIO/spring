@@ -269,8 +269,8 @@ vote_result_t aggregating_qc_sig_t::add_weak_vote(size_t index, const bls_signat
 
 // thread safe
 vote_result_t aggregating_qc_sig_t::add_vote(uint32_t connection_id, block_num_type block_num,
-                                      bool strong, size_t index,
-                                      const bls_signature& sig, uint64_t weight) {
+                                             bool strong, size_t index,
+                                             const bls_signature& sig, uint64_t weight) {
    std::unique_lock g(*_mtx);
    state_t pre_state = aggregating_state;
    vote_result_t s = check_duplicate(index);
@@ -283,8 +283,8 @@ vote_result_t aggregating_qc_sig_t::add_vote(uint32_t connection_id, block_num_t
    state_t post_state = aggregating_state;
    g.unlock();
 
-   fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, vote strong: ${sv}, status: ${s}, pre-state: ${pre}, post-state: ${state}, quorum_met: ${q}",
-        ("c", connection_id)("bn", block_num)("sv", strong)("s", s)("pre", pre_state)("state", post_state)("q", is_quorum_met(post_state)));
+   fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, index: ${i}, vote strong: ${sv}, status: ${s}, pre-state: ${pre}, post-state: ${state}, quorum_met: ${q}",
+           ("c", connection_id)("bn", block_num)("i", index)("sv", strong)("s", s)("pre", pre_state)("state", post_state)("q", is_quorum_met(post_state)));
    return s;
 }
 
@@ -465,16 +465,17 @@ vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vot
       if (itr != finalizers.end()) {
          auto index = std::distance(finalizers.begin(), itr);
          if (agg_qc_sig.has_voted(index)) {
-            fc_dlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate", ("c", connection_id)("bn", block_num));
+            fc_tlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate finalizer ${k}..",
+                    ("c", connection_id)("bn", block_num)("k", vote.finalizer_key.to_string().substr(8,16)));
             return vote_result_t::duplicate;
          }
          if (vote_result_t vs = verify_sig(); vs != vote_result_t::success)
             return vs;
          s = agg_qc_sig.add_vote(connection_id, block_num,
-                                  vote.strong,
-                                  index,
-                                  vote.sig,
-                                  finalizers[index].weight);
+                                 vote.strong,
+                                 index,
+                                 vote.sig,
+                                 finalizers[index].weight);
 
       }
       return s;
