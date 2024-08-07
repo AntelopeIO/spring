@@ -52,33 +52,23 @@ ACTION finality_violation::rule2(   const finalizer_policy_input finalizer_polic
                                     const finality_proof low_proof,
                                     const std::vector<checksum256> reversible_blocks_digests){
 
-    print("check QC\n");
     check_qcs(finalizer_policy, high_proof, low_proof);
 
     block_timestamp high_proof_timestamp = high_proof.qc_block.level_3_commitments.value().timestamp;
     block_timestamp low_proof_timestamp = low_proof.qc_block.level_3_commitments.value().timestamp;
     block_timestamp high_proof_last_claim_timestamp = high_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
-    print("check range conflict\n");
     bool time_range_conflict = high_proof_last_claim_timestamp < low_proof_timestamp && low_proof_timestamp < high_proof_timestamp;
     
     check(time_range_conflict, "proofs must demonstrate a conflicting time range");
 
-    print("check merkle root\n");
     check(get_merkle_root(reversible_blocks_digests) == high_proof.qc_block.level_3_commitments->reversible_blocks_mroot, "reversible_blocks_digests merkle root does not match reversible_blocks_mroot");
 
-/*    check(std::holds_alternative<extended_block_data>(proof_of_inclusion.target), "must provide extended block data object");
+    checksum256 computed_digest = block_finality_data_internal(low_proof.qc_block).finality_digest();
 
-    extended_block_data target = std::get<extended_block_data>(proof_of_inclusion.target);
-
-    block_timestamp target_timestamp = target.timestamp;
-
-    check(high_proof_timestamp == target_timestamp, "timestamp of high_proof block of the target block of the proof of inclusion must be the same");
-
-    auto finality_digest_claimed = block_finality_data_internal(high_proof.qc_block).finality_digest();
-    auto finality_digest_actual = block_finality_data_internal(target.finality_data).finality_digest() ;
-
-    check(finality_digest_claimed != finality_digest_actual, "finality digests must be different for a finality violation proof to be valid");*/
+    auto f_itr = std::find(reversible_blocks_digests.begin(), reversible_blocks_digests.end(), computed_digest);
+    
+    check(f_itr==reversible_blocks_digests.end(), "finality digest of low block exists in reversible_blocks_digests vector");
 
 }
 

@@ -10,22 +10,50 @@ namespace finality_proof {
 
    // data relevant to IBC
    struct ibc_block_data_t {
-      signed_block_ptr block;
-      qc_data_t qc_data;
-      action_trace onblock_trace;
-      finality_data_t finality_data;
-      finalizer_policy active_finalizer_policy;
-      finalizer_policy last_pending_finalizer_policy;
-      finalizer_policy last_proposed_finalizer_policy;
-      digest_type action_mroot; //this is the real action_mroot, as returned from finality_data
-      digest_type base_digest;
-      block_timestamp_type last_pending_finalizer_policy_start_timestamp;
-      digest_type finality_digest;
-      level_3_commitments_t level_3_commitments;
-      level_2_commitments_t level_2_commitments;
-      digest_type finality_leaf;
-      digest_type finality_root;
-      block_timestamp_type parent_timestamp;
+      signed_block_ptr block = nullptr;
+      qc_data_t qc_data{};
+      action_trace onblock_trace{};
+      finality_data_t finality_data{};
+      finalizer_policy active_finalizer_policy{};
+      finalizer_policy last_pending_finalizer_policy{};
+      finalizer_policy last_proposed_finalizer_policy{};
+      digest_type action_mroot{}; //this is the real action_mroot, as returned from finality_data
+      digest_type base_digest{};
+      block_timestamp_type last_pending_finalizer_policy_start_timestamp{};
+      digest_type finality_digest{};
+      level_3_commitments_t level_3_commitments{};
+      level_2_commitments_t level_2_commitments{};
+      digest_type finality_leaf{};
+      digest_type finality_root{};
+      block_timestamp_type parent_timestamp{};
+
+      digest_type level_3_commitments_digest() const {
+         return fc::sha256::hash(level_3_commitments);
+      }
+
+      digest_type level_2_commitments_digest() const {
+         return fc::sha256::hash(level_2_commitments);
+      }
+      
+   };
+
+   struct ibc_block_data_tt {
+      signed_block block{};
+      qc_data_t qc_data{};
+      action_trace onblock_trace{};
+      finality_data_t finality_data{};
+      finalizer_policy active_finalizer_policy{};
+      finalizer_policy last_pending_finalizer_policy{};
+      finalizer_policy last_proposed_finalizer_policy{};
+      digest_type action_mroot{}; //this is the real action_mroot, as returned from finality_data
+      digest_type base_digest{};
+      block_timestamp_type last_pending_finalizer_policy_start_timestamp{};
+      digest_type finality_digest{};
+      level_3_commitments_t level_3_commitments{};
+      level_2_commitments_t level_2_commitments{};
+      digest_type finality_leaf{};
+      digest_type finality_root{};
+      block_timestamp_type parent_timestamp{};
 
       digest_type level_3_commitments_digest() const {
          return fc::sha256::hash(level_3_commitments);
