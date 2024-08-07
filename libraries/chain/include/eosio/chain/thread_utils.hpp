@@ -12,15 +12,17 @@
 
 namespace eosio { namespace chain {
 
-   // should be defined for c++17, but clang++16 still has not implemented it
-#ifdef __cpp_lib_hardware_interference_size
-   using std::hardware_constructive_interference_size;
-   using std::hardware_destructive_interference_size;
-#else
+   // Avoid GCC warning:
+   // libraries/chain/include/eosio/chain/thread_utils.hpp:28:15: warning: use of ‘std::hardware_destructive_interference_size’ [-Winterference-size]
+   //   28 |       alignas(hardware_destructive_interference_size)
+   //      |               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   // thread_utils.hpp:28:15: note: its value can vary between compiler versions or with different ‘-mtune’ or ‘-mcpu’ flags
+   // thread_utils.hpp:28:15: note: if this use is part of a public ABI, change it to instead use a constant variable you define
+   // thread_utils.hpp:28:15: note: the default value for the current CPU tuning is 64 bytes
+   // thread_utils.hpp:28:15: note: you can stabilize this value with ‘--param hardware_destructive_interference_size=64’, or disable this warning with ‘-Wno-interference-size’
+   //
    // 64 bytes on x86-64 │ L1_CACHE_BYTES │ L1_CACHE_SHIFT │ __cacheline_aligned │ ...
-   [[maybe_unused]] constexpr std::size_t hardware_constructive_interference_size = 64;
-   [[maybe_unused]] constexpr std::size_t hardware_destructive_interference_size  = 64;
-#endif
+   constexpr std::size_t hardware_destructive_interference_sz = 64;
 
    // Use instead of std::atomic when std::atomic does not support type
    template <typename T>
