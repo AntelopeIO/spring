@@ -4,13 +4,16 @@
 #include <eosio/testing/tester.hpp>
 #include <eosio/testing/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <test-data.hpp>
 
 using namespace eosio;
 using namespace eosio::chain;
 using namespace eosio::testing;
+using namespace std::string_literals;
 
 using tstamp  = block_timestamp_type;
 using fsi_t   = finalizer_safety_information;
+using fsi_map = my_finalizers_t::fsi_map;
 
 struct bls_keys_t {
    bls_private_key privkey;
@@ -25,14 +28,27 @@ struct bls_keys_t {
    }
 };
 
+// -------------------------------------------------------------------------------------
+//                       **DO NOT MODIFY**
+//                       -----------------
+// Do not modify the existing data provided by this function (additions are OK) because
+// it was used for generating the reference files in `test-data/fsi`, and is used
+// to generate the new file used in the test `finalizer_safety_file_versioning`
+// -------------------------------------------------------------------------------------
 template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
    res.reserve(count);
-   for (size_t i=0; i<count; ++i) {
-      res.push_back(FSI{tstamp(i),
-                        block_ref{sha256::hash((const char *)"vote"), tstamp(i*100 + 3)},
-                        block_ref{sha256::hash((const char *)"lock"), tstamp(i*100)} });
+   for (size_t i = 0; i < count; ++i) {
+      res.push_back(FSI{
+         .last_vote_range_start = tstamp(i),
+         .last_vote             = block_ref{.block_id        = sha256::hash("vote"s + std::to_string(i)),
+                                            .timestamp       = tstamp(i * 100 + 3),
+                                            .finality_digest = sha256::hash("vote_digest"s + std::to_string(i))},
+         .lock                  = block_ref{.block_id        = sha256::hash("lock"s + std::to_string(i)),
+                                            .timestamp       = tstamp(i * 100),
+                                            .finality_digest = sha256::hash("lock_digest"s + std::to_string(i))}
+      });
       if (i)
          assert(res.back() != res[0]);
    }
@@ -205,6 +221,61 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[1].pubkey), fsi[1]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[5].pubkey), fsi[5]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[6].pubkey), fsi[6]);
+   }
+
+} FC_LOG_AND_RETHROW()
+
+
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
+   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto fsi_reference_dir = test_data_path / "fsi";
+
+   auto create_fsi_reference = [&](my_finalizers_t& fset) {
+      std::vector<bls_keys_t> keys = create_keys(3);
+      std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
+
+      bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
+      fset.set_keys(local_finalizers);
+      set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
+   };
+
+   auto create_fsi_reference_file = [&](const std::filesystem::path& safety_file_path) {
+      my_finalizers_t fset{safety_file_path};
+      create_fsi_reference(fset);
+      fset.save_finalizer_safety_info();
+   };
+
+   auto mk_versioned_fsi_file_path = [&](uint32_t v) {
+      return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+   };
+
+   auto current_version = my_finalizers_t::current_safety_file_version;
+
+   // run this unittest with the option `--save-fsi-ref` to save ref file for the current version.
+   // --------------------------------------------------------------------------------------------
+   bool save_fsi_reference_file = [](){
+      auto argc = boost::unit_test::framework::master_test_suite().argc;
+      auto argv = boost::unit_test::framework::master_test_suite().argv;
+      return std::find(argv, argv + argc, std::string("--save-fsi-ref")) != (argv + argc);
+   }();
+
+   if (save_fsi_reference_file)
+      create_fsi_reference_file(mk_versioned_fsi_file_path(current_version));
+
+   auto load_fsi_map = [&](const std::filesystem::path& safety_file_path) {
+      BOOST_REQUIRE(std::filesystem::exists(safety_file_path));
+       my_finalizers_t fset{safety_file_path};
+       auto map = fset.load_finalizer_safety_info();
+       return map;
+   };
+
+   // make sure we can read previous versions of the safety file correctly
+   // --------------------------------------------------------------------
+   auto fsi_map_current = load_fsi_map(mk_versioned_fsi_file_path(current_version));
+
+   for (size_t i=0; i<current_version; ++i) {
+      auto fsi_map_vi = load_fsi_map(mk_versioned_fsi_file_path(i));
+      BOOST_REQUIRE(my_finalizers_t::are_equivalent(i, fsi_map_vi, fsi_map_current));
    }
 
 } FC_LOG_AND_RETHROW()
