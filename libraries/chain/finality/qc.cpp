@@ -43,7 +43,7 @@ bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint3
    bool same_weak = ((weak_votes && (*weak_votes)[my_vote_index]) ==
                      (other.weak_votes && (*other.weak_votes)[other_vote_index]));
 
-   return (same_strong || same_weak);
+   return (same_strong && same_weak);
 }
 
 void qc_sig_t::verify_vote_format(const finalizer_policy_ptr& fin_policy) const {
