@@ -164,6 +164,7 @@ public:
    bool                              accept_transactions     = false;
    bool                              api_accept_transactions = true;
    bool                              account_queries_enabled = false;
+   bool                              last_tracked_votes_enabled = false;
 
    std::optional<controller::config> chain_config;
    std::optional<controller>         chain;
@@ -972,6 +973,12 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
       }
 
+      // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
+      if (options.count("plugin")) {
+         const auto& v = options.at("plugin").as<std::vector<std::string>>();
+         last_tracked_votes_enabled = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
+      }
+
       // initialize deep mind logging
       if ( options.at( "deep-mind" ).as<bool>() ) {
          // The actual `fc::dmlog_appender` implementation that is currently used by deep mind
@@ -1147,7 +1154,9 @@ void chain_plugin_impl::plugin_startup()
       } FC_LOG_AND_DROP(("Unable to enable account queries"));
    }
 
-   _last_tracked_votes.emplace(*chain);
+   if (last_tracked_votes_enabled) {
+      _last_tracked_votes.emplace(*chain);
+   }
 
 } FC_CAPTURE_AND_RETHROW() }
 
