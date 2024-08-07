@@ -383,11 +383,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
                     minimal_block_data b = reversible_blocks[i];
 
-                    std::cout << "b.block_num " << b.block_num << "\n"; 
-                    std::cout << "b.timestamp " << b.timestamp << "\n";
-                    std::cout << "b.finality_digest " << b.finality_digest << "\n";
-                    std::cout << "b.parent_timestamp " << b.parent_timestamp << "\n";
-
                     digest_type digest = compute_block_ref_digest(b);
 
                     block_ref_digests.push_back(digest);
@@ -589,19 +584,24 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
 
+        //compute reversible digests on block #12 and #13 on the real chain
         std::vector<digest_type> block_ref_digests = { compute_block_ref_digest(real_chain_block_12_result), compute_block_ref_digest(real_chain_block_13_result)};
 
         //Fake chain has a QC on #13 carried by #14, but real chain doesn't
         BOOST_TEST(fake_chain_block_14_result.qc_data.qc.has_value());
         BOOST_TEST(!real_chain_block_14_result.qc_data.qc.has_value());
 
-        auto fake_chain_block_15_result = light_client_data.scan_block(fake_chain.produce_block());
+        //fake chain stops producing, but real chain continues
         auto real_chain_block_15_result = real_chain.produce_block();
 
-        //Things are back to normal, and we have a QC on both chains
-        BOOST_TEST(fake_chain_block_15_result.qc_data.qc.has_value());
+        //Things are back to normal on the real chain, and we have a QC 
         BOOST_TEST(real_chain_block_15_result.qc_data.qc.has_value());
 
+        //We discovered a QC (over block #14) on the real chain, which was delivered via block #15. 
+        //Last QC recorded on the fake chain was over block #13, and was delivered by block #14
+        //We provide the real block #14 and its QC, the reversible digests at that time (block #12 and #13), as well as the fake block #13 and its QC.
+        //Since there is a time range conflict, and the fake block #13 finality digest doesn't appear in the list of the digests committed to by the real block QC, 
+        //this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_minimal_block_data(real_chain_block_14_result), 
                                                                     get_minimal_block_data(real_chain_block_15_result).qc_data.qc.value(), 
@@ -610,35 +610,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     block_ref_digests);
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));
-
-/*        */
-     
-
-/*
-        real_chain.vote_propagation = {1,0,0};
-
-        auto fake_chain_block_12_result = light_client_data.scan_block(fake_chain.produce_block());
-        auto real_chain_block_12_result = real_chain.produce_block();
-
-        BOOST_TEST(fake_chain_block_12_result.qc_data.qc.has_value());
-        BOOST_TEST(real_chain_block_12_result.qc_data.qc.has_value());
-        
-        real_chain.vote_propagation = {1,0,1};
-
-        auto fake_chain_block_13_result = light_client_data.scan_block(fake_chain.produce_block());
-        auto real_chain_block_13_result = real_chain.produce_block();
-
-        BOOST_TEST(fake_chain_block_13_result.qc_data.qc.has_value());
-        BOOST_TEST(!real_chain_block_13_result.qc_data.qc.has_value());
-
-        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_gt_proof(  light_client_data.active_finalizer_policy, 
-                                                                    light_client_data.high_qc_block, 
-                                                                    light_client_data.high_qc, 
-                                                                    real_chain_block_9_result, 
-                                                                    real_chain_block_10_result.qc_data.qc.value());
-
-        //greater than rule
-        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));*/
 
     } FC_LOG_AND_RETHROW() }
 
