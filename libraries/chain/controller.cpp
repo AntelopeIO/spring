@@ -3904,7 +3904,9 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      if (!should_terminate(bsp->block_num())) {
+      // use bsp->irreversible_blocknum() instead of fork_db_root_block_num() to avoid mutex lock on forkdb
+      // approximate LIB is fine for max-reversible-blocks option
+      if (!should_terminate(bsp->block_num(), bsp->irreversible_blocknum())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
@@ -4707,17 +4709,27 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   bool should_terminate(block_num_type head_block_num) const {
+   bool should_terminate(block_num_type head_block_num, block_num_type lib) const {
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", head_block_num)("num", conf.terminate_at_block) );
+         return true;
+      }
+      if (lib > 0 && head_block_num >= lib + conf.max_reversible_blocks) {
+         elog("Exceeded max reversible blocks allowed, head ${h} >= LIB ${lib} + ${m}",
+              ("h", head_block_num)("lib", lib)("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
    }
 
    bool should_terminate() const {
-      return should_terminate(chain_head.block_num());
+      // use bsp->irreversible_blocknum() instead of fork_db_root_block_num() to avoid mutex lock on forkdb
+      // approximate LIB is fine for max-reversible-blocks option
+      block_num_type lib = block_handle_accessor::apply<block_num_type>(chain_head, [](const auto& bsp) {
+         return bsp->irreversible_blocknum();
+      });
+      return should_terminate(chain_head.block_num(), lib);
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -5503,8 +5515,8 @@ bool controller::should_terminate() const {
    return my->should_terminate();
 }
 
-bool controller::should_terminate(block_num_type head_block_num) const {
-   return my->should_terminate(head_block_num);
+bool controller::should_terminate(block_num_type head_block_num, block_num_type lib) const {
+   return my->should_terminate(head_block_num, lib);
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
