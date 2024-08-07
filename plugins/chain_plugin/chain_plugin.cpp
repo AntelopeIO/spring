@@ -360,7 +360,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
          ("max-reversible-blocks", bpo::value<uint32_t>()->default_value(config::default_max_reversible_blocks),
-          "Approximate maximum allowed reversible blocks before shutdown. Will shut down if limit reached.")
+          "Approximate maximum allowed reversible blocks before shutdown. Will shut down if limit reached. Specify 0 to disable.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
           "Maximum size (in GiB) allowed to be allocated for the Transaction Retry feature. Setting above 0 enables this feature.")
          ("transaction-retry-interval-sec", bpo::value<uint32_t>()->default_value(20),
