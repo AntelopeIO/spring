@@ -36,19 +36,33 @@ bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint3
    assert(!strong_votes || my_vote_index < strong_votes->size());
    assert(!weak_votes || my_vote_index < weak_votes->size());
 
-   // I vote strongly on my_vote_index, the other must vote strongly
-   // on other_vote_index too
    if (strong_votes && (*strong_votes)[my_vote_index]) {
-      return other.strong_votes && (*other.strong_votes)[other_vote_index];
+      if (other.strong_votes) {
+         // I voted strong, returns true if the other voted strong and false
+         // if the other did not vote.
+         return (*other.strong_votes)[other_vote_index];
+      } else {
+         // I voted strong, returns false if other voted weak
+         if (other.weak_votes && (*other.weak_votes)[other_vote_index]) {
+            return false;
+         }
+      }
    }
 
-   // I vote weakly on my_vote_index, the other must vote weakly
-   // on other_vote_index too
    if (weak_votes && (*weak_votes)[my_vote_index]) {
-      return other.weak_votes && (*other.weak_votes)[other_vote_index];
+      if (other.weak_votes) {
+         // I voted weak, returns true if the other voted and false
+         // if the other did not vote.
+         return (*other.weak_votes)[other_vote_index];
+      } else {
+         // I voted weak, returns false if voted strong
+         if (other.strong_votes && (*other.strong_votes)[other_vote_index]) {
+            return false;
+         }
+      }
    }
 
-   // I don't vote, the other cannot vote either
+   // I didn't vote, the other could not have voted vote neither
    if (other.strong_votes && (*other.strong_votes)[other_vote_index]) {
       return false;
    }
