@@ -158,8 +158,6 @@ digest_type finality_core::get_reversible_blocks_mroot() const {
       return {};
    }
 
-   std::cout << "\n*** get_reversible_blocks_mroot *** \n\n";
-   
    // Build a merkle tree of a sequence of records including block number,
    // block timestamp, finality digest, and the timestamp of the parent block.
    std::vector<digest_type> block_ref_digests;
@@ -172,24 +170,10 @@ digest_type finality_core::get_reversible_blocks_mroot() const {
          .parent_timestamp = refs[i-1].timestamp
       };
 
-      std::cout << "\ndata.block_num " << data.block_num << "\n";
-      std::cout << "data.timestamp " << data.timestamp << "\n";
-      std::cout << "data.finality_digest " << data.finality_digest << "\n";
-      std::cout << "data.parent_timestamp " << data.parent_timestamp << "\n\n";
-
-      digest_type hash = fc::sha256::hash(data);
-    
-      std::cout << "leaf hash " << hash << "\n\n";
-
-      block_ref_digests.emplace_back(hash);
+      block_ref_digests.emplace_back(fc::sha256::hash(data));
    }
 
-   digest_type root = calculate_merkle(block_ref_digests);
-   
-   std::cout << "root " << root << "\n\n";
-   
-   return root;
-
+   return calculate_merkle(block_ref_digests);
 }
 
 /**
