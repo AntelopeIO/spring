@@ -118,12 +118,14 @@ namespace savanna_cluster {
       size_t set_producers(const std::vector<account_name>& producers) {
          tester::set_producers(producers);
          account_name pending;
-         while (1) {
+         size_t max_blocks_produced = 400;
+         while (--max_blocks_produced) {
             signed_block_ptr sb = produce_block();
             pending = control->pending_block_producer();
             if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
                break;
          }
+         BOOST_REQUIRE_GT(max_blocks_produced, 0);
          return ranges::find(producers, pending) - producers.begin();
       }
 
