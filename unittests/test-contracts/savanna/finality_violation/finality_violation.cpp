@@ -61,6 +61,21 @@ ACTION finality_violation::rule3(   const finalizer_policy_input finalizer_polic
 
     check_qcs(finalizer_policy, high_proof, low_proof);
 
+    block_timestamp low_proof_timestamp = low_proof.qc_block.level_3_commitments.value().timestamp;
+    block_timestamp high_proof_last_claim_timestamp = high_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
+
+    bool time_range_conflict = low_proof_timestamp < high_proof_last_claim_timestamp;
+    
+    check(time_range_conflict, "low proof timestamp must be less than high proof last claimed QC timestamp");
+
+    check(get_merkle_root(reversible_blocks_digests) == high_proof.qc_block.level_3_commitments->reversible_blocks_mroot, "reversible_blocks_digests merkle root does not match reversible_blocks_mroot");
+
+    checksum256 computed_digest = block_finality_data_internal(low_proof.qc_block).finality_digest();
+
+    auto f_itr = std::find(reversible_blocks_digests.begin(), reversible_blocks_digests.end(), computed_digest);
+
+    check(f_itr==reversible_blocks_digests.end(), "finality digest of low block exists in reversible_blocks_digests vector");
+
 }
 
 ACTION finality_violation::testmroot(const checksum256 root, const std::vector<checksum256> reversible_blocks_digests){
