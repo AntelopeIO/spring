@@ -216,11 +216,8 @@ private:
       log_header_with_sizes header = {{ship_magic(ship_current_version, 0), id}, 1};
       const uint32_t block_num = chain::block_header::num_from_id(header.block_id);
 
-      if(!empty()) {
+      if(!empty())
          EOS_ASSERT(block_num <= _end_block, chain::plugin_exception, "block ${b} skips over block ${e} in ${name}", ("b", block_num)("e", _end_block)("name", log.display_path()));
-         if(_end_block > 2u)
-            EOS_ASSERT(block_num > 2u, chain::plugin_exception, "existing ship log with ${eb} blocks when starting from genesis block ${b}", ("eb", _end_block-_begin_block)("b", block_num));
-      }
       EOS_ASSERT(block_num >= _index_begin_block, chain::plugin_exception, "block ${b} is before start block ${s} of ${name}", ("b", block_num)("s", _begin_block)("name", log.display_path()));
       if(block_num == _end_block) //appending at the end of known blocks; can shortcut some checks since we have last_block_id readily available
          EOS_ASSERT(prev_id == last_block_id, chain::plugin_exception, "missed a fork change in ${name}", ("name", log.display_path()));
@@ -234,6 +231,9 @@ private:
          //we don't want to re-write blocks that we already have, so check if the existing block_id recorded in the log matches and if so, bail
          if(get_block_id(block_num) == id)
             return;
+         //but if it doesn't match, and log isn't empty, ensure not writing a new genesis block to guard against accidental rewinding of the entire ship log
+         if(!empty())
+            EOS_ASSERT(block_num > 2u, chain::plugin_exception, "existing ship log with ${eb} blocks when starting from genesis block ${b}", ("eb", _end_block-_begin_block)("b", block_num));
       }
 
       ssize_t log_insert_pos = log.size();
