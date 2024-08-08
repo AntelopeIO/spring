@@ -608,8 +608,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_14_result), 
                                                                     get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
-                                                                    get_finality_block_data(fake_chain_block_13_result), 
-                                                                    get_finality_block_data(fake_chain_block_14_result).qc_data.qc.value(),
+                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
+                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
                                                                     block_ref_digests);
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));
