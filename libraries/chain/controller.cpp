@@ -2153,7 +2153,7 @@ struct controller_impl {
    }
 
    block_state_pair read_from_snapshot( const snapshot_reader_ptr& snapshot, uint32_t blog_start, uint32_t blog_end ) {
-      size_t total_snapshot_rows = snapshot->total_row_count();
+      const size_t total_snapshot_rows = snapshot->total_row_count();
       std::atomic_size_t rows_loaded;
 
       chain_snapshot_header header;
@@ -2228,7 +2228,8 @@ struct controller_impl {
                   ("block_log_last_num", blog_end)
       );
 
-      boost::asio::io_context snapshot_load_ctx;
+      sync_threaded_work<struct snapload> snapshot_load_workqueue;
+      boost::asio::io_context& snapshot_load_ctx = snapshot_load_workqueue.io_context();
 
       controller_index_set::walk_indices_via_post(snapshot_load_ctx, [this, &snapshot, &header, &rows_loaded]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
@@ -2324,32 +2325,9 @@ struct controller_impl {
       constexpr unsigned max_snapshot_load_threads = 4;
       const unsigned snapshot_load_threads = snapshot->supports_threading() ? max_snapshot_load_threads : 1;
 
-      std::vector<std::promise<void>> thread_promises(snapshot_load_threads);
-      std::list<std::thread> threads;
-      //this scoped_exit can go away with jthread; but still marked experimental in libc++18
-      auto join = fc::make_scoped_exit([&threads]() {
-         for(std::thread& t : threads)
-            t.join();
+      snapshot_load_workqueue.run(snapshot_load_threads, std::chrono::seconds(5), [&]() {
+         ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)rows_loaded/total_snapshot_rows)*100)));
       });
-      for(unsigned i = 0; i < snapshot_load_threads; ++i)
-         threads.emplace_back([&snapshot_load_ctx, &prom = thread_promises[i]] {
-            try {
-               snapshot_load_ctx.run();
-               prom.set_value();
-            }
-            catch(...) {
-               snapshot_load_ctx.stop();
-               prom.set_exception(std::current_exception());
-            }
-         });
-
-      for(std::promise<void>& p : thread_promises) {
-         std::future<void> f = p.get_future();
-         while(f.wait_for(std::chrono::seconds(5)) != std::future_status::ready) {
-            ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)rows_loaded/total_snapshot_rows)*100)));
-         }
-         f.get();
-      }
 
       db.set_revision( chain_head.block_num() );
       db.create<database_header_object>([](const auto& header){
