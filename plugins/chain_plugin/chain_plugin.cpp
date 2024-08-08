@@ -1154,9 +1154,7 @@ void chain_plugin_impl::plugin_startup()
       } FC_LOG_AND_DROP(("Unable to enable account queries"));
    }
 
-   if (last_tracked_votes_enabled) {
-      _last_tracked_votes.emplace(*chain);
-   }
+   _last_tracked_votes.emplace(*chain, last_tracked_votes_enabled);
 
 } FC_CAPTURE_AND_RETHROW() }
 
@@ -2733,6 +2731,12 @@ const controller::config& chain_plugin::chain_config() const {
    EOS_ASSERT(my->chain_config.has_value(), plugin_exception, "chain_config not initialized");
    return *my->chain_config;
 }
+
+void chain_plugin::register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&& m) {
+   assert(my->_last_tracked_votes);
+   my->_last_tracked_votes->register_update_vote_block_metrics(std::move(m));
+}
+
 } // namespace eosio
 
 FC_REFLECT( eosio::chain_apis::detail::ram_market_exchange_state_t, (ignore1)(ignore2)(ignore3)(core_symbol)(ignore4) )

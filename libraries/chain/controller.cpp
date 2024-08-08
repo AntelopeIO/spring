@@ -5877,6 +5877,10 @@ void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer
    my->set_node_finalizer_keys(finalizer_keys);
 }
 
+bool controller::is_node_finalizer_key(const bls_public_key& key) const {
+   return my->my_finalizers.contains(key);
+}
+
 /// Protocol feature activation handlers:
 
 template<>

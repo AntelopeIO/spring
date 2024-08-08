@@ -3,6 +3,7 @@
 #include <eosio/http_plugin/http_plugin.hpp>
 #include <eosio/net_plugin/net_plugin.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
+#include <eosio/chain_plugin/tracked_votes.hpp>
 
 #include <prometheus/counter.h>
 #include <prometheus/info.h>
@@ -244,7 +245,7 @@ struct catalog_type {
       }
    }
 
-   void update(const producer_plugin::vote_block_metrics&& metrics) {
+   void update(const chain_apis::tracked_votes::vote_block_metrics&& metrics) {
       block_votes.block_num.Set(metrics.block_num);
 
       auto add_and_set_gauge = [&](auto& fam, const auto& prod, const auto& value) {
@@ -352,8 +353,10 @@ struct catalog_type {
           [&strand, this](const producer_plugin::incoming_block_metrics& metrics) {
              strand.post([metrics, this]() { update(metrics); });
           });
-      producer.register_update_vote_block_metrics(
-          [&strand, this](const producer_plugin::vote_block_metrics&& metrics) {
+
+      auto& chain = app().get_plugin<chain_plugin>();
+      chain.register_update_vote_block_metrics(
+          [&strand, this](const chain_apis::tracked_votes::vote_block_metrics&& metrics) {
              strand.post([metrics{std::move(metrics)}, this]() mutable { update(std::move(metrics)); });
           });
    }
