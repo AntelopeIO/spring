@@ -293,8 +293,8 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
       auto last_size  = fs::file_size(copy_path);
       auto fsi_map_vi = load_fsi_map(copy_path, true);
 
-      BOOST_REQUIRE_GT(fs::last_write_time(copy_path), last_write); // just a sanity check.
-      BOOST_REQUIRE_NE(fs::file_size(copy_path), last_size);        // we expect the size to be different if the format changes
+      BOOST_REQUIRE(fs::last_write_time(copy_path) > last_write); // just a sanity check.
+      BOOST_REQUIRE_NE(fs::file_size(copy_path), last_size);      // we expect the size to be different if the format changes
 
       // then load it again as the new version
       auto fsi_map_vn = load_fsi_map(copy_path, false);
