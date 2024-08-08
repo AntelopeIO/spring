@@ -33,7 +33,7 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t
    B.close();
    B.remove_blocks_log(); // remove blocks log, but *not* fork database
    B.remove_state();
-   BOOST_CHECK_EXCEPTION(B.open_from_snapshot(snapshot), snapshot_exception,
+   BOOST_CHECK_EXCEPTION(B.open_from_snapshot(snapshot), fork_database_exception,
                          fc_exception_message_is("When starting from a snapshot with no block log, we shouldn't have a fork database either"));
 
 } FC_LOG_AND_RETHROW()
