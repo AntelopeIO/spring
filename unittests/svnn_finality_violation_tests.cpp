@@ -21,7 +21,7 @@ using namespace finality_proof;
 using mvo = mutable_variant_object;
 
 
-struct minimal_block_data {
+struct finality_block_data {
 
     uint32_t block_num{0};
     block_timestamp_type timestamp{};
@@ -35,9 +35,9 @@ struct minimal_block_data {
 
 };
 
-minimal_block_data get_minimal_block_data(const ibc_block_data_t block_result){
+finality_block_data get_finality_block_data(const ibc_block_data_t block_result){
 
-    return minimal_block_data {
+    return finality_block_data {
         .block_num = block_result.block->block_num(),
         .timestamp = block_result.block->timestamp,
         .parent_timestamp = block_result.parent_timestamp,
@@ -51,9 +51,9 @@ minimal_block_data get_minimal_block_data(const ibc_block_data_t block_result){
 }
 
 mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy, 
-                    const minimal_block_data fake_qc_block, 
+                    const finality_block_data fake_qc_block, 
                     const qc_t fake_qc, 
-                    const minimal_block_data real_qc_block, 
+                    const finality_block_data real_qc_block, 
                     const qc_t real_qc){
 
     return mvo()
@@ -96,9 +96,9 @@ mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy,
 }
 
 mvo prepare_rule_2_proof(  const finalizer_policy active_finalizer_policy, 
-                    const minimal_block_data high_qc_block, 
+                    const finality_block_data high_qc_block, 
                     const qc_t high_qc, 
-                    const minimal_block_data low_qc_block, 
+                    const finality_block_data low_qc_block, 
                     const qc_t low_qc, 
                     const std::vector<digest_type> digests){
 
@@ -178,7 +178,7 @@ digest_type compute_block_ref_digest(const ibc_block_data_t b){
 
 }
 
-digest_type compute_block_ref_digest(const minimal_block_data b){
+digest_type compute_block_ref_digest(const finality_block_data b){
 
     block_ref_digest_data data = {
        .block_num        = b.block_num,
@@ -302,14 +302,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //It only operates in optimistic mode, which is sufficient for finality violation proofs testing purposes
 
             //store the reversible blocks
-            std::vector<minimal_block_data> reversible_blocks;
+            std::vector<finality_block_data> reversible_blocks;
 
             //store the last block over which we have a QC, as well as said QC
-            minimal_block_data high_qc_block;
+            finality_block_data high_qc_block;
             qc_t high_qc;
 
             //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together constitute the 2-chains required for finality progress
-            minimal_block_data last_final_block;
+            finality_block_data last_final_block;
             qc_t last_final_qc;
 
             //store all policies sunset data
@@ -321,7 +321,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //observe a stream of blocks as they are received, and store minimal data required to construct finality violation proofs in the future
             ibc_block_data_t scan_block(const ibc_block_data_t& block_result){
 
-                minimal_block_data block_data{
+                finality_block_data block_data{
                     .block_num = block_result.block->block_num(),
                     .timestamp = block_result.block->timestamp,
                     .parent_timestamp = block_result.parent_timestamp,
@@ -381,7 +381,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
                 for (int i = 0 ; i < reversible_blocks.size() - 1; i++){
 
-                    minimal_block_data b = reversible_blocks[i];
+                    finality_block_data b = reversible_blocks[i];
 
                     digest_type digest = compute_block_ref_digest(b);
 
@@ -457,16 +457,16 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         mutable_variant_object invalid_rule_1_proof_1 = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
-                                                                    get_minimal_block_data(real_chain_block_3_result), 
-                                                                    get_minimal_block_data(real_chain_block_4_result).qc_data.qc.value()); //same finality digest, not a violation proof
+                                                                    get_finality_block_data(real_chain_block_3_result), 
+                                                                    get_finality_block_data(real_chain_block_4_result).qc_data.qc.value()); //same finality digest, not a violation proof
 
         BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_1));
 
         mutable_variant_object invalid_rule_1_proof_2 = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
-                                                                    get_minimal_block_data(real_chain_block_2_result), 
-                                                                    get_minimal_block_data(real_chain_block_3_result).qc_data.qc.value()); //different timestamps, not a violation proof
+                                                                    get_finality_block_data(real_chain_block_2_result), 
+                                                                    get_finality_block_data(real_chain_block_3_result).qc_data.qc.value()); //different timestamps, not a violation proof
 
         BOOST_CHECK(shouldFail(real_chain, "rule1"_n, invalid_rule_1_proof_2));
 
@@ -502,8 +502,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         mutable_variant_object valid_rule_1_proof = prepare_rule_1_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.high_qc_block, 
                                                                     light_client_data.high_qc, 
-                                                                    get_minimal_block_data(real_chain_block_7_result), 
-                                                                    get_minimal_block_data(real_chain_block_8_result).qc_data.qc.value());
+                                                                    get_finality_block_data(real_chain_block_7_result), 
+                                                                    get_finality_block_data(real_chain_block_8_result).qc_data.qc.value());
 
         BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
 
@@ -552,8 +552,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(), 
-                                                                    get_minimal_block_data(real_chain_block_9_result), 
-                                                                    get_minimal_block_data(real_chain_block_10_result).qc_data.qc.value(),
+                                                                    get_finality_block_data(real_chain_block_9_result), 
+                                                                    get_finality_block_data(real_chain_block_10_result).qc_data.qc.value(),
                                                                     reversible_blocks_digests);
 
         real_chain.node0.push_action("violation"_n, "rule2"_n, "violation"_n, valid_rule_2_proof_1);
@@ -603,10 +603,10 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Since there is a time range conflict, and the fake block #13 finality digest doesn't appear in the list of the digests committed to by the real block QC, 
         //this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
-                                                                    get_minimal_block_data(real_chain_block_14_result), 
-                                                                    get_minimal_block_data(real_chain_block_15_result).qc_data.qc.value(), 
-                                                                    get_minimal_block_data(fake_chain_block_13_result), 
-                                                                    get_minimal_block_data(fake_chain_block_14_result).qc_data.qc.value(),
+                                                                    get_finality_block_data(real_chain_block_14_result), 
+                                                                    get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
+                                                                    get_finality_block_data(fake_chain_block_13_result), 
+                                                                    get_finality_block_data(fake_chain_block_14_result).qc_data.qc.value(),
                                                                     block_ref_digests);
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));
