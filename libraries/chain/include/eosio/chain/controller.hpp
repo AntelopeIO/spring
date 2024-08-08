@@ -91,6 +91,7 @@ namespace eosio::chain {
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
             uint16_t                 vote_thread_pool_size  =  0;
+            uint32_t                 max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -378,9 +379,7 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         /// @return true if terminate-at-block reaches terminate block number
-         /// thread-safe
-         bool should_terminate(block_num_type head_block_num) const;
+         /// @return true if terminate-at-block reached, or max-reversible-blocks reached
          /// not-thread-safe
          bool should_terminate() const;
 
