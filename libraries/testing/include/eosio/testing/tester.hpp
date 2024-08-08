@@ -326,6 +326,14 @@ namespace eosio::testing {
             return control->active_finalizer_policy(id);
          }
 
+         finalizer_policy_ptr head_active_finalizer_policy() const {
+            return control->head_active_finalizer_policy();
+         }
+
+         finalizer_policy_ptr head_pending_finalizer_policy() const {
+            return control->head_pending_finalizer_policy();
+         }
+
          void link_authority( account_name account, account_name code,  permission_name req, action_name type = {} );
          void unlink_authority( account_name account, account_name code, action_name type = {} );
          void set_authority( account_name account, permission_name perm, authority auth,
@@ -540,7 +548,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
-            auto finpol = active_finalizer_policy(control->head().header().calculate_id());
+            auto finpol = active_finalizer_policy(head().id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
             BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
