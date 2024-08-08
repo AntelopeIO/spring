@@ -4279,7 +4279,7 @@ struct controller_impl {
                   for( auto itr = applied_itr; itr != branches.first.end(); ++itr ) {
                      pop_block();
                   }
-                  EOS_ASSERT( chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+                  EOS_ASSERT( !switch_fork || chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
                               "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
 
                   // re-apply good blocks

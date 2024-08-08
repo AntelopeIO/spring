@@ -48,6 +48,8 @@ namespace eosio::chain {
 
          return (sum - threshold);
       }
+
+      auto operator<=>(const finalizer_policy&) const = default;
    };
 
    // This is used by SHiP and Deepmind which require public keys in string format.
