@@ -277,6 +277,8 @@ private:
          const uint32_t num_blocks_in_log = _end_block - _begin_block;
          fc::raw::pack(appender, num_blocks_in_log);
       }
+
+      appender.flush();
    }
 
    std::optional<chain::block_id_type> get_block_id(uint32_t block_num) {
