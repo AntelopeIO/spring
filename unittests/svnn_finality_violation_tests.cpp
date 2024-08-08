@@ -669,6 +669,15 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_CHECK(shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1));
 
+        //Resume production on fake chain
+        BOOST_TEST(fake_chain_block_20_result.qc_data.qc.has_value());
+
+        //Caught up
+        auto fake_chain_block_20_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_20_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_20_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_20_result.qc_data.qc.has_value());
 
 
 
