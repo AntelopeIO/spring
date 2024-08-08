@@ -95,7 +95,7 @@ mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy,
 
 }
 
-mvo prepare_rule_2_proof(  const finalizer_policy active_finalizer_policy, 
+mvo prepare_rule_2_3_proof(  const finalizer_policy active_finalizer_policy, 
                     const finality_block_data high_qc_block, 
                     const qc_t high_qc, 
                     const finality_block_data low_qc_block, 
@@ -552,7 +552,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //We also provide the real block #9 and a QC over it, delivered via block #10.
         //Since there is a time range conflict, and since the real block #9 finality digest doesn't appear in the list of reversible blocks digests committed to by the fake block QC, 
         //this is a proof of violation of rule #2.
-        mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(), 
                                                                     get_finality_block_data(real_chain_block_9_result), 
@@ -605,7 +605,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //We provide the real block #14 and its QC, the reversible digests at that time (block #12 and #13), as well as the fake block #13 and its QC.
         //Since there is a time range conflict, and the fake block #13 finality digest doesn't appear in the list of the digests committed to by the real block QC, 
         //this is a proof of violation of rule #2.
-        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
+        mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_14_result), 
                                                                     get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
@@ -620,6 +620,56 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Caught up
         auto fake_chain_block_16_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_16_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_16_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_16_result.qc_data.qc.has_value());
+
+        //We once again disable vote propagation on the real chain
+        real_chain.vote_propagation = {1,0,0};
+
+        //Produce a few more blocks on both chains
+        auto fake_chain_block_17_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_17_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_17_result.qc_data.qc.has_value());
+        BOOST_TEST(real_chain_block_17_result.qc_data.qc.has_value());
+
+        auto fake_chain_block_18_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_18_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_18_result.qc_data.qc.has_value());
+        BOOST_TEST(!real_chain_block_18_result.qc_data.qc.has_value());
+
+        //restore vote propagation on the real chain
+        real_chain.vote_propagation = {1,1,0};
+
+        auto fake_chain_block_19_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_19_result = real_chain.produce_block();
+
+        BOOST_TEST(fake_chain_block_19_result.qc_data.qc.has_value());
+        BOOST_TEST(!real_chain_block_19_result.qc_data.qc.has_value());
+
+        //At this point, we can verify that the time range of the last fake chain block is fully encapsulated within the time range of the last real chain block
+        BOOST_TEST(real_chain_block_19_result.level_3_commitments.latest_qc_claim_block_num == real_chain_block_16_result.block->block_num());
+        BOOST_TEST(fake_chain_block_18_result.level_3_commitments.latest_qc_claim_block_num == fake_chain_block_17_result.block->block_num());
+
+        //stop producing on fake chain, produce one more block on the real chain
+        auto real_chain_block_20_result = real_chain.produce_block();
+
+        BOOST_TEST(real_chain_block_20_result.qc_data.qc.has_value());
+
+        //We can now produce a proof of finality violation demonstrating that finalizers were locked on #18 on the fake chain, while also voting on a conflicting block #19 
+        //on the real chain which is not a descendant of #18, where the time range committed to by #18 is fully encapsulated within the time range committed to by #19
+        mutable_variant_object valid_rule_3_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
+                                                                    get_finality_block_data(real_chain_block_19_result), 
+                                                                    get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
+                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
+                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
+                                                                    block_ref_digests);
+
+        BOOST_CHECK(shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1));
+
+
 
 
     } FC_LOG_AND_RETHROW() }

@@ -62,9 +62,11 @@ ACTION finality_violation::rule3(   const finalizer_policy_input finalizer_polic
     check_qcs(finalizer_policy, high_proof, low_proof);
 
     block_timestamp low_proof_timestamp = low_proof.qc_block.level_3_commitments.value().timestamp;
+    block_timestamp high_proof_timestamp = high_proof.qc_block.level_3_commitments.value().timestamp;
+    block_timestamp low_proof_last_claim_timestamp = low_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
     block_timestamp high_proof_last_claim_timestamp = high_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
-    bool time_range_conflict = low_proof_timestamp < high_proof_last_claim_timestamp;
+    bool time_range_conflict = high_proof_timestamp > low_proof_timestamp && high_proof_last_claim_timestamp < low_proof_timestamp; //
     
     check(time_range_conflict, "low proof timestamp must be less than high proof last claimed QC timestamp");
 
