@@ -1,0 +1,56 @@
+{
+  "name": "testnet_",
+  "ssh_helper": {
+    "ssh_cmd": "/usr/bin/ssh",
+    "scp_cmd": "/usr/bin/scp",
+    "ssh_identity": "",
+    "ssh_args": ""
+  },
+  "nodes": {
+      "bios":{
+        "name": "bios",
+        "keys": [
+          {
+            "privkey":"5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3",
+            "pubkey":"EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV",
+            "blspubkey":"PUB_BLS_Uf3df_EqPpR31ZkenPtwgGUtd69cahyuY2lc9jPwEta7Q6t7REV-Hd35hUIDel4N7pQdCGZdnVZzs_UmJghEjGhVHN1QVVAQjOca8Fs10D_jqTiUzffzqyBAvTHyZtoEEPyXkg",
+            "blsprivkey":"PVT_BLS_t2sZsoDWTQFIKg75bhJn8pBA0iDYcWyn3HlEfKIzTzKozgKO",
+            "blspop":"SIG_BLS_TnwBY4dpG54mCue3ZXwjCio0AIdWYwFdz5ipLdnXlg64FkYkhMUtkOdQIs1IYbMWOXlD6OnCP6jcCWi5VziWKNbLfMX64SdIkNPKOHrfE_8fBfIk9Onj7GbWx3q0LbYP7NfJQk1mk-gOjz1G3elZDDHt367YUgzYDKhtl1FSkfZzDRzDsCSei7H1MjLi_e0RVdUfgqAznGaq2Yss6gY-HzwzgHU4y-SNQpzdCuDlLEEIjkHq8fXuMiPWT2Dlt8kOML0uqg"
+          }
+        ],
+        "peers": [],
+        "producers": [
+          "eosio"
+        ],
+        "dont_start": false
+      },
+      "testnet_00":{
+        "name": "testnet_00",
+        "keys": [
+          {
+            "privkey":"5Jf4sTk7vwX1MYpLJ2eQFanVvKYXFqGBrCyANPukuP2BJ5WAAKZ",
+            "pubkey":"EOS58B33q9S7oNkgeFfcoW3VJYu4obfDiqn5RHGE2ige6jVjUhymR"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01"
+        ],
+        "producers": [
+          "defproducera"
+        ],
+        "dont_start": false
+      },
+      "testnet_01":{
+        "name": "testnet_01",
+        "keys": [
+        ],
+        "peers": [
+          "testnet_00"
+        ],
+        "producers": [
+        ],
+        "dont_start": false
+      }
+  }
+}
