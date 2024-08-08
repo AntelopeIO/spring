@@ -1820,6 +1820,8 @@ struct controller_impl {
                   ("b", blog.first_block_num())("e", blog_head->block_num()) );
             block_states = read_from_snapshot( snapshot, blog.first_block_num(), blog_head->block_num() );
          } else {
+            EOS_ASSERT( fork_db.size() == 0, snapshot_exception,
+                        "When starting from a snapshot with no block log, we shouldn't have a fork database either" );
             ilog( "Starting initialization from snapshot and no block log, this may take a significant amount of time" );
             block_states = read_from_snapshot( snapshot, 0, std::numeric_limits<uint32_t>::max() );
             EOS_ASSERT( chain_head.block_num() > 0, snapshot_exception,
