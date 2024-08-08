@@ -1376,7 +1376,6 @@ namespace eosio {
       stat.is_socket_open = socket_is_open();
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
-      elog("last vote ${v}", ("v", last_vote_received.load()));
       stat.last_vote_received = last_vote_received;
       fc::lock_guard g( conn_mtx );
       stat.peer = peer_addr;
