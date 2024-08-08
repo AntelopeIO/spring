@@ -5,8 +5,7 @@ add_library(secp256k1-internal INTERFACE)
 target_include_directories(secp256k1-internal INTERFACE secp256k1/src)
 
 target_compile_definitions(secp256k1-internal INTERFACE ENABLE_MODULE_RECOVERY=1
-                                                        ENABLE_MODULE_EXTRAKEYS=1
-                                                        COMB_BLOCKS=11
+                                                        COMB_BLOCKS=43
                                                         COMB_TEETH=6
                                                         ECMULT_WINDOW_SIZE=15
                                                         SECP256K1_STATIC=1)

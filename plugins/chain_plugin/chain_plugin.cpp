@@ -361,6 +361,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'none' - EOS VM OC tier-up is completely disabled.\n")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
+         ("max-reversible-blocks", bpo::value<uint32_t>()->default_value(config::default_max_reversible_blocks),
+          "Approximate maximum allowed reversible blocks before shutdown. Will shut down if limit reached. Specify 0 to disable.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
           "Maximum size (in GiB) allowed to be allocated for the Transaction Retry feature. Setting above 0 enables this feature.")
          ("transaction-retry-interval-sec", bpo::value<uint32_t>()->default_value(20),
@@ -946,6 +948,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 #endif
 
       account_queries_enabled = options.at("enable-account-queries").as<bool>();
+
+      chain_config->max_reversible_blocks = options.at("max-reversible-blocks").as<uint32_t>();
 
       chain_config->integrity_hash_on_start = options.at("integrity-hash-on-start").as<bool>();
       chain_config->integrity_hash_on_stop = options.at("integrity-hash-on-stop").as<bool>();
