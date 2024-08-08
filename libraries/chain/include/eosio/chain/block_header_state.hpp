@@ -95,7 +95,10 @@ struct block_header_state {
    //   round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
    //   If proposed in A1, A2, .. A12 becomes active in C1
    //   If proposed in B1, B2, .. B12 becomes active in D1
-   flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
+
+   // proposal_time is the time when the policy is proposed
+   std::optional<std::pair<block_timestamp_type, proposer_policy_ptr>> latest_proposed_proposer_policy; // <proposal_time, proposer_policy>
+   std::optional<std::pair<block_timestamp_type, proposer_policy_ptr>> latest_pending_proposer_policy;  // <proposal_time, proposer_policy>
 
    // Track in-flight proposed finalizer policies.
    // When the block associated with a proposed finalizer policy becomes final,
@@ -158,6 +161,7 @@ struct block_header_state {
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+   const producer_authority_schedule* get_next_producer_schedule() const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
@@ -177,7 +181,7 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
-            (active_proposer_policy)(proposer_policies)(proposed_finalizer_policies)
+            (active_proposer_policy)(latest_proposed_proposer_policy)(latest_pending_proposer_policy)(proposed_finalizer_policies)
             (pending_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest))
 

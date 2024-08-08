@@ -20,6 +20,26 @@ namespace eosio::chain::detail {
       return block_timestamp_type{t.slot + (config::producer_repetitions - index) + config::producer_repetitions};
    }
 
+   inline uint32_t get_current_round_start_slot( const block_timestamp_type& t) {
+      auto index = t.slot % config::producer_repetitions; // current index in current round
+      return t.slot - index;
+   }
+
+   inline std::optional<uint32_t> get_prior_round_start_slot( const block_timestamp_type& t) {
+      if (t.slot < config::producer_repetitions) { // No prior round
+         return {};
+      }
+      return get_current_round_start_slot(t) - config::producer_repetitions;
+   }
+
+   inline bool first_block_of_round(const block_timestamp_type& curr_block_time,
+                                    const block_timestamp_type& parent_block_time) {
+      assert(parent_block_time.slot < curr_block_time.slot);
+      // if parent's time slot is in prior round, it means block is the
+      // first block in current round
+      return parent_block_time.slot < get_current_round_start_slot(curr_block_time);
+   }
+
    inline const producer_authority& get_scheduled_producer(const vector<producer_authority>& producers, block_timestamp_type t) {
       auto index = t.slot % (producers.size() * config::producer_repetitions);
       index /= config::producer_repetitions;

@@ -24,11 +24,8 @@ digest_type block_header_state::compute_base_digest() const {
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
-   for (const auto& pp_pair : proposer_policies) {
-      fc::raw::pack( enc, pp_pair.first );
-      assert(pp_pair.second);
-      fc::raw::pack( enc, *pp_pair.second );
-   }
+   fc::raw::pack( enc, latest_proposed_proposer_policy );
+   fc::raw::pack( enc, latest_pending_proposer_policy );
 
    if (activated_protocol_features) {
       fc::raw::pack( enc, *activated_protocol_features );
@@ -75,6 +72,17 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
    return detail::get_scheduled_producer(active_proposer_policy->proposer_schedule.producers, t);
 }
 
+const producer_authority_schedule* block_header_state::get_next_producer_schedule() const {
+   // In the order of pending and proposed
+   if (latest_pending_proposer_policy) {
+      return &latest_pending_proposer_policy->second->proposer_schedule;
+   }
+   if (latest_proposed_proposer_policy) {
+      return  &latest_proposed_proposer_policy->second->proposer_schedule;
+   }
+   return nullptr;
+}
+
 const vector<digest_type>& block_header_state::get_new_protocol_feature_activations()const {
    return detail::get_new_protocol_feature_activations(header_exts);
 }
@@ -100,13 +108,14 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
-   if (proposer_policies.empty()) {
-      assert(active_proposer_policy);
-      return *active_proposer_policy;
+   if (latest_proposed_proposer_policy) {
+      return *latest_proposed_proposer_policy->second;
    }
-   auto it = proposer_policies.rbegin();
-   assert(it != proposer_policies.rend());
-   return *it->second;
+   if (latest_pending_proposer_policy) {
+      return *latest_pending_proposer_policy->second;
+   }
+   assert(active_proposer_policy);
+   return *active_proposer_policy;
 }
 
 // This function evaluates possible promotions from pending to active
@@ -191,6 +200,31 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
    }
 }
 
+void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
+                                               block_header_state& curr) {
+   // Do proposer policy transition only at the first block of a round
+   if (!detail::first_block_of_round(curr.timestamp(), prev.timestamp())) {
+      return;
+   }
+
+   std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(curr.timestamp());
+
+   if (curr.latest_proposed_proposer_policy && prior_round_start_slot &&
+      curr.latest_proposed_proposer_policy->first.slot < *prior_round_start_slot) {
+      curr.active_proposer_policy = curr.latest_proposed_proposer_policy->second;
+      curr.latest_proposed_proposer_policy = std::nullopt;
+      curr.latest_pending_proposer_policy = std::nullopt;
+   } else if (curr.latest_pending_proposer_policy) {
+      curr.active_proposer_policy = curr.latest_pending_proposer_policy->second;
+      curr.latest_pending_proposer_policy = std::nullopt;
+   }
+
+   if (curr.latest_proposed_proposer_policy && !curr.latest_pending_proposer_policy) {
+      curr.latest_pending_proposer_policy = curr.latest_proposed_proposer_policy;
+      curr.latest_proposed_proposer_policy = std::nullopt;
+   }
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or finality_extension) applicable to this
@@ -216,17 +250,10 @@ void finish_next(const block_header_state& prev,
    // proposer policy
    // ---------------
    next_header_state.active_proposer_policy = prev.active_proposer_policy;
+   next_header_state.latest_proposed_proposer_policy = prev.latest_proposed_proposer_policy;
+   next_header_state.latest_pending_proposer_policy = prev.latest_pending_proposer_policy;
 
-   if (!prev.proposer_policies.empty()) {
-      auto it = prev.proposer_policies.begin();
-      // +1 since this is called after the block is built, this will be the active schedule for the next block
-      if (it->first.slot <= next_header_state.header.timestamp.slot + 1) {
-         next_header_state.active_proposer_policy = it->second;
-         next_header_state.proposer_policies = { ++it, prev.proposer_policies.end() };
-      } else {
-         next_header_state.proposer_policies = prev.proposer_policies;
-      }
-   }
+   evaluate_proposer_policies_for_promotion(prev, next_header_state);
 
    std::optional<proposer_policy> new_proposer_policy;
    if (f_ext.new_proposer_policy_diff) {
@@ -234,8 +261,7 @@ void finish_next(const block_header_state& prev,
    }
    if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies[new_proposer_policy->active_time] =
-         std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
+      next_header_state.latest_proposed_proposer_policy = std::make_pair(next_header_state.timestamp(), std::make_shared<proposer_policy>(std::move(*new_proposer_policy)));
    }
 
    // finality_core

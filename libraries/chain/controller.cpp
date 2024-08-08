@@ -199,9 +199,7 @@ struct completed_block {
                        return bsp->pending_schedule_auth();
                     },
                     [](const block_state_ptr& bsp) -> const producer_authority_schedule* {
-                       return bsp->proposer_policies.empty()
-                                 ? nullptr
-                                 : &bsp->proposer_policies.begin()->second->proposer_schedule;
+                       return bsp->get_next_producer_schedule();
                     }
          });
    }
@@ -340,9 +338,7 @@ struct assembled_block {
                                                 : nullptr;
                                    },
                                    [](const assembled_block_if& ab) -> const producer_authority_schedule* {
-                                      return ab.bhs.proposer_policies.empty()
-                                                ? nullptr
-                                                : &ab.bhs.proposer_policies.begin()->second->proposer_schedule;
+                                      return ab.bhs.get_next_producer_schedule();
                                    }},
                         v);
    }
@@ -495,9 +491,13 @@ struct building_block {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            if (!parent.proposer_policies.empty()) { // proposed in-flight
-               // return the last proposed policy to use for comparison
-               return (--parent.proposer_policies.end())->second->proposer_schedule;
+            // return the last proposed policy to use for comparison
+            if (parent.latest_proposed_proposer_policy) {
+               return parent.latest_proposed_proposer_policy->second->proposer_schedule;
+            }
+            // next try pending
+            if (parent.latest_pending_proposer_policy) {
+               return parent.latest_pending_proposer_policy->second->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -651,9 +651,7 @@ struct building_block {
                                       return &bb.pending_block_header_state.prev_pending_schedule.schedule;
                                    },
                                    [](const building_block_if& bb) -> const producer_authority_schedule* {
-                                      if (!bb.parent.proposer_policies.empty())
-                                         return &bb.parent.proposer_policies.begin()->second->proposer_schedule;
-                                      return nullptr;
+                                      return bb.parent.get_next_producer_schedule();
                                    }},
                         v);
    }
@@ -1020,9 +1018,7 @@ struct controller_impl {
             return head->pending_schedule_auth();
          },
          [](const block_state_ptr& head) -> const producer_authority_schedule* {
-            return head->proposer_policies.empty()
-                      ? nullptr
-                      : &head->proposer_policies.begin()->second->proposer_schedule;
+            return head->get_next_producer_schedule();
          }
       });
    }
