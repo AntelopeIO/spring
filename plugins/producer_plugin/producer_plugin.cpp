@@ -629,24 +629,25 @@ public:
    }
 
    void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
+                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes,
+                          uint32_t missed_block_num) {
       if (vote_logger.is_enabled(fc::log_level::info)) {
          auto now = fc::time_point::now();
          if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
             std::string not_voted;
             for (const auto& f : missing_votes) {
-               if (_finalizers.contains(f->public_key)) {
-                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
-                          ("f", f->description)("n", block->block_num())("id", id.str().substr(8,16)));
+               if (_finalizers.contains(f.fin_auth->public_key)) {
+                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote in block ${n} : ${id} for block ${m_n}",
+                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
                }
-               not_voted += f->description;
+               not_voted += f.fin_auth->description;
                not_voted += ',';
             }
             if (!not_voted.empty()) {
                not_voted.resize(not_voted.size() - 1); // remove ','
-               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes from finalizers: ${v}",
+               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes for block #${m_n} from finalizers: ${v}",
                     ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted));
+                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted)("m_n", missed_block_num));
             }
          }
       }
@@ -659,9 +660,9 @@ public:
       m.weak_votes.resize(vm.weak_votes.size());
       m.no_votes.resize(vm.missing_votes.size());
 
-      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f->description; });
+      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
+      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
       _update_vote_block_metrics(std::move(m));
    }
 
@@ -669,7 +670,8 @@ public:
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
-      chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
+      auto now = fc::time_point::now();
+      chain.get_mutable_subjective_billing().on_block(_log, block, now);
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -678,12 +680,16 @@ public:
             const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
             if (_update_vote_block_metrics) {
                qc_vote_metrics_t vm = chain.vote_metrics(id, qc_ext.qc);
-               log_missing_votes(block, id, vm.missing_votes);
+               log_missing_votes(block, id, vm.missing_votes, qc_ext.qc.block_num);
                update_vote_block_metrics(block->block_num(), vm);
             } else {
                auto missing = chain.missing_votes(id, qc_ext.qc);
-               log_missing_votes(block, id, missing);
+               log_missing_votes(block, id, missing, qc_ext.qc.block_num);
             }
+         } else if (block->is_proper_svnn_block() && (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) ) {
+            fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
+                 ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
+                 ("l", (fc::time_point::now() - block->timestamp).count() / 1000));
          }
       }
    }
@@ -1830,14 +1836,13 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-   uint32_t head_block_num = chain.head().block_num();
 
-   if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
-      ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
+   if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
 
+   block_num_type             head_block_num    = chain.head().block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1875,6 +1880,17 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       _pending_block_mode = pending_block_mode::speculating;
    }
 
+   if (in_speculating_mode()) {
+      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
+      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
+      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
+         auto head_block_age = now - chain.head().block_time();
+         if (head_block_age > fc::seconds(5))
+            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
+      }
+      last_start_block_time = now;
+   }
+
    if (in_producing_mode()) {
       // determine if our watermark excludes us from producing at this point
       if (auto current_watermark = _producer_watermarks.get_watermark(scheduled_producer.producer_name)) {
@@ -1891,17 +1907,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
             _pending_block_mode = pending_block_mode::speculating;
          }
       }
-   }
-
-   if (in_speculating_mode()) {
-      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
-      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
-      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
-            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
-      }
-      last_start_block_time = now;
    }
 
    if (in_producing_mode()) {
@@ -1928,7 +1933,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    }
    const auto& preprocess_deadline = _pending_block_deadline;
 
-   fc_dlog(_log, "Starting block #${n} at ${time} producer ${p}", ("n", pending_block_num)("time", now)("p", scheduled_producer.producer_name));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}", ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name));
 
    try {
 
@@ -2649,6 +2654,13 @@ bool producer_plugin_impl::maybe_produce_block() {
 
    fc_dlog(_log, "Aborting block due to produce_block error");
    abort_block();
+   reschedule.cancel();
+
+   // block failed to produce, wait until the next block to try again
+   block_timestamp_type block_time = calculate_pending_block_time();
+   fc_dlog(_log, "Not starting block until ${bt}", ("bt", block_time));
+   schedule_delayed_production_loop(weak_from_this(), block_time);
+
    return false;
 }
 

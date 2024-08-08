@@ -109,7 +109,7 @@ namespace eosio::chain {
          friend struct fc::has_reflector_init<votes_t>;
          friend class aggregating_qc_sig_t;
          struct bit_processed {
-            alignas(hardware_destructive_interference_size)
+            alignas(hardware_destructive_interference_sz)
             std::atomic<bool> value;
          };
 
@@ -195,16 +195,24 @@ namespace eosio::chain {
 
    // finalizer authority of strong, weak, or missing votes
    struct qc_vote_metrics_t {
+      struct fin_auth {
+         finalizer_authority_ptr fin_auth;
+         // If the finalizer votes in both active and pending policies,
+         // use pending finalizer policy's generation.
+         uint32_t                generation{0};
+      };
       struct fin_auth_less {
-         bool operator()(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) const {
-            return lhs->public_key < rhs->public_key;
+         bool operator()(const fin_auth& lhs, const fin_auth& rhs) const {
+            return lhs.fin_auth->public_key < rhs.fin_auth->public_key;
          };
       };
-      using fin_auth_set_t = std::set<finalizer_authority_ptr, fin_auth_less>;
+      using fin_auth_set_t = std::set<fin_auth, fin_auth_less>;
 
-      fin_auth_set_t strong_votes;
-      fin_auth_set_t weak_votes;
-      fin_auth_set_t missing_votes;
+      fin_auth_set_t       strong_votes;
+      fin_auth_set_t       weak_votes;
+      fin_auth_set_t       missing_votes;
+      block_timestamp_type voted_for_block_timestamp;
+      block_id_type        voted_for_block_id;
    };
 
    /**

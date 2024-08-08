@@ -443,4 +443,17 @@ namespace eosio { namespace chain {
          fc::sha256::encoder&  enc;
 
    };
+   
+   struct snapshot_written_row_counter {
+      snapshot_written_row_counter(const size_t total) : total(total) {}
+      void progress() {
+         if(++count % 50000 == 0 && time(NULL) - last_print >= 5) {
+            ilog("Snapshot creation ${pct}% complete", ("pct",std::min((unsigned)(((double)count/total)*100),100u)));
+            last_print = time(NULL);
+         }
+      }
+      size_t count = 0;
+      const size_t total = 0;
+      time_t last_print = time(NULL);
+   };
 }}

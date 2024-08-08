@@ -2988,6 +2988,11 @@ int main( int argc, char** argv ) {
       std::cout << fc::json::to_pretty_string(get_info()) << std::endl;
    });
 
+   // get finalizer info
+   get->add_subcommand("finalizer_info", localized("Get current finalizer information"))->callback([] {
+      std::cout << fc::json::to_pretty_string(call(get_finalizer_info_func, fc::mutable_variant_object())) << std::endl;
+   });
+
    // get transaction status
    string status_transaction_id;
    auto getTransactionStatus = get->add_subcommand("transaction-status", localized("Get transaction status information"));
