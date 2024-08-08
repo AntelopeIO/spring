@@ -976,6 +976,14 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
       }
 
+      // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
+      bool last_tracked_votes_enabled = false;
+      if (options.count("plugin")) {
+         const auto& v = options.at("plugin").as<std::vector<std::string>>();
+         last_tracked_votes_enabled = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
+      }
+      _last_tracked_votes.emplace(*chain, last_tracked_votes_enabled);
+
       // initialize deep mind logging
       if ( options.at( "deep-mind" ).as<bool>() ) {
          // The actual `fc::dmlog_appender` implementation that is currently used by deep mind
@@ -1150,8 +1158,6 @@ void chain_plugin_impl::plugin_startup()
          account_queries_enabled = true;
       } FC_LOG_AND_DROP(("Unable to enable account queries"));
    }
-
-   _last_tracked_votes.emplace(*chain);
 
 } FC_CAPTURE_AND_RETHROW() }
 
@@ -2728,6 +2734,12 @@ const controller::config& chain_plugin::chain_config() const {
    EOS_ASSERT(my->chain_config.has_value(), plugin_exception, "chain_config not initialized");
    return *my->chain_config;
 }
+
+void chain_plugin::register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&& m) {
+   assert(my->_last_tracked_votes);
+   my->_last_tracked_votes->register_update_vote_block_metrics(std::move(m));
+}
+
 } // namespace eosio
 
 FC_REFLECT( eosio::chain_apis::detail::ram_market_exchange_state_t, (ignore1)(ignore2)(ignore3)(core_symbol)(ignore4) )
