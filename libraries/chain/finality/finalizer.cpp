@@ -216,7 +216,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
               ("p", persist_file_path));
 
    if (!std::filesystem::exists(persist_file_path)) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist",
+      fc_ilog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist (which is expected on the first use of a BLS finalizer key)",
               ("p", persist_file_path));
       return res;
    }
@@ -321,18 +321,6 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
 
    // save it in case set_keys called afterwards.
    default_fsi = fsi;
-}
-
-bool  my_finalizers_t::are_equivalent(uint32_t version, const fsi_map& old, const fsi_map& current) {
-   assert(version < current_safety_file_version); // this function compares an older version with the current one
-   switch(version) {
-   case 0:
-      return old == current;
-      break;
-   default:
-      assert(0);
-      return false;
-   }
 }
 
 } // namespace eosio::chain

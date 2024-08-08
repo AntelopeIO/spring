@@ -4,6 +4,7 @@
 #include <eosio/http_plugin/http_plugin.hpp>
 #include <eosio/net_plugin/net_plugin.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
+#include <eosio/signature_provider_plugin/signature_provider_plugin.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 #include <eosio/version/version.hpp>
 
@@ -30,11 +31,15 @@ namespace detail {
 
 void log_non_default_options(const std::vector<bpo::basic_option<char>>& options) {
    using namespace std::string_literals;
+   auto mask_private = [](const string& v) {
+      auto [pub_key_str, spec_type_str, spec_data] = signature_provider_plugin::parse_signature_provider_spec(v);
+      return pub_key_str + "=" + spec_type_str + ":***";
+   };
+
    string result;
    for (const auto& op : options) {
       bool mask = false;
-      if (op.string_key == "signature-provider"s
-          || op.string_key == "peer-private-key"s
+      if (op.string_key == "peer-private-key"s
           || op.string_key == "p2p-auto-bp-peer"s) {
          mask = true;
       }
@@ -42,7 +47,9 @@ void log_non_default_options(const std::vector<bpo::basic_option<char>>& options
       for (auto i = op.value.cbegin(), b = op.value.cbegin(), e = op.value.cend(); i != e; ++i) {
          if (i != b)
             v += ", ";
-         if (mask)
+         if (op.string_key == "signature-provider"s)
+            v += mask_private(*i);
+         else if (mask)
             v += "***";
          else
             v += *i;
