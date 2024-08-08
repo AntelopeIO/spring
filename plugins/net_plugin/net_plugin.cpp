@@ -956,6 +956,7 @@ namespace eosio {
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
       std::atomic<bool>       is_bp_connection = false;
       block_status_monitor    block_status_monitor_;
+      std::atomic<time_point> last_vote_received;
 
       alignas(hardware_destructive_interference_sz)
       fc::mutex                        sync_response_expected_timer_mtx;
@@ -1373,6 +1374,10 @@ namespace eosio {
       stat.syncing = peer_syncing_from_us;
       stat.is_bp_peer = is_bp_connection;
       stat.is_socket_open = socket_is_open();
+      stat.is_blocks_only = is_blocks_only_connection();
+      stat.is_transactions_only = is_transactions_only_connection();
+      elog("last vote ${v}", ("v", last_vote_received.load()));
+      stat.last_vote_received = last_vote_received;
       fc::lock_guard g( conn_mtx );
       stat.peer = peer_addr;
       stat.remote_ip = log_remote_endpoint_ip;
@@ -1481,6 +1486,7 @@ namespace eosio {
       block_sync_send_start = 0ns;
       block_sync_frame_bytes_sent = 0;
       block_sync_throttling = false;
+      last_vote_received = time_point{};
 
       if( reconnect && !shutdown ) {
          my_impl->connections.start_conn_timer( std::chrono::milliseconds( 100 ),
@@ -3680,6 +3686,7 @@ namespace eosio {
    }
 
    void connection::handle_message( const vote_message_ptr& msg ) {
+      last_vote_received = fc::time_point::now();
       if (vote_logger.is_enabled(fc::log_level::debug)) {
          peer_dlog(this, "received vote: block #${bn}:${id}.., ${v}, key ${k}..",
                    ("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
