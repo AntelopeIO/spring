@@ -656,6 +656,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       std::string bitset_4 = finality_proof::binary_to_hex("11011000100001");
       std::string bitset_5 = finality_proof::binary_to_hex("111111111111111111111");
       std::string bitset_6 = finality_proof::binary_to_hex("000000111111111111111");
+      std::string bitset_7 = finality_proof::binary_to_hex("0011");
+      std::string bitset_8 = finality_proof::binary_to_hex("1100");
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
          ("bitset_string", "00")
@@ -691,6 +693,18 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
          ("bitset_string", "fff700")
          ("bitset_vector", bitset_6)
          ("finalizers_count", 21)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "30")
+         ("bitset_vector", bitset_7)
+         ("finalizers_count", 4)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "c0")
+         ("bitset_vector", bitset_8)
+         ("finalizers_count", 4)
       );
 
    } FC_LOG_AND_RETHROW() }
