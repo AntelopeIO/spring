@@ -126,6 +126,20 @@
             ]
         },
         {
+            "name": "pair_string_string",
+            "base": "",
+            "fields": [
+                {
+                    "name": "first",
+                    "type": "string"
+                },
+                {
+                    "name": "second",
+                    "type": "string"
+                }
+            ]
+        },
+        {
             "name": "quorum_certificate_input",
             "base": "",
             "fields": [
@@ -245,5 +259,18 @@
     "tables": [],
     "ricardian_clauses": [],
     "variants": [],
-    "action_results": []
+    "action_results": [
+        {
+            "name": "rule1",
+            "result_type": "pair_string_string"
+        },
+        {
+            "name": "rule2",
+            "result_type": "pair_string_string"
+        },
+        {
+            "name": "rule3",
+            "result_type": "pair_string_string"
+        }
+    ]
 }

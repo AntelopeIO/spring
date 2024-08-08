@@ -18,7 +18,7 @@ void check_qcs( const finalizer_policy_input finalizer_policy, const finality_pr
 }
 
 //Rule #1 : Do not vote on different blocks with the same timestamp
-ACTION finality_violation::rule1(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2){
+std::pair<std::string, std::string> finality_violation::rule1(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2){
 
     //Verify QCs
     check_qcs(finalizer_policy, proof_1, proof_2);
@@ -37,10 +37,17 @@ ACTION finality_violation::rule1(const finalizer_policy_input finalizer_policy, 
 
     //Proof of rule #1 finality violation
 
+    savanna::bitset proof_1_bitset(finalizer_policy.finalizers.size(), proof_1.active_policy_qc.finalizers);
+    savanna::bitset proof_2_bitset(finalizer_policy.finalizers.size(), proof_2.active_policy_qc.finalizers);
+
+    auto result = bitset::compare(proof_1_bitset, proof_2_bitset);
+
+    return {result.first.to_string(), result.second.to_string()};
+    
 }
 
 //Rule #2 : Do not vote on a block that conflicts with the time interval of a strong vote
-ACTION finality_violation::rule2(   const finalizer_policy_input finalizer_policy, 
+std::pair<std::string, std::string> finality_violation::rule2(   const finalizer_policy_input finalizer_policy, 
                                     const finality_proof high_proof,
                                     const finality_proof low_proof,
                                     const std::vector<checksum256> reversible_blocks_digests){
@@ -71,10 +78,17 @@ ACTION finality_violation::rule2(   const finalizer_policy_input finalizer_polic
 
     //Proof of rule #2 finality violation
 
+    savanna::bitset proof_1_bitset(finalizer_policy.finalizers.size(), high_proof.active_policy_qc.finalizers);
+    savanna::bitset proof_2_bitset(finalizer_policy.finalizers.size(), low_proof.active_policy_qc.finalizers);
+
+    auto result = bitset::compare(proof_1_bitset, proof_2_bitset);
+
+    return {result.first.to_string(), result.second.to_string()};
+
 }
 
 //Rule #3 : Do not vote on a block that conflicts with another block on which you are locked
-ACTION finality_violation::rule3(   const finalizer_policy_input finalizer_policy, 
+std::pair<std::string, std::string> finality_violation::rule3(   const finalizer_policy_input finalizer_policy, 
                                     const finality_proof high_proof,
                                     const finality_proof low_proof,
                                     const std::vector<checksum256> reversible_blocks_digests){
@@ -105,6 +119,13 @@ ACTION finality_violation::rule3(   const finalizer_policy_input finalizer_polic
     check(f_itr==reversible_blocks_digests.end(), "finality digest of low block exists in reversible_blocks_digests vector");
 
     //Proof of rule #3 finality violation
+
+    savanna::bitset proof_1_bitset(finalizer_policy.finalizers.size(), high_proof.active_policy_qc.finalizers);
+    savanna::bitset proof_2_bitset(finalizer_policy.finalizers.size(), low_proof.active_policy_qc.finalizers);
+
+    auto result = bitset::compare(proof_1_bitset, proof_2_bitset);
+
+    return {result.first.to_string(), result.second.to_string()};
 
 }
 
