@@ -227,7 +227,9 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
 
 
 BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
-   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   namespace fs = std::filesystem;
+
+   fs::path test_data_path { UNITTEST_TEST_DATA_DIR };
    auto fsi_reference_dir = test_data_path / "fsi";
 
    auto create_fsi_reference = [&](my_finalizers_t& fset) {
@@ -239,7 +241,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
       set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
    };
 
-   auto create_fsi_reference_file = [&](const std::filesystem::path& safety_file_path) {
+   auto create_fsi_reference_file = [&](const fs::path& safety_file_path) {
       my_finalizers_t fset{safety_file_path};
       create_fsi_reference(fset);
       fset.save_finalizer_safety_info();
@@ -262,20 +264,42 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    if (save_fsi_reference_file)
       create_fsi_reference_file(mk_versioned_fsi_file_path(current_version));
 
-   auto load_fsi_map = [&](const std::filesystem::path& safety_file_path) {
-      BOOST_REQUIRE(std::filesystem::exists(safety_file_path));
-       my_finalizers_t fset{safety_file_path};
-       auto map = fset.load_finalizer_safety_info();
-       return map;
+   auto load_fsi_map = [&](const fs::path& safety_file_path, bool save_after_load) {
+      BOOST_REQUIRE(fs::exists(safety_file_path));
+      my_finalizers_t fset{safety_file_path};
+      auto map = fset.load_finalizer_safety_info();
+      if (save_after_load) {
+         bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(create_keys(3));
+         fset.set_keys(local_finalizers);   // need to call set_keys otherwise inactive keys not saved.
+         fset.save_finalizer_safety_info();
+
+      }
+      return map;
    };
 
-   // make sure we can read previous versions of the safety file correctly
+   // Make sure we can read previous versions of the safety file correctly.
    // --------------------------------------------------------------------
-   auto fsi_map_current = load_fsi_map(mk_versioned_fsi_file_path(current_version));
+   fc::temp_directory tempdir;
 
    for (size_t i=0; i<current_version; ++i) {
-      auto fsi_map_vi = load_fsi_map(mk_versioned_fsi_file_path(i));
-      BOOST_REQUIRE(my_finalizers_t::are_equivalent(i, fsi_map_vi, fsi_map_current));
+      auto ref_path = mk_versioned_fsi_file_path(i);
+      auto copy_path = tempdir.path() / ref_path.filename();
+      fs::copy_file(ref_path, copy_path, fs::copy_options::none);
+      std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+      // first load the reference file in the old format, and then save it in the new version format
+      // -------------------------------------------------------------------------------------------
+      auto last_write = fs::last_write_time(copy_path);
+      auto last_size  = fs::file_size(copy_path);
+      auto fsi_map_vi = load_fsi_map(copy_path, true);
+
+      BOOST_REQUIRE_GT(fs::last_write_time(copy_path), last_write); // just a sanity check.
+      BOOST_REQUIRE_NE(fs::file_size(copy_path), last_size);        // we expect the size to be different if the format changes
+
+      // then load it again as the new version
+      auto fsi_map_vn = load_fsi_map(copy_path, false);
+
+      BOOST_REQUIRE(fsi_map_vi == fsi_map_vn);
    }
 
 } FC_LOG_AND_RETHROW()

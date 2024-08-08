@@ -323,16 +323,4 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
    default_fsi = fsi;
 }
 
-bool  my_finalizers_t::are_equivalent(uint32_t version, const fsi_map& old, const fsi_map& current) {
-   assert(version < current_safety_file_version); // this function compares an older version with the current one
-   switch(version) {
-   case 0:
-      return old == current;
-      break;
-   default:
-      assert(0);
-      return false;
-   }
-}
-
 } // namespace eosio::chain

@@ -159,7 +159,6 @@ namespace eosio::chain {
       // for testing purposes only, not thread safe
       const fsi_t& get_fsi(const bls_public_key& k) { return finalizers[k].fsi; }
       void         set_fsi(const bls_public_key& k, const fsi_t& fsi) { finalizers[k].fsi = fsi; }
-      static bool  are_equivalent(uint32_t version, const fsi_map& old, const fsi_map& current);
    };
 
 }
