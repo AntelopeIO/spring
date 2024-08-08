@@ -524,13 +524,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 2u);
 
-        //get the reversible blocks for block #10 (should be only one digest, block ref data of #9)
-        std::vector<digest_type> reversible_blocks_digests = light_client_data.get_reversible_blocks_digests();
-
-        BOOST_TEST(reversible_blocks_digests.size() == 2u);
-        BOOST_TEST(reversible_blocks_digests[0] == compute_block_ref_digest(fake_chain_block_8_result));
-        BOOST_TEST(reversible_blocks_digests[1] == compute_block_ref_digest(fake_chain_block_9_result));
-
         //Real chain has a QC on #9 carried by #10, but fake chain doesn't
         BOOST_TEST(!fake_chain_block_10_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_10_result.qc_data.qc.has_value());
@@ -544,10 +537,20 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 3u);
 
+        //get the reversible blocks for block #10 (should be two digests, block ref data of #8 and #9)
+        std::vector<digest_type> reversible_blocks_digests = light_client_data.get_reversible_blocks_digests();
+
+        //since we're preparing the proof for block #10, we must discard block #11
+        reversible_blocks_digests.pop_back();
+
+        BOOST_TEST(reversible_blocks_digests.size() == 2u);
+        BOOST_TEST(reversible_blocks_digests[0] == compute_block_ref_digest(fake_chain_block_8_result));
+        BOOST_TEST(reversible_blocks_digests[1] == compute_block_ref_digest(fake_chain_block_9_result));
+
         //Light client recorded the last QC (over block #10) on the fake chain, which was delivered via block #11. 
-        //Block #10 claims a QC over block #8. We provide fake block #10 and its QC, as well as the digests of the reversible blocks the light client recorded (block #8 and block #9).
-        //We also provide the real block #9 and a QC over it delivered via block #10.
-        //Since there is a time range conflict, and the real block #9 finality digest doesn't appear in the list of the digests committed to by the fake block QC, 
+        //Block #10 claims a QC over block #8. We provide fake block #10 and the QC over it, as well as the digests of the reversible blocks the light client recorded (block #8 and block #9).
+        //We also provide the real block #9 and a QC over it, delivered via block #10.
+        //Since there is a time range conflict, and since the real block #9 finality digest doesn't appear in the list of reversible blocks digests committed to by the fake block QC, 
         //this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
@@ -610,6 +613,14 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     block_ref_digests);
 
         BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));
+
+        //Fake chain resume production, catches up with real chain
+        auto fake_chain_block_15_result = light_client_data.scan_block(fake_chain.produce_block());
+        
+        //Caught up
+        auto fake_chain_block_16_result = light_client_data.scan_block(fake_chain.produce_block());
+        auto real_chain_block_16_result = real_chain.produce_block();
+
 
     } FC_LOG_AND_RETHROW() }
 
