@@ -23,6 +23,11 @@ public:
 
    const char* const signature_provider_help_text() const;
 
+   ///               public_key   spec_type    spec_data
+   /// Note: spec_data is private_key if spec_type is KEY
+   static std::tuple<std::string, std::string, std::string> parse_signature_provider_spec(const std::string& spec);
+
+
    using signature_provider_type = std::function<chain::signature_type(chain::digest_type)>;
 
    // @return empty optional for BLS specs

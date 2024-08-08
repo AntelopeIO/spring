@@ -137,6 +137,7 @@ namespace eosio::chain {
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
+      bool    contains(const bls_public_key& pub_key) const { return finalizers.contains(pub_key); } // doesn't change, thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe
@@ -159,7 +160,6 @@ namespace eosio::chain {
       // for testing purposes only, not thread safe
       const fsi_t& get_fsi(const bls_public_key& k) { return finalizers[k].fsi; }
       void         set_fsi(const bls_public_key& k, const fsi_t& fsi) { finalizers[k].fsi = fsi; }
-      static bool  are_equivalent(uint32_t version, const fsi_map& old, const fsi_map& current);
    };
 
 }

@@ -265,12 +265,6 @@ BOOST_DATA_TEST_CASE(basic_prune_test, bdata::xrange(2) * bdata::xrange(2) * bda
       return e.to_detail_string().find("missed a fork change") != std::string::npos;
    });
 
-   //start from genesis not allowed
-   BOOST_REQUIRE_EXCEPTION(t.add(2, payload_size, 'A', 'A');, eosio::chain::plugin_exception, [](const eosio::chain::plugin_exception& e) {
-      std::string err = e.to_detail_string();
-      return err.find("existing ship log") != std::string::npos && err.find("when starting from genesis block") != std::string::npos;
-   });
-
 } FC_LOG_AND_RETHROW() }
 
 BOOST_DATA_TEST_CASE(basic_test, bdata::xrange(2) * bdata::xrange(2) * bdata::xrange(2), enable_read, reopen_on_mark, remove_index_on_reopen)  { try {
@@ -537,18 +531,20 @@ BOOST_DATA_TEST_CASE(basic, bdata::make({2u, 333u, 578'000u, 3'123'456'789u}) ^ 
    }
 
    //now we're going to try writing identical blockids to the log. These should be silently swallowed as no-ops
-   for(unsigned i : {2u, start, start+6, end-5, end-1}) {
-      //but block 2 is special. If writing block 2 on a non empty log we fail as a safety precaution
+   for(unsigned i : {start, start+6, end-5, end-1}) {
+      //but block 2 is special. Writing block 2 on a non empty log will fail if the blockid is different (instead of treated it like a fork), but a
+      // no-op otherwise. So try a different blockid here to test that
       if(i == 2u)
-         BOOST_REQUIRE_EXCEPTION(lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+         //different blockid
+         BOOST_REQUIRE_EXCEPTION(lc.pack_and_write_entry(fake_blockid_for_num(i, 0xbeef), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
                                     FC_ASSERT(false, "should not reach here");
                                  }),
                                  plugin_exception,
                                  [](const plugin_exception& e) {return e.to_detail_string().find("when starting from genesis block 2") != std::string::npos;});
-      else
-         lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
-            FC_ASSERT(false, "should not reach here");
-         });
+
+      lc.pack_and_write_entry(fake_blockid_for_num(i), fake_blockid_for_num(i-1), [&](bio::filtering_ostreambuf& obuf) {
+         FC_ASSERT(false, "should not reach here");
+      });
    }
 
    BOOST_REQUIRE_EQUAL(lc.block_range().first, start);

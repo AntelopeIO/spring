@@ -33,11 +33,8 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       tester::set_node_finalizers(node_finalizers);
    };
 
-   node_initialization_fn();
-   set_open_callback(node_initialization_fn);
-
-   //set_produce_block_callback([&, node_idx](const signed_block_ptr& b) {
-   //   cluster.push_block_to_peers(node_idx, skip_self_t::yes, b); });
+   node_initialization_fn();                  // initialize the node when it is first created
+   set_open_callback(node_initialization_fn); // and do the initalization again every time `open()` is called
 }
 
 node_t::~node_t() {}

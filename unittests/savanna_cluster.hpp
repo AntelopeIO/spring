@@ -52,12 +52,14 @@ namespace savanna_cluster {
 
    // ----------------------------------------------------------------------------
    class node_t : public tester {
+   private:
       size_t                  node_idx;
       bool                    pushing_a_block {false };
-      std::span<const account_name> node_finalizers;
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
+   public:
+      std::vector<account_name> node_finalizers;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
@@ -67,7 +69,7 @@ namespace savanna_cluster {
       node_t(node_t&&) = default;
 
       void set_node_finalizers(std::span<const account_name> names) {
-         node_finalizers = names;
+         node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
          tester::set_node_finalizers(node_finalizers);
       }
 
@@ -85,7 +87,7 @@ namespace savanna_cluster {
          // -------------------------------------------------------------------------
          signed_block_ptr critical_block = nullptr;  // last value of this var is the critical block
          auto genesis_block_num = genesis_block->block_num();
-         while(genesis_block_num > lib_block->block_num())
+         while(genesis_block_num > lib_num())
             critical_block = produce_block();
 
          // Blocks after the critical block are proper IF blocks.
@@ -96,7 +98,7 @@ namespace savanna_cluster {
          // wait till the first proper block becomes irreversible. Transition will be done then
          // -----------------------------------------------------------------------------------
          signed_block_ptr pt_block  = nullptr;  // last value of this var is the first post-transition block
-         while(first_proper_block->block_num() > lib_block->block_num()) {
+         while(first_proper_block->block_num() > lib_num()) {
             pt_block = produce_block();
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
          }
@@ -106,10 +108,28 @@ namespace savanna_cluster {
          for (size_t i=0; i<num_chains_to_final; ++i)
             auto b = produce_block();
 
-         BOOST_REQUIRE_EQUAL(lib_block->block_num(), pt_block->block_num());
+         BOOST_REQUIRE_EQUAL(lib_num(), pt_block->block_num());
       }
 
-      uint32_t lib_num() const { return lib_block->block_num(); }
+      // updates producers (producer updates will be propagated to connected nodes), and
+      // wait until one of the new producers is pending.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
+      // -----------------------------------------------------------------------------------
+      size_t set_producers(const std::vector<account_name>& producers) {
+         tester::set_producers(producers);
+         account_name pending;
+         size_t max_blocks_produced = 400;
+         while (--max_blocks_produced) {
+            signed_block_ptr sb = produce_block();
+            pending = control->pending_block_producer();
+            if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
+               break;
+         }
+         BOOST_REQUIRE_GT(max_blocks_produced, 0u);
+         return ranges::find(producers, pending) - producers.begin();
+      }
+
+      uint32_t lib_num() const { return lib_number; }
 
       template<class F>
       uint32_t lib_advances_by(F&& f) {
@@ -194,14 +214,25 @@ namespace savanna_cluster {
          remove_blocks(true);
       }
 
+      void remove_blocks_log() {
+         auto path = cfg.blocks_dir;
+         for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
+            auto path = dir_entry.path();
+            if (path.filename().generic_string() != "reversible") {
+               dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
+               remove_all(path);
+            }
+         }
+      }
+
    private:
       // always removes reversible data (`blocks/reversible`)
       // optionally remove the blocks log as well by deleting the whole `blocks` directory
       // ---------------------------------------------------------------------------------
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
-         auto path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing all reversible data from: ${rev_path}", ("i", node_idx)("${rev_path}", path));
+         auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
+         dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
@@ -235,7 +266,7 @@ namespace savanna_cluster {
    class cluster_t {
    public:
       explicit cluster_t(cluster_config cfg = {})
-         : _fin_keys(cfg.num_nodes, cfg.num_nodes)
+         : _fin_keys(cfg.num_nodes * 2, cfg.num_nodes) // allow for some spare heys
          , _num_nodes(cfg.num_nodes)
       {
          assert(_num_nodes > 3); // cluster should have a minimum of 4 nodes (quorum = 3)
@@ -272,23 +303,6 @@ namespace savanna_cluster {
 
       ~cluster_t() {
          _shutting_down = true;
-      }
-
-      // Create accounts and updates producers on node node_idx (producer updates will be
-      // propagated to connected nodes), and wait until one of the new producers is pending.
-      // return the index of the pending new producer (we assume no duplicates in producer list)
-      // -----------------------------------------------------------------------------------
-      size_t set_producers(size_t node_idx, const std::vector<account_name>& producers, bool create_accounts = true) {
-         node_t& n = _nodes[node_idx];
-         n.set_producers(producers);
-         account_name pending;
-         while (1) {
-            signed_block_ptr sb = n.produce_block();
-            pending = n.control->pending_block_producer();
-            if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
-               break;
-         }
-         return ranges::find(producers, pending) - producers.begin();
       }
 
       // `set_partitions` allows to configure logical network connections between nodes.
