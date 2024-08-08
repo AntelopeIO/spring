@@ -145,7 +145,16 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy active_finalizer_policy,
 
 bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
 
-    try {chain.node0.push_action("violation"_n, rule, "violation"_n, proof);}
+    try {
+
+        action_trace trace =  chain.node0.push_action("violation"_n, rule, "violation"_n, proof)->action_traces[0];
+
+        std::pair<std::string, std::string> blame = fc::raw::unpack<std::pair<std::string, std::string>>(trace.return_value);
+
+        BOOST_TEST(blame.first == "30");
+        BOOST_TEST(blame.second == "c0");
+
+    }
     catch (const eosio_assert_message_exception& e){
         std::rethrow_exception(std::current_exception());
     }
