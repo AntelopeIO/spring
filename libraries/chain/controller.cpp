@@ -4733,10 +4733,16 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   bool should_terminate(block_num_type head_block_num) const {
-      if (conf.terminate_at_block > 0 && conf.terminate_at_block <= head_block_num) {
+   bool should_terminate(block_num_type reversible_block_num) const {
+      assert(reversible_block_num > 0);
+      if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
-              ("n", head_block_num)("num", conf.terminate_at_block) );
+              ("n", reversible_block_num)("num", conf.terminate_at_block) );
+         return true;
+      }
+      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+         elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
+              ("s", fork_db.size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5537,10 +5543,6 @@ validation_mode controller::get_validation_mode()const {
 
 bool controller::should_terminate() const {
    return my->should_terminate();
-}
-
-bool controller::should_terminate(block_num_type head_block_num) const {
-   return my->should_terminate(head_block_num);
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
