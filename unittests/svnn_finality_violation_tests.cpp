@@ -151,8 +151,9 @@ bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_n
 
         std::pair<std::string, std::string> blame = fc::raw::unpack<std::pair<std::string, std::string>>(trace.return_value);
 
-        BOOST_TEST(blame.first == "30");
-        BOOST_TEST(blame.second == "c0");
+        //finalizers 0 and 1 are guilty, while finalizer 2 and 3 are innocent, see bitset tests in svnn_ibc_tests
+        BOOST_TEST(blame.first == "30"); //0011 (reverse order)
+        BOOST_TEST(blame.second == "c0"); //1100 (reverse order)
 
     }
     catch (const eosio_assert_message_exception& e){
@@ -211,8 +212,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
     BOOST_AUTO_TEST_CASE(contract_get_merkle_root) { try {
 
-        return;
-
         //verify that get_merkle_root function from savanna contract produces the same results than calculate_merkle
         std::vector<digest_type> digests = {    digest_type{"cb7ea678fe3a84fcff103f9cf08b97e5dd0b01bee54635f49255050f34bdbf34"},
                                                 digest_type{"ac2607856dea36137a1d6d0dd79b980f1ac7b104c59dc1e5fdd5f1568c7169c3"},
@@ -238,8 +237,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
     BOOST_AUTO_TEST_CASE(cluster_vote_propagation_tests) { try {
   
-        return;
-
         finality_proof::proof_test_cluster cluster_1; 
         finality_proof::proof_test_cluster cluster_2; 
         finality_proof::proof_test_cluster cluster_3; 

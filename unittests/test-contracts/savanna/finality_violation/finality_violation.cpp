@@ -43,7 +43,7 @@ std::pair<std::string, std::string> finality_violation::rule1(const finalizer_po
     auto result = bitset::compare(proof_1_bitset, proof_2_bitset);
 
     return {result.first.to_string(), result.second.to_string()};
-    
+
 }
 
 //Rule #2 : Do not vote on a block that conflicts with the time interval of a strong vote
