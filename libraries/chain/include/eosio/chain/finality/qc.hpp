@@ -244,8 +244,6 @@ namespace eosio::chain {
 
       std::optional<qc_t> get_best_qc(block_num_type block_num) const;
       // verify qc against active and pending policy
-      void verify_dual_finalizers_votes(const qc_t& qc) const;
-      // verify qc against active and pending policy
       void verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
       qc_vote_metrics_t vote_metrics(const qc_t& qc) const;
       // return qc missing vote's finalizers
@@ -264,6 +262,9 @@ namespace eosio::chain {
       finalizer_policy_ptr                pending_finalizer_policy; // not modified after construction
       aggregating_qc_sig_t                active_policy_sig;
       std::optional<aggregating_qc_sig_t> pending_policy_sig;
+
+      // verify qc against active and pending policy
+      void verify_dual_finalizers_votes(const qc_t& qc) const;
    };
 
 } //eosio::chain
