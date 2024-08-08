@@ -125,7 +125,7 @@ namespace savanna_cluster {
             if (ranges::any_of(producers, [&](auto a) { return a == pending; }))
                break;
          }
-         BOOST_REQUIRE_GT(max_blocks_produced, 0);
+         BOOST_REQUIRE_GT(max_blocks_produced, 0u);
          return ranges::find(producers, pending) - producers.begin();
       }
 
