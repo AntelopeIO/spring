@@ -49,13 +49,17 @@ ACTION finality_violation::rule2(   const finalizer_policy_input finalizer_polic
     checksum256 computed_digest = block_finality_data_internal(low_proof.qc_block).finality_digest();
 
     auto f_itr = std::find(reversible_blocks_digests.begin(), reversible_blocks_digests.end(), computed_digest);
-    
+
     check(f_itr==reversible_blocks_digests.end(), "finality digest of low block exists in reversible_blocks_digests vector");
 
 }
 
-ACTION finality_violation::rule3(){
+ACTION finality_violation::rule3(   const finalizer_policy_input finalizer_policy, 
+                                    const finality_proof high_proof,
+                                    const finality_proof low_proof,
+                                    const std::vector<checksum256> reversible_blocks_digests){
 
+    check_qcs(finalizer_policy, high_proof, low_proof);
 
 }
 
