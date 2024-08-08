@@ -61,8 +61,11 @@ try:
     ret_json = node.processUrllibRequest(resource, command, payload)
     assert type(ret_json["payload"]["active_finalizer_policy"]) == dict
     assert type(ret_json["payload"]["last_tracked_votes"]) == list
+    node.waitForLibToAdvance()
+    org_ret_json = ret_json
     # get_finalizer_info with empty content parameter
     ret_json = node.processUrllibRequest(resource, command, empty_content_dict, payload)
+    assert org_ret_json != ret_json, f"{ret_json}"
     assert type(ret_json["payload"]["active_finalizer_policy"]) == dict
     assert type(ret_json["payload"]["last_tracked_votes"]) == list
     # get_finalizer_info with invalid parameter

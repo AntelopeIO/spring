@@ -438,6 +438,9 @@ namespace eosio::chain {
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
       void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
 
+      // is the bls key a registered finalizer key of this node, thread safe
+      bool is_node_finalizer_key(const bls_public_key& key) const;
+
       private:
          friend class apply_context;
          friend class transaction_context;
