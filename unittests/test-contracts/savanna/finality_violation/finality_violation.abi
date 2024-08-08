@@ -186,7 +186,24 @@
         {
             "name": "rule3",
             "base": "",
-            "fields": []
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "high_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "low_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "reversible_blocks_digests",
+                    "type": "checksum256[]"
+                }
+            ]
         },
         {
             "name": "testmroot",
