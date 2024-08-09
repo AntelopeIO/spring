@@ -2027,35 +2027,34 @@ struct controller_impl {
       db.undo_all();
    }
 
-   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
-      snapshot->write_section("contract_tables", [this, &row_counter]( auto& section ) {
-         index_utils<table_id_multi_index>::walk(db, [this, &section, &row_counter]( const table_id_object& table_row ){
-            // add a row for the table
-            section.add_row(table_row, db);
-            row_counter.progress();
+   void add_contract_rows_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+      contract_database_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ) {
+         using utils_t = decltype(utils);
+         using value_t = typename decltype(utils)::index_t::value_type;
+         using by_table_id = object_to_table_id_tag_t<value_t>;
 
-            // followed by a size row and then N data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &table_row, &row_counter]( auto utils ) {
-               using utils_t = decltype(utils);
-               using value_t = typename decltype(utils)::index_t::value_type;
-               using by_table_id = object_to_table_id_tag_t<value_t>;
+         snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
+            table_id last_seen_tid = -1;
 
-               auto tid_key = boost::make_tuple(table_row.id);
-               auto next_tid_key = boost::make_tuple(table_id_object::id_type(table_row.id._id + 1));
+            decltype(utils)::template walk_by<by_table_id>(db, [this, &section, &row_counter, &last_seen_tid]( const auto &row ) {
+               if(last_seen_tid != row.t_id) {
+                  auto tid_key = boost::make_tuple(row.t_id);
+                  auto next_tid_key = boost::make_tuple(table_id_object::id_type(row.t_id._id + 1));
+                  unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
 
-               unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
-               section.add_row(size, db);
+                  section.add_row(row.t_id, db); //indicate the new table id for next...
+                  section.add_row(size, db);     //...number of rows
 
-               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
-                  section.add_row(row, db);
-                  row_counter.progress();
-               });
+                  last_seen_tid = row.t_id;
+               }
+               section.add_row(row, db);
+               row_counter.progress();
             });
          });
       });
    }
 
-   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count ) {
+   void read_contract_tables_from_preV7_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count ) {
       snapshot->read_section("contract_tables", [this, &read_row_count]( auto& section ) {
          bool more = !section.empty();
          while (more) {
@@ -2084,6 +2083,33 @@ struct controller_impl {
                }
             });
          }
+      });
+   }
+
+   void read_contract_rows_from_V7plus_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+      contract_database_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ) {
+         using utils_t = decltype(utils);
+         using value_t = typename decltype(utils)::index_t::value_type;
+
+         snapshot->read_section<value_t>([this, &read_row_count]( auto& section ) {
+            bool more = !section.empty();
+            while (more) {
+               table_id t_id;
+               unsigned_int rows_for_this_tid;
+
+               section.read_row(t_id, db);
+               section.read_row(rows_for_this_tid, db);
+               read_row_count.fetch_add(2u, std::memory_order_relaxed);
+
+               for(size_t idx = 0; idx < rows_for_this_tid.value; idx++) {
+                  utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
+                     row.t_id = t_id;
+                     more = section.read_row(row, db);
+                  });
+                  read_row_count.fetch_add(1u, std::memory_order_relaxed);
+               }
+            }
+         });
       });
    }
 
@@ -2133,11 +2159,6 @@ struct controller_impl {
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
-         // skip the table_id_object as its inlined with contract tables section
-         if (std::is_same<value_t, table_id_object>::value) {
-            return;
-         }
-
          // skip the database_header as it is only relevant to in-memory database
          if (std::is_same<value_t, database_header_object>::value) {
             return;
@@ -2151,7 +2172,7 @@ struct controller_impl {
          });
       });
 
-      add_contract_tables_to_snapshot(snapshot, row_counter);
+      add_contract_rows_to_snapshot(snapshot, row_counter);
 
       authorization.add_to_snapshot(snapshot, row_counter);
       resource_limits.add_to_snapshot(snapshot, row_counter);
@@ -2185,7 +2206,7 @@ struct controller_impl {
 
       block_state_pair result;
       if (header.version >= v7::minimum_version) {
-         // loading a snapshot saved by Leap 6.0 and above.
+         // loading a snapshot saved by Spring 1.0 and above.
          // -----------------------------------------------
          if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
@@ -2252,8 +2273,8 @@ struct controller_impl {
       controller_index_set::walk_indices_via_post(snapshot_load_ctx, [this, &snapshot, &header, &rows_loaded]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
-         // skip the table_id_object as its inlined with contract tables section
-         if (std::is_same_v<value_t, table_id_object>) {
+         // prior to v7 snapshots, skip the table_id_object as it's inlined with contract tables section. for v7+ load the table_id table like any other
+         if (header.version < chain_snapshot_header::first_version_with_split_table_sections && std::is_same_v<value_t, table_id_object>) {
             return;
          }
 
@@ -2333,9 +2354,12 @@ struct controller_impl {
          });
       });
 
-      snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
-         read_contract_tables_from_snapshot(snapshot, rows_loaded);
-      });
+      if(header.version < chain_snapshot_header::first_version_with_split_table_sections)
+         snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
+            read_contract_tables_from_preV7_snapshot(snapshot, rows_loaded);
+         });
+      else
+         read_contract_rows_from_V7plus_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
 
       authorization.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
       resource_limits.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
