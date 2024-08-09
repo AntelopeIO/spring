@@ -98,7 +98,7 @@ namespace eosio::chain {
 
          assert(bsp->active_finalizer_policy);
 
-         using vote_t = std::tuple<const vote_message_ptr&, const finalizer_authority_ptr&, const finalizer_authority_ptr&>;
+         using vote_t = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
          std::vector<vote_t> votes;
          votes.reserve(finalizers.size());
 
