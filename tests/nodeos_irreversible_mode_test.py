@@ -393,7 +393,7 @@ try:
       finally:
          stopProdNode()
 
-   # 10th test case: Load an irreversible snapshot into a node running without a block log
+   # 10th test case: Load an irreversible snapshot into a node running without a block log nor fork_db
    # Expectation: Node launches successfully
    #              and the head and lib should be advancing after some blocks produced
    def switchToNoBlockLogWithIrrModeSnapshot(nodeIdOfNodeToTest, nodeToTest):
@@ -408,11 +408,12 @@ try:
          nodeToTest.createSnapshot()
          nodeToTest.kill(signal.SIGTERM)
 
-         # Start from clean data dir and then relaunch with irreversible snapshot, no block log means that fork_db will be reset
+         # Start from clean data dir, no block log nor fork_db, and then relaunch with irreversible snapshot
          nodeToTest.removeState()
+         nodeToTest.removeReversibleBlks()
          relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(nodeToTest.getLatestSnapshot()), addSwapFlags={"--read-mode": speculativeReadMode, "--block-log-retain-blocks":"0"})
          confirmHeadLibAndForkDbHeadOfSpecMode(nodeToTest)
-         # Ensure it does not replay "reversible blocks", i.e. head and lib should be different
+         # Because we lost the "reversible blocks", head and lib should be different
          headLibAndForkDbHeadAfterRelaunch = getHeadLibAndForkDbHead(nodeToTest)
          assert headLibAndForkDbHeadBeforeShutdown != headLibAndForkDbHeadAfterRelaunch, \
             "1: Head, Lib, and Fork Db same after relaunch {} vs {}".format(headLibAndForkDbHeadBeforeShutdown, headLibAndForkDbHeadAfterRelaunch)
