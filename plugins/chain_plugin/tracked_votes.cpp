@@ -34,10 +34,15 @@ namespace eosio::chain_apis {
             if (!_update_vote_block_metrics && !tracking_enabled && !chain::vote_logger.is_enabled(fc::log_level::info))
                return;
 
+            // do not bother tracking/logging when syncing or replaying
+            auto now = fc::time_point::now();
+            if (now - block->timestamp > fc::minutes(5) && (block->block_num() % 1000 != 0))
+               return;
+
             if (!block->contains_extension(chain::quorum_certificate_extension::extension_id())) {
                fc_ilog(chain::vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
                        ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                       ("l", (fc::time_point::now() - block->timestamp).count() / 1000));
+                       ("l", (now - block->timestamp).count() / 1000));
                return;
             }
 
@@ -95,23 +100,20 @@ namespace eosio::chain_apis {
                              const chain::qc_vote_metrics_t::fin_auth_set_t& missing_votes,
                              uint32_t missed_block_num) const {
          if (chain::vote_logger.is_enabled(fc::log_level::info)) {
-            auto now = fc::time_point::now();
-            if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
-               std::string not_voted;
-               for (const auto& f : missing_votes) {
-                  if (controller.is_node_finalizer_key(f.fin_auth->public_key)) {
-                     fc_wlog(chain::vote_logger, "Local finalizer ${f} did not vote in block ${n} : ${id} for block ${m_n}",
-                             ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
-                  }
-                  not_voted += f.fin_auth->description;
-                  not_voted += ',';
+            std::string not_voted;
+            for (const auto& f : missing_votes) {
+               if (controller.is_node_finalizer_key(f.fin_auth->public_key)) {
+                  fc_wlog(chain::vote_logger, "Local finalizer ${f} did not vote in block ${n} : ${id} for block ${m_n}",
+                          ("f", f.fin_auth->description)("n", block->block_num())("id", id.str().substr(8,16))("m_n", missed_block_num));
                }
-               if (!not_voted.empty()) {
-                  not_voted.resize(not_voted.size() - 1); // remove ','
-                  fc_ilog(chain::vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes for block #${m_n} from finalizers: ${v}",
-                       ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                       ("l", (now - block->timestamp).count() / 1000)("v", not_voted)("m_n", missed_block_num));
-               }
+               not_voted += f.fin_auth->description;
+               not_voted += ',';
+            }
+            if (!not_voted.empty()) {
+               not_voted.resize(not_voted.size() - 1); // remove ','
+               fc_ilog(chain::vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes for block #${m_n} from finalizers: ${v}",
+                    ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
+                    ("l", (fc::time_point::now() - block->timestamp).count() / 1000)("v", not_voted)("m_n", missed_block_num));
             }
          }
       }
