@@ -19,7 +19,7 @@ random_access_file is a thread-safe and mutex-free interface for reading and wri
  is simultaneously writing to will give undefined results; likewise with multiple threads writing to the same span. In other words, simultaneous
  reads, writes, and resizes are not atomic with one another.
 
-Construction of a random_access_file always creates the file if it doesn't exist and always opens it read-write.
+Construction of a random_access_file always creates the file if set to read_write mode.
 
 With a single random_access_file instance, calling unpack_from() and pack_to() from multiple threads simultaneously is allowed. Upon return
  of pack_to() contents will have been flushed.
@@ -64,8 +64,12 @@ struct random_access_file_context {
 
    using native_handle_type = int;
 
-   explicit random_access_file_context(const std::filesystem::path& path) : display_path(path) {
-      int flags = O_RDWR | O_CREAT;
+   random_access_file_context(const std::filesystem::path& path, bool read_and_write) : display_path(path) {
+      int flags = 0;
+      if(read_and_write)
+         flags = O_RDWR | O_CREAT;
+      else
+         flags = O_RDONLY;
 #if defined(O_CLOEXEC)
       flags |= O_CLOEXEC;
 #endif
@@ -191,8 +195,8 @@ struct random_access_file_context {
 
    using native_handle_type = HANDLE;
 
-   explicit random_access_file_context(const std::filesystem::path& path) : display_path(path), file(local_ctx, path.generic_string().c_str(),
-                                                                   boost::asio::random_access_file::create | boost::asio::random_access_file::read_write) {
+   random_access_file_context(const std::filesystem::path& path, bool read_and_write) : display_path(path), file(local_ctx, path.generic_string().c_str(),
+                read_and_write ? boost::asio::random_access_file::read_only : boost::asio::random_access_file::create | boost::asio::random_access_file::read_write) {
       //TODO: is this right?
       FILE_STORAGE_INFO file_storage_info;
       if(GetFileInformationByHandleEx(native_handle(), FileStorageInfo, &file_storage_info, sizeof(file_storage_info)))
@@ -262,6 +266,10 @@ using random_access_file_context_ptr = std::shared_ptr<impl::random_access_file_
 
 class random_access_file {
 public:
+   enum flags {
+      read_only  = 1<<0,
+      read_write = 1<<1,
+   };
 
    class read_datastream {
       friend class random_access_file;
@@ -414,7 +422,7 @@ public:
       ssize_t                              pos = 0;
    };
 
-   explicit random_access_file(const std::filesystem::path& path) : ctx(new impl::random_access_file_context(path)) {}
+   random_access_file(const std::filesystem::path& path, const flags open_flags = read_write) : ctx(new impl::random_access_file_context(path, open_flags == read_write)) {}
 
    random_access_file(const random_access_file&) = delete;
    random_access_file& operator=(const random_access_file&) = delete;

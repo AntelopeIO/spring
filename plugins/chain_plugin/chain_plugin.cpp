@@ -1120,16 +1120,12 @@ void chain_plugin_impl::plugin_startup()
    try {
       auto shutdown = [](){ return app().quit(); };
       auto check_shutdown = [](){ return app().is_quiting(); };
-      if (snapshot_path) {
-         auto infile = std::ifstream(snapshot_path->generic_string(), (std::ios::in | std::ios::binary));
-         auto reader = std::make_shared<istream_snapshot_reader>(infile);
-         chain->startup(shutdown, check_shutdown, reader);
-         infile.close();
-      } else if( genesis ) {
+      if (snapshot_path)
+         chain->startup(shutdown, check_shutdown, std::make_shared<threaded_snapshot_reader>(*snapshot_path));
+      else if( genesis )
          chain->startup(shutdown, check_shutdown, *genesis);
-      } else {
+      else
          chain->startup(shutdown, check_shutdown);
-      }
    } catch (const database_guard_exception& e) {
       log_guard_exception(e);
       // make sure to properly close the db
