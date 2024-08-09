@@ -662,6 +662,11 @@ namespace eosio::chain {
          fork_db_s.close(out);
    }
 
+   bool fork_database::file_exists() const {
+      auto fork_db_file = data_dir / config::forkdb_filename;
+      return std::filesystem::exists( fork_db_file );
+   };
+
    void fork_database::open( validator_t& validator ) {
       if (!std::filesystem::is_directory(data_dir))
          std::filesystem::create_directories(data_dir);
