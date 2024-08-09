@@ -515,6 +515,7 @@ public:
    bool                                              _disable_subjective_p2p_billing              = true;
    bool                                              _disable_subjective_api_billing              = true;
    fc::time_point                                    _irreversible_block_time;
+   fc::time_point                                    _accepted_block_time;
    bool                                              _is_savanna_active                           = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
@@ -642,6 +643,7 @@ public:
       _unapplied_transactions.clear_applied(block);
       auto now = fc::time_point::now();
       chain.get_mutable_subjective_billing().on_block(_log, block, now);
+      _accepted_block_time = now;
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -715,10 +717,12 @@ public:
    bool is_implicitly_paused() const {
       if (!_is_savanna_active)
          return false; // no implicit pause in legacy
-      constexpr auto time_limit = fc::seconds(6);
-      auto now = fc::time_point::now();
-      return now - _last_producer_vote_received.load(std::memory_order_relaxed) > time_limit ||
-             now - _last_other_vote_recevied.load(std::memory_order_relaxed) > time_limit;
+      if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
+         return false;
+
+      auto time_limit = _accepted_block_time + fc::seconds(6); // need a vote within 6 seconds of last accepted block
+      return _last_producer_vote_received.load(std::memory_order_relaxed) > time_limit ||
+             _last_other_vote_recevied.load(std::memory_order_relaxed) > time_limit;
    }
 
    void abort_block() {
