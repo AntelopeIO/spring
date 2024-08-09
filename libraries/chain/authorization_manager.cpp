@@ -93,8 +93,19 @@ namespace eosio { namespace chain {
       };
    }
 
-   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      authorization_index_set::walk_indices([this, &snapshot]( auto utils ){
+   size_t authorization_manager::expected_snapshot_row_count() const {
+      size_t ret = 0;
+      authorization_index_set::walk_indices([this, &ret]( auto utils ) {
+         using index_t = typename decltype(utils)::index_t;
+         if(std::is_same_v<typename index_t::value_type, permission_usage_object>)
+            return;
+         ret += _db.get_index<index_t>().size();
+      });
+      return ret;
+   }
+
+   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+      authorization_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using section_t = typename decltype(utils)::index_t::value_type;
 
          // skip the permission_usage_index as its inlined with permission_index
@@ -102,16 +113,17 @@ namespace eosio { namespace chain {
             return;
          }
 
-         snapshot->write_section<section_t>([this]( auto& section ){
-            decltype(utils)::walk(_db, [this, &section]( const auto &row ) {
+         snapshot->write_section<section_t>([this, &row_counter]( auto& section ){
+            decltype(utils)::walk(_db, [this, &section, &row_counter]( const auto &row ) {
                section.add_row(row, _db);
+               row_counter.progress();
             });
          });
       });
    }
 
-   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot ) {
-      authorization_index_set::walk_indices([this, &snapshot]( auto utils ){
+   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
+      authorization_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using section_t = typename decltype(utils)::index_t::value_type;
 
          // skip the permission_usage_index as its inlined with permission_index
@@ -119,12 +131,13 @@ namespace eosio { namespace chain {
             return;
          }
 
-         snapshot->read_section<section_t>([this]( auto& section ) {
+         snapshot->read_section<section_t>([this, &row_counter]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(_db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, _db);
                });
+               row_counter.progress();
             }
          });
       });

@@ -38,28 +38,9 @@ class signature_provider_plugin_impl {
          };
       }
 
-      //         public_key   spec_type    spec_data
-      std::tuple<std::string, std::string, std::string> parse_spec(const std::string& spec) const {
-         auto delim = spec.find("=");
-         EOS_ASSERT(delim != std::string::npos, chain::plugin_config_exception, "Missing \"=\" in the key spec pair");
-         // public_key can be base64 encoded with trailing `=`
-         // e.g. --signature-provider PUB_BLS_Fmgk<snip>iuA===KEY:PVT_BLS_NZhJ<snip>ZHFu
-         while( spec.size() > delim+1 && spec[delim+1] == '=' )
-            ++delim;
-         EOS_ASSERT(delim < spec.size() + 1, chain::plugin_config_exception, "Missing spec data in the key spec pair");
-         auto pub_key_str = spec.substr(0, delim);
-         auto spec_str = spec.substr(delim + 1);
-
-         auto spec_delim = spec_str.find(":");
-         EOS_ASSERT(spec_delim != std::string::npos, chain::plugin_config_exception, "Missing \":\" in the key spec pair");
-         auto spec_type_str = spec_str.substr(0, spec_delim);
-         auto spec_data = spec_str.substr(spec_delim + 1);
-         return {std::move(pub_key_str), std::move(spec_type_str), std::move(spec_data)};
-      }
-
       std::optional<std::pair<chain::public_key_type,signature_provider_plugin::signature_provider_type>>
       signature_provider_for_specification(const std::string& spec) const {
-         auto [pub_key_str, spec_type_str, spec_data] = parse_spec(spec);
+         auto [pub_key_str, spec_type_str, spec_data] = signature_provider_plugin::parse_signature_provider_spec(spec);
          if( pub_key_str.starts_with("PUB_BLS") && spec_type_str == "KEY" )
             return {};
 
@@ -115,11 +96,30 @@ signature_provider_plugin::signature_provider_for_private_key(const chain::priva
 
 std::optional<std::pair<fc::crypto::blslib::bls_public_key, fc::crypto::blslib::bls_private_key>>
 signature_provider_plugin::bls_public_key_for_specification(const std::string& spec) const {
-   auto [pub_key_str, spec_type_str, spec_data] = my->parse_spec(spec);
+   auto [pub_key_str, spec_type_str, spec_data] = parse_signature_provider_spec(spec);
    if( pub_key_str.starts_with("PUB_BLS") && spec_type_str == "KEY" ) {
       return std::make_pair(fc::crypto::blslib::bls_public_key{pub_key_str}, fc::crypto::blslib::bls_private_key{spec_data});
    }
    return {};
+}
+
+//         public_key   spec_type    spec_data
+std::tuple<std::string, std::string, std::string> signature_provider_plugin::parse_signature_provider_spec(const std::string& spec) {
+   auto delim = spec.find("=");
+   EOS_ASSERT(delim != std::string::npos, chain::plugin_config_exception, "Missing \"=\" in the key spec pair");
+   // public_key can be base64 encoded with trailing `=`
+   // e.g. --signature-provider PUB_BLS_Fmgk<snip>iuA===KEY:PVT_BLS_NZhJ<snip>ZHFu
+   while( spec.size() > delim+1 && spec[delim+1] == '=' )
+      ++delim;
+   EOS_ASSERT(delim < spec.size() + 1, chain::plugin_config_exception, "Missing spec data in the key spec pair");
+   auto pub_key_str = spec.substr(0, delim);
+   auto spec_str = spec.substr(delim + 1);
+
+   auto spec_delim = spec_str.find(":");
+   EOS_ASSERT(spec_delim != std::string::npos, chain::plugin_config_exception, "Missing \":\" in the key spec pair");
+   auto spec_type_str = spec_str.substr(0, spec_delim);
+   auto spec_data = spec_str.substr(spec_delim + 1);
+   return {std::move(pub_key_str), std::move(spec_type_str), std::move(spec_data)};
 }
 
 } // namespace eosio

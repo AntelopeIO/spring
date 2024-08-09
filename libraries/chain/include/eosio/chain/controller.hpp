@@ -58,7 +58,7 @@ namespace eosio::chain {
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
    //                                connection_id, vote result status, vote_message processed
-   using vote_signal_params  = std::tuple<uint32_t, vote_status, const vote_message_ptr&>;
+   using vote_signal_params  = std::tuple<uint32_t, vote_result_t, const vote_message_ptr&>;
    using vote_signal_t       = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
@@ -91,6 +91,7 @@ namespace eosio::chain {
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
             uint16_t                 vote_thread_pool_size  =  0;
+            uint32_t                 max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -182,8 +183,8 @@ namespace eosio::chain {
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
          void commit_block(block_report& br);
-         void allow_voting(bool val);
-         bool get_allow_voting_flag();
+         void testing_allow_voting(bool val);
+         bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
@@ -276,12 +277,21 @@ namespace eosio::chain {
          // post-instant-finality this always returns nullptr
          const producer_authority_schedule*         pending_producers_legacy()const;
 
-         // returns nullptr pre-savanna
-         finalizer_policy_ptr                       head_active_finalizer_policy()const;
-         // returns nullptr pre-savanna, thread-safe, block_num according to branch curresponding to id
-         finalizer_policy_ptr                       active_finalizer_policy(const block_id_type& id, block_num_type block_num)const;
+         finalizer_policy_ptr   head_active_finalizer_policy()const; // returns nullptr pre-savanna
+         finalizer_policy_ptr   head_pending_finalizer_policy()const; // returns nullptr pre-savanna
+
+         /// Return the vote metrics for qc.block_num
+         /// thread-safe
+         /// @param id the block which contains the qc
+         /// @param qc the qc from the block which refers to qc.block_num
+         qc_vote_metrics_t vote_metrics(const block_id_type& id, const qc_t& qc) const;
+         // return qc missing vote's finalizers, use instead of vote_metrics when only missing votes are needed
+         // thread-safe
+         qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const;
 
          void set_savanna_lib_id(const block_id_type& id);
+
+         bool fork_db_has_root() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
@@ -352,9 +362,6 @@ namespace eosio::chain {
          // thread safe, for testing
          bool is_block_missing_finalizer_votes(const block_handle& bh) const;
 
-         // for testing
-         vote_info_vec get_votes(const block_id_type& id) const;
-
          // thread safe, for testing
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const;
 
@@ -373,7 +380,9 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         uint32_t get_terminate_at_block()const;
+         /// @return true if terminate-at-block reached, or max-reversible-blocks reached
+         /// not-thread-safe
+         bool should_terminate() const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
@@ -427,7 +436,10 @@ namespace eosio::chain {
       void set_to_read_window();
       bool is_write_window() const;
       void code_block_num_last_used(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, uint32_t block_num);
-      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting = false);
+      void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys);
+
+      // is the bls key a registered finalizer key of this node, thread safe
+      bool is_node_finalizer_key(const bls_public_key& key) const;
 
       private:
          friend class apply_context;

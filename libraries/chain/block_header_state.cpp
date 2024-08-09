@@ -38,16 +38,34 @@ digest_type block_header_state::compute_base_digest() const {
 }
 
 digest_type block_header_state::compute_finality_digest() const {
-   auto base_digest = compute_base_digest();
-   std::pair<const digest_type&, const digest_type&> last_pending_and_base{ last_pending_finalizer_policy_digest, base_digest };
-   auto lpfp_base_digest = fc::sha256::hash(last_pending_and_base);
+   // compute commitments related to finality violation proofs
+   auto latest_qc_claim_block_num = core.latest_qc_claim().block_num;
+   auto blk_ref = core.is_genesis_core() // Savanna Genesis core does not have block_ref
+                  ? block_ref{}
+                  : core.get_block_reference(latest_qc_claim_block_num);
+
+   level_3_commitments_t level_3_commitments {
+         .reversible_blocks_mroot         = core.get_reversible_blocks_mroot(),
+         .latest_qc_claim_block_num       = latest_qc_claim_block_num,
+         .latest_qc_claim_finality_digest = blk_ref.finality_digest,
+         .latest_qc_claim_timestamp       = blk_ref.timestamp,
+         .timestamp                       = timestamp(),
+         .base_digest                     = compute_base_digest()
+   };
+
+   // compute commitments related to finalizer policy transitions
+   level_2_commitments_t level_2_commitments {
+         .last_pending_fin_pol_digest           = last_pending_finalizer_policy_digest,
+         .last_pending_fin_pol_start_timestamp  = last_pending_finalizer_policy_start_timestamp,
+         .l3_commitments_digest                 = fc::sha256::hash(level_3_commitments)
+   };
 
    assert(active_finalizer_policy);
    finality_digest_data_v1 finality_digest_data {
-      .active_finalizer_policy_generation      = active_finalizer_policy->generation,
-      .final_on_strong_qc_block_num            = core.final_on_strong_qc_block_num,
-      .finality_tree_digest                    = finality_mroot(),
-      .last_pending_finalizer_policy_and_base_digest = lpfp_base_digest
+      .active_finalizer_policy_generation       = active_finalizer_policy->generation,
+      .last_pending_finalizer_policy_generation = get_last_pending_finalizer_policy().generation,
+      .finality_tree_digest                     = finality_mroot(),
+      .l2_commitments_digest                    = fc::sha256::hash(level_2_commitments)
    };
 
    return fc::sha256::hash(finality_digest_data);
@@ -155,6 +173,7 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
          // promote the target to pending
          auto block_num = next_header_state.block_num();
          next_pending.emplace(block_num, target->second);
+         next_header_state.last_pending_finalizer_policy_start_timestamp = next_header_state.timestamp();
       } else {
          // leave the target alone in the proposed policies
          next_proposed.emplace_back(*target);
@@ -222,8 +241,9 @@ void finish_next(const block_header_state& prev,
    // finality_core
    // -------------
    block_ref parent_block {
-      .block_id  = prev.block_id,
-      .timestamp = prev.timestamp(),
+      .block_id        = prev.block_id,
+      .timestamp       = prev.timestamp(),
+      .finality_digest = prev.compute_finality_digest()
    };
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
@@ -367,13 +387,13 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
       // if there is no Finality Tree Root associated with the block,
       // then this needs to validate that h.action_mroot is the empty digest
       auto next_core_metadata = core.next_metadata(f_ext.qc_claim);
-      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.final_on_strong_qc_block_num);
+      bool no_finality_tree_associated = core.is_genesis_block_num(next_core_metadata.latest_qc_claim_block_num);
 
       EOS_ASSERT(no_finality_tree_associated == h.action_mroot.empty(), block_validate_exception,
                  "No Finality Tree Root associated with the block, does not match with empty action_mroot: "
-                 "(${n}), action_mroot empty (${e}), final_on_strong_qc_block_num (${f})",
+                 "(${n}), action_mroot empty (${e}), latest_qc_claim_block_num (${f})",
                  ("n", no_finality_tree_associated)("e", h.action_mroot.empty())
-                 ("f", next_core_metadata.final_on_strong_qc_block_num));
+                 ("f", next_core_metadata.latest_qc_claim_block_num));
    };
 
    finish_next(*this, next_header_state, std::move(new_protocol_feature_activations), f_ext, false);

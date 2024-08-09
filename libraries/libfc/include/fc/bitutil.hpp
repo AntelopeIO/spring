@@ -1,6 +1,11 @@
 #pragma once
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshift-count-overflow"
+// boost dynamic_bitset count() generates warning
 #include <boost/dynamic_bitset.hpp>
+#pragma GCC diagnostic pop
+
 #include <stdint.h>
 
 namespace fc {

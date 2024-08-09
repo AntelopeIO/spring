@@ -11,20 +11,7 @@ namespace eosio::chain {
 
 struct vote_message;
 
-struct vote_info { bls_public_key finalizer; bool strong; };
-using vote_info_vec = std::vector<vote_info>;
-
 using signer_callback_type = std::function<std::vector<signature_type>(const digest_type&)>;
-
-constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
-using weak_digest_t = std::array<uint8_t, sizeof(digest_type) + weak_bls_sig_postfix.size()>;
-
-inline weak_digest_t create_weak_digest(const digest_type& digest) {
-   weak_digest_t res;
-   std::memcpy(res.begin(), digest.data(), digest.data_size());
-   std::memcpy(res.begin() + digest.data_size(), weak_bls_sig_postfix.data(), weak_bls_sig_postfix.size());
-   return res;
-}
 
 struct block_state_legacy;
 struct block_state_accessor;
@@ -38,16 +25,18 @@ struct block_state_accessor;
  *    Tree over Finality Leaf Nodes starting with the one for the IF Genesis Block
  *    and ending with the one for the target Block.
  * 3. The Finality Tree associated with a target block is the Validation Tree of the
- *    block referenced by the target block's final_on_strong_qc_block_num.
- *    That is, validation_tree(core.final_on_strong_qc_block_num))
+ *    block referenced by the target block's latest_qc_claim__block_num.
+ *    That is, validation_tree(core.latest_qc_claim().block_num))
  * */
 struct valid_t {
    struct finality_leaf_node_t {
-      uint32_t       major_version{light_header_protocol_version_major};
-      uint32_t       minor_version{light_header_protocol_version_minor};
-      block_num_type block_num{0};   // the block number
-      digest_type    finality_digest; // finality digest for the block
-      digest_type    action_mroot;    // digest of the root of the action Merkle tree of the block
+      uint32_t             major_version{light_header_protocol_version_major};
+      uint32_t             minor_version{light_header_protocol_version_minor};
+      block_num_type       block_num{0};     // the block number
+      block_timestamp_type timestamp;
+      block_timestamp_type parent_timestamp;
+      digest_type          finality_digest;  // finality digest for the block
+      digest_type          action_mroot;     // digest of the root of the action Merkle tree of the block
    };
 
    // The Finality Merkle Tree, containing leaf nodes from IF genesis block to current block
@@ -65,22 +54,26 @@ struct finality_data_t {
    uint32_t     major_version{light_header_protocol_version_major};
    uint32_t     minor_version{light_header_protocol_version_minor};
    uint32_t     active_finalizer_policy_generation{0};
-   uint32_t     final_on_strong_qc_block_num{0};
    digest_type  action_mroot{};
-   digest_type  base_digest{};
+   digest_type  reversible_blocks_mroot{};
+   block_num_type       latest_qc_claim_block_num{0};
+   digest_type          latest_qc_claim_finality_digest;
+   block_timestamp_type latest_qc_claim_timestamp;
+   digest_type          base_digest{};
+
    // Finalizer policy if one is promoted to pending in the block.
    // Use string format for public key in the policy for easier uses.
    std::optional<finalizer_policy_with_string_key> pending_finalizer_policy;
-};
 
-enum class vote_status_t { voted, not_voted, irrelevant_finalizer };
+   uint32_t     last_pending_finalizer_policy_generation{0}; // // use active_finalizer_policy_generation if pending_finalizer_policy does not exist
+};
 
 struct block_state : public block_header_state {     // block_header_state provides parent link
    // ------ data members -------------------------------------------------------------
    signed_block_ptr           block;
    digest_type                strong_digest;         // finalizer_digest (strong, cached so we can quickly validate votes)
    weak_digest_t              weak_digest;           // finalizer_digest (weak, cached so we can quickly validate votes)
-   pending_quorum_certificate pending_qc;            // where we accumulate votes we receive
+   aggregating_qc_t           aggregating_qc;        // where we accumulate votes we receive
    std::optional<valid_t>     valid;
 
    // ------ updated for votes, used for fork_db ordering ------------------------------
@@ -122,11 +115,10 @@ public:
    uint32_t               latest_qc_block_num() const          { return core.latest_qc_claim().block_num; }
    block_timestamp_type   latest_qc_block_timestamp() const    { return core.latest_qc_block_timestamp(); }
 
-   uint32_t               final_on_strong_qc_block_num() const { return core.final_on_strong_qc_block_num; }
-
-   std::optional<quorum_certificate> get_best_qc() const { return pending_qc.get_best_qc(block_num()); } // thread safe
-   bool valid_qc_is_strong() const { return pending_qc.valid_qc_is_strong(); } // thread safe
-   void set_valid_qc(const valid_quorum_certificate& qc) { pending_qc.set_valid_qc(qc); }
+   std::optional<qc_t> get_best_qc() const { return aggregating_qc.get_best_qc(block_num()); } // thread safe
+   bool received_qc_is_strong() const { return aggregating_qc.received_qc_is_strong(); } // thread safe
+   // return true if better qc, thread safe
+   bool set_received_qc(const qc_t& qc) { return aggregating_qc.set_received_qc(qc); }
    // extract the qc_claim from block header finality_extension
    qc_claim_t extract_qc_claim() const;
 
@@ -150,10 +142,9 @@ public:
    finality_data_t get_finality_data();
 
    // connection_id only for logging
-   vote_status aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into pending_qc
+   vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into aggregating_qc
    vote_status_t has_voted(const bls_public_key& key) const;
-   vote_info_vec get_votes() const;                          // for testing, returns vote info from pending_qc
-   void verify_qc(const valid_quorum_certificate& qc) const; // verify given qc is valid with respect block_state
+   void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
    using bhs_t  = block_header_state;
    using bhsp_t = block_header_state_ptr;
@@ -169,7 +160,7 @@ public:
                deque<transaction_metadata_ptr>&&        trx_metas,
                deque<transaction_receipt>&&             trx_receipts,
                const std::optional<valid_t>&            valid,
-               const std::optional<quorum_certificate>& qc,
+               const std::optional<qc_t>&               qc,
                const signer_callback_type&              signer,
                const block_signing_authority&           valid_block_signing_authority,
                const digest_type&                       action_mroot);
@@ -197,7 +188,7 @@ using block_state_pair      = std::pair<std::shared_ptr<block_state_legacy>, blo
 } // namespace eosio::chain
 
 // not exporting pending_qc or valid_qc
-FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(finality_digest)(action_mroot) )
+FC_REFLECT( eosio::chain::valid_t::finality_leaf_node_t, (major_version)(minor_version)(block_num)(timestamp)(parent_timestamp)(finality_digest)(action_mroot) )
 FC_REFLECT( eosio::chain::valid_t, (validation_tree)(validation_mroots))
-FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(final_on_strong_qc_block_num)(action_mroot)(base_digest)(pending_finalizer_policy) )
-FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(pending_qc)(valid)(validated) )
+FC_REFLECT( eosio::chain::finality_data_t, (major_version)(minor_version)(active_finalizer_policy_generation)(action_mroot)(reversible_blocks_mroot)(latest_qc_claim_block_num)(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(base_digest)(pending_finalizer_policy)(last_pending_finalizer_policy_generation) )
+FC_REFLECT_DERIVED( eosio::chain::block_state, (eosio::chain::block_header_state), (block)(strong_digest)(weak_digest)(aggregating_qc)(valid)(validated) )

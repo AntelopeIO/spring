@@ -12,12 +12,21 @@ struct block_ref
 {
    block_id_type    block_id;
    block_time_type  timestamp;
+   digest_type      finality_digest;  // finality digest associated with the block
 
    bool           empty() const { return block_id.empty(); }
    block_num_type block_num() const; // Extract from block_id.
 
    auto operator<=>(const block_ref&) const = default;
    bool operator==(const block_ref& o) const = default;
+};
+
+struct block_ref_digest_data
+{
+   block_num_type   block_num{0};
+   block_time_type  timestamp;
+   digest_type      finality_digest;
+   block_time_type  parent_timestamp;
 };
 
 struct qc_link
@@ -38,7 +47,6 @@ struct qc_claim_t
 struct core_metadata
 {
    block_num_type  last_final_block_num {0};
-   block_num_type  final_on_strong_qc_block_num {0};
    block_num_type  latest_qc_claim_block_num {0};
 };
 
@@ -48,14 +56,13 @@ struct finality_core
    std::vector<qc_link>    links; // Captures all relevant links sorted in order of ascending source_block_num.
    std::vector<block_ref>  refs;  // Covers ancestor blocks with block numbers greater than or equal to last_final_block_num.
                                   // Sorted in order of ascending block_num.
-   block_num_type          final_on_strong_qc_block_num {0};
    block_time_type         genesis_timestamp;  // set and used only for the genesis finality core.
 
    // Invariants:
    // 1. links.empty() == false
-   // 2. last_final_block_num() <= links.front().source_block_num <= final_on_strong_qc_block_num <= latest_qc_claim().block_num
+   // 2. last_final_block_num() <= links.front().source_block_num <= latest_qc_claim().block_num
    // 3. If refs.empty() == true, then (links.size() == 1) and 
-   //                                  (links.back().target_block_num == links.back().source_block_num == final_on_strong_qc_block_num == last_final_block_num())
+   //                                  (links.back().target_block_num == links.back().source_block_num == last_final_block_num())
    // 4. If refs.empty() == false, then refs.front().block_num() == links.front().target_block_num == last_final_block_num()
    // 5. If refs.empty() == false, then refs.back().block_num() + 1 == links.back().source_block_num == current_block_num()
    // 6. If refs.size() > 1, then:
@@ -72,7 +79,6 @@ struct finality_core
     *
     *  @post returned core has current_block_num() == block_num
     *  @post returned core has latest_qc_claim() == {.block_num=block_num, .is_strong_qc=false}
-    *  @post returned core has final_on_strong_qc_block_num == block_num
     *  @post returned core has last_final_block_num() == block_num
     */
    static finality_core create_core_for_genesis_block(const block_ref& genesis_block);
@@ -136,6 +142,13 @@ struct finality_core
    const block_ref& get_block_reference(block_num_type block_num) const;
 
    /**
+    *  @pre  all finality_core invariants
+    *  @post same
+    *  @returns Merkle root digest of a sequence of block_refs
+    */
+   digest_type get_reversible_blocks_mroot() const;
+
+   /**
     *  @pre links.front().source_block_num <= block_num <= current_block_num()
     *
     *  @post returned qc_link has source_block_num == block_num
@@ -146,9 +159,8 @@ struct finality_core
     *  @pre this->latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num <= this->current_block_num()
     *  @pre this->latest_qc_claim() <= most_recent_ancestor_with_qc
     *
-    *  @post returned core_metadata has last_final_block_num <= final_on_strong_qc_block_num <= latest_qc_claim_block_num
+    *  @post returned core_metadata has last_final_block_num <= latest_qc_claim_block_num
     *  @post returned core_metadata has latest_qc_claim_block_num == most_recent_ancestor_with_qc.block_num
-    *  @post returned core_metadata has final_on_strong_qc_block_num >= this->final_on_strong_qc_block_num
     *  @post returned core_metadata has last_final_block_num >= this->last_final_block_num()
     */
    core_metadata next_metadata(const qc_claim_t& most_recent_ancestor_with_qc) const;
@@ -164,7 +176,6 @@ struct finality_core
     *
     *  @post returned core has current_block_num() == this->current_block_num() + 1
     *  @post returned core has latest_qc_claim() == most_recent_ancestor_with_qc
-    *  @post returned core has final_on_strong_qc_block_num >= this->final_on_strong_qc_block_num
     *  @post returned core has last_final_block_num() >= this->last_final_block_num()
     */
    finality_core next(const block_ref& current_block, const qc_claim_t& most_recent_ancestor_with_qc) const;
@@ -176,7 +187,7 @@ struct finality_core
 namespace std {
    // define std ostream output so we can use BOOST_CHECK_EQUAL in tests
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::block_ref& br) {
-      os << "block_ref(" << br.block_id << ", " << br.timestamp << ")";
+      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ")";
       return os;
    }
 
@@ -191,14 +202,15 @@ namespace std {
    }
 
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::core_metadata& cm) {
-      os << "core_metadata(" << cm.last_final_block_num << ", " << cm.final_on_strong_qc_block_num <<
+      os << "core_metadata(" << cm.last_final_block_num << ", " <<
          ", " << cm.latest_qc_claim_block_num << ")";
       return os;
    }
 }
 
-FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp) )
+FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest) )
+FC_REFLECT( eosio::chain::block_ref_digest_data, (block_num)(timestamp)(finality_digest)(parent_timestamp) )
 FC_REFLECT( eosio::chain::qc_link, (source_block_num)(target_block_num)(is_link_strong) )
 FC_REFLECT( eosio::chain::qc_claim_t, (block_num)(is_strong_qc) )
-FC_REFLECT( eosio::chain::core_metadata, (last_final_block_num)(final_on_strong_qc_block_num)(latest_qc_claim_block_num))
-FC_REFLECT( eosio::chain::finality_core, (links)(refs)(final_on_strong_qc_block_num)(genesis_timestamp))
+FC_REFLECT( eosio::chain::core_metadata, (last_final_block_num)(latest_qc_claim_block_num))
+FC_REFLECT( eosio::chain::finality_core, (links)(refs)(genesis_timestamp))

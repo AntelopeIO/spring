@@ -181,7 +181,7 @@ namespace eosio::testing {
       return pfs;
    }
 
-   bool base_tester::is_same_chain( base_tester& other ) {
+   bool base_tester::is_same_chain( base_tester& other ) const {
      return control->head().id() == other.control->head().id();
    }
 
@@ -308,6 +308,8 @@ namespace eosio::testing {
       chain_transactions.clear();
    }
 
+   bool base_tester::is_open() const { return !!control; }
+
    void base_tester::open( const snapshot_reader_ptr& snapshot ) {
       open( make_protocol_feature_set(), snapshot );
    }
@@ -337,6 +339,7 @@ namespace eosio::testing {
 
       control.reset( new controller(cfg, std::move(pfs), *expected_chain_id) );
       control->add_indices();
+      control->testing_allow_voting(true);
       if (lambda) lambda();
       chain_transactions.clear();
       [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
@@ -356,6 +359,9 @@ namespace eosio::testing {
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
+      lib_id = control->fork_db_has_root() ? control->last_irreversible_block_id() : block_id_type{};
+      lib_number = block_header::num_from_id(lib_id);
+      lib_block = control->fetch_block_by_id(lib_id);
       [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
          lib_block = block;
@@ -363,6 +369,9 @@ namespace eosio::testing {
          assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
       });
+
+      if (_open_callback)
+         _open_callback();
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const snapshot_reader_ptr& snapshot ) {
@@ -538,22 +547,22 @@ namespace eosio::testing {
          // This is not the case for tests with forks, so for these tests we should set
          // `_expect_votes` to false by calling `base_tester::do_check_for_votes(false)`
          // ----------------------------------------------------------------------------
-         FC_ASSERT(c.is_block_missing_finalizer_votes(bh) == false, "Missing expected vote");
+         FC_ASSERT(!c.get_testing_allow_voting_flag() || !c.is_block_missing_finalizer_votes(bh), "Missing expected vote");
       }
    }
 
    signed_block_ptr base_tester::produce_blocks( uint32_t n, bool empty ) {
       signed_block_ptr res;
-      bool allow_voting_originally = control->get_allow_voting_flag();
+      bool allow_voting_originally = control->get_testing_allow_voting_flag();
 
       for (uint32_t i = 0; i < n; ++i) {
          // For performance, only vote on the last four to move finality.
-         // Modify allow_voting only if it was set to true originally;
-         // otherwise the allow_voting would be set to true when `i >= 4` even though the user of
+         // Modify testing_allow_voting only if it was set to true originally;
+         // otherwise the testing_allow_voting would be set to true when `i >= 4` even though the user of
          // `produce_blocks` wants it to be true.
          // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
          if (allow_voting_originally && n > 4)
-            control->allow_voting(i >= n - 4);
+            control->testing_allow_voting(i >= n - 4);
          res = empty ? produce_empty_block() : produce_block();
       }
       return res;
@@ -1275,7 +1284,7 @@ namespace eosio::testing {
                ("pop", pop.to_string()));
       }
 
-      control->set_node_finalizer_keys(local_finalizer_keys, true);
+      control->set_node_finalizer_keys(local_finalizer_keys);
 
       fc::mutable_variant_object fin_policy_variant;
       fin_policy_variant("threshold", input.threshold);
@@ -1293,7 +1302,7 @@ namespace eosio::testing {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
       }
-      control->set_node_finalizer_keys(local_finalizer_keys, true);
+      control->set_node_finalizer_keys(local_finalizer_keys);
    }
 
    base_tester::set_finalizers_output_t base_tester::set_active_finalizers(std::span<const account_name> names) {

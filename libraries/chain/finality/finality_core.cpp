@@ -1,5 +1,6 @@
 #include <eosio/chain/finality/finality_core.hpp>
 #include <eosio/chain/block_header.hpp>
+#include <eosio/chain/merkle.hpp>
 
 namespace eosio::chain {
 
@@ -16,7 +17,6 @@ block_num_type block_ref::block_num() const {
  *
  *  @post returned core has current_block_num() == block_num
  *  @post returned core has latest_qc_claim() == {.block_num=block_num, .is_strong_qc=false}
- *  @post returned core has final_on_strong_qc_block_num == block_num
  *  @post returned core has last_final_block_num() == block_num
  */
 finality_core finality_core::create_core_for_genesis_block(const block_ref& genesis_block)
@@ -27,12 +27,11 @@ finality_core finality_core::create_core_for_genesis_block(const block_ref& gene
          qc_link{
             .source_block_num = block_num,
             .target_block_num = block_num,
-            .is_link_strong    = false,
+            .is_link_strong   = false,
          },
       },
       .refs                         = {},
-      .final_on_strong_qc_block_num = block_num,
-      .genesis_timestamp = genesis_block.timestamp
+      .genesis_timestamp            = genesis_block.timestamp
    };
 
    // Invariants 1 to 7 can be easily verified to be satisfied for the returned core.
@@ -149,6 +148,35 @@ const block_ref& finality_core::get_block_reference(block_num_type block_num) co
 }
 
 /**
+ *  @pre  all finality_core invariants
+ *  @post same
+ *  @returns Merkle root digest of a sequence of block_refs
+ */
+digest_type finality_core::get_reversible_blocks_mroot() const {
+   // Parent block timestamp is not availale as parent block does not exist
+   if (refs.size() <= 1) {
+      return {};
+   }
+
+   // Build a merkle tree of a sequence of records including block number,
+   // block timestamp, finality digest, and the timestamp of the parent block.
+   std::vector<digest_type> block_ref_digests;
+   block_ref_digests.reserve(refs.size() - 1);
+   for (size_t i = 1; i < refs.size(); i++) {
+      block_ref_digest_data data = {
+         .block_num        = refs[i].block_num(),
+         .timestamp        = refs[i].timestamp,
+         .finality_digest  = refs[i].finality_digest,
+         .parent_timestamp = refs[i-1].timestamp
+      };
+
+      block_ref_digests.emplace_back(fc::sha256::hash(data));
+   }
+
+   return calculate_merkle(block_ref_digests);
+}
+
+/**
  *  @pre links.front().source_block_num <= block_num <= current_block_num()
  *
  *  @post returned qc_link has source_block_num == block_num
@@ -177,69 +205,50 @@ const qc_link& finality_core::get_qc_link_from(block_num_type block_num) const
  *  @post std::get<0>(returned_value) <= std::get<1>(returned_value) <= std::get<2>(returned_value) <= most_recent_ancestor_with_qc.block_num
  *  @post c.last_final_block_num() <= std::get<0>(returned_value)
  *  @post c.links.front().source_block_num <= std::get<1>(returned_value)
- *  @post c.final_on_strong_qc_block_num <= std::get<2>(returned_value)
  */
-std::tuple<block_num_type, block_num_type, block_num_type> get_new_block_numbers(const finality_core& c, const qc_claim_t& most_recent_ancestor_with_qc)
+std::tuple<block_num_type, block_num_type> get_new_block_numbers(const finality_core& c, const qc_claim_t& most_recent_ancestor_with_qc)
 {
    assert(most_recent_ancestor_with_qc.block_num <= c.current_block_num()); // Satisfied by the precondition.
+   assert(c.latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num); // Satisfied by the precondition.
 
    // Invariant 2 of core guarantees that:
-   // c.last_final_block_num() <= c.links.front().source_block_num <= c.final_on_strong_qc_block_num  <= c.latest_qc_claim().block_num
+   // c.last_final_block_num() <= c.links.front().source_block_num <= c.latest_qc_claim().block_num
 
    assert(c.links.front().source_block_num <= most_recent_ancestor_with_qc.block_num); // Satisfied by invariant 2 of core and the precondition.
 
    // No changes on new claim of weak QC.
    if (!most_recent_ancestor_with_qc.is_strong_qc) {
-      return {c.last_final_block_num(), c.links.front().source_block_num, c.final_on_strong_qc_block_num};
+      return {c.last_final_block_num(), c.links.front().source_block_num};
    }
 
-   const auto& link1 = c.get_qc_link_from(most_recent_ancestor_with_qc.block_num);
+   const auto& link = c.get_qc_link_from(most_recent_ancestor_with_qc.block_num);
 
-   // By the post-condition of get_qc_link_from, link1.source_block_num == most_recent_ancestor_with_qc.block_num.
-   // By the invariant on qc_link, link1.target_block_num <= link1.source_block_num.
-   // Therefore, link1.target_block_num <= most_recent_ancestor_with_qc.block_num.
-   // And also by the precondition, link1.target_block_num <= c.current_block_num().
+   // Wherever link is found within c.links, it must be either c.links.front() or
+   // a link after c.links.front() in c.links.
+   // In both cases, by invariant 7 of core,
+   // c.links.front().target_block_num <= link.target_block_num
+   // c.links.front().source_block_num <= link.source_block_num
+   assert(c.last_final_block_num() <= link.target_block_num); // by justification above and c.last_final_block_num() == c.links.front().target_block_num
+   assert(c.links.front().source_block_num <= link.source_block_num); // by justification above
 
-   // If c.refs.empty() == true, then by invariant 3 of core, link1 == c.links.front() == c.links.back() and so
-   // link1.target_block_num == c.current_block_num().
+   // 1. By the post-condition of get_qc_link_from, link.source_block_num == most_recent_ancestor_with_qc.block_num.
+   //    By the invariant on qc_link, link.target_block_num <= link.source_block_num.
+   //    Therefore, link.target_block_num <= most_recent_ancestor_with_qc.block_num.
+   //
+   // 2. There must exist some link, call it link0, within c.links where
+   //    link0.target_block_num == c.latest_qc_claim().block_num and link0.source_block_num <= c.latest_qc_claim().block_num.
+   //    By the precondition, link0.source_block_num <= most_recent_ancestor_with_qc.block_num.
+   //    Since most_recent_ancestor_with_qc.block_num == link.source_block_num,
+   //    we have link0.source_block_num <= link.source_block_num.
+   //    If c.links.size() > 1, then by invariant 7 of core, link0.target_block_num <= link.target_block_num.
+   //    Otherwise if c.links.size() == 1, then link0 == link and so link0.target_block_num == link.target_block_num.
+   //    Therefore, c.latest_qc_claim().block_num <= link.target_block_num.
+   //
+   //    From 1 and 2, we have c.latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num
+   assert(c.latest_qc_claim().block_num <= most_recent_ancestor_with_qc.block_num);
 
-   // Otherwise, if c.refs.empty() == false, consider two cases.
-   // Case 1: link1 != c.links.back()
-   //   In this case, link1.target_block_num <= link1.source_block_num < c.links.back().source_block_num.
-   //   The strict inequality is justified by invariant 7 of core.
-   //   Therefore, link1.target_block_num < c.current_block_num().
-   // Case 2: link1 == c.links.back()
-   //   In this case, link1.target_block_num < link1.source_block_num == c.links.back().source_block_num.
-   //   The strict inequality is justified because target_block_num and source_block_num of a qc_link can only be equal for a
-   //   genesis block. And a link mapping genesis block number to genesis block number can only possibly exist for c.links.front().
-   //   Therefore, link1.target_block_num < c.current_block_num().
-
-   // There must exist some link, call it link0, within c.links where 
-   // link0.target_block_num == c.final_on_strong_qc_block_num and link0.source_block_num <= c.latest_qc_claim().block_num.
-   // By the precondition, link0.source_block_num <= most_recent_ancestor_with_qc.block_num.
-   // If c.links.size() > 1, then by invariant 7 of core, link0.target_block_num <= link1.target_block_num.
-   // Otherwise if c.links.size() == 1, then link0 == link1 and so link0.target_block_num == link1.target_block_num.
-   // Therefore, c.final_on_strong_qc_block_num <= link1.target_block_num.
-
-   assert(c.final_on_strong_qc_block_num <= link1.target_block_num); // Satisfied by justification above.
-
-   // Finality does not advance if a better 3-chain is not found.
-   if (!link1.is_link_strong || (link1.target_block_num < c.links.front().source_block_num)) {
-      return {c.last_final_block_num(), c.links.front().source_block_num, link1.target_block_num};
-   }
-
-   const auto& link2 = c.get_qc_link_from(link1.target_block_num);
-
-   // By the post-condition of get_qc_link_from, link2.source_block_num == link1.target_block_num.
-   // By the invariant on qc_link, link2.target_block_num <= link2.source_block_num.
-   // Therefore, link2.target_block_num <= link1.target_block_num.
-
-   // Wherever link2 is found within c.links, it must be the case that c.links.front().target_block_num <= link2.target_block_num.
-   // This is obvious if c.links.size() == 1 (even though the code would even not get to this point if c.links.size() == 1), and 
-   // for the case where c.links.size() > 1, it is justified by invariant 7 of core.
-   // Therefore, c.last_final_block_num() <= link2.target_block_num.
-
-   return {link2.target_block_num, link2.source_block_num, link1.target_block_num}; 
+   // Use two-chain for finality advance
+   return {link.target_block_num, link.source_block_num};
 }
 
 core_metadata finality_core::next_metadata(const qc_claim_t& most_recent_ancestor_with_qc) const
@@ -247,14 +256,13 @@ core_metadata finality_core::next_metadata(const qc_claim_t& most_recent_ancesto
    assert(most_recent_ancestor_with_qc.block_num <= current_block_num()); // Satisfied by precondition 1.
    assert(latest_qc_claim() <= most_recent_ancestor_with_qc); // Satisfied by precondition 2.
 
-   const auto [new_last_final_block_num, new_links_front_source_block_num, new_final_on_strong_qc_block_num] = 
+   const auto [new_last_final_block_num, new_links_front_source_block_num] = 
       get_new_block_numbers(*this, most_recent_ancestor_with_qc);
 
    (void)new_links_front_source_block_num;
 
    return core_metadata {
       .last_final_block_num = new_last_final_block_num,
-      .final_on_strong_qc_block_num = new_final_on_strong_qc_block_num,
       .latest_qc_claim_block_num = most_recent_ancestor_with_qc.block_num,
    };
    // Post-conditions satisfied by post-conditions of get_new_block_numbers.
@@ -268,7 +276,7 @@ core_metadata finality_core::next_metadata(const qc_claim_t& most_recent_ancesto
  *
  *  @post returned core has current_block_num() == this->current_block_num() + 1
  *  @post returned core has latest_qc_claim() == most_recent_ancestor_with_qc
- *  @post returned core has final_on_strong_qc_block_num >= this->final_on_strong_qc_block_num
+ *  @post returned core has latest_qc_claim().block_num >= this->latest_qc_claim().block_num
  *  @post returned core has last_final_block_num() >= this->last_final_block_num()
  */
 finality_core finality_core::next(const block_ref& current_block, const qc_claim_t& most_recent_ancestor_with_qc) const
@@ -284,19 +292,14 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
 
    finality_core next_core;
 
-   const auto [new_last_final_block_num, new_links_front_source_block_num, new_final_on_strong_qc_block_num] = 
+   const auto [new_last_final_block_num, new_links_front_source_block_num] = 
       get_new_block_numbers(*this, most_recent_ancestor_with_qc);
 
    assert(new_last_final_block_num <= new_links_front_source_block_num); // Satisfied by post-condition 1 of get_new_block_numbers.
-   assert(new_links_front_source_block_num <= new_final_on_strong_qc_block_num); // Satisfied by post-condition 1 of get_new_block_numbers.
-   assert(new_final_on_strong_qc_block_num <= most_recent_ancestor_with_qc.block_num); // Satisfied by post-condition 1 of get_new_block_numbers.
+   assert(new_links_front_source_block_num <= most_recent_ancestor_with_qc.block_num); // Satisfied by post-condition 1 of get_new_block_numbers.
 
    assert(last_final_block_num() <= new_last_final_block_num); // Satisfied by post-condition 2 of get_new_block_numbers.
    assert(links.front().source_block_num <= new_links_front_source_block_num); // Satisfied by post-condition 3 of get_new_block_numbers.
-   assert(final_on_strong_qc_block_num <= new_final_on_strong_qc_block_num); // Satisfied by post-condition 4 of get_new_block_numbers.
-
-   next_core.final_on_strong_qc_block_num = new_final_on_strong_qc_block_num;
-   // Post-condition 3 is satisfied, assuming next_core will be returned without further modifications to next_core.final_on_strong_qc_block_num.
 
    // Post-condition 4 and invariant 2 will be satisfied when next_core.last_final_block_num() is updated to become new_last_final_block_num.
 
@@ -368,8 +371,10 @@ finality_core finality_core::next(const block_ref& current_block, const qc_claim
       // then the justification above satisfies the remaining equalities needed to satisfy invariant 4 for next_core.
 
       // So, invariants 3 to 6 are now satisfied for next_core in addition to the invariants 1, 2, and 7 that were shown to be satisfied
-      // earlier (and still remain satisfied since next_core.links and next_core.final_on_strong_qc_block_num have not changed).
+      // earlier (and still remain satisfied since next_core.links and next_core.latest_qc_claim().block_num have not changed).
    }
+
+   assert(latest_qc_claim().block_num <= next_core.latest_qc_claim().block_num);
 
    return next_core;
    // Invariants 1 to 7 were verified to be satisfied for the current value of next_core at various points above. 

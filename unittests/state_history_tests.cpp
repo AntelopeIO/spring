@@ -815,7 +815,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
       // the first block from chain2 is pushed to chain1. This is to ensure LIBs
       // on chain1 and chain2 are the same, and further blocks from chain2 can be
       // pushed into chain1's forkdb.
-      chain1.control->allow_voting(false);
+      chain1.control->testing_allow_voting(false);
       chain1.produce_block();
    }
 
@@ -831,7 +831,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
    if constexpr (std::is_same_v<T, state_history_tester<savanna_tester>>) {
       // Disable voting on chain2 such that chain2's blocks can form a fork when
       // pushed to chain1
-      chain2.control->allow_voting(false);
+      chain2.control->testing_allow_voting(false);
    }
 
    auto b = chain2.produce_block();

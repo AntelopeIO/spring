@@ -97,16 +97,20 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "finalizer_policy_generation",
+                    "name": "active_finalizer_policy_generation",
                     "type": "uint32"
                 },
                 {
-                    "name": "final_on_strong_qc_block_num",
-                    "type": "uint32"
+                    "name": "last_pending_finalizer_policy_generation",
+                    "type": "uint32?"
                 },
                 {
-                    "name": "new_finalizer_policy",
+                    "name": "pending_finalizer_policy",
                     "type": "finalizer_policy_input?"
+                },
+                {
+                    "name": "last_pending_finalizer_policy_start_timestamp",
+                    "type": "block_timestamp_type?"
                 },
                 {
                     "name": "witness_hash",
@@ -177,6 +181,14 @@
                     "type": "block_finality_data"
                 },
                 {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
                     "name": "dynamic_data",
                     "type": "dynamic_data_v0"
                 }
@@ -191,8 +203,12 @@
                     "type": "block_finality_data"
                 },
                 {
-                    "name": "qc",
+                    "name": "active_policy_qc",
                     "type": "quorum_certificate"
+                },
+                {
+                    "name": "pending_policy_qc",
+                    "type": "quorum_certificate?"
                 }
             ]
         },
@@ -317,6 +333,14 @@
                 {
                     "name": "minor_version",
                     "type": "uint32"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
                 },
                 {
                     "name": "finality_digest",

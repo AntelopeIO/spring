@@ -9,17 +9,17 @@ BOOST_AUTO_TEST_SUITE(savanna_cluster_tests)
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
-      reset_lib();
       auto node3_lib = _nodes[3].lib_num();                 // Store initial lib (after Savanna transtion)
-      _nodes[0].produce_block();                            // Blocks & votes are propagated to all connected peers.
-      _nodes[0].produce_block();                            // and by default all nodes are interconnected
-      BOOST_REQUIRE_EQUAL(num_lib_advancing(), num_nodes());// Check that lib advances on all nodes
+      BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { // Check that lib advances on all nodes
+         _nodes[0].produce_block();                         // Blocks & votes are propagated to all connected peers.
+         _nodes[0].produce_block();                         // and by default all nodes are interconnected
+      }));
       BOOST_REQUIRE_EQUAL(_nodes[3].lib_num(), node3_lib + 2); // Check that each produced block advances lib by one
 
       const vector<account_name> producers {"a"_n, "b"_n, "c"_n};
 
       _nodes[0].create_accounts(producers);
-      auto prod = set_producers(0, producers);              // Set new producers and produce blocks until the
+      auto prod = _nodes[0].set_producers(producers);       // Set new producers and produce blocks until the
                                                             // switch is pending
       auto sb = _nodes[3].produce_block();                  // now the next block produced on any node
       BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]);   // Should be produced by the producer returned by
@@ -51,7 +51,7 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
       BOOST_REQUIRE_EQUAL(_nodes[0].lib_num(), node0_lib+1);
       BOOST_REQUIRE_EQUAL(_nodes[3].lib_num(), node0_lib);
 
-      // all 4 blocks produced by _nodes[0] will have the same `final_on_strong_qc`, which is node0_lib+2
+      // all 4 blocks produced by _nodes[0] will have the same `latest_qc_claim_block_num`, which is node0_lib+2
 
       set_partition({});                                    // Reunite the two partitions
       push_blocks(0, partition);                            // Push the blocks that _nodes[0] produced to the other

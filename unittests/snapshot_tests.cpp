@@ -61,6 +61,7 @@ public:
       controller::config copied_config = (copy_files_from_config == copy_config_files)
                                          ? copy_config_and_files(config, ordinal) : copy_config(config, ordinal);
 
+      BOOST_CHECK_GT(snapshot->total_row_count(), 0u);
       init(copied_config, snapshot);
    }
 

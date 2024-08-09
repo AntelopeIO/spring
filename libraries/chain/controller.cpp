@@ -30,7 +30,7 @@
 #include <eosio/chain/deep_mind.hpp>
 #include <eosio/chain/finality/finalizer.hpp>
 #include <eosio/chain/finality/finalizer_policy.hpp>
-#include <eosio/chain/finality/quorum_certificate.hpp>
+#include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
 
@@ -250,7 +250,7 @@ struct assembled_block {
                                                                    // Carried over to put into block_state (optimization for fork reorgs)
       deque<transaction_receipt>        trx_receipts;              // Comes from building_block::pending_trx_receipts
       std::optional<valid_t>            valid;                     // Comes from assemble_block
-      std::optional<quorum_certificate> qc;                        // QC to add as block extension to new block
+      std::optional<qc_t>               qc;                        // QC to add as block extension to new block
       digest_type                       action_mroot;
 
       block_header_state& get_bhs() { return bhs; }
@@ -812,11 +812,11 @@ struct building_block {
 
                assembled_block::assembled_block_if ab{
                   bb.active_producer_authority,
-                  bhs,
+                  std::move(bhs),
                   std::move(bb.pending_trx_metas),
                   std::move(bb.pending_trx_receipts),
-                  valid,
-                  qc_data.qc,
+                  std::move(valid),
+                  std::move(qc_data.qc),
                   action_mroot // caching for constructing finality_data.
                };
 
@@ -960,7 +960,7 @@ struct controller_impl {
    named_thread_pool<chain>        thread_pool;
    deep_mind_handler*              deep_mind_logger = nullptr;
    bool                            okay_to_print_integrity_hash_on_stop = false;
-   bool                            allow_voting = true; // used in unit tests to create long forks or simulate not getting votes
+   bool                            testing_allow_voting = false; // used in unit tests to create long forks or simulate not getting votes
    async_t                         async_voting = async_t::yes;  // by default we post `create_and_send_vote_msg()` calls, used in tester
    async_t                         async_aggregation = async_t::yes; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
@@ -1163,14 +1163,6 @@ struct controller_impl {
             }
          }
       );
-   }
-
-   finalizer_policy_ptr active_finalizer_policy(const block_id_type& id, block_num_type block_num)const {
-      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, block_num);
-      if (bsp) {
-         return bsp->active_finalizer_policy;
-      }
-      return {};
    }
 
    void pop_block() {
@@ -2035,14 +2027,15 @@ struct controller_impl {
       db.undo_all();
    }
 
-   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      snapshot->write_section("contract_tables", [this]( auto& section ) {
-         index_utils<table_id_multi_index>::walk(db, [this, &section]( const table_id_object& table_row ){
+   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+      snapshot->write_section("contract_tables", [this, &row_counter]( auto& section ) {
+         index_utils<table_id_multi_index>::walk(db, [this, &section, &row_counter]( const table_id_object& table_row ){
             // add a row for the table
             section.add_row(table_row, db);
+            row_counter.progress();
 
             // followed by a size row and then N data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &table_row]( auto utils ) {
+            contract_database_index_set::walk_indices([this, &section, &table_row, &row_counter]( auto utils ) {
                using utils_t = decltype(utils);
                using value_t = typename decltype(utils)::index_t::value_type;
                using by_table_id = object_to_table_id_tag_t<value_t>;
@@ -2053,16 +2046,17 @@ struct controller_impl {
                unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
                section.add_row(size, db);
 
-               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section]( const auto &row ) {
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
                   section.add_row(row, db);
+                  row_counter.progress();
                });
             });
          });
       });
    }
 
-   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot ) {
-      snapshot->read_section("contract_tables", [this]( auto& section ) {
+   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
+      snapshot->read_section("contract_tables", [this, &row_counter]( auto& section ) {
          bool more = !section.empty();
          while (more) {
             // read the row for the table
@@ -2071,19 +2065,22 @@ struct controller_impl {
                section.read_row(row, db);
                t_id = row.id;
             });
+            row_counter.progress();
 
             // read the size and data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &t_id, &more](auto utils) {
+            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &row_counter](auto utils) {
                using utils_t = decltype(utils);
 
                unsigned_int size;
                more = section.read_row(size, db);
+               row_counter.progress();
 
                for (size_t idx = 0; idx < size.value; idx++) {
                   utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
                      more = section.read_row(row, db);
                   });
+                  row_counter.progress();
                }
             });
          }
@@ -2106,9 +2103,24 @@ struct controller_impl {
           }});
    }
 
+   size_t expected_snapshot_row_count() const {
+      size_t ret = 0;
+
+      controller_index_set::walk_indices([this, &ret](auto utils){
+         ret += db.get_index<typename decltype(utils)::index_t>().size();
+      });
+      contract_database_index_set::walk_indices([this, &ret](auto utils) {
+         ret += db.get_index<typename decltype(utils)::index_t>().size();
+      });
+
+      return ret + authorization.expected_snapshot_row_count() + resource_limits.expected_snapshot_row_count();
+   }
+
    void add_to_snapshot( const snapshot_writer_ptr& snapshot ) {
       // clear in case the previous call to clear did not finish in time of deadline
       clear_expired_input_transactions( fc::time_point::maximum() );
+
+      snapshot_written_row_counter row_counter(expected_snapshot_row_count());
 
       snapshot->write_section<chain_snapshot_header>([this]( auto &section ){
          section.add_row(chain_snapshot_header(), db);
@@ -2118,7 +2130,7 @@ struct controller_impl {
          section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
       });
       
-      controller_index_set::walk_indices([this, &snapshot]( auto utils ){
+      controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2131,17 +2143,18 @@ struct controller_impl {
             return;
          }
 
-         snapshot->write_section<value_t>([this]( auto& section ){
-            decltype(utils)::walk(db, [this, &section]( const auto &row ) {
+         snapshot->write_section<value_t>([this, &row_counter]( auto& section ){
+            decltype(utils)::walk(db, [this, &section, &row_counter]( const auto &row ) {
                section.add_row(row, db);
+               row_counter.progress();
             });
          });
       });
 
-      add_contract_tables_to_snapshot(snapshot);
+      add_contract_tables_to_snapshot(snapshot, row_counter);
 
-      authorization.add_to_snapshot(snapshot);
-      resource_limits.add_to_snapshot(snapshot);
+      authorization.add_to_snapshot(snapshot, row_counter);
+      resource_limits.add_to_snapshot(snapshot, row_counter);
    }
 
    static std::optional<genesis_state> extract_legacy_genesis_state( snapshot_reader& snapshot, uint32_t version ) {
@@ -2158,6 +2171,8 @@ struct controller_impl {
    }
 
    block_state_pair read_from_snapshot( const snapshot_reader_ptr& snapshot, uint32_t blog_start, uint32_t blog_end ) {
+      snapshot_loaded_row_counter row_counter(snapshot->total_row_count());
+
       chain_snapshot_header header;
       snapshot->read_section<chain_snapshot_header>([this, &header]( auto &section ){
          section.read_row(header, db);
@@ -2230,7 +2245,7 @@ struct controller_impl {
                   ("block_log_last_num", blog_end)
       );
 
-      controller_index_set::walk_indices([this, &snapshot, &header]( auto utils ){
+      controller_index_set::walk_indices([this, &snapshot, &header, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2303,20 +2318,21 @@ struct controller_impl {
             }
          }
 
-         snapshot->read_section<value_t>([this]( auto& section ) {
+         snapshot->read_section<value_t>([this,&row_counter]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, db);
                });
+               row_counter.progress();
             }
          });
       });
 
-      read_contract_tables_from_snapshot(snapshot);
+      read_contract_tables_from_snapshot(snapshot, row_counter);
 
-      authorization.read_from_snapshot(snapshot);
-      resource_limits.read_from_snapshot(snapshot);
+      authorization.read_from_snapshot(snapshot, row_counter);
+      resource_limits.read_from_snapshot(snapshot, row_counter);
 
       db.set_revision( chain_head.block_num() );
       db.create<database_header_object>([](const auto& header){
@@ -3290,15 +3306,15 @@ struct controller_impl {
          chain_head = block_handle{cb.bsp};
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
-         if( s == controller::block_status::incomplete ) {
-            log_irreversible();
-            transition_to_savanna_if_needed();
-         }
-
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
+            if (!irreversible_mode()) {
+               log_irreversible();
+               transition_to_savanna_if_needed();
+            }
+
             if (!my_finalizers.empty()) {
                block_handle_accessor::apply_s<void>(chain_head, [&](const auto& head) {
-                  if (head->is_recent() || my_finalizers.is_active()) {
+                  if (head->is_recent() || testing_allow_voting) {
                      if (async_voting == async_t::no)
                         create_and_send_vote_msg(head);
                      else
@@ -3525,8 +3541,7 @@ struct controller_impl {
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
-            if( conf.terminate_at_block > 0 && conf.terminate_at_block < bsp->block_num() ) { // < since checked before apply
-               ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n", bsp->block_num()-1)("num", conf.terminate_at_block) );
+            if (should_terminate()) {
                shutdown();
                return false;
             }
@@ -3534,8 +3549,6 @@ struct controller_impl {
             auto start = fc::time_point::now();
 
             const bool already_valid = bsp->is_valid();
-            // When bsp was created in create_block_state_i, bsp was considered for voting. At that time, bsp->final_on_strong_qc_block_ref may
-            // not have been validated and we could not vote. At this point bsp->final_on_strong_qc_block_ref has been validated and we can vote.
             // Only need to consider voting if not already validated, if already validated then we have already voted.
             if (!already_valid)
                consider_voting(bsp, use_thread_pool_t::yes);
@@ -3633,8 +3646,8 @@ struct controller_impl {
                // its finality_mroot is empty
                digest_type actual_finality_mroot;
 
-               if (!bsp->core.is_genesis_block_num(bsp->core.final_on_strong_qc_block_num)) {
-                  actual_finality_mroot = bsp->get_validation_mroot(bsp->core.final_on_strong_qc_block_num);
+               if (!bsp->core.is_genesis_block_num(bsp->core.latest_qc_claim().block_num)) {
+                  actual_finality_mroot = bsp->get_validation_mroot(bsp->core.latest_qc_claim().block_num);
                }
 
                EOS_ASSERT(bsp->finality_mroot() == actual_finality_mroot,
@@ -3699,27 +3712,18 @@ struct controller_impl {
    }
 
    bool is_block_missing_finalizer_votes(const block_handle& bh) const {
-      if (!allow_voting || my_finalizers.empty())
+      if (my_finalizers.empty())
          return false;
 
       return std::visit(
          overloaded{
             [&](const block_state_legacy_ptr& bsp) { return false; },
             [&](const block_state_ptr& bsp) {
-               return bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
+               return bsp->block && bsp->block->is_proper_svnn_block() && my_finalizers.any_of_public_keys([&bsp](const auto& k) {
                   return bsp->has_voted(k) == vote_status_t::not_voted;
                });
             }},
          bh.internal());
-   }
-
-   vote_info_vec get_votes(const block_id_type& id) const {
-       return fork_db.apply_s<vote_info_vec>([&](auto& forkdb) -> vote_info_vec {
-          auto bsp = forkdb.get_block(id);
-          if (bsp)
-             return bsp->get_votes();
-          return {};
-       });
    }
 
    std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
@@ -3731,25 +3735,47 @@ struct controller_impl {
       });
    }
 
+   qc_vote_metrics_t vote_metrics(const block_id_type& id, const qc_t& qc) const {
+      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
+      if (!bsp)
+         return {};
+
+      // Get voting metrics from QC
+      auto result =  bsp->aggregating_qc.vote_metrics(qc);
+
+      // Populate block related information
+      result.voted_for_block_id        = bsp->id();
+      result.voted_for_block_timestamp = bsp->timestamp();
+
+      return result;
+   }
+
+
+   qc_vote_metrics_t::fin_auth_set_t missing_votes(const block_id_type& id, const qc_t& qc) const {
+      block_state_ptr bsp = fork_db_fetch_bsp_on_branch_by_num(id, qc.block_num);
+      if (!bsp)
+         return {};
+      return bsp->aggregating_qc.missing_votes(qc);
+   }
+
    // thread safe
    void create_and_send_vote_msg(const block_state_ptr& bsp) {
-      if (!allow_voting || !bsp->block->is_proper_svnn_block())
+      if (!bsp->block->is_proper_svnn_block())
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
       my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_status::success, std::cref(vote)}, __FILE__, __LINE__);
+              emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
 
-              // also aggregate our own vote into the pending_qc for this block, 0 connection_id indicates our own vote
+              // also aggregate our own vote into the aggregating_qc for this block, 0 connection_id indicates our own vote
               process_vote_message(0, vote);
           });
    }
 
    // Verify QC claim made by finality_extension in header extension
    // and quorum_certificate_extension in block extension are valid.
-   // Called from net-threads. It is thread safe as signed_block is never modified
-   // after creation.
+   // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
    void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3757,8 +3783,8 @@ struct controller_impl {
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
-      std::optional<block_header_extension> prev_header_ext = prev.header.extract_header_extension(f_ext_id);
-      std::optional<block_header_extension> header_ext      = b->extract_header_extension(f_ext_id);
+      const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
+      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
@@ -3772,10 +3798,13 @@ struct controller_impl {
                      "Block #${b} includes a QC block extension, but doesn't have a finality header extension",
                      ("b", block_num) );
 
-         EOS_ASSERT( !prev_header_ext,
+         EOS_ASSERT( !prev_finality_ext,
                      invalid_qc_claim,
                      "Block #${b} doesn't have a finality header extension even though its predecessor does.",
                      ("b", block_num) );
+
+         dlog("received block: #${bn} ${t} ${prod} ${id}, no qc claim, previous: ${p}",
+              ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)("p", b->previous));
          return;
       }
 
@@ -3783,11 +3812,15 @@ struct controller_impl {
       const auto& f_ext        = std::get<finality_extension>(*header_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
+      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
+           ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
+           ("qc", new_qc_claim)("p", b->previous));
+
       // If there is a header extension, but the previous block does not have a header extension,
       // ensure the block does not have a QC and the QC claim of the current block has a block_num
       // of the current block’s number and that it is a claim of a weak QC. Then return early.
       // -------------------------------------------------------------------------------------------------
-      if (!prev_header_ext) {
+      if (!prev_finality_ext) {
          EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
                      invalid_qc_claim,
                      "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
@@ -3798,10 +3831,9 @@ struct controller_impl {
       // at this point both current block and its parent have IF extensions, and we are past the
       // IF transition block
       // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_header_ext);
+      assert(header_ext && prev_finality_ext);
 
-      const auto& prev_f_ext    = std::get<finality_extension>(*prev_header_ext);
-      const auto  prev_qc_claim = prev_f_ext.qc_claim;
+      const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
 
@@ -3846,10 +3878,10 @@ struct controller_impl {
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.data.is_strong() == new_qc_claim.is_strong_qc,
+      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc,
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
-                  ("s1", qc_proof.data.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+                  ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // find the claimed block's block state on branch of id
       auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
@@ -3859,7 +3891,7 @@ struct controller_impl {
                   ("q", new_qc_claim.block_num)("b", block_num) );
 
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof.data);
+      bsp->verify_qc(qc_proof);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -3898,7 +3930,7 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      if (conf.terminate_at_block == 0 || bsp->block_num() <= conf.terminate_at_block) {
+      if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
@@ -3958,38 +3990,37 @@ struct controller_impl {
       return fork_db.apply<std::optional<block_handle>>(unlinkable, f);
    }
 
-   // thread safe
+   // thread safe, QC already verified by verify_qc_claim
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
+      assert(bsp_in->block);
       if (!bsp_in->block->contains_extension(quorum_certificate_extension::extension_id()))
          return;
 
       auto qc_ext = bsp_in->block->extract_extension<quorum_certificate_extension>();
-      const auto& received_qc = qc_ext.qc.data;
+      const qc_t& received_qc = qc_ext.qc;
 
-      const auto claimed = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
-      if( !claimed ) {
+      block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
+      if( !claimed_bsp ) {
          dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
 
-      // Don't save the QC from block extension if the claimed block has a better or same valid_qc.
-      // claimed->valid_qc_is_strong() acquires a mutex.
-      if (received_qc.is_weak() || claimed->valid_qc_is_strong()) {
-         dlog("qc not better, claimed->valid: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
-              ("qbn", claimed->block_num())("qid", claimed->id())("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on valid_qc_is_strong()
+      // Don't save the QC from block extension if the claimed block has a better or same received_qc
+      if (claimed_bsp->set_received_qc(received_qc)) {
+         dlog("set received qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())
+              ("bn", claimed_bsp->block_num())("id", claimed_bsp->id()));
+      } else {
+         dlog("qc not better, claimed->received: ${qbn} ${qid}, strong=${s}, received: ${rqc}, for block ${bn} ${id}",
+              ("qbn", claimed_bsp->block_num())("qid", claimed_bsp->id())
+              ("s", !received_qc.is_weak()) // use is_weak() to avoid mutex on received_qc_is_strong()
               ("rqc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id()));
-         return;
       }
 
-      // Save the QC.
-      dlog("setting valid qc: ${rqc} into claimed block ${bn} ${id}", ("rqc", qc_ext.qc.to_qc_claim())("bn", claimed->block_num())("id", claimed->id()));
-      claimed->set_valid_qc(received_qc);
-
-      if( received_qc.is_strong() ) {
+      if (received_qc.is_strong()) {
          // Update finalizer safety information based on vote evidence
-         my_finalizers.maybe_update_fsi(claimed, received_qc);
+         my_finalizers.maybe_update_fsi(claimed_bsp, received_qc);
       }
    }
 
@@ -3997,24 +4028,24 @@ struct controller_impl {
    void consider_voting(const block_state_legacy_ptr&, use_thread_pool_t) {}
    // thread safe
    void consider_voting(const block_state_ptr& bsp, use_thread_pool_t use_thread_pool) {
-      // 1. Get the `core.final_on_strong_qc_block_num` for the block you are considering to vote on and use that to find the actual block ID
+      // 1. Get the `core.latest_qc_claim().block_num` for the block you are considering to vote on and use that to find the actual block ID
       //    of the ancestor block that has that block number.
       // 2. If that block ID is for a non validated block, then do not vote for that block.
       // 3. Otherwise, consider voting for that block according to the decide_vote rules.
 
-      if (!my_finalizers.empty() && bsp->core.final_on_strong_qc_block_num > 0) {
-         if (bsp->is_recent() || my_finalizers.is_active()) {
+      if (!my_finalizers.empty() && bsp->core.latest_qc_claim().block_num > 0) {
+         if (bsp->is_recent() || testing_allow_voting) {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
-                  const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-                  if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+                  const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+                  if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
                      create_and_send_vote_msg(bsp);
                   }
                });
             } else {
                // bsp can be used directly instead of copy needed for post
-               const auto& final_on_strong_qc_block_ref = bsp->core.get_block_reference(bsp->core.final_on_strong_qc_block_num);
-               if (fork_db_validated_block_exists(final_on_strong_qc_block_ref.block_id)) {
+               const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+               if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
             }
@@ -4026,7 +4057,7 @@ struct controller_impl {
    void accept_block(const BSP& bsp) {
       assert(bsp && bsp->block);
 
-      // consider voting again as final_on_strong_qc_block may have been validated since the bsp was created in create_block_state_i
+      // consider voting again as latest_qc_claim__block_ref may have been validated since the bsp was created in create_block_state_i
       consider_voting(bsp, use_thread_pool_t::yes);
 
       auto do_accept_block = [&](auto& forkdb) {
@@ -4164,8 +4195,6 @@ struct controller_impl {
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_maybe_switch_forks = [&](auto& forkdb) {
-         dlog("maybe switch forks chain_head ${chn} : ${chid}, new_head ${nhn} : ${nhid}, previous ${p}",
-              ("chn", chain_head.block_num())("chid", chain_head.id())("nhn", new_head->block_num())("nhid", new_head->id())("p", new_head->header.previous));
          if( new_head->header.previous == chain_head.id() ) {
             try {
                apply_block( br, new_head, s, trx_lookup );
@@ -4225,9 +4254,6 @@ struct controller_impl {
                      shutdown();
                      break;
                   }
-                  log_irreversible();
-                  transition_to_savanna_if_needed();
-
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {
@@ -4251,7 +4277,7 @@ struct controller_impl {
                   for( auto itr = applied_itr; itr != branches.first.end(); ++itr ) {
                      pop_block();
                   }
-                  EOS_ASSERT( chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+                  EOS_ASSERT( !switch_fork || chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
                               "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
 
                   // re-apply good blocks
@@ -4275,11 +4301,11 @@ struct controller_impl {
                ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
                     ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
             }
+         } else {
+            // irreversible can change even if block not applied to head, integrated qc can move LIB
+            log_irreversible();
+            transition_to_savanna_if_needed();
          }
-
-         // irreversible can change even if block not applied to head, integrated qc can move LIB
-         log_irreversible();
-         transition_to_savanna_if_needed();
       };
 
       fork_db.apply<void>(do_maybe_switch_forks);
@@ -4371,8 +4397,10 @@ struct controller_impl {
             break;
          }
       }
-      dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
-           ("n", num_removed)("t", total)("pt", now));
+      if (!replaying && total > 0) {
+         dlog("removed ${n} expired transactions of the ${t} input dedup list, pending block time ${pt}",
+              ("n", num_removed)("t", total)("pt", now));
+      }
    }
 
    bool sender_avoids_whitelist_blacklist_enforcement( account_name sender )const {
@@ -4653,8 +4681,8 @@ struct controller_impl {
       wasmif.code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
    }
 
-   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-      my_finalizers.set_keys(finalizer_keys, enable_immediate_voting);
+   void set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+      my_finalizers.set_keys(finalizer_keys);
    }
 
    bool irreversible_mode() const { return read_mode == db_read_mode::IRREVERSIBLE; }
@@ -4703,6 +4731,25 @@ struct controller_impl {
 
    bool is_trusted_producer( const account_name& producer) const {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
+   }
+
+   bool should_terminate(block_num_type reversible_block_num) const {
+      assert(reversible_block_num > 0);
+      if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
+         ilog("Block ${n} reached configured maximum block ${num}; terminating",
+              ("n", reversible_block_num)("num", conf.terminate_at_block) );
+         return true;
+      }
+      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+         elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
+              ("s", fork_db.size())("m", conf.max_reversible_blocks));
+         return true;
+      }
+      return false;
+   }
+
+   bool should_terminate() const {
+      return should_terminate(chain_head.block_num());
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -5006,12 +5053,12 @@ void controller::commit_block(block_report& br) {
    my->commit_block(br, block_status::incomplete);
 }
 
-void controller::allow_voting(bool val) {
-   my->allow_voting = val;
+void controller::testing_allow_voting(bool val) {
+   my->testing_allow_voting = val;
 }
 
-bool controller::get_allow_voting_flag() {
-   return my->allow_voting;
+bool controller::get_testing_allow_voting_flag() {
+   return my->testing_allow_voting;
 }
 
 void controller::set_async_voting(async_t val) {
@@ -5205,6 +5252,10 @@ void controller::set_savanna_lib_id(const block_id_type& id) {
    my->set_savanna_lib_id(id);
 }
 
+bool controller::fork_db_has_root() const {
+   return my->fork_db_has_root();
+}
+
 uint32_t controller::last_irreversible_block_num() const {
    return my->fork_db_root_block_num();
 }
@@ -5395,10 +5446,6 @@ bool controller::is_block_missing_finalizer_votes(const block_handle& bh) const 
    return my->is_block_missing_finalizer_votes(bh);
 }
 
-vote_info_vec controller::get_votes(const block_id_type& id) const {
-   return my->get_votes(id);
-}
-
 std::optional<finalizer_policy> controller::active_finalizer_policy(const block_id_type& id) const {
    return my->active_finalizer_policy(id);
 }
@@ -5436,10 +5483,19 @@ finalizer_policy_ptr controller::head_active_finalizer_policy()const {
    });
 }
 
-finalizer_policy_ptr controller::active_finalizer_policy(const block_id_type& id, block_num_type block_num) const {
-   return my->active_finalizer_policy(id, block_num);
+finalizer_policy_ptr controller::head_pending_finalizer_policy()const {
+   return block_handle_accessor::apply_s<finalizer_policy_ptr>(my->chain_head, [](const auto& head) {
+      return (head->pending_finalizer_policy ? head->pending_finalizer_policy->second : nullptr);
+   });
 }
 
+qc_vote_metrics_t controller::vote_metrics(const block_id_type& id, const qc_t& qc) const {
+   return my->vote_metrics(id, qc);
+}
+
+qc_vote_metrics_t::fin_auth_set_t controller::missing_votes(const block_id_type& id, const qc_t& qc) const {
+   return my->missing_votes(id, qc);
+}
 
 bool controller::light_validation_allowed() const {
    return my->light_validation_allowed();
@@ -5485,8 +5541,8 @@ validation_mode controller::get_validation_mode()const {
    return my->conf.block_validation_mode;
 }
 
-uint32_t controller::get_terminate_at_block()const {
-   return my->conf.terminate_at_block;
+bool controller::should_terminate() const {
+   return my->should_terminate();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
@@ -5819,8 +5875,12 @@ void controller::code_block_num_last_used(const digest_type& code_hash, uint8_t 
    return my->code_block_num_last_used(code_hash, vm_type, vm_version, block_num);
 }
 
-void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys, bool enable_immediate_voting) {
-   my->set_node_finalizer_keys(finalizer_keys, enable_immediate_voting);
+void controller::set_node_finalizer_keys(const bls_pub_priv_key_map_t& finalizer_keys) {
+   my->set_node_finalizer_keys(finalizer_keys);
+}
+
+bool controller::is_node_finalizer_key(const bls_public_key& key) const {
+   return my->my_finalizers.contains(key);
 }
 
 /// Protocol feature activation handlers:

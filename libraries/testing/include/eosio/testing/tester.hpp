@@ -77,6 +77,10 @@ namespace eosio::testing {
       yes // tester calls startup() during initialization.
    };
 
+   // Number of chains required for a block to become final.
+   // Current protocol is 2: strong-strong or weak-strong.
+   constexpr size_t num_chains_to_final = 2;
+
    std::ostream& operator<<(std::ostream& os, setup_policy p);
 
    std::vector<uint8_t> read_wasm( const char* fn );
@@ -192,7 +196,8 @@ namespace eosio::testing {
          void              open( const snapshot_reader_ptr& snapshot );
          void              open( const genesis_state& genesis, call_startup_t call_startup );
          void              open( std::optional<chain_id_type> expected_chain_id = {} );
-         bool              is_same_chain( base_tester& other );
+         bool              is_open() const;
+         bool              is_same_chain( base_tester& other ) const;
 
          // `produce_block_ex` does the same thing as produce_block, but returns a struct including
          // the transaction traces in addition to the `signed_block_ptr`.
@@ -319,6 +324,14 @@ namespace eosio::testing {
 
          std::optional<finalizer_policy> active_finalizer_policy(const block_id_type& id) const {
             return control->active_finalizer_policy(id);
+         }
+
+         finalizer_policy_ptr head_active_finalizer_policy() const {
+            return control->head_active_finalizer_policy();
+         }
+
+         finalizer_policy_ptr head_pending_finalizer_policy() const {
+            return control->head_pending_finalizer_policy();
          }
 
          void link_authority( account_name account, account_name code,  permission_name req, action_name type = {} );
@@ -449,7 +462,7 @@ namespace eosio::testing {
          }
 
          void allow_voting(bool val) {
-            control->allow_voting(val);
+            control->testing_allow_voting(val);
          }
 
          const controller::config& get_config() const {
@@ -535,7 +548,7 @@ namespace eosio::testing {
          // -----------------------------------------------------------------
          void check_head_finalizer_policy(uint32_t generation,
                                           std::span<const bls_public_key> keys_span) {
-            auto finpol = active_finalizer_policy(control->head().header().calculate_id());
+            auto finpol = active_finalizer_policy(head().id());
             BOOST_REQUIRE(!!finpol);
             BOOST_REQUIRE_EQUAL(finpol->generation, generation);
             BOOST_REQUIRE_EQUAL(keys_span.size(), finpol->finalizers.size());
@@ -551,8 +564,8 @@ namespace eosio::testing {
          }
 
          void set_produce_block_callback(std::function<void(const signed_block_ptr&)> cb) { _produce_block_callback = std::move(cb); }
+         void set_open_callback(std::function<void()> cb) { _open_callback = std::move(cb); }
          void do_check_for_votes(bool val) { _expect_votes = val; }
-         vote_info_vec get_votes(const block_id_type& id) const { return control->get_votes(id); }
 
       protected:
          signed_block_ptr       _produce_block( fc::microseconds skip_time, bool skip_pending_trxs );
@@ -566,6 +579,7 @@ namespace eosio::testing {
       protected:
          bool                   _expect_votes {true};                          // if set, ensure the node votes on each block
          std::function<void(const signed_block_ptr&)> _produce_block_callback; // if set, called every time a block is produced
+         std::function<void()>                        _open_callback;          // if set, called every time the tester is opened
 
          // tempdir field must come before control so that during destruction the tempdir is deleted only after controller finishes
          fc::temp_directory                            tempdir;
@@ -885,18 +899,25 @@ namespace eosio::testing {
          }
       }
 
-      // configures local node finalizers - should be done only once.
+      // configures local node finalizers - should be done only once after tester is `open`ed
       // different nodes should use different keys
       // OK to configure keys not used in a finalizer_policy
       // -------------------------------------------------------------
-      void set_node_finalizers(size_t first_key, size_t num_keys) {
-         t.set_node_finalizers({&key_names.at(first_key), num_keys});
+      void set_node_finalizers(size_t first_key_index, size_t num_keys) {
+         node_first_key_idx = first_key_index;
+         node_num_keys = num_keys;
+         t.set_node_finalizers({&key_names.at(first_key_index), num_keys});
       }
 
-      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key`
-      // ----------------------------------------------------------------------------------
-      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key) {
-         return t.set_active_finalizers({&key_names.at(first_key), fin_policy_size});
+      void set_node_finalizers() {
+         if (node_num_keys)
+            t.set_node_finalizers({&key_names.at(node_first_key_idx), node_num_keys});
+      }
+
+      // updates the finalizer_policy to the `fin_policy_size` keys starting at `first_key_idx`
+      // --------------------------------------------------------------------------------------
+      base_tester::set_finalizers_output_t set_finalizer_policy(size_t first_key_idx) {
+         return t.set_active_finalizers({&key_names.at(first_key_idx), fin_policy_size});
       }
 
       base_tester::set_finalizers_output_t  set_finalizer_policy(std::span<const size_t> indices) {
@@ -957,9 +978,9 @@ namespace eosio::testing {
             BOOST_REQUIRE(pt_block->is_proper_svnn_block());
          }
 
-         // lib must advance after 3 blocks
+         // lib must advance after num_chains_to_final blocks
          // -------------------------------
-         for (size_t i=0; i<3; ++i)
+         for (size_t i=0; i<num_chains_to_final; ++i)
             auto b = produce_block();
 
          BOOST_REQUIRE_EQUAL(t.lib_block->block_num(), pt_block->block_num());
@@ -977,6 +998,8 @@ namespace eosio::testing {
       vector<bls_public_key>  pubkeys;
       vector<bls_private_key> privkeys;
       size_t                  fin_policy_size {0};
+      size_t                  node_first_key_idx{0};
+      size_t                  node_num_keys{0};
    };
 
 

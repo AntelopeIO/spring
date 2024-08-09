@@ -36,7 +36,8 @@ namespace eosio::chain {
       block_ref            last_vote;
       block_ref            lock;
 
-      static constexpr uint64_t magic = 0x5AFE11115AFE1111ull;
+      static constexpr uint64_t magic_unversioned = 0x5AFE11115AFE1111ull;
+      static constexpr uint64_t magic             = 0x5AFE11115AFE1112ull;
 
       static finalizer_safety_information unset_fsi() { return {}; }
 
@@ -69,13 +70,15 @@ namespace eosio::chain {
 
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
+   public:
+      static constexpr uint64_t current_safety_file_version = 1;
+
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
 
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
       std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
-      std::atomic<bool>                 enable_voting{false};
       mutable std::mutex                mtx;
       mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
       std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
@@ -90,34 +93,36 @@ namespace eosio::chain {
 
       template<class F> // thread safe
       void maybe_vote(const block_state_ptr& bsp, F&& process_vote) {
-
          if (finalizers.empty())
             return;
 
-         if (!enable_voting.load(std::memory_order_relaxed)) { // Avoid extra processing while syncing. Once caught up, consider voting
-            if (!bsp->is_recent())
-               return;
-            enable_voting.store(true, std::memory_order_relaxed);
-         }
-
          assert(bsp->active_finalizer_policy);
-         const auto& fin_pol = *bsp->active_finalizer_policy;
 
          std::vector<vote_message_ptr> votes;
          votes.reserve(finalizers.size());
+
+         auto in_policy = [](const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
+            return std::ranges::any_of(finalizer_policy->finalizers, [&key](const finalizer_authority& fin_auth) {
+               return fin_auth.public_key == key;
+            });
+         };
 
          // Possible improvement in the future, look at locking only individual finalizers and releasing the lock for writing the file.
          // Would require making sure that only the latest is ever written to the file and that the file access was protected separately.
          std::unique_lock g(mtx);
 
          // first accumulate all the votes
-         for (const auto& f : fin_pol.finalizers) {
-            if (auto it = finalizers.find(f.public_key); it != finalizers.end()) {
-               vote_message_ptr vote_msg = it->second.maybe_vote(it->first, bsp, bsp->strong_digest);
+         // optimized for finalizers of size one which should be the normal configuration outside of tests
+         for (auto& f : finalizers) {
+            if (in_policy(bsp->active_finalizer_policy, f.first)
+                || (bsp->pending_finalizer_policy && in_policy(bsp->pending_finalizer_policy->second, f.first))) {
+
+               vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
                   votes.push_back(std::move(vote_msg));
             }
          }
+
          // then save the safety info and, if successful, gossip the votes
          if (!votes.empty()) {
             save_finalizer_safety_info();
@@ -128,11 +133,11 @@ namespace eosio::chain {
          }
       }
 
-      void maybe_update_fsi(const block_state_ptr& bsp, const valid_quorum_certificate& received_qc);
+      void maybe_update_fsi(const block_state_ptr& bsp, const qc_t& received_qc);
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
-      bool    is_active() const { return !empty() && enable_voting.load(std::memory_order_relaxed); } // thread safe
+      bool    contains(const bls_public_key& pub_key) const { return finalizers.contains(pub_key); } // doesn't change, thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe
@@ -145,8 +150,7 @@ namespace eosio::chain {
       }
 
       /// only call on startup
-      /// @param enable_immediate_voting if true enable immediate voting on startup (for testing)
-      void    set_keys(const std::map<std::string, std::string>& finalizer_keys, bool enable_immediate_voting);
+      void    set_keys(const std::map<std::string, std::string>& finalizer_keys);
       void    set_default_safety_information(const fsi_t& fsi);
 
       // following two member functions could be private, but are used in testing, not thread safe
