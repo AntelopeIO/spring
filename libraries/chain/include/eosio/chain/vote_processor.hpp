@@ -64,10 +64,13 @@ class vote_processor_t {
 
 private:
    // called with unlocked mtx
-   void emit(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg) {
+   void emit(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
+             const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
       if (connection_id != 0) { // this nodes vote was already signaled
          if (status != vote_result_t::duplicate) { // don't bother emitting duplicates
-            chain::emit( vote_signal, std::tuple{connection_id, status, std::cref(msg)}, __FILE__, __LINE__ );
+            chain::emit( vote_signal,
+                         std::tuple{connection_id, status, std::cref(msg), std::cref(active_auth), std::cref(pending_auth)},
+                         __FILE__, __LINE__ );
          }
       }
    }
@@ -117,8 +120,8 @@ private:
          auto bsp = get_block(v.msg->block_id, g);
          // g is unlocked
          if (bsp) {
-            vote_result_t s = bsp->aggregate_vote(v.connection_id, *v.msg);
-            emit(v.connection_id, s, v.msg);
+            aggregate_vote_result_t r = bsp->aggregate_vote(v.connection_id, *v.msg);
+            emit(v.connection_id, r.result, v.msg, r.active_authority, r.pending_authority);
 
             g.lock();
             if (auto& num = num_messages[v.connection_id]; num != 0)
@@ -228,7 +231,7 @@ public:
 
             ilog("Exceeded max votes per connection ${n} > ${max} for ${c}",
                  ("n", num_msgs)("max", max_votes_per_connection)("c", connection_id));
-            emit(connection_id, vote_result_t::max_exceeded, msg);
+            emit(connection_id, vote_result_t::max_exceeded, msg, {}, {});
          } else {
             block_state_ptr bsp = get_block(msg->block_id, g);
             // g is unlocked
@@ -238,8 +241,8 @@ public:
                g.lock();
                queue_for_later(connection_id, msg);
             } else {
-               vote_result_t s = bsp->aggregate_vote(connection_id, *msg);
-               emit(connection_id, s, msg);
+               aggregate_vote_result_t r = bsp->aggregate_vote(connection_id, *msg);
+               emit(connection_id, r.result, msg, r.active_authority, r.pending_authority);
 
                g.lock();
                if (auto& num = num_messages[connection_id]; num != 0)

@@ -98,12 +98,17 @@ namespace eosio::chain {
 
          assert(bsp->active_finalizer_policy);
 
-         std::vector<vote_message_ptr> votes;
+         using vote_t = std::tuple<const vote_message_ptr&, const finalizer_authority_ptr&, const finalizer_authority_ptr&>;
+         std::vector<vote_t> votes;
          votes.reserve(finalizers.size());
 
-         auto in_policy = [](const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
-            return std::ranges::any_of(finalizer_policy->finalizers, [&key](const finalizer_authority& fin_auth) {
-               return fin_auth.public_key == key;
+         auto in_policy = [](finalizer_authority_ptr& auth, const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
+            return std::ranges::any_of(finalizer_policy->finalizers, [&](const finalizer_authority& fin_auth) {
+               if (fin_auth.public_key == key) {
+                  auth = finalizer_authority_ptr{finalizer_policy, &fin_auth}; // use aliasing shared_ptr constructor
+                  return true;
+               }
+               return false;
             });
          };
 
@@ -114,12 +119,14 @@ namespace eosio::chain {
          // first accumulate all the votes
          // optimized for finalizers of size one which should be the normal configuration outside of tests
          for (auto& f : finalizers) {
-            if (in_policy(bsp->active_finalizer_policy, f.first)
-                || (bsp->pending_finalizer_policy && in_policy(bsp->pending_finalizer_policy->second, f.first))) {
+            finalizer_authority_ptr active_auth;
+            finalizer_authority_ptr pending_auth;
+            if (in_policy(active_auth, bsp->active_finalizer_policy, f.first)
+                || (bsp->pending_finalizer_policy && in_policy(pending_auth, bsp->pending_finalizer_policy->second, f.first))) {
 
                vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
-                  votes.push_back(std::move(vote_msg));
+                  votes.push_back(std::tuple{std::move(vote_msg), std::move(active_auth), std::move(pending_auth)});
             }
          }
 

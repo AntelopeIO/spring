@@ -57,9 +57,13 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
-   //                                connection_id, vote result status, vote_message processed
-   using vote_signal_params  = std::tuple<uint32_t, vote_result_t, const vote_message_ptr&>;
-   using vote_signal_t       = signal<void(const vote_signal_params&)>;
+   using vote_signal_params =
+      std::tuple<uint32_t,                         // connection_id
+                 vote_result_t,                    // vote result status
+                 const vote_message_ptr&,          // vote_message processed
+                 const finalizer_authority_ptr&,   // active authority that voted  (nullptr if vote for pending or error)
+                 const finalizer_authority_ptr&>;  // pending authority that voted (nullptr if no pending finalizer policy)
+   using vote_signal_t = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
       HEAD,
