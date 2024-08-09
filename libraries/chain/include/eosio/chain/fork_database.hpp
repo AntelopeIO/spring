@@ -169,6 +169,7 @@ namespace eosio::chain {
       // not thread safe, expected to be called from main thread before allowing concurrent access
       void open( validator_t& validator );
       void close();
+      bool file_exists() const;
 
       // return the size of the active fork_database
       size_t size() const;
