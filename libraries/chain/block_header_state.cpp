@@ -75,10 +75,10 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
 const producer_authority_schedule* block_header_state::get_next_producer_schedule() const {
    // In the order of pending and proposed
    if (latest_pending_proposer_policy) {
-      return &latest_pending_proposer_policy->second->proposer_schedule;
+      return &(*latest_pending_proposer_policy)->proposer_schedule;
    }
    if (latest_proposed_proposer_policy) {
-      return  &latest_proposed_proposer_policy->second->proposer_schedule;
+      return  &(*latest_proposed_proposer_policy)->proposer_schedule;
    }
    return nullptr;
 }
@@ -109,10 +109,10 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
    if (latest_proposed_proposer_policy) {
-      return *latest_proposed_proposer_policy->second;
+      return *(*latest_proposed_proposer_policy);
    }
    if (latest_pending_proposer_policy) {
-      return *latest_pending_proposer_policy->second;
+      return *(*latest_pending_proposer_policy);
    }
    assert(active_proposer_policy);
    return *active_proposer_policy;
@@ -210,12 +210,12 @@ void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(curr.timestamp());
 
    if (curr.latest_proposed_proposer_policy && prior_round_start_slot &&
-      curr.latest_proposed_proposer_policy->first.slot < *prior_round_start_slot) {
-      curr.active_proposer_policy = curr.latest_proposed_proposer_policy->second;
+      (*curr.latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) {
+      curr.active_proposer_policy = *curr.latest_proposed_proposer_policy;
       curr.latest_proposed_proposer_policy = std::nullopt;
       curr.latest_pending_proposer_policy = std::nullopt;
    } else if (curr.latest_pending_proposer_policy) {
-      curr.active_proposer_policy = curr.latest_pending_proposer_policy->second;
+      curr.active_proposer_policy = *curr.latest_pending_proposer_policy;
       curr.latest_pending_proposer_policy = std::nullopt;
    }
 
@@ -261,7 +261,7 @@ void finish_next(const block_header_state& prev,
    }
    if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.latest_proposed_proposer_policy = std::make_pair(next_header_state.timestamp(), std::make_shared<proposer_policy>(std::move(*new_proposer_policy)));
+      next_header_state.latest_proposed_proposer_policy = std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
    }
 
    // finality_core

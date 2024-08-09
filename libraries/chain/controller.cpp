@@ -493,11 +493,11 @@ struct building_block {
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
             // return the last proposed policy to use for comparison
             if (parent.latest_proposed_proposer_policy) {
-               return parent.latest_proposed_proposer_policy->second->proposer_schedule;
+               return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
             }
             // next try pending
             if (parent.latest_pending_proposer_policy) {
-               return parent.latest_pending_proposer_policy->second->proposer_schedule;
+               return (*parent.latest_pending_proposer_policy)->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -3239,11 +3239,11 @@ struct controller_impl {
                      std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(bb.trx_blk_context.proposed_schedule.producers);
                      if (version) {
                         new_proposer_policy.emplace();
-                        new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp);
+                        new_proposer_policy->proposal_time     = bb.timestamp;
                         new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
                         new_proposer_policy->proposer_schedule.version = *version;
-                        ilog("Scheduling proposer schedule change at ${t}: ${s}",
-                             ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+                        ilog("Scheduling proposer schedule proposed at ${p} and change at ${t}: ${s}",
+                             ("p", new_proposer_policy->proposal_time)("t", detail::get_next_next_round_block_time(bb.timestamp))("s", new_proposer_policy->proposer_schedule));
                      }
                   }
                }

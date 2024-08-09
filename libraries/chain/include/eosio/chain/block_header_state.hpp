@@ -96,9 +96,8 @@ struct block_header_state {
    //   If proposed in A1, A2, .. A12 becomes active in C1
    //   If proposed in B1, B2, .. B12 becomes active in D1
 
-   // proposal_time is the time when the policy is proposed
-   std::optional<std::pair<block_timestamp_type, proposer_policy_ptr>> latest_proposed_proposer_policy; // <proposal_time, proposer_policy>
-   std::optional<std::pair<block_timestamp_type, proposer_policy_ptr>> latest_pending_proposer_policy;  // <proposal_time, proposer_policy>
+   std::optional<proposer_policy_ptr> latest_proposed_proposer_policy;
+   std::optional<proposer_policy_ptr> latest_pending_proposer_policy;
 
    // Track in-flight proposed finalizer policies.
    // When the block associated with a proposed finalizer policy becomes final,
