@@ -24,14 +24,11 @@ namespace eosio::chain_apis {
       // A handle to the controller.
       const chain::controller& controller;
 
-      // prometheus support
-      std::function<void(tracked_votes::vote_block_metrics&&)> _update_vote_block_metrics;
-
       // Called on accepted_block signal. Retrieve vote information from
       // QC in the block and store it in last_votes.
       void on_accepted_block( const chain::signed_block_ptr& block, const chain::block_id_type& id ) {
          try {
-            if (!_update_vote_block_metrics && !tracking_enabled && !chain::vote_logger.is_enabled(fc::log_level::info))
+            if (!tracking_enabled && !chain::vote_logger.is_enabled(fc::log_level::info))
                return;
 
             // do not bother tracking/logging when syncing or replaying
@@ -46,7 +43,7 @@ namespace eosio::chain_apis {
                return;
             }
 
-            if (tracking_enabled || _update_vote_block_metrics) {
+            if (tracking_enabled) {
                // Retrieve vote information from QC
                const auto& qc_ext = block->extract_extension<chain::quorum_certificate_extension>();
                chain::qc_vote_metrics_t vm = controller.vote_metrics(id, qc_ext.qc);
@@ -72,9 +69,6 @@ namespace eosio::chain_apis {
 
                   track_votes(vm.strong_votes, true);
                   track_votes(vm.weak_votes, false);
-               }
-               if (_update_vote_block_metrics) {
-                  update_vote_block_metrics(block->block_num(), vm);
                }
                log_missing_votes(block, id, vm.missing_votes, qc_ext.qc.block_num);
             } else if (chain::vote_logger.is_enabled(fc::log_level::info)) {
@@ -118,20 +112,6 @@ namespace eosio::chain_apis {
          }
       }
 
-      // update prometheus metrics
-      void update_vote_block_metrics(chain::block_num_type block_num, const chain::qc_vote_metrics_t& vm) {
-         tracked_votes::vote_block_metrics m;
-         m.block_num = block_num;
-         m.strong_votes.resize(vm.strong_votes.size());
-         m.weak_votes.resize(vm.weak_votes.size());
-         m.no_votes.resize(vm.missing_votes.size());
-
-         std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
-         std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
-         std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f.fin_auth->description; });
-         _update_vote_block_metrics(std::move(m));
-      }
-
    }; // tracked_votes_impl
 
    tracked_votes::tracked_votes( const chain::controller& controller, bool tracking_enabled )
@@ -147,10 +127,6 @@ namespace eosio::chain_apis {
 
    std::optional<tracked_votes::vote_info> tracked_votes::get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const {
       return _impl->get_last_vote_info(finalizer_pub_key);
-   }
-
-   void tracked_votes::register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&& m) {
-      _impl->_update_vote_block_metrics = std::move(m);
    }
 
 } // namespace eosio::chain_apis
