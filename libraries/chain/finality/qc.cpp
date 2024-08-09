@@ -346,7 +346,7 @@ bool aggregating_qc_t::received_qc_is_strong() const {
 aggregate_vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                                          block_num_type block_num, std::span<const uint8_t> finalizer_digest)
 {
-   aggregate_vote_result_t r{vote_result_t::unknown_public_key};
+   aggregate_vote_result_t r;
 
    bool verified_sig = false;
    auto verify_sig = [&]() -> vote_result_t {
@@ -359,42 +359,48 @@ aggregate_vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id,
       return vote_result_t::success;
    };
 
-   auto add_vote = [&](finalizer_authority_ptr& auth, const finalizer_policy_ptr& finalizer_policy, aggregating_qc_sig_t& agg_qc_sig) {
+   auto add_vote = [&](finalizer_authority_ptr& auth, const finalizer_policy_ptr& finalizer_policy, aggregating_qc_sig_t& agg_qc_sig) -> vote_result_t {
       const auto& finalizers = finalizer_policy->finalizers;
       auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
+      vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
          auth = finalizer_authority_ptr{finalizer_policy, &(*itr)}; // use aliasing shared_ptr constructor
          auto index = std::distance(finalizers.begin(), itr);
          if (agg_qc_sig.has_voted(index)) {
             fc_tlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate finalizer ${k}..",
                     ("c", connection_id)("bn", block_num)("k", vote.finalizer_key.to_string().substr(8,16)));
-            r.result = vote_result_t::duplicate;
-            return;
+            return vote_result_t::duplicate;
          }
-         if (vote_result_t vs = verify_sig(); vs != vote_result_t::success) {
-            r.result = vs;
-            return;
-         }
-         r.result = agg_qc_sig.add_vote(connection_id, block_num, vote.strong, index, vote.sig, finalizers[index].weight);
+         if (vote_result_t vs = verify_sig(); vs != vote_result_t::success)
+            return vs;
+         s = agg_qc_sig.add_vote(connection_id, block_num,
+                                 vote.strong,
+                                 index,
+                                 vote.sig,
+                                 finalizers[index].weight);
+
       }
+      return s;
    };
 
-   add_vote(r.active_authority, active_finalizer_policy, active_policy_sig);
-   if (r.result == vote_result_t::success || r.result == vote_result_t::unknown_public_key) {
-      if (pending_finalizer_policy) {
-         assert(pending_policy_sig);
-         vote_result_t active_vote_result = r.result;
-         add_vote(r.pending_authority, pending_finalizer_policy, *pending_policy_sig);
-         if (r.result == vote_result_t::unknown_public_key) {
-            r.result = active_vote_result;
-         }
-      }
+   vote_result_t s = add_vote(r.active_authority, active_finalizer_policy, active_policy_sig);
+   if (s != vote_result_t::success && s != vote_result_t::unknown_public_key) {
+      r.result = s;
+      return r;
    }
 
-   if (r.result == vote_result_t::unknown_public_key) {
+   if (pending_finalizer_policy) {
+      assert(pending_policy_sig);
+      vote_result_t ps = add_vote(r.pending_authority, pending_finalizer_policy, *pending_policy_sig);
+      if (ps != vote_result_t::unknown_public_key)
+         s = ps;
+   }
+
+   if (s == vote_result_t::unknown_public_key) {
       fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
               ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
    }
+   r.result = s;
    return r;
 }
 
