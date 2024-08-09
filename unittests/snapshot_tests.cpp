@@ -485,7 +485,9 @@ void compatible_versions_test()
    // 5. add the 3 new snapshot files in git.
    // -------------------------------------------------------------------------------------------------------------
    // Only want to save one snapshot, use Savanna as that is the latest
-   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+   // And skip the threaded_snapshot_suite: its saving-to-file ability isn't implemented and, besides, its snapshot
+   //  creation half just uses the ostream snapshot writer again (using writer_t = ostream_snapshot_writer)
+   if constexpr (std::is_same_v<TESTER, savanna_tester> && !std::is_same_v<SNAPSHOT_SUITE, threaded_snapshot_suite>) {
       if (save_snapshot)
       {
          // create a latest snapshot
