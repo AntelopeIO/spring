@@ -24,6 +24,16 @@ namespace eosio::chain {
             }
          }
 
+         template<typename Secondary, typename F>
+         static void walk_by( const chainbase::database& db, F function ) {
+            const auto& idx = db.get_index<Index, Secondary>();
+            const auto& first = idx.begin();
+            const auto& last = idx.end();
+            for (auto itr = first; itr != last; ++itr) {
+               function(*itr);
+            }
+         }
+
          template<typename Secondary, typename Key, typename F>
          static void walk_range( const chainbase::database& db, const Key& begin_key, const Key& end_key, F function ) {
             const auto& idx = db.get_index<Index, Secondary>();
