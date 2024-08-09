@@ -413,7 +413,8 @@ try:
          nodeToTest.removeReversibleBlks()
          relaunchNode(nodeToTest, chainArg=" --snapshot {}".format(nodeToTest.getLatestSnapshot()), addSwapFlags={"--read-mode": speculativeReadMode, "--block-log-retain-blocks":"0"})
          confirmHeadLibAndForkDbHeadOfSpecMode(nodeToTest)
-         # Because we lost the "reversible blocks", head and lib should be different
+         # headLibAndForkDbHeadBeforeShutdown is for speculative mode node.
+         # Since restarting from snapshot the head will be reverted back to LIB.
          headLibAndForkDbHeadAfterRelaunch = getHeadLibAndForkDbHead(nodeToTest)
          assert headLibAndForkDbHeadBeforeShutdown != headLibAndForkDbHeadAfterRelaunch, \
             "1: Head, Lib, and Fork Db same after relaunch {} vs {}".format(headLibAndForkDbHeadBeforeShutdown, headLibAndForkDbHeadAfterRelaunch)
@@ -430,6 +431,7 @@ try:
          # Relaunch the node again (using the same snapshot)
          # The end result should be the same as before shutdown
          nodeToTest.removeState()
+         nodeToTest.removeReversibleBlks()
          relaunchNode(nodeToTest)
          headLibAndForkDbHeadAfterRelaunch2 = getHeadLibAndForkDbHead(nodeToTest)
          assert headLibAndForkDbHeadAfterRelaunch == headLibAndForkDbHeadAfterRelaunch2, \
