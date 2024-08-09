@@ -578,7 +578,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    std::vector<bls_private_key> pending_private_keys {
       bls_private_key("PVT_BLS_0d8dsux83r42Qg8CHgAqIuSsn9AV-QdCzx3tPj0K8yOJA_qb"),
       bls_private_key("PVT_BLS_74crPc__6BlpoQGvWjkHmUdzcDKh8QaiN_GtU4SD0QAi4BHY"),
-      bls_private_key("PVT_BLS_foNjZTu0k6qM5ftIrqC5G_sim1Rg7wq3cRUaJGvNtm2rM89K"),
+      bls_private_key("PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK"),
    };
 
    // construct pending finalizers, with weight 1, 2, 3 respectively
@@ -840,6 +840,145 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
       BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_is("qc signature validation failed") );
    }
+} FC_LOG_AND_RETHROW();
+
+BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
+   // prepare digests
+   digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
+   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+
+   // initialize a set of private keys
+   std::vector<bls_private_key> active_private_keys {
+      bls_private_key("PVT_BLS_tNAkC5MnI-fjHWSX7la1CPC2GIYgzW5TBfuKFPagmwVVsOeW"),
+      bls_private_key("PVT_BLS_FWK1sk_DJnoxNvUNhwvJAYJFcQAFtt_mCtdQCUPQ4jN1K7eT"),
+      bls_private_key("PVT_BLS_foNjZTu0k6qM5ftIrqC5G_sim1Rg7wq3cRUaJGvNtm2rM89K"),
+   };
+   auto num_finalizers = active_private_keys.size();
+
+   // construct active finalizers, with weight 1, 2, 3 respectively
+   std::vector<bls_public_key> active_public_keys(num_finalizers);
+   std::vector<finalizer_authority> active_finalizers(num_finalizers);
+   for (size_t i = 0; i < num_finalizers; ++i) {
+      active_public_keys[i] = active_private_keys[i].get_public_key();
+      uint64_t weight = (i < num_finalizers - 1) ? i + 1 : 9; // intentionally make the last one big to meet quorum in tests
+      active_finalizers[i] = finalizer_authority{ "test", weight, active_public_keys[i] };
+   }
+
+   // create a dual finalizer by using the same key PVT_BLS_tNAkC5MnI-fjHWSX7la1CPC2GIYgzW5TBfuKFPagmwVVsOeW
+   // This makes active finalizer 0 and pending finalizer 1 dual finalizers
+   std::vector<bls_private_key> pending_private_keys {
+      bls_private_key("PVT_BLS_0d8dsux83r42Qg8CHgAqIuSsn9AV-QdCzx3tPj0K8yOJA_qb"),
+      bls_private_key("PVT_BLS_tNAkC5MnI-fjHWSX7la1CPC2GIYgzW5TBfuKFPagmwVVsOeW"), // dual finalizer
+      bls_private_key("PVT_BLS_Wfs3KzfTI2P5F85PnoHXLnmYgSbp-XpebIdS6BUCHXOKmKXK"),
+   };
+
+   // construct pending finalizers, with weight 1, 2, 3 respectively
+   std::vector<bls_public_key> pending_public_keys(num_finalizers);
+   std::vector<finalizer_authority> pending_finalizers(num_finalizers);
+   for (size_t i = 0; i < num_finalizers; ++i) {
+      pending_public_keys[i] = pending_private_keys[i].get_public_key();
+      uint64_t weight = (i < num_finalizers - 1) ? i + 1 : 9; // intentionally make the last one big to meet quorum in tests
+      pending_finalizers[i] = finalizer_authority{ "test", weight, pending_public_keys[i] };
+   }
+
+   // construct a test bsp
+   block_state_ptr bsp = std::make_shared<block_state>();
+   constexpr uint32_t generation = 1;
+   constexpr uint64_t threshold = 8; // 2/3 of total weights of 12
+   bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
+   bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation, threshold, pending_finalizers ) };
+   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+   bsp->strong_digest = strong_digest;
+   bsp->weak_digest = weak_digest;
+
+   auto vote_same_test = [&](bool expected_same,
+                             std::optional<bool> vote_strong_on_active,
+                             std::optional<bool> vote_weak_on_active,
+                             std::optional<bool> vote_strong_on_pending,
+                             std::optional<bool> vote_weak_on_pending)
+   {
+      // Active finalizer 0 and pending finalizer 1 are configured as
+      // the dual finalizers.
+
+      std::optional<vote_bitset_t> active_strong_votes;
+      std::optional<vote_bitset_t> active_weak_votes;
+      std::optional<vote_bitset_t> pending_strong_votes;
+      std::optional<vote_bitset_t> pending_weak_votes;
+
+      bls_aggregate_signature active_agg_sig;
+      bls_aggregate_signature pending_agg_sig;
+
+      vote_bitset_t init_votes(num_finalizers);
+      init_votes[2] = 1; // for meeting quorum
+
+      if (vote_strong_on_active) {
+         active_strong_votes = init_votes;
+         if (*vote_strong_on_active) {
+            (*active_strong_votes)[0] = 1;  // dual finalizer votes
+            active_agg_sig.aggregate(active_private_keys[0].sign(strong_digest.to_uint8_span()));
+         }
+         active_agg_sig.aggregate(active_private_keys[2].sign(strong_digest.to_uint8_span()));
+      }
+
+      if (vote_weak_on_active) {
+         active_weak_votes = init_votes;
+         if (*vote_weak_on_active) {
+            (*active_weak_votes)[0] = 1;  // dual finalizer votes
+            active_agg_sig.aggregate(active_private_keys[0].sign(weak_digest));
+         }
+         active_agg_sig.aggregate(active_private_keys[2].sign(weak_digest));
+      }
+
+      if (vote_strong_on_pending) {
+         pending_strong_votes = init_votes;
+         if (*vote_strong_on_pending) {
+            (*pending_strong_votes)[1] = 1;  // dual finalizer votes with weight 1
+            pending_agg_sig.aggregate(pending_private_keys[1].sign(strong_digest.to_uint8_span()));
+         }
+         pending_agg_sig.aggregate(pending_private_keys[2].sign(strong_digest.to_uint8_span()));
+      }
+
+      if (vote_weak_on_pending) {
+         pending_weak_votes = init_votes;
+         if (*vote_weak_on_pending) {
+            (*pending_weak_votes)[1] = 1;  // dual finalizer votes with weight 1
+            pending_agg_sig.aggregate(pending_private_keys[1].sign(weak_digest));
+         }
+         pending_agg_sig.aggregate(pending_private_keys[2].sign(weak_digest));
+      }
+
+      // create qc_sig_t
+      qc_sig_t active_qc_sig{active_strong_votes, active_weak_votes, active_agg_sig};
+      qc_sig_t pending_qc_sig{pending_strong_votes, pending_weak_votes, pending_agg_sig};
+      qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
+
+      if (expected_same) {
+         BOOST_CHECK_NO_THROW( bsp->verify_qc(qc) );
+      } else {
+         BOOST_CHECK_EXCEPTION( bsp->verify_qc(qc), invalid_qc_claim, eosio::testing::fc_exception_message_contains("does not vote the same on active and pending policies") );
+      }
+   };
+
+   // dual finalizers vote the same on strong
+   vote_same_test(true /*expected same*/, true /*vote_strong_on_active*/, {}, true /*vote_strong_on_pending*/, {});
+   vote_same_test(true /*expected same*/, false /*vote_strong_on_active*/, {}, false /*vote_strong_on_pending*/, {});
+
+   // dual finalizers vote the same on weak
+   vote_same_test(true /*expected same*/, {}, true /*vote_weak_on_active*/, {}, true /*vote_weak_on_pending*/);
+   vote_same_test(true /*expected same*/, {}, false /*vote_weak_on_active*/, {}, false /*vote_weak_on_pending*/);
+
+   // dual finalizers do not vote the same on strong
+   vote_same_test(false /*expected same*/, true /*vote_strong_on_active*/, {}, false /*vote_strong_on_pending*/, {});
+   vote_same_test(false /*expected same*/, false /*vote_strong_on_active*/, {}, true /*vote_strong_on_pending*/, {});
+
+   // dual finalizers do not vote the same on weak
+   vote_same_test(false /*expected same*/, {}, true /*vote_weak_on_active*/, {}, false /*vote_weak_on_pending*/);
+   vote_same_test(false /*expected same*/, {}, false /*vote_weak_on_active*/, {}, true /*vote_weak_on_pending*/);
+
+   // one dual finalizer votes on strong, the other votes on weak
+   vote_same_test(false /*expected same*/, {}, true /*vote_weak_on_active*/, true /* vote_strong_on_pending*/, {});
+   vote_same_test(false /*expected same*/, true /*vote_strong_on_active*/, {}, {}, true /*vote_weak_on_pending*/);
+
 } FC_LOG_AND_RETHROW();
 
 BOOST_FIXTURE_TEST_CASE(get_finality_data_test, finality_test_cluster<4>) try {
