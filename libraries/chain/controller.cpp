@@ -199,9 +199,7 @@ struct completed_block {
                        return bsp->pending_schedule_auth();
                     },
                     [](const block_state_ptr& bsp) -> const producer_authority_schedule* {
-                       return bsp->proposer_policies.empty()
-                                 ? nullptr
-                                 : &bsp->proposer_policies.begin()->second->proposer_schedule;
+                       return bsp->get_next_producer_schedule();
                     }
          });
    }
@@ -340,9 +338,7 @@ struct assembled_block {
                                                 : nullptr;
                                    },
                                    [](const assembled_block_if& ab) -> const producer_authority_schedule* {
-                                      return ab.bhs.proposer_policies.empty()
-                                                ? nullptr
-                                                : &ab.bhs.proposer_policies.begin()->second->proposer_schedule;
+                                      return ab.bhs.get_next_producer_schedule();
                                    }},
                         v);
    }
@@ -472,7 +468,7 @@ struct building_block {
          , timestamp(input.timestamp)
          , active_producer_authority{input.producer,
                               [&]() -> block_signing_authority {
-                                 const auto& pas = parent.active_proposer_policy->proposer_schedule;
+                                 const auto& pas = parent.get_computed_active_proposer_policy(input.timestamp)->proposer_schedule;
                                  for (const auto& pa : pas.producers)
                                     if (pa.producer_name == input.producer)
                                        return pa.authority;
@@ -495,9 +491,13 @@ struct building_block {
          assert(active_proposer_policy);
 
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            if (!parent.proposer_policies.empty()) { // proposed in-flight
-               // return the last proposed policy to use for comparison
-               return (--parent.proposer_policies.end())->second->proposer_schedule;
+            // return the last proposed policy to use for comparison
+            if (parent.latest_proposed_proposer_policy) {
+               return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
+            }
+            // next try pending
+            if (parent.latest_pending_proposer_policy) {
+               return (*parent.latest_pending_proposer_policy)->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -651,9 +651,7 @@ struct building_block {
                                       return &bb.pending_block_header_state.prev_pending_schedule.schedule;
                                    },
                                    [](const building_block_if& bb) -> const producer_authority_schedule* {
-                                      if (!bb.parent.proposer_policies.empty())
-                                         return &bb.parent.proposer_policies.begin()->second->proposer_schedule;
-                                      return nullptr;
+                                      return bb.parent.get_next_producer_schedule();
                                    }},
                         v);
    }
@@ -836,6 +834,7 @@ struct pending_state {
    std::optional<block_id_type>   _producer_block_id;
    controller::block_report       _block_report{};
 
+   // Legacy
    pending_state(maybe_session&& s,
                  const block_header_state_legacy& prev,
                  block_timestamp_type when,
@@ -845,6 +844,7 @@ struct pending_state {
    ,_block_stage(building_block(prev, when, num_prev_blocks_to_confirm, new_protocol_feature_activations))
    {}
 
+   // Savanna
    pending_state(maybe_session&& s,
                  const block_state& prev,
                  const building_block_input& input) :
@@ -1020,9 +1020,7 @@ struct controller_impl {
             return head->pending_schedule_auth();
          },
          [](const block_state_ptr& head) -> const producer_authority_schedule* {
-            return head->proposer_policies.empty()
-                      ? nullptr
-                      : &head->proposer_policies.begin()->second->proposer_schedule;
+            return head->get_next_producer_schedule();
          }
       });
    }
@@ -3050,7 +3048,7 @@ struct controller_impl {
                     },
                     [&](const block_state_ptr& head) {
                        maybe_session        session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
-                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_scheduled_producer(when).producer_name,
+                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_computed_scheduled_producer(when).producer_name,
                                                 new_protocol_feature_activations};
                        pending.emplace(std::move(session), *head, bbi);
                     }
@@ -3243,11 +3241,11 @@ struct controller_impl {
                      std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(bb.trx_blk_context.proposed_schedule.producers);
                      if (version) {
                         new_proposer_policy.emplace();
-                        new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp);
+                        new_proposer_policy->proposal_time     = bb.timestamp;
                         new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
                         new_proposer_policy->proposer_schedule.version = *version;
-                        ilog("Scheduling proposer schedule change at ${t}: ${s}",
-                             ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+                        ilog("Scheduling proposer schedule proposed at ${p} and change at ${t}: ${s}",
+                             ("p", new_proposer_policy->proposal_time)("t", detail::get_next_next_round_block_time(bb.timestamp))("s", new_proposer_policy->proposer_schedule));
                      }
                   }
                }

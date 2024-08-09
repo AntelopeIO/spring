@@ -434,4 +434,40 @@ BOOST_AUTO_TEST_CASE( switch_producers_test ) try {
 
 } FC_LOG_AND_RETHROW()
 
+// This is to verify the bug reported by https://github.com/AntelopeIO/spring/issues/454
+// is fixed.
+BOOST_FIXTURE_TEST_CASE( policy_switching_corner_case_test, validating_tester ) try {
+   // With regular validating_tester, we have already transitioned into Savanna
+
+   // In round 1, a block proposes a proposer policy.
+   create_accounts( {"alice"_n} );
+   set_producers( {"alice"_n} );
+   auto b = produce_block();
+   auto index = b->timestamp.slot % config::producer_repetitions; // current index in current round
+   produce_blocks(config::producer_repetitions - index - 1); // to end of the round
+
+   // In round 2, the block in the last time slot of the round is not present.
+   produce_blocks(config::producer_repetitions - 1);
+
+   // In round 3, there exists at least one block.
+   // We need 2*config::block_interval_ms: one to skip to the last block
+   // of round 2, and another to skip to the first block of round 3
+   const auto time_to_skip = fc::milliseconds(2*config::block_interval_ms);
+   b = produce_block(time_to_skip);
+   
+   vector<producer_authority> alice_sch = {
+      producer_authority{
+         "alice"_n,
+         block_signing_authority_v0{
+            1,
+            {{get_public_key("alice"_n, "active"), 1}}}}
+   };
+
+   // Now alice's schedule should become active.
+   // Make sure the first block of round 3 was produced by alice.
+   BOOST_CHECK_EQUAL(b->producer, "alice"_n);
+   BOOST_CHECK_EQUAL(control->active_producers().version, 1u);
+   BOOST_CHECK_EQUAL(compare_schedules(alice_sch, control->active_producers()), true);
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()

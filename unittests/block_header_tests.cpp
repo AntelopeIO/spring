@@ -53,7 +53,7 @@ BOOST_AUTO_TEST_CASE(finality_extension_uniqueness_test)
    auto fin_policy = std::make_shared<finalizer_policy>();
    finalizer_policy_diff new_finalizer_policy_diff = fin_policy->create_diff(finalizer_policy{.generation = 1, .threshold = 100, .finalizers = finalizers});
 
-   proposer_policy_diff new_proposer_policy_diff = proposer_policy_diff{.version = 1, .active_time = block_timestamp_type{200}, .producer_auth_diff = {}};
+   proposer_policy_diff new_proposer_policy_diff = proposer_policy_diff{.version = 1, .proposal_time = block_timestamp_type{200}, .producer_auth_diff = {}};
 
    emplace_extension(
       header.header_extensions,
@@ -75,7 +75,7 @@ BOOST_AUTO_TEST_CASE(finality_extension_with_values_test)
    auto fin_policy = std::make_shared<finalizer_policy>();
    finalizer_policy_diff new_finalizer_policy_diff = fin_policy->create_diff(finalizer_policy{.generation = 1, .threshold = 100, .finalizers = finalizers});
 
-   proposer_policy_diff new_proposer_policy_diff = proposer_policy_diff{.version = 1, .active_time = block_timestamp_type{200}, .producer_auth_diff = {}};
+   proposer_policy_diff new_proposer_policy_diff = proposer_policy_diff{.version = 1, .proposal_time = block_timestamp_type{200}, .producer_auth_diff = {}};
 
    emplace_extension(
       header.header_extensions,
@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_CASE(finality_extension_with_values_test)
    BOOST_REQUIRE_EQUAL(f_ext.new_finalizer_policy_diff->finalizers_diff.insert_indexes[0].second.public_key.to_string(), "PUB_BLS_qVbh4IjYZpRGo8U_0spBUM-u-r_G0fMo4MzLZRsKWmm5uyeQTp74YFaMN9IDWPoVVT5rj_Tw1gvps6K9_OZ6sabkJJzug3uGfjA6qiaLbLh5Fnafwv-nVgzzzBlU2kwRrcHc8Q");
 
    BOOST_REQUIRE( !!f_ext.new_proposer_policy_diff );
-   fc::time_point t = (fc::time_point)(f_ext.new_proposer_policy_diff->active_time);
+   fc::time_point t = (fc::time_point)(f_ext.new_proposer_policy_diff->proposal_time);
    BOOST_REQUIRE_EQUAL(t.time_since_epoch().to_seconds(), 946684900ll);
 }
 
