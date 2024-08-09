@@ -468,7 +468,7 @@ struct building_block {
          , timestamp(input.timestamp)
          , active_producer_authority{input.producer,
                               [&]() -> block_signing_authority {
-                                 const auto& pas = parent.active_proposer_policy->proposer_schedule;
+                                 const auto& pas = parent.get_computed_active_proposer_policy(input.timestamp)->proposer_schedule;
                                  for (const auto& pa : pas.producers)
                                     if (pa.producer_name == input.producer)
                                        return pa.authority;
@@ -834,6 +834,7 @@ struct pending_state {
    std::optional<block_id_type>   _producer_block_id;
    controller::block_report       _block_report{};
 
+   // Legacy
    pending_state(maybe_session&& s,
                  const block_header_state_legacy& prev,
                  block_timestamp_type when,
@@ -843,6 +844,7 @@ struct pending_state {
    ,_block_stage(building_block(prev, when, num_prev_blocks_to_confirm, new_protocol_feature_activations))
    {}
 
+   // Savanna
    pending_state(maybe_session&& s,
                  const block_state& prev,
                  const building_block_input& input) :
@@ -3046,7 +3048,7 @@ struct controller_impl {
                     },
                     [&](const block_state_ptr& head) {
                        maybe_session        session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
-                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_scheduled_producer(when).producer_name,
+                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_computed_scheduled_producer(when).producer_name,
                                                 new_protocol_feature_activations};
                        pending.emplace(std::move(session), *head, bbi);
                     }

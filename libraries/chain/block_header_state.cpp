@@ -68,8 +68,40 @@ digest_type block_header_state::compute_finality_digest() const {
    return fc::sha256::hash(finality_digest_data);
 }
 
+// computes active proposer policy for a given block with timestamp `t`
+// and returns it.
+const proposer_policy_ptr& block_header_state::get_computed_active_proposer_policy(block_timestamp_type t) const {
+   // if the block of t is in the same round, use current active_proposer_policy
+   if (t.slot < detail::get_current_round_start_slot(timestamp()) + config::producer_repetitions) {
+      return active_proposer_policy;
+   }
+
+   // if not pending or proposed, use current active_proposer_policy
+   if (!latest_proposed_proposer_policy && !latest_pending_proposer_policy) {
+      return active_proposer_policy;
+   }
+
+   // Must `t` must be in a round after the current round
+   std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
+   if (latest_proposed_proposer_policy && prior_round_start_slot &&
+      (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) {
+      return *latest_proposed_proposer_policy;
+   }
+
+   if (latest_pending_proposer_policy) {
+      return *latest_pending_proposer_policy;
+   }
+
+   return active_proposer_policy;
+}
+
 const producer_authority& block_header_state::get_scheduled_producer(block_timestamp_type t) const {
    return detail::get_scheduled_producer(active_proposer_policy->proposer_schedule.producers, t);
+}
+
+// returns producer using the proposer policy calculated by time `t`
+const producer_authority& block_header_state::get_computed_scheduled_producer(block_timestamp_type t) const {
+   return detail::get_scheduled_producer(get_computed_active_proposer_policy(t)->proposer_schedule.producers, t);
 }
 
 const producer_authority_schedule* block_header_state::get_next_producer_schedule() const {

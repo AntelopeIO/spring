@@ -159,7 +159,11 @@ struct block_header_state {
    }
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
+   const proposer_policy_ptr& get_computed_active_proposer_policy(block_timestamp_type t) const;
+   // returns producer using current active proposer policy
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+   // returns producer using the proposer policy calculated by time `t`
+   const producer_authority& get_computed_scheduled_producer(block_timestamp_type t) const;
    const producer_authority_schedule* get_next_producer_schedule() const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
