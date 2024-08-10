@@ -1915,6 +1915,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    auto irreversible_block_age = get_irreversible_block_age();
 
+   bool not_producing_when_time = false;
    // If the next block production opportunity is in the present or future, we're synced.
    if (!_production_enabled) {
       _pending_block_mode = pending_block_mode::speculating;
@@ -1924,21 +1925,25 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
               ("authority", scheduled_producer.authority));
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    } else if (_pause_production) {
       fc_wlog(_log, "Not producing block because production is explicitly paused");
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
       fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
               ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    } else if (is_implicitly_paused()) {
       fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
               ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
               ("ov", _last_other_vote_recevied.load(std::memory_order_relaxed))("bt", _accepted_block_time));
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    }
 
-   if (in_speculating_mode()) {
+   if (in_speculating_mode() && !not_producing_when_time) {
       static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
