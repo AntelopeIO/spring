@@ -744,7 +744,7 @@ public:
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
-      auto time_limit = _accepted_block_time - fc::seconds(6); // need a vote within 6 seconds of last accepted block
+      auto time_limit = _accepted_block_time - fc::seconds(60); // need a vote within 60 seconds of last accepted block
       return _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit ||
              (_active_finalizer_size > 1 && _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit);
    }
