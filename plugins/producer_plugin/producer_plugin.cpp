@@ -517,6 +517,7 @@ public:
    fc::time_point                                    _irreversible_block_time;
    fc::time_point                                    _accepted_block_time;
    bool                                              _is_savanna_active                           = false;
+   bool                                              _is_producer_active_finalizer                = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -644,6 +645,20 @@ public:
       auto now = fc::time_point::now();
       chain.get_mutable_subjective_billing().on_block(_log, block, now);
       _accepted_block_time = now;
+      if (_is_savanna_active && !_producers.empty()) {
+         finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
+         assert(fin_policy);
+         _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+            return _producers.contains(to_account_name_safe(f.description));
+         });
+         if (!_is_producer_active_finalizer) {
+            if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
+               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                  return _producers.contains(to_account_name_safe(f.description));
+               });
+            }
+         }
+      }
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -669,6 +684,13 @@ public:
       }
    }
 
+   static account_name to_account_name_safe(const std::string& n) {
+      // quick conversion without full checks
+      if (n.size() > 12)
+         return {}; // producer names are limited to 12 chars, tables and other names can be
+      return eosio::chain::string_to_name(n);
+   }
+
    // called from multiple threads
    void on_vote(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
                 const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
@@ -684,19 +706,16 @@ public:
       default:
          assert(false); // should never happen
       }
+
       if (!active_auth && !pending_auth) {
          elog("vote signal contains no valid authority ${m}", ("m", msg));
          return;
       }
 
       auto now = fc::time_point::now();
-      account_name auth_desc;
-      try {
-         if (active_auth)
-            auth_desc = name{active_auth->description};
-         else
-            auth_desc = name{pending_auth->description};
-      } catch (const name_type_exception& e) {
+      account_name auth_desc = active_auth ? to_account_name_safe(active_auth->description)
+                                           : to_account_name_safe(pending_auth->description);
+      if (auth_desc.empty()) {
          ilog("Finalizer authority description is not a valid producer name ${d}",
               ("d", active_auth ? active_auth->description : pending_auth->description));
          // running with core contract that does not associate finalizer_authority->description with a producer
@@ -717,6 +736,8 @@ public:
    bool is_implicitly_paused() const {
       if (!_is_savanna_active)
          return false; // no implicit pause in legacy
+      if (!_is_producer_active_finalizer)
+         return false;
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
@@ -1911,8 +1932,9 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
               ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
       _pending_block_mode = pending_block_mode::speculating;
    } else if (is_implicitly_paused()) {
-      fc_elog(_log, "Not producing block because no recent votes received, last producer vote ${pv}, other votes ${ov}",
-              ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))("ov", _last_other_vote_recevied.load(std::memory_order_relaxed)));
+      fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
+              ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
+              ("ov", _last_other_vote_recevied.load(std::memory_order_relaxed))("bt", _accepted_block_time));
       _pending_block_mode = pending_block_mode::speculating;
    }
 
