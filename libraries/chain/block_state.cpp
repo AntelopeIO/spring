@@ -20,7 +20,7 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
    if( !skip_validate_signee ) {
       auto sigs = detail::extract_additional_signatures(block);
-      const auto& valid_block_signing_authority = prev.get_scheduled_producer(timestamp()).authority;
+      const auto& valid_block_signing_authority = prev.get_computed_scheduled_producer(block->timestamp).authority;
       verify_signee(sigs, valid_block_signing_authority);
    }
 }

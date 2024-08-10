@@ -476,7 +476,7 @@ struct building_block {
                                  return {};
                               }()}
          , prev_activated_protocol_features(parent.activated_protocol_features)
-         , active_proposer_policy(parent.active_proposer_policy)
+         , active_proposer_policy(parent.get_computed_active_proposer_policy(input.timestamp))
          , block_num(parent.block_num() + 1) {}
 
       bool is_protocol_feature_activated(const digest_type& digest) const {
@@ -490,12 +490,13 @@ struct building_block {
       std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
+         // returns the last proposed policy to use for comparison
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            // return the last proposed policy to use for comparison
+            // latest_proposed_proposer_policy is the last if it is present
             if (parent.latest_proposed_proposer_policy) {
                return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
             }
-            // next try pending
+            // then the last is latest_pending_proposer_policy
             if (parent.latest_pending_proposer_policy) {
                return (*parent.latest_pending_proposer_policy)->proposer_schedule;
             }
@@ -1004,6 +1005,13 @@ struct controller_impl {
       return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head, [](const auto& head) -> const producer_authority_schedule& {
          return head->active_schedule_auth();
       });
+   }
+
+   const producer_authority_schedule& head_compute_active_schedule_auth(block_timestamp_type timestamp) const {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head,
+         overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule& { return head->active_schedule_auth(); },
+                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_computed_active_proposer_policy(timestamp)->proposer_schedule; }
+         });
    }
 
    const producer_authority_schedule* head_pending_schedule_auth_legacy() const {
@@ -5030,7 +5038,7 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
    my->assemble_block(false, {}, nullptr);
 
    auto& ab = std::get<assembled_block>(my->pending->_block_stage);
-   const auto& valid_block_signing_authority = my->head_active_schedule_auth().get_scheduled_producer(ab.timestamp()).authority;
+   const auto& valid_block_signing_authority = my->head_compute_active_schedule_auth(ab.timestamp()).get_scheduled_producer(ab.timestamp()).authority;
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
