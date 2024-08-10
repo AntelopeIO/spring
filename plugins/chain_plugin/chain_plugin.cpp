@@ -2735,11 +2735,6 @@ const controller::config& chain_plugin::chain_config() const {
    return *my->chain_config;
 }
 
-void chain_plugin::register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&& m) {
-   assert(my->_last_tracked_votes);
-   my->_last_tracked_votes->register_update_vote_block_metrics(std::move(m));
-}
-
 } // namespace eosio
 
 FC_REFLECT( eosio::chain_apis::detail::ram_market_exchange_state_t, (ignore1)(ignore2)(ignore3)(core_symbol)(ignore4) )
