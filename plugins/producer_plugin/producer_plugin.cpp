@@ -518,6 +518,7 @@ public:
    fc::time_point                                    _accepted_block_time;
    bool                                              _is_savanna_active                           = false;
    bool                                              _is_producer_active_finalizer                = false;
+   size_t                                            _active_finalizer_size                       = 0;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -648,11 +649,13 @@ public:
       if (_is_savanna_active && !_producers.empty()) {
          finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
          assert(fin_policy);
+         _active_finalizer_size = fin_policy->finalizers.size();
          _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
             return _producers.contains(to_account_name_safe(f.description));
          });
          if (!_is_producer_active_finalizer) {
             if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
+               _active_finalizer_size = fin_policy->finalizers.size();
                _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
                   return _producers.contains(to_account_name_safe(f.description));
                });
@@ -743,7 +746,7 @@ public:
 
       auto time_limit = _accepted_block_time - fc::seconds(6); // need a vote within 6 seconds of last accepted block
       return _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit ||
-             _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit;
+             (_active_finalizer_size > 1 && _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit);
    }
 
    void abort_block() {
