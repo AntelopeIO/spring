@@ -4800,6 +4800,13 @@ struct controller_impl {
       return pending->active_producers();
    }
 
+   const producer_authority_schedule& computed_active_producers(block_timestamp_type t)const {
+      if( !(pending) )
+         return head_compute_active_schedule_auth(t);
+
+      return pending->active_producers();
+   }
+
    const producer_authority_schedule* pending_producers_legacy()const {
       if( !(pending) )
          return head_pending_schedule_auth_legacy();
@@ -5452,6 +5459,10 @@ std::optional<finalizer_policy> controller::active_finalizer_policy(const block_
 
 const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
+}
+
+const producer_authority_schedule& controller::computed_active_producers(block_timestamp_type t)const {
+   return my->computed_active_producers(t);
 }
 
 const producer_authority_schedule& controller::head_active_producers()const {
