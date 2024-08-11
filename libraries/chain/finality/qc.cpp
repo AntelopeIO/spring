@@ -30,13 +30,12 @@ bool qc_t::vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index)
                                          pending_vote_index);
 }
 
-// returns true if ithe other and I vote iin the same way on my_vote_index
-// and other's index.
+// returns true iff the other and I voted iin the same way.
 bool qc_sig_t::vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint32_t other_vote_index) const {
    assert(!strong_votes || my_vote_index < strong_votes->size());
    assert(!weak_votes || my_vote_index < weak_votes->size());
 
-   // We have already verified the same index is not voted on both strong
+   // We have already verified the same index has not voted both strong
    // and weak for a given qc_sig_t (I or other).
    bool same_strong = ((strong_votes && (*strong_votes)[my_vote_index]) ==
                        (other.strong_votes && (*other.strong_votes)[other_vote_index]));
@@ -75,7 +74,7 @@ void qc_sig_t::verify_vote_format(const finalizer_policy_ptr& fin_policy) const 
       for (size_t i=0; i<strong_votes->size(); ++i) {
          // at most one is true
          EOS_ASSERT( !((*strong_votes)[i] && (*weak_votes)[i]), invalid_qc_claim,
-                     "finalizer (bit index ${i}) votes both strong and weak",
+                     "finalizer (bit index ${i}) voted both strong and weak",
                      ("i", i) );
 
       }
