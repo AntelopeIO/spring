@@ -661,7 +661,7 @@ namespace impl {
          mvo("new_producers", block.new_producers);
 
          // process contents of block.header_extensions
-         flat_multimap<uint16_t, block_header_extension> header_exts = block.validate_and_extract_header_extensions();
+         header_extension_multimap header_exts = block.validate_and_extract_header_extensions();
          if ( header_exts.count(protocol_feature_activation::extension_id() > 0) ) {
             const auto& new_protocol_features =
                   std::get<protocol_feature_activation>(header_exts.lower_bound(protocol_feature_activation::extension_id())->second).protocol_features;

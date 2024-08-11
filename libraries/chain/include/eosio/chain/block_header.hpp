@@ -24,7 +24,7 @@ namespace eosio::chain {
    >;
 
    using block_header_extension = block_header_extension_types::block_header_extension_t;
-   using header_extension_multimap = flat_multimap<uint16_t, block_header_extension>;
+   using header_extension_multimap = std::multimap<uint16_t, block_header_extension>;
 
    using validator_t = const std::function<void(block_timestamp_type, const flat_set<digest_type>&, const vector<digest_type>&)>;
 

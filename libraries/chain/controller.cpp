@@ -3478,12 +3478,12 @@ struct controller_impl {
       EOS_REPORT( "header_extensions", b.header_extensions, ab.header_extensions )
 
       if (b.header_extensions != ab.header_extensions) {
-         flat_multimap<uint16_t, block_header_extension> bheader_exts = b.validate_and_extract_header_extensions();
+         header_extension_multimap bheader_exts = b.validate_and_extract_header_extensions();
          if (bheader_exts.count(finality_extension::extension_id())) {
             const auto& f_ext = std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
             elog("b  if: ${i}", ("i", f_ext));
          }
-         flat_multimap<uint16_t, block_header_extension> abheader_exts = ab.validate_and_extract_header_extensions();
+         header_extension_multimap abheader_exts = ab.validate_and_extract_header_extensions();
          if (abheader_exts.count(finality_extension::extension_id())) {
             const auto& f_ext = std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
             elog("ab if: ${i}", ("i", f_ext));
