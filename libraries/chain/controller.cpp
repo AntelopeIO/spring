@@ -3496,12 +3496,12 @@ struct controller_impl {
    static std::optional<qc_data_t> extract_qc_data(const signed_block_ptr& b) {
       std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+      if (auto f_entry = hexts.find(finality_extension::extension_id()); f_entry != hexts.end()) {
          auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
-         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+         if (auto entry = exts.find(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
             return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
