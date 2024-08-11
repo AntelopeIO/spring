@@ -81,7 +81,7 @@ const proposer_policy_ptr& block_header_state::get_scheduled_active_proposer_pol
       return active_proposer_policy;
    }
 
-   // Must `t` must be in a round after the current round
+   // `t` must be the first block in a round after the current round
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
    if (latest_proposed_proposer_policy && prior_round_start_slot &&
       (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) {
