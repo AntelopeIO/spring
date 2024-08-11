@@ -468,7 +468,7 @@ struct building_block {
          , timestamp(input.timestamp)
          , active_producer_authority{input.producer,
                               [&]() -> block_signing_authority {
-                                 const auto& pas = parent.get_computed_active_proposer_policy(input.timestamp)->proposer_schedule;
+                                 const auto& pas = parent.get_scheduled_active_proposer_policy_at(input.timestamp)->proposer_schedule;
                                  for (const auto& pa : pas.producers)
                                     if (pa.producer_name == input.producer)
                                        return pa.authority;
@@ -476,7 +476,7 @@ struct building_block {
                                  return {};
                               }()}
          , prev_activated_protocol_features(parent.activated_protocol_features)
-         , active_proposer_policy(parent.get_computed_active_proposer_policy(input.timestamp))
+         , active_proposer_policy(parent.get_scheduled_active_proposer_policy_at(input.timestamp))
          , block_num(parent.block_num() + 1) {}
 
       bool is_protocol_feature_activated(const digest_type& digest) const {
@@ -1010,7 +1010,7 @@ struct controller_impl {
    const producer_authority_schedule& head_compute_active_schedule_auth(block_timestamp_type timestamp) const {
       return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule& { return head->active_schedule_auth(); },
-                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_computed_active_proposer_policy(timestamp)->proposer_schedule; }
+                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_scheduled_active_proposer_policy_at(timestamp)->proposer_schedule; }
          });
    }
 
@@ -3056,7 +3056,7 @@ struct controller_impl {
                     },
                     [&](const block_state_ptr& head) {
                        maybe_session        session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
-                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_computed_scheduled_producer(when).producer_name,
+                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_scheduled_producer_at(when).producer_name,
                                                 new_protocol_feature_activations};
                        pending.emplace(std::move(session), *head, bbi);
                     }
@@ -4800,7 +4800,7 @@ struct controller_impl {
       return pending->active_producers();
    }
 
-   const producer_authority_schedule& computed_active_producers(block_timestamp_type t)const {
+   const producer_authority_schedule& scheduled_active_producers_at(block_timestamp_type t)const {
       if( !(pending) )
          return head_compute_active_schedule_auth(t);
 
@@ -5461,8 +5461,8 @@ const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
 }
 
-const producer_authority_schedule& controller::computed_active_producers(block_timestamp_type t)const {
-   return my->computed_active_producers(t);
+const producer_authority_schedule& controller::scheduled_active_producers_at(block_timestamp_type t)const {
+   return my->scheduled_active_producers_at(t);
 }
 
 const producer_authority_schedule& controller::head_active_producers()const {

@@ -267,7 +267,7 @@ namespace eosio::chain {
          uint32_t                       pending_block_num()const;
 
          const producer_authority_schedule&         active_producers()const;
-         const producer_authority_schedule&         computed_active_producers(block_timestamp_type t)const;
+         const producer_authority_schedule&         scheduled_active_producers_at(block_timestamp_type t)const;
          const producer_authority_schedule&         head_active_producers()const;
          // pending for pre-instant-finality, next proposed that will take affect, null if none are pending/proposed
          const producer_authority_schedule*         next_producers()const;
