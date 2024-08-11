@@ -29,9 +29,9 @@ public:
    uint32_t                block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
    block_timestamp_type    timestamp() const { return std::visit([](const auto& bsp) { return bsp->timestamp(); }, _bsp); };
    time_point              block_time() const { return std::visit([](const auto& bsp) { return time_point{bsp->timestamp()}; }, _bsp); };
-   const block_id_type&    id() const { return std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->id(); }, _bsp); }
-   const block_id_type&    previous() const { return std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->previous(); }, _bsp); }
-   const signed_block_ptr& block() const { return std::visit<const signed_block_ptr&>([](const auto& bsp) -> const signed_block_ptr& { return bsp->block; }, _bsp); }
+   block_id_type           id() const { return is_valid() ? std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->id(); }, _bsp) : block_id_type{}; }
+   block_id_type           previous() const { return is_valid() ? std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->previous(); }, _bsp) : block_id_type{}; }
+   signed_block_ptr        block() const { return is_valid() ? std::visit<const signed_block_ptr&>([](const auto& bsp) -> const signed_block_ptr& { return bsp->block; }, _bsp) : signed_block_ptr{}; }
    const block_header&     header() const { return std::visit<const block_header&>([](const auto& bsp) -> const block_header& { return bsp->header; }, _bsp); };
    account_name            producer() const { return std::visit([](const auto& bsp) { return bsp->producer(); }, _bsp); }
 

@@ -249,7 +249,7 @@ namespace eosio::chain {
          [[deprecated("Use head().id().")]]         block_id_type        head_block_id()const;
          [[deprecated("Use head().producer().")]]   account_name         head_block_producer()const;
          [[deprecated("Use head().header().")]]     const block_header&  head_block_header()const;
-         [[deprecated("Use head().block().")]]      const signed_block_ptr& head_block()const;
+         [[deprecated("Use head().block().")]]      signed_block_ptr     head_block()const;
 
          // returns nullptr after instant finality enabled
          block_state_legacy_ptr head_block_state_legacy()const;

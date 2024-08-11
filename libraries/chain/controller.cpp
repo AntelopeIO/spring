@@ -182,7 +182,7 @@ struct completed_block {
       });
    }
 
-   const block_id_type& id() const { return bsp.id(); }
+   block_id_type id() const { return bsp.id(); }
    uint32_t block_num() const { return bsp.block_num(); }
    block_timestamp_type timestamp() const { return bsp.block_time(); }
    account_name producer() const { return bsp.producer(); }
@@ -1442,7 +1442,7 @@ struct controller_impl {
          return fork_db.apply<block_id_type>(
             [&](const fork_database_legacy_t& forkdb) -> block_id_type {
                // maintain legacy only advancing LIB via validated blocks, hence pass in chain_head id for use
-               block_state_legacy_ptr head = irreversible_mode() ? forkdb.head() : forkdb.get_block(chain_head.id());
+               block_state_legacy_ptr head = irreversible_mode() ? forkdb.head(include_root_t::yes) : forkdb.get_block(chain_head.id(), include_root_t::yes);
                if (!head)
                   return {};
                block_num_type dpos_lib_num = head->irreversible_blocknum();
@@ -3304,7 +3304,9 @@ struct controller_impl {
          }
 
          chain_head = block_handle{cb.bsp};
-         emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
+         auto chain_head_id = chain_head.id();
+         auto chain_head_block = chain_head.block();
+         emit( accepted_block, std::tie(chain_head_block, chain_head_id), __FILE__, __LINE__ );
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
             if (!irreversible_mode()) {
@@ -5201,7 +5203,7 @@ block_state_legacy_ptr controller::head_block_state_legacy()const {
    });
 }
 
-const signed_block_ptr& controller::head_block()const {
+signed_block_ptr controller::head_block()const {
    return my->chain_head.block();
 }
 
