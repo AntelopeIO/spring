@@ -65,13 +65,6 @@ struct catalog_type {
    };
    p2p_connection_metrics p2p_metrics;
 
-   // producer plugin
-   struct vote_metrics {
-      Gauge& block_num;
-      prometheus::Family<Gauge>& voted;
-   };
-   vote_metrics block_votes;
-
    prometheus::Family<Counter>& cpu_usage_us;
    prometheus::Family<Counter>& net_usage_us;
 
@@ -147,10 +140,6 @@ struct catalog_type {
             , .connection_start_time{family<Gauge>("nodeos_p2p_connection_start_time", "time of last connection to peer")}
             , .peer_addr{family<Gauge>("nodeos_p2p_peer_addr", "peer address")}
          }
-       , block_votes{
-            .block_num{build<Gauge>("nodeos_block_num", "current block number")}
-          , .voted{family<Gauge>("nodeos_block_votes", "votes incorporated into a block, -1 weak, 1 strong, 0 no vote")}
-       }
        , cpu_usage_us(family<Counter>("nodeos_cpu_usage_us_total", "total cpu usage in microseconds for blocks"))
        , net_usage_us(family<Counter>("nodeos_net_usage_us_total", "total net usage in microseconds for blocks"))
        , last_irreversible(build<Gauge>("nodeos_last_irreversible", "last irreversible block number"))
@@ -245,25 +234,6 @@ struct catalog_type {
       }
    }
 
-   void update(const chain_apis::tracked_votes::vote_block_metrics&& metrics) {
-      block_votes.block_num.Set(metrics.block_num);
-
-      auto add_and_set_gauge = [&](auto& fam, const auto& prod, const auto& value) {
-         auto& gauge = fam.Add({{"producer", prod}});
-         gauge.Set(value);
-      };
-
-      for (const auto& v : metrics.strong_votes) {
-         add_and_set_gauge(block_votes.voted, v, 1);
-      }
-      for (const auto& v : metrics.weak_votes) {
-         add_and_set_gauge(block_votes.voted, v, -1);
-      }
-      for (const auto& v : metrics.no_votes) {
-         add_and_set_gauge(block_votes.voted, v, 0);
-      }
-   }
-
    void update(block_metrics& blk_metrics, const producer_plugin::speculative_block_metrics& metrics) {
       blk_metrics.num_blocks_created.Increment(1);
       blk_metrics.current_block_num.Set(metrics.block_num);
@@ -352,12 +322,6 @@ struct catalog_type {
       producer.register_update_incoming_block_metrics(
           [&strand, this](const producer_plugin::incoming_block_metrics& metrics) {
              strand.post([metrics, this]() { update(metrics); });
-          });
-
-      auto& chain = app().get_plugin<chain_plugin>();
-      chain.register_update_vote_block_metrics(
-          [&strand, this](const chain_apis::tracked_votes::vote_block_metrics&& metrics) {
-             strand.post([metrics{std::move(metrics)}, this]() mutable { update(std::move(metrics)); });
           });
    }
 };

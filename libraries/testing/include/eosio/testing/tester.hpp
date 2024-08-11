@@ -825,8 +825,8 @@ namespace eosio::testing {
       }
 
       bool validate() {
-        const auto& hbh = control->head().header();
-        const auto& vn_hbh = validating_node->head().header();
+        const block_header hbh = control->head().header();
+        const block_header vn_hbh = validating_node->head().header();
         bool ok = control->head().id() == validating_node->head().id() &&
                hbh.previous == vn_hbh.previous &&
                hbh.timestamp == vn_hbh.timestamp &&
