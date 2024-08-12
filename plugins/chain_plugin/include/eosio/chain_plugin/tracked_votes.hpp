@@ -16,9 +16,10 @@ namespace eosio::chain_apis {
        * Instantiate a new tracked votes cache from the given chain controller
        * The caller is expected to manage lifetimes such that this controller reference does not go stale
        * for the life of the tracked votes cache
+       * @param tracking_enabled true if get_last_vote_info() vote tracking enabled
        * @param chain - controller to read data from
        */
-      explicit tracked_votes( const class eosio::chain::controller& chain );
+      explicit tracked_votes( const class eosio::chain::controller& chain, bool tracking_enabled );
       ~tracked_votes();
 
       /**

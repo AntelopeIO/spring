@@ -36,7 +36,8 @@ namespace eosio::chain {
       block_ref            last_vote;
       block_ref            lock;
 
-      static constexpr uint64_t magic = 0x5AFE11115AFE1111ull;
+      static constexpr uint64_t magic_unversioned = 0x5AFE11115AFE1111ull;
+      static constexpr uint64_t magic             = 0x5AFE11115AFE1112ull;
 
       static finalizer_safety_information unset_fsi() { return {}; }
 
@@ -69,6 +70,9 @@ namespace eosio::chain {
 
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
+   public:
+      static constexpr uint64_t current_safety_file_version = 1;
+
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
 
@@ -133,6 +137,7 @@ namespace eosio::chain {
 
       size_t  size() const { return finalizers.size(); }   // doesn't change, thread safe
       bool    empty() const { return finalizers.empty(); } // doesn't change, thread safe
+      bool    contains(const bls_public_key& pub_key) const { return finalizers.contains(pub_key); } // doesn't change, thread safe
 
       template<typename F>
       bool all_of_public_keys(F&& f) const { // only access keys which do not change, thread safe

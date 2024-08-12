@@ -361,6 +361,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'none' - EOS VM OC tier-up is completely disabled.\n")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
+         ("max-reversible-blocks", bpo::value<uint32_t>()->default_value(config::default_max_reversible_blocks),
+          "Approximate maximum allowed reversible blocks before shutdown. Will shut down if limit reached. Specify 0 to disable.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
           "Maximum size (in GiB) allowed to be allocated for the Transaction Retry feature. Setting above 0 enables this feature.")
          ("transaction-retry-interval-sec", bpo::value<uint32_t>()->default_value(20),
@@ -947,6 +949,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       account_queries_enabled = options.at("enable-account-queries").as<bool>();
 
+      chain_config->max_reversible_blocks = options.at("max-reversible-blocks").as<uint32_t>();
+
       chain_config->integrity_hash_on_start = options.at("integrity-hash-on-start").as<bool>();
       chain_config->integrity_hash_on_stop = options.at("integrity-hash-on-stop").as<bool>();
 
@@ -971,6 +975,14 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                                        abi_serializer_max_time_us );
          }
       }
+
+      // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
+      bool last_tracked_votes_enabled = false;
+      if (options.count("plugin")) {
+         const auto& v = options.at("plugin").as<std::vector<std::string>>();
+         last_tracked_votes_enabled = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
+      }
+      _last_tracked_votes.emplace(*chain, last_tracked_votes_enabled);
 
       // initialize deep mind logging
       if ( options.at( "deep-mind" ).as<bool>() ) {
@@ -1146,8 +1158,6 @@ void chain_plugin_impl::plugin_startup()
          account_queries_enabled = true;
       } FC_LOG_AND_DROP(("Unable to enable account queries"));
    }
-
-   _last_tracked_votes.emplace(*chain);
 
 } FC_CAPTURE_AND_RETHROW() }
 
@@ -2724,6 +2734,7 @@ const controller::config& chain_plugin::chain_config() const {
    EOS_ASSERT(my->chain_config.has_value(), plugin_exception, "chain_config not initialized");
    return *my->chain_config;
 }
+
 } // namespace eosio
 
 FC_REFLECT( eosio::chain_apis::detail::ram_market_exchange_state_t, (ignore1)(ignore2)(ignore3)(core_symbol)(ignore4) )

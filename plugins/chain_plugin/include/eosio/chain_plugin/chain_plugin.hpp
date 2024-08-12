@@ -1026,6 +1026,7 @@ public:
    fc::variant get_log_trx(const transaction& trx) const;
 
    const controller::config& chain_config() const;
+
 private:
 
    unique_ptr<class chain_plugin_impl> my;

@@ -78,7 +78,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 
    const vector<account_name> producers {"a"_n, "b"_n, "c"_n, "d"_n, "e"_n};
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers); // set new producers and produce blocks until the switch is pending
 
    auto sb = _nodes[0].produce_block();       // now the next block can be produced on any node (here _nodes[0])
    BOOST_REQUIRE_EQUAL(sb->producer,
@@ -208,7 +208,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // first block produced by producers[prod]
@@ -231,7 +231,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"cam"_n} );
    const vector<account_name> new_producers { "dan"_n, "sam"_n, "pam"_n, "cam"_n };
-   auto new_prod = set_producers(0, new_producers);
+   auto new_prod = _nodes[0].set_producers(new_producers);
 
    sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
@@ -293,7 +293,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
 BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t) try {
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb_common = _nodes[0].produce_blocks(4);
    auto lib = _nodes[0].lib_num();
@@ -345,7 +345,7 @@ BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t)
 BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_block();
@@ -398,7 +398,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
 BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(3);
@@ -494,7 +494,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
    auto lib0 = _nodes[0].last_irreversible_block_num();
@@ -541,7 +541,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna_cluster::cluster_t  ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
    auto lib0           = _nodes[0].last_irreversible_block_num();
