@@ -25,6 +25,11 @@ namespace eosio::chain::detail {
       return t.slot - index;
    }
 
+   // returns true if next and curr are in the same round
+   inline bool in_same_round(const block_timestamp_type& next, const block_timestamp_type& curr) {
+      return (next.slot < detail::get_current_round_start_slot(curr) + config::producer_repetitions);
+   }
+
    inline std::optional<uint32_t> get_prior_round_start_slot( const block_timestamp_type& t) {
       if (t.slot < config::producer_repetitions) { // No prior round
          return {};
