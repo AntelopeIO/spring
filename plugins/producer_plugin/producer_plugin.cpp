@@ -1285,7 +1285,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
               ("dt", subjective_account_decay_time.to_seconds() / 60));
    chain.get_mutable_subjective_billing().set_expired_accumulator_average_window(subjective_account_decay_time);
 
-   _production_pause_vote_timeout = fc::microseconds(options.at("production-pause-vote-timeout-ms").as<uint32_t>());
+   _production_pause_vote_timeout = fc::microseconds(options.at("production-pause-vote-timeout-ms").as<uint32_t>() * 1000u);
 
    _max_transaction_time_ms = options.at("max-transaction-time").as<int32_t>();
 
