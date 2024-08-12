@@ -2791,7 +2791,8 @@ namespace eosio {
                   c->send_time();
                }
             } else {
-               fc_ilog( logger, "connection failed to ${a}, ${error}", ("a", c->peer_address())( "error", err.message()));
+               fc_ilog(logger, "connection failed to ${a}, ${e}", ("a", c->peer_address())
+                       ("e", err == boost::asio::error::not_found ? "Unable to resolve endpoint" : err.message()));
                c->close( false );
                if (my_impl->increment_failed_p2p_connections) {
                   my_impl->increment_failed_p2p_connections();
