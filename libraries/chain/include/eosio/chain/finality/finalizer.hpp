@@ -121,9 +121,10 @@ namespace eosio::chain {
          for (auto& f : finalizers) {
             finalizer_authority_ptr active_auth;
             finalizer_authority_ptr pending_auth;
-            if (in_policy(active_auth, bsp->active_finalizer_policy, f.first)
-                || (bsp->pending_finalizer_policy && in_policy(pending_auth, bsp->pending_finalizer_policy->second, f.first))) {
-
+            bool in_active  = in_policy(active_auth, bsp->active_finalizer_policy, f.first);
+            // don't shortcut in_pending as we want to signal both active_auth & pending_auth if appropriate
+            bool in_pending = bsp->pending_finalizer_policy && in_policy(pending_auth, bsp->pending_finalizer_policy->second, f.first);
+            if (in_active || in_pending) {
                vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
                   votes.push_back(std::tuple{std::move(vote_msg), std::move(active_auth), std::move(pending_auth)});
