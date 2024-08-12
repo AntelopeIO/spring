@@ -5,6 +5,8 @@
 
 #include <eosio/testing/tester.hpp>
 #include <ranges>
+
+#define BOOST_UNORDERED_DISABLE_NEON  // because of conflicting declaration for float16_t in softfloat (issue #517)
 #include <boost/unordered/unordered_flat_map.hpp>
 
 #include "snapshot_suites.hpp"
