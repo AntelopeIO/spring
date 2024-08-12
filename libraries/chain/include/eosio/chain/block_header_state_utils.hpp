@@ -14,12 +14,6 @@ namespace eosio::chain::detail {
       return digest && protocol_features.find(*digest) != protocol_features.end();
    }
 
-   inline block_timestamp_type get_next_next_round_block_time( block_timestamp_type t) {
-      auto index = t.slot % config::producer_repetitions; // current index in current round
-      //                                   (increment to the end of this round  ) + next round
-      return block_timestamp_type{t.slot + (config::producer_repetitions - index) + config::producer_repetitions};
-   }
-
    inline uint32_t get_current_round_start_slot( const block_timestamp_type& t) {
       auto index = t.slot % config::producer_repetitions; // current index in current round
       return t.slot - index;

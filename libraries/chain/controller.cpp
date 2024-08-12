@@ -3254,8 +3254,8 @@ struct controller_impl {
                         new_proposer_policy->proposal_time     = bb.timestamp;
                         new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
                         new_proposer_policy->proposer_schedule.version = *version;
-                        ilog("Scheduling proposer schedule proposed at ${p} and change at ${t}: ${s}",
-                             ("p", new_proposer_policy->proposal_time)("t", detail::get_next_next_round_block_time(bb.timestamp))("s", new_proposer_policy->proposer_schedule));
+                        ilog("Scheduling proposer schedule ${p}, proposed at: ${s}",
+                             ("p", new_proposer_policy->proposal_time)("s", new_proposer_policy->proposer_schedule));
                      }
                   }
                }
