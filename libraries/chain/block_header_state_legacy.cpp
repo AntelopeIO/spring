@@ -156,8 +156,8 @@ namespace eosio::chain {
          result.producer_to_last_implied_irb[proauth.producer_name] = dpos_proposed_irreversible_blocknum;
       }
 
-      if (header_exts.count(finality_extension::extension_id())) { // transition to savanna has started
-         const auto& f_ext = std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
+      if (auto it = header_exts.find(finality_extension::extension_id()); it != header_exts.end()) { // transition to savanna has started
+         const auto& f_ext = std::get<finality_extension>(it->second);
          // copy over qc_claim from IF Genesis Block
          result.qc_claim = f_ext.qc_claim;
       }
@@ -275,11 +275,11 @@ namespace eosio::chain {
          maybe_new_producer_schedule.emplace(new_producers);
       }
 
-      if ( exts.count(producer_schedule_change_extension::extension_id()) > 0 ) {
+      if (auto it = exts.find(producer_schedule_change_extension::extension_id()); it != exts.end()) {
          EOS_ASSERT(wtmsig_enabled, producer_schedule_exception, "Block header producer_schedule_change_extension before activation of WTMsig Block Signatures" );
          EOS_ASSERT( !was_pending_promoted, producer_schedule_exception, "cannot set pending producer schedule in the same block in which pending was promoted to active" );
 
-         const auto& new_producer_schedule = std::get<producer_schedule_change_extension>(exts.lower_bound(producer_schedule_change_extension::extension_id())->second);
+         const auto& new_producer_schedule = std::get<producer_schedule_change_extension>(it->second);
 
          EOS_ASSERT( new_producer_schedule.version == active_schedule.version + 1, producer_schedule_exception, "wrong producer schedule version specified" );
          EOS_ASSERT( prev_pending_schedule.schedule.producers.empty(), producer_schedule_exception,
@@ -290,9 +290,9 @@ namespace eosio::chain {
       }
 
       protocol_feature_activation_set_ptr new_activated_protocol_features;
-      { // handle protocol_feature_activation
-         if( exts.count(protocol_feature_activation::extension_id() > 0) ) {
-            const auto& new_protocol_features = std::get<protocol_feature_activation>(exts.lower_bound(protocol_feature_activation::extension_id())->second).protocol_features;
+      {  // handle protocol_feature_activation
+         if (auto it = exts.find(protocol_feature_activation::extension_id()); it != exts.end()) {
+            const auto& new_protocol_features = std::get<protocol_feature_activation>(it->second).protocol_features;
             validator( timestamp, prev_activated_protocol_features->protocol_features, new_protocol_features );
 
             new_activated_protocol_features =   std::make_shared<protocol_feature_activation_set>(

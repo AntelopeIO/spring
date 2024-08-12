@@ -86,7 +86,7 @@ namespace eosio::chain {
    }
 
    std::optional<block_num_type> block_state_legacy::savanna_genesis_block_num() const {
-      if (auto itr = header_exts.lower_bound(finality_extension::extension_id()); itr != header_exts.end()) {
+      if (auto itr = header_exts.find(finality_extension::extension_id()); itr != header_exts.end()) {
          const auto& f_ext = std::get<finality_extension>(itr->second);
          return std::optional<block_num_type>{f_ext.qc_claim.block_num};
       }
