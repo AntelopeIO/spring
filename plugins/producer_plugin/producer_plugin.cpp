@@ -687,11 +687,14 @@ public:
       }
    }
 
+   // does not validate n is a valid account_name
+   // Used for lookup of producer name, if n is not a valid producer name then the conversion will create an
+   // account_name that doesn't match.
    static account_name to_account_name_safe(const std::string& n) {
       // quick conversion without full checks
       if (n.size() > 12)
-         return {}; // producer names are limited to 12 chars, tables and other names can be
-      return eosio::chain::string_to_name(n);
+         return {}; // producer names (account_name) are limited to 12 chars, tables and other names can be 13
+      return eosio::chain::string_to_name(n); // n with invalid chars are encoded as 0 without throwing exception
    }
 
    // called from multiple threads
@@ -744,7 +747,7 @@ public:
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
-      auto time_limit = _accepted_block_time - fc::seconds(30); // need a vote within 30 seconds of last accepted block
+      auto time_limit = _accepted_block_time - fc::seconds(6); // need a vote within 6 seconds of last accepted block
       return _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit ||
              (_active_finalizer_size > 1 && _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit);
    }
