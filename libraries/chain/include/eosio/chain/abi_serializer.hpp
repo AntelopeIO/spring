@@ -663,8 +663,7 @@ namespace impl {
          // process contents of block.header_extensions
          flat_multimap<uint16_t, block_header_extension> header_exts = block.validate_and_extract_header_extensions();
          if (auto it = header_exts.find(protocol_feature_activation::extension_id()); it != header_exts.end()) {
-            const auto& new_protocol_features =
-                  std::get<protocol_feature_activation>(it->second).protocol_features;
+            const auto& new_protocol_features = std::get<protocol_feature_activation>(it->second).protocol_features;
             vector<fc::variant> pf_array;
             pf_array.reserve(new_protocol_features.size());
             for (auto feature : new_protocol_features) {
