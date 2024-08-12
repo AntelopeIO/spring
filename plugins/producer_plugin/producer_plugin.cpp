@@ -506,6 +506,7 @@ public:
    alignas(hardware_destructive_interference_sz)
    std::atomic<fc::time_point>                       _last_other_vote_recevied;
    std::atomic<fc::time_point>                       _last_producer_vote_received;
+   fc::microseconds                                  _production_pause_vote_timeout;
    fc::microseconds                                  _max_irreversible_block_age_us;
    // produce-block-offset is in terms of the complete round, internally use calculated value for each block of round
    fc::microseconds                                  _produce_block_cpu_effort;
@@ -740,6 +741,8 @@ public:
 
    // true if paused do to not receiving votes
    bool is_implicitly_paused() const {
+      if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
+         return false;
       if (!_is_savanna_active)
          return false; // no implicit pause in legacy
       if (!_is_producer_active_finalizer)
@@ -747,7 +750,8 @@ public:
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
-      auto time_limit = _accepted_block_time - fc::seconds(6); // need a vote within 6 seconds of last accepted block
+      // need a vote within timeout of last accepted block
+      auto time_limit = _accepted_block_time - _production_pause_vote_timeout;
       return _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit ||
              (_active_finalizer_size > 1 && _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit);
    }
@@ -1140,7 +1144,10 @@ void producer_plugin::set_program_options(
    producer_options.add_options()
       ("enable-stale-production,e", boost::program_options::bool_switch()->notifier([this](bool e){my->_production_enabled = e;}),
        "Enable block production, even if the chain is stale.")
-         ("pause-on-startup,x", boost::program_options::bool_switch()->notifier([this](bool p){my->_pause_production = p;}), "Start this node in a state where production is paused")
+         ("pause-on-startup,x", boost::program_options::bool_switch()->notifier([this](bool p){my->_pause_production = p;}),
+          "Start this node in a state where production is paused")
+         ("production-pause-vote-timeout-ms", bpo::value<uint32_t>()->default_value(config::default_production_pause_vote_timeout_ms),
+          "Received vote timeout. If no vote from producer-name finalizers or other finalizers then pauses block production. 0 disables.")
          ("max-transaction-time", bpo::value<int32_t>()->default_value(config::block_interval_ms-1),
           "Setting this value (in milliseconds) will restrict the allowed transaction execution time to a value potentially lower than the on-chain consensus max_transaction_cpu_usage value.")
          ("max-irreversible-block-age", bpo::value<int32_t>()->default_value( -1 ),
@@ -1277,6 +1284,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
               "subjective-account-decay-time-minutes ${dt} must be greater than 0",
               ("dt", subjective_account_decay_time.to_seconds() / 60));
    chain.get_mutable_subjective_billing().set_expired_accumulator_average_window(subjective_account_decay_time);
+
+   _production_pause_vote_timeout = fc::microseconds(options.at("production-pause-vote-timeout-ms").as<uint32_t>());
 
    _max_transaction_time_ms = options.at("max-transaction-time").as<int32_t>();
 
