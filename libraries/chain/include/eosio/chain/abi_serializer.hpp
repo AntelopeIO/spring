@@ -629,8 +629,8 @@ namespace impl {
 
          // process contents of block.transaction_extensions
          auto exts = trx.validate_and_extract_extensions();
-         if (exts.count(deferred_transaction_generation_context::extension_id()) > 0) {
-            const auto& deferred_transaction_generation = std::get<deferred_transaction_generation_context>(exts.lower_bound(deferred_transaction_generation_context::extension_id())->second);
+         if (auto it = exts.find(deferred_transaction_generation_context::extension_id()); it != exts.end()) {
+            const auto& deferred_transaction_generation = std::get<deferred_transaction_generation_context>(it->second);
             mvo("deferred_transaction_generation", deferred_transaction_generation);
          }
 
@@ -662,9 +662,9 @@ namespace impl {
 
          // process contents of block.header_extensions
          flat_multimap<uint16_t, block_header_extension> header_exts = block.validate_and_extract_header_extensions();
-         if ( header_exts.count(protocol_feature_activation::extension_id() > 0) ) {
+         if (auto it = header_exts.find(protocol_feature_activation::extension_id()); it != header_exts.end()) {
             const auto& new_protocol_features =
-                  std::get<protocol_feature_activation>(header_exts.lower_bound(protocol_feature_activation::extension_id())->second).protocol_features;
+                  std::get<protocol_feature_activation>(it->second).protocol_features;
             vector<fc::variant> pf_array;
             pf_array.reserve(new_protocol_features.size());
             for (auto feature : new_protocol_features) {
@@ -674,9 +674,8 @@ namespace impl {
             }
             mvo("new_protocol_features", pf_array);
          }
-         if ( header_exts.count(producer_schedule_change_extension::extension_id())) {
-            const auto& new_producer_schedule =
-                  std::get<producer_schedule_change_extension>(header_exts.lower_bound(producer_schedule_change_extension::extension_id())->second);
+         if (auto it = header_exts.find(producer_schedule_change_extension::extension_id()); it != header_exts.end()) {
+            const auto& new_producer_schedule = std::get<producer_schedule_change_extension>(it->second);
             mvo("new_producer_schedule", new_producer_schedule);
          }
          add_block_header_finality_extension(mvo, header_exts);
@@ -686,15 +685,12 @@ namespace impl {
 
          // process contents of block.block_extensions
          auto block_exts = block.validate_and_extract_extensions();
-         if ( block_exts.count(additional_block_signatures_extension::extension_id()) > 0) {
-            const auto& additional_signatures =
-                  std::get<additional_block_signatures_extension>(block_exts.lower_bound(additional_block_signatures_extension::extension_id())->second);
+         if (auto it = block_exts.find(additional_block_signatures_extension::extension_id()); it != block_exts.end()) {
+            const auto& additional_signatures = std::get<additional_block_signatures_extension>(it->second);
             mvo("additional_signatures", additional_signatures);
          }
-         auto qc_extension_count = block_exts.count(quorum_certificate_extension::extension_id());
-         if ( qc_extension_count > 0) {
-            const auto& qc_extension =
-                  std::get<quorum_certificate_extension>(block_exts.lower_bound(quorum_certificate_extension::extension_id())->second);
+         if (auto it = block_exts.find(quorum_certificate_extension::extension_id()); it != block_exts.end()) {
+            const auto& qc_extension = std::get<quorum_certificate_extension>(it->second);
             mvo("qc_extension", qc_extension);
          }
 

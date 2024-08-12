@@ -3486,7 +3486,7 @@ struct controller_impl {
             elog("b  if: ${i}", ("i", f_ext));
          }
          header_extension_multimap abheader_exts = ab.validate_and_extract_header_extensions();
-         if (auto it = abheader_exts.lower_bound(finality_extension::extension_id()); it != abheader_exts.end()) {
+         if (auto it = abheader_exts.find(finality_extension::extension_id()); it != abheader_exts.end()) {
             const auto& f_ext = std::get<finality_extension>(it->second);
             elog("ab if: ${i}", ("i", f_ext));
          }
