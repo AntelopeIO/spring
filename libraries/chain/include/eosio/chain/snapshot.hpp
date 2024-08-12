@@ -3,6 +3,7 @@
 #include <eosio/chain/database_utils.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <fc/variant_object.hpp>
+#include <fc/io/random_access_file.hpp>
 #include <boost/core/demangle.hpp>
 #include <ostream>
 #include <memory>
@@ -159,6 +160,7 @@ namespace eosio { namespace chain {
       struct abstract_snapshot_row_reader {
          virtual void provide(std::istream& in) const = 0;
          virtual void provide(const fc::variant&) const = 0;
+         virtual void provide(fc::datastream<const char*>&) const = 0;
          virtual std::string row_type_name() const = 0;
       };
 
@@ -206,6 +208,12 @@ namespace eosio { namespace chain {
          void provide(const fc::variant& var) const override {
             row_validation_helper::apply(data, [&var,this]() {
                fc::from_variant(var, data);
+            });
+         }
+
+         void provide(fc::datastream<const char*>& ds) const override{
+            row_validation_helper::apply(data, [&ds,this]() {
+               fc::raw::unpack(ds, data);
             });
          }
 
@@ -273,11 +281,13 @@ namespace eosio { namespace chain {
          read_section(detail::snapshot_section_traits<T>::section_name(), f);
       }
 
-      virtual void validate() const = 0;
+      virtual void validate() = 0;
 
       virtual void return_to_header() = 0;
 
       virtual size_t total_row_count() = 0;
+
+      virtual bool supports_threading() const {return false;}
 
       virtual ~snapshot_reader(){};
 
@@ -309,7 +319,7 @@ namespace eosio { namespace chain {
       public:
          explicit variant_snapshot_reader(const fc::variant& snapshot);
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;
@@ -361,7 +371,7 @@ namespace eosio { namespace chain {
       public:
          explicit istream_snapshot_reader(std::istream& snapshot);
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;
@@ -383,7 +393,7 @@ namespace eosio { namespace chain {
          explicit istream_json_snapshot_reader(const std::filesystem::path& p);
          ~istream_json_snapshot_reader();
 
-         void validate() const override;
+         void validate() override;
          void set_section( const string& section_name ) override;
          bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
          bool empty ( ) override;
@@ -395,6 +405,29 @@ namespace eosio { namespace chain {
          bool validate_section() const;
 
          std::unique_ptr<struct istream_json_snapshot_reader_impl> impl;
+   };
+
+   class threaded_snapshot_reader : public snapshot_reader {
+      public:
+         explicit threaded_snapshot_reader(const std::filesystem::path& snapshot_path);
+
+         void validate() override;
+         void set_section( const string& section_name ) override;
+         bool read_row( detail::abstract_snapshot_row_reader& row_reader ) override;
+         bool empty ( ) override;
+         void clear_section() override;
+         void return_to_header() override;
+         size_t total_row_count() override;
+         bool supports_threading() const override {return true;}
+
+      private:
+         fc::random_access_file                   snapshot_file;
+         const boost::interprocess::mapped_region mapped_snap;
+         const char* const                        mapped_snap_addr;
+
+         thread_local inline static fc::datastream<const char*> ds = fc::datastream<const char*>(nullptr, 0);
+         thread_local inline static uint64_t                    num_rows;
+         thread_local inline static uint64_t                    cur_row;
    };
 
    class integrity_hash_snapshot_writer : public snapshot_writer {
@@ -410,20 +443,7 @@ namespace eosio { namespace chain {
          fc::sha256::encoder&  enc;
 
    };
-
-   struct snapshot_loaded_row_counter {
-      snapshot_loaded_row_counter(const size_t total) : total(total) {}
-      void progress() {
-         if(++count % 50000 == 0 && time(NULL) - last_print >= 5) {
-            ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)count/total)*100)));
-            last_print = time(NULL);
-         }
-      }
-      size_t count = 0;
-      const size_t total = 0;
-      time_t last_print = time(NULL);
-   };
-
+   
    struct snapshot_written_row_counter {
       snapshot_written_row_counter(const size_t total) : total(total) {}
       void progress() {

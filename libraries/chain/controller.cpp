@@ -2057,8 +2057,8 @@ struct controller_impl {
       });
    }
 
-   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
-      snapshot->read_section("contract_tables", [this, &row_counter]( auto& section ) {
+   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count ) {
+      snapshot->read_section("contract_tables", [this, &read_row_count]( auto& section ) {
          bool more = !section.empty();
          while (more) {
             // read the row for the table
@@ -2067,22 +2067,22 @@ struct controller_impl {
                section.read_row(row, db);
                t_id = row.id;
             });
-            row_counter.progress();
+            read_row_count.fetch_add(1u, std::memory_order_relaxed);
 
             // read the size and data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &row_counter](auto utils) {
+            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &read_row_count](auto utils) {
                using utils_t = decltype(utils);
 
                unsigned_int size;
                more = section.read_row(size, db);
-               row_counter.progress();
+               read_row_count.fetch_add(1u, std::memory_order_relaxed);
 
                for (size_t idx = 0; idx < size.value; idx++) {
                   utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
                      more = section.read_row(row, db);
                   });
-                  row_counter.progress();
+                  read_row_count.fetch_add(1u, std::memory_order_relaxed);
                }
             });
          }
@@ -2173,7 +2173,8 @@ struct controller_impl {
    }
 
    block_state_pair read_from_snapshot( const snapshot_reader_ptr& snapshot, uint32_t blog_start, uint32_t blog_end ) {
-      snapshot_loaded_row_counter row_counter(snapshot->total_row_count());
+      const size_t total_snapshot_rows = snapshot->total_row_count();
+      std::atomic_size_t rows_loaded;
 
       chain_snapshot_header header;
       snapshot->read_section<chain_snapshot_header>([this, &header]( auto &section ){
@@ -2247,7 +2248,10 @@ struct controller_impl {
                   ("block_log_last_num", blog_end)
       );
 
-      controller_index_set::walk_indices([this, &snapshot, &header, &row_counter]( auto utils ){
+      sync_threaded_work<struct snapload> snapshot_load_workqueue;
+      boost::asio::io_context& snapshot_load_ctx = snapshot_load_workqueue.io_context();
+
+      controller_index_set::walk_indices_via_post(snapshot_load_ctx, [this, &snapshot, &header, &rows_loaded]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
          // skip the table_id_object as its inlined with contract tables section
@@ -2320,21 +2324,30 @@ struct controller_impl {
             }
          }
 
-         snapshot->read_section<value_t>([this,&row_counter]( auto& section ) {
+         snapshot->read_section<value_t>([this,&rows_loaded]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, db);
                });
-               row_counter.progress();
+               rows_loaded.fetch_add(1u, std::memory_order_relaxed);
             }
          });
       });
 
-      read_contract_tables_from_snapshot(snapshot, row_counter);
+      snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
+         read_contract_tables_from_snapshot(snapshot, rows_loaded);
+      });
 
-      authorization.read_from_snapshot(snapshot, row_counter);
-      resource_limits.read_from_snapshot(snapshot, row_counter);
+      authorization.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
+      resource_limits.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
+
+      constexpr unsigned max_snapshot_load_threads = 4;
+      const unsigned snapshot_load_threads = snapshot->supports_threading() ? max_snapshot_load_threads : 1;
+
+      snapshot_load_workqueue.run(snapshot_load_threads, std::chrono::seconds(5), [&]() {
+         ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)rows_loaded/total_snapshot_rows)*100)));
+      });
 
       db.set_revision( chain_head.block_num() );
       db.create<database_header_object>([](const auto& header){
