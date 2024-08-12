@@ -3480,14 +3480,14 @@ struct controller_impl {
       EOS_REPORT( "header_extensions", b.header_extensions, ab.header_extensions )
 
       if (b.header_extensions != ab.header_extensions) {
-         flat_multimap<uint16_t, block_header_extension> bheader_exts = b.validate_and_extract_header_extensions();
-         if (bheader_exts.count(finality_extension::extension_id())) {
-            const auto& f_ext = std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
+         header_extension_multimap bheader_exts = b.validate_and_extract_header_extensions();
+         if (auto it = bheader_exts.find(finality_extension::extension_id()); it != bheader_exts.end()) {
+            const auto& f_ext = std::get<finality_extension>(it->second);
             elog("b  if: ${i}", ("i", f_ext));
          }
-         flat_multimap<uint16_t, block_header_extension> abheader_exts = ab.validate_and_extract_header_extensions();
-         if (abheader_exts.count(finality_extension::extension_id())) {
-            const auto& f_ext = std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
+         header_extension_multimap abheader_exts = ab.validate_and_extract_header_extensions();
+         if (auto it = abheader_exts.find(finality_extension::extension_id()); it != abheader_exts.end()) {
+            const auto& f_ext = std::get<finality_extension>(it->second);
             elog("ab if: ${i}", ("i", f_ext));
          }
       }
@@ -3498,12 +3498,12 @@ struct controller_impl {
    static std::optional<qc_data_t> extract_qc_data(const signed_block_ptr& b) {
       std::optional<qc_data_t> qc_data;
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+      if (auto f_entry = hexts.find(finality_extension::extension_id()); f_entry != hexts.end()) {
          auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
-         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+         if (auto entry = exts.find(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
             return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
@@ -3870,7 +3870,7 @@ struct controller_impl {
                   invalid_qc_claim,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
-      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
+      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match

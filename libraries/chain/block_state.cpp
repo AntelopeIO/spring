@@ -194,11 +194,9 @@ void block_state::verify_qc(const qc_t& qc) const {
 }
 
 qc_claim_t block_state::extract_qc_claim() const {
-   auto itr = header_exts.lower_bound(finality_extension::extension_id());
-   if (itr == header_exts.end())
-      return {};
-   const auto& f_ext = std::get<finality_extension>(itr->second);
-   return f_ext.qc_claim;
+   if (auto itr = header_exts.find(finality_extension::extension_id()); itr != header_exts.end())
+      return std::get<finality_extension>(itr->second).qc_claim;
+   return {};
 }
 
 valid_t block_state::new_valid(const block_header_state& next_bhs, const digest_type& action_mroot, const digest_type& strong_digest) const {
