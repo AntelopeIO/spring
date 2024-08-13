@@ -69,9 +69,11 @@ digest_type block_header_state::compute_finality_digest() const {
 }
 
 // returns scheduled active proposer policy for a given block at timestamp `t`
-const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_block_at(block_timestamp_type t) const {
+const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_block_at(block_timestamp_type next_block_timestamp) const {
+   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
+
    // if the block is in the same round of current block, use current active_proposer_policy
-   if (detail::in_same_round(t, timestamp())) {
+   if (detail::in_same_round(next_block_timestamp, timestamp())) {
       return active_proposer_policy;
    }
 
@@ -80,7 +82,8 @@ const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_bl
       return active_proposer_policy;
    }
 
-   // the next block (with timestamp `t`)  must be the first block in a round after the current round
+   // at this point, the next block (with timestamp `next_block_timestamp`)
+   // must be the first block in a round after the current round
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
    if (latest_proposed_proposer_policy && prior_round_start_slot &&
          (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot &&
@@ -101,8 +104,9 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
 }
 
 // returns producer using the proposer policy calculated by time `t`
-const producer_authority& block_header_state::get_producer_for_block_at(block_timestamp_type t) const {
-   return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(t)->proposer_schedule.producers, t);
+const producer_authority& block_header_state::get_producer_for_block_at(block_timestamp_type next_block_timestamp) const {
+   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
+   return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule.producers, next_block_timestamp);
 }
 
 const producer_authority_schedule* block_header_state::pending_producers() const {
@@ -230,21 +234,23 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 }
 
 void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
-                                               block_header_state& curr) {
-   auto& new_policy = prev.get_active_proposer_policy_for_block_at(curr.timestamp());
-   if (new_policy != curr.active_proposer_policy) {
-      curr.active_proposer_policy = new_policy;
-      if (curr.latest_proposed_proposer_policy && new_policy == *curr.latest_proposed_proposer_policy) {
-         curr.latest_proposed_proposer_policy = std::nullopt;
-         curr.latest_pending_proposer_policy = std::nullopt;
-      } else if (curr.latest_pending_proposer_policy && new_policy == *curr.latest_pending_proposer_policy)
-         curr.latest_pending_proposer_policy = std::nullopt;
+                                              block_header_state& next) {
+   assert(next.timestamp() > prev.timestamp()); // next block timestamp must be greater than nextent timestamp
+
+   auto& new_policy = prev.get_active_proposer_policy_for_block_at(next.timestamp());
+   if (new_policy != next.active_proposer_policy) {
+      next.active_proposer_policy = new_policy;
+      if (next.latest_proposed_proposer_policy && new_policy == *next.latest_proposed_proposer_policy) {
+         next.latest_proposed_proposer_policy = std::nullopt;
+         next.latest_pending_proposer_policy = std::nullopt;
+      } else if (next.latest_pending_proposer_policy && new_policy == *next.latest_pending_proposer_policy)
+         next.latest_pending_proposer_policy = std::nullopt;
    }
 
-   if (detail::first_block_of_round(curr.timestamp(), prev.timestamp()) &&
-      curr.latest_proposed_proposer_policy && !curr.latest_pending_proposer_policy) {
-      curr.latest_pending_proposer_policy = curr.latest_proposed_proposer_policy;
-      curr.latest_proposed_proposer_policy = std::nullopt;
+   if (detail::first_block_of_round(next.timestamp(), prev.timestamp()) &&
+      next.latest_proposed_proposer_policy && !next.latest_pending_proposer_policy) {
+      next.latest_pending_proposer_policy = next.latest_proposed_proposer_policy;
+      next.latest_proposed_proposer_policy = std::nullopt;
    }
 }
 
