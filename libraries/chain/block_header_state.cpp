@@ -105,13 +105,9 @@ const producer_authority& block_header_state::get_producer_for_block_at(block_ti
    return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(t)->proposer_schedule.producers, t);
 }
 
-const producer_authority_schedule* block_header_state::get_next_producer_schedule() const {
-   // In the order of pending and proposed
+const producer_authority_schedule* block_header_state::pending_producers() const {
    if (latest_pending_proposer_policy) {
       return &(*latest_pending_proposer_policy)->proposer_schedule;
-   }
-   if (latest_proposed_proposer_policy) {
-      return  &(*latest_proposed_proposer_policy)->proposer_schedule;
    }
    return nullptr;
 }

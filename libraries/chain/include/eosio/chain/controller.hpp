@@ -276,7 +276,7 @@ namespace eosio::chain {
          const producer_authority_schedule&         active_producers()const;
          const producer_authority_schedule&         head_active_producers()const;
          // pending for pre-instant-finality, next proposed that will take affect, null if none are pending/proposed
-         const producer_authority_schedule*         next_producers()const;
+         const producer_authority_schedule*         pending_producers()const;
          // post-instant-finality this always returns empty std::optional
          std::optional<producer_authority_schedule> proposed_producers_legacy()const;
          // pre-instant-finality this always returns a valid producer_authority_schedule

@@ -152,12 +152,14 @@ struct block_header_state {
    }
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
+   // returns active_proposer_policy used by child block built at `next_block_timestamp`
    const proposer_policy_ptr& get_active_proposer_policy_for_block_at(block_timestamp_type next_block_timestamp) const;
    // returns producer using current active proposer policy
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
-   // returns producer using the proposer policy calculated by time `t`
+   // returns producer of child block built at `next_block_timestamp`
    const producer_authority& get_producer_for_block_at(block_timestamp_type next_block_timestamp) const;
-   const producer_authority_schedule* get_next_producer_schedule() const;
+   // returns current pending policy, nullptr if not existing
+   const producer_authority_schedule* pending_producers() const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;

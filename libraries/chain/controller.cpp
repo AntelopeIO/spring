@@ -193,13 +193,13 @@ struct completed_block {
       });
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return bsp->pending_schedule_auth();
                     },
                     [](const block_state_ptr& bsp) -> const producer_authority_schedule* {
-                       return bsp->get_next_producer_schedule();
+                       return bsp->pending_producers();
                     }
          });
    }
@@ -331,14 +331,14 @@ struct assembled_block {
          v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const assembled_block_legacy& ab) -> const producer_authority_schedule* {
                                       return ab.new_producer_authority_cache.has_value()
                                                 ? &ab.new_producer_authority_cache.value()
                                                 : nullptr;
                                    },
                                    [](const assembled_block_if& ab) -> const producer_authority_schedule* {
-                                      return ab.bhs.get_next_producer_schedule();
+                                      return ab.bhs.pending_producers();
                                    }},
                         v);
    }
@@ -645,14 +645,14 @@ struct building_block {
                         v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const building_block_legacy& bb) -> const producer_authority_schedule* {
                                       if (bb.new_pending_producer_schedule)
                                          return &bb.new_pending_producer_schedule.value();
                                       return &bb.pending_block_header_state.prev_pending_schedule.schedule;
                                    },
                                    [](const building_block_if& bb) -> const producer_authority_schedule* {
-                                      return bb.parent.get_next_producer_schedule();
+                                      return bb.parent.pending_producers();
                                    }},
                         v);
    }
@@ -895,9 +895,9 @@ struct pending_state {
          _block_stage);
    }
 
-   const producer_authority_schedule* next_producers()const {
+   const producer_authority_schedule* pending_producers()const {
       return std::visit(
-         [](const auto& stage) -> const producer_authority_schedule* { return stage.next_producers(); },
+         [](const auto& stage) -> const producer_authority_schedule* { return stage.pending_producers(); },
          _block_stage);
    }
 
@@ -1021,14 +1021,14 @@ struct controller_impl {
          });
    }
 
-   const producer_authority_schedule* next_producers() {
+   const producer_authority_schedule* pending_producers() {
       return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{
          [](const block_state_legacy_ptr& head) -> const producer_authority_schedule* {
             return head->pending_schedule_auth();
          },
          [](const block_state_ptr& head) -> const producer_authority_schedule* {
-            return head->get_next_producer_schedule();
+            return head->pending_producers();
          }
       });
    }
@@ -5482,11 +5482,11 @@ std::optional<producer_authority_schedule> controller::proposed_producers_legacy
    return producer_authority_schedule::from_shared(gpo.proposed_schedule);
 }
 
-const producer_authority_schedule* controller::next_producers()const {
+const producer_authority_schedule* controller::pending_producers()const {
    if( !(my->pending) )
-      return my->next_producers();
+      return my->pending_producers();
 
-   return my->pending->next_producers();
+   return my->pending->pending_producers();
 }
 
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {

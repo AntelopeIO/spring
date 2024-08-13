@@ -1876,9 +1876,9 @@ read_only::get_producers( const read_only::get_producers_params& params, const f
 read_only::get_producer_schedule_result read_only::get_producer_schedule( const read_only::get_producer_schedule_params& p, const fc::time_point& ) const {
    read_only::get_producer_schedule_result result;
    to_variant(db.active_producers(), result.active);
-   if (const auto* pending = db.next_producers()) // not applicable for instant-finality
+   if (const auto* pending = db.pending_producers())
       to_variant(*pending, result.pending);
-   auto proposed = db.proposed_producers_legacy(); // empty for instant-finality
+   auto proposed = db.proposed_producers_legacy(); // empty for savanna
    if(proposed && !proposed->producers.empty())
       to_variant(*proposed, result.proposed);
    return result;
