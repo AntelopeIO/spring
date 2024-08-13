@@ -235,26 +235,18 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
 
 void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
                                                block_header_state& curr) {
-   // Do proposer policy transition only at the first block of a round
-   if (!detail::first_block_of_round(curr.timestamp(), prev.timestamp())) {
-      return;
+   auto& new_policy = prev.get_active_proposer_policy_for_block_at(curr.timestamp());
+   if (new_policy != curr.active_proposer_policy) {
+      curr.active_proposer_policy = new_policy;
+      if (curr.latest_proposed_proposer_policy && new_policy == *curr.latest_proposed_proposer_policy) {
+         curr.latest_proposed_proposer_policy = std::nullopt;
+         curr.latest_pending_proposer_policy = std::nullopt;
+      } else if (curr.latest_pending_proposer_policy && new_policy == *curr.latest_pending_proposer_policy)
+         curr.latest_pending_proposer_policy = std::nullopt;
    }
 
-   std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(curr.timestamp());
-
-   if (curr.latest_proposed_proposer_policy && prior_round_start_slot &&
-         ((*curr.latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) &&
-         ((*curr.latest_proposed_proposer_policy)->proposal_time <= prev.core.last_final_block_timestamp())) {
-      curr.active_proposer_policy = *curr.latest_proposed_proposer_policy;
-      curr.latest_proposed_proposer_policy = std::nullopt;
-      curr.latest_pending_proposer_policy = std::nullopt;
-   } else if (curr.latest_pending_proposer_policy &&
-                ((*curr.latest_pending_proposer_policy)->proposal_time <= prev.core.last_final_block_timestamp())) {
-      curr.active_proposer_policy = *curr.latest_pending_proposer_policy;
-      curr.latest_pending_proposer_policy = std::nullopt;
-   }
-
-   if (curr.latest_proposed_proposer_policy && !curr.latest_pending_proposer_policy) {
+   if (detail::first_block_of_round(curr.timestamp(), prev.timestamp()) &&
+      curr.latest_proposed_proposer_policy && !curr.latest_pending_proposer_policy) {
       curr.latest_pending_proposer_policy = curr.latest_proposed_proposer_policy;
       curr.latest_proposed_proposer_policy = std::nullopt;
    }
