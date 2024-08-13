@@ -69,7 +69,7 @@ digest_type block_header_state::compute_finality_digest() const {
 }
 
 // returns scheduled active proposer policy for a given block at timestamp `t`
-const proposer_policy_ptr& block_header_state::get_scheduled_active_proposer_policy_at(block_timestamp_type t) const {
+const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_block_at(block_timestamp_type t) const {
    // if the block is in the same round of current block, use current active_proposer_policy
    if (detail::in_same_round(t, timestamp())) {
       return active_proposer_policy;
@@ -101,8 +101,8 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
 }
 
 // returns producer using the proposer policy calculated by time `t`
-const producer_authority& block_header_state::get_scheduled_producer_at(block_timestamp_type t) const {
-   return detail::get_scheduled_producer(get_scheduled_active_proposer_policy_at(t)->proposer_schedule.producers, t);
+const producer_authority& block_header_state::get_producer_for_block_at(block_timestamp_type t) const {
+   return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(t)->proposer_schedule.producers, t);
 }
 
 const producer_authority_schedule* block_header_state::get_next_producer_schedule() const {
@@ -412,7 +412,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
  *  then validate that the provided header matches the template.
  */
 block_header_state block_header_state::next(const signed_block_header& h, validator_t& validator) const {
-   auto producer = get_scheduled_producer_at(h.timestamp).producer_name;
+   auto producer = get_producer_for_block_at(h.timestamp).producer_name;
    
    EOS_ASSERT( h.previous == block_id, unlinkable_block_exception,
                "previous mismatch ${p} != ${id}", ("p", h.previous)("id", block_id) );
