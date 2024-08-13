@@ -642,6 +642,10 @@ namespace chainbase {
          compress_impl(_undo_stack.back());
       }
 
+      size_t freelist_memory_usage() const {
+         return _allocator.freelist_memory_usage() + _old_values_allocator.freelist_memory_usage();
+      }
+
     private:
 
       // Removes elements of the last undo session that would be redundant

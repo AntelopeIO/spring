@@ -163,6 +163,7 @@ namespace chainbase {
          virtual void    undo_all()const = 0;
          virtual uint32_t type_id()const  = 0;
          virtual uint64_t row_count()const = 0;
+         virtual size_t freelist_memory_usage()const = 0;
          virtual const std::string& type_name()const = 0;
          virtual std::pair<uint64_t, uint64_t> undo_stack_revision_range()const = 0;
 
@@ -190,6 +191,7 @@ namespace chainbase {
          virtual void     undo_all() const override {_base.undo_all(); }
          virtual uint32_t type_id()const override { return BaseIndex::value_type::type_id; }
          virtual uint64_t row_count()const override { return _base.indices().size(); }
+         virtual size_t freelist_memory_usage() const override { return _base.freelist_memory_usage(); }
          virtual const std::string& type_name() const override { return BaseIndex_name; }
          virtual std::pair<uint64_t, uint64_t> undo_stack_revision_range()const override { return _base.undo_stack_revision_range(); }
 
@@ -396,6 +398,16 @@ namespace chainbase {
          size_t get_free_memory()const
          {
             return _db_file.get_segment_manager()->get_free_memory();
+         }
+
+         size_t get_reclaimable_memory() const {
+            size_t ret = 0;
+            for(const unique_ptr<abstract_index>& ai_ptr : _index_map) {
+               if(!ai_ptr)
+                  continue;
+               ret += ai_ptr->freelist_memory_usage();
+            }
+            return ret;
          }
 
          template<typename MultiIndexType>
