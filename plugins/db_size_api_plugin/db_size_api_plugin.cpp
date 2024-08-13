@@ -39,6 +39,7 @@ db_size_stats db_size_api_plugin::get() {
    ret.free_bytes = db.get_segment_manager()->get_free_memory();
    ret.size = db.get_segment_manager()->get_size();
    ret.used_bytes = ret.size - ret.free_bytes;
+   ret.reclaimable_bytes = db.get_reclaimable_memory();
 
    chainbase::database::database_index_row_count_multiset indices = db.row_count_per_index();
    for(const auto& i : indices)
