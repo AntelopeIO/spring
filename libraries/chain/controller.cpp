@@ -1007,10 +1007,10 @@ struct controller_impl {
       });
    }
 
-   const producer_authority_schedule& head_active_schedule_auth_for_block(block_timestamp_type timestamp) const {
+   const producer_authority_schedule& head_active_producers(block_timestamp_type next_block_timestamp) const {
       return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule& { return head->active_schedule_auth(); },
-                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_active_proposer_policy_for_block_at(timestamp)->proposer_schedule; }
+                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule; }
          });
    }
 
@@ -5046,7 +5046,7 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
    my->assemble_block(false, {}, nullptr);
 
    auto& ab = std::get<assembled_block>(my->pending->_block_stage);
-   const auto& valid_block_signing_authority = my->head_active_schedule_auth_for_block(ab.timestamp()).get_scheduled_producer(ab.timestamp()).authority;
+   const auto& valid_block_signing_authority = my->head_active_producers(ab.timestamp()).get_scheduled_producer(ab.timestamp()).authority;
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
@@ -5462,8 +5462,8 @@ const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
 }
 
-const producer_authority_schedule& controller::head_active_schedule_auth_for_block(block_timestamp_type t)const {
-   return my->head_active_schedule_auth_for_block(t);
+const producer_authority_schedule& controller::head_active_producers(block_timestamp_type next_block_timestamp)const {
+   return my->head_active_producers(next_block_timestamp);
 }
 
 const producer_authority_schedule& controller::head_active_producers()const {

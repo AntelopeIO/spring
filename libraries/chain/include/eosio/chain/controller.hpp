@@ -269,7 +269,10 @@ namespace eosio::chain {
 
          // returns producer_authority_schedule for a next block built from head with
          // `next_block_timestamp`
-         const producer_authority_schedule&         head_active_schedule_auth_for_block(block_timestamp_type next_block_timestamp)const;
+         const producer_authority_schedule&         head_active_producers(block_timestamp_type next_block_timestamp)const;
+         // active_producers() is legacy and may be deprecated in the future;
+         // head_active_producers(block_timestamp_type next_block_timestamp)
+         // is preferred.
          const producer_authority_schedule&         active_producers()const;
          const producer_authority_schedule&         head_active_producers()const;
          // pending for pre-instant-finality, next proposed that will take affect, null if none are pending/proposed

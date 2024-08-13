@@ -1792,7 +1792,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    _pending_block_mode = pending_block_mode::producing;
 
    // copy as reference is invalidated by abort_block() below
-   const producer_authority scheduled_producer = chain.head_active_schedule_auth_for_block(block_time).get_scheduled_producer(block_time);
+   const producer_authority scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
 
    size_t num_relevant_signatures = 0;
    scheduled_producer.for_each_key([&](const public_key_type& key) {
