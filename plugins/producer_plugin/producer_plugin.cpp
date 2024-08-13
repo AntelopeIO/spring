@@ -2816,7 +2816,7 @@ void producer_plugin_impl::produce_block() {
    br.total_time += fc::time_point::now() - start;
    chain.commit_block(br);
 
-   const auto& new_b = chain.head().block();
+   const signed_block_ptr new_b = chain.head().block();
    if (_update_produced_block_metrics) {
       producer_plugin::produced_block_metrics metrics;
       metrics.unapplied_transactions_total = _unapplied_transactions.size();

@@ -2201,7 +2201,7 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup || !sync_source ) {
+      if( sync_state != lib_catchup ) {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
@@ -2521,8 +2521,6 @@ namespace eosio {
                } else {
                   if (blk_num == sync_next_expected_num) {
                      ++sync_next_expected_num;
-                  } else if (blk_num < sync_next_expected_num) {
-                     sync_next_expected_num = blk_num + 1;
                   }
                }
                if (blk_num >= sync_known_lib_num) {
@@ -2545,8 +2543,7 @@ namespace eosio {
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
-                  // should not reach as should have hit the above when the block was received but not applied, but
-                  // if we do then request blocks as we are still in lib_catchup
+                  // Did not request blocks ahead, likely because too far ahead of head
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                   "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())

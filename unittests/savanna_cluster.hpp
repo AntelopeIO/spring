@@ -5,6 +5,7 @@
 
 #include <eosio/testing/tester.hpp>
 #include <ranges>
+
 #include <boost/unordered/unordered_flat_map.hpp>
 
 #include "snapshot_suites.hpp"

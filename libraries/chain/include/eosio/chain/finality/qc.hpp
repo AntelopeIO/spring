@@ -66,6 +66,12 @@ namespace eosio::chain {
 
       // called from net threads
       void verify(const finalizer_policy_ptr& fin_policy, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+      void verify_vote_format(const finalizer_policy_ptr& fin_policy) const;
+
+      // returns true if vote indicated by my_vote_index in strong_votes or
+      // weak_votes are is the same as the one indicated by other_vote_index
+      // in `other` signature's strong_votes or weak_votes
+      bool vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint32_t other_vote_index) const;
    };
 
    struct qc_t {
@@ -83,6 +89,10 @@ namespace eosio::chain {
       qc_claim_t to_qc_claim() const {
          return { .block_num = block_num, .is_strong_qc = is_strong() };
       }
+
+      // returns true if vote indicated by active_vote_index in active_policy
+      // is the same as vote indicated by pending_vote_index in pending_policy
+      bool vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index) const;
    };
 
    struct qc_data_t {
@@ -258,6 +268,9 @@ namespace eosio::chain {
       finalizer_policy_ptr                pending_finalizer_policy; // not modified after construction
       aggregating_qc_sig_t                active_policy_sig;
       std::optional<aggregating_qc_sig_t> pending_policy_sig;
+
+      // verify qc against active and pending policy
+      void verify_dual_finalizers_votes(const qc_t& qc) const;
    };
 
 } //eosio::chain

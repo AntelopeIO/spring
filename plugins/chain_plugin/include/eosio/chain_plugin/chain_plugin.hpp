@@ -1027,8 +1027,6 @@ public:
 
    const controller::config& chain_config() const;
 
-   void register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&&);
-
 private:
 
    unique_ptr<class chain_plugin_impl> my;
