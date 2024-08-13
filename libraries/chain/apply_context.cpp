@@ -438,7 +438,7 @@ void apply_context::schedule_deferred_transaction( const uint128_t& sender_id, a
    if( control.is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
       auto exts = trx.validate_and_extract_extensions();
       if( exts.size() > 0 ) {
-         auto itr = exts.lower_bound( deferred_transaction_generation_context::extension_id() );
+         auto itr = exts.find( deferred_transaction_generation_context::extension_id() );
 
          EOS_ASSERT( exts.size() == 1 && itr != exts.end(), invalid_transaction_extension,
                      "only the deferred_transaction_generation_context extension is currently supported for deferred transactions"

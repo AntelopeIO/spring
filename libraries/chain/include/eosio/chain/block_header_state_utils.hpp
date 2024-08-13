@@ -37,8 +37,8 @@ namespace eosio::chain::detail {
    inline vector<signature_type> extract_additional_signatures(const signed_block_ptr& b) {
       auto exts = b->validate_and_extract_extensions();
 
-      if (exts.count(additional_sigs_eid) > 0) {
-         auto& additional_sigs = std::get<additional_block_signatures_extension>(exts.lower_bound(additional_sigs_eid)->second);
+      if (auto it = exts.find(additional_sigs_eid); it != exts.end()) {
+         auto& additional_sigs = std::get<additional_block_signatures_extension>(it->second);
          return std::move(additional_sigs.signatures);
       }
 
@@ -51,10 +51,10 @@ namespace eosio::chain::detail {
    inline const vector<digest_type>& get_new_protocol_feature_activations(const header_extension_multimap& header_exts) {
       static const vector<digest_type> no_activations{};
 
-      if( header_exts.count(protocol_feature_activation::extension_id()) == 0 )
-         return no_activations;
+      if (auto it = header_exts.find(protocol_feature_activation::extension_id()); it != header_exts.end())
+         return std::get<protocol_feature_activation>(it->second).protocol_features;
 
-      return std::get<protocol_feature_activation>(header_exts.lower_bound(protocol_feature_activation::extension_id())->second).protocol_features;
+      return no_activations;
    }
 
 } /// namespace eosio::chain

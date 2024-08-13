@@ -635,8 +635,8 @@ namespace eosio { namespace chain {
    }
 
    void impl::abi_to_variant::add_block_header_finality_extension( mutable_variant_object& mvo, const header_extension_multimap& header_exts ) {
-      if (header_exts.count(finality_extension::extension_id())) {
-         const auto& f_ext = std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
+      if (auto it = header_exts.find(finality_extension::extension_id()); it != header_exts.end()) {
+         const auto& f_ext = std::get<finality_extension>(it->second);
          mvo("finality_extension", f_ext);
       }
    }

@@ -346,4 +346,22 @@ BOOST_AUTO_TEST_CASE(hole_punch) try {
    }
 } FC_LOG_AND_RETHROW();
 
+BOOST_AUTO_TEST_CASE(read_only) try {
+   fc::temp_directory tmpdir;
+   std::filesystem::path filepath = tmpdir.path() / "file";
+
+   {
+      fc::random_access_file f(filepath);
+      f.pack_to_end(uint64_t(0xbeef));
+   }
+   {
+      fc::random_access_file f(filepath, fc::random_access_file::read_only);
+      BOOST_REQUIRE_EQUAL(f.unpack_from<uint64_t>(0), 0xbeefu);
+      BOOST_REQUIRE_EXCEPTION(f.pack_to_end(uint64_t(0xbeef)), fc::assert_exception, [](const fc::assert_exception& e) {
+         return e.top_message().find("write failure on file") != std::string::npos && e.top_message().find("Bad file descriptor") != std::string::npos;
+      });
+   }
+
+} FC_LOG_AND_RETHROW();
+
 BOOST_AUTO_TEST_SUITE_END()
