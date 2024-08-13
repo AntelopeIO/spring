@@ -1972,6 +1972,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       not_producing_when_time = true;
    }
 
+   // !not_producing_when_time to avoid tight spin because of error or paused production
    if (in_speculating_mode() && !not_producing_when_time) {
       static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
