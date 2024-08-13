@@ -3934,8 +3934,9 @@ struct controller_impl {
    }
 
    // thread safe, expected to be called from thread other than the main thread
+   // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
-   block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
+   std::tuple<bool, block_handle> create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
       if constexpr (savanna_mode) {
          // Verify claim made by finality_extension in block header extension and
@@ -3969,64 +3970,38 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
+      bool best_head = false;
       if (!should_terminate(bsp->block_num())) {
-         forkdb.add(bsp, ignore_duplicate_t::yes);
+         best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
       }
 
-      return block_handle{bsp};
-   }
-
-   std::future<block_handle> create_block_handle_future( const block_id_type& id, const signed_block_ptr& b ) {
-      EOS_ASSERT( b, block_validate_exception, "null block" );
-
-      auto f = [&](auto& forkdb) -> std::future<block_handle> {
-         return post_async_task( thread_pool.get_executor(), [b, id, &forkdb, control=this]() {
-            auto prev = forkdb.get_block( b->previous, include_root_t::yes );
-            EOS_ASSERT( prev, unlinkable_block_exception,
-                        "unlinkable block ${id} previous ${p}", ("id", id)("p", b->previous) );
-
-            return control->create_block_state_i( forkdb, id, b, *prev );
-         } );
-      };
-
-      // always return a valid future
-      auto unlinkable = [&](const auto&) -> std::future<block_handle> {
-         std::packaged_task<block_handle()> task( [b, id]() -> block_handle {
-            EOS_ASSERT( false, unlinkable_block_exception,
-                        "unlinkable block ${id} previous ${p} not in fork db", ("id", id)("p", b->previous) );
-         } );
-         task();
-         return task.get_future();
-      };
-
-      if (!b->is_proper_svnn_block()) {
-         return fork_db.apply<std::future<block_handle>>(f, unlinkable);
-      }
-      return fork_db.apply<std::future<block_handle>>(unlinkable, f);
+      return std::tuple{best_head, block_handle{move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
-   std::optional<block_handle> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
+   //         best_head, block_handle if added to fork_db
+   std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
       EOS_ASSERT( b, block_validate_exception, "null block" );
       
-      auto f = [&](auto& forkdb) -> std::optional<block_handle> {
+      auto f = [&](auto& forkdb) -> std::tuple<bool, std::optional<block_handle>> {
          // previous not found, means it is unlinkable
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
-         return create_block_state_i( forkdb, id, b, *prev );
+         auto [best_head, obh] = create_block_state_i( forkdb, id, b, *prev );
+         return {best_head, std::optional<block_handle>(std::move(obh))};
       };
 
-      auto unlinkable = [&](const auto&) -> std::optional<block_handle> {
-         return {};
+      auto unlinkable = [&](const auto&) -> std::tuple<bool, std::optional<block_handle>> {
+         return {false, {}};
       };
 
       if (!b->is_proper_svnn_block()) {
-         return fork_db.apply<std::optional<block_handle>>(f, unlinkable);
+         return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(f, unlinkable);
       }
-      return fork_db.apply<std::optional<block_handle>>(unlinkable, f);
+      return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(unlinkable, f);
    }
 
    // thread safe, QC already verified by verify_qc_claim
@@ -5122,11 +5097,7 @@ boost::asio::io_context& controller::get_thread_pool() {
    return my->thread_pool.get_executor();
 }
 
-std::future<block_handle> controller::create_block_handle_future( const block_id_type& id, const signed_block_ptr& b ) {
-   return my->create_block_handle_future( id, b );
-}
-
-std::optional<block_handle> controller::create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const {
+std::tuple<bool, std::optional<block_handle>> controller::create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
 }
 

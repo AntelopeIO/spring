@@ -190,10 +190,8 @@ namespace eosio::chain {
          void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
-         std::future<block_handle> create_block_handle_future( const block_id_type& id, const signed_block_ptr& b );
-         // thread-safe
-         // returns empty optional if block b is not immediately ready to be processed
-         std::optional<block_handle> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const;
+         // returns true if new best head and empty optional if block b is unlinkable
+         std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const;
 
          /**
           * @param br returns statistics for block

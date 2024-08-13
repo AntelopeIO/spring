@@ -683,7 +683,7 @@ public:
 
       auto& chain = chain_plug->chain();
 
-      // de-dupe here... no point in aborting block if we already know the block; avoid exception in create_block_handle_future
+      // de-dupe here... no point in aborting block if we already know the block
       if (chain.validated_block_exists(id)) {
          fc_dlog(_log, "already have validated block ${n} ${id}", ("n", blk_num)("id", id));
          _time_tracker.add_other_time();

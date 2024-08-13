@@ -3742,10 +3742,11 @@ namespace eosio {
 
          std::optional<block_handle> obh;
          bool exception = false;
+         bool best_head = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
-            // this may return null if block is not linkable
-            obh = cc.create_block_handle( id, ptr );
+            // this will return empty optional<block_handle> if block is not linkable
+            std::tie(best_head, obh) = cc.create_block_handle( id, ptr );
          } catch( const invalid_qc_claim& ex) {
             exception = true;
             close_mode = sync_manager::closing_mode::immediately;
@@ -3768,22 +3769,24 @@ namespace eosio {
             return;
          }
 
-
          assert(obh);
          uint32_t block_num = obh->block_num();
 
-         fc_dlog( logger, "validated block header, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
-                  ("cid", cid)("num", block_num)("id", obh->id()) );
+         fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
+                  ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
 
-         fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
-         app().executor().post(priority::medium, exec_queue::read_write, [ptr{std::move(ptr)}, bh{std::move(*obh)}, id, c{std::move(c)}]() mutable {
-            c->process_signed_block( id, std::move(ptr), bh );
-         });
+         if (best_head) {
+            fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
+            app().executor().post(priority::medium, exec_queue::read_write,
+                                  [ptr{std::move(ptr)}, bh{std::move(*obh)}, id, c{std::move(c)}]() mutable {
+                                     c->process_signed_block(id, std::move(ptr), bh);
+                                  });
 
-         // ready to process immediately, so signal producer to interrupt start_block
-         my_impl->producer_plug->received_block(block_num);
+            // ready to process immediately, so signal producer to interrupt start_block
+            my_impl->producer_plug->received_block(block_num);
+         }
       });
    }
 

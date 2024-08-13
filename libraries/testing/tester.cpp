@@ -400,10 +400,11 @@ namespace eosio::testing {
 
    void base_tester::push_block(const signed_block_ptr& b) {
       auto block_id = b->calculate_id();
-      auto bhf = control->create_block_handle_future(block_id, b);
+      auto [best_fork, obh] = control->create_block_handle(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );
       controller::block_report br;
-      block_handle bh = bhf.get();
+      EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", b->calculate_id()));
+      const block_handle& bh = *obh;
       control->push_block( br, bh, [this]( const transaction_metadata_ptr& trx ) {
          unapplied_transactions.add_forked( trx );
       }, [this]( const transaction_id_type& id ) {
@@ -1169,10 +1170,12 @@ namespace eosio::testing {
 
             auto block = a.control->fetch_block_by_number(i);
             if( block ) { //&& !b.control->is_known_block(block->id()) ) {
-               auto btf = b.control->create_block_handle_future( block->calculate_id(), block );
+               auto id = block->calculate_id();
+               auto [best_head, obh] = b.control->create_block_handle( id, block );
                b.control->abort_block();
                controller::block_report br;
-               b.control->push_block(br, btf.get(), {}, trx_meta_cache_lookup{}); //, eosio::chain::validation_steps::created_block);
+               EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
+               b.control->push_block(br, *obh, {}, trx_meta_cache_lookup{}); //, eosio::chain::validation_steps::created_block);
             }
          }
       };

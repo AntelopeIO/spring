@@ -2116,15 +2116,15 @@ void read_write::push_block(read_write::push_block_params&& params, next_functio
    try {
       auto b = std::make_shared<signed_block>( std::move(params) );
       block_id_type id = b->calculate_id();
-      auto bhf = db.create_block_handle_future( id, b );
-      block_handle bh = bhf.get();
-      app().get_method<incoming::methods::block_sync>()(b, id, bh);
-      next(read_write::push_block_results{});
+      auto [best_head, obh] = db.create_block_handle( id, b );
+      EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
+      app().get_method<incoming::methods::block_sync>()(b, id, *obh);
    } catch ( boost::interprocess::bad_alloc& ) {
       handle_db_exhaustion();
    } catch ( const std::bad_alloc& ) {
       handle_bad_alloc();
-   } CATCH_AND_CALL(next);
+   } FC_LOG_AND_DROP()
+   next(read_write::push_block_results{});
 }
 
 void read_write::push_transaction(const read_write::push_transaction_params& params, next_function<read_write::push_transaction_results> next) {
