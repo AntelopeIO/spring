@@ -89,6 +89,31 @@ struct block_header_state {
    finalizer_policy_ptr                active_finalizer_policy; // finalizer set + threshold + generation, supports `digest()`
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
+   /*
+    Tracking proposer policy transition is based on https://github.com/AntelopeIO/spring/issues/454
+
+    1. If latest_proposed_proposer_policy is not nullopt and its proposal_time
+       indicates that it was proposed in a round before the prior round,
+       then maybe promote latest_proposed_proposer_policy to active_proposer_policy
+       (maybe because other conditions may also need to apply, to be discussed in a bit).
+       If it is promoted, then latest_pending_proposer_policy and latest_proposed_proposer_policy
+       should be set to nullopt at this point in time (latest_proposed_proposer_policy
+       may still be changed in later steps).
+    2. Otherwise, if latest_pending_proposer_policy is not nullopt, maybe promote
+       latest_pending_proposer_policy to active_proposer_policy.
+       If it is promoted, then latest_pending_proposer_policy should be set to nullopt
+       at this point in time (may still be changed in later steps).
+    3. If latest_proposed_proposer_policy is not nullopt and latest_pending_proposer_policy
+       is now nullopt, latest_proposed_proposer_policy is moved into
+       latest_pending_proposer_policy. If it is moved, then latest_proposed_proposer_policy
+       should be set to nullopt at this point in time (may still be changed in later steps).
+    4. If this block proposes a new proposer policy, that policy should be set
+       in latest_proposed_proposer_policy (replacing whatever happened to be there).
+    5. An extra condition on steps 1 and 2 above when deciding whether to promote
+       latest_pending_proposer_policy or latest_proposed_proposer_policy to
+       active_proposer_policy is we should not promote the policy if the proposal_time
+       of the policy is greater than the last_final_block_timestamp of the previous block.
+    */
    std::optional<proposer_policy_ptr> latest_proposed_proposer_policy;
    std::optional<proposer_policy_ptr> latest_pending_proposer_policy;
 

@@ -278,13 +278,10 @@ void finish_next(const block_header_state& prev,
 
    evaluate_proposer_policies_for_promotion(prev, next_header_state);
 
-   std::optional<proposer_policy> new_proposer_policy;
    if (f_ext.new_proposer_policy_diff) {
-      new_proposer_policy = prev.get_last_proposed_proposer_policy().apply_diff(*f_ext.new_proposer_policy_diff);
-   }
-   if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.latest_proposed_proposer_policy = std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
+      next_header_state.latest_proposed_proposer_policy =
+         std::make_shared<proposer_policy>(prev.get_last_proposed_proposer_policy().apply_diff(*f_ext.new_proposer_policy_diff));
    }
 
    // finality_core
