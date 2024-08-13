@@ -386,9 +386,13 @@ BOOST_FIXTURE_TEST_CASE( proposer_policy_misc_tests, legacy_validating_tester ) 
       set_producers( {"alice"_n} );
       set_producers( {"bob"_n} );
 
-      produce_block();
-      produce_blocks((2 * config::producer_repetitions) - 1, true);
+      auto b = produce_block();
+      auto index = b->timestamp.slot % config::producer_repetitions;
+      produce_blocks(config::producer_repetitions - index - 1); // until the last block of round 1
 
+      produce_blocks(config::producer_repetitions); // round 2
+
+      produce_block(); // round 3
       vector<producer_authority> sch = {
          producer_authority{"bob"_n, block_signing_authority_v0{1, {{get_public_key("bob"_n, "active"), 1}}}}
                                };
@@ -535,16 +539,16 @@ BOOST_FIXTURE_TEST_CASE( large_gap_test, validating_tester ) try {
 
    // far in the future, the latest proposed policy (bob) becomes active
    b = produce_block();
-   vector<producer_authority> bob_sch = {
+   vector<producer_authority> alice_sch = {
       producer_authority{
-         "bob"_n,
+         "alice"_n,
          block_signing_authority_v0{
             1,
-            {{get_public_key("bob"_n, "active"), 1}}}}
+            {{get_public_key("alice"_n, "active"), 1}}}}
    };
-   BOOST_CHECK_EQUAL(b->producer, "bob"_n);
-   BOOST_CHECK_EQUAL(control->active_producers().version, 2u);
-   BOOST_CHECK_EQUAL(compare_schedules(bob_sch, control->active_producers()), true);
+   BOOST_CHECK_EQUAL(b->producer, "alice"_n);
+   BOOST_CHECK_EQUAL(control->active_producers().version, 1u);
+   BOOST_CHECK_EQUAL(compare_schedules(alice_sch, control->active_producers()), true);
 } FC_LOG_AND_RETHROW()
 
 // This is to verify the bug reported by https://github.com/AntelopeIO/spring/issues/454

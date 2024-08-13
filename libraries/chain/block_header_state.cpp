@@ -83,11 +83,13 @@ const proposer_policy_ptr& block_header_state::get_scheduled_active_proposer_pol
    // the next block (with timestamp `t`)  must be the first block in a round after the current round
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
    if (latest_proposed_proposer_policy && prior_round_start_slot &&
-      (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) {
+         (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot &&
+         (*latest_proposed_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
       return *latest_proposed_proposer_policy;
    }
 
-   if (latest_pending_proposer_policy) {
+   if (latest_pending_proposer_policy &&
+         (*latest_pending_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
       return *latest_pending_proposer_policy;
    }
 
@@ -241,11 +243,13 @@ void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(curr.timestamp());
 
    if (curr.latest_proposed_proposer_policy && prior_round_start_slot &&
-      (*curr.latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) {
+         ((*curr.latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot) &&
+         ((*curr.latest_proposed_proposer_policy)->proposal_time <= prev.core.last_final_block_timestamp())) {
       curr.active_proposer_policy = *curr.latest_proposed_proposer_policy;
       curr.latest_proposed_proposer_policy = std::nullopt;
       curr.latest_pending_proposer_policy = std::nullopt;
-   } else if (curr.latest_pending_proposer_policy) {
+   } else if (curr.latest_pending_proposer_policy &&
+                ((*curr.latest_pending_proposer_policy)->proposal_time <= prev.core.last_final_block_timestamp())) {
       curr.active_proposer_policy = *curr.latest_pending_proposer_policy;
       curr.latest_pending_proposer_policy = std::nullopt;
    }
