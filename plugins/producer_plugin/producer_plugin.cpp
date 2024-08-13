@@ -519,6 +519,7 @@ public:
    fc::time_point                                    _accepted_block_time;
    bool                                              _is_savanna_active                           = false;
    bool                                              _is_producer_active_finalizer                = false;
+   // are there any active finalizers that are not part of producers of this node (not expected to be false outside tests)
    bool                                              _other_active_finalizers                     = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;

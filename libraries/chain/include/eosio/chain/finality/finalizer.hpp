@@ -75,6 +75,7 @@ namespace eosio::chain {
 
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
+      using vote_t  = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
 
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
@@ -91,14 +92,13 @@ namespace eosio::chain {
          : persist_file_path(persist_file_path)
       {}
 
-      template<class F> // thread safe
+      template<class F> // thread safe, F(vote_t)
       void maybe_vote(const block_state_ptr& bsp, F&& process_vote) {
          if (finalizers.empty())
             return;
 
          assert(bsp->active_finalizer_policy);
 
-         using vote_t = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
          std::vector<vote_t> votes;
          votes.reserve(finalizers.size());
 
@@ -127,7 +127,7 @@ namespace eosio::chain {
             if (in_active || in_pending) {
                vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
-                  votes.push_back(std::tuple{std::move(vote_msg), std::move(active_auth), std::move(pending_auth)});
+                  votes.push_back(vote_t{std::move(vote_msg), std::move(active_auth), std::move(pending_auth)});
             }
          }
 

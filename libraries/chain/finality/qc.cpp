@@ -468,24 +468,21 @@ aggregate_vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id,
       return s;
    };
 
-   vote_result_t s = add_vote(r.active_authority, active_finalizer_policy, active_policy_sig);
-   if (s != vote_result_t::success && s != vote_result_t::unknown_public_key) {
-      r.result = s;
+   r.result = add_vote(r.active_authority, active_finalizer_policy, active_policy_sig);
+   if (r.result != vote_result_t::success && r.result != vote_result_t::unknown_public_key)
       return r;
-   }
 
    if (pending_finalizer_policy) {
       assert(pending_policy_sig);
       vote_result_t ps = add_vote(r.pending_authority, pending_finalizer_policy, *pending_policy_sig);
       if (ps != vote_result_t::unknown_public_key)
-         s = ps;
+         r.result = ps;
    }
 
-   if (s == vote_result_t::unknown_public_key) {
+   if (r.result == vote_result_t::unknown_public_key) {
       fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
               ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
    }
-   r.result = s;
    return r;
 }
 

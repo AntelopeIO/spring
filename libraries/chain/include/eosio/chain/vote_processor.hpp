@@ -69,7 +69,8 @@ private:
       if (connection_id != 0) { // this nodes vote was already signaled
          if (status != vote_result_t::duplicate) { // don't bother emitting duplicates
             chain::emit( vote_signal,
-                         std::tuple{connection_id, status, std::cref(msg), std::cref(active_auth), std::cref(pending_auth)},
+                         vote_signal_params{connection_id, status,
+                                            std::cref(msg), std::cref(active_auth), std::cref(pending_auth)},
                          __FILE__, __LINE__ );
          }
       }

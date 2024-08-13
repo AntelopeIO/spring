@@ -3971,7 +3971,7 @@ namespace eosio {
             return active_auth->description;
          if (pending_auth)
             return pending_auth->description;
-         return "unknown";
+         return std::string{"unknown"};
       };
 
       fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, ${d}, key ${k}..",
