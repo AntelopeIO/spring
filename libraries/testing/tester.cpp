@@ -561,8 +561,12 @@ namespace eosio::testing {
          // otherwise the testing_allow_voting would be set to true when `i >= 4` even though the user of
          // `produce_blocks` wants it to be true.
          // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
-         if (allow_voting_originally && n > 4)
-            control->testing_allow_voting(i >= n - 4);
+         if (allow_voting_originally && n > 4) {
+            // Some tests like the ones for proposer policy transition rely on LIB advance
+            // at least every round (12 blocks). Vote first 2 out of every 12 blocks.
+            auto j = i%12;
+            control->testing_allow_voting( j == 0 || j == 1 || i >= n - 4);
+         }
          res = empty ? produce_empty_block() : produce_block();
       }
       return res;
