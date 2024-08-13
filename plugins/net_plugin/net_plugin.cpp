@@ -291,7 +291,6 @@ namespace eosio {
       void bcast_block( const signed_block_ptr& b, const block_id_type& id );
       void rejected_block(const block_id_type& id);
 
-      void recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum);
       void expire_blocks( uint32_t lib_num );
       void recv_notice(const connection_ptr& conn, const notice_message& msg, bool generated);
 
@@ -2698,10 +2697,6 @@ namespace eosio {
       } );
    }
 
-   // called from c's connection strand
-   void dispatch_manager::recv_block(const connection_ptr& c, const block_id_type& id, uint32_t bnum) {
-   }
-
    void dispatch_manager::rejected_block(const block_id_type& id) {
       fc_dlog( logger, "rejected block ${id}", ("id", id) );
    }
@@ -3786,6 +3781,12 @@ namespace eosio {
 
             // ready to process immediately, so signal producer to interrupt start_block
             my_impl->producer_plug->received_block(block_num);
+         } else {
+            c->strand.post([sync_master = my_impl->sync_master.get(), c, id, block_num, timestamp=obh->timestamp()]() {
+               const fc::microseconds age(fc::time_point::now() - timestamp);
+               bool blk_applied = true; // not really applied, but accepted by controller into forkdb
+               sync_master->sync_recv_block(c, id, block_num, blk_applied, age);
+            });
          }
       });
    }
@@ -3864,9 +3865,7 @@ namespace eosio {
             }
          });
          c->strand.post( [sync_master = my_impl->sync_master.get(),
-                          &dispatcher = my_impl->dispatcher,
                           c, blk_id, blk_num, latency = age]() {
-            dispatcher.recv_block( c, blk_id, blk_num );
             sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
          });
       } else {
