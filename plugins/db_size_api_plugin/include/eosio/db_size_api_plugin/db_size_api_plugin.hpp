@@ -17,6 +17,7 @@ struct db_size_index_count {
 struct db_size_stats {
    uint64_t                    free_bytes = 0;
    uint64_t                    used_bytes = 0;
+   uint64_t                    reclaimable_bytes = 0;
    uint64_t                    size = 0;
    vector<db_size_index_count> indices;
 };
@@ -45,4 +46,4 @@ private:
 }
 
 FC_REFLECT( eosio::db_size_index_count, (index)(row_count) )
-FC_REFLECT( eosio::db_size_stats, (free_bytes)(used_bytes)(size)(indices) )
+FC_REFLECT( eosio::db_size_stats, (free_bytes)(used_bytes)(reclaimable_bytes)(size)(indices) )
