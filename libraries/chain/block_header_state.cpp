@@ -75,7 +75,7 @@ const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_bl
       return active_proposer_policy;
    }
 
-   // if there is no pending nor proposed propser policy, use current active_proposer_policy
+   // if there is no pending nor proposed proposer policy, use current active_proposer_policy
    if (!latest_proposed_proposer_policy && !latest_pending_proposer_policy) {
       return active_proposer_policy;
    }
