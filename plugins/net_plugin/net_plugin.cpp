@@ -1114,7 +1114,7 @@ namespace eosio {
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
 
-      void process_signed_block( const block_id_type& id, signed_block_ptr block, const std::optional<block_handle>& obt );
+      void process_signed_block( const block_id_type& id, signed_block_ptr block, const block_handle& bh );
 
       fc::variant_object get_logger_variant() const {
          fc::mutable_variant_object mvo;
@@ -3741,13 +3741,13 @@ namespace eosio {
             return;
          }
 
-         std::optional<block_handle> obt;
+         std::optional<block_handle> obh;
          bool exception = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
-            // this may return null if block is not immediately ready to be processed
-            obt = cc.create_block_handle( id, ptr );
-         } catch( const invalid_qc_claim &ex) {
+            // this may return null if block is not linkable
+            obh = cc.create_block_handle( id, ptr );
+         } catch( const invalid_qc_claim& ex) {
             exception = true;
             close_mode = sync_manager::closing_mode::immediately;
             fc_wlog( logger, "invalid QC claim exception, connection - ${cid}: #${n} ${id}...: ${m}",
@@ -3761,7 +3761,7 @@ namespace eosio {
             fc_wlog( logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
-         if( exception ) {
+         if( exception || !obh) {
             c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
                my_impl->dispatcher.rejected_block( id );
@@ -3770,30 +3770,26 @@ namespace eosio {
          }
 
 
-         uint32_t block_num = obt ? obt->block_num() : 0;
+         assert(obh);
+         uint32_t block_num = obh->block_num();
 
-         if( block_num != 0 ) {
-            assert(obt);
-            fc_dlog( logger, "validated block header, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
-                     ("cid", cid)("num", block_num)("id", obt->id()) );
-            my_impl->dispatcher.add_peer_block( obt->id(), cid ); // no need to send back to sender
-            my_impl->dispatcher.bcast_block( obt->block(), obt->id() );
-         }
+         fc_dlog( logger, "validated block header, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
+                  ("cid", cid)("num", block_num)("id", obh->id()) );
+         my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
+         my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
 
          fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
-         app().executor().post(priority::medium, exec_queue::read_write, [ptr{std::move(ptr)}, obt{std::move(obt)}, id, c{std::move(c)}]() mutable {
-            c->process_signed_block( id, std::move(ptr), obt );
+         app().executor().post(priority::medium, exec_queue::read_write, [ptr{std::move(ptr)}, bh{std::move(*obh)}, id, c{std::move(c)}]() mutable {
+            c->process_signed_block( id, std::move(ptr), bh );
          });
 
-         if( block_num != 0 ) {
-            // ready to process immediately, so signal producer to interrupt start_block
-            my_impl->producer_plug->received_block(block_num);
-         }
+         // ready to process immediately, so signal producer to interrupt start_block
+         my_impl->producer_plug->received_block(block_num);
       });
    }
 
    // called from application thread
-   void connection::process_signed_block( const block_id_type& blk_id, signed_block_ptr block, const std::optional<block_handle>& obt ) {
+   void connection::process_signed_block( const block_id_type& blk_id, signed_block_ptr block, const block_handle& bh ) {
       controller& cc = my_impl->chain_plug->chain();
       uint32_t blk_num = block_header::num_from_id(blk_id);
       // use c in this method instead of this to highlight that all methods called on c-> must be thread safe
@@ -3817,13 +3813,13 @@ namespace eosio {
          fc_elog( logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}", ("id", blk_id)("c", connection_id) );
       }
 
-      fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, ${v}, lib #${lib}",
-               ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("v", obt ? "header validated" : "header validation pending")("lib", lib) );
+      fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, header validated, lib #${lib}",
+               ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("lib", lib) );
 
       go_away_reason reason = no_reason;
       bool accepted = false;
       try {
-         accepted = my_impl->chain_plug->accept_block(block, blk_id, obt);
+         accepted = my_impl->chain_plug->accept_block(block, blk_id, bh);
          my_impl->update_chain_info();
       } catch( const unlinkable_block_exception &ex) {
          fc_ilog(logger, "unlinkable_block_exception connection - ${cid}: #${n} ${id}...: ${m}",

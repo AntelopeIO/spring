@@ -671,7 +671,7 @@ public:
       _time_tracker.clear();
    }
 
-   bool on_incoming_block(const signed_block_ptr& block, const block_id_type& id, const std::optional<block_handle>& obt) {
+   bool on_incoming_block(const signed_block_ptr& block, const block_id_type& id, const block_handle& bh) {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
@@ -693,14 +693,8 @@ public:
       EOS_ASSERT(block->timestamp < (now + fc::seconds(7)), block_from_the_future, "received a block from the future, ignoring it: ${id}", ("id", id));
 
       // start processing of block
-      std::future<block_handle> btf;
-      if (!obt) {
-         btf = chain.create_block_handle_future(id, block);
-      }
-
       if (in_producing_mode()) {
          fc_ilog(_log, "producing, incoming block #${num} id: ${id}", ("num", blk_num)("id", id));
-         const block_handle& bh = obt ? *obt : btf.get();
          chain.accept_block(bh);
          _time_tracker.add_other_time();
          return true; // return true because block was accepted
@@ -721,7 +715,6 @@ public:
 
       controller::block_report br;
       try {
-         const block_handle& bh = obt ? *obt : btf.get();
          chain.push_block(
             br,
             bh,
@@ -1276,8 +1269,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
    ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
    _incoming_block_sync_provider = app().get_method<incoming::methods::block_sync>().register_provider(
-      [this](const signed_block_ptr& block, const block_id_type& block_id, const std::optional<block_handle>& obt) {
-         return on_incoming_block(block, block_id, obt);
+      [this](const signed_block_ptr& block, const block_id_type& block_id, const block_handle& bh) {
+         return on_incoming_block(block, block_id, bh);
       });
 
    _incoming_transaction_async_provider =

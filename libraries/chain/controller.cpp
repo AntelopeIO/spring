@@ -4012,7 +4012,7 @@ struct controller_impl {
       EOS_ASSERT( b, block_validate_exception, "null block" );
       
       auto f = [&](auto& forkdb) -> std::optional<block_handle> {
-         // previous not found could mean that previous block not applied yet
+         // previous not found, means it is unlinkable
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
