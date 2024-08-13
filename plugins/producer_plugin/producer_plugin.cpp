@@ -519,7 +519,7 @@ public:
    fc::time_point                                    _accepted_block_time;
    bool                                              _is_savanna_active                           = false;
    bool                                              _is_producer_active_finalizer                = false;
-   size_t                                            _active_finalizer_size                       = 0;
+   bool                                              _other_active_finalizers                     = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -640,6 +640,34 @@ public:
                                ((_produce_block_cpu_effort.count() / 1000) * config::producer_repetitions) );
    }
 
+   void update_active_finalizers() {
+      if (_is_savanna_active && !_producers.empty()) {
+         auto& chain  = chain_plug->chain();
+         finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
+         assert(fin_policy);
+         _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+            return _producers.contains(to_account_name_safe(f.description));
+         });
+         _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+            return !_producers.contains(to_account_name_safe(f.description));
+         });
+         if (!_is_producer_active_finalizer || !_other_active_finalizers) {
+            if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
+               if (!_is_producer_active_finalizer) {
+                  _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                     return _producers.contains(to_account_name_safe(f.description));
+                  });
+               }
+               if (!_other_active_finalizers) {
+                  _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                     return !_producers.contains(to_account_name_safe(f.description));
+                  });
+               }
+            }
+         }
+      }
+   }
+
    void on_block(const signed_block_ptr& block, const block_id_type& id) {
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
@@ -647,22 +675,7 @@ public:
       auto now = fc::time_point::now();
       chain.get_mutable_subjective_billing().on_block(_log, block, now);
       _accepted_block_time = now;
-      if (_is_savanna_active && !_producers.empty()) {
-         finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
-         assert(fin_policy);
-         _active_finalizer_size = fin_policy->finalizers.size();
-         _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-            return _producers.contains(to_account_name_safe(f.description));
-         });
-         if (!_is_producer_active_finalizer) {
-            if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
-               _active_finalizer_size = fin_policy->finalizers.size();
-               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-                  return _producers.contains(to_account_name_safe(f.description));
-               });
-            }
-         }
-      }
+      update_active_finalizers();
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
       }
@@ -752,8 +765,9 @@ public:
 
       // need a vote within timeout of last accepted block
       auto time_limit = _accepted_block_time - _production_pause_vote_timeout;
-      return _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit ||
-             (_active_finalizer_size > 1 && _last_other_vote_recevied.load(std::memory_order_relaxed) < time_limit);
+
+      return (_is_producer_active_finalizer && _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit)
+          || (_other_active_finalizers      && _last_other_vote_recevied.load(std::memory_order_relaxed)    < time_limit);
    }
 
    void abort_block() {
