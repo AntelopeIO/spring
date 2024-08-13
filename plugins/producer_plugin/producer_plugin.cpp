@@ -504,7 +504,7 @@ public:
    alignas(hardware_destructive_interference_sz)
    std::atomic<uint32_t>                             _received_block{0};       // modified by net_plugin thread pool
    alignas(hardware_destructive_interference_sz)
-   std::atomic<fc::time_point>                       _last_other_vote_recevied;
+   std::atomic<fc::time_point>                       _last_other_vote_received;
    std::atomic<fc::time_point>                       _last_producer_vote_received;
    fc::microseconds                                  _production_pause_vote_timeout;
    fc::microseconds                                  _max_irreversible_block_age_us;
@@ -642,29 +642,23 @@ public:
    }
 
    void update_active_finalizers() {
-      if (_is_savanna_active && !_producers.empty()) {
-         auto& chain  = chain_plug->chain();
-         finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
-         assert(fin_policy);
-         _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-            return _producers.contains(to_account_name_safe(f.description));
-         });
-         _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-            return !_producers.contains(to_account_name_safe(f.description));
-         });
-         if (!_is_producer_active_finalizer || !_other_active_finalizers) {
-            if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
-               if (!_is_producer_active_finalizer) {
-                  _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-                     return _producers.contains(to_account_name_safe(f.description));
-                  });
-               }
-               if (!_other_active_finalizers) {
-                  _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
-                     return !_producers.contains(to_account_name_safe(f.description));
-                  });
-               }
-            }
+      if (!_is_savanna_active || _producers.empty())
+         return;
+
+      auto& chain  = chain_plug->chain();
+      finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
+      assert(fin_policy);
+      auto is_producers_in = [&](const auto& f) -> bool {
+         return _producers.contains(to_account_name_safe(f.description));
+      };
+      _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, is_producers_in);
+      _other_active_finalizers = !std::ranges::all_of(fin_policy->finalizers, is_producers_in);
+      if (!_is_producer_active_finalizer || !_other_active_finalizers) {
+         if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
+            if (!_is_producer_active_finalizer)
+               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, is_producers_in);
+            if (!_other_active_finalizers)
+               _other_active_finalizers = !std::ranges::all_of(fin_policy->finalizers, is_producers_in);
          }
       }
    }
@@ -697,7 +691,7 @@ public:
       if (!_is_savanna_active) {
          _is_savanna_active = lib->is_proper_svnn_block();
          auto now = fc::time_point::now();
-         _last_other_vote_recevied.store(now, std::memory_order_relaxed);
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
          _last_producer_vote_received.store(now, std::memory_order_relaxed);
       }
    }
@@ -741,7 +735,7 @@ public:
               ("d", active_auth ? active_auth->description : pending_auth->description));
          // running with core contract that does not associate finalizer_authority->description with a producer
          // reset times otherwise the producer would pause
-         _last_other_vote_recevied.store(now, std::memory_order_relaxed);
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
          _last_producer_vote_received.store(now, std::memory_order_relaxed);
          return;
       }
@@ -749,18 +743,16 @@ public:
       if (_producers.contains(auth_desc)) { // _producers not modified, thread safe
          _last_producer_vote_received.store(now, std::memory_order_relaxed);
       } else {
-         _last_other_vote_recevied.store(now, std::memory_order_relaxed);
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
       }
    }
 
-   // true if paused do to not receiving votes
+   // true if paused due to not receiving votes
    bool is_implicitly_paused() const {
       if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
          return false;
       if (!_is_savanna_active)
          return false; // no implicit pause in legacy
-      if (!_is_producer_active_finalizer)
-         return false;
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
@@ -768,7 +760,7 @@ public:
       auto time_limit = _accepted_block_time - _production_pause_vote_timeout;
 
       return (_is_producer_active_finalizer && _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit)
-          || (_other_active_finalizers      && _last_other_vote_recevied.load(std::memory_order_relaxed)    < time_limit);
+          || (_other_active_finalizers      && _last_other_vote_received.load(std::memory_order_relaxed)    < time_limit);
    }
 
    void abort_block() {
@@ -1087,7 +1079,7 @@ public:
       _pause_production = false;
       // reset vote received so production can be explicitly resumed, will pause again when received vote time limit hit again
       auto now = fc::time_point::now();
-      _last_other_vote_recevied.store(now, std::memory_order_relaxed);
+      _last_other_vote_received.store(now, std::memory_order_relaxed);
       _last_producer_vote_received.store(now, std::memory_order_relaxed);
 
       // it is possible that we are only speculating because of this policy which we have now changed
@@ -1968,7 +1960,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    } else if (is_implicitly_paused()) {
       fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
               ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
-              ("ov", _last_other_vote_recevied.load(std::memory_order_relaxed))("bt", _accepted_block_time));
+              ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    }
