@@ -648,17 +648,24 @@ public:
       auto& chain  = chain_plug->chain();
       finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
       assert(fin_policy);
-      auto is_producers_in = [&](const auto& f) -> bool {
+      _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
          return _producers.contains(to_account_name_safe(f.description));
-      };
-      _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, is_producers_in);
-      _other_active_finalizers = !std::ranges::all_of(fin_policy->finalizers, is_producers_in);
+      });
+      _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+         return !_producers.contains(to_account_name_safe(f.description));
+      });
       if (!_is_producer_active_finalizer || !_other_active_finalizers) {
          if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
-            if (!_is_producer_active_finalizer)
-               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, is_producers_in);
-            if (!_other_active_finalizers)
-               _other_active_finalizers = !std::ranges::all_of(fin_policy->finalizers, is_producers_in);
+            if (!_is_producer_active_finalizer) {
+               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                  return _producers.contains(to_account_name_safe(f.description));
+               });
+            }
+            if (!_other_active_finalizers) {
+               _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                  return !_producers.contains(to_account_name_safe(f.description));
+               });
+            }
          }
       }
    }
