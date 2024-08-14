@@ -20,7 +20,7 @@ block_state::block_state(const block_header_state& prev, signed_block_ptr b, con
    // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
    if( !skip_validate_signee ) {
       auto sigs = detail::extract_additional_signatures(block);
-      const auto& valid_block_signing_authority = prev.get_scheduled_producer(timestamp()).authority;
+      const auto& valid_block_signing_authority = prev.get_producer_for_block_at(block->timestamp).authority;
       verify_signee(sigs, valid_block_signing_authority);
    }
 }
@@ -80,9 +80,9 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
    result.last_pending_finalizer_policy_start_timestamp = bsp.timestamp();
    result.active_proposer_policy = std::make_shared<proposer_policy>();
-   result.active_proposer_policy->active_time = bsp.timestamp();
    result.active_proposer_policy->proposer_schedule = bsp.active_schedule;
-   result.proposer_policies = {};  // none pending at IF genesis block
+   result.latest_proposed_proposer_policy = {}; // none pending at IF genesis block
+   result.latest_pending_proposer_policy = {}; // none pending at IF genesis block
    result.proposed_finalizer_policies = {}; // none proposed at IF genesis block
    result.pending_finalizer_policy = std::nullopt; // none pending at IF genesis block
    result.finalizer_policy_generation = 1;
@@ -150,7 +150,8 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
          .core                        = std::move(sbs.core),
          .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
          .active_proposer_policy      = std::move(sbs.active_proposer_policy),
-         .proposer_policies           = std::move(sbs.proposer_policies),
+         .latest_proposed_proposer_policy = std::move(sbs.latest_proposed_proposer_policy),
+         .latest_pending_proposer_policy  = std::move(sbs.latest_pending_proposer_policy),
          .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
          .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
          .finalizer_policy_generation = sbs.finalizer_policy_generation,

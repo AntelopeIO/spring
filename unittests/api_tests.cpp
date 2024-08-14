@@ -2113,7 +2113,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(chain_tests, T, validating_testers) { try {
    chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
    chain.produce_block();
    chain.produce_block(fc::seconds(1000));
-   chain.produce_block();
+   auto b = chain.produce_block();
+   auto index = b->timestamp.slot % config::producer_repetitions;
+   chain.produce_blocks(config::producer_repetitions - index - 1); // until the last block of round 1
+   chain.produce_blocks(config::producer_repetitions); // round 2
+   chain.produce_block(); // round 3
 
    vector<account_name> prods( chain.control->active_producers().producers.size() );
    for ( uint32_t i = 0; i < prods.size(); i++ ) {

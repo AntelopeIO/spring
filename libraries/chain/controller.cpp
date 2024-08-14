@@ -193,15 +193,13 @@ struct completed_block {
       });
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return bsp->pending_schedule_auth();
                     },
                     [](const block_state_ptr& bsp) -> const producer_authority_schedule* {
-                       return bsp->proposer_policies.empty()
-                                 ? nullptr
-                                 : &bsp->proposer_policies.begin()->second->proposer_schedule;
+                       return bsp->pending_producers();
                     }
          });
    }
@@ -333,16 +331,14 @@ struct assembled_block {
          v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const assembled_block_legacy& ab) -> const producer_authority_schedule* {
                                       return ab.new_producer_authority_cache.has_value()
                                                 ? &ab.new_producer_authority_cache.value()
                                                 : nullptr;
                                    },
                                    [](const assembled_block_if& ab) -> const producer_authority_schedule* {
-                                      return ab.bhs.proposer_policies.empty()
-                                                ? nullptr
-                                                : &ab.bhs.proposer_policies.begin()->second->proposer_schedule;
+                                      return ab.bhs.pending_producers();
                                    }},
                         v);
    }
@@ -472,7 +468,7 @@ struct building_block {
          , timestamp(input.timestamp)
          , active_producer_authority{input.producer,
                               [&]() -> block_signing_authority {
-                                 const auto& pas = parent.active_proposer_policy->proposer_schedule;
+                                 const auto& pas = parent.get_active_proposer_policy_for_block_at(input.timestamp)->proposer_schedule;
                                  for (const auto& pa : pas.producers)
                                     if (pa.producer_name == input.producer)
                                        return pa.authority;
@@ -480,7 +476,7 @@ struct building_block {
                                  return {};
                               }()}
          , prev_activated_protocol_features(parent.activated_protocol_features)
-         , active_proposer_policy(parent.active_proposer_policy)
+         , active_proposer_policy(parent.get_active_proposer_policy_for_block_at(input.timestamp))
          , block_num(parent.block_num() + 1) {}
 
       bool is_protocol_feature_activated(const digest_type& digest) const {
@@ -494,10 +490,15 @@ struct building_block {
       std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
+         // returns the last proposed policy to use for comparison
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            if (!parent.proposer_policies.empty()) { // proposed in-flight
-               // return the last proposed policy to use for comparison
-               return (--parent.proposer_policies.end())->second->proposer_schedule;
+            // latest_proposed_proposer_policy is the last if it is present
+            if (parent.latest_proposed_proposer_policy) {
+               return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
+            }
+            // then the last is latest_pending_proposer_policy
+            if (parent.latest_pending_proposer_policy) {
+               return (*parent.latest_pending_proposer_policy)->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -644,16 +645,14 @@ struct building_block {
                         v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const building_block_legacy& bb) -> const producer_authority_schedule* {
                                       if (bb.new_pending_producer_schedule)
                                          return &bb.new_pending_producer_schedule.value();
                                       return &bb.pending_block_header_state.prev_pending_schedule.schedule;
                                    },
                                    [](const building_block_if& bb) -> const producer_authority_schedule* {
-                                      if (!bb.parent.proposer_policies.empty())
-                                         return &bb.parent.proposer_policies.begin()->second->proposer_schedule;
-                                      return nullptr;
+                                      return bb.parent.pending_producers();
                                    }},
                         v);
    }
@@ -836,6 +835,7 @@ struct pending_state {
    std::optional<block_id_type>   _producer_block_id;
    controller::block_report       _block_report{};
 
+   // Legacy
    pending_state(maybe_session&& s,
                  const block_header_state_legacy& prev,
                  block_timestamp_type when,
@@ -845,6 +845,7 @@ struct pending_state {
    ,_block_stage(building_block(prev, when, num_prev_blocks_to_confirm, new_protocol_feature_activations))
    {}
 
+   // Savanna
    pending_state(maybe_session&& s,
                  const block_state& prev,
                  const building_block_input& input) :
@@ -894,9 +895,9 @@ struct pending_state {
          _block_stage);
    }
 
-   const producer_authority_schedule* next_producers()const {
+   const producer_authority_schedule* pending_producers()const {
       return std::visit(
-         [](const auto& stage) -> const producer_authority_schedule* { return stage.next_producers(); },
+         [](const auto& stage) -> const producer_authority_schedule* { return stage.pending_producers(); },
          _block_stage);
    }
 
@@ -1006,6 +1007,13 @@ struct controller_impl {
       });
    }
 
+   const producer_authority_schedule& head_active_producers(block_timestamp_type next_block_timestamp) const {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head,
+         overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule& { return head->active_schedule_auth(); },
+                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule; }
+         });
+   }
+
    const producer_authority_schedule* head_pending_schedule_auth_legacy() const {
       return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule* { return head->pending_schedule_auth(); },
@@ -1013,16 +1021,14 @@ struct controller_impl {
          });
    }
 
-   const producer_authority_schedule* next_producers() {
+   const producer_authority_schedule* pending_producers() {
       return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{
          [](const block_state_legacy_ptr& head) -> const producer_authority_schedule* {
             return head->pending_schedule_auth();
          },
          [](const block_state_ptr& head) -> const producer_authority_schedule* {
-            return head->proposer_policies.empty()
-                      ? nullptr
-                      : &head->proposer_policies.begin()->second->proposer_schedule;
+            return head->pending_producers();
          }
       });
    }
@@ -3089,7 +3095,7 @@ struct controller_impl {
                     },
                     [&](const block_state_ptr& head) {
                        maybe_session        session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
-                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_scheduled_producer(when).producer_name,
+                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_producer_for_block_at(when).producer_name,
                                                 new_protocol_feature_activations};
                        pending.emplace(std::move(session), *head, bbi);
                     }
@@ -3282,11 +3288,11 @@ struct controller_impl {
                      std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(bb.trx_blk_context.proposed_schedule.producers);
                      if (version) {
                         new_proposer_policy.emplace();
-                        new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp);
+                        new_proposer_policy->proposal_time     = bb.timestamp;
                         new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
                         new_proposer_policy->proposer_schedule.version = *version;
-                        ilog("Scheduling proposer schedule change at ${t}: ${s}",
-                             ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+                        ilog("Scheduling proposer schedule ${s}, proposed at: ${t}",
+                             ("s", new_proposer_policy->proposer_schedule)("t", new_proposer_policy->proposal_time));
                      }
                   }
                }
@@ -5077,7 +5083,7 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
    my->assemble_block(false, {}, nullptr);
 
    auto& ab = std::get<assembled_block>(my->pending->_block_stage);
-   const auto& valid_block_signing_authority = my->head_active_schedule_auth().get_scheduled_producer(ab.timestamp()).authority;
+   const auto& valid_block_signing_authority = my->head_active_producers(ab.timestamp()).get_scheduled_producer(ab.timestamp()).authority;
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
@@ -5493,6 +5499,10 @@ const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
 }
 
+const producer_authority_schedule& controller::head_active_producers(block_timestamp_type next_block_timestamp)const {
+   return my->head_active_producers(next_block_timestamp);
+}
+
 const producer_authority_schedule& controller::head_active_producers()const {
    return my->head_active_schedule_auth();
 }
@@ -5509,11 +5519,11 @@ std::optional<producer_authority_schedule> controller::proposed_producers_legacy
    return producer_authority_schedule::from_shared(gpo.proposed_schedule);
 }
 
-const producer_authority_schedule* controller::next_producers()const {
+const producer_authority_schedule* controller::pending_producers()const {
    if( !(my->pending) )
-      return my->next_producers();
+      return my->pending_producers();
 
-   return my->pending->next_producers();
+   return my->pending->pending_producers();
 }
 
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {

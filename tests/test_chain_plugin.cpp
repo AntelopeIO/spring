@@ -346,7 +346,11 @@ public:
         }
         produce_block();
         produce_block(fc::seconds(1000));
-        produce_block();
+        auto b = produce_block();
+        auto index = b->timestamp.slot % config::producer_repetitions;
+        produce_blocks(config::producer_repetitions - index - 1); // until the last block of round 1
+        produce_blocks(config::producer_repetitions); // round 2
+        produce_block(); // round 3
 
         auto producer_keys = control->active_producers().producers;
         BOOST_CHECK_EQUAL( 21u, producer_keys.size() );
