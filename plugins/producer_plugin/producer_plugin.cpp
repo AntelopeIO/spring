@@ -763,11 +763,14 @@ public:
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
          return false;
 
-      // need a vote within timeout of last accepted block
-      auto time_limit = _accepted_block_time - _production_pause_vote_timeout;
+      auto last_producer_vote_received = _last_producer_vote_received.load(std::memory_order_relaxed);
+      auto last_other_vote_received    = _last_other_vote_received.load(std::memory_order_relaxed);
 
-      return (_is_producer_active_finalizer && _last_producer_vote_received.load(std::memory_order_relaxed) < time_limit)
-          || (_other_active_finalizers      && _last_other_vote_received.load(std::memory_order_relaxed)    < time_limit);
+      // need a vote within timeout of last accepted block
+      return (_is_producer_active_finalizer &&
+              _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout)
+          || (_other_active_finalizers &&
+              _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout);
    }
 
    void abort_block() {
