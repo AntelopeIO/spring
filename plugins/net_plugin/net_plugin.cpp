@@ -2423,17 +2423,16 @@ namespace eosio {
       fc::unique_lock g( sync_mtx );
       sync_last_requested_num = 0;
       sync_next_expected_num = my_impl->get_chain_lib_num() + 1;
+      g.unlock();
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
-         peer_wlog( c, "block ${bn} not accepted, closing connection", ("bn", blk_num) );
-         sync_source.reset();
-         g.unlock();
+         peer_wlog(c, "block ${bn} not accepted, closing connection ${d}",
+                   ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
          if( mode == closing_mode::immediately ) {
             c->close( false ); // do not reconnect
          } else {
             c->close();
          }
       } else {
-         g.unlock();
          peer_dlog(c, "rejected block ${bn}, sending handshake", ("bn", blk_num));
          c->send_handshake();
       }
