@@ -86,7 +86,8 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          // The only way `votes_forked_since_latest_strong_vote` can change from false to true is on a weak vote
          // for a block b where the last_vote references a block that is not an ancestor of b
          // --------------------------------------------------------------------------------------------------------
-         fsi.votes_forked_since_latest_strong_vote |= !bsp->core.extends(fsi.last_vote.block_id);
+         fsi.votes_forked_since_latest_strong_vote =
+            fsi.votes_forked_since_latest_strong_vote || !bsp->core.extends(fsi.last_vote.block_id);
       }
 
       fsi.last_vote = bsp->make_block_ref();
@@ -243,9 +244,8 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    try {
       persist_file.seek(0);
 
-      // read magic number. Can be `fsi_t::magic_unversioned` (for files without embedded version number)
-      // or `fsi_t::magic` (for files with a version number right after `magic`).
-      // ------------------------------------------------------------------------------------------------
+      // read magic number. must be `fsi_t::magic`
+      // -----------------------------------------
       uint64_t magic = 0;
       fc::raw::unpack(persist_file, magic);
       EOS_ASSERT(magic == fsi_t::magic, finalizer_safety_exception,
