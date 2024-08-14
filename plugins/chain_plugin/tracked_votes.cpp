@@ -28,6 +28,8 @@ namespace eosio::chain_apis {
       // QC in the block and store it in last_votes.
       void on_accepted_block( const chain::signed_block_ptr& block, const chain::block_id_type& id ) {
          try {
+            if (!block->is_proper_svnn_block())
+               return;
             if (!tracking_enabled && !chain::vote_logger.is_enabled(fc::log_level::info))
                return;
 
