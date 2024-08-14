@@ -179,7 +179,7 @@ void block_state::set_trxs_metas( deque<transaction_metadata_ptr>&& trxs_metas, 
 }
 
 // Called from vote threads
-vote_result_t block_state::aggregate_vote(uint32_t connection_id, const vote_message& vote) {
+aggregate_vote_result_t block_state::aggregate_vote(uint32_t connection_id, const vote_message& vote) {
    auto finalizer_digest = vote.strong ? strong_digest.to_uint8_span() : std::span<const uint8_t>(weak_digest);
    return aggregating_qc.aggregate_vote(connection_id, vote, block_num(), finalizer_digest);
 }

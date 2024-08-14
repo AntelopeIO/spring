@@ -3809,12 +3809,16 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const my_finalizers_t::vote_t& vote) {
+              const auto& [vote_msg, active_auth, pending_auth] = vote;
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
+              emit(voted_block,
+                   vote_signal_params{uint32_t{0}, vote_result_t::success,
+                                      std::cref(vote_msg), std::cref(active_auth), std::cref(pending_auth)},
+                   __FILE__, __LINE__);
 
               // also aggregate our own vote into the aggregating_qc for this block, 0 connection_id indicates our own vote
-              process_vote_message(0, vote);
+              process_vote_message(0, vote_msg);
           });
    }
 

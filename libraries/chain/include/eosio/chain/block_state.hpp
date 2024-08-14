@@ -142,7 +142,7 @@ public:
    finality_data_t get_finality_data();
 
    // connection_id only for logging
-   vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into aggregating_qc
+   aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into aggregating_qc
    vote_status_t has_voted(const bls_public_key& key) const;
    void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
 
