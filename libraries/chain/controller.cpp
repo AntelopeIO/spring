@@ -494,11 +494,11 @@ struct building_block {
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
             // latest_proposed_proposer_policy is the last if it is present
             if (parent.latest_proposed_proposer_policy) {
-               return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
+               return parent.latest_proposed_proposer_policy->proposer_schedule;
             }
             // then the last is latest_pending_proposer_policy
             if (parent.latest_pending_proposer_policy) {
-               return (*parent.latest_pending_proposer_policy)->proposer_schedule;
+               return parent.latest_pending_proposer_policy->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
