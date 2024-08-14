@@ -76,8 +76,6 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          voting_strong = !fsi.votes_forked_since_latest_strong_vote && bsp->core.extends(fsi.last_vote.block_id);
       }
 
-      fsi.last_vote = bsp->make_block_ref();
-
       auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
       if (voting_strong) {
          fsi.votes_forked_since_latest_strong_vote = false;             // always reset to false on strong vote
@@ -90,6 +88,8 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          // --------------------------------------------------------------------------------------------------------
          fsi.votes_forked_since_latest_strong_vote |= !bsp->core.extends(fsi.last_vote.block_id);
       }
+
+      fsi.last_vote = bsp->make_block_ref();
 
       res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
    }
