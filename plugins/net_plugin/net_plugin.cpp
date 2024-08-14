@@ -225,7 +225,7 @@ namespace eosio {
       uint32_t       sync_next_expected_num  GUARDED_BY(sync_mtx) {0};  // the next block number we need from peer
       connection_ptr sync_source             GUARDED_BY(sync_mtx);      // connection we are currently syncing from
 
-      const uint32_t sync_req_span {0};
+      const uint32_t sync_fetch_span {0};
       const uint32_t sync_peer_limit {0};
 
       alignas(hardware_destructive_interference_sz)
@@ -249,7 +249,7 @@ namespace eosio {
       connection_ptr find_next_sync_node(); // call with locked mutex
       void start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
       bool verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
-
+      uint32_t active_sync_fetch_span() const;
    public:
       enum class closing_mode {
          immediately,  // closing connection immediately
@@ -1999,11 +1999,23 @@ namespace eosio {
       ,sync_last_requested_num( 0 )
       ,sync_next_expected_num( 1 )
       ,sync_source()
-      ,sync_req_span( span )
+      ,sync_fetch_span( span )
       ,sync_peer_limit( sync_peer_limit )
       ,sync_state(in_sync)
       ,min_blocks_distance(min_blocks_distance)
    {
+   }
+
+   uint32_t sync_manager::active_sync_fetch_span() const {
+      const auto& cc = my_impl->chain_plug->chain_config();
+      auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
+      auto reversible_remaining = cc.max_reversible_blocks - fork_db_size;
+      if (reversible_remaining < sync_fetch_span) {
+         fc_wlog(logger, "sync-fetch-span ${sfs} restricted by max-reversible-blocks ${m}, fork_db_size ${fs}",
+                 ("sfs", sync_fetch_span)("m", cc.max_reversible_blocks)("fs", fork_db_size));
+         return reversible_remaining;
+      }
+      return sync_fetch_span;
    }
 
    constexpr auto sync_manager::stage_str(stages s) {
@@ -2113,8 +2125,8 @@ namespace eosio {
    void sync_manager::request_next_chunk( const connection_ptr& conn ) REQUIRES(sync_mtx) {
       auto chain_info = my_impl->get_chain_info();
 
-      fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, fhead: ${h}, lib: ${lib}",
-               ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_req_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
+      fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync-fetch-span: ${s}, fhead: ${h}, lib: ${lib}",
+               ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_fetch_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
 
       if (conn) {
          // p2p_high_latency_test.py test depends on this exact log statement.
@@ -2149,7 +2161,8 @@ namespace eosio {
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
          uint32_t start = sync_next_expected_num;
-         uint32_t end = start + sync_req_span - 1;
+         auto fetch_span = active_sync_fetch_span();
+         uint32_t end = start + fetch_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
          if( end > 0 && end >= start ) {
@@ -2529,20 +2542,24 @@ namespace eosio {
                } else {
                   // use chain head instead of fork head so we do not get too far ahead of applied blocks
                   uint32_t head = my_impl->get_chain_head_num();
-                  // do not allow to get too far ahead (one sync_req_span) of chain head
-                  if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
-                     // block was not applied, possibly because we already have the block
-                     fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                             ("bn", blk_num)("nen", sync_next_expected_num)
-                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                     request_next_chunk();
+                  if (blk_num >= sync_last_requested_num) {
+                     auto fetch_span = active_sync_fetch_span();
+                     // do not allow to get too far ahead (one sync_fetch_span) of chain head
+                     if (blk_num < head + fetch_span) {
+                        // block was not applied, possibly because we already have the block
+                        fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                        "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                                ("fs", fetch_span)("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                                ("bn", blk_num)("nen", sync_next_expected_num)
+                                ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                        request_next_chunk();
+                     }
                   }
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
                   // Did not request blocks ahead, likely because too far ahead of head
+                  // Do not restrict sync_fetch_span as we want max-reversible-blocks to shut down the node for applied blocks
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                   "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
