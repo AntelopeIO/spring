@@ -127,6 +127,8 @@ public:
       return timestamp() > fc::time_point::now() - fc::seconds(30);
    }
 
+   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), strong_digest }; } // use the cached `finality_digest`
+
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
    // build next valid structure from current one with input of next
    valid_t new_valid(const block_header_state& bhs, const digest_type& action_mroot, const digest_type& strong_digest) const;

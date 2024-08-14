@@ -13,16 +13,12 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
    // just activated and we can proceed
 
    if (!res.monotony_check) {
-      if (fsi.last_vote.empty()) {
-         fc_dlog(vote_logger, "monotony check failed, block ${bn} ${p}, cannot vote, fsi.last_vote empty",
-                 ("bn", bsp->block_num())("p", bsp->id()));
-      } else {
-         if (vote_logger.is_enabled(fc::log_level::debug)) {
-            if (bsp->id() != fsi.last_vote.block_id) { // we may have already voted when we received the block
-               fc_dlog(vote_logger, "monotony check failed, block ${bn} ${p}, cannot vote, ${t} <= ${lt}, fsi.last_vote ${lbn} ${lid}",
-                       ("bn", bsp->block_num())("p", bsp->id())("t", bsp->timestamp())("lt", fsi.last_vote.timestamp)
-                       ("lbn", fsi.last_vote.block_num())("lid", fsi.last_vote.block_id));
-            }
+      assert(!fsi.last_vote.empty()); // otherwise `res.monotony_check` would be true.
+      if (vote_logger.is_enabled(fc::log_level::debug)) {
+         if (bsp->id() != fsi.last_vote.block_id) { // we may have already voted when we received the block
+            fc_dlog(vote_logger, "monotony check failed, block ${bn} ${p}, cannot vote, ${t} <= ${lt}, fsi.last_vote ${lbn} ${lid}",
+                    ("bn", bsp->block_num())("p", bsp->id())("t", bsp->timestamp())("lt", fsi.last_vote.timestamp)
+                    ("lbn", fsi.last_vote.block_num())("lid", fsi.last_vote.block_id));
          }
       }
       return res;
@@ -68,22 +64,33 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
    // If we vote, update `fsi.last_vote` and also `fsi.lock` if we have a newer commit qc
    // -----------------------------------------------------------------------------------
    if (can_vote) {
-      auto [p_start, p_end] = std::make_pair(bsp->core.latest_qc_block_timestamp(), bsp->timestamp());
+      // if `fsi.last_vote` is not set, it will be initialized with a timestamp slot of 0, so we
+      // don't need to check fsi.last_vote.empty()
+      // ---------------------------------------------------------------------------------------
+      bool voting_strong = fsi.last_vote.timestamp <= bsp->core.latest_qc_block_timestamp();
 
-      bool time_range_disjoint  = fsi.last_vote_range_start >= p_end || fsi.last_vote.timestamp <= p_start;
-      bool voting_strong        = time_range_disjoint;
-      if (!voting_strong && !fsi.last_vote.empty()) {
-         // we can vote strong if the proposal is a descendant of (i.e. extends) our last vote id
-         voting_strong = bsp->core.extends(fsi.last_vote.block_id);
+      if (!voting_strong) {
+         // we can vote strong if the proposal is a descendant of (i.e. extends) our last vote id AND
+         // the latest (weak) vote did not mask a prior (weak) vote for a block not on the same branch.
+         // -------------------------------------------------------------------------------------------
+         voting_strong = !fsi.votes_forked_since_latest_strong_vote && bsp->core.extends(fsi.last_vote.block_id);
       }
-
-      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
-      fsi.last_vote_range_start = p_start;
 
       auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
-      if (voting_strong && latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp) {
-         fsi.lock = latest_qc_claim__block_ref;
+      if (voting_strong) {
+         fsi.votes_forked_since_latest_strong_vote = false;             // always reset to false on strong vote
+         if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp)
+            fsi.lock = latest_qc_claim__block_ref;
+      } else {
+         // On a weak vote, if `votes_forked_since_latest_strong_vote` was already true, then it should remain true.
+         // The only way `votes_forked_since_latest_strong_vote` can change from false to true is on a weak vote
+         // for a block b where the last_vote references a block that is not an ancestor of b
+         // --------------------------------------------------------------------------------------------------------
+         fsi.votes_forked_since_latest_strong_vote =
+            fsi.votes_forked_since_latest_strong_vote || !bsp->core.extends(fsi.last_vote.block_id);
       }
+
+      fsi.last_vote = bsp->make_block_ref();
 
       res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
    }
@@ -99,9 +106,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
    if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
-      fsi.lock = latest_qc_claim__block_ref;
-      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
-      fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
+      fsi.lock                                  = latest_qc_claim__block_ref;
+      fsi.last_vote                             = bsp->make_block_ref();
+      fsi.votes_forked_since_latest_strong_vote = false; // always reset to false on strong vote
       return true;
    }
    return false;
@@ -237,20 +244,17 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    try {
       persist_file.seek(0);
 
-      // read magic number. Can be `fsi_t::magic_unversioned` (for files without embedded version number)
-      // or `fsi_t::magic` (for files with a version number right after `magic`).
-      // ------------------------------------------------------------------------------------------------
+      // read magic number. must be `fsi_t::magic`
+      // -----------------------------------------
       uint64_t magic = 0;
       fc::raw::unpack(persist_file, magic);
-      EOS_ASSERT(magic == fsi_t::magic_unversioned || magic == fsi_t::magic, finalizer_safety_exception,
+      EOS_ASSERT(magic == fsi_t::magic, finalizer_safety_exception,
                  "bad magic number in finalizer safety persistence file: ${p}", ("p", persist_file_path));
 
-      // If we expect the file to contain a version number, read it. We can load files with older
-      // versions, but it better not be a file with a version higher that the running nodeos understands.
-      // ------------------------------------------------------------------------------------------------
-      uint64_t file_version = 0; // default version for file with magic == fsi_t::magic_unversioned
-      if (magic != fsi_t::magic_unversioned)
-         fc::raw::unpack(persist_file, file_version);
+      // We can load files with older, but not files with a version higher that the running nodeos understands.
+      // -----------------------------------------------------------------------------------------------------
+      uint64_t file_version = 0; // current file version
+      fc::raw::unpack(persist_file, file_version);
       EOS_ASSERT(file_version <= current_safety_file_version, finalizer_safety_exception,
                  "Incorrect version number in finalizer safety persistence file: ${p}", ("p", persist_file_path));
 
