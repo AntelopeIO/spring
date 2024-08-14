@@ -41,13 +41,13 @@ std::vector<FSI> create_random_fsi(size_t count) {
    res.reserve(count);
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
-         .last_vote_range_start = tstamp(i),
          .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
                                             tstamp(i * 100 + 3),
                                             sha256::hash("vote_digest"s + std::to_string(i))},
          .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
                                             tstamp(i * 100),
-                                            sha256::hash("lock_digest"s + std::to_string(i))}
+                                            sha256::hash("lock_digest"s + std::to_string(i))},
+         .votes_forked_since_latest_strong_vote = false
       });
       if (i)
          assert(res.back() != res[0]);
@@ -99,9 +99,9 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
@@ -132,9 +132,9 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
@@ -282,7 +282,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    // --------------------------------------------------------------------
    fc::temp_directory tempdir;
 
-   for (size_t i=0; i<current_version; ++i) {
+   for (size_t i=1; i<current_version; ++i) {
       auto ref_path = mk_versioned_fsi_file_path(i);
       auto copy_path = tempdir.path() / ref_path.filename();
       fs::copy_file(ref_path, copy_path, fs::copy_options::none);

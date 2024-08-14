@@ -1421,9 +1421,9 @@ struct controller_impl {
                        [&](const block_state_ptr& head) { return head->make_block_ref(); }});
          // doesn't matter chain_head is not updated for IRREVERSIBLE, can be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
-            finalizer_safety_information{.last_vote_range_start = block_timestamp_type(0),
-                                         .last_vote             = ref,
-                                         .lock                  = ref});
+            finalizer_safety_information{ .last_vote                             = ref,
+                                          .lock                                  = ref,
+                                          .votes_forked_since_latest_strong_vote = false});
       }
    }
 
@@ -1618,9 +1618,9 @@ struct controller_impl {
                         // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
                         // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
                         my_finalizers.set_default_safety_information(
-                           finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = prev->make_block_ref(),
-                                                         .lock      = prev->make_block_ref() });
+                           finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
+                                                        .lock                                  = prev->make_block_ref(),
+                                                        .votes_forked_since_latest_strong_vote = false});
                      }
                   }
                });
@@ -1996,9 +1996,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = lib->make_block_ref() });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2006,9 +2006,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = lib->make_block_ref() });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
