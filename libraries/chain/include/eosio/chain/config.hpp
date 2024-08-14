@@ -80,6 +80,7 @@ const static uint16_t   default_max_inline_action_depth              = 4;
 const static uint16_t   default_max_auth_depth                       = 6;
 const static uint32_t   default_sig_cpu_bill_pct                     = 50 * percent_1; // billable percentage of signature recovery
 const static uint32_t   default_produce_block_offset_ms              = 450;
+const static uint32_t   default_production_pause_vote_timeout_ms     = 6u*1000u; // 6 seconds
 const static uint16_t   default_controller_thread_pool_size          = 2;
 const static uint16_t   default_vote_thread_pool_size                = 4;
 const static uint32_t   default_max_variable_signature_length        = 16384u;
