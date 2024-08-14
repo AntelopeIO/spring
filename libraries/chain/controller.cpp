@@ -1416,12 +1416,14 @@ struct controller_impl {
          // information for those finalizers that don't already have one. This typically should be done when
          // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
          // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-         auto start_block = chain_head; // doesn't matter this is not updated for IRREVERSIBLE, can be in irreversible mode and be a finalizer
-         auto lib_block   = chain_head;
+         block_ref ref = block_handle_accessor::apply<block_ref>(chain_head,
+            overloaded{[&](const block_state_legacy_ptr& head) { return block_ref{head->id(), head->timestamp(), {}}; },
+                       [&](const block_state_ptr& head) { return head->make_block_ref(); }});
+         // doesn't matter chain_head is not updated for IRREVERSIBLE, can be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
-            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                          .last_vote = {start_block.id(), start_block.block_time()},
-                                          .lock      = {lib_block.id(),   lib_block.block_time()} });
+            finalizer_safety_information{.last_vote_range_start = block_timestamp_type(0),
+                                         .last_vote             = ref,
+                                         .lock                  = ref});
       }
    }
 
@@ -1615,12 +1617,10 @@ struct controller_impl {
                         // information for those finalizers that don't already have one. This typically should be done when
                         // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
                         // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-                        auto start_block = chain_head;
-                        auto lib_block   = chain_head;
                         my_finalizers.set_default_safety_information(
                            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = {start_block.id(), start_block.block_time()},
-                                                         .lock      = {lib_block.id(),   lib_block.block_time()} });
+                                                         .last_vote = prev->make_block_ref(),
+                                                         .lock      = prev->make_block_ref() });
                      }
                   }
                });
@@ -1998,7 +1998,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                                                .lock      = lib->make_block_ref() });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2008,7 +2008,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
                                                 .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                                                .lock      = lib->make_block_ref() });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }

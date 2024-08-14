@@ -77,7 +77,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          voting_strong = bsp->core.extends(fsi.last_vote.block_id);
       }
 
-      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
+      fsi.last_vote             = bsp->make_block_ref();
       fsi.last_vote_range_start = p_start;
 
       auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
@@ -100,7 +100,7 @@ bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
    if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
       fsi.lock = latest_qc_claim__block_ref;
-      fsi.last_vote             = { bsp->id(), bsp->timestamp() };
+      fsi.last_vote             = bsp->make_block_ref();
       fsi.last_vote_range_start = bsp->core.latest_qc_block_timestamp();
       return true;
    }

@@ -18,8 +18,8 @@ struct test_core {
    block_time_type timestamp;
 
    test_core() {
-      block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
-      core = finality_core::create_core_for_genesis_block(genesis_ref);
+      core = finality_core::create_core_for_genesis_block(
+         calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0});
 
       // current block 0, next block 1
       next(qc_claim_t{.block_num = 0, .is_strong_qc = true});
@@ -37,9 +37,8 @@ struct test_core {
    void next(qc_claim_t qc_claim) {
       auto prev_block_num = core.current_block_num();
       timestamp = timestamp.next();
-      core = core.next(
-         block_ref {.block_id = id_from_num(prev_block_num), .timestamp = timestamp},
-         qc_claim);
+      auto id = id_from_num(prev_block_num);
+      core = core.next(block_ref {id, timestamp, id}, qc_claim);
       // next block num is previous  block number + 1, qc_claim becomes latest_qc_claim
       BOOST_REQUIRE_EQUAL(core.current_block_num(), prev_block_num + 1);
       BOOST_REQUIRE(core.latest_qc_claim() == qc_claim);
@@ -62,8 +61,8 @@ BOOST_AUTO_TEST_SUITE(finality_core_tests)
 
 // Verify post conditions of IF genesis block core
 BOOST_AUTO_TEST_CASE(create_core_for_genesis_block_test) { try {
-   block_ref genesis_ref{calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0}};
-   finality_core core = finality_core::create_core_for_genesis_block(genesis_ref);
+   finality_core core = finality_core::create_core_for_genesis_block(
+      calc_id(fc::sha256::hash("genesis"), 0), block_timestamp_type{0});
 
    BOOST_REQUIRE_EQUAL(core.current_block_num(), 0u);
    qc_claim_t qc_claim{.block_num=0, .is_strong_qc=false};

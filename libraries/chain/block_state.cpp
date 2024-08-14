@@ -71,11 +71,7 @@ block_state_ptr block_state::create_if_genesis_block(const block_state_legacy& b
    assert(f_ext.new_finalizer_policy_diff); // required by transition mechanism
    result.active_finalizer_policy = std::make_shared<finalizer_policy>(finalizer_policy{}.apply_diff(std::move(*f_ext.new_finalizer_policy_diff)));
 
-   block_ref genesis_block_ref {
-      .block_id  = bsp.id(),
-      .timestamp = bsp.timestamp()
-   };
-   result.core = finality_core::create_core_for_genesis_block(genesis_block_ref);
+   result.core = finality_core::create_core_for_genesis_block(bsp.id(), bsp.timestamp());
 
    result.last_pending_finalizer_policy_digest = fc::sha256::hash(*result.active_finalizer_policy);
    result.last_pending_finalizer_policy_start_timestamp = bsp.timestamp();

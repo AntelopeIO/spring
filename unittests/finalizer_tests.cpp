@@ -42,12 +42,12 @@ std::vector<FSI> create_random_fsi(size_t count) {
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
          .last_vote_range_start = tstamp(i),
-         .last_vote             = block_ref{.block_id        = sha256::hash("vote"s + std::to_string(i)),
-                                            .timestamp       = tstamp(i * 100 + 3),
-                                            .finality_digest = sha256::hash("vote_digest"s + std::to_string(i))},
-         .lock                  = block_ref{.block_id        = sha256::hash("lock"s + std::to_string(i)),
-                                            .timestamp       = tstamp(i * 100),
-                                            .finality_digest = sha256::hash("lock_digest"s + std::to_string(i))}
+         .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
+                                            tstamp(i * 100 + 3),
+                                            sha256::hash("vote_digest"s + std::to_string(i))},
+         .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
+                                            tstamp(i * 100),
+                                            sha256::hash("lock_digest"s + std::to_string(i))}
       });
       if (i)
          assert(res.back() != res[0]);
@@ -61,7 +61,8 @@ std::vector<block_ref> create_proposal_refs(size_t count) {
    for (size_t i=0; i<count; ++i) {
       std::string id_str {"vote"};
       id_str += std::to_string(i);
-      res.push_back(block_ref{sha256::hash(id_str.c_str()), tstamp(i)});
+      auto id = sha256::hash(id_str.c_str());
+      res.push_back(block_ref{id, tstamp(i), id});
    }
    return res;
 }

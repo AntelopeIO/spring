@@ -292,11 +292,7 @@ void finish_next(const block_header_state& prev,
 
    // finality_core
    // -------------
-   block_ref parent_block {
-      .block_id        = prev.block_id,
-      .timestamp       = prev.timestamp(),
-      .finality_digest = prev.compute_finality_digest()
-   };
+   block_ref parent_block = prev.make_block_ref();
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
    // finalizer policy
