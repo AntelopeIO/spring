@@ -1417,7 +1417,7 @@ struct controller_impl {
          // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
          // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
          block_ref ref = block_handle_accessor::apply<block_ref>(chain_head,
-            overloaded{[&](const block_state_legacy_ptr& head) { return block_ref{head->id(), head->timestamp(), {}}; },
+            overloaded{[&](const block_state_legacy_ptr& head) { return block_ref{}; },
                        [&](const block_state_ptr& head) { return head->make_block_ref(); }});
          // doesn't matter chain_head is not updated for IRREVERSIBLE, cannot be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
