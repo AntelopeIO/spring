@@ -3945,13 +3945,16 @@ struct controller_impl {
 
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
-   block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
+   block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const shared_ptr<BS>& prev ) {
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      std::future<void> verify_future;
       if constexpr (savanna_mode) {
          // Verify claim made by finality_extension in block header extension and
          // quorum_certificate_extension in block extension are valid.
          // This is the only place the evaluation is done.
-         verify_qc_claim(id, b, prev);
+         verify_future = post_async_task(thread_pool.get_executor(), [this, id, b, prev]() {
+            verify_qc_claim(id, b, *prev);
+         });
       }
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
@@ -3961,7 +3964,7 @@ struct controller_impl {
 
       const bool skip_validate_signee = false;
       auto bsp = std::make_shared<BS>(
-            prev,
+            *prev,
             b,
             protocol_features.get_protocol_feature_set(),
             [this]( block_timestamp_type timestamp,
@@ -3975,6 +3978,7 @@ struct controller_impl {
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
       if constexpr (savanna_mode) {
+         verify_future.get();
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
       }
@@ -3997,7 +4001,7 @@ struct controller_impl {
             EOS_ASSERT( prev, unlinkable_block_exception,
                         "unlinkable block ${id} previous ${p}", ("id", id)("p", b->previous) );
 
-            return control->create_block_state_i( forkdb, id, b, *prev );
+            return control->create_block_state_i( forkdb, id, b, prev );
          } );
       };
 
@@ -4026,7 +4030,7 @@ struct controller_impl {
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
-         return create_block_state_i( forkdb, id, b, *prev );
+         return create_block_state_i( forkdb, id, b, prev );
       };
 
       auto unlinkable = [&](const auto&) -> std::optional<block_handle> {
