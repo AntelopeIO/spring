@@ -24,12 +24,14 @@ digest_type block_header_state::compute_base_digest() const {
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
+   // For things that are optionally present we should always pack the bool
+   // indicating if they are there.
    fc::raw::pack( enc, latest_proposed_proposer_policy );
    fc::raw::pack( enc, latest_pending_proposer_policy );
 
-   if (activated_protocol_features) {
-      fc::raw::pack( enc, *activated_protocol_features );
-   }
+   // Should be always present
+   assert(activated_protocol_features);
+   fc::raw::pack( enc, *activated_protocol_features );
 
    return enc.result();
 }
@@ -86,14 +88,14 @@ const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_bl
    // must be the first block in a round after the current round
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
    if (latest_proposed_proposer_policy && prior_round_start_slot &&
-         (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot &&
-         (*latest_proposed_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
-      return *latest_proposed_proposer_policy;
+         latest_proposed_proposer_policy->proposal_time.slot < *prior_round_start_slot &&
+         latest_proposed_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_proposed_proposer_policy;
    }
 
    if (latest_pending_proposer_policy &&
-         (*latest_pending_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
-      return *latest_pending_proposer_policy;
+         latest_pending_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_pending_proposer_policy;
    }
 
    return active_proposer_policy;
@@ -111,7 +113,7 @@ const producer_authority& block_header_state::get_producer_for_block_at(block_ti
 
 const producer_authority_schedule* block_header_state::pending_producers() const {
    if (latest_pending_proposer_policy) {
-      return &(*latest_pending_proposer_policy)->proposer_schedule;
+      return &latest_pending_proposer_policy->proposer_schedule;
    }
    return nullptr;
 }
@@ -142,10 +144,10 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
    if (latest_proposed_proposer_policy) {
-      return *(*latest_proposed_proposer_policy);
+      return *latest_proposed_proposer_policy;
    }
    if (latest_pending_proposer_policy) {
-      return *(*latest_pending_proposer_policy);
+      return *latest_pending_proposer_policy;
    }
    assert(active_proposer_policy);
    return *active_proposer_policy;
@@ -240,17 +242,17 @@ void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
    auto& new_policy = prev.get_active_proposer_policy_for_block_at(next.timestamp());
    if (new_policy != next.active_proposer_policy) {
       next.active_proposer_policy = new_policy;
-      if (next.latest_proposed_proposer_policy && new_policy == *next.latest_proposed_proposer_policy) {
-         next.latest_proposed_proposer_policy = std::nullopt;
-         next.latest_pending_proposer_policy = std::nullopt;
-      } else if (next.latest_pending_proposer_policy && new_policy == *next.latest_pending_proposer_policy)
-         next.latest_pending_proposer_policy = std::nullopt;
+      if (next.latest_proposed_proposer_policy && new_policy == next.latest_proposed_proposer_policy) {
+         next.latest_proposed_proposer_policy = nullptr;
+         next.latest_pending_proposer_policy = nullptr;
+      } else if (next.latest_pending_proposer_policy && new_policy == next.latest_pending_proposer_policy)
+         next.latest_pending_proposer_policy = nullptr;
    }
 
    if (detail::first_block_of_round(next.timestamp(), prev.timestamp()) &&
       next.latest_proposed_proposer_policy && !next.latest_pending_proposer_policy) {
       next.latest_pending_proposer_policy = next.latest_proposed_proposer_policy;
-      next.latest_proposed_proposer_policy = std::nullopt;
+      next.latest_proposed_proposer_policy = nullptr;
    }
 }
 

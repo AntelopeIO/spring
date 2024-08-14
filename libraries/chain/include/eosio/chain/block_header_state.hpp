@@ -114,8 +114,8 @@ struct block_header_state {
        active_proposer_policy is we should not promote the policy if the proposal_time
        of the policy is greater than the last_final_block_timestamp of the previous block.
     */
-   std::optional<proposer_policy_ptr> latest_proposed_proposer_policy;
-   std::optional<proposer_policy_ptr> latest_pending_proposer_policy;
+   proposer_policy_ptr latest_proposed_proposer_policy;
+   proposer_policy_ptr latest_pending_proposer_policy;
 
    // Track in-flight proposed finalizer policies.
    // When the block associated with a proposed finalizer policy becomes final,
