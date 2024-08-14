@@ -254,12 +254,12 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
    auto current_version = my_finalizers_t::current_safety_file_version;
 
-   // run this unittest with the option `--save-fsi-ref` to save ref file for the current version.
-   // --------------------------------------------------------------------------------------------
+   // run this unittest with the option `-- --save-fsi-ref` to save ref file for the current version.
+   // -----------------------------------------------------------------------------------------------
    bool save_fsi_reference_file = [](){
       auto argc = boost::unit_test::framework::master_test_suite().argc;
       auto argv = boost::unit_test::framework::master_test_suite().argv;
-      return std::find(argv, argv + argc, std::string("--save-fsi-ref")) != (argv + argc);
+      return std::any_of(argv, argv + argc, [&](const std::string &a){ return a == "--save-fsi-ref";} );
    }();
 
    if (save_fsi_reference_file)
@@ -282,7 +282,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    // --------------------------------------------------------------------
    fc::temp_directory tempdir;
 
-   for (size_t i=1; i<current_version; ++i) {
+   for (size_t i=0; i<current_version; ++i) {
       auto ref_path = mk_versioned_fsi_file_path(i);
       auto copy_path = tempdir.path() / ref_path.filename();
       fs::copy_file(ref_path, copy_path, fs::copy_options::none);

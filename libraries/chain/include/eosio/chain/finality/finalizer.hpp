@@ -70,7 +70,7 @@ namespace eosio::chain {
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
    public:
-      static constexpr uint64_t current_safety_file_version = 1;
+      static constexpr uint64_t current_safety_file_version = 0;
 
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
