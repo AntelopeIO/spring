@@ -102,7 +102,8 @@ namespace eosio::chain::snapshot_detail {
       finality_core                                       core;
       finalizer_policy_ptr                                active_finalizer_policy;
       proposer_policy_ptr                                 active_proposer_policy;
-      flat_map<block_timestamp_type, proposer_policy_ptr> proposer_policies;
+      std::optional<proposer_policy_ptr>                  latest_proposed_proposer_policy;
+      std::optional<proposer_policy_ptr>                  latest_pending_proposer_policy;
       std::vector<std::pair<block_num_type, finalizer_policy_ptr>>   proposed_finalizer_policies;
       std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
       uint32_t                                            finalizer_policy_generation;
@@ -122,7 +123,8 @@ namespace eosio::chain::snapshot_detail {
          , core(bs.core)
          , active_finalizer_policy(bs.active_finalizer_policy)
          , active_proposer_policy(bs.active_proposer_policy)
-         , proposer_policies(bs.proposer_policies)
+         , latest_proposed_proposer_policy(bs.latest_proposed_proposer_policy)
+         , latest_pending_proposer_policy(bs.latest_pending_proposer_policy)
          , proposed_finalizer_policies(bs.proposed_finalizer_policies)
          , pending_finalizer_policy(bs.pending_finalizer_policy)
          , finalizer_policy_generation(bs.finalizer_policy_generation)
@@ -200,7 +202,8 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
             (core)
             (active_finalizer_policy)
             (active_proposer_policy)
-            (proposer_policies)
+            (latest_proposed_proposer_policy)
+            (latest_pending_proposer_policy)
             (proposed_finalizer_policies)
             (pending_finalizer_policy)
             (finalizer_policy_generation)

@@ -1935,7 +1935,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    _pending_block_mode = pending_block_mode::producing;
 
    // copy as reference is invalidated by abort_block() below
-   const producer_authority scheduled_producer = chain.active_producers().get_scheduled_producer(block_time);
+   const producer_authority scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
 
    size_t num_relevant_signatures = 0;
    scheduled_producer.for_each_key([&](const public_key_type& key) {
@@ -2018,18 +2018,22 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       }
    }
 
-   // create speculative blocks at regular intervals, so we create blocks with "current" block time
+   // Calculate block deadline for both produced blocks and speculative blocks. Even though speculative blocks are
+   // ephemeral, re-start them at block intervals so that speculative transactions execute with current block times.
    _pending_block_deadline = block_timing_util::calculate_producing_block_deadline(_produce_block_cpu_effort, block_time);
    if (in_speculating_mode()) { // if we are producing, then produce block even if deadline has passed
-      // speculative block, no reason to start a block that will immediately be re-started, set deadline in the future
-      // a block should come in during this time, if not then just keep creating the block every produce_block_cpu_effort
-      if (now + fc::milliseconds(config::block_interval_ms/10) > _pending_block_deadline) {
-         _pending_block_deadline = now + _produce_block_cpu_effort;
+      // For a speculative block there is no reason to start a block that will immediately be re-started.
+      // Normally a block should come in during this time; if not, create a speculative block every block_interval_ms.
+      // Ideally, we would abort a transaction as soon as a block is received. For now, this block deadline allows for a
+      // full block interval to attempt to fit in transactions.
+      if (now + fc::milliseconds(config::block_interval_ms) > _pending_block_deadline) {
+         _pending_block_deadline = now + fc::milliseconds(config::block_interval_ms);
       }
    }
    const auto& preprocess_deadline = _pending_block_deadline;
 
-   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}", ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}, deadline ${d}",
+           ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name)("d", _pending_block_deadline));
 
    try {
 

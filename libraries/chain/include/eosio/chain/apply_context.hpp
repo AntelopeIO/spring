@@ -1,4 +1,5 @@
 #pragma once
+#include <boost/unordered/unordered_flat_map.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/transaction.hpp>
 #include <eosio/chain/transaction_context.hpp>
@@ -92,7 +93,7 @@ class apply_context {
             map<table_id_object::id_type, pair<const table_id_object*, int>> _table_cache;
             vector<const table_id_object*>                  _end_iterator_to_table;
             vector<const T*>                                _iterator_to_object;
-            map<const T*,int>                               _object_to_iterator;
+            boost::unordered_flat_map<const T*,int>         _object_to_iterator;
 
             /// Precondition: std::numeric_limits<int>::min() < ei < -1
             /// Iterator of -1 is reserved for invalid iterators (i.e. when the appropriate table has not yet been created).
