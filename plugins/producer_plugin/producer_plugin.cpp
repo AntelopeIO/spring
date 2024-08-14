@@ -718,12 +718,12 @@ public:
                 const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
       switch( status ) {
       case vote_result_t::success:
+      case vote_result_t::duplicate:
          break;
       case vote_result_t::unknown_public_key:
       case vote_result_t::invalid_signature:
       case vote_result_t::max_exceeded:
       case vote_result_t::unknown_block:
-      case vote_result_t::duplicate:
          return;
       default:
          assert(false); // should never happen
