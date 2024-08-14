@@ -24,16 +24,14 @@ digest_type block_header_state::compute_base_digest() const {
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
-   if (latest_proposed_proposer_policy) {
-      fc::raw::pack( enc, *latest_proposed_proposer_policy );
-   }
-   if (latest_pending_proposer_policy) {
-      fc::raw::pack( enc, *latest_pending_proposer_policy );
-   }
+   // For things that are optionally present we should always pack the bool
+   // indicating if they are there.
+   fc::raw::pack( enc, latest_proposed_proposer_policy );
+   fc::raw::pack( enc, latest_pending_proposer_policy );
 
-   if (activated_protocol_features) {
-      fc::raw::pack( enc, *activated_protocol_features );
-   }
+   // Should be always present
+   assert(activated_protocol_features);
+   fc::raw::pack( enc, *activated_protocol_features );
 
    return enc.result();
 }
