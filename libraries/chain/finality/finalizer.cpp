@@ -253,7 +253,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
       // We can load files with older, but not files with a version higher that the running nodeos understands.
       // -----------------------------------------------------------------------------------------------------
-      uint64_t file_version = 0; // default version for file with magic == fsi_t::magic_unversioned
+      uint64_t file_version = 0; // current file version
       fc::raw::unpack(persist_file, file_version);
       EOS_ASSERT(file_version <= current_safety_file_version, finalizer_safety_exception,
                  "Incorrect version number in finalizer safety persistence file: ${p}", ("p", persist_file_path));
