@@ -433,31 +433,25 @@ void pinnable_mapped_file::save_database_file(bool flush /* = true */) {
    std::cerr << "CHAINBASE: Writing \"" << _database_name << "\" database file, complete." << '\n';
 }
 
-pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o)  noexcept :
-   _mapped_file_lock(std::move(o._mapped_file_lock)),
-   _data_file_path(std::move(o._data_file_path)),
-   _database_name(std::move(o._database_name)),
-   _file_mapped_region(std::move(o._file_mapped_region))
+pinnable_mapped_file::pinnable_mapped_file(pinnable_mapped_file&& o) noexcept
 {
-   _segment_manager = o._segment_manager;
-   _writable = o._writable;
-   _non_file_mapped_mapping = o._non_file_mapped_mapping;
-   o._non_file_mapped_mapping = nullptr;
-   o._segment_manager = nullptr;
-   o._writable = false; //prevent dtor from doing anything interesting
+   // all members are correctly default-initialized, so we can just move into *this
+   *this = std::move(o);
 }
 
 pinnable_mapped_file& pinnable_mapped_file::operator=(pinnable_mapped_file&& o) noexcept {
-   _mapped_file_lock = std::move(o._mapped_file_lock);
-   _data_file_path = std::move(o._data_file_path);
-   _database_name = std::move(o._database_name);
-   _file_mapped_region = std::move(o._file_mapped_region);
-   _non_file_mapped_mapping = o._non_file_mapped_mapping;
-   o._non_file_mapped_mapping = nullptr;
-   _segment_manager = o._segment_manager;
-   _writable = o._writable;
-   o._writable = false; //prevent dtor from doing anything interesting
-   o._segment_manager = nullptr;
+   std::swap(_mapped_file_lock, o._mapped_file_lock);
+   std::swap(_data_file_path, o._data_file_path);
+   std::swap(_database_name, o._database_name);
+   std::swap(_database_size, o._database_size);
+   std::swap(_writable, o._writable);
+   std::swap(_sharable, o._sharable);
+   std::swap(_file_mapping, o._file_mapping);
+   std::swap(_file_mapped_region, o._file_mapped_region);
+   std::swap(_non_file_mapped_mapping, o._non_file_mapped_mapping);
+   std::swap(_non_file_mapped_mapping_size, o._non_file_mapped_mapping_size);
+   std::swap(_db_permissions, o._db_permissions);
+   std::swap(_segment_manager, o._segment_manager);
    return *this;
 }
 

@@ -256,8 +256,13 @@ namespace chainbase {
          database(const std::filesystem::path& dir, open_flags write = read_only, uint64_t shared_file_size = 0,
                   bool allow_dirty = false, pinnable_mapped_file::map_mode = pinnable_mapped_file::map_mode::mapped);
          ~database();
+
          database(database&&) = default;
          database& operator=(database&&) = default;
+
+         database(const database&) = delete;
+         database& operator=(const database&) = delete;
+
          bool is_read_only() const { return _read_only; }
          void flush();
 
