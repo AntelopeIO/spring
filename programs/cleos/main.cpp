@@ -93,7 +93,7 @@ Options:
 #include <boost/asio.hpp>
 #include <boost/format.hpp>
 #include <boost/process.hpp>
-#include <boost/process/spawn.hpp>
+#include <boost/process/v1/spawn.hpp>
 #include <boost/range/adaptor/transformed.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/range/algorithm/copy.hpp>
