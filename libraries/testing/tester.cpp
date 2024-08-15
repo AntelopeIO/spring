@@ -559,11 +559,13 @@ namespace eosio::testing {
       for (uint32_t i = 0; i < n; ++i) {
          // For performance, only vote on the last four to move finality.
          // Modify testing_allow_voting only if it was set to true originally;
-         // otherwise the testing_allow_voting would be set to true when `i >= 4` even though the user of
+         // otherwise the testing_allow_voting would be set to true when the following condition is met even though the user of
          // `produce_blocks` wants it to be true.
-         // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
-         if (allow_voting_originally && n > 4)
-            control->testing_allow_voting(i >= n - 4);
+         if (allow_voting_originally && n > 6) {
+            // Some tests like the ones for proposer policy transition rely on LIB advance
+            // at least every round (12 blocks). Vote first 2 out of every 12 blocks.
+            control->testing_allow_voting((i%12) < 2  || i >= n - 4); // This is 4 instead of 3 because the extra block has to be produced to log_irreversible
+         }
          res = empty ? produce_empty_block() : produce_block();
       }
       return res;

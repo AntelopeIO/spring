@@ -4,6 +4,7 @@ The `db_size_api_plugin` retrieves analytics about the blockchain.
 
 * free_bytes
 * used_bytes
+* reclaimable_bytes
 * size
 * indices
 

@@ -23,7 +23,9 @@ struct test_block_state_accessor {
       block_id_type genesis_id = make_block_id(10);
       root->block_id = genesis_id;
       root->header.timestamp = block_timestamp_type{10};
-      root->core = finality_core::create_core_for_genesis_block(block_ref{ root->block_id, root->header.timestamp });
+      root->active_finalizer_policy = std::make_shared<finalizer_policy>(); // needed for make_block_ref
+      root->active_proposer_policy = std::make_shared<proposer_policy>();   // needed for make_block_ref
+      root->core = finality_core::create_core_for_genesis_block(root->block_id, root->header.timestamp);
       return root;
    }
 
@@ -33,11 +35,9 @@ struct test_block_state_accessor {
       bsp->block_id = make_block_id(block_num);
       bsp->header.timestamp.slot = prev->header.timestamp.slot + 1;
       bsp->header.previous = prev->id();
-      block_ref prev_block {
-         .block_id  = prev->id(),
-         .timestamp = prev->timestamp()
-      };
-      bsp->core = prev->core.next(prev_block, prev->core.latest_qc_claim());
+      bsp->active_finalizer_policy = std::make_shared<finalizer_policy>(); // needed for make_block_ref
+      bsp->active_proposer_policy = std::make_shared<proposer_policy>();   // needed for make_block_ref
+      bsp->core = prev->core.next(prev->make_block_ref(), prev->core.latest_qc_claim());
       return bsp;
    }
 

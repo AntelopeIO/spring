@@ -1,5 +1,6 @@
 #include <eosio/chain/finality/qc.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/block_header_state.hpp>
 #include <fc/crypto/bls_utils.hpp>
 
 namespace eosio::chain {
@@ -428,29 +429,33 @@ bool aggregating_qc_t::received_qc_is_strong() const {
    return active_policy_sig.received_qc_sig_is_strong() && pending_policy_sig->received_qc_sig_is_strong();
 }
 
-vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                               block_num_type block_num, std::span<const uint8_t> finalizer_digest)
+aggregate_vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                                         const block_id_type& block_id, std::span<const uint8_t> finalizer_digest)
 {
+   aggregate_vote_result_t r;
+   block_num_type block_num = block_header::num_from_id(block_id);
+
    bool verified_sig = false;
    auto verify_sig = [&]() -> vote_result_t {
       if (!verified_sig && !fc::crypto::blslib::verify(vote.finalizer_key, finalizer_digest, vote.sig)) {
-         fc_wlog(vote_logger, "connection - ${c} signature from finalizer ${k}.. cannot be verified",
-                 ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
+         fc_wlog(vote_logger, "connection - ${c} block_num: ${bn} block_id: ${id}, signature from finalizer ${k}.. cannot be verified, vote strong: ${sv}",
+                 ("c", connection_id)("bn", block_num)("id", block_id)("k", vote.finalizer_key.to_string().substr(8,16))("sv", vote.strong));
          return vote_result_t::invalid_signature;
       }
       verified_sig = true;
       return vote_result_t::success;
    };
 
-   auto add_vote = [&](const finalizer_policy_ptr& finalizer_policy, aggregating_qc_sig_t& agg_qc_sig) -> vote_result_t {
+   auto add_vote = [&](finalizer_authority_ptr& auth, const finalizer_policy_ptr& finalizer_policy, aggregating_qc_sig_t& agg_qc_sig) -> vote_result_t {
       const auto& finalizers = finalizer_policy->finalizers;
       auto itr = std::ranges::find_if(finalizers, [&](const auto& finalizer) { return finalizer.public_key == vote.finalizer_key; });
       vote_result_t s = vote_result_t::unknown_public_key;
       if (itr != finalizers.end()) {
+         auth = finalizer_authority_ptr{finalizer_policy, &(*itr)}; // use aliasing shared_ptr constructor
          auto index = std::distance(finalizers.begin(), itr);
          if (agg_qc_sig.has_voted(index)) {
-            fc_tlog(vote_logger, "connection - ${c} block_num: ${bn}, duplicate finalizer ${k}..",
-                    ("c", connection_id)("bn", block_num)("k", vote.finalizer_key.to_string().substr(8,16)));
+            fc_tlog(vote_logger, "connection - ${c} block_num: ${bn} block_id: ${id}, duplicate finalizer ${k}..",
+                    ("c", connection_id)("bn", block_num)("id", block_id)("k", vote.finalizer_key.to_string().substr(8,16)));
             return vote_result_t::duplicate;
          }
          if (vote_result_t vs = verify_sig(); vs != vote_result_t::success)
@@ -465,22 +470,22 @@ vote_result_t aggregating_qc_t::aggregate_vote(uint32_t connection_id, const vot
       return s;
    };
 
-   vote_result_t s = add_vote(active_finalizer_policy, active_policy_sig);
-   if (s != vote_result_t::success && s != vote_result_t::unknown_public_key)
-      return s;
+   r.result = add_vote(r.active_authority, active_finalizer_policy, active_policy_sig);
+   if (r.result != vote_result_t::success && r.result != vote_result_t::unknown_public_key)
+      return r;
 
    if (pending_finalizer_policy) {
       assert(pending_policy_sig);
-      vote_result_t ps = add_vote(pending_finalizer_policy, *pending_policy_sig);
+      vote_result_t ps = add_vote(r.pending_authority, pending_finalizer_policy, *pending_policy_sig);
       if (ps != vote_result_t::unknown_public_key)
-         s = ps;
+         r.result = ps;
    }
 
-   if (s == vote_result_t::unknown_public_key) {
+   if (r.result == vote_result_t::unknown_public_key) {
       fc_wlog(vote_logger, "connection - ${c} finalizer_key ${k} in vote is not in finalizer policies",
               ("c", connection_id)("k", vote.finalizer_key.to_string().substr(8,16)));
    }
-   return s;
+   return r;
 }
 
 vote_status_t aggregating_qc_t::has_voted(const bls_public_key& key) const {
