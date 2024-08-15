@@ -301,6 +301,9 @@ void finish_next(const block_header_state& prev,
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
 
+   // will be reset in evaluate_finalizer_policies_for_promotion if needed
+   next_header_state.last_pending_finalizer_policy_start_timestamp = prev.last_pending_finalizer_policy_start_timestamp;
+
    evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
    next_header_state.last_pending_finalizer_policy_digest = fc::sha256::hash(next_header_state.get_last_pending_finalizer_policy());
