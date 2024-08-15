@@ -494,11 +494,11 @@ struct building_block {
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
             // latest_proposed_proposer_policy is the last if it is present
             if (parent.latest_proposed_proposer_policy) {
-               return (*parent.latest_proposed_proposer_policy)->proposer_schedule;
+               return parent.latest_proposed_proposer_policy->proposer_schedule;
             }
             // then the last is latest_pending_proposer_policy
             if (parent.latest_pending_proposer_policy) {
-               return (*parent.latest_pending_proposer_policy)->proposer_schedule;
+               return parent.latest_pending_proposer_policy->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -1416,12 +1416,14 @@ struct controller_impl {
          // information for those finalizers that don't already have one. This typically should be done when
          // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
          // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-         auto start_block = chain_head; // doesn't matter this is not updated for IRREVERSIBLE, can be in irreversible mode and be a finalizer
-         auto lib_block   = chain_head;
+         block_ref ref = block_handle_accessor::apply<block_ref>(chain_head,
+            overloaded{[&](const block_state_legacy_ptr& head) { return block_ref{}; },
+                       [&](const block_state_ptr& head) { return head->make_block_ref(); }});
+         // doesn't matter chain_head is not updated for IRREVERSIBLE, cannot be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
-            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                          .last_vote = {start_block.id(), start_block.block_time()},
-                                          .lock      = {lib_block.id(),   lib_block.block_time()} });
+            finalizer_safety_information{ .last_vote                             = ref,
+                                          .lock                                  = ref,
+                                          .votes_forked_since_latest_strong_vote = false});
       }
    }
 
@@ -1615,12 +1617,10 @@ struct controller_impl {
                         // information for those finalizers that don't already have one. This typically should be done when
                         // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
                         // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-                        auto start_block = chain_head;
-                        auto lib_block   = chain_head;
                         my_finalizers.set_default_safety_information(
-                           finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = {start_block.id(), start_block.block_time()},
-                                                         .lock      = {lib_block.id(),   lib_block.block_time()} });
+                           finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
+                                                        .lock                                  = prev->make_block_ref(),
+                                                        .votes_forked_since_latest_strong_vote = false});
                      }
                   }
                });
@@ -1996,9 +1996,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2006,9 +2006,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
@@ -3809,12 +3809,16 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const my_finalizers_t::vote_t& vote) {
+              const auto& [vote_msg, active_auth, pending_auth] = vote;
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
+              emit(voted_block,
+                   vote_signal_params{uint32_t{0}, vote_result_t::success,
+                                      std::cref(vote_msg), std::cref(active_auth), std::cref(pending_auth)},
+                   __FILE__, __LINE__);
 
               // also aggregate our own vote into the aggregating_qc for this block, 0 connection_id indicates our own vote
-              process_vote_message(0, vote);
+              process_vote_message(0, vote_msg);
           });
    }
 

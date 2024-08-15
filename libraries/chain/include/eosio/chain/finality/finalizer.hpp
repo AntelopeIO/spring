@@ -32,19 +32,18 @@ namespace eosio::chain {
 
    // ----------------------------------------------------------------------------------------
    struct finalizer_safety_information {
-      block_timestamp_type last_vote_range_start;
       block_ref            last_vote;
       block_ref            lock;
+      bool                 votes_forked_since_latest_strong_vote {false};
 
-      static constexpr uint64_t magic_unversioned = 0x5AFE11115AFE1111ull;
-      static constexpr uint64_t magic             = 0x5AFE11115AFE1112ull;
+      static constexpr uint64_t magic = 0x5AFE11115AFE1111ull;
 
       static finalizer_safety_information unset_fsi() { return {}; }
 
       auto operator==(const finalizer_safety_information& o) const {
-         return last_vote_range_start == o.last_vote_range_start &&
-            last_vote == o.last_vote &&
-            lock == o.lock;
+         return last_vote == o.last_vote &&
+            lock == o.lock &&
+            votes_forked_since_latest_strong_vote == o.votes_forked_since_latest_strong_vote;
       }
    };
 
@@ -71,10 +70,11 @@ namespace eosio::chain {
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
    public:
-      static constexpr uint64_t current_safety_file_version = 1;
+      static constexpr uint64_t current_safety_file_version = 0;
 
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
+      using vote_t  = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
 
    private:
       const std::filesystem::path       persist_file_path;     // where we save the safety data
@@ -91,19 +91,23 @@ namespace eosio::chain {
          : persist_file_path(persist_file_path)
       {}
 
-      template<class F> // thread safe
+      template<class F> // thread safe, F(vote_t)
       void maybe_vote(const block_state_ptr& bsp, F&& process_vote) {
          if (finalizers.empty())
             return;
 
          assert(bsp->active_finalizer_policy);
 
-         std::vector<vote_message_ptr> votes;
+         std::vector<vote_t> votes;
          votes.reserve(finalizers.size());
 
-         auto in_policy = [](const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
-            return std::ranges::any_of(finalizer_policy->finalizers, [&key](const finalizer_authority& fin_auth) {
-               return fin_auth.public_key == key;
+         auto in_policy = [](finalizer_authority_ptr& auth, const finalizer_policy_ptr& finalizer_policy, const bls_public_key& key) {
+            return std::ranges::any_of(finalizer_policy->finalizers, [&](const finalizer_authority& fin_auth) {
+               if (fin_auth.public_key == key) {
+                  auth = finalizer_authority_ptr{finalizer_policy, &fin_auth}; // use aliasing shared_ptr constructor
+                  return true;
+               }
+               return false;
             });
          };
 
@@ -114,12 +118,15 @@ namespace eosio::chain {
          // first accumulate all the votes
          // optimized for finalizers of size one which should be the normal configuration outside of tests
          for (auto& f : finalizers) {
-            if (in_policy(bsp->active_finalizer_policy, f.first)
-                || (bsp->pending_finalizer_policy && in_policy(bsp->pending_finalizer_policy->second, f.first))) {
-
+            finalizer_authority_ptr active_auth;
+            finalizer_authority_ptr pending_auth;
+            bool in_active  = in_policy(active_auth, bsp->active_finalizer_policy, f.first);
+            // don't shortcut in_pending as we want to signal both active_auth & pending_auth if appropriate
+            bool in_pending = bsp->pending_finalizer_policy && in_policy(pending_auth, bsp->pending_finalizer_policy->second, f.first);
+            if (in_active || in_pending) {
                vote_message_ptr vote_msg = f.second.maybe_vote(f.first, bsp, bsp->strong_digest);
                if (vote_msg)
-                  votes.push_back(std::move(vote_msg));
+                  votes.push_back(vote_t{std::move(vote_msg), std::move(active_auth), std::move(pending_auth)});
             }
          }
 
@@ -166,7 +173,7 @@ namespace eosio::chain {
 
 namespace std {
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::finalizer_safety_information& fsi) {
-      os << "fsi(" << fsi.last_vote_range_start.slot << ", " << fsi.last_vote << ", " << fsi.lock << ")";
+      os << "fsi(" << fsi.last_vote << ", " << fsi.lock << ", " << fsi.votes_forked_since_latest_strong_vote << ")";
       return os;
    }
 
@@ -184,5 +191,5 @@ namespace std {
    }
 }
 
-FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote_range_start)(last_vote)(lock))
+FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote)(lock)(votes_forked_since_latest_strong_vote))
 FC_REFLECT_ENUM(eosio::chain::finalizer::vote_decision, (strong_vote)(weak_vote)(no_vote))

@@ -50,6 +50,12 @@ namespace eosio::chain {
       irrelevant_finalizer
    };
 
+   struct aggregate_vote_result_t {
+      vote_result_t           result{vote_result_t::unknown_public_key};
+      finalizer_authority_ptr active_authority;
+      finalizer_authority_ptr pending_authority;
+   };
+
    struct qc_sig_t {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
@@ -251,8 +257,8 @@ namespace eosio::chain {
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
-      vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                   block_num_type block_num, std::span<const uint8_t> finalizer_digest);
+      aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                             block_num_type block_num, std::span<const uint8_t> finalizer_digest);
       vote_status_t has_voted(const bls_public_key& key) const;
       bool is_quorum_met() const;
 

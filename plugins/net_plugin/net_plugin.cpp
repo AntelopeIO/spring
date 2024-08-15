@@ -534,7 +534,10 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
-      void broadcast_vote_message( uint32_t connection_id, vote_result_t stauts, const vote_message_ptr& vote );
+      void broadcast_vote_message( uint32_t connection_id, vote_result_t status,
+                                   const vote_message_ptr& vote,
+                                   const finalizer_authority_ptr& active_auth,
+                                   const finalizer_authority_ptr& pending_auth);
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
       void on_irreversible_block( const block_id_type& id, uint32_t block_num );
@@ -2423,17 +2426,16 @@ namespace eosio {
       fc::unique_lock g( sync_mtx );
       sync_last_requested_num = 0;
       sync_next_expected_num = my_impl->get_chain_lib_num() + 1;
+      g.unlock();
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
-         peer_wlog( c, "block ${bn} not accepted, closing connection", ("bn", blk_num) );
-         sync_source.reset();
-         g.unlock();
+         peer_wlog(c, "block ${bn} not accepted, closing connection ${d}",
+                   ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
          if( mode == closing_mode::immediately ) {
             c->close( false ); // do not reconnect
          } else {
             c->close();
          }
       } else {
-         g.unlock();
          peer_dlog(c, "rejected block ${bn}, sending handshake", ("bn", blk_num));
          c->send_handshake();
       }
@@ -3959,10 +3961,22 @@ namespace eosio {
    }
 
    // called from other threads including net threads
-   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg) {
-      fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, key ${k}..",
-                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
-                ("t", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8, 16)));
+   void net_plugin_impl::broadcast_vote_message(uint32_t connection_id, vote_result_t status,
+                                                const vote_message_ptr& msg,
+                                                const finalizer_authority_ptr& active_auth,
+                                                const finalizer_authority_ptr& pending_auth) {
+      auto get_desc = [&]() -> std::string {
+         if (active_auth)
+            return active_auth->description;
+         if (pending_auth)
+            return pending_auth->description;
+         return std::string{"unknown"};
+      };
+
+      fc_dlog(vote_logger, "connection - ${c} on voted signal: ${s} block #${bn} ${id}.., ${t}, ${d}, key ${k}..",
+                ("c", connection_id)("s", status)("bn", block_header::num_from_id(msg->block_id))
+                ("id", msg->block_id.str().substr(8,16))("t", msg->strong ? "strong" : "weak")
+                ("d", get_desc())("k", msg->finalizer_key.to_string().substr(8, 16)));
 
       switch( status ) {
       case vote_result_t::success:
@@ -4411,8 +4425,8 @@ namespace eosio {
          } );
 
          auto broadcast_vote =  [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
-            auto& [connection_id, status, msg] = vote_signal;
-            my->broadcast_vote_message(connection_id, status, msg);
+            auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
+            my->broadcast_vote_message(connection_id, status, msg, active_auth, pending_auth);
          };
 
          cc.aggregated_vote().connect( broadcast_vote );

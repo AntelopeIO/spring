@@ -64,8 +64,10 @@ try:
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, topo=topo, delay=delay, activateIF=activateIF) is False:
         errorExit("Failed to stand up eos cluster.")
 
-    Print ("Kill bios node")
-    cluster.biosNode.kill(signal.SIGTERM)
+    # killing bios node means LIB will not advance as it hosts the only finalizer
+    if maxReversibleBlocks > 0:
+        Print ("Kill bios node")
+        cluster.biosNode.kill(signal.SIGTERM)
 
     Print ("Wait for Cluster stabilization")
     # wait for cluster to start producing blocks
@@ -87,7 +89,7 @@ try:
     Print ("Relaunch dead cluster node instance.")
     nodeArg = "--terminate-at-block %d" % terminate if terminate > 0 else ""
     if nodeArg == "":
-        nodeArg = "--max-reversible-blocks %d" % maxReversibleBlocks if maxReversibleBlocks > 0 else ""
+        nodeArg = "--max-reversible-blocks %d --production-pause-vote-timeout-ms 0" % maxReversibleBlocks if maxReversibleBlocks > 0 else ""
     if nodeArg != "":
         if chainSyncStrategyStr == "hardReplay":
             nodeArg += " --truncate-at-block %d" % terminate

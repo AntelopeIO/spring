@@ -76,6 +76,8 @@ class Node(Transactions):
         self.config_dir=config_dir
         self.launch_time=launch_time
         self.isProducer=False
+        # if multiple producers configured for a Node, this is the first one
+        self.producerName=None
         self.keys: List[KeyStrings] = field(default_factory=list)
         self.configureVersion()
 
@@ -467,6 +469,8 @@ class Node(Transactions):
             self.pid = popen.pid
             self.cmd = cmd
             self.isProducer = '--producer-name' in self.cmd
+            # first configured producer or None
+            self.producerName = re.search('--producer-name (\w+)', " ".join(cmd))[1] if re.search('--producer-name (\w+)', " ".join(cmd)) is not None else None
         with pidf.open('w') as pidout:
             pidout.write(str(popen.pid))
         try:
