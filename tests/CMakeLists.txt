@@ -73,6 +73,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery.py ${CMAKE_CURRENT_
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_2.py ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery_2.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_2_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery_2_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/disaster_recovery_3.py ${CMAKE_CURRENT_BINARY_DIR}/disaster_recovery_3.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/production_restart.py ${CMAKE_CURRENT_BINARY_DIR}/production_restart.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/production_restart_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/production_restart_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trx_finality_status_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/trx_finality_status_forked_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plugin_http_api_test.py ${CMAKE_CURRENT_BINARY_DIR}/plugin_http_api_test.py COPYONLY)
@@ -159,6 +161,8 @@ add_test(NAME disaster_recovery_2 COMMAND tests/disaster_recovery_2.py -v ${UNSH
 set_property(TEST disaster_recovery_2 PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME disaster_recovery_3 COMMAND tests/disaster_recovery_3.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST disaster_recovery_3 PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME production_restart COMMAND tests/production_restart.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST production_restart PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME ship_reqs_across_svnn_test COMMAND tests/ship_reqs_across_svnn_test.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST ship_reqs_across_svnn_test PROPERTY LABELS nonparallelizable_tests)

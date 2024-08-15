@@ -1,0 +1,65 @@
+{
+  "name": "testnet_",
+  "ssh_helper": {
+    "ssh_cmd": "/usr/bin/ssh",
+    "scp_cmd": "/usr/bin/scp",
+    "ssh_identity": "",
+    "ssh_args": ""
+  },
+  "nodes": {
+      "bios":{
+        "name": "bios",
+        "keys": [
+          {
+            "privkey":"5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3",
+            "pubkey":"EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV"
+          }
+        ],
+        "peers": [],
+        "producers": [
+          "eosio"
+        ],
+        "dont_start": false
+      },
+      "testnet_00":{
+        "name": "testnet_00",
+        "keys": [
+          {
+            "privkey":"5Jf4sTk7vwX1MYpLJ2eQFanVvKYXFqGBrCyANPukuP2BJ5WAAKZ",
+            "pubkey":"EOS58B33q9S7oNkgeFfcoW3VJYu4obfDiqn5RHGE2ige6jVjUhymR",
+            "blspubkey":"PUB_BLS_rYRa_-bT7uLOSAfPIBy6NlXFB0YxwROeSuqHzw6s-1cuK_-GJUKqp20ktyAnsO4ZuHdx3BEPDaLronpnL22MXKWM7bvZnkCfbGCD6OzizQqxXkM9N5z5R-OUA4Ime6cF5YTSFg",
+            "blsprivkey":"PVT_BLS_GQjR0E8Hu8KrsTCvLKnlOCIwQijAj2-5KDizQwF-bAY6pise",
+            "blspop":"SIG_BLS_syFMuifUnX2zQQKr0cuHYzQQjsuPrNG75_z6y8fOyYg_twqMICZ0kT7ObbwIOUsLfXx9PVb4-QLEgUYGSRg1NSfeHGjIGkhea82wa3ayfI8elUEU1MStKbeKpys7xUAQz1PEgwcz5dClq3HyLQmMAjpoL74N_Znf0KiNEVZMte-DLF7x_6sAfp_834LthyYHjZYTmdG7belyzlYHKJb6upnZy9nR_zoKpx9jeTd3tzVhoTCuAN6aFw68D_ItY5cWiY2dhA"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_01"
+        ],
+        "producers": [
+          "defproducera"
+        ],
+        "dont_start": false
+      },
+      "testnet_01":{
+        "name": "testnet_01",
+        "keys": [
+          {
+            "pubkey": "EOS8XH2gKxsef9zxmMHm4vaSvxQUhg7W4GC3nK2KSRxyYrNG5gZFS",
+            "privkey": "5JcoRRhDcgm51dkBrRTmErceTqrYhrq22UnmUjTZToMpH91B9N1",
+            "blspubkey":"PUB_BLS_Wf_O_QeyVhekDXS5q3qBxTyj_qxSrX_uiCY4z8ClpW0X2jrAVgAVHOQ9IR2H40QTWveD8QIGhhSbmSFPa0zFbs5k3yfnjfuuwpA7T1O13_LSdtxT19ehYiE4chZX6SUMJ09JFA",
+            "blsprivkey":"PVT_BLS_1ZLWim0k80ssXswSZp1T3ydHO9U3gLnKKlEBIDy8927XDLLj",
+            "blspop":"SIG_BLS_EL09aI3w-qCgarLM2Z5-T6sisSHBN0J4vMZxtGQklkOcAxgnCaPPXe0roxY4W0gVe2y6T01YrklmT_qZu2tAwqiNrVJcScY8QKvRSeczGBBab1MgnHvaAOuf6bA4JPAELIu2iPWfsS6-oLyLbNP5xtZpMXPHu3yaSJssXNOb5rcVs1KXaIUEagJeAlBBQEcKmFWfeAsJ_R8JDw4i9gSNmROzUjm6LVBpvB7vrnPDPFRA0BQ19H4FED6PtuFPShwJGVz4dg"
+          }
+        ],
+        "peers": [
+          "bios",
+          "testnet_00"
+        ],
+        "producers": [
+          "defproducerb"
+        ],
+        "dont_start": false
+      }
+  }
+}
