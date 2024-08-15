@@ -258,7 +258,7 @@ namespace eosio::chain {
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
       aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                             block_num_type block_num, std::span<const uint8_t> finalizer_digest);
+                                             const block_id_type& block_id, std::span<const uint8_t> finalizer_digest);
       vote_status_t has_voted(const bls_public_key& key) const;
       bool is_quorum_met() const;
 
