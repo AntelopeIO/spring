@@ -95,9 +95,9 @@ class pinnable_mapped_file {
       bip::file_lock                                _mapped_file_lock;
       std::filesystem::path                         _data_file_path;
       std::string                                   _database_name;
-      size_t                                        _database_size;
-      bool                                          _writable;
-      bool                                          _sharable;
+      size_t                                        _database_size = 0;
+      bool                                          _writable = false;
+      bool                                          _sharable = false;
 
       bip::file_mapping                             _file_mapping;
       bip::mapped_region                            _file_mapped_region;
