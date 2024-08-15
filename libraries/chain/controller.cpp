@@ -3987,7 +3987,7 @@ struct controller_impl {
             vote_processor.notify_new_block(async_aggregation);
       }
 
-      return std::tuple{best_head, block_handle{move(bsp)}};
+      return std::tuple{best_head, block_handle{std::move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
