@@ -32,10 +32,6 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       // This allows restoration of liveness if a replica is locked on a stale proposal
       // -------------------------------------------------------------------------------
       res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
-      if (!res.liveness_check) {
-         // might be locked on an old timestamp if finalizer was active in the past and is now active again
-         res.liveness_check = bsp->core.last_final_block_timestamp() >= fsi.lock.timestamp;
-      }
 
       if (!res.liveness_check) {
          fc_ilog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
