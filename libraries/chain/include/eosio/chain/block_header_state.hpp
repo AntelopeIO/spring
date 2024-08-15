@@ -114,8 +114,8 @@ struct block_header_state {
        active_proposer_policy is we should not promote the policy if the proposal_time
        of the policy is greater than the last_final_block_timestamp of the previous block.
     */
-   std::optional<proposer_policy_ptr> latest_proposed_proposer_policy;
-   std::optional<proposer_policy_ptr> latest_pending_proposer_policy;
+   proposer_policy_ptr latest_proposed_proposer_policy;
+   proposer_policy_ptr latest_pending_proposer_policy;
 
    // Track in-flight proposed finalizer policies.
    // When the block associated with a proposed finalizer policy becomes final,
@@ -164,6 +164,8 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
+   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), compute_finality_digest() }; }
+
    // Returns true if the block is a Savanna Genesis Block.
    // This method is applicable to any transition block which is re-classified as a Savanna block.
    bool is_savanna_genesis_block() const { return core.is_genesis_block_num(block_num()); }
@@ -206,7 +208,7 @@ FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(latest_proposed_proposer_policy)(latest_pending_proposer_policy)(proposed_finalizer_policies)
             (pending_finalizer_policy)(finalizer_policy_generation)
-            (last_pending_finalizer_policy_digest))
+            (last_pending_finalizer_policy_digest)(last_pending_finalizer_policy_start_timestamp))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
 FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_timestamp)(l3_commitments_digest) )

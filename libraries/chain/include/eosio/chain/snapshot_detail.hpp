@@ -102,8 +102,8 @@ namespace eosio::chain::snapshot_detail {
       finality_core                                       core;
       finalizer_policy_ptr                                active_finalizer_policy;
       proposer_policy_ptr                                 active_proposer_policy;
-      std::optional<proposer_policy_ptr>                  latest_proposed_proposer_policy;
-      std::optional<proposer_policy_ptr>                  latest_pending_proposer_policy;
+      proposer_policy_ptr                                 latest_proposed_proposer_policy;
+      proposer_policy_ptr                                 latest_pending_proposer_policy;
       std::vector<std::pair<block_num_type, finalizer_policy_ptr>>   proposed_finalizer_policies;
       std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
       uint32_t                                            finalizer_policy_generation;

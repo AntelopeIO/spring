@@ -10,6 +10,13 @@ using block_time_type = chain::block_timestamp_type;
 
 struct block_ref
 {
+   block_ref(const block_id_type& block_id, block_time_type timestamp, const digest_type& finality_digest)
+      : block_id(block_id)
+      , timestamp(timestamp)
+      , finality_digest(finality_digest) {}
+
+   block_ref() = default; // creates `empty` representation where `block_id.empty() == true`
+
    block_id_type    block_id;
    block_time_type  timestamp;
    digest_type      finality_digest;  // finality digest associated with the block
@@ -81,7 +88,7 @@ struct finality_core
     *  @post returned core has latest_qc_claim() == {.block_num=block_num, .is_strong_qc=false}
     *  @post returned core has last_final_block_num() == block_num
     */
-   static finality_core create_core_for_genesis_block(const block_ref& genesis_block);
+   static finality_core create_core_for_genesis_block(const block_id_type& block_id, block_time_type timestamp);
 
    bool is_genesis_core() const { return refs.empty(); }
 

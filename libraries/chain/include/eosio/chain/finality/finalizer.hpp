@@ -32,19 +32,18 @@ namespace eosio::chain {
 
    // ----------------------------------------------------------------------------------------
    struct finalizer_safety_information {
-      block_timestamp_type last_vote_range_start;
       block_ref            last_vote;
       block_ref            lock;
+      bool                 votes_forked_since_latest_strong_vote {false};
 
-      static constexpr uint64_t magic_unversioned = 0x5AFE11115AFE1111ull;
-      static constexpr uint64_t magic             = 0x5AFE11115AFE1112ull;
+      static constexpr uint64_t magic = 0x5AFE11115AFE1111ull;
 
       static finalizer_safety_information unset_fsi() { return {}; }
 
       auto operator==(const finalizer_safety_information& o) const {
-         return last_vote_range_start == o.last_vote_range_start &&
-            last_vote == o.last_vote &&
-            lock == o.lock;
+         return last_vote == o.last_vote &&
+            lock == o.lock &&
+            votes_forked_since_latest_strong_vote == o.votes_forked_since_latest_strong_vote;
       }
    };
 
@@ -71,7 +70,7 @@ namespace eosio::chain {
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
    public:
-      static constexpr uint64_t current_safety_file_version = 1;
+      static constexpr uint64_t current_safety_file_version = 0;
 
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
@@ -174,7 +173,7 @@ namespace eosio::chain {
 
 namespace std {
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::finalizer_safety_information& fsi) {
-      os << "fsi(" << fsi.last_vote_range_start.slot << ", " << fsi.last_vote << ", " << fsi.lock << ")";
+      os << "fsi(" << fsi.last_vote << ", " << fsi.lock << ", " << fsi.votes_forked_since_latest_strong_vote << ")";
       return os;
    }
 
@@ -192,5 +191,5 @@ namespace std {
    }
 }
 
-FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote_range_start)(last_vote)(lock))
+FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote)(lock)(votes_forked_since_latest_strong_vote))
 FC_REFLECT_ENUM(eosio::chain::finalizer::vote_decision, (strong_vote)(weak_vote)(no_vote))

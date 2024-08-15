@@ -54,22 +54,17 @@ BOOST_FIXTURE_TEST_CASE(policy_change, savanna_cluster::cluster_t) try {
    auto expected_gen = A.head_pending_finalizer_policy()->generation;
    BOOST_REQUIRE_GT(expected_gen, current_gen);
 
-#if 0
-   // there is an issue with this test... it will be completed in a further PR
-
    size_t num_to_active = 0;
    do {
       A.produce_block();
       finpol = A.head_active_finalizer_policy();
       ++num_to_active;
-      printf("num_to_active = %d\n", (int)num_to_active);
    } while (finpol->generation != expected_gen);
-   BOOST_REQUIRE_EQUAL(num_to_active, num_chains_to_final); // becames active when "pending" block is final
+   BOOST_REQUIRE_EQUAL(num_to_active, num_chains_to_final + 1); // becomes active when "pending" block is final
 
    // A produces blocks, verify lib advances
    // --------------------------------------
    BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
-#endif
 } FC_LOG_AND_RETHROW()
 
 
