@@ -338,9 +338,17 @@ void finish_next(const block_header_state& prev,
 
       if (next_header_state.active_finalizer_policy != prev.active_finalizer_policy) {
          const auto& act = next_header_state.active_finalizer_policy;
-         ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
+         dlog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
               ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
-         ilog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+         dlog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+              ("n",block_header::num_from_id(id))("id", id)("pol", *act));
+      }
+
+      if (next_header_state.active_proposer_policy != prev.active_proposer_policy) {
+         const auto& act = next_header_state.active_proposer_policy;
+         dlog("Proposer policy version change: ${old_ver} -> ${new_ver}",
+              ("old_ver", prev.active_proposer_policy->proposer_schedule.version)("new_ver",act->proposer_schedule.version));
+         dlog("New proposer policy becoming active in block ${n}:${id}: ${pol}",
               ("n",block_header::num_from_id(id))("id", id)("pol", *act));
       }
    }
