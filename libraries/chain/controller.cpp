@@ -193,15 +193,13 @@ struct completed_block {
       });
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return block_handle_accessor::apply<const producer_authority_schedule*>(bsp,
          overloaded{[](const block_state_legacy_ptr& bsp) -> const producer_authority_schedule* {
                        return bsp->pending_schedule_auth();
                     },
                     [](const block_state_ptr& bsp) -> const producer_authority_schedule* {
-                       return bsp->proposer_policies.empty()
-                                 ? nullptr
-                                 : &bsp->proposer_policies.begin()->second->proposer_schedule;
+                       return bsp->pending_producers();
                     }
          });
    }
@@ -333,16 +331,14 @@ struct assembled_block {
          v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const assembled_block_legacy& ab) -> const producer_authority_schedule* {
                                       return ab.new_producer_authority_cache.has_value()
                                                 ? &ab.new_producer_authority_cache.value()
                                                 : nullptr;
                                    },
                                    [](const assembled_block_if& ab) -> const producer_authority_schedule* {
-                                      return ab.bhs.proposer_policies.empty()
-                                                ? nullptr
-                                                : &ab.bhs.proposer_policies.begin()->second->proposer_schedule;
+                                      return ab.bhs.pending_producers();
                                    }},
                         v);
    }
@@ -472,7 +468,7 @@ struct building_block {
          , timestamp(input.timestamp)
          , active_producer_authority{input.producer,
                               [&]() -> block_signing_authority {
-                                 const auto& pas = parent.active_proposer_policy->proposer_schedule;
+                                 const auto& pas = parent.get_active_proposer_policy_for_block_at(input.timestamp)->proposer_schedule;
                                  for (const auto& pa : pas.producers)
                                     if (pa.producer_name == input.producer)
                                        return pa.authority;
@@ -480,7 +476,7 @@ struct building_block {
                                  return {};
                               }()}
          , prev_activated_protocol_features(parent.activated_protocol_features)
-         , active_proposer_policy(parent.active_proposer_policy)
+         , active_proposer_policy(parent.get_active_proposer_policy_for_block_at(input.timestamp))
          , block_num(parent.block_num() + 1) {}
 
       bool is_protocol_feature_activated(const digest_type& digest) const {
@@ -494,10 +490,15 @@ struct building_block {
       std::optional<uint32_t> get_next_proposer_schedule_version(const std::vector<producer_authority>& producers) const {
          assert(active_proposer_policy);
 
+         // returns the last proposed policy to use for comparison
          auto get_next_sched = [&]() -> const producer_authority_schedule& {
-            if (!parent.proposer_policies.empty()) { // proposed in-flight
-               // return the last proposed policy to use for comparison
-               return (--parent.proposer_policies.end())->second->proposer_schedule;
+            // latest_proposed_proposer_policy is the last if it is present
+            if (parent.latest_proposed_proposer_policy) {
+               return parent.latest_proposed_proposer_policy->proposer_schedule;
+            }
+            // then the last is latest_pending_proposer_policy
+            if (parent.latest_pending_proposer_policy) {
+               return parent.latest_pending_proposer_policy->proposer_schedule;
             }
             // none currently in-flight, use active
             return active_proposer_policy->proposer_schedule;
@@ -644,16 +645,14 @@ struct building_block {
                         v);
    }
 
-   const producer_authority_schedule* next_producers() const {
+   const producer_authority_schedule* pending_producers() const {
       return std::visit(overloaded{[](const building_block_legacy& bb) -> const producer_authority_schedule* {
                                       if (bb.new_pending_producer_schedule)
                                          return &bb.new_pending_producer_schedule.value();
                                       return &bb.pending_block_header_state.prev_pending_schedule.schedule;
                                    },
                                    [](const building_block_if& bb) -> const producer_authority_schedule* {
-                                      if (!bb.parent.proposer_policies.empty())
-                                         return &bb.parent.proposer_policies.begin()->second->proposer_schedule;
-                                      return nullptr;
+                                      return bb.parent.pending_producers();
                                    }},
                         v);
    }
@@ -836,6 +835,7 @@ struct pending_state {
    std::optional<block_id_type>   _producer_block_id;
    controller::block_report       _block_report{};
 
+   // Legacy
    pending_state(maybe_session&& s,
                  const block_header_state_legacy& prev,
                  block_timestamp_type when,
@@ -845,6 +845,7 @@ struct pending_state {
    ,_block_stage(building_block(prev, when, num_prev_blocks_to_confirm, new_protocol_feature_activations))
    {}
 
+   // Savanna
    pending_state(maybe_session&& s,
                  const block_state& prev,
                  const building_block_input& input) :
@@ -894,9 +895,9 @@ struct pending_state {
          _block_stage);
    }
 
-   const producer_authority_schedule* next_producers()const {
+   const producer_authority_schedule* pending_producers()const {
       return std::visit(
-         [](const auto& stage) -> const producer_authority_schedule* { return stage.next_producers(); },
+         [](const auto& stage) -> const producer_authority_schedule* { return stage.pending_producers(); },
          _block_stage);
    }
 
@@ -1006,6 +1007,13 @@ struct controller_impl {
       });
    }
 
+   const producer_authority_schedule& head_active_producers(block_timestamp_type next_block_timestamp) const {
+      return block_handle_accessor::apply<const producer_authority_schedule&>(chain_head,
+         overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule& { return head->active_schedule_auth(); },
+                    [&](const block_state_ptr& head) -> const producer_authority_schedule& { return head->get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule; }
+         });
+   }
+
    const producer_authority_schedule* head_pending_schedule_auth_legacy() const {
       return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{[](const block_state_legacy_ptr& head) -> const producer_authority_schedule* { return head->pending_schedule_auth(); },
@@ -1013,16 +1021,14 @@ struct controller_impl {
          });
    }
 
-   const producer_authority_schedule* next_producers() {
+   const producer_authority_schedule* pending_producers() {
       return block_handle_accessor::apply<const producer_authority_schedule*>(chain_head,
          overloaded{
          [](const block_state_legacy_ptr& head) -> const producer_authority_schedule* {
             return head->pending_schedule_auth();
          },
          [](const block_state_ptr& head) -> const producer_authority_schedule* {
-            return head->proposer_policies.empty()
-                      ? nullptr
-                      : &head->proposer_policies.begin()->second->proposer_schedule;
+            return head->pending_producers();
          }
       });
    }
@@ -1410,12 +1416,14 @@ struct controller_impl {
          // information for those finalizers that don't already have one. This typically should be done when
          // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
          // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-         auto start_block = chain_head; // doesn't matter this is not updated for IRREVERSIBLE, can be in irreversible mode and be a finalizer
-         auto lib_block   = chain_head;
+         block_ref ref = block_handle_accessor::apply<block_ref>(chain_head,
+            overloaded{[&](const block_state_legacy_ptr& head) { return block_ref{}; },
+                       [&](const block_state_ptr& head) { return head->make_block_ref(); }});
+         // doesn't matter chain_head is not updated for IRREVERSIBLE, cannot be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
-            finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                          .last_vote = {start_block.id(), start_block.block_time()},
-                                          .lock      = {lib_block.id(),   lib_block.block_time()} });
+            finalizer_safety_information{ .last_vote                             = ref,
+                                          .lock                                  = ref,
+                                          .votes_forked_since_latest_strong_vote = false});
       }
    }
 
@@ -1609,12 +1617,10 @@ struct controller_impl {
                         // information for those finalizers that don't already have one. This typically should be done when
                         // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
                         // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-                        auto start_block = chain_head;
-                        auto lib_block   = chain_head;
                         my_finalizers.set_default_safety_information(
-                           finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                         .last_vote = {start_block.id(), start_block.block_time()},
-                                                         .lock      = {lib_block.id(),   lib_block.block_time()} });
+                           finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
+                                                        .lock                                  = prev->make_block_ref(),
+                                                        .votes_forked_since_latest_strong_vote = false});
                      }
                   }
                });
@@ -1820,6 +1826,8 @@ struct controller_impl {
                   ("b", blog.first_block_num())("e", blog_head->block_num()) );
             block_states = read_from_snapshot( snapshot, blog.first_block_num(), blog_head->block_num() );
          } else {
+            EOS_ASSERT( !fork_db.file_exists(), fork_database_exception,
+                        "When starting from a snapshot with no block log, we shouldn't have a fork database either" );
             ilog( "Starting initialization from snapshot and no block log, this may take a significant amount of time" );
             block_states = read_from_snapshot( snapshot, 0, std::numeric_limits<uint32_t>::max() );
             EOS_ASSERT( chain_head.block_num() > 0, snapshot_exception,
@@ -1988,9 +1996,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -1998,9 +2006,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote_range_start = block_timestamp_type(0),
-                                                .last_vote = {},
-                                                .lock      = {lib->id(), lib->timestamp()} });
+                  finalizer_safety_information{ .last_vote = {},
+                                                .lock      = lib->make_block_ref(),
+                                                .votes_forked_since_latest_strong_vote = false });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
@@ -2027,36 +2035,35 @@ struct controller_impl {
       db.undo_all();
    }
 
-   void add_contract_tables_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
-      snapshot->write_section("contract_tables", [this, &row_counter]( auto& section ) {
-         index_utils<table_id_multi_index>::walk(db, [this, &section, &row_counter]( const table_id_object& table_row ){
-            // add a row for the table
-            section.add_row(table_row, db);
-            row_counter.progress();
+   void add_contract_rows_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+      contract_database_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ) {
+         using utils_t = decltype(utils);
+         using value_t = typename decltype(utils)::index_t::value_type;
+         using by_table_id = object_to_table_id_tag_t<value_t>;
 
-            // followed by a size row and then N data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &table_row, &row_counter]( auto utils ) {
-               using utils_t = decltype(utils);
-               using value_t = typename decltype(utils)::index_t::value_type;
-               using by_table_id = object_to_table_id_tag_t<value_t>;
+         snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
+            table_id last_seen_tid = -1;
 
-               auto tid_key = boost::make_tuple(table_row.id);
-               auto next_tid_key = boost::make_tuple(table_id_object::id_type(table_row.id._id + 1));
+            decltype(utils)::template walk_by<by_table_id>(db, [this, &section, &row_counter, &last_seen_tid]( const auto &row ) {
+               if(last_seen_tid != row.t_id) {
+                  auto tid_key = boost::make_tuple(row.t_id);
+                  auto next_tid_key = boost::make_tuple(table_id_object::id_type(row.t_id._id + 1));
+                  unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
 
-               unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
-               section.add_row(size, db);
+                  section.add_row(row.t_id, db); //indicate the new table id for next...
+                  section.add_row(size, db);     //...number of rows
 
-               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
-                  section.add_row(row, db);
-                  row_counter.progress();
-               });
+                  last_seen_tid = row.t_id;
+               }
+               section.add_row(row, db);
+               row_counter.progress();
             });
          });
       });
    }
 
-   void read_contract_tables_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
-      snapshot->read_section("contract_tables", [this, &row_counter]( auto& section ) {
+   void read_contract_tables_from_preV7_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count ) {
+      snapshot->read_section("contract_tables", [this, &read_row_count]( auto& section ) {
          bool more = !section.empty();
          while (more) {
             // read the row for the table
@@ -2065,25 +2072,52 @@ struct controller_impl {
                section.read_row(row, db);
                t_id = row.id;
             });
-            row_counter.progress();
+            read_row_count.fetch_add(1u, std::memory_order_relaxed);
 
             // read the size and data rows for each type of table
-            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &row_counter](auto utils) {
+            contract_database_index_set::walk_indices([this, &section, &t_id, &more, &read_row_count](auto utils) {
                using utils_t = decltype(utils);
 
                unsigned_int size;
                more = section.read_row(size, db);
-               row_counter.progress();
+               read_row_count.fetch_add(1u, std::memory_order_relaxed);
 
                for (size_t idx = 0; idx < size.value; idx++) {
                   utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
                      more = section.read_row(row, db);
                   });
-                  row_counter.progress();
+                  read_row_count.fetch_add(1u, std::memory_order_relaxed);
                }
             });
          }
+      });
+   }
+
+   void read_contract_rows_from_V7plus_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+      contract_database_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ) {
+         using utils_t = decltype(utils);
+         using value_t = typename decltype(utils)::index_t::value_type;
+
+         snapshot->read_section<value_t>([this, &read_row_count]( auto& section ) {
+            bool more = !section.empty();
+            while (more) {
+               table_id t_id;
+               unsigned_int rows_for_this_tid;
+
+               section.read_row(t_id, db);
+               section.read_row(rows_for_this_tid, db);
+               read_row_count.fetch_add(2u, std::memory_order_relaxed);
+
+               for(size_t idx = 0; idx < rows_for_this_tid.value; idx++) {
+                  utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
+                     row.t_id = t_id;
+                     more = section.read_row(row, db);
+                  });
+                  read_row_count.fetch_add(1u, std::memory_order_relaxed);
+               }
+            }
+         });
       });
    }
 
@@ -2133,11 +2167,6 @@ struct controller_impl {
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
-         // skip the table_id_object as its inlined with contract tables section
-         if (std::is_same<value_t, table_id_object>::value) {
-            return;
-         }
-
          // skip the database_header as it is only relevant to in-memory database
          if (std::is_same<value_t, database_header_object>::value) {
             return;
@@ -2151,7 +2180,7 @@ struct controller_impl {
          });
       });
 
-      add_contract_tables_to_snapshot(snapshot, row_counter);
+      add_contract_rows_to_snapshot(snapshot, row_counter);
 
       authorization.add_to_snapshot(snapshot, row_counter);
       resource_limits.add_to_snapshot(snapshot, row_counter);
@@ -2171,7 +2200,8 @@ struct controller_impl {
    }
 
    block_state_pair read_from_snapshot( const snapshot_reader_ptr& snapshot, uint32_t blog_start, uint32_t blog_end ) {
-      snapshot_loaded_row_counter row_counter(snapshot->total_row_count());
+      const size_t total_snapshot_rows = snapshot->total_row_count();
+      std::atomic_size_t rows_loaded;
 
       chain_snapshot_header header;
       snapshot->read_section<chain_snapshot_header>([this, &header]( auto &section ){
@@ -2184,7 +2214,7 @@ struct controller_impl {
 
       block_state_pair result;
       if (header.version >= v7::minimum_version) {
-         // loading a snapshot saved by Leap 6.0 and above.
+         // loading a snapshot saved by Spring 1.0 and above.
          // -----------------------------------------------
          if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
@@ -2245,11 +2275,14 @@ struct controller_impl {
                   ("block_log_last_num", blog_end)
       );
 
-      controller_index_set::walk_indices([this, &snapshot, &header, &row_counter]( auto utils ){
+      sync_threaded_work<struct snapload> snapshot_load_workqueue;
+      boost::asio::io_context& snapshot_load_ctx = snapshot_load_workqueue.io_context();
+
+      controller_index_set::walk_indices_via_post(snapshot_load_ctx, [this, &snapshot, &header, &rows_loaded]( auto utils ){
          using value_t = typename decltype(utils)::index_t::value_type;
 
-         // skip the table_id_object as its inlined with contract tables section
-         if (std::is_same_v<value_t, table_id_object>) {
+         // prior to v7 snapshots, skip the table_id_object as it's inlined with contract tables section. for v7+ load the table_id table like any other
+         if (header.version < chain_snapshot_header::first_version_with_split_table_sections && std::is_same_v<value_t, table_id_object>) {
             return;
          }
 
@@ -2318,21 +2351,33 @@ struct controller_impl {
             }
          }
 
-         snapshot->read_section<value_t>([this,&row_counter]( auto& section ) {
+         snapshot->read_section<value_t>([this,&rows_loaded]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, db);
                });
-               row_counter.progress();
+               rows_loaded.fetch_add(1u, std::memory_order_relaxed);
             }
          });
       });
 
-      read_contract_tables_from_snapshot(snapshot, row_counter);
+      if(header.version < chain_snapshot_header::first_version_with_split_table_sections)
+         snapshot_load_ctx.post([this,&snapshot,&rows_loaded]() {
+            read_contract_tables_from_preV7_snapshot(snapshot, rows_loaded);
+         });
+      else
+         read_contract_rows_from_V7plus_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
 
-      authorization.read_from_snapshot(snapshot, row_counter);
-      resource_limits.read_from_snapshot(snapshot, row_counter);
+      authorization.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
+      resource_limits.read_from_snapshot(snapshot, rows_loaded, snapshot_load_ctx);
+
+      constexpr unsigned max_snapshot_load_threads = 4;
+      const unsigned snapshot_load_threads = snapshot->supports_threading() ? max_snapshot_load_threads : 1;
+
+      snapshot_load_workqueue.run(snapshot_load_threads, std::chrono::seconds(5), [&]() {
+         ilog("Snapshot initialization ${pct}% complete", ("pct",(unsigned)(((double)rows_loaded/total_snapshot_rows)*100)));
+      });
 
       db.set_revision( chain_head.block_num() );
       db.create<database_header_object>([](const auto& header){
@@ -3050,7 +3095,7 @@ struct controller_impl {
                     },
                     [&](const block_state_ptr& head) {
                        maybe_session        session = skip_db_sessions(s) ? maybe_session() : maybe_session(db);
-                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_scheduled_producer(when).producer_name,
+                       building_block_input bbi{head->id(), head->timestamp(), when, head->get_producer_for_block_at(when).producer_name,
                                                 new_protocol_feature_activations};
                        pending.emplace(std::move(session), *head, bbi);
                     }
@@ -3243,11 +3288,11 @@ struct controller_impl {
                      std::optional<uint32_t> version = pending->get_next_proposer_schedule_version(bb.trx_blk_context.proposed_schedule.producers);
                      if (version) {
                         new_proposer_policy.emplace();
-                        new_proposer_policy->active_time       = detail::get_next_next_round_block_time(bb.timestamp);
+                        new_proposer_policy->proposal_time     = bb.timestamp;
                         new_proposer_policy->proposer_schedule = std::move(bb.trx_blk_context.proposed_schedule);
                         new_proposer_policy->proposer_schedule.version = *version;
-                        ilog("Scheduling proposer schedule change at ${t}: ${s}",
-                             ("t", new_proposer_policy->active_time)("s", new_proposer_policy->proposer_schedule));
+                        ilog("Scheduling proposer schedule ${s}, proposed at: ${t}",
+                             ("s", new_proposer_policy->proposer_schedule)("t", new_proposer_policy->proposal_time));
                      }
                   }
                }
@@ -3481,13 +3526,13 @@ struct controller_impl {
 
       if (b.header_extensions != ab.header_extensions) {
          header_extension_multimap bheader_exts = b.validate_and_extract_header_extensions();
-         if (bheader_exts.count(finality_extension::extension_id())) {
-            const auto& f_ext = std::get<finality_extension>(bheader_exts.lower_bound(finality_extension::extension_id())->second);
+         if (auto it = bheader_exts.find(finality_extension::extension_id()); it != bheader_exts.end()) {
+            const auto& f_ext = std::get<finality_extension>(it->second);
             elog("b  if: ${i}", ("i", f_ext));
          }
          header_extension_multimap abheader_exts = ab.validate_and_extract_header_extensions();
-         if (abheader_exts.count(finality_extension::extension_id())) {
-            const auto& f_ext = std::get<finality_extension>(abheader_exts.lower_bound(finality_extension::extension_id())->second);
+         if (auto it = abheader_exts.find(finality_extension::extension_id()); it != abheader_exts.end()) {
+            const auto& f_ext = std::get<finality_extension>(it->second);
             elog("ab if: ${i}", ("i", f_ext));
          }
       }
@@ -3766,12 +3811,16 @@ struct controller_impl {
          return;
 
       // Each finalizer configured on the node which is present in the active finalizer policy may create and sign a vote.
-      my_finalizers.maybe_vote(bsp, [&](const vote_message_ptr& vote) {
+      my_finalizers.maybe_vote(bsp, [&](const my_finalizers_t::vote_t& vote) {
+              const auto& [vote_msg, active_auth, pending_auth] = vote;
               // net plugin subscribed to this signal. it will broadcast the vote message on receiving the signal
-              emit(voted_block, std::tuple{uint32_t{0}, vote_result_t::success, std::cref(vote)}, __FILE__, __LINE__);
+              emit(voted_block,
+                   vote_signal_params{uint32_t{0}, vote_result_t::success,
+                                      std::cref(vote_msg), std::cref(active_auth), std::cref(pending_auth)},
+                   __FILE__, __LINE__);
 
               // also aggregate our own vote into the aggregating_qc for this block, 0 connection_id indicates our own vote
-              process_vote_message(0, vote);
+              process_vote_message(0, vote_msg);
           });
    }
 
@@ -3870,7 +3919,7 @@ struct controller_impl {
                   invalid_qc_claim,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
-      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.lower_bound(qc_ext_id)->second);
+      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
@@ -5040,7 +5089,7 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
    my->assemble_block(false, {}, nullptr);
 
    auto& ab = std::get<assembled_block>(my->pending->_block_stage);
-   const auto& valid_block_signing_authority = my->head_active_schedule_auth().get_scheduled_producer(ab.timestamp()).authority;
+   const auto& valid_block_signing_authority = my->head_active_producers(ab.timestamp()).get_scheduled_producer(ab.timestamp()).authority;
    my->pending->_block_stage = ab.complete_block(
       my->protocol_features.get_protocol_feature_set(),
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
@@ -5456,6 +5505,10 @@ const producer_authority_schedule& controller::active_producers()const {
    return my->active_producers();
 }
 
+const producer_authority_schedule& controller::head_active_producers(block_timestamp_type next_block_timestamp)const {
+   return my->head_active_producers(next_block_timestamp);
+}
+
 const producer_authority_schedule& controller::head_active_producers()const {
    return my->head_active_schedule_auth();
 }
@@ -5472,11 +5525,11 @@ std::optional<producer_authority_schedule> controller::proposed_producers_legacy
    return producer_authority_schedule::from_shared(gpo.proposed_schedule);
 }
 
-const producer_authority_schedule* controller::next_producers()const {
+const producer_authority_schedule* controller::pending_producers()const {
    if( !(my->pending) )
-      return my->next_producers();
+      return my->pending_producers();
 
-   return my->pending->next_producers();
+   return my->pending->pending_producers();
 }
 
 finalizer_policy_ptr controller::head_active_finalizer_policy()const {

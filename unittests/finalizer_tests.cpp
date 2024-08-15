@@ -41,13 +41,13 @@ std::vector<FSI> create_random_fsi(size_t count) {
    res.reserve(count);
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
-         .last_vote_range_start = tstamp(i),
-         .last_vote             = block_ref{.block_id        = sha256::hash("vote"s + std::to_string(i)),
-                                            .timestamp       = tstamp(i * 100 + 3),
-                                            .finality_digest = sha256::hash("vote_digest"s + std::to_string(i))},
-         .lock                  = block_ref{.block_id        = sha256::hash("lock"s + std::to_string(i)),
-                                            .timestamp       = tstamp(i * 100),
-                                            .finality_digest = sha256::hash("lock_digest"s + std::to_string(i))}
+         .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
+                                            tstamp(i * 100 + 3),
+                                            sha256::hash("vote_digest"s + std::to_string(i))},
+         .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
+                                            tstamp(i * 100),
+                                            sha256::hash("lock_digest"s + std::to_string(i))},
+         .votes_forked_since_latest_strong_vote = false
       });
       if (i)
          assert(res.back() != res[0]);
@@ -61,7 +61,8 @@ std::vector<block_ref> create_proposal_refs(size_t count) {
    for (size_t i=0; i<count; ++i) {
       std::string id_str {"vote"};
       id_str += std::to_string(i);
-      res.push_back(block_ref{sha256::hash(id_str.c_str()), tstamp(i)});
+      auto id = sha256::hash(id_str.c_str());
+      res.push_back(block_ref{id, tstamp(i), id});
    }
    return res;
 }
@@ -98,9 +99,9 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
@@ -131,9 +132,9 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
@@ -253,12 +254,12 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
    auto current_version = my_finalizers_t::current_safety_file_version;
 
-   // run this unittest with the option `--save-fsi-ref` to save ref file for the current version.
-   // --------------------------------------------------------------------------------------------
+   // run this unittest with the option `-- --save-fsi-ref` to save ref file for the current version.
+   // -----------------------------------------------------------------------------------------------
    bool save_fsi_reference_file = [](){
       auto argc = boost::unit_test::framework::master_test_suite().argc;
       auto argv = boost::unit_test::framework::master_test_suite().argv;
-      return std::find(argv, argv + argc, std::string("--save-fsi-ref")) != (argv + argc);
+      return std::any_of(argv, argv + argc, [&](const std::string &a){ return a == "--save-fsi-ref";} );
    }();
 
    if (save_fsi_reference_file)

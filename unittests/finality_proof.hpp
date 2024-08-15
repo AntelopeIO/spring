@@ -73,12 +73,12 @@ namespace finality_proof {
    static qc_data_t extract_qc_data(const signed_block_ptr& b) {
       assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
-      if (auto f_entry = hexts.lower_bound(finality_extension::extension_id()); f_entry != hexts.end()) {
+      if (auto f_entry = hexts.find(finality_extension::extension_id()); f_entry != hexts.end()) {
          auto& f_ext   = std::get<finality_extension>(f_entry->second);
 
          // get the matching qc extension if present
          auto exts = b->validate_and_extract_extensions();
-         if (auto entry = exts.lower_bound(quorum_certificate_extension::extension_id()); entry != exts.end()) {
+         if (auto entry = exts.find(quorum_certificate_extension::extension_id()); entry != exts.end()) {
             auto& qc_ext = std::get<quorum_certificate_extension>(entry->second);
             return qc_data_t{ std::move(qc_ext.qc), f_ext.qc_claim };
          }
@@ -144,6 +144,8 @@ namespace finality_proof {
       block_timestamp_type timestamp;
       block_timestamp_type parent_timestamp;
 
+      block_timestamp_type prev_last_pending_finalizer_policy_start_timestamp;
+
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
@@ -173,6 +175,7 @@ namespace finality_proof {
          //skip this part on genesis
          if (!is_genesis){
             parent_timestamp = timestamp;
+            last_pending_finalizer_policy_start_timestamp = prev_last_pending_finalizer_policy_start_timestamp;
             for (const auto& p : blocks_since_proposed_policy){
 
                //under the happy path with strong QCs in every block, a policy becomes active 4 blocks after being proposed
@@ -186,6 +189,7 @@ namespace finality_proof {
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
                   last_pending_finalizer_policy_start_timestamp = block->timestamp;
+                  prev_last_pending_finalizer_policy_start_timestamp = block->timestamp;
                }
             }
          }
@@ -201,6 +205,7 @@ namespace finality_proof {
                last_pending_finalizer_policy         = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
                last_pending_finalizer_policy_start_timestamp = block->timestamp;
+               prev_last_pending_finalizer_policy_start_timestamp = block->timestamp;
                active_finalizer_policy               = last_proposed_finalizer_policy;
                active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};

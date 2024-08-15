@@ -89,13 +89,33 @@ struct block_header_state {
    finalizer_policy_ptr                active_finalizer_policy; // finalizer set + threshold + generation, supports `digest()`
    proposer_policy_ptr                 active_proposer_policy;  // producer authority schedule, supports `digest()`
 
-   // block time when proposer_policy will become active
-   // current algorithm only two entries possible, for the next,next round and one for block round after that
-   // The active time is the next,next producer round. For example,
-   //   round A [1,2,..12], next_round B [1,2,..12], next_next_round C [1,2,..12], D [1,2,..12]
-   //   If proposed in A1, A2, .. A12 becomes active in C1
-   //   If proposed in B1, B2, .. B12 becomes active in D1
-   flat_map<block_timestamp_type, proposer_policy_ptr>     proposer_policies;
+   /*
+    Tracking proposer policy transition is based on https://github.com/AntelopeIO/spring/issues/454
+
+    1. If latest_proposed_proposer_policy is not nullopt and its proposal_time
+       indicates that it was proposed in a round before the prior round,
+       then maybe promote latest_proposed_proposer_policy to active_proposer_policy
+       (maybe because other conditions may also need to apply, to be discussed in a bit).
+       If it is promoted, then latest_pending_proposer_policy and latest_proposed_proposer_policy
+       should be set to nullopt at this point in time (latest_proposed_proposer_policy
+       may still be changed in later steps).
+    2. Otherwise, if latest_pending_proposer_policy is not nullopt, maybe promote
+       latest_pending_proposer_policy to active_proposer_policy.
+       If it is promoted, then latest_pending_proposer_policy should be set to nullopt
+       at this point in time (may still be changed in later steps).
+    3. If latest_proposed_proposer_policy is not nullopt and latest_pending_proposer_policy
+       is now nullopt, latest_proposed_proposer_policy is moved into
+       latest_pending_proposer_policy. If it is moved, then latest_proposed_proposer_policy
+       should be set to nullopt at this point in time (may still be changed in later steps).
+    4. If this block proposes a new proposer policy, that policy should be set
+       in latest_proposed_proposer_policy (replacing whatever happened to be there).
+    5. An extra condition on steps 1 and 2 above when deciding whether to promote
+       latest_pending_proposer_policy or latest_proposed_proposer_policy to
+       active_proposer_policy is we should not promote the policy if the proposal_time
+       of the policy is greater than the last_final_block_timestamp of the previous block.
+    */
+   proposer_policy_ptr latest_proposed_proposer_policy;
+   proposer_policy_ptr latest_pending_proposer_policy;
 
    // Track in-flight proposed finalizer policies.
    // When the block associated with a proposed finalizer policy becomes final,
@@ -144,6 +164,8 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
+   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), compute_finality_digest() }; }
+
    // Returns true if the block is a Savanna Genesis Block.
    // This method is applicable to any transition block which is re-classified as a Savanna block.
    bool is_savanna_genesis_block() const { return core.is_genesis_block_num(block_num()); }
@@ -157,7 +179,14 @@ struct block_header_state {
    }
 
    const vector<digest_type>& get_new_protocol_feature_activations() const;
+   // returns active_proposer_policy used by child block built at `next_block_timestamp`
+   const proposer_policy_ptr& get_active_proposer_policy_for_block_at(block_timestamp_type next_block_timestamp) const;
+   // returns producer using current active proposer policy
    const producer_authority& get_scheduled_producer(block_timestamp_type t) const;
+   // returns producer of child block built at `next_block_timestamp`
+   const producer_authority& get_producer_for_block_at(block_timestamp_type next_block_timestamp) const;
+   // returns current pending policy, nullptr if not existing
+   const producer_authority_schedule* pending_producers() const;
 
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
@@ -177,9 +206,9 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
-            (active_proposer_policy)(proposer_policies)(proposed_finalizer_policies)
+            (active_proposer_policy)(latest_proposed_proposer_policy)(latest_pending_proposer_policy)(proposed_finalizer_policies)
             (pending_finalizer_policy)(finalizer_policy_generation)
-            (last_pending_finalizer_policy_digest))
+            (last_pending_finalizer_policy_digest)(last_pending_finalizer_policy_start_timestamp))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
 FC_REFLECT( eosio::chain::level_2_commitments_t, (last_pending_fin_pol_digest)(last_pending_fin_pol_start_timestamp)(l3_commitments_digest) )

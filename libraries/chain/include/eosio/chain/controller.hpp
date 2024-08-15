@@ -57,9 +57,13 @@ namespace eosio::chain {
    using trx_meta_cache_lookup = std::function<transaction_metadata_ptr( const transaction_id_type&)>;
 
    using block_signal_params = std::tuple<const signed_block_ptr&, const block_id_type&>;
-   //                                connection_id, vote result status, vote_message processed
-   using vote_signal_params  = std::tuple<uint32_t, vote_result_t, const vote_message_ptr&>;
-   using vote_signal_t       = signal<void(const vote_signal_params&)>;
+   using vote_signal_params =
+      std::tuple<uint32_t,                         // connection_id
+                 vote_result_t,                    // vote result status
+                 const vote_message_ptr&,          // vote_message processed
+                 const finalizer_authority_ptr&,   // active authority that voted  (nullptr if vote for pending or error)
+                 const finalizer_authority_ptr&>;  // pending authority that voted (nullptr if no pending finalizer policy)
+   using vote_signal_t = signal<void(const vote_signal_params&)>;
 
    enum class db_read_mode {
       HEAD,
@@ -267,10 +271,16 @@ namespace eosio::chain {
          std::optional<block_id_type>   pending_producer_block_id()const;
          uint32_t                       pending_block_num()const;
 
+         // returns producer_authority_schedule for a next block built from head with
+         // `next_block_timestamp`
+         const producer_authority_schedule&         head_active_producers(block_timestamp_type next_block_timestamp)const;
+         // active_producers() is legacy and may be deprecated in the future;
+         // head_active_producers(block_timestamp_type next_block_timestamp)
+         // is preferred.
          const producer_authority_schedule&         active_producers()const;
          const producer_authority_schedule&         head_active_producers()const;
          // pending for pre-instant-finality, next proposed that will take affect, null if none are pending/proposed
-         const producer_authority_schedule*         next_producers()const;
+         const producer_authority_schedule*         pending_producers()const;
          // post-instant-finality this always returns empty std::optional
          std::optional<producer_authority_schedule> proposed_producers_legacy()const;
          // pre-instant-finality this always returns a valid producer_authority_schedule

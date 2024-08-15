@@ -12,13 +12,6 @@ namespace eosio::chain_apis {
    class tracked_votes {
    public:
 
-      struct vote_block_metrics {
-         uint32_t block_num = 0;
-         std::vector<std::string> strong_votes;
-         std::vector<std::string> weak_votes;
-         std::vector<std::string> no_votes;
-      };
-
       /**
        * Instantiate a new tracked votes cache from the given chain controller
        * The caller is expected to manage lifetimes such that this controller reference does not go stale
@@ -48,9 +41,6 @@ namespace eosio::chain_apis {
 
       // Returns last vote information by a given finalizer
       std::optional<vote_info> get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const;
-
-      // register prometheus callback
-      void register_update_vote_block_metrics(std::function<void(chain_apis::tracked_votes::vote_block_metrics&&)>&&);
 
    private:
       std::unique_ptr<struct tracked_votes_impl> _impl;
