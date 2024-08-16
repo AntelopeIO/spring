@@ -2555,7 +2555,7 @@ namespace eosio {
                         // block was not applied, possibly because we already have the block
                         fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                         "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                                ("fs", fetch_span)("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                                ("fs", fetch_span)("h", head)("fh", my_impl->get_fork_head_num())
                                 ("bn", blk_num)("nen", sync_next_expected_num)
                                 ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
                         request_next_chunk();
