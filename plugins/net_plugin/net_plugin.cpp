@@ -2010,7 +2010,12 @@ namespace eosio {
 
    uint32_t sync_manager::active_sync_fetch_span() const {
       auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-      auto reversible_remaining = max_reversible_blocks - fork_db_size;
+      int32_t reversible_remaining = max_reversible_blocks - fork_db_size - 1;
+      if (reversible_remaining <= 0) {
+         fc_wlog(logger, "max-reversible-blocks ${m} exceeded, remaining ${r}, fork_db_size ${fs}",
+                 ("m", max_reversible_blocks)("r", reversible_remaining)("fs", fork_db_size));
+         reversible_remaining = 0;
+      }
       if (reversible_remaining < sync_fetch_span) {
          fc_wlog(logger, "sync-fetch-span ${sfs} restricted by max-reversible-blocks ${m}, fork_db_size ${fs}",
                  ("sfs", sync_fetch_span)("m", max_reversible_blocks)("fs", fork_db_size));
@@ -2541,11 +2546,11 @@ namespace eosio {
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                } else {
-                  // use chain head instead of fork head so we do not get too far ahead of applied blocks
-                  uint32_t head = my_impl->get_chain_head_num();
                   if (blk_num >= sync_last_requested_num) {
+                     // do not allow to get too far ahead (sync_fetch_span) of chain head
                      auto fetch_span = active_sync_fetch_span();
-                     // do not allow to get too far ahead (one sync_fetch_span) of chain head
+                     // use chain head instead of fork head so we do not get too far ahead of applied blocks
+                     uint32_t head = my_impl->get_chain_head_num();
                      if (blk_num < head + fetch_span) {
                         // block was not applied, possibly because we already have the block
                         fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
