@@ -2017,8 +2017,8 @@ namespace eosio {
          reversible_remaining = 0;
       }
       if (reversible_remaining < sync_fetch_span) {
-         fc_wlog(logger, "sync-fetch-span ${sfs} restricted by max-reversible-blocks ${m}, fork_db_size ${fs}",
-                 ("sfs", sync_fetch_span)("m", max_reversible_blocks)("fs", fork_db_size));
+         fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks ${m}, fork_db_size ${fs}",
+                 ("sfs", sync_fetch_span)("r", reversible_remaining)("m", max_reversible_blocks)("fs", fork_db_size));
          return reversible_remaining;
       }
       return sync_fetch_span;
