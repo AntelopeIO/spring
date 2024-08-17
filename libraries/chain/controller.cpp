@@ -2042,21 +2042,29 @@ struct controller_impl {
          using by_table_id = object_to_table_id_tag_t<value_t>;
 
          snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
-            table_id last_seen_tid = -1;
+            table_id flattened_table_id = -1; //first table id will be assigned 0 by chainbase
 
-            decltype(utils)::template walk_by<by_table_id>(db, [this, &section, &row_counter, &last_seen_tid]( const auto &row ) {
-               if(last_seen_tid != row.t_id) {
-                  auto tid_key = boost::make_tuple(row.t_id);
-                  auto next_tid_key = boost::make_tuple(table_id_object::id_type(row.t_id._id + 1));
-                  unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+            index_utils<table_id_multi_index>::walk(db, [this, &section, &flattened_table_id, &row_counter](const table_id_object& table_row) {
+               auto tid_key = boost::make_tuple(table_row.id);
+               auto next_tid_key = boost::make_tuple(table_id_object::id_type(table_row.id._id + 1));
 
-                  section.add_row(row.t_id, db); //indicate the new table id for next...
-                  section.add_row(size, db);     //...number of rows
+               //Tables are stored in the snapshot by their sorted by-id walked order, but without record of their table id. On snapshot
+               // load, the table index will be reloaded in order, but all table ids flattened by chainbase to their insert order.
+               // e.g. if walking table ids 4,5,10,11,12 on creation, these will be reloaded as table ids 0,1,2,3,4. Track this
+               // flattened order here to know the "new" (upon snapshot load) table id a row belongs to
+               ++flattened_table_id;
 
-                  last_seen_tid = row.t_id;
-               }
-               section.add_row(row, db);
-               row_counter.progress();
+               unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+               if(size == 0u)
+                  return;
+
+               section.add_row(flattened_table_id, db); //indicate the new (flattened for load) table id for next...
+               section.add_row(size, db);               //...number of rows
+
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
+                  section.add_row(row, db);
+                  row_counter.progress();
+               });
             });
          });
       });
