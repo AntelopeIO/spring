@@ -1766,10 +1766,18 @@ struct controller_impl {
          using BSP = std::decay_t<decltype(forkdb.root())>;
 
          auto pending_head = forkdb.head();
+         auto root = forkdb.root();
+         if( pending_head ) {
+            ilog("fork database size ${s} head ${hn} : ${h}, root ${rn} : ${r}",
+                 ("s", forkdb.size())("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", root->block_num())("r", root->id()));
+         } else if (root) {
+            ilog("fork database has no pending blocks root ${rn} : ${r}",
+                 ("rn", root->block_num())("r", root->id()));
+         } else {
+            ilog("fork database empty, no pending or root");
+         }
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
-                 ("hn", pending_head->block_num())("h", pending_head->id())
-                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
