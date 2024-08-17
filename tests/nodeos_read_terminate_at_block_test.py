@@ -345,6 +345,18 @@ try:
             if not success:
                 break
 
+    # Test nodes can restart and advance lib
+    if not cluster.biosNode.relaunch():
+        Utils.errorExit("Unable to restart bios node")
+
+    if not producingNode.relaunch():
+        Utils.errorExit("Unable to restart producing node")
+
+    if success:
+        for nodeId, nodeArgs in {**regularNodeosArgs, **replayNodeosArgs}.items():
+            assert cluster.getNode(nodeId).relaunch(), f"Unable to relaunch {nodeId}"
+            assert cluster.getNode(nodeId).waitForLibToAdvance(), f"LIB did not advance for {nodeId}"
+
     testSuccessful = success
 
     Utils.Print("Script End ................................")
