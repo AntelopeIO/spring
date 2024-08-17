@@ -345,20 +345,25 @@ class Node(Transactions):
             if logStatus: Utils.Print(f'Determined node id {self.nodeId} (pid={pid}) is alive')
             return True
 
-    def rmFromCmd(self, matchValue: str):
-        '''Removes all instances of matchValue from cmd array and succeeding value if it's an option value string.'''
+    def rmFromCmd(self, matchValue: str) -> str:
+        '''Removes all instances of matchValue from cmd array and succeeding value if it's an option value string.
+           Returns the removed strings as a space-delimited string.'''
         if not self.cmd:
-            return
+            return ''
+
+        removed_items = []
 
         while True:
             try:
                 i = self.cmd.index(matchValue)
-                self.cmd.pop(i)
+                removed_items.append(self.cmd.pop(i))  # Store the matchValue
                 if len(self.cmd) > i:
-                    if self.cmd[i][0] != '-':
-                        self.cmd.pop(i)
+                    if self.cmd[i][0] != '-':  # Check if the next value isn't an option (doesn't start with '-')
+                        removed_items.append(self.cmd.pop(i))  # Store the succeeding value
             except ValueError:
                 break
+
+        return ' '.join(removed_items)  # Return the removed strings as a space-delimited string
 
     # pylint: disable=too-many-locals
     # If nodeosPath is equal to None, it will use the existing nodeos path

@@ -43,7 +43,7 @@ dumpErrorDetails = args.dump_error_details
 def executeTest(cluster, testNodeId, testNodeArgs, resultMsgs):
     testNode = None
     testResult = False
-    resultDesc = "!!!BUG IS CONFIRMED ON TEST CASE #{} ({})".format(
+    resultDesc = "!!!BUG IS CONFIRMED ON TEST CASE #{}  ({})".format(
         testNodeId,
         testNodeArgs
     )
@@ -58,6 +58,7 @@ def executeTest(cluster, testNodeId, testNodeArgs, resultMsgs):
 
         testNode = cluster.getNode(testNodeId)
         assert not testNode.verifyAlive() # resets pid so reluanch works
+        peers = testNode.rmFromCmd('--p2p-peer-address')
         testNode.relaunch(addSwapFlags={"--terminate-at-block": "9999999"})
 
         # Wait for node to start up.
@@ -75,9 +76,9 @@ def executeTest(cluster, testNodeId, testNodeArgs, resultMsgs):
         checkReplay(testNode, testNodeArgs)
 
         # verify node can be restarted after a replay
-        checkRestart(testNode, "--replay-blockchain")
+        checkRestart(testNode, "--replay-blockchain", peers)
 
-        resultDesc = "!!!TEST CASE #{} ({}) IS SUCCESSFUL".format(
+        resultDesc = "!!!TEST CASE #{}  ({}) IS SUCCESSFUL".format(
             testNodeId,
             testNodeArgs
         )
@@ -144,12 +145,12 @@ def checkReplay(testNode, testNodeArgs):
     head, lib = getBlockNumInfo(testNode)
     assert head == termAtBlock, f"head {head} termAtBlock {termAtBlock}"
 
-def checkRestart(testNode, rmChainArgs):
+def checkRestart(testNode, rmChainArgs, peers):
     """Test restart of node continues"""
     if testNode and not testNode.killed:
         assert testNode.kill(signal.SIGTERM)
 
-    if not testNode.relaunch(rmArgs=rmChainArgs):
+    if not testNode.relaunch(chainArg=peers, rmArgs=rmChainArgs):
         Utils.errorExit(f"Unable to relaunch after {rmChainArgs}")
 
     assert testNode.verifyAlive(), f"relaunch failed after {rmChainArgs}"
@@ -201,7 +202,7 @@ def checkHeadOrSpeculative(head, lib):
 def executeSnapshotBlocklogTest(cluster, testNodeId, resultMsgs, nodeArgs, termAtBlock):
     testNode = cluster.getNode(testNodeId)
     testResult = False
-    resultDesc = "!!!BUG IS CONFIRMED ON TEST CASE #{} ({})".format(
+    resultDesc = "!!!BUG IS CONFIRMED ON TEST CASE #{}  ({})".format(
         testNodeId,
         f"replay block log, {nodeArgs} --terminate-at-block {termAtBlock}"
     )
@@ -221,7 +222,7 @@ def executeSnapshotBlocklogTest(cluster, testNodeId, resultMsgs, nodeArgs, termA
             m=re.search(r"Block ([\d]+) reached configured maximum block", line)
             if m:
                 assert int(m.group(1)) == termAtBlock, f"actual terminating block number {m.group(1)} not equal to expected termAtBlock {termAtBlock}"
-                resultDesc = f"!!!TEST CASE #{testNodeId} (replay block log, mode {nodeArgs} --terminate-at-block {termAtBlock}) IS SUCCESSFUL"
+                resultDesc = f"!!!TEST CASE #{testNodeId}  (replay block log, mode {nodeArgs} --terminate-at-block {termAtBlock}) IS SUCCESSFUL"
                 testResult = True
 
     Print(resultDesc)
@@ -266,10 +267,10 @@ try:
         0 : "--enable-stale-production"
     }
     regularNodeosArgs = {
-        1 : "--read-mode irreversible --terminate-at-block 75",
-        2 : "--read-mode head --terminate-at-block 100",
-        3 : "--read-mode speculative --terminate-at-block 125",
-        4 : "--read-mode irreversible --terminate-at-block 155"
+        1 : "--read-mode irreversible --terminate-at-block 100",
+        2 : "--read-mode head --terminate-at-block 125",
+        3 : "--read-mode speculative --terminate-at-block 150",
+        4 : "--read-mode irreversible --terminate-at-block 180"
     }
     replayNodeosArgs = {
         5 : "--read-mode irreversible",
