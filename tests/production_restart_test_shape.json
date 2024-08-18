@@ -30,6 +30,13 @@
             "blspubkey":"PUB_BLS_rYRa_-bT7uLOSAfPIBy6NlXFB0YxwROeSuqHzw6s-1cuK_-GJUKqp20ktyAnsO4ZuHdx3BEPDaLronpnL22MXKWM7bvZnkCfbGCD6OzizQqxXkM9N5z5R-OUA4Ime6cF5YTSFg",
             "blsprivkey":"PVT_BLS_GQjR0E8Hu8KrsTCvLKnlOCIwQijAj2-5KDizQwF-bAY6pise",
             "blspop":"SIG_BLS_syFMuifUnX2zQQKr0cuHYzQQjsuPrNG75_z6y8fOyYg_twqMICZ0kT7ObbwIOUsLfXx9PVb4-QLEgUYGSRg1NSfeHGjIGkhea82wa3ayfI8elUEU1MStKbeKpys7xUAQz1PEgwcz5dClq3HyLQmMAjpoL74N_Znf0KiNEVZMte-DLF7x_6sAfp_834LthyYHjZYTmdG7belyzlYHKJb6upnZy9nR_zoKpx9jeTd3tzVhoTCuAN6aFw68D_ItY5cWiY2dhA"
+          },
+          {
+            "pubkey": "EOS8XH2gKxsef9zxmMHm4vaSvxQUhg7W4GC3nK2KSRxyYrNG5gZFS",
+            "privkey": "5JcoRRhDcgm51dkBrRTmErceTqrYhrq22UnmUjTZToMpH91B9N1",
+            "blspubkey":"PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w",
+            "blsprivkey":"PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq",
+            "blspop":"SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
           }
         ],
         "peers": [
