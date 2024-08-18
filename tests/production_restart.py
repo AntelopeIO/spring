@@ -18,7 +18,7 @@ from TestHarness.Node import BlockType
 # Once everything has been confirmed to be working correctly and finality is advancing, cleanly shut down the producer
 # defproducera node but keep the finalizer node of defproducerb running.
 #
-# Then change the finalizer policy (e.g. switch the order of the two finalizers) to get the nodes into a state where
+# Then change the finalizer policy (e.g. replace a key in node defproducera) to get the nodes into a state where
 # they have a pending finalizer policy. At that point restart the producer node defproducera (with stale production
 # enabled so it produces blocks again).
 #
@@ -72,10 +72,36 @@ try:
     assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
 
     Print("Set finalizers so a pending is in play")
-    assert cluster.setFinalizers([finalizerNode, producerNode], producerNode), "setfinalizers failed" # switch order
-    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
-    producerNode.waitForHeadToAdvance() # get additional qc
+    # Try a number of times to make sure we have a pending policy
+    numTrys = 10
+    for i in range(0, numTrys):
+       # Switch BLS keys on producerNode. setFinalizers uses the first key
+       # in the configured key list (index 0)
+       newBlsPubKey = producerNode.keys[1].blspubkey
+       newBlsPrivKey = producerNode.keys[1].blsprivkey
+       newBlsPop = producerNode.keys[1].blspop
+       producerNode.keys[1].blspubkey = producerNode.keys[0].blspubkey
+       producerNode.keys[1].blsprivkey = producerNode.keys[0].blsprivkey
+       producerNode.keys[1].blspop = producerNode.keys[0].blspop
+       producerNode.keys[0].blspubkey = producerNode.keys[1].blspubkey
+       producerNode.keys[0].blsprivkey = producerNode.keys[1].blsprivkey
+       producerNode.keys[0].blspop = producerNode.keys[1].blspop
 
+       assert cluster.setFinalizers([producerNode, finalizerNode], producerNode), "setfinalizers failed"
+       assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
+       producerNode.waitForHeadToAdvance() # get additional qc
+
+       # Check if a pending policy exists
+       finalizerInfo = producerNode.getFinalizerInfo()
+       Print(f"{finalizerInfo}")
+       if "pending_finalizer_policy" in finalizerInfo["payload"]:
+          Print(f"Got a pending policy in {i+1} attempts")
+          break
+       else:
+          Print(f"Trying to get a pending policy, {i+1} attempts")
+
+    # It is OK pending policy does not exist. During manual tests,
+    # pending policy always exists at the first try
     Print("Shutdown producer producerNode")
     producerNode.kill(signal.SIGTERM)
     assert not producerNode.verifyAlive(), "producerNode did not shutdown"
