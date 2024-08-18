@@ -64,28 +64,28 @@ try:
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    node0 = cluster.getNode(0) # producer
-    node1 = cluster.getNode(1) # finalizer
+    producerNode = cluster.getNode(0)
+    finalizerNode = cluster.getNode(1)
 
     Print("Wait for lib to advance")
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
+    assert finalizerNode.waitForLibToAdvance(), "finalizerNode did not advance LIB"
+    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
 
     Print("Set finalizers so a pending is in play")
-    assert cluster.setFinalizers([node1, node0], node0), "setfinalizers failed" # switch order
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after setfinalizers"
-    node0.waitForHeadToAdvance() # get additional qc
+    assert cluster.setFinalizers([finalizerNode, producerNode], producerNode), "setfinalizers failed" # switch order
+    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
+    producerNode.waitForHeadToAdvance() # get additional qc
 
-    Print("Shutdown producer node0")
-    node0.kill(signal.SIGTERM)
-    assert not node0.verifyAlive(), "Node0 did not shutdown"
+    Print("Shutdown producer producerNode")
+    producerNode.kill(signal.SIGTERM)
+    assert not producerNode.verifyAlive(), "producerNode did not shutdown"
 
-    Print("Restart producer node0")
-    node0.relaunch(chainArg=" -e ")
+    Print("Restart producer producerNode")
+    producerNode.relaunch(chainArg=" -e ")
 
     Print("Verify LIB advances after restart")
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
+    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
+    assert finalizerNode.waitForLibToAdvance(), "finalizerNode did not advance LIB"
 
     testSuccessful=True
 finally:
