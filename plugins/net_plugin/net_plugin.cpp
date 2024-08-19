@@ -2224,6 +2224,8 @@ namespace eosio {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
+      } else if (sync_next_expected_num >= sync_last_requested_num) {
+         // break
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
          return;
