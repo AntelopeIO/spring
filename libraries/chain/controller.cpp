@@ -1117,6 +1117,13 @@ struct controller_impl {
       return prev->block_num();
    }
 
+   // returns 0 for legacy
+   size_t fork_db_savanna_size() const {
+      return fork_db.apply_s<size_t>([&](const auto& forkdb) {
+         return forkdb.size();
+      });
+   }
+
    bool fork_db_block_exists( const block_id_type& id ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {
          return forkdb.block_exists(id);
@@ -4792,9 +4799,9 @@ struct controller_impl {
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
          return true;
       }
-      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+      if (conf.max_reversible_blocks > 0 && fork_db_savanna_size() >= conf.max_reversible_blocks) {
          elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db.size())("m", conf.max_reversible_blocks));
+              ("s", fork_db_savanna_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
