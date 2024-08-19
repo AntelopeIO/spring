@@ -74,10 +74,9 @@ BOOST_FIXTURE_TEST_CASE(policy_change_including_weight_and_threshold, savanna_cl
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    auto initial_gen = A.head_active_finalizer_policy()->generation;
 
+   // shutdown C, verify that lib still advances (since threshold is 3)
+   // -----------------------------------------------------------------
    C.close();
-
-   // verify that lib still advances (since threshold is 3)
-   // -----------------------------------------------------
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
 
    // update finalizer_policy, so that C's weight is 3, B and D are removed, and the threshold is 4
@@ -111,13 +110,11 @@ BOOST_FIXTURE_TEST_CASE(policy_change_including_weight_and_threshold, savanna_cl
 
    // produce blocks on A, waiting for transition to complete (until the updated policy is active on A's head)
    // --------------------------------------------------------------------------------------------------------
-   auto finpol = A.head_active_finalizer_policy();
    size_t num_to_active = 0;
    do {
       A.produce_block();
-      finpol = A.head_active_finalizer_policy();
       ++num_to_active;
-   } while (finpol->generation != initial_gen+1);
+   } while (A.head_active_finalizer_policy()->generation != initial_gen+1);
    BOOST_REQUIRE_EQUAL(num_to_active, num_chains_to_final); // becomes active when "pending" block is final
 
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
@@ -131,6 +128,71 @@ BOOST_FIXTURE_TEST_CASE(policy_change_including_weight_and_threshold, savanna_cl
 
 } FC_LOG_AND_RETHROW()
 
+
+// ---------------------------------------------------------------------------------------------------
+//                    Policy change, reducing threshold and replacing all keys
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(policy_change_reduce_threshold_replace_all_keys, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   auto initial_gen = A.head_active_finalizer_policy()->generation;
+
+   // shutdown D, verify that lib still advances (since threshold is 3)
+   // -----------------------------------------------------------------
+   D.close();
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
+
+   // update signing keys on each of { A, B }, so every node has 2 keys, the previous one + a new one
+   // -----------------------------------------------------------------------------------------------
+   A.close();
+   B.close();
+   A.node_finalizers = std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] };
+   B.node_finalizers = std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] };
+   A.open();
+   B.open();
+
+   // verify that lib still advances even though D is down (since threshold is 3)
+   // ---------------------------------------------------------------------------
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
+
+   // update finalizer_policy to include only { A, B }'s new keys, and threshold is 2
+   // -------------------------------------------------------------------------------
+   base_tester::finalizer_policy_input input;
+   input.finalizers.emplace_back(_fin_keys[num_nodes()], 1);
+   input.finalizers.emplace_back(_fin_keys[num_nodes() + 1], 1);
+   input.threshold = 2;
+   A.set_finalizers(input);
+   A.produce_block();                                   // so the block with `set_finalizers` is `head`
+
+   // produce blocks on A, waiting for the new policy to become pending
+   // -----------------------------------------------------------------
+   BOOST_REQUIRE(!A.head_pending_finalizer_policy());     // we shouldn't have a pending policy
+   size_t num_to_pending = 0;
+   do {
+      A.produce_block();
+      ++num_to_pending;
+   } while (!A.head_pending_finalizer_policy());
+   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becames pending when proposed block is final
+
+   // produce blocks on A, waiting for the new policy to become final
+   // ---------------------------------------------------------------
+   size_t num_to_active = 0;
+   do {
+      A.produce_block();
+      ++num_to_active;
+   } while (A.head_active_finalizer_policy()->generation != initial_gen+1);
+   BOOST_REQUIRE_EQUAL(num_to_active, num_chains_to_final); // becomes active when "pending" block is final
+
+   // A produces 2 blocks, verify that *lib* advances by 2
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
+
+   // shutdown C and D which are not used in new policy.
+   // A produces 2 blocks, verify that *lib* advances by 2
+   // ----------------------------------------------------
+   C.close();
+   D.close();
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
+
+} FC_LOG_AND_RETHROW()
 
 
 
