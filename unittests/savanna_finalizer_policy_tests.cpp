@@ -32,7 +32,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change, savanna_cluster::cluster_t) try {
       A.produce_block();
       ++num_to_pending;
    } while (!A.head_pending_finalizer_policy());
-   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becames pending when proposed block is final
+   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becomes pending when proposed block is final
 
    // now that the new policy is pending, we need B to vote on it for finality to advance, as C is down.
    // --------------------------------------------------------------------------------------------------
@@ -96,7 +96,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_including_weight_and_threshold, savanna_cl
       A.produce_block();
       ++num_to_pending;
    } while (!A.head_pending_finalizer_policy());
-   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becames pending when proposed block is final
+   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becomes pending when proposed block is final
 
    // verify that lib stops advancing (because C is down so we can't get a QC on the pending policy
    // which needs three C votes)
@@ -170,7 +170,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_reduce_threshold_replace_all_keys, savanna
       A.produce_block();
       ++num_to_pending;
    } while (!A.head_pending_finalizer_policy());
-   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becames pending when proposed block is final
+   BOOST_REQUIRE_EQUAL(num_to_pending, num_chains_to_final); // becomes pending when proposed block is final
 
    // produce blocks on A, waiting for the new policy to become final
    // ---------------------------------------------------------------
