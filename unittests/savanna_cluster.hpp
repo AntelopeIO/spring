@@ -59,6 +59,7 @@ namespace savanna_cluster {
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
+
    public:
       std::vector<account_name> node_finalizers;
 
@@ -141,10 +142,12 @@ namespace savanna_cluster {
       }
 
       void push_block(const signed_block_ptr& b) {
-         assert(!pushing_a_block);
-         pushing_a_block = true;
-         auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
-         tester::push_block(b);
+         if (is_open() && !fetch_block_by_id(b->calculate_id())) {
+            assert(!pushing_a_block);
+            pushing_a_block = true;
+            auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
+            tester::push_block(b);
+         }
       }
 
       template <class Node>
@@ -419,7 +422,7 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];
-         assert(src.is_open() &&  _nodes[dst_idx].is_open());
+         assert(src.is_open() && _nodes[dst_idx].is_open());
 
          auto end_block_num   = src.fork_db_head().block_num();
 
@@ -464,26 +467,35 @@ namespace savanna_cluster {
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            n.control->process_vote_message(++connection_id, msg);
+            if (n.is_open())
+               n.control->process_vote_message(++connection_id, msg);
          });
       }
 
       void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            if (!n.fetch_block_by_id(b->calculate_id()))
-               n.push_block(b);
+            n.push_block(b);
+         });
+      }
+
+      // when a node restarts, simulate receiving newly produced blocks from peers
+      void get_new_blocks_from_peers(size_t node_idx) {
+         assert(_nodes[node_idx].is_open());
+         for_each_peer(node_idx, skip_self_t::yes, [&](node_t& n) {
+            if (n.is_open())
+               n.push_blocks_to(_nodes[node_idx]);
          });
       }
 
       template<class CB>
       void for_each_peer(size_t node_idx, skip_self_t skip_self, const CB& cb) {
-         if (_shutting_down)
+         if (_shutting_down || _peers.empty())
             return;
          assert(_peers.find(node_idx) != _peers.end());
          const auto& peers = _peers[node_idx];
          for (auto i : peers) {
             bool dont_skip = skip_self == skip_self_t::no || i != node_idx;
-            if (dont_skip && _nodes[i].is_open())
+            if (dont_skip)
                cb(_nodes[i]);
          }
       }
