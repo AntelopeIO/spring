@@ -106,7 +106,6 @@ BOOST_FIXTURE_TEST_CASE(policy_change_including_weight_and_threshold, savanna_cl
    // restart C.
    // ---------
    C.open();
-   A.push_blocks_to(C);
 
    // produce blocks on A, waiting for transition to complete (until the updated policy is active on A's head)
    // --------------------------------------------------------------------------------------------------------
@@ -251,7 +250,6 @@ BOOST_FIXTURE_TEST_CASE(policy_change_restart_from_snapshot, savanna_cluster::cl
    // restart C from the snapshot
    // ---------------------------
    C.open_from_snapshot(snapshot_C);
-   A.push_blocks_to(C);
 
    // A produces 4 blocks, verify that the new policy is active and *lib* starts advancing again
    // ------------------------------------------------------------------------------------------

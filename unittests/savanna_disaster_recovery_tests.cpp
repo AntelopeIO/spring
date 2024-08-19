@@ -15,7 +15,6 @@ BOOST_FIXTURE_TEST_CASE(node_goes_down, savanna_cluster::cluster_t) try {
    C.close();                                                                  // shutdown node C
    BOOST_REQUIRE_EQUAL(4u, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // lib still advances with 3 finalizers
    C.open();                                                                   // restart node C
-   A.push_blocks_to(C);                                                        // propagate blocks A -> C
    BOOST_REQUIRE_EQUAL(4u, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // all 4 finalizers should be back voting
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
@@ -37,7 +36,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_old_fsi, savanna_cluster::clust
    C.remove_state();
    C.overwrite_fsi(fsi);
    C.open_from_snapshot(snapshot);
-   A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
@@ -57,7 +55,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_with_deleted_fsi, savanna_cluster::c
    C.remove_state();
    C.remove_fsi();
    C.open_from_snapshot(snapshot);
-   A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
@@ -76,7 +73,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_node_while_retaining_fsi, savanna_cluster
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib still advances with 3 finalizers
    C.remove_state();
    C.open_from_snapshot(snapshot);
-   A.push_blocks_to(C);
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
    BOOST_REQUIRE(!C.is_head_missing_finalizer_votes());                        // let's make sure of that
 } FC_LOG_AND_RETHROW()
@@ -97,7 +93,6 @@ BOOST_FIXTURE_TEST_CASE(nodes_go_down, savanna_cluster::cluster_t) try {
    for (auto& N : failing_nodes) N->close();
    BOOST_REQUIRE_EQUAL(1u, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // lib stalls with 3 finalizers down, 1 QC in flight
    for (auto& N : failing_nodes) N->open();
-   for (auto& N : failing_nodes) A.push_blocks_to(*N);
    BOOST_REQUIRE_EQUAL(7u, A.lib_advances_by([&]() { A.produce_blocks(4);  })); // all 4 finalizers should be back voting
    for (auto& N : failing_nodes) BOOST_REQUIRE(!N->is_head_missing_finalizer_votes());
 } FC_LOG_AND_RETHROW()
@@ -125,7 +120,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_old_fsi, savanna_cluster::clus
       N->remove_state();
       N->overwrite_fsi(fsis[i]);
       N->open_from_snapshot(snapshots[i]);
-      A.push_blocks_to(*N);
       ++i;
    }
    BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
@@ -152,7 +146,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_with_deleted_fsi, savanna_cluster::
       N->remove_state();
       N->remove_fsi();
       N->open_from_snapshot(snapshots[i]);
-      A.push_blocks_to(*N);
       ++i;
    }
    BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
@@ -178,7 +171,6 @@ BOOST_FIXTURE_TEST_CASE(recover_killed_nodes_while_retaining_fsi, savanna_cluste
    for (auto& N : failing_nodes) {
       N->remove_state();
       N->open_from_snapshot(snapshots[i]);
-      A.push_blocks_to(*N);
       ++i;
    }
    BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // all 4 finalizers should be back voting
@@ -238,8 +230,12 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
       N->close();
       N->remove_state();
       remove_blocks_log ? N->remove_reversible_data_and_blocks_log() : N->remove_reversible_data();
-      N->open_from_snapshot(snapshot);
    }
+
+   // reopen after all nodes closed
+   // -----------------------------
+   for (auto& N : failing_nodes)
+      N->open_from_snapshot(snapshot);
 
    propagate_heads(); // needed only if we don't remove the blocks log, otherwise lib advanced by 1 block
                       // which was stored in the blocks log, and when replayed after loading A and B's
