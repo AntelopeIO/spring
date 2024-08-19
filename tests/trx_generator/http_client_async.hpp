@@ -104,7 +104,7 @@ class session : public std::enable_shared_from_this<session> {
       });
    }
 
-   void on_connect(beast::error_code ec, tcp::resolver::results_type::endpoint_type) {
+   void on_connect(beast::error_code ec, const auto&) {
       if (ec) {
          response_callback_(ec, {});
          return fail(ec, "connect");

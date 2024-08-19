@@ -184,6 +184,8 @@ namespace finality_proof {
 
       std::vector<bool> vote_propagation = {1,1,1};
 
+      block_timestamp_type prev_last_pending_finalizer_policy_start_timestamp;
+      
       // counter to (optimistically) track internal policy changes
       std::unordered_map<digest_type, policy_count> blocks_since_proposed_policy;
 
@@ -213,6 +215,7 @@ namespace finality_proof {
          //skip this part on genesis
          if (!is_genesis){
             parent_timestamp = timestamp;
+            last_pending_finalizer_policy_start_timestamp = prev_last_pending_finalizer_policy_start_timestamp;
             for (const auto& p : blocks_since_proposed_policy){
 
                //under the happy path with strong QCs in every block, a policy becomes active 4 blocks after being proposed
@@ -226,6 +229,7 @@ namespace finality_proof {
                   last_pending_finalizer_policy = p.second.policy;
                   last_pending_finalizer_policy_digest = p.first;
                   last_pending_finalizer_policy_start_timestamp = block->timestamp;
+                  prev_last_pending_finalizer_policy_start_timestamp = block->timestamp;
                }
             }
          }
@@ -241,6 +245,7 @@ namespace finality_proof {
                last_pending_finalizer_policy         = last_proposed_finalizer_policy;
                last_pending_finalizer_policy_digest  = last_proposed_finalizer_policy_digest;
                last_pending_finalizer_policy_start_timestamp = block->timestamp;
+               prev_last_pending_finalizer_policy_start_timestamp = block->timestamp;
                active_finalizer_policy               = last_proposed_finalizer_policy;
                active_finalizer_policy_digest        = last_proposed_finalizer_policy_digest;
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
