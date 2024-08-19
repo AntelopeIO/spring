@@ -789,9 +789,12 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
                      "--snapshot is incompatible with --genesis-json as the snapshot contains genesis information");
 
          auto shared_mem_path = chain_config->state_dir / "shared_memory.bin";
-         EOS_ASSERT( !std::filesystem::is_regular_file(shared_mem_path),
-                 plugin_config_exception,
-                 "Snapshot can only be used to initialize an empty database." );
+         auto chain_head_path = chain_config->state_dir / chain_head_filename;
+         EOS_ASSERT(!std::filesystem::is_regular_file(shared_mem_path) &&
+                    !std::filesystem::is_regular_file(chain_head_path),
+                    plugin_config_exception,
+                    "Snapshot can only be used to initialize an empty database, remove directory: ${d}",
+                    ("d", chain_config->state_dir.generic_string()));
 
          auto block_log_chain_id = block_log::extract_chain_id(blocks_dir, retained_dir);
 
