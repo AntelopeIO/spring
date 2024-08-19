@@ -3189,18 +3189,17 @@ struct controller_impl {
                 pbhs.prev_pending_schedule.schedule.producers.size() == 0 // ... and there was room for a new pending schedule prior to any possible promotion
                )
             {
-               // Promote proposed schedule to pending schedule.
-               if( !replaying ) {
-                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
-                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
-                        ("lib", pbhs.dpos_irreversible_blocknum)
-                        ("schedule", bb_legacy.new_pending_producer_schedule ) );
-               }
-
                EOS_ASSERT( gpo.proposed_schedule.version == pbhs.active_schedule_version + 1,
                            producer_schedule_exception, "wrong producer schedule version specified" );
 
+               // Promote proposed schedule to pending schedule.
                bb_legacy.new_pending_producer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
+
+               if( !replaying ) {
+                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
+                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
+                        ("lib", pbhs.dpos_irreversible_blocknum)("schedule", bb_legacy.new_pending_producer_schedule ) );
+               }
 
                db.modify( gpo, [&]( auto& gp ) {
                   gp.proposed_schedule_block_num = std::optional<block_num_type>();
