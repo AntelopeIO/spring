@@ -675,6 +675,8 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       if( options.count( "terminate-at-block" ))
          chain_config->terminate_at_block = options.at( "terminate-at-block" ).as<uint32_t>();
 
+      chain_config->num_configured_p2p_peers = options.count( "p2p-peer-address" );
+
       // move fork_db to new location
       upgrade_from_reversible_to_fork_db( this );
 

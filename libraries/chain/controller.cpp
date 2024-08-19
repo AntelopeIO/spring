@@ -1773,10 +1773,18 @@ struct controller_impl {
          using BSP = std::decay_t<decltype(forkdb.root())>;
 
          auto pending_head = forkdb.head();
+         auto root = forkdb.root();
+         if( pending_head ) {
+            ilog("fork database size ${s} head ${hn} : ${h}, root ${rn} : ${r}",
+                 ("s", forkdb.size())("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", root->block_num())("r", root->id()));
+         } else if (root) {
+            ilog("fork database has no pending blocks root ${rn} : ${r}",
+                 ("rn", root->block_num())("r", root->id()));
+         } else {
+            ilog("fork database empty, no pending or root");
+         }
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
-                 ("hn", pending_head->block_num())("h", pending_head->id())
-                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
@@ -1976,14 +1984,34 @@ struct controller_impl {
       auto finish_init = [&](auto& forkdb) {
          if( read_mode != db_read_mode::IRREVERSIBLE ) {
             auto pending_head = forkdb.head();
-            if ( pending_head && pending_head->id() != chain_head.id() && chain_head.id() == forkdb.root()->id() ) {
-               ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
-
-               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
-                  ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
-                  controller::block_report br;
-                  maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+            if ( pending_head && pending_head->id() != chain_head.id() ) {
+               // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
+               bool chain_head_is_root = chain_head.id() == forkdb.root()->id();
+               if (chain_head_is_root) {
+                  ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
                }
+
+               // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
+               if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
+                  for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
+                     ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
+                     controller::block_report br;
+                     maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+                  }
+               }
+            }
+         } else {
+            // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
+            // it was syncing and had processed blocks into the fork database but not yet applied them. In general,
+            // it makes sense to process those blocks on startup. However, if the node was shutdown via
+            // terminate-at-block, the current expectation is that the node can be restarted to examine the state at
+            // which it was shutdown. For now, we will only process these blocks if there are peers configured. This
+            // is a bit of a hack for Spring 1.0.0 until we can add a proper pause-at-block (issue #570) which could
+            // be used to explicitly request a node to not process beyond a specified block.
+            if (conf.num_configured_p2p_peers > 0) {
+               ilog("Process blocks out of forkdb if needed");
+               log_irreversible();
+               transition_to_savanna_if_needed();
             }
          }
       };
