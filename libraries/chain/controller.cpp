@@ -1083,6 +1083,10 @@ struct controller_impl {
       return fork_db.apply<bool>([&](const auto& forkdb) { return !!forkdb.has_root(); });
    }
 
+   size_t fork_db_size() const {
+      return fork_db.size();
+   }
+
    block_id_type fork_db_root_block_id() const {
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
@@ -5274,6 +5278,10 @@ void controller::set_savanna_lib_id(const block_id_type& id) {
 
 bool controller::fork_db_has_root() const {
    return my->fork_db_has_root();
+}
+
+size_t controller::fork_db_size() const {
+   return my->fork_db_size();
 }
 
 uint32_t controller::last_irreversible_block_num() const {
