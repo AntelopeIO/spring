@@ -195,5 +195,77 @@ BOOST_FIXTURE_TEST_CASE(policy_change_reduce_threshold_replace_all_keys, savanna
 } FC_LOG_AND_RETHROW()
 
 
+// ---------------------------------------------------------------------------------------------------
+//                    Policy change: restart from snapshot
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(policy_change_restart_from_snapshot, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   auto initial_gen = A.head_active_finalizer_policy()->generation;
+
+   // update signing keys on each of { A, B, C }, so every node has 2 keys, the previous one + a new one
+   // --------------------------------------------------------------------------------------------------
+   A.close();
+   B.close();
+   C.close();
+   A.node_finalizers = std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] };
+   B.node_finalizers = std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] };
+   C.node_finalizers = std::vector<account_name>{ _fin_keys[2], _fin_keys[num_nodes() + 2] };
+   A.open();
+   B.open();
+   C.open();
+
+   // update the  *finalizer_policy* to include only { A, B, C }'s new keys, C's weight is 2, and threshold is 3
+   // ----------------------------------------------------------------------------------------------------------
+   base_tester::finalizer_policy_input input;
+   input.finalizers.emplace_back(_fin_keys[num_nodes()], 1);
+   input.finalizers.emplace_back(_fin_keys[num_nodes() + 1], 1);
+   input.finalizers.emplace_back(_fin_keys[num_nodes() + 2], 2);
+   input.threshold = 3;
+   A.set_finalizers(input);
+   A.produce_block();                                   // so the block with `set_finalizers` is `head`
+
+   // Take a snapshot of C. Produce 2 blocks on A so the snapshot block is stored in block log
+   // ----------------------------------------------------------------------------------------
+   auto snapshot_C = C.snapshot();
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2); }));
+
+   // for each of { A, B, C, D }, shutdown, delete *state*, but not *blocks log*, *reversible data* or *fsi*
+   // ------------------------------------------------------------------------------------------------------
+   for (size_t i=0; i<4; ++i) {
+      _nodes[i].close();
+      _nodes[i].remove_state();
+   }
+
+   // for each of { A, B, D }, restart from the snapshot
+   // --------------------------------------------------
+   A.open_from_snapshot(snapshot_C);
+   B.open_from_snapshot(snapshot_C);
+   D.open_from_snapshot(snapshot_C);
+
+   // A produces 4 blocks, verify that *lib* advances only by one and that the new policy is only pending
+   // (because  C is down so no quorum on new policy)
+   // ---------------------------------------------------------------------------------------------------
+   BOOST_REQUIRE_EQUAL(1u, A.lib_advances_by([&]() { A.produce_blocks(4); }));
+   BOOST_REQUIRE(!!A.head_pending_finalizer_policy());
+
+   // restart C from the snapshot
+   // ---------------------------
+   C.open_from_snapshot(snapshot_C);
+   A.push_blocks_to(C);
+
+   // A produces 4 blocks, verify that the new policy is active and *lib* starts advancing again
+   // ------------------------------------------------------------------------------------------
+   BOOST_REQUIRE_LT(4u, A.lib_advances_by([&]() { A.produce_blocks(4); }));
+   BOOST_REQUIRE_EQUAL(A.head_active_finalizer_policy()->generation, initial_gen+1);
+
+   // shutdown B and D. A produces 3 blocks, verify that *lib* advances by 3
+   // (because together A and C meet the 3 votes quorum for the new policy)
+   // ----------------------------------------------------------------------
+   B.close();
+   D.close();
+   BOOST_REQUIRE_EQUAL(3u, A.lib_advances_by([&]() { A.produce_blocks(3); }));
+
+} FC_LOG_AND_RETHROW()
+
 
 BOOST_AUTO_TEST_SUITE_END()
