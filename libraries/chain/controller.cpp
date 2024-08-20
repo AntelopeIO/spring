@@ -3985,7 +3985,8 @@ struct controller_impl {
       }
 
       bool best_head = false;
-      if (!should_terminate(bsp->block_num() - 1)) { // we want to process terminate block, so -1 to allow it to pass
+      // want to process terminate block, so 1 to allow it to pass, but still check max-reversible-blocks
+      if (!should_terminate(1)) {
          best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
          if constexpr (savanna_mode)
             vote_processor.notify_new_block(async_aggregation);
