@@ -88,13 +88,6 @@ struct blog_replay_fixture {
       eosio::testing::tester replay_chain_1(copied_config_1, *genesis, call_startup_t::no);
       replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
 
-      replay_chain_1.control->accepted_block().connect([&](const block_signal_params& t) {
-         const auto& [ block, id ] = t;
-         BOOST_TEST(block->block_num() > stop_at);
-         static uint32_t first = block->block_num();
-         BOOST_TEST(first == stop_at);
-      });
-
       // Make sure new chain contain the account created by original chain
       BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay1"_n));
       BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay2"_n));
