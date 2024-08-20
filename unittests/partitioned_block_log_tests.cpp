@@ -238,6 +238,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
    BOOST_CHECK(from_block_log_chain.fetch_block_by_number(100)->block_num() == 100u);
    BOOST_CHECK(from_block_log_chain.fetch_block_by_number(150)->block_num() == 150u);
 
+   from_block_log_chain.close();
+
    //
    // replay with no blocks.log, but blocks in retained_dir
    //
