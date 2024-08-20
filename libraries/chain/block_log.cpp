@@ -956,7 +956,7 @@ namespace eosio { namespace chain {
             open(log_dir);
             const auto log_size = std::filesystem::file_size(block_file.get_file_path());
 
-            if (log_size == 0 && !catalog.empty()) {
+            if ((log_size == 0 || !head) && !catalog.empty()) {
                basic_block_log::reset(catalog.verifier.chain_id, catalog.last_block_num() + 1);
                update_head(read_block_by_num(catalog.last_block_num()));
             } else {
