@@ -1083,6 +1083,10 @@ struct controller_impl {
       return fork_db.apply<bool>([&](const auto& forkdb) { return !!forkdb.has_root(); });
    }
 
+   size_t fork_db_size() const {
+      return fork_db.size();
+   }
+
    block_id_type fork_db_root_block_id() const {
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
@@ -1111,6 +1115,13 @@ struct controller_impl {
       chain_head = block_handle{prev};
 
       return prev->block_num();
+   }
+
+   // returns 0 for legacy
+   size_t fork_db_savanna_size() const {
+      return fork_db.apply_s<size_t>([&](const auto& forkdb) {
+         return forkdb.size();
+      });
    }
 
    bool fork_db_block_exists( const block_id_type& id ) const {
@@ -1762,10 +1773,18 @@ struct controller_impl {
          using BSP = std::decay_t<decltype(forkdb.root())>;
 
          auto pending_head = forkdb.head();
+         auto root = forkdb.root();
+         if( pending_head ) {
+            ilog("fork database size ${s} head ${hn} : ${h}, root ${rn} : ${r}",
+                 ("s", forkdb.size())("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", root->block_num())("r", root->id()));
+         } else if (root) {
+            ilog("fork database has no pending blocks root ${rn} : ${r}",
+                 ("rn", root->block_num())("r", root->id()));
+         } else {
+            ilog("fork database empty, no pending or root");
+         }
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
-                 ("hn", pending_head->block_num())("h", pending_head->id())
-                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
@@ -1965,14 +1984,34 @@ struct controller_impl {
       auto finish_init = [&](auto& forkdb) {
          if( read_mode != db_read_mode::IRREVERSIBLE ) {
             auto pending_head = forkdb.head();
-            if ( pending_head && pending_head->id() != chain_head.id() && chain_head.id() == forkdb.root()->id() ) {
-               ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
-
-               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
-                  ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
-                  controller::block_report br;
-                  maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+            if ( pending_head && pending_head->id() != chain_head.id() ) {
+               // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
+               bool chain_head_is_root = chain_head.id() == forkdb.root()->id();
+               if (chain_head_is_root) {
+                  ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
                }
+
+               // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
+               if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
+                  for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
+                     ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
+                     controller::block_report br;
+                     maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+                  }
+               }
+            }
+         } else {
+            // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
+            // it was syncing and had processed blocks into the fork database but not yet applied them. In general,
+            // it makes sense to process those blocks on startup. However, if the node was shutdown via
+            // terminate-at-block, the current expectation is that the node can be restarted to examine the state at
+            // which it was shutdown. For now, we will only process these blocks if there are peers configured. This
+            // is a bit of a hack for Spring 1.0.0 until we can add a proper pause-at-block (issue #570) which could
+            // be used to explicitly request a node to not process beyond a specified block.
+            if (conf.num_configured_p2p_peers > 0) {
+               ilog("Process blocks out of forkdb if needed");
+               log_irreversible();
+               transition_to_savanna_if_needed();
             }
          }
       };
@@ -2042,21 +2081,29 @@ struct controller_impl {
          using by_table_id = object_to_table_id_tag_t<value_t>;
 
          snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
-            table_id last_seen_tid = -1;
+            table_id flattened_table_id = -1; //first table id will be assigned 0 by chainbase
 
-            decltype(utils)::template walk_by<by_table_id>(db, [this, &section, &row_counter, &last_seen_tid]( const auto &row ) {
-               if(last_seen_tid != row.t_id) {
-                  auto tid_key = boost::make_tuple(row.t_id);
-                  auto next_tid_key = boost::make_tuple(table_id_object::id_type(row.t_id._id + 1));
-                  unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+            index_utils<table_id_multi_index>::walk(db, [this, &section, &flattened_table_id, &row_counter](const table_id_object& table_row) {
+               auto tid_key = boost::make_tuple(table_row.id);
+               auto next_tid_key = boost::make_tuple(table_id_object::id_type(table_row.id._id + 1));
 
-                  section.add_row(row.t_id, db); //indicate the new table id for next...
-                  section.add_row(size, db);     //...number of rows
+               //Tables are stored in the snapshot by their sorted by-id walked order, but without record of their table id. On snapshot
+               // load, the table index will be reloaded in order, but all table ids flattened by chainbase to their insert order.
+               // e.g. if walking table ids 4,5,10,11,12 on creation, these will be reloaded as table ids 0,1,2,3,4. Track this
+               // flattened order here to know the "new" (upon snapshot load) table id a row belongs to
+               ++flattened_table_id;
 
-                  last_seen_tid = row.t_id;
-               }
-               section.add_row(row, db);
-               row_counter.progress();
+               unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+               if(size == 0u)
+                  return;
+
+               section.add_row(flattened_table_id, db); //indicate the new (flattened for load) table id for next...
+               section.add_row(size, db);               //...number of rows
+
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
+                  section.add_row(row, db);
+                  row_counter.progress();
+               });
             });
          });
       });
@@ -3185,18 +3232,17 @@ struct controller_impl {
                 pbhs.prev_pending_schedule.schedule.producers.size() == 0 // ... and there was room for a new pending schedule prior to any possible promotion
                )
             {
-               // Promote proposed schedule to pending schedule.
-               if( !replaying ) {
-                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
-                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
-                        ("lib", pbhs.dpos_irreversible_blocknum)
-                        ("schedule", bb_legacy.new_pending_producer_schedule ) );
-               }
-
                EOS_ASSERT( gpo.proposed_schedule.version == pbhs.active_schedule_version + 1,
                            producer_schedule_exception, "wrong producer schedule version specified" );
 
+               // Promote proposed schedule to pending schedule.
                bb_legacy.new_pending_producer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
+
+               if( !replaying ) {
+                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
+                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
+                        ("lib", pbhs.dpos_irreversible_blocknum)("schedule", bb_legacy.new_pending_producer_schedule ) );
+               }
 
                db.modify( gpo, [&]( auto& gp ) {
                   gp.proposed_schedule_block_num = std::optional<block_num_type>();
@@ -4789,9 +4835,9 @@ struct controller_impl {
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
          return true;
       }
-      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+      if (conf.max_reversible_blocks > 0 && fork_db_savanna_size() >= conf.max_reversible_blocks) {
          elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db.size())("m", conf.max_reversible_blocks));
+              ("s", fork_db_savanna_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5303,6 +5349,10 @@ void controller::set_savanna_lib_id(const block_id_type& id) {
 
 bool controller::fork_db_has_root() const {
    return my->fork_db_has_root();
+}
+
+size_t controller::fork_db_size() const {
+   return my->fork_db_size();
 }
 
 uint32_t controller::last_irreversible_block_num() const {

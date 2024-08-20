@@ -104,6 +104,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
 
@@ -301,7 +302,8 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
-         bool fork_db_has_root() const;
+         bool   fork_db_has_root() const;
+         size_t fork_db_size() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
