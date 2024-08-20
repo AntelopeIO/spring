@@ -132,9 +132,11 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
 
    A.create_accounts(producers);
    A.tester::set_producers(producers);    // push the action to update the producer schedule
-   A.produce_blocks(12);                  // produce 12 blocks which guarantees that the proposer policy is pending
+   A.produce_blocks(13);                  // produce 13 blocks which guarantees that the proposer policy is pending
 
    BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
+   BOOST_REQUIRE(!!A.control->pending_producers());
+   BOOST_REQUIRE_GT(A.control->pending_producers()->version, orig_version);
    auto orig_lib_num = A.lib_number;
 
    // split network { A, B } and { C, D }
