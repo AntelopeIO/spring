@@ -42,7 +42,7 @@ struct blog_replay_fixture {
    }
 
    // Stop replay at block number `stop_at` via simulated ctrl-c and resume the replay afterward
-   void stop_and_resume_replay(uint32_t stop_at) try {
+   void stop_and_resume_replay(uint32_t stop_at, bool remove_fork_db = false) try {
       controller::config copied_config = chain.get_config();
 
       auto genesis = block_log::extract_genesis_state(copied_config.blocks_dir); 
@@ -77,6 +77,10 @@ struct blog_replay_fixture {
       // Make sure reversible fork_db still exists
       BOOST_CHECK(std::filesystem::exists(copied_config.blocks_dir / config::reversible_blocks_dir_name / "fork_db.dat"));
 
+      if (remove_fork_db) {
+         std::filesystem::remove(copied_config.blocks_dir / config::reversible_blocks_dir_name / "fork_db.dat");
+      }
+
       // Prepare resuming replay
       controller::config copied_config_1 = replay_chain.get_config();
 
@@ -99,7 +103,11 @@ struct blog_replay_fixture {
       // Make sure replayed irreversible_block_num and head_block_num match
       // with last_irreversible_block_num and last_head_block_num
       BOOST_CHECK(replay_chain_1.last_irreversible_block_num() == last_irreversible_block_num);
-      BOOST_CHECK(replay_chain_1.head().block_num() == last_head_block_num);
+      if (!remove_fork_db) {
+         BOOST_CHECK(replay_chain_1.head().block_num() == last_head_block_num);
+      } else {
+         BOOST_CHECK(replay_chain_1.head().block_num() == last_irreversible_block_num);
+      }
    } FC_LOG_AND_RETHROW()
 
    void remove_existing_states(std::filesystem::path& state_path) {
@@ -134,6 +142,12 @@ BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
 BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle, blog_replay_fixture) try {
    // block `last_irreversible_block_num - 1` is within blocks log
    stop_and_resume_replay(last_irreversible_block_num - 1);
+} FC_LOG_AND_RETHROW()
+
+// Test replay stopping in the middle of blocks log and resuming without forkdb
+BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle_rm_forkdb, blog_replay_fixture) try {
+   // block `last_irreversible_block_num - 1` is within blocks log
+   stop_and_resume_replay(last_irreversible_block_num - 1, true);
 } FC_LOG_AND_RETHROW()
 
 // Test replay stopping in the middle of reversible blocks and resuming
