@@ -760,4 +760,49 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(jumbo_row, SNAPSHOT_SUITE, snapshot_suites)
    jumbo_row_test<savanna_tester, SNAPSHOT_SUITE>();
 }
 
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void removed_table_snapshot_test() {
+   typename SNAPSHOT_SUITE::snapshot_t snap;
+   controller::config cfg;
+   {
+      TESTER chain;
+
+      chain.create_account("snapshot"_n);
+      chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
+      chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
+      chain.produce_block();
+
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "apple"_n) ("id", 1u)("payload",sha256::hash("1")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "apple"_n) ("id", 2u)("payload",sha256::hash("2")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 3u)("payload",sha256::hash("3")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 4u)("payload",sha256::hash("4")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 5u)("payload",sha256::hash("5")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 6u)("payload",sha256::hash("6")));
+
+      chain.produce_block();
+
+      chain.push_action("snapshot"_n, "remove"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 3u));
+      chain.push_action("snapshot"_n, "remove"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 4u));
+
+      chain.produce_block();
+
+      chain.control->abort_block();
+      auto writer = SNAPSHOT_SUITE::get_writer();
+      chain.control->write_snapshot(writer);
+      snap = SNAPSHOT_SUITE::finalize(writer);
+      cfg = chain.get_config();
+   }
+   {
+      snapshotted_tester chain2(cfg, SNAPSHOT_SUITE::get_reader(snap), 0);
+
+      chain2.push_action("snapshot"_n, "verify"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 5u)("payload",sha256::hash("5")));
+      chain2.push_action("snapshot"_n, "verify"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 6u)("payload",sha256::hash("6")));
+   }
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(removed_table, SNAPSHOT_SUITE, snapshot_suites) {
+   removed_table_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   removed_table_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
 BOOST_AUTO_TEST_SUITE_END()
