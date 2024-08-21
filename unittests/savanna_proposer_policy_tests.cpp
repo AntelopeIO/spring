@@ -31,6 +31,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_first_block_delay_check, savanna_cluster::
    sb = A.produce_block();
    bool using_new_sched = std::ranges::find(producers, sb->producer) != producers.end();
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
+   BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
    BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
 
@@ -70,6 +71,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_sixth_block_delay_check, savanna_cluster::
    sb = A.produce_block();
    bool using_new_sched = std::ranges::find(producers, sb->producer) != producers.end();
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
+   BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
    BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
 
@@ -109,6 +111,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::c
    sb = A.produce_block();
    bool using_new_sched = std::ranges::find(producers, sb->producer) != producers.end();
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
+   BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
    BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
 
