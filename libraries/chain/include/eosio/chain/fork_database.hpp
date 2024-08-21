@@ -263,9 +263,28 @@ namespace eosio::chain {
       }
 
       /// @param legacy_f the lambda to execute if in legacy mode
-      /// @param savanna_f the lambda to execute if in savanna instant-finality mode
+      /// @param savanna_f the lambda to execute if in savanna mode
       template <class R, class LegacyF, class SavannaF>
       R apply(const LegacyF& legacy_f, const SavannaF& savanna_f) {
+         if constexpr (std::is_same_v<void, R>) {
+            if (in_use.load() == in_use_t::legacy) {
+               legacy_f(fork_db_l);
+            } else {
+               savanna_f(fork_db_s);
+            }
+         } else {
+            if (in_use.load() == in_use_t::legacy) {
+               return legacy_f(fork_db_l);
+            } else {
+               return savanna_f(fork_db_s);
+            }
+         }
+      }
+
+      /// @param legacy_f the lambda to execute if in legacy mode
+      /// @param savanna_f the lambda to execute if in savanna mode
+      template <class R, class LegacyF, class SavannaF>
+      R apply(const LegacyF& legacy_f, const SavannaF& savanna_f) const {
          if constexpr (std::is_same_v<void, R>) {
             if (in_use.load() == in_use_t::legacy) {
                legacy_f(fork_db_l);
