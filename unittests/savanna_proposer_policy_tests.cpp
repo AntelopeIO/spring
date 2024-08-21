@@ -17,7 +17,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_first_block_delay_check, savanna_cluster::
    while(A.head().timestamp().slot % prod_rep != prod_rep - 1)
       A.produce_block();
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   const vector<account_name> producers { "pa"_n, "pb"_n };
    A.create_accounts(producers);
    A.tester::set_producers(producers);              // push the action to update the producer schedule
    auto sb = A.produce_block();                     // produce a block that will include the policy change transaction
@@ -56,7 +56,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_sixth_block_delay_check, savanna_cluster::
    while(A.head().timestamp().slot % prod_rep != middle - 1)
       A.produce_block();
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   const vector<account_name> producers { "pa"_n, "pb"_n };
    A.create_accounts(producers);
    A.tester::set_producers(producers);              // push the action to update the producer schedule
    auto sb = A.produce_block();                     // produce a block that will include the policy change transaction
@@ -95,7 +95,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::c
    while(A.head().timestamp().slot % prod_rep != last - 1)
       A.produce_block();
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   const vector<account_name> producers { "pa"_n, "pb"_n };
    A.create_accounts(producers);
    A.tester::set_producers(producers);              // push the action to update the producer schedule
    auto sb = A.produce_block();                     // produce a block that will include the policy change transaction
@@ -135,7 +135,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
    set_partition(partition);
    auto sb = A.produce_block();                        // take care of the in-flight QC
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   const vector<account_name> producers { "pa"_n, "pb"_n };
    auto orig_version = A.control->active_producers().version;
    auto orig_lib_num = A.lib_number;
    auto orig_producer = sb->producer;
@@ -150,8 +150,8 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
    BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);
    BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
 
-   // remove network split
-   // --------------------
+   // remove network split. verify that proposer policy becomes active
+   // ----------------------------------------------------------------
    set_partition({});
    propagate_heads();
 
@@ -190,7 +190,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
    set_partition(partition);
    auto sb = A.produce_block();                        // take care of the in-flight QC
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   const vector<account_name> producers { "pa"_n, "pb"_n };
    auto orig_version = A.control->active_producers().version;
    auto orig_lib_num = A.lib_number;
    auto orig_producer = sb->producer;
@@ -208,8 +208,8 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
    BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);
    BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
 
-   // remove network split
-   // --------------------
+   // remove network split. Verify that proposer policy becomes active
+   // ----------------------------------------------------------------
    set_partition({});
    propagate_heads();
 
@@ -232,20 +232,19 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
 BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0];
 
-   const vector<account_name> producers { "p0"_n, "p1"_n };
+   auto sb = A.produce_block();
+   auto orig_producer = sb->producer;
    auto orig_version = A.control->active_producers().version;
 
-   while (A.head().timestamp().slot % prod_rep >= prod_rep - 2)
-      A.produce_block();                  // make sure we are not on the last two blocks of a round
+   while (A.head().timestamp().slot % prod_rep >= prod_rep - 4)
+      A.produce_block();                  // make sure the next block is not one of the last three blocks of a round
+
+   const vector<account_name> producers { "pa"_n, "pb"_n };
 
    A.create_accounts(producers);
    A.tester::set_producers(producers);    // push the action to update the producer schedule
-   A.produce_blocks(13);                  // produce 13 blocks which guarantees that the proposer policy is pending
-
-   BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
-   BOOST_REQUIRE(!!A.control->pending_producers());
-   BOOST_REQUIRE_GT(A.control->pending_producers()->version, orig_version);
-   auto orig_lib_num = A.lib_number;
+   A.produce_block();                     // produce a block that will include the policy change transaction
+   A.produce_blocks(12);                  // produce 12 blocks which guarantees that the proposer policy is pending
 
    // split network { A, B } and { C, D }
    // Regardless of how many blocks A produces, finality will not advance
@@ -254,12 +253,22 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
    const std::vector<size_t> partition {2, 3};
    set_partition(partition);
 
-   // produce `2 * prod_rep` more blocks. If finality was advancing, the new proposer policy would be active,
-   // but with a split network finality will stall, and the new proposer policy should *not* become active.
+   sb = A.produce_block();                // produce one more block for lib final advance (in-flight QC)
+
+   BOOST_REQUIRE_EQUAL(sb->producer, orig_producer);
+   BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
+   BOOST_REQUIRE(!!A.control->pending_producers());
+   BOOST_REQUIRE_GT(A.control->pending_producers()->version, orig_version);
+   auto orig_lib_num = A.lib_number;
+
+   // produce `prod_rep` more blocks. Finality will not be advancing anymore, but still the new policy
+   // will become active because it was already pending.
    // -----------------------------------------------------------------------------------------------------
-   A.produce_blocks(2 * prod_rep);
-   BOOST_REQUIRE_LE(A.lib_number, orig_lib_num + 1);
-   BOOST_REQUIRE_GT(A.control->active_producers().version, orig_version);
+   sb = A.produce_blocks(prod_rep);
+   BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);                      // check lib didn't advance
+   BOOST_REQUIRE_GT(A.control->active_producers().version, orig_version);// check producer schedule version is greater
+   BOOST_REQUIRE_NE(sb->producer, orig_producer);                        // and the last block was produced by a different producer
+
 } FC_LOG_AND_RETHROW()
 
 
