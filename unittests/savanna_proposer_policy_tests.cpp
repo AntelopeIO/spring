@@ -51,8 +51,8 @@ BOOST_FIXTURE_TEST_CASE(policy_change_first_block_delay_check, savanna_cluster::
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(policy_change_sixth_block_delay_check, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0];
-   uint32_t middle = prod_rep / 2;
-   assert(middle > 0);
+   const uint32_t middle = prod_rep / 2;
+   static_assert(middle > 0);
 
    while(A.head().timestamp().slot % prod_rep != middle - 1)
       A.produce_block();
@@ -91,8 +91,8 @@ BOOST_FIXTURE_TEST_CASE(policy_change_sixth_block_delay_check, savanna_cluster::
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0];
-   uint32_t last = prod_rep - 1;
-   assert(last > 0);
+   const uint32_t last = prod_rep - 1;
+   static_assert(last > 0);
 
    while(A.head().timestamp().slot % prod_rep != last - 1)
       A.produce_block();
@@ -234,6 +234,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0];
+   static_assert(prod_rep >= 4);
 
    auto sb = A.produce_block();
    auto orig_producer = sb->producer;
@@ -247,7 +248,7 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
    A.create_accounts(producers);
    A.tester::set_producers(producers);    // push the action to update the producer schedule
    A.produce_block();                     // produce a block that will include the policy change transaction
-   A.produce_blocks(12);                  // produce 12 blocks which guarantees that the proposer policy is pending
+   A.produce_blocks(prod_rep);            // produce `prod_rep` blocks which guarantees that the proposer policy is pending
 
    // split network { A, B } and { C, D }
    // Regardless of how many blocks A produces, finality will not advance
@@ -266,7 +267,9 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
 
    // produce `prod_rep` more blocks. Finality will not be advancing anymore, but still the new policy
    // will become active because it was already pending.
-   // -----------------------------------------------------------------------------------------------------
+   // Indeed, the new policy would eventually become active as long as it was simply *proposed* prior to the
+   // last final block when finality stalled, but this is not verified in this test.
+   // ------------------------------------------------------------------------------------------------------
    sb = A.produce_blocks(prod_rep);
    BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);                      // check lib didn't advance
    BOOST_REQUIRE_GT(A.control->active_producers().version, orig_version);// check producer schedule version is greater
