@@ -2004,8 +2004,8 @@ namespace eosio {
       int32_t reversible_remaining = my_impl->chain_plug->chain().max_reversible_blocks_allowed();
       if (reversible_remaining <= 0) {
          auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-         fc_wlog(logger, "max-reversible-blocks exceeded, remaining ${r}, fork_db_size ${fs}",
-                 ("r", reversible_remaining)("fs", fork_db_size));
+         fc_wlog(logger, "max-reversible-blocks exceeded by ${ex}, fork_db_size ${fs}",
+                 ("ex", -reversible_remaining)("fs", fork_db_size));
          reversible_remaining = 0;
       }
       if (reversible_remaining < sync_fetch_span) {
