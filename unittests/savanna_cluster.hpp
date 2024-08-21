@@ -113,12 +113,10 @@ namespace savanna_cluster {
          BOOST_REQUIRE_EQUAL(lib_num(), pt_block->block_num());
       }
 
-      // updates producers (producer updates will be propagated to connected nodes), and
-      // wait until one of the new producers is pending.
+      // wait until one of `producers` is the producer that will be used for the next block produced.
       // return the index of the pending new producer (we assume no duplicates in producer list)
-      // -----------------------------------------------------------------------------------
-      size_t set_producers(const std::vector<account_name>& producers) {
-         tester::set_producers(producers);
+      // --------------------------------------------------------------------------------------------
+      size_t wait_for_producer(const std::vector<account_name>& producers) {
          account_name pending;
          size_t max_blocks_produced = 400;
          while (--max_blocks_produced) {
@@ -129,6 +127,15 @@ namespace savanna_cluster {
          }
          BOOST_REQUIRE_GT(max_blocks_produced, 0u);
          return ranges::find(producers, pending) - producers.begin();
+      }
+
+      // updates producers (producer updates will be propagated to connected nodes), and
+      // wait until one of `producers` is the producer that will be used for the next block produced.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
+      // --------------------------------------------------------------------------------------------
+      size_t set_producers(const std::vector<account_name>& producers) {
+         tester::set_producers(producers);
+         return wait_for_producer(producers);
       }
 
       uint32_t lib_num() const { return lib_number; }
