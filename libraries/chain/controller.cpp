@@ -1117,13 +1117,6 @@ struct controller_impl {
       return prev->block_num();
    }
 
-   // returns 0 for legacy
-   size_t fork_db_savanna_size() const {
-      return fork_db.apply_s<size_t>([&](const auto& forkdb) {
-         return forkdb.size();
-      });
-   }
-
    bool fork_db_block_exists( const block_id_type& id ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {
          return forkdb.block_exists(id);
@@ -4840,6 +4833,19 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
+   int32_t max_reversible_blocks_allowed() const {
+      if (conf.max_reversible_blocks == 0)
+         return std::numeric_limits<int32_t>::max();
+
+      return fork_db.apply<int32_t>(
+         [&](const fork_database_legacy_t& forkdb) {
+            return std::numeric_limits<int32_t>::max();
+         },
+         [&](const fork_database_if_t& forkdb) {
+            return conf.max_reversible_blocks - forkdb.size();
+         });
+   }
+
    bool should_terminate(block_num_type reversible_block_num) const {
       assert(reversible_block_num > 0);
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
@@ -4847,9 +4853,9 @@ struct controller_impl {
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
          return true;
       }
-      if (conf.max_reversible_blocks > 0 && fork_db_savanna_size() >= conf.max_reversible_blocks) {
+      if (max_reversible_blocks_allowed() <= 0) {
          elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db_savanna_size())("m", conf.max_reversible_blocks));
+              ("s", fork_db_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5658,6 +5664,10 @@ validation_mode controller::get_validation_mode()const {
 
 bool controller::should_terminate() const {
    return my->should_terminate();
+}
+
+int32_t controller:: max_reversible_blocks_allowed() const {
+   return my->max_reversible_blocks_allowed();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const

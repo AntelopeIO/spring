@@ -227,7 +227,6 @@ namespace eosio {
 
       const uint32_t sync_fetch_span {0};
       const uint32_t sync_peer_limit {0};
-      const size_t   max_reversible_blocks {0};
 
       alignas(hardware_destructive_interference_sz)
       std::atomic<stages> sync_state{in_sync};
@@ -259,7 +258,7 @@ namespace eosio {
          immediately,  // closing connection immediately
          handshake     // sending handshake message
       };
-      explicit sync_manager( uint32_t span, uint32_t sync_peer_limit, size_t max_reversible_blocks, uint32_t min_blocks_distance );
+      explicit sync_manager( uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance );
       static void send_handshakes();
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
       bool is_in_sync() const { return sync_state == in_sync; }
@@ -1989,30 +1988,30 @@ namespace eosio {
    }
    //-----------------------------------------------------------
 
-    sync_manager::sync_manager( uint32_t span, uint32_t sync_peer_limit, size_t max_reversible_blocks, uint32_t min_blocks_distance )
+    sync_manager::sync_manager( uint32_t span, uint32_t sync_peer_limit, uint32_t min_blocks_distance )
       :sync_known_lib_num( 0 )
       ,sync_last_requested_num( 0 )
       ,sync_next_expected_num( 1 )
       ,sync_source()
       ,sync_fetch_span( span )
       ,sync_peer_limit( sync_peer_limit )
-      ,max_reversible_blocks(max_reversible_blocks)
       ,sync_state(in_sync)
       ,min_blocks_distance(min_blocks_distance)
    {
    }
 
    uint32_t sync_manager::active_sync_fetch_span() const {
-      auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-      int32_t reversible_remaining = max_reversible_blocks - fork_db_size - 1;
+      int32_t reversible_remaining = my_impl->chain_plug->chain().max_reversible_blocks_allowed();
       if (reversible_remaining <= 0) {
-         fc_wlog(logger, "max-reversible-blocks ${m} exceeded, remaining ${r}, fork_db_size ${fs}",
-                 ("m", max_reversible_blocks)("r", reversible_remaining)("fs", fork_db_size));
+         auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
+         fc_wlog(logger, "max-reversible-blocks exceeded by ${ex}, fork_db_size ${fs}",
+                 ("ex", -reversible_remaining)("fs", fork_db_size));
          reversible_remaining = 0;
       }
       if (reversible_remaining < sync_fetch_span) {
-         fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks ${m}, fork_db_size ${fs}",
-                 ("sfs", sync_fetch_span)("r", reversible_remaining)("m", max_reversible_blocks)("fs", fork_db_size));
+         auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
+         fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks, fork_db_size ${fs}",
+                 ("sfs", sync_fetch_span)("r", reversible_remaining)("fs", fork_db_size));
          return reversible_remaining;
       }
       return sync_fetch_span;
@@ -4297,7 +4296,6 @@ namespace eosio {
          sync_master = std::make_unique<sync_manager>(
              options.at( "sync-fetch-span" ).as<uint32_t>(),
              options.at( "sync-peer-limit" ).as<uint32_t>(),
-             chain_plug->chain_config().max_reversible_blocks,
              min_blocks_distance);
 
          connections.init( std::chrono::milliseconds( options.at("p2p-keepalive-interval-ms").as<int>() * 2 ),
