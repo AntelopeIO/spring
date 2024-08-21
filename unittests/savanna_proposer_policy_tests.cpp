@@ -121,8 +121,6 @@ BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::c
    BOOST_REQUIRE_EQUAL(end_slot, start_slot + expected_gap);
 } FC_LOG_AND_RETHROW()
 
-
-
 // ---------------------------------------------------------------------------------------------------
 //     Verify that a proposer policy does not become active when finality has stalled
 // ---------------------------------------------------------------------------------------------------
@@ -148,7 +146,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
    // produce `2 * prod_rep` more blocks. If finality was advancing, the new proposer policy would be active,
    // but with a split network finality will stall, and the new proposer policy should *not* become active.
    // -----------------------------------------------------------------------------------------------------
-   A.produce_blocks(2 * prod_rep);
+   A.produce_blocks(2 * prod_rep);                     // make sure finality stalls long enough for new policy to be eligible
    BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);
    BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
 
@@ -160,7 +158,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
    // Now that the network is not split anymore, finality will start advancing again on the third
    // block produced, and we expect the new proposer policy to become active on the next first block of a round
    // ---------------------------------------------------------------------------------------------------------
-   sb = A.produce_blocks(3);                           // allow two blocks to be voted on.
+   sb = A.produce_blocks(2);                           // allow two blocks to be voted on.
    BOOST_REQUIRE_EQUAL(sb->producer, orig_producer);   // should still use orig producer
 
    // now switch should happen within the next `prod_rep` blocks
@@ -172,6 +170,60 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
       }
    }
    BOOST_REQUIRE_NE(sb->producer, orig_producer);
+} FC_LOG_AND_RETHROW()
+
+// ---------------------------------------------------------------------------------------------------
+//     Verify that a proposer policy does not become active when finality has stalled
+//      AND
+//     if finality starts advancing again while there are only two blocks left to produce in the round,
+//     the proposer schedule change will happen exactly on the first block of the next round (provided
+//     finality stalled long enough)
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0];
+
+   // split network { A, B } and { C, D }
+   // Regardless of how many blocks A produces, finality will not advance
+   // by more than one (1 QC in flight)
+   // -------------------------------------------------------------------
+   const std::vector<size_t> partition {2, 3};
+   set_partition(partition);
+   auto sb = A.produce_block();                        // take care of the in-flight QC
+
+   const vector<account_name> producers { "p0"_n, "p1"_n };
+   auto orig_version = A.control->active_producers().version;
+   auto orig_lib_num = A.lib_number;
+   auto orig_producer = sb->producer;
+
+   A.create_accounts(producers);
+   A.tester::set_producers(producers);                 // push the action to update the producer schedule
+
+   // produce `2 * prod_rep` more blocks. If finality was advancing, the new proposer policy would be active,
+   // but with a split network finality will stall, and the new proposer policy should *not* become active.
+   // -----------------------------------------------------------------------------------------------------
+   sb = A.produce_blocks(2 * prod_rep);               // make sure finality stalls long enough for new policy to be eligible
+   while(sb->timestamp.slot % prod_rep != prod_rep - 3) // produce blocks until there are only two more left in the round
+      sb = A.produce_block();
+
+   BOOST_REQUIRE_EQUAL(A.lib_number, orig_lib_num);
+   BOOST_REQUIRE_EQUAL(A.control->active_producers().version, orig_version);
+
+   // remove network split
+   // --------------------
+   set_partition({});
+   propagate_heads();
+
+   // Now that the network is not split anymore, finality will start advancing again on the third
+   // block produced, and we expect the new proposer policy to become active on the next first block of a round
+   // ---------------------------------------------------------------------------------------------------------
+   sb = A.produce_blocks(2);                           // allow two blocks to be voted on (the last two blocks of a round)
+   BOOST_REQUIRE_EQUAL(sb->producer, orig_producer);   // should still use orig producer
+
+   // now switch should happen in the next block, as it is the first block of a round
+   // -------------------------------------------------------------------------------
+   sb = A.produce_block();
+   BOOST_REQUIRE_NE(sb->producer, orig_producer);      // verify switch has happened
+   BOOST_REQUIRE_EQUAL(sb->timestamp.slot % prod_rep, 0); // verify first block of a round
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
@@ -202,10 +254,10 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
    const std::vector<size_t> partition {2, 3};
    set_partition(partition);
 
-   // produce 24 more blocks. If finality was advancing, the new proposer policy would be active,
+   // produce `2 * prod_rep` more blocks. If finality was advancing, the new proposer policy would be active,
    // but with a split network finality will stall, and the new proposer policy should *not* become active.
    // -----------------------------------------------------------------------------------------------------
-   A.produce_blocks(24);
+   A.produce_blocks(2 * prod_rep);
    BOOST_REQUIRE_LE(A.lib_number, orig_lib_num + 1);
    BOOST_REQUIRE_GT(A.control->active_producers().version, orig_version);
 } FC_LOG_AND_RETHROW()
