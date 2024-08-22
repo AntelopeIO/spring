@@ -10,6 +10,43 @@
 
 #include "snapshot_suites.hpp"
 
+// ---------------------------------------------------------------------------
+// An object which assigns a value to a variable in its constructor, and resets
+// to its previous value in its destructor
+// ---------------------------------------------------------------------------
+template <class T>
+class scoped_set_value {
+public:
+   template <class V>
+   [[nodiscard]] scoped_set_value(T& var, V&& val,
+                                  bool do_it = true) noexcept(std::is_nothrow_copy_constructible_v<T> &&
+                                                              std::is_nothrow_move_assignable_v<T>)
+      : v_(var)
+      , do_it_(do_it) {
+      if (do_it_) {
+         old_value_ = std::move(v_);
+         v_         = std::forward<V>(val);
+      }
+   }
+
+   ~scoped_set_value() {
+      if (do_it_)
+         v_ = std::move(old_value_);
+   }
+
+   void dismiss() noexcept { do_it_ = false; }
+
+   scoped_set_value(const scoped_set_value&)            = delete;
+   scoped_set_value& operator=(const scoped_set_value&) = delete;
+   scoped_set_value(scoped_set_value&&)                 = delete;
+   scoped_set_value& operator=(scoped_set_value&&)      = delete;
+   void*             operator new(std::size_t)          = delete;
+
+   T&   v_;
+   T    old_value_;
+   bool do_it_;
+};
+
 namespace savanna_cluster {
    namespace ranges = std::ranges;
 
@@ -54,13 +91,30 @@ namespace savanna_cluster {
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
-      size_t                  node_idx;
-      bool                    pushing_a_block {false };
+      size_t node_idx;
+      bool   pushing_a_block{false};
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
 
    public:
+      struct vote_t {
+         vote_t() = default;
+         vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
+         vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
+            s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const vote_t&) const = default;
+
+         block_id_type id;
+         bool strong;
+      };
+
+      bool   propagate_votes{true};
+      vote_t last_vote;
       std::vector<account_name> node_finalizers;
 
    public:
@@ -151,8 +205,7 @@ namespace savanna_cluster {
       void push_block(const signed_block_ptr& b) {
          if (is_open() && !fetch_block_by_id(b->calculate_id())) {
             assert(!pushing_a_block);
-            pushing_a_block = true;
-            auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
+            scoped_set_value set_pushing_a_block(pushing_a_block, true);
             tester::push_block(b);
          }
       }
