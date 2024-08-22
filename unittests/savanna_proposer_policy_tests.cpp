@@ -240,7 +240,7 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
    auto orig_producer = sb->producer;
    auto orig_version = A.control->active_producers().version;
 
-   while (A.head().timestamp().slot % prod_rep >= prod_rep - 4)
+   while ((A.head().timestamp().slot + 1) % prod_rep >= prod_rep - 3)
       A.produce_block();                  // make sure the next block is not one of the last three blocks of a round
 
    const vector<account_name> producers { "pa"_n, "pb"_n };
