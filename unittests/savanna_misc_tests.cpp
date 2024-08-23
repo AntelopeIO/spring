@@ -46,6 +46,19 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t
 // Because the issue is fixed in spring https://github.com/AntelopeIO/spring/pull/537, test must pass
 // on all versions past that commit.
 // -----------------------------------------------------------------------------------------------------
+/*
+                                               S
+                                  +------------------------------+
+                                  V                              |
+                  +-----+  S   +-----+      S     +-----+   no   +-----+   W  +-----+  S  +-----+
+A produces   <----| b0  |<-----| b1  |<-----------|  b3 |<-------+ b4  |<-----| b5  |<----|  b6 |<-------
+                  +-----+      +-----+            +-----+  claim +-----+      +-----+     +-----+
+                                   ^
+                                   |      +-----+
+D produces                         +------| b2  |
+                                     S    +-----+
+
+*/
 BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    using vote_t = savanna_cluster::node_t::vote_t;
