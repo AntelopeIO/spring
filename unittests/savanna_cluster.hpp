@@ -21,20 +21,20 @@ public:
    [[nodiscard]] scoped_set_value(T& var, V&& val,
                                   bool do_it = true) noexcept(std::is_nothrow_copy_constructible_v<T> &&
                                                               std::is_nothrow_move_assignable_v<T>)
-      : v_(var)
-      , do_it_(do_it) {
-      if (do_it_) {
-         old_value_ = std::move(v_);
-         v_         = std::forward<V>(val);
+      : _v(var)
+      , _do_it(do_it) {
+      if (_do_it) {
+         _old_value = std::move(_v);
+         _v         = std::forward<V>(val);
       }
    }
 
    ~scoped_set_value() {
-      if (do_it_)
-         v_ = std::move(old_value_);
+      if (_do_it)
+         _v = std::move(_old_value);
    }
 
-   void dismiss() noexcept { do_it_ = false; }
+   void dismiss() noexcept { _do_it = false; }
 
    scoped_set_value(const scoped_set_value&)            = delete;
    scoped_set_value& operator=(const scoped_set_value&) = delete;
@@ -42,9 +42,9 @@ public:
    scoped_set_value& operator=(scoped_set_value&&)      = delete;
    void*             operator new(std::size_t)          = delete;
 
-   T&   v_;
-   T    old_value_;
-   bool do_it_;
+   T&   _v;
+   T    _old_value;
+   bool _do_it;
 };
 
 namespace savanna_cluster {
