@@ -23,7 +23,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_first_block_delay_check, savanna_cluster::
    auto sb = A.produce_block();                     // produce a block that will include the policy change transaction
    auto orig_producer = sb->producer;               // save producer before transition
    auto start_slot = sb->timestamp.slot;
-   BOOST_REQUIRE_EQUAL(start_slot % prod_rep, 0);   // validate that the policy change occurs on the first block of prod_rep
+   BOOST_REQUIRE_EQUAL(start_slot % prod_rep, 0u);  // validate that the policy change occurs on the first block of prod_rep
 
    A.wait_for_producer(producers);                  // produce blocks until the new schedule will be active on next block produced
    BOOST_REQUIRE_EQUAL(A.head().block()->producer,  // head block should still have been produced using
@@ -33,7 +33,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_first_block_delay_check, savanna_cluster::
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
    BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
-   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
+   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0u);   // validate that the policy change occurs on the first block of prod_rep
 
    // under Savanna, a new policy becomes active on the first block of a prod_rep block round after:
    // 1. finishing the current round
@@ -73,7 +73,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_sixth_block_delay_check, savanna_cluster::
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
    BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
-   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
+   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0u);   // validate that the policy change occurs on the first block of prod_rep
 
    // under Savanna, a new policy becomes active on the first block of a prod_rep block round after:
    // 1. finishing the current round
@@ -113,7 +113,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::c
    BOOST_REQUIRE(using_new_sched);                 // verify that we have just switched to new schedule
    BOOST_REQUIRE_NE(sb->producer, orig_producer);  // and that the producer has changed
    auto end_slot = sb->timestamp.slot;
-   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0);    // validate that the policy change occurs on the first block of prod_rep
+   BOOST_REQUIRE_EQUAL(end_slot % prod_rep, 0u);   // validate that the policy change occurs on the first block of prod_rep
 
    // under Savanna, a new policy becomes active on the first block of a prod_rep block round after:
    // 1. finishing the current round
@@ -168,7 +168,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
    for (uint32_t i=0; i<prod_rep; ++i) {
       sb = A.produce_block();
       if (sb->producer != orig_producer) {
-         BOOST_REQUIRE_EQUAL(sb->timestamp.slot % prod_rep, 0);
+         BOOST_REQUIRE_EQUAL(sb->timestamp.slot % prod_rep, 0u);
          break;
       }
    }
@@ -226,7 +226,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
    // -------------------------------------------------------------------------------
    sb = A.produce_block();
    BOOST_REQUIRE_NE(sb->producer, orig_producer);      // verify switch has happened
-   BOOST_REQUIRE_EQUAL(sb->timestamp.slot % prod_rep, 0); // verify first block of a round
+   BOOST_REQUIRE_EQUAL(sb->timestamp.slot % prod_rep, 0u); // verify first block of a round
 } FC_LOG_AND_RETHROW()
 
 // ---------------------------------------------------------------------------------------------------
