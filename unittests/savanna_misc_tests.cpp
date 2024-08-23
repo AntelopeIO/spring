@@ -51,6 +51,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    using vote_t = savanna_cluster::node_t::vote_t;
 
    auto b0 = A.produce_blocks(2);                     // receive strong votes from all finalizers
+   print("b0", b0);
 
    // partition D out. D will be used to produce blocks on an alternative fork.
    // We will have 3 finalizers voting which is enough to reach QCs
@@ -59,48 +60,70 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    set_partition(partition);
 
    auto b1 = A.produce_block();                       // receives strong votes from 3 finalizers
+   print("b1", b1);
 
    auto b2 = D.produce_block(_block_interval_us * 2); // produce a `later` block on D
-   push_block(0, b2);                                 // push block to other partition, should receive weak votes
-   BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b2, false));
+   print("b2", b2);
+
+   BOOST_REQUIRE_GT(b2->timestamp.slot, b1->timestamp.slot);
+
+   const std::vector<size_t> tmp_partition {0};       // we temporarily separate A
+   set_partitions({tmp_partition, partition});        // because we don't want A to see the block produced by D (b2)
+                                                      // otherwise it will switch forks and build its next block
+                                                      // on top of it
+
+   push_block(1, b2);                                 // push block to B and C, should receive weak votes
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b2, false));
+   BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b2, false));
+   BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b1, true));// A should not have seen b2, and therefore not voted on it
 
+   set_partition(partition);                          // restore our original partition {A, B, C} and {D}
+
+   signed_block_ptr b3;
    {
-      scoped_set_value tmp(B.propagate_votes, false); // temporarily prevent B from broadcasting its votes)
-                                                      // so A won't receive them and form a QC on b3
+      scoped_set_value tmp(B.propagate_votes, false);      // temporarily prevent B from broadcasting its votes)
+                                                           // so A won't receive them and form a QC on b3
 
-      auto b3 = A.produce_block(_block_interval_us * 3); // b3 should receive 2 weak votes from A and C (not a quorum)
-                                                      // because B doesn't propagate and D is partitioned away
-      BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b3, false));
-      BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b3, false));
+      b3 = A.produce_block(_block_interval_us * 2);        // A will see its own strong vote on b3, and C's weak vote
+                                                           // (not a quorum)
+                                                           // because B doesn't propagate and D is partitioned away
+      print("b3", b3);
+      BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b3, true));  // A didn't vote on b2 so it can vote strong
+      BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b3, false)); // but B and C have to vote weak.
+      BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b3, false)); // C did vote, but we turned vote propagation off so
+                                                           // A will never see it
    }
 
-   std::cout << "lib=" <<  B.lib_number << '\n';
+   BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
                                                       // Now B broadcasts its votes again, so
    auto b4 = A.produce_block();                       // b4 should receive 3 weak votes from A, B and C
                                                       // and should include a strong QC claim on b1 (repeated)
                                                       // since we don't have enough votes to form a QC on b3
-   BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b4, false));
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b4, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b4, false));
-
+   BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b4, false));
+   BOOST_REQUIRE_EQUAL(qc_claim(b3), qc_claim(b4));   // A didn't form a QC on b3, so b4 should repeat b3's claim
 
    std::cout << "lib after b4=" <<  B.lib_number << '\n';
    auto b5 = A.produce_block();                       // a weak QC was formed on b4 and is be included in b5
                                                       // b5 should receive 3 strong votes (because it has a
                                                       // weak QC on b4, which itself had a strong QC on b1.
                                                       // Upon receiving a strong QC on b5, b1 will be final
+   print("b5", b5);
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b5, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b5, true));
 
+   BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
-   std::cout << "lib after b5=" <<  B.lib_number << '\n';
    auto b6 = A.produce_block();                       // should include strong QC on b5, b1 should be final
+   print("b6", b6);
 
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b6, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b6, true));
 
-   BOOST_REQUIRE_EQUAL(B.lib_number, b1->block_num());
+   BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
 } FC_LOG_AND_RETHROW()
 

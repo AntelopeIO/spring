@@ -508,6 +508,23 @@ namespace savanna_cluster {
 
       size_t num_nodes() const { return _num_nodes; }
 
+      qc_claim_t qc_claim(const signed_block_ptr& b) {
+         return b->extract_header_extension<finality_extension>().qc_claim;
+      }
+
+      std::optional<qc_t> qc(const signed_block_ptr& b) {
+         if (b->contains_extension(quorum_certificate_extension::extension_id()))
+             return b->extract_extension<quorum_certificate_extension>().qc;
+         return {};
+      }
+
+      // debugging utilities
+      // -------------------
+      static void print(const char* name, const signed_block_ptr& b) {
+         std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+                   << ", previous = " << b->previous.str().substr(8, 16) << '\n';
+      }
+
    public:
       std::vector<node_t>  _nodes;
       fin_keys_t           _fin_keys;
