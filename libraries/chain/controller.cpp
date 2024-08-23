@@ -1427,7 +1427,7 @@ struct controller_impl {
          my_finalizers.set_default_safety_information(
             finalizer_safety_information{ .last_vote                = ref,
                                           .lock                     = ref,
-                                          .other_branch_latest_time = {} });
+                                          .other_branch_latest_time = block_timestamp_type{} });
       }
    }
 
@@ -1638,7 +1638,7 @@ struct controller_impl {
                      my_finalizers.set_default_safety_information(
                         finalizer_safety_information{.last_vote                = prev->make_block_ref(),
                                                      .lock                     = prev->make_block_ref(),
-                                                     .other_branch_latest_time = {} });
+                                                     .other_branch_latest_time = block_timestamp_type{} });
                   }
                }
             });
@@ -2042,7 +2042,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote                = {},
                                                 .lock                     = lib->make_block_ref(),
-                                                .other_branch_latest_time = {} });
+                                                .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2052,7 +2052,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{.last_vote                = {},
                                                .lock                     = lib->make_block_ref(),
-                                               .other_branch_latest_time = {} });
+                                               .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
