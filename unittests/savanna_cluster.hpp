@@ -10,6 +10,43 @@
 
 #include "snapshot_suites.hpp"
 
+// ---------------------------------------------------------------------------
+// An object which assigns a value to a variable in its constructor, and resets
+// to its previous value in its destructor
+// ---------------------------------------------------------------------------
+template <class T>
+class scoped_set_value {
+public:
+   template <class V>
+   [[nodiscard]] scoped_set_value(T& var, V&& val,
+                                  bool do_it = true) noexcept(std::is_nothrow_copy_constructible_v<T> &&
+                                                              std::is_nothrow_move_assignable_v<T>)
+      : _v(var)
+      , _do_it(do_it) {
+      if (_do_it) {
+         _old_value = std::move(_v);
+         _v         = std::forward<V>(val);
+      }
+   }
+
+   ~scoped_set_value() {
+      if (_do_it)
+         _v = std::move(_old_value);
+   }
+
+   void dismiss() noexcept { _do_it = false; }
+
+   scoped_set_value(const scoped_set_value&)            = delete;
+   scoped_set_value& operator=(const scoped_set_value&) = delete;
+   scoped_set_value(scoped_set_value&&)                 = delete;
+   scoped_set_value& operator=(scoped_set_value&&)      = delete;
+   void*             operator new(std::size_t)          = delete;
+
+   T&   _v;
+   T    _old_value;
+   bool _do_it;
+};
+
 namespace savanna_cluster {
    namespace ranges = std::ranges;
 
@@ -54,12 +91,30 @@ namespace savanna_cluster {
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
-      size_t                  node_idx;
-      bool                    pushing_a_block {false };
+      size_t node_idx;
+      bool   pushing_a_block{false};
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
+
    public:
+      struct vote_t {
+         vote_t() = default;
+         vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
+         vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
+            s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const vote_t&) const = default;
+
+         block_id_type id;
+         bool          strong;
+      };
+
+      bool   propagate_votes{true};
+      vote_t last_vote;
       std::vector<account_name> node_finalizers;
 
    public:
@@ -112,12 +167,10 @@ namespace savanna_cluster {
          BOOST_REQUIRE_EQUAL(lib_num(), pt_block->block_num());
       }
 
-      // updates producers (producer updates will be propagated to connected nodes), and
-      // wait until one of the new producers is pending.
+      // wait until one of `producers` is the producer that will be used for the next block produced.
       // return the index of the pending new producer (we assume no duplicates in producer list)
-      // -----------------------------------------------------------------------------------
-      size_t set_producers(const std::vector<account_name>& producers) {
-         tester::set_producers(producers);
+      // --------------------------------------------------------------------------------------------
+      size_t wait_for_producer(const std::vector<account_name>& producers) {
          account_name pending;
          size_t max_blocks_produced = 400;
          while (--max_blocks_produced) {
@@ -128,6 +181,15 @@ namespace savanna_cluster {
          }
          BOOST_REQUIRE_GT(max_blocks_produced, 0u);
          return ranges::find(producers, pending) - producers.begin();
+      }
+
+      // updates producers (producer updates will be propagated to connected nodes), and
+      // wait until one of `producers` is the producer that will be used for the next block produced.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
+      // --------------------------------------------------------------------------------------------
+      size_t set_producers(const std::vector<account_name>& producers) {
+         tester::set_producers(producers);
+         return wait_for_producer(producers);
       }
 
       uint32_t lib_num() const { return lib_number; }
@@ -141,10 +203,11 @@ namespace savanna_cluster {
       }
 
       void push_block(const signed_block_ptr& b) {
-         assert(!pushing_a_block);
-         pushing_a_block = true;
-         auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
-         tester::push_block(b);
+         if (is_open() && !fetch_block_by_id(b->calculate_id())) {
+            assert(!pushing_a_block);
+            scoped_set_value set_pushing_a_block(pushing_a_block, true);
+            tester::push_block(b);
+         }
       }
 
       template <class Node>
@@ -393,7 +456,7 @@ namespace savanna_cluster {
 
       // returns the number of nodes where `lib` has advanced after executing `f`
       template<class F>
-      size_t num_lib_advancing(F&& f) {
+      size_t num_lib_advancing(F&& f) const {
          std::vector<uint32_t> libs(_nodes.size());
          for (size_t i=0; i<_nodes.size(); ++i)
             libs[i] = _nodes[i].lib_num();
@@ -419,7 +482,7 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];
-         assert(src.is_open() &&  _nodes[dst_idx].is_open());
+         assert(src.is_open() && _nodes[dst_idx].is_open());
 
          auto end_block_num   = src.fork_db_head().block_num();
 
@@ -445,9 +508,44 @@ namespace savanna_cluster {
 
       size_t num_nodes() const { return _num_nodes; }
 
+      // Class for comparisons in BOOST_REQUIRE_EQUAL
+      // --------------------------------------------
+      struct qc_s {
+         qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+         qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
+            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const qc_s&) const = default;
+
+         uint32_t block_num; // claimed block
+         bool     strong;
+      };
+
+      static qc_claim_t qc_claim(const signed_block_ptr& b) {
+         return b->extract_header_extension<finality_extension>().qc_claim;
+      }
+
+      static std::optional<qc_t> qc(const signed_block_ptr& b) {
+         if (b->contains_extension(quorum_certificate_extension::extension_id()))
+             return b->extract_extension<quorum_certificate_extension>().qc;
+         return {};
+      }
+
+      // debugging utilities
+      // -------------------
+      void print(const char* name, const signed_block_ptr& b) const {
+         if (_debug_mode)
+            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+                      << ", previous = " << b->previous.str().substr(8, 16) << '\n';
+      }
+
    public:
       std::vector<node_t>  _nodes;
       fin_keys_t           _fin_keys;
+      bool                 _debug_mode{false};
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);
@@ -464,26 +562,35 @@ namespace savanna_cluster {
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            n.control->process_vote_message(++connection_id, msg);
+            if (n.is_open())
+               n.control->process_vote_message(++connection_id, msg);
          });
       }
 
       void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            if (!n.fetch_block_by_id(b->calculate_id()))
-               n.push_block(b);
+            n.push_block(b);
+         });
+      }
+
+      // when a node restarts, simulate receiving newly produced blocks from peers
+      void get_new_blocks_from_peers(size_t node_idx) {
+         assert(_nodes[node_idx].is_open());
+         for_each_peer(node_idx, skip_self_t::yes, [&](node_t& n) {
+            if (n.is_open())
+               n.push_blocks_to(_nodes[node_idx]);
          });
       }
 
       template<class CB>
       void for_each_peer(size_t node_idx, skip_self_t skip_self, const CB& cb) {
-         if (_shutting_down)
+         if (_shutting_down || _peers.empty())
             return;
          assert(_peers.find(node_idx) != _peers.end());
          const auto& peers = _peers[node_idx];
          for (auto i : peers) {
             bool dont_skip = skip_self == skip_self_t::no || i != node_idx;
-            if (dont_skip && _nodes[i].is_open())
+            if (dont_skip)
                cb(_nodes[i]);
          }
       }
