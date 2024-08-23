@@ -35,7 +35,7 @@ namespace eosio::chain {
    struct finalizer_safety_information {
       block_ref            last_vote;
       block_ref            lock;
-      bool                 votes_forked_since_latest_strong_vote {false};
+      block_timestamp_type other_branch_latest_time;
 
       static constexpr uint64_t magic = 0x5AFE11115AFE1111ull;
 
@@ -44,7 +44,7 @@ namespace eosio::chain {
       auto operator==(const finalizer_safety_information& o) const {
          return last_vote == o.last_vote &&
             lock == o.lock &&
-            votes_forked_since_latest_strong_vote == o.votes_forked_since_latest_strong_vote;
+            other_branch_latest_time == o.other_branch_latest_time;
       }
    };
 
@@ -74,8 +74,8 @@ namespace eosio::chain {
       ///
       /// Version 0: Spring 1.0.0 RC2 - File has fixed packed sizes with inactive safety info written to the end
       ///                               of the file. Consists of [finalizer public_key, FSI]..
-      /// Version 1: Spring 1.0.0 RC3 - Variable length FSI with inactive safety info written at the beginning of
-      ///                               the file. Uses crc32 checksum to verify data on read.
+      /// Version 1: Spring 1.0.0 RC3 - File has inactive FSIs written at the beginning of the file. Uses crc32
+      ///                               checksum to verify data on read.
       ///
       static constexpr uint64_t safety_file_version_0       = 0;
       static constexpr uint64_t safety_file_version_1       = 1;
@@ -192,7 +192,7 @@ namespace eosio::chain {
 
 namespace std {
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::finalizer_safety_information& fsi) {
-      os << "fsi(" << fsi.last_vote << ", " << fsi.lock << ", " << fsi.votes_forked_since_latest_strong_vote << ")";
+      os << "fsi(" << fsi.last_vote << ", " << fsi.lock << ", " << fsi.other_branch_latest_time << ")";
       return os;
    }
 
@@ -210,5 +210,5 @@ namespace std {
    }
 }
 
-FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote)(lock)(votes_forked_since_latest_strong_vote))
+FC_REFLECT(eosio::chain::finalizer_safety_information, (last_vote)(lock)(other_branch_latest_time))
 FC_REFLECT_ENUM(eosio::chain::finalizer::vote_decision, (strong_vote)(weak_vote)(no_vote))
