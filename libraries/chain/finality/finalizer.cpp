@@ -175,47 +175,80 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
 
 void my_finalizers_t::save_finalizer_safety_info() const {
 
-   if (!persist_file.is_open()) {
+   if (!cfile_ds.is_open()) {
       EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
                  "path for storing finalizer safety information file not specified");
       if (!std::filesystem::exists(persist_file_path.parent_path()))
           std::filesystem::create_directories(persist_file_path.parent_path());
-      persist_file.set_file_path(persist_file_path);
-      persist_file.open(fc::cfile::truncate_rw_mode);
+      cfile_ds.set_file_path(persist_file_path);
+      cfile_ds.open(fc::cfile::truncate_rw_mode);
    }
    try {
-      static_assert(sizeof(finalizer_safety_information) == 152, "If size changes then need to handle loading old files");
-      static_assert(sizeof(decltype(bls_public_key{}.affine_non_montgomery_le())) == 96,
-                    "If size changes then need to handle loading old files, fc::pack uses affine_non_montgomery_le()");
+      // optimize by only calculating crc for inactive once
+      if (inactive_safety_info_written_pos == 0) {
+         persist_file.seekp(0);
+         fc::raw::pack(persist_file, fsi_t::magic);
+         fc::raw::pack(persist_file, current_safety_file_version);
+         uint64_t size = finalizers.size() + inactive_safety_info.size();
+         fc::raw::pack(persist_file, size);
 
-      persist_file.seek(0);
-      fc::raw::pack(persist_file, fsi_t::magic);
-      fc::raw::pack(persist_file, current_safety_file_version);
-      fc::raw::pack(persist_file, (uint64_t)(finalizers.size() + inactive_safety_info.size()));
-      for (const auto& [pub_key, f] : finalizers) {
-         fc::raw::pack(persist_file, pub_key);
-         fc::raw::pack(persist_file, f.fsi);
-      }
-      if (!inactive_safety_info_written) {
          // save also the fsi that was originally present in the file, but which applied to
          // finalizers not configured anymore.
          for (const auto& [pub_key, fsi] : inactive_safety_info) {
             fc::raw::pack(persist_file, pub_key);
             fc::raw::pack(persist_file, fsi);
          }
-         inactive_safety_info_written = true;
+         inactive_safety_info_written_pos = persist_file.tellp();
+         inactive_crc32 = persist_file.crc();
+      } else {
+         persist_file.seekp(inactive_safety_info_written_pos, inactive_crc32);
       }
-      persist_file.flush();
+
+      // active finalizers
+      for (const auto& [pub_key, f] : finalizers) {
+         fc::raw::pack(persist_file, pub_key);
+         fc::raw::pack(persist_file, f.fsi);
+      }
+
+      uint32_t cs = persist_file.checksum();
+      fc::raw::pack(persist_file, cs);
+
+      cfile_ds.flush();
    } FC_LOG_AND_RETHROW()
 }
 
 // ----------------------------------------------------------------------------------------
+
+void my_finalizers_t::load_finalizer_safety_info_v0(fsi_map& res) {
+   uint64_t num_finalizers {0};
+   fc::raw::unpack(persist_file, num_finalizers);
+   for (size_t i=0; i<num_finalizers; ++i) {
+      bls_public_key pubkey;
+      my_finalizers_t::fsi_t fsi;
+      fc::raw::unpack(persist_file, pubkey);
+      fc::raw::unpack(persist_file, fsi);
+      res.emplace(pubkey, fsi);
+   }
+}
+
+void my_finalizers_t::load_finalizer_safety_info_v1(fsi_map& res) {
+   uint64_t num_finalizers {0};
+   fc::raw::unpack(persist_file, num_finalizers);
+   for (size_t i=0; i<num_finalizers; ++i) {
+      bls_public_key pubkey;
+      my_finalizers_t::fsi_t fsi;
+      fc::raw::unpack(persist_file, pubkey);
+      fc::raw::unpack(persist_file, fsi);
+      res.emplace(pubkey, fsi);
+   }
+}
+
 my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    fsi_map res;
 
    EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
               "path for storing finalizer safety persistence file not specified");
-   EOS_ASSERT(!persist_file.is_open(), finalizer_safety_exception,
+   EOS_ASSERT(!cfile_ds.is_open(), finalizer_safety_exception,
               "Trying to read an already open finalizer safety persistence file: ${p}",
               ("p", persist_file_path));
 
@@ -225,11 +258,11 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
       return res;
    }
 
-   persist_file.set_file_path(persist_file_path);
+   cfile_ds.set_file_path(persist_file_path);
 
    try {
       // if we can't open the finalizer safety file, we return an empty map.
-      persist_file.open(fc::cfile::update_rw_mode);
+      cfile_ds.open(fc::cfile::update_rw_mode);
    } catch(std::exception& e) {
       fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults. Exception: ${e}",
               ("p", persist_file_path)("e", e.what()));
@@ -239,7 +272,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
       return res;
    }
    try {
-      persist_file.seek(0);
+      persist_file.seekp(0);
 
       // read magic number. must be `fsi_t::magic`
       // -----------------------------------------
@@ -257,17 +290,30 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
       // finally read the `finalizer_safety_information` info
       // ----------------------------------------------------
-      uint64_t num_finalizers {0};
-      fc::raw::unpack(persist_file, num_finalizers);
-      for (size_t i=0; i<num_finalizers; ++i) {
-         bls_public_key pubkey;
-         fsi_t fsi;
-         fc::raw::unpack(persist_file, pubkey);
-         fc::raw::unpack(persist_file, fsi);
-         res.emplace(pubkey, fsi);
+      bool verify_checksum = true;
+      switch (file_version) {
+      case safety_file_version_0:
+         load_finalizer_safety_info_v0(res);
+         verify_checksum = false;
+         break;
+      case safety_file_version_1:
+         load_finalizer_safety_info_v1(res);
+         break;
+      default:
+         assert(0);
       }
 
-      persist_file.close();
+      if (verify_checksum) {
+         // verify checksum
+         uint32_t calculated_checksum = persist_file.checksum();
+         uint32_t cs = 0;
+         fc::raw::unpack(persist_file, cs);
+         EOS_ASSERT(cs == calculated_checksum, finalizer_safety_exception,
+                    "bad checksum reading finalizer safety persistence file: ${p}", ("p", persist_file_path));
+      }
+
+      // close file after write
+      cfile_ds.close();
    } FC_LOG_AND_RETHROW()
    // don't remove file we can't load
    return res;
