@@ -2001,18 +2001,22 @@ namespace eosio {
    }
 
    uint32_t sync_manager::active_sync_fetch_span() const {
-      int32_t reversible_remaining = my_impl->chain_plug->chain().max_reversible_blocks_allowed();
-      if (reversible_remaining <= 0) {
-         auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-         fc_wlog(logger, "max-reversible-blocks exceeded by ${ex}, fork_db_size ${fs}",
-                 ("ex", -reversible_remaining)("fs", fork_db_size));
-         reversible_remaining = 0;
-      }
-      if ((uint32_t)reversible_remaining < sync_fetch_span) {
+      const uint32_t constrained_reversible_remaining = [&]() -> uint32_t {
+         const int32_t reversible_remaining = my_impl->chain_plug->chain().max_reversible_blocks_allowed();
+         if (reversible_remaining <= 0) {
+            auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
+            fc_wlog(logger, "max-reversible-blocks exceeded by ${ex}, fork_db_size ${fs}",
+                    ("ex", -reversible_remaining)("fs", fork_db_size));
+            return 0;
+         }
+         return reversible_remaining;
+      }();
+
+      if (constrained_reversible_remaining < sync_fetch_span) {
          auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
          fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks, fork_db_size ${fs}",
-                 ("sfs", sync_fetch_span)("r", reversible_remaining)("fs", fork_db_size));
-         return reversible_remaining;
+                 ("sfs", sync_fetch_span)("r", constrained_reversible_remaining)("fs", fork_db_size));
+         return constrained_reversible_remaining;
       }
       return sync_fetch_span;
    }
