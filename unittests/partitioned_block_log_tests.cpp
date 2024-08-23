@@ -5,13 +5,14 @@
 #include <eosio/chain/snapshot.hpp>
 #include <eosio/testing/tester.hpp>
 
-// #include <boost/mpl/list.hpp>
-#include <boost/test/unit_test.hpp>
+#include <snapshot_suites.hpp>
+#include <snapshot_tester.hpp>
 
+#include <boost/test/unit_test.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <contracts.hpp>
 #include <fc/io/cfile.hpp>
-#include <snapshots.hpp>
+
 
 BOOST_AUTO_TEST_SUITE(partitioned_block_log_tests)
 
@@ -200,8 +201,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
 
    chain.close();
 
+   fc::temp_directory temp_dir;
    auto blocks_dir   = chain.get_config().blocks_dir;
-   auto retained_dir = blocks_dir / "retained";
+   auto retained_dir = temp_dir.path() / "retained";
    eosio::chain::block_log::split_blocklog(blocks_dir, retained_dir, 50);
 
    BOOST_CHECK(std::filesystem::exists(retained_dir / "blocks-1-50.log"));
@@ -235,6 +237,88 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_util1, T, eosio::testing::testers 
    BOOST_CHECK(from_block_log_chain.fetch_block_by_number(75)->block_num() == 75u);
    BOOST_CHECK(from_block_log_chain.fetch_block_by_number(100)->block_num() == 100u);
    BOOST_CHECK(from_block_log_chain.fetch_block_by_number(150)->block_num() == 150u);
+
+   from_block_log_chain.close();
+
+   //
+   // replay with no blocks.log, but blocks in retained_dir
+   //
+
+   // remove the state files to make sure we are starting from block log
+   remove_existing_states(copied_config);
+   // we need to remove all blocks but what is in retained
+   std::filesystem::remove(blocks_dir / "blocks.log");
+   std::filesystem::remove(blocks_dir / "blocks.index");
+
+   // Create a replay chain without starting it
+   eosio::testing::tester replay_chain(copied_config, *genesis, eosio::testing::call_startup_t::no);
+   // no fork db head yet
+   BOOST_REQUIRE(!replay_chain.fork_db_head().is_valid());
+   // works because it pulls from retain dir
+   BOOST_CHECK(replay_chain.fetch_block_by_number(42)->block_num() == 42u);
+
+   // Simulate shutdown by CTRL-C
+   bool is_quiting = false;
+   auto check_shutdown = [&is_quiting](){ return is_quiting; };
+   uint32_t stop_at = 25;
+   // Set up shutdown at a particular block number
+   replay_chain.control->irreversible_block().connect([&](const eosio::chain::block_signal_params& t) {
+      const auto& [ block, id ] = t;
+      // Stop replay at block `stop_at`
+      if (block->block_num() == stop_at) {
+         is_quiting = true;
+      }
+   });
+   // Start replay and stop at block `stop_at`
+   replay_chain.control->startup( [](){}, check_shutdown, *genesis );
+
+   // create snapshot at stop_at block
+   replay_chain.control->abort_block();
+   auto writer = variant_snapshot_suite::get_writer();
+   replay_chain.control->write_snapshot(writer);
+   auto snapshot = variant_snapshot_suite::finalize(writer);
+
+   BOOST_REQUIRE(replay_chain.head().is_valid());
+   BOOST_CHECK(replay_chain.head().block_num() == stop_at);
+   // no fork db head yet
+   BOOST_CHECK(!replay_chain.fork_db_head().is_valid());
+
+   replay_chain.close();
+
+   // replay chain from stop_at with no blocks in block_log, pulls from retained dir
+   eosio::testing::tester replay_chain_1(copied_config, *genesis, eosio::testing::call_startup_t::no);
+   replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
+
+   BOOST_REQUIRE(replay_chain_1.fork_db_head().is_valid());
+   BOOST_CHECK(replay_chain_1.fork_db_head().block_num() == 150u);
+
+   BOOST_CHECK(replay_chain_1.fetch_block_by_number(1)->block_num() == 1u);
+   BOOST_CHECK(replay_chain_1.fetch_block_by_number(75)->block_num() == 75u);
+   BOOST_CHECK(replay_chain_1.fetch_block_by_number(100)->block_num() == 100u);
+   BOOST_CHECK(replay_chain_1.fetch_block_by_number(150)->block_num() == 150u);
+
+   replay_chain_1.close();
+
+   //
+   // start chain from snapshot at stop_at with no blocks in block_log, pulls from retained dir
+   //
+
+   // remove the state files to make sure we are starting from block log
+   remove_existing_states(copied_config);
+   // we need to remove all blocks but what is in retained
+   std::filesystem::remove(blocks_dir / "blocks.log");
+   std::filesystem::remove(blocks_dir / "blocks.index");
+
+   int ordinal = 0;
+   snapshotted_tester replay_chain_2(copied_config, variant_snapshot_suite::get_reader(snapshot), ++ordinal);
+
+   BOOST_REQUIRE(replay_chain_2.fork_db_head().is_valid());
+   BOOST_CHECK(replay_chain_2.fork_db_head().block_num() == 150u);
+
+   BOOST_CHECK(replay_chain_2.fetch_block_by_number(1)->block_num() == 1u);
+   BOOST_CHECK(replay_chain_2.fetch_block_by_number(75)->block_num() == 75u);
+   BOOST_CHECK(replay_chain_2.fetch_block_by_number(100)->block_num() == 100u);
+   BOOST_CHECK(replay_chain_2.fetch_block_by_number(150)->block_num() == 150u);
 }
 
 BOOST_AUTO_TEST_CASE_TEMPLATE( test_split_log_no_archive, T, eosio::testing::testers ) {

@@ -294,16 +294,15 @@ void finish_next(const block_header_state& prev,
 
    // finality_core
    // -------------
-   block_ref parent_block {
-      .block_id        = prev.block_id,
-      .timestamp       = prev.timestamp(),
-      .finality_digest = prev.compute_finality_digest()
-   };
+   block_ref parent_block = prev.make_block_ref();
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
    // finalizer policy
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
+
+   // will be reset in evaluate_finalizer_policies_for_promotion if needed
+   next_header_state.last_pending_finalizer_policy_start_timestamp = prev.last_pending_finalizer_policy_start_timestamp;
 
    evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
@@ -345,6 +344,14 @@ void finish_next(const block_header_state& prev,
          ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
               ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
          ilog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+              ("n",block_header::num_from_id(id))("id", id)("pol", *act));
+      }
+
+      if (next_header_state.active_proposer_policy->proposer_schedule.version != prev.active_proposer_policy->proposer_schedule.version) {
+         const auto& act = next_header_state.active_proposer_policy;
+         dlog("Proposer policy version change: ${old_ver} -> ${new_ver}",
+              ("old_ver", prev.active_proposer_policy->proposer_schedule.version)("new_ver",act->proposer_schedule.version));
+         dlog("New proposer policy becoming active in block ${n}:${id}: ${pol}",
               ("n",block_header::num_from_id(id))("id", id)("pol", *act));
       }
    }

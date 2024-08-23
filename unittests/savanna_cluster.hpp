@@ -205,7 +205,8 @@ namespace savanna_cluster {
       void push_block(const signed_block_ptr& b) {
          if (is_open() && !fetch_block_by_id(b->calculate_id())) {
             assert(!pushing_a_block);
-            scoped_set_value set_pushing_a_block(pushing_a_block, true);
+            pushing_a_block = true;
+            auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
             tester::push_block(b);
          }
       }

@@ -95,7 +95,7 @@ namespace eosio::chain {
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
             uint16_t                 vote_thread_pool_size  =  0;
-            uint32_t                 max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
+            int32_t                  max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -104,6 +104,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
 
@@ -301,7 +302,8 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
-         bool fork_db_has_root() const;
+         bool   fork_db_has_root() const;
+         size_t fork_db_size() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
@@ -393,6 +395,11 @@ namespace eosio::chain {
          /// @return true if terminate-at-block reached, or max-reversible-blocks reached
          /// not-thread-safe
          bool should_terminate() const;
+
+         /// Difference between max-reversible-blocks and fork database size.
+         /// Can return MAX_INT32 if disabled or pre-Savanna
+         /// @return the number of reversible blocks still allowed
+         int32_t max_reversible_blocks_allowed() const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
