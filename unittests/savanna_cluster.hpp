@@ -110,7 +110,7 @@ namespace savanna_cluster {
          bool operator==(const vote_t&) const = default;
 
          block_id_type id;
-         bool strong;
+         bool          strong;
       };
 
       bool   propagate_votes{true};
@@ -456,7 +456,7 @@ namespace savanna_cluster {
 
       // returns the number of nodes where `lib` has advanced after executing `f`
       template<class F>
-      size_t num_lib_advancing(F&& f) {
+      size_t num_lib_advancing(F&& f) const {
          std::vector<uint32_t> libs(_nodes.size());
          for (size_t i=0; i<_nodes.size(); ++i)
             libs[i] = _nodes[i].lib_num();
@@ -508,11 +508,27 @@ namespace savanna_cluster {
 
       size_t num_nodes() const { return _num_nodes; }
 
-      qc_claim_t qc_claim(const signed_block_ptr& b) {
+      // Class for comparisons in BOOST_REQUIRE_EQUAL
+      // --------------------------------------------
+      struct qc_s {
+         qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+         qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
+            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const qc_s&) const = default;
+
+         uint32_t block_num; // claimed block
+         bool     strong;
+      };
+
+      static qc_claim_t qc_claim(const signed_block_ptr& b) {
          return b->extract_header_extension<finality_extension>().qc_claim;
       }
 
-      std::optional<qc_t> qc(const signed_block_ptr& b) {
+      static std::optional<qc_t> qc(const signed_block_ptr& b) {
          if (b->contains_extension(quorum_certificate_extension::extension_id()))
              return b->extract_extension<quorum_certificate_extension>().qc;
          return {};
@@ -520,14 +536,16 @@ namespace savanna_cluster {
 
       // debugging utilities
       // -------------------
-      static void print(const char* name, const signed_block_ptr& b) {
-         std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
-                   << ", previous = " << b->previous.str().substr(8, 16) << '\n';
+      void print(const char* name, const signed_block_ptr& b) const {
+         if (_debug_mode)
+            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+                      << ", previous = " << b->previous.str().substr(8, 16) << '\n';
       }
 
    public:
       std::vector<node_t>  _nodes;
       fin_keys_t           _fin_keys;
+      bool                 _debug_mode{false};
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);

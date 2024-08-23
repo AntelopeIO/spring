@@ -49,6 +49,7 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t
 BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
    using vote_t = savanna_cluster::node_t::vote_t;
+   //_debug_mode = true;
 
    auto b0 = A.produce_blocks(2);                     // receive strong votes from all finalizers
    print("b0", b0);
@@ -77,6 +78,9 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b2, false));
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b1, true));// A should not have seen b2, and therefore not voted on it
 
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b2)), qc_s(b0, true)); // b2 should include a strong qc on b0
+
+
    set_partition(partition);                          // restore our original partition {A, B, C} and {D}
 
    signed_block_ptr b3;
@@ -92,6 +96,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
       BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b3, false)); // but B and C have to vote weak.
       BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b3, false)); // C did vote, but we turned vote propagation off so
                                                            // A will never see it
+      BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), qc_s(b1, true));   // b3 should include a strong qc on b1
    }
 
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
@@ -105,8 +110,10 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b4, false));
    BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b4, false));
    BOOST_REQUIRE_EQUAL(qc_claim(b3), qc_claim(b4));   // A didn't form a QC on b3, so b4 should repeat b3's claim
+   BOOST_REQUIRE(!qc(b4));                            // b4 should not have a QC extension
 
-   std::cout << "lib after b4=" <<  B.lib_number << '\n';
+   BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
+
    auto b5 = A.produce_block();                       // a weak QC was formed on b4 and is be included in b5
                                                       // b5 should receive 3 strong votes (because it has a
                                                       // weak QC on b4, which itself had a strong QC on b1.
@@ -114,16 +121,18 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b5, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b5, true));
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), qc_s(b4, false)); // b5 should include a weak qc on b4
 
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
-   auto b6 = A.produce_block();                       // should include strong QC on b5, b1 should be final
+   auto b6 = A.produce_block();                       // should include a strong QC on b5, b1 should be final
    print("b6", b6);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), qc_s(b5, true)); // b6 should include a strong qc on b5
 
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b6, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b6, true));
 
-   BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
+   BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());
 
 } FC_LOG_AND_RETHROW()
 
