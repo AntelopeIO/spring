@@ -53,9 +53,9 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t
                   +-----+  S   +-----+      S     +-----+   no   +-----+   W  +-----+  S  +-----+
 A produces   <----| b0  |<-----| b1  |<-----------|  b3 |<-------+ b4  |<-----| b5  |<----|  b6 |<-------
                   +-----+      +-----+            +-----+  claim +-----+      +-----+     +-----+
-                                   ^
-                                   |      +-----+
-D produces                         +------| b2  |
+                     ^
+                     |                    +-----+
+D produces           +--------------------| b2  |
                                      S    +-----+
 
 */
@@ -148,5 +148,47 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());
 
 } FC_LOG_AND_RETHROW()
+
+
+// -----------------------------------------------------------------------------------------------------
+// see https://github.com/AntelopeIO/spring/issues/621 explaining the issue that this test demonstrates.
+//
+// The fix in https://github.com/AntelopeIO/spring/issues/534 for the weak masking issue respected a more
+// conservative version of rule 2. This solved the safety concerns due to the weak masking issue, but it
+// was unnecessarily restrictive with respect to liveness.
+//
+// As a consequence if this liveness issue, finalizers may be stuck voting weak if the QC is not formed
+// quickly enough.
+//
+// This testcase fails prior to https://github.com/AntelopeIO/spring/issues/621 being fixed.
+// -----------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+   using vote_t = savanna_cluster::node_t::vote_t;
+   _debug_mode = true;
+
+   auto b0 = A.produce_blocks(2);                     // receives strong votes from all finalizers
+   auto b1 = A.produce_blocks(2);                     // receives strong votes from all finalizers
+   auto b2 = A.produce_blocks(2);                     // receives strong votes from all finalizers
+   print("b1", b1);
+   print("b2", b2);
+
+   // partition D out. D will be used to produce blocks on an alternative fork.
+   // We will have 3 finalizers voting which is enough to reach QCs
+   // -------------------------------------------------------------------------
+   const std::vector<size_t> partition {3};
+   set_partition(partition);
+
+   auto b3 = D.produce_block();                       // produce a block on D
+   print("b3", b3);
+
+   push_block(1, b3);                                 // push block to A, B and C, should receive strong votes
+   BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b3, true));
+   BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b3, true));
+   BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b3, true));
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), qc_s(b1, true)); // b3 should include a strong qc on b1
+
+} FC_LOG_AND_RETHROW()
+
 
 BOOST_AUTO_TEST_SUITE_END()
