@@ -53,9 +53,9 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t
                   +-----+  S   +-----+      S     +-----+   no   +-----+   W  +-----+  S  +-----+
 A produces   <----| b0  |<-----| b1  |<-----------|  b3 |<-------+ b4  |<-----| b5  |<----|  b6 |<-------
                   +-----+      +-----+            +-----+  claim +-----+      +-----+     +-----+
-                                   ^
-                                   |      +-----+
-D produces                         +------| b2  |
+                     ^
+                     |                    +-----+
+D produces           +--------------------| b2  |
                                      S    +-----+
 
 */
