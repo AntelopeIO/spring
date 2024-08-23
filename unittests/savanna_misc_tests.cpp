@@ -51,7 +51,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    using vote_t = savanna_cluster::node_t::vote_t;
    //_debug_mode = true;
 
-   auto b0 = A.produce_blocks(2);                     // receive strong votes from all finalizers
+   auto b0 = A.produce_blocks(2);                     // receives strong votes from all finalizers
    print("b0", b0);
 
    // partition D out. D will be used to produce blocks on an alternative fork.
@@ -60,7 +60,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    const std::vector<size_t> partition {3};
    set_partition(partition);
 
-   auto b1 = A.produce_block();                       // receives strong votes from 3 finalizers
+   auto b1 = A.produce_block();                       // receives strong votes from 3 finalizers (D partitioned out)
    print("b1", b1);
 
    auto b2 = D.produce_block(_block_interval_us * 2); // produce a `later` block on D
@@ -68,9 +68,9 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
 
    BOOST_REQUIRE_GT(b2->timestamp.slot, b1->timestamp.slot);
 
-   const std::vector<size_t> tmp_partition {0};       // we temporarily separate A
+   const std::vector<size_t> tmp_partition {0};       // we temporarily separate A (before pushing b2)
    set_partitions({tmp_partition, partition});        // because we don't want A to see the block produced by D (b2)
-                                                      // otherwise it will switch forks and build its next block
+                                                      // otherwise it will switch forks and build its next block (b3)
                                                       // on top of it
 
    push_block(1, b2);                                 // push block to B and C, should receive weak votes
@@ -95,7 +95,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
       BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b3, true));  // A didn't vote on b2 so it can vote strong
       BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b3, false)); // but B and C have to vote weak.
       BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b3, false)); // C did vote, but we turned vote propagation off so
-                                                           // A will never see it
+                                                           // A will never see C's vote
       BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), qc_s(b1, true));   // b3 should include a strong qc on b1
    }
 
@@ -110,14 +110,14 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b4, false));
    BOOST_REQUIRE_EQUAL(C.last_vote, vote_t(b4, false));
    BOOST_REQUIRE_EQUAL(qc_claim(b3), qc_claim(b4));   // A didn't form a QC on b3, so b4 should repeat b3's claim
-   BOOST_REQUIRE(!qc(b4));                            // b4 should not have a QC extension
+   BOOST_REQUIRE(!qc(b4));                            // b4 should not have a QC extension (no new QC formed on b3)
 
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
-   auto b5 = A.produce_block();                       // a weak QC was formed on b4 and is be included in b5
+   auto b5 = A.produce_block();                       // a weak QC was formed on b4 and is included in b5
                                                       // b5 should receive 3 strong votes (because it has a
                                                       // weak QC on b4, which itself had a strong QC on b1.
-                                                      // Upon receiving a strong QC on b5, b1 will be final
+                                                      // Upon receiving a strong QC on b5, b4 will be final
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(A.last_vote, vote_t(b5, true));
    BOOST_REQUIRE_EQUAL(B.last_vote, vote_t(b5, true));
