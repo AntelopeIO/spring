@@ -54,7 +54,7 @@ namespace chainbase {
          char* result = (char*)_manager->allocate(sizeof(T) * allocation_batch_size);
          _freelist_size += allocation_batch_size;
          _freelist = bip::offset_ptr<list_item>{(list_item*)result};
-         for(int i = 0; i < allocation_batch_size-1; ++i) {
+         for(unsigned i = 0; i < allocation_batch_size-1; ++i) {
             char* next = result + sizeof(T);
             new(result) list_item{bip::offset_ptr<list_item>{(list_item*)next}};
             result = next;
