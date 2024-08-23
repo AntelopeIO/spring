@@ -2008,7 +2008,7 @@ namespace eosio {
                  ("ex", -reversible_remaining)("fs", fork_db_size));
          reversible_remaining = 0;
       }
-      if (reversible_remaining < sync_fetch_span) {
+      if ((uint32_t)reversible_remaining < sync_fetch_span) {
          auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
          fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks, fork_db_size ${fs}",
                  ("sfs", sync_fetch_span)("r", reversible_remaining)("fs", fork_db_size));
