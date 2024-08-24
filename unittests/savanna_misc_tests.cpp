@@ -98,7 +98,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
 
    signed_block_ptr b3;
    {
-      scoped_set_value tmp(B.propagate_votes, false);      // temporarily prevent B from broadcasting its votes)
+      fc::scoped_set_value tmp(B.propagate_votes, false);  // temporarily prevent B from broadcasting its votes)
                                                            // so A won't receive them and form a QC on b3
 
       b3 = A.produce_block(_block_interval_us * 2);        // A will see its own strong vote on b3, and C's weak vote
