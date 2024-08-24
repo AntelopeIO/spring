@@ -10,43 +10,6 @@
 
 #include "snapshot_suites.hpp"
 
-// ---------------------------------------------------------------------------
-// An object which assigns a value to a variable in its constructor, and resets
-// to its previous value in its destructor
-// ---------------------------------------------------------------------------
-template <class T>
-class scoped_set_value {
-public:
-   template <class V>
-   [[nodiscard]] scoped_set_value(T& var, V&& val,
-                                  bool do_it = true) noexcept(std::is_nothrow_copy_constructible_v<T> &&
-                                                              std::is_nothrow_move_assignable_v<T>)
-      : _v(var)
-      , _do_it(do_it) {
-      if (_do_it) {
-         _old_value = std::move(_v);
-         _v         = std::forward<V>(val);
-      }
-   }
-
-   ~scoped_set_value() {
-      if (_do_it)
-         _v = std::move(_old_value);
-   }
-
-   void dismiss() noexcept { _do_it = false; }
-
-   scoped_set_value(const scoped_set_value&)            = delete;
-   scoped_set_value& operator=(const scoped_set_value&) = delete;
-   scoped_set_value(scoped_set_value&&)                 = delete;
-   scoped_set_value& operator=(scoped_set_value&&)      = delete;
-   void*             operator new(std::size_t)          = delete;
-
-   T&   _v;
-   T    _old_value;
-   bool _do_it;
-};
-
 namespace savanna_cluster {
    namespace ranges = std::ranges;
 
@@ -99,9 +62,9 @@ namespace savanna_cluster {
 
    public:
       struct vote_t {
-         vote_t() = default;
-         vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
-         vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
+         vote_t() : strong(false) {}
+         explicit vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
+         explicit vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
 
          friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
             s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
@@ -205,7 +168,7 @@ namespace savanna_cluster {
       void push_block(const signed_block_ptr& b) {
          if (is_open() && !fetch_block_by_id(b->calculate_id())) {
             assert(!pushing_a_block);
-            scoped_set_value set_pushing_a_block(pushing_a_block, true);
+            fc::scoped_set_value set_pushing_a_block(pushing_a_block, true);
             tester::push_block(b);
          }
       }
@@ -511,8 +474,8 @@ namespace savanna_cluster {
       // Class for comparisons in BOOST_REQUIRE_EQUAL
       // --------------------------------------------
       struct qc_s {
-         qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
-         qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+         explicit qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+         explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
 
          friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
             s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
