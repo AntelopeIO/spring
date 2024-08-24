@@ -308,7 +308,7 @@ class Utils:
     @staticmethod
     def runCmdArrReturnJson(cmdArr, trace=False, silentErrors=True):
         retStr=Utils.checkOutput(cmdArr)
-        return Utils.toJson(retStr)
+        return Utils.toJson(retStr, trace, silentErrors)
 
     @staticmethod
     def runCmdReturnStr(cmd, trace=False, ignoreError=False):

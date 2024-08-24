@@ -168,7 +168,7 @@ class Transactions(NodeosQueries):
             retries = retries + 1
             start=time.perf_counter()
             try:
-                trans=Utils.runCmdReturnJson(cmd, trace=False)
+                trans=Utils.runCmdReturnJson(cmd, trace=False, silentErrors=shouldFail)
                 self.trackCmdTransaction(trans)
                 if Utils.Debug:
                     end=time.perf_counter()
