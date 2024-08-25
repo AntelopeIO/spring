@@ -1083,6 +1083,10 @@ struct controller_impl {
       return fork_db.apply<bool>([&](const auto& forkdb) { return !!forkdb.has_root(); });
    }
 
+   size_t fork_db_size() const {
+      return fork_db.size();
+   }
+
    block_id_type fork_db_root_block_id() const {
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
@@ -1572,93 +1576,104 @@ struct controller_impl {
 
    enum class startup_t { genesis, snapshot, existing_state };
 
-   std::exception_ptr replay_block_log() {
+   bool should_replay_block_log() const {
       auto blog_head = blog.head();
       if (!blog_head) {
          ilog( "no block log found" );
-         return {};
+         return false;
       }
+
+      auto start_block_num = chain_head.block_num() + 1;
+
+      bool should_replay = start_block_num <= blog_head->block_num();
+      if (!should_replay) {
+         ilog( "no irreversible blocks need to be replayed" );
+      }
+      return should_replay;
+   }
+
+   std::exception_ptr replay_block_log() {
+      auto blog_head = blog.head();
+      assert(blog_head);
 
       auto start_block_num = chain_head.block_num() + 1;
       auto start = fc::time_point::now();
 
-      std::exception_ptr except_ptr;
-      if( start_block_num <= blog_head->block_num() ) {
-         ilog( "existing block log, attempting to replay from ${s} to ${n} blocks", ("s", start_block_num)("n", blog_head->block_num()) );
-         try {
-            std::vector<block_state_legacy_ptr> legacy_branch; // for blocks that will need to be converted to IF blocks
-            while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
-               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
-                  if (next->is_proper_svnn_block()) {
-                     const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
-                     assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
-                     // transition to savanna
-                     block_state_ptr prev = chain_head_trans_svnn_block;
-                     bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
-                     for (size_t i = 0; i < legacy_branch.size(); ++i) {
-                        if (i == 0 && replay_not_from_snapshot) {
-                           assert(!prev);
-                           prev = block_state::create_if_genesis_block(*legacy_branch[0]);
-                        } else {
-                           const auto& bspl = legacy_branch[i];
-                           assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
-                           auto new_bsp = block_state::create_transition_block(
-                                 *prev,
-                                 bspl->block,
-                                 protocol_features.get_protocol_feature_set(),
-                                 validator_t{}, skip_validate_signee,
-                                 bspl->action_mroot_savanna);
-                           prev = new_bsp;
-                        }
-                     }
-                     chain_head = block_handle{ prev }; // apply_l will not execute again after this
-                     {
-                        // If Leap started at a block prior to the IF transition, it needs to provide a default safety
-                        // information for those finalizers that don't already have one. This typically should be done when
-                        // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
-                        // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
-                        my_finalizers.set_default_safety_information(
-                           finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
-                                                        .lock                                  = prev->make_block_ref(),
-                                                        .votes_forked_since_latest_strong_vote = false});
-                     }
-                  }
-               });
-               block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
-                  replay_push_block<T>( next, controller::block_status::irreversible );
-               });
-               block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
-                  assert(!next->is_proper_svnn_block());
-                  if (next->contains_header_extension(finality_extension::extension_id())) {
-                     assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
-                     legacy_branch.push_back(head);
-                     // note if is_proper_svnn_block is not reached then transistion will happen live
-                  }
-               });
-               if( check_shutdown() ) {  // needed on every loop for terminate-at-block
-                  ilog( "quitting from replay_block_log because of shutdown" );
-                  break;
-               }
-               if( next->block_num() % 500 == 0 ) {
-                  ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
-               }
-            }
-         } catch(  const database_guard_exception& e ) {
-            except_ptr = std::current_exception();
-         }
-         auto end = fc::time_point::now();
-         ilog( "${n} irreversible blocks replayed", ("n", 1 + chain_head.block_num() - start_block_num) );
-         ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
-               ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
-               ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
+      assert(start_block_num <= blog_head->block_num());
 
-         // if the irreverible log is played without undo sessions enabled, we need to sync the
-         // revision ordinal to the appropriate expected value here.
-         if( skip_db_sessions( controller::block_status::irreversible ) )
-            db.set_revision( chain_head.block_num() );
-      } else {
-         ilog( "no irreversible blocks need to be replayed" );
+      std::exception_ptr except_ptr;
+      ilog( "existing block log, attempting to replay from ${s} to ${n} blocks", ("s", start_block_num)("n", blog_head->block_num()) );
+      try {
+         std::vector<block_state_legacy_ptr> legacy_branch; // for blocks that will need to be converted to IF blocks
+         while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
+            block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
+               if (next->is_proper_svnn_block()) {
+                  const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
+                  assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
+                  // transition to savanna
+                  block_state_ptr prev = chain_head_trans_svnn_block;
+                  bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
+                  for (size_t i = 0; i < legacy_branch.size(); ++i) {
+                     if (i == 0 && replay_not_from_snapshot) {
+                        assert(!prev);
+                        prev = block_state::create_if_genesis_block(*legacy_branch[0]);
+                     } else {
+                        const auto& bspl = legacy_branch[i];
+                        assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
+                        auto new_bsp = block_state::create_transition_block(
+                              *prev,
+                              bspl->block,
+                              protocol_features.get_protocol_feature_set(),
+                              validator_t{}, skip_validate_signee,
+                              bspl->action_mroot_savanna);
+                        prev = new_bsp;
+                     }
+                  }
+                  chain_head = block_handle{ prev }; // apply_l will not execute again after this
+                  {
+                     // If Leap started at a block prior to the IF transition, it needs to provide a default safety
+                     // information for those finalizers that don't already have one. This typically should be done when
+                     // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
+                     // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
+                     my_finalizers.set_default_safety_information(
+                        finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
+                                                     .lock                                  = prev->make_block_ref(),
+                                                     .votes_forked_since_latest_strong_vote = false});
+                  }
+               }
+            });
+            block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
+               replay_push_block<T>( next, controller::block_status::irreversible );
+            });
+            block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
+               assert(!next->is_proper_svnn_block());
+               if (next->contains_header_extension(finality_extension::extension_id())) {
+                  assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
+                  legacy_branch.push_back(head);
+                  // note if is_proper_svnn_block is not reached then transistion will happen live
+               }
+            });
+            if( check_shutdown() ) {  // needed on every loop for terminate-at-block
+               ilog( "quitting from replay_block_log because of shutdown" );
+               break;
+            }
+            if( next->block_num() % 500 == 0 ) {
+               ilog( "${n} of ${head}", ("n", next->block_num())("head", blog_head->block_num()) );
+            }
+         }
+      } catch(  const database_guard_exception& e ) {
+         except_ptr = std::current_exception();
       }
+      auto end = fc::time_point::now();
+      ilog( "${n} irreversible blocks replayed", ("n", 1 + chain_head.block_num() - start_block_num) );
+      ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
+            ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
+            ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
+
+      // if the irreverible log is played without undo sessions enabled, we need to sync the
+      // revision ordinal to the appropriate expected value here.
+      if( skip_db_sessions( controller::block_status::irreversible ) )
+         db.set_revision( chain_head.block_num() );
 
       return except_ptr;
    }
@@ -1666,15 +1681,14 @@ struct controller_impl {
    void replay(startup_t startup) {
       replaying = true;
 
+      bool replay_block_log_needed = should_replay_block_log();
+
       auto blog_head = blog.head();
       auto start_block_num = chain_head.block_num() + 1;
       std::exception_ptr except_ptr;
 
-      if (blog_head) {
+      if (replay_block_log_needed)
          except_ptr = replay_block_log();
-      } else {
-         ilog( "no block log found" );
-      }
 
       if( check_shutdown() ) {
          ilog( "quitting from replay because of shutdown" );
@@ -1688,38 +1702,40 @@ struct controller_impl {
       }
 
       if (startup == startup_t::existing_state) {
-         EOS_ASSERT(fork_db_has_root(), fork_database_exception,
-                    "No existing fork database despite existing chain state. Replay required." );
-         uint32_t lib_num = fork_db_root_block_num();
-         auto first_block_num = blog.first_block_num();
-         if(blog_head) {
-            EOS_ASSERT( first_block_num <= lib_num && lib_num <= blog_head->block_num(),
-                        block_log_exception,
-                        "block log (ranging from ${block_log_first_num} to ${block_log_last_num}) does not contain the last irreversible block (${fork_db_lib})",
-                        ("block_log_first_num", first_block_num)
-                        ("block_log_last_num", blog_head->block_num())
-                        ("fork_db_lib", lib_num)
-            );
-            lib_num = blog_head->block_num();
-         } else {
-            if( first_block_num != (lib_num + 1) ) {
-               blog.reset( chain_id, lib_num + 1 );
-            }
-         }
-
-         auto do_startup = [&](auto& forkdb) {
-            if( read_mode == db_read_mode::IRREVERSIBLE) {
-               auto root = forkdb.root();
-               if (root && chain_head.id() != root->id()) {
-                  chain_head = block_handle{forkdb.root()};
-                  // rollback db to LIB
-                  while( db.revision() > chain_head.block_num() ) {
-                     db.undo();
-                  }
+         if (!replay_block_log_needed) {
+            EOS_ASSERT(fork_db_has_root(), fork_database_exception,
+                       "No existing fork database despite existing chain state. Replay required." );
+            uint32_t lib_num = fork_db_root_block_num();
+            auto first_block_num = blog.first_block_num();
+            if(blog_head) {
+               EOS_ASSERT( first_block_num <= lib_num && lib_num <= blog_head->block_num(),
+                           block_log_exception,
+                           "block log (ranging from ${block_log_first_num} to ${block_log_last_num}) does not contain the last irreversible block (${fork_db_lib})",
+                           ("block_log_first_num", first_block_num)
+                           ("block_log_last_num", blog_head->block_num())
+                           ("fork_db_lib", lib_num)
+               );
+               lib_num = blog_head->block_num();
+            } else {
+               if( first_block_num != (lib_num + 1) ) {
+                  blog.reset( chain_id, lib_num + 1 );
                }
             }
-         };
-         fork_db.apply<void>(do_startup);
+
+            auto do_startup = [&](auto& forkdb) {
+               if( read_mode == db_read_mode::IRREVERSIBLE) {
+                  auto root = forkdb.root();
+                  if (root && chain_head.id() != root->id()) {
+                     chain_head = block_handle{forkdb.root()};
+                     // rollback db to LIB
+                     while( db.revision() > chain_head.block_num() ) {
+                        db.undo();
+                     }
+                  }
+               }
+            };
+            fork_db.apply<void>(do_startup);
+         }
       }
 
       auto fork_db_reset_root_to_chain_head = [&]() {
@@ -1762,10 +1778,18 @@ struct controller_impl {
          using BSP = std::decay_t<decltype(forkdb.root())>;
 
          auto pending_head = forkdb.head();
+         auto root = forkdb.root();
+         if( pending_head ) {
+            ilog("fork database size ${s} head ${hn} : ${h}, root ${rn} : ${r}",
+                 ("s", forkdb.size())("hn", pending_head->block_num())("h", pending_head->id())
+                 ("rn", root->block_num())("r", root->id()));
+         } else if (root) {
+            ilog("fork database has no pending blocks root ${rn} : ${r}",
+                 ("rn", root->block_num())("r", root->id()));
+         } else {
+            ilog("fork database empty, no pending or root");
+         }
          if( pending_head && blog_head && start_block_num <= blog_head->block_num() ) {
-            ilog("fork database head ${hn}:${h}, root ${rn}:${r}",
-                 ("hn", pending_head->block_num())("h", pending_head->id())
-                 ("rn", forkdb.root()->block_num())("r", forkdb.root()->id()));
             if( pending_head->block_num() < chain_head.block_num() || chain_head.block_num() < forkdb.root()->block_num() ) {
                ilog( "resetting fork database with new last irreversible block as the new root: ${id}", ("id", chain_head.id()) );
                fork_db_reset_root_to_chain_head();
@@ -1965,14 +1989,34 @@ struct controller_impl {
       auto finish_init = [&](auto& forkdb) {
          if( read_mode != db_read_mode::IRREVERSIBLE ) {
             auto pending_head = forkdb.head();
-            if ( pending_head && pending_head->id() != chain_head.id() && chain_head.id() == forkdb.root()->id() ) {
-               ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
-
-               for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
-                  ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
-                  controller::block_report br;
-                  maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+            if ( pending_head && pending_head->id() != chain_head.id() ) {
+               // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
+               bool chain_head_is_root = chain_head.id() == forkdb.root()->id();
+               if (chain_head_is_root) {
+                  ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
                }
+
+               // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
+               if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
+                  for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
+                     ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
+                     controller::block_report br;
+                     maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+                  }
+               }
+            }
+         } else {
+            // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
+            // it was syncing and had processed blocks into the fork database but not yet applied them. In general,
+            // it makes sense to process those blocks on startup. However, if the node was shutdown via
+            // terminate-at-block, the current expectation is that the node can be restarted to examine the state at
+            // which it was shutdown. For now, we will only process these blocks if there are peers configured. This
+            // is a bit of a hack for Spring 1.0.0 until we can add a proper pause-at-block (issue #570) which could
+            // be used to explicitly request a node to not process beyond a specified block.
+            if (conf.num_configured_p2p_peers > 0) {
+               ilog("Process blocks out of forkdb if needed");
+               log_irreversible();
+               transition_to_savanna_if_needed();
             }
          }
       };
@@ -2042,21 +2086,29 @@ struct controller_impl {
          using by_table_id = object_to_table_id_tag_t<value_t>;
 
          snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
-            table_id last_seen_tid = -1;
+            table_id flattened_table_id = -1; //first table id will be assigned 0 by chainbase
 
-            decltype(utils)::template walk_by<by_table_id>(db, [this, &section, &row_counter, &last_seen_tid]( const auto &row ) {
-               if(last_seen_tid != row.t_id) {
-                  auto tid_key = boost::make_tuple(row.t_id);
-                  auto next_tid_key = boost::make_tuple(table_id_object::id_type(row.t_id._id + 1));
-                  unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+            index_utils<table_id_multi_index>::walk(db, [this, &section, &flattened_table_id, &row_counter](const table_id_object& table_row) {
+               auto tid_key = boost::make_tuple(table_row.id);
+               auto next_tid_key = boost::make_tuple(table_id_object::id_type(table_row.id._id + 1));
 
-                  section.add_row(row.t_id, db); //indicate the new table id for next...
-                  section.add_row(size, db);     //...number of rows
+               //Tables are stored in the snapshot by their sorted by-id walked order, but without record of their table id. On snapshot
+               // load, the table index will be reloaded in order, but all table ids flattened by chainbase to their insert order.
+               // e.g. if walking table ids 4,5,10,11,12 on creation, these will be reloaded as table ids 0,1,2,3,4. Track this
+               // flattened order here to know the "new" (upon snapshot load) table id a row belongs to
+               ++flattened_table_id;
 
-                  last_seen_tid = row.t_id;
-               }
-               section.add_row(row, db);
-               row_counter.progress();
+               unsigned_int size = utils_t::template size_range<by_table_id>(db, tid_key, next_tid_key);
+               if(size == 0u)
+                  return;
+
+               section.add_row(flattened_table_id, db); //indicate the new (flattened for load) table id for next...
+               section.add_row(size, db);               //...number of rows
+
+               utils_t::template walk_range<by_table_id>(db, tid_key, next_tid_key, [this, &section, &row_counter]( const auto &row ) {
+                  section.add_row(row, db);
+                  row_counter.progress();
+               });
             });
          });
       });
@@ -3185,18 +3237,17 @@ struct controller_impl {
                 pbhs.prev_pending_schedule.schedule.producers.size() == 0 // ... and there was room for a new pending schedule prior to any possible promotion
                )
             {
-               // Promote proposed schedule to pending schedule.
-               if( !replaying ) {
-                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
-                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
-                        ("lib", pbhs.dpos_irreversible_blocknum)
-                        ("schedule", bb_legacy.new_pending_producer_schedule ) );
-               }
-
                EOS_ASSERT( gpo.proposed_schedule.version == pbhs.active_schedule_version + 1,
                            producer_schedule_exception, "wrong producer schedule version specified" );
 
+               // Promote proposed schedule to pending schedule.
                bb_legacy.new_pending_producer_schedule = producer_authority_schedule::from_shared(gpo.proposed_schedule);
+
+               if( !replaying ) {
+                  ilog( "promoting proposed schedule (set in block ${proposed_num}) to pending; current block: ${n} lib: ${lib} schedule: ${schedule} ",
+                        ("proposed_num", *gpo.proposed_schedule_block_num)("n", pbhs.block_num)
+                        ("lib", pbhs.dpos_irreversible_blocknum)("schedule", bb_legacy.new_pending_producer_schedule ) );
+               }
 
                db.modify( gpo, [&]( auto& gp ) {
                   gp.proposed_schedule_block_num = std::optional<block_num_type>();
@@ -4782,6 +4833,19 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
+   int32_t max_reversible_blocks_allowed() const {
+      if (conf.max_reversible_blocks == 0)
+         return std::numeric_limits<int32_t>::max();
+
+      return fork_db.apply<int32_t>(
+         [&](const fork_database_legacy_t& forkdb) {
+            return std::numeric_limits<int32_t>::max();
+         },
+         [&](const fork_database_if_t& forkdb) {
+            return conf.max_reversible_blocks - forkdb.size();
+         });
+   }
+
    bool should_terminate(block_num_type reversible_block_num) const {
       assert(reversible_block_num > 0);
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
@@ -4789,9 +4853,9 @@ struct controller_impl {
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
          return true;
       }
-      if (conf.max_reversible_blocks > 0 && fork_db.size() >= conf.max_reversible_blocks) {
+      if (max_reversible_blocks_allowed() <= 0) {
          elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db.size())("m", conf.max_reversible_blocks));
+              ("s", fork_db_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5305,6 +5369,10 @@ bool controller::fork_db_has_root() const {
    return my->fork_db_has_root();
 }
 
+size_t controller::fork_db_size() const {
+   return my->fork_db_size();
+}
+
 uint32_t controller::last_irreversible_block_num() const {
    return my->fork_db_root_block_num();
 }
@@ -5596,6 +5664,10 @@ validation_mode controller::get_validation_mode()const {
 
 bool controller::should_terminate() const {
    return my->should_terminate();
+}
+
+int32_t controller:: max_reversible_blocks_allowed() const {
+   return my->max_reversible_blocks_allowed();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const

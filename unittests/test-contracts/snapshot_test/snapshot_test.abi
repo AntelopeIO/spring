@@ -4,6 +4,24 @@
     "types": [],
     "structs": [
         {
+            "name": "add",
+            "base": "",
+            "fields": [
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payload",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
             "name": "increment",
             "base": "",
             "fields": [
@@ -42,12 +60,73 @@
                     "type": "checksum256"
                 }
             ]
+        },
+        {
+            "name": "remove",
+            "base": "",
+            "fields": [
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "test_record",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payload",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
+            "name": "verify",
+            "base": "",
+            "fields": [
+                {
+                    "name": "scope",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "payload",
+                    "type": "checksum256"
+                }
+            ]
         }
     ],
     "actions": [
         {
+            "name": "add",
+            "type": "add",
+            "ricardian_contract": ""
+        },
+        {
             "name": "increment",
             "type": "increment",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "remove",
+            "type": "remove",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "verify",
+            "type": "verify",
             "ricardian_contract": ""
         }
     ],
@@ -55,6 +134,13 @@
         {
             "name": "data",
             "type": "main_record",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "test",
+            "type": "test_record",
             "index_type": "i64",
             "key_names": [],
             "key_types": []

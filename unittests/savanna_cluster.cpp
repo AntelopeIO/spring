@@ -27,10 +27,11 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       }
    };
 
-   auto node_initialization_fn = [&]() {
+   auto node_initialization_fn = [&, node_idx]() {
       [[maybe_unused]] auto _a = control->voted_block().connect(voted_block_cb);
       [[maybe_unused]] auto _b = control->accepted_block().connect(accepted_block_cb);
       tester::set_node_finalizers(node_finalizers);
+      cluster.get_new_blocks_from_peers(node_idx);
    };
 
    node_initialization_fn();                  // initialize the node when it is first created
