@@ -77,15 +77,15 @@ try:
     for i in range(0, numTrys):
        # Switch BLS keys on producerNode. setFinalizers uses the first key
        # in the configured key list (index 0)
-       newBlsPubKey = producerNode.keys[1].blspubkey
+       newBlsPubKey  = producerNode.keys[1].blspubkey
        newBlsPrivKey = producerNode.keys[1].blsprivkey
-       newBlsPop = producerNode.keys[1].blspop
-       producerNode.keys[1].blspubkey = producerNode.keys[0].blspubkey
+       newBlsPop     = producerNode.keys[1].blspop
+       producerNode.keys[1].blspubkey  = producerNode.keys[0].blspubkey
        producerNode.keys[1].blsprivkey = producerNode.keys[0].blsprivkey
-       producerNode.keys[1].blspop = producerNode.keys[0].blspop
-       producerNode.keys[0].blspubkey = producerNode.keys[1].blspubkey
-       producerNode.keys[0].blsprivkey = producerNode.keys[1].blsprivkey
-       producerNode.keys[0].blspop = producerNode.keys[1].blspop
+       producerNode.keys[1].blspop     = producerNode.keys[0].blspop
+       producerNode.keys[0].blspubkey  = newBlsPubKey
+       producerNode.keys[0].blsprivkey = newBlsPrivKey
+       producerNode.keys[0].blspop     = newBlsPop
 
        assert cluster.setFinalizers([producerNode, finalizerNode], producerNode), "setfinalizers failed"
        assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
@@ -94,13 +94,13 @@ try:
        # Check if a pending policy exists
        finalizerInfo = producerNode.getFinalizerInfo()
        Print(f"{finalizerInfo}")
-       if "pending_finalizer_policy" in finalizerInfo["payload"]:
+       if finalizerInfo["payload"]["pending_finalizer_policy"] is not None and finalizerInfo["payload"]["pending_finalizer_policy"]["finalizers"][0]["public_key"] == newBlsPubKey:
           Print(f"Got a pending policy in {i+1} attempts")
           break
        else:
           Print(f"Trying to get a pending policy, {i+1} attempts")
 
-    # It is OK pending policy does not exist. During manual tests,
+    # It is OK if pending policy does not exist. During manual tests,
     # pending policy always exists at the first try
     Print("Shutdown producer producerNode")
     producerNode.kill(signal.SIGTERM)
