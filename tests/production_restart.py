@@ -18,9 +18,10 @@ from TestHarness.Node import BlockType
 # Once everything has been confirmed to be working correctly and finality is advancing, cleanly shut down the producer
 # defproducera node but keep the finalizer node of defproducerb running.
 #
-# Then change the finalizer policy (e.g. replace a key in node defproducera) to get the nodes into a state where
-# they have a pending finalizer policy. At that point restart the producer node defproducera (with stale production
-# enabled so it produces blocks again).
+# Then change the finalizer policy using an unconfigured key in node defproducera to gurantee
+# to get the node stay in a state where it has a pending finalizer policy because the key was
+# not configured. At that point restart the producer node defproducera with new key configured
+# and stale production enabled so it produces blocks again.
 #
 # The correct behavior is for votes from the finalizer node on the newly produced blocks to be accepted by producer
 # node defproducera, QCs to be formed and included in new blocks, and finality to advance.
@@ -72,42 +73,34 @@ try:
     assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
 
     Print("Set finalizers so a pending is in play")
-    # Try a number of times to make sure we have a pending policy
-    numTrys = 10
-    for i in range(0, numTrys):
-       # Switch BLS keys on producerNode. setFinalizers uses the first key
-       # in the configured key list (index 0)
-       newBlsPubKey  = producerNode.keys[1].blspubkey
-       newBlsPrivKey = producerNode.keys[1].blsprivkey
-       newBlsPop     = producerNode.keys[1].blspop
-       producerNode.keys[1].blspubkey  = producerNode.keys[0].blspubkey
-       producerNode.keys[1].blsprivkey = producerNode.keys[0].blsprivkey
-       producerNode.keys[1].blspop     = producerNode.keys[0].blspop
-       producerNode.keys[0].blspubkey  = newBlsPubKey
-       producerNode.keys[0].blsprivkey = newBlsPrivKey
-       producerNode.keys[0].blspop     = newBlsPop
+    # Use an unconfigured key for new finalizer policy on producerNode such that
+    # producerNode stays in a state where it has a pending finalizer policy.
+    producerNode.keys[0].blspubkey = "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w" # setFinalizers uses the first key in key list (index 0)
+    producerNode.keys[0].blspop    = "SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
 
-       assert cluster.setFinalizers([producerNode, finalizerNode], producerNode), "setfinalizers failed"
-       assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
-       producerNode.waitForHeadToAdvance() # get additional qc
+    assert cluster.setFinalizers([producerNode, finalizerNode], producerNode), "setfinalizers failed"
+    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
+    # Wait for head to advance twice to make sure pending policy is in place
+    producerNode.waitForHeadToAdvance()
+    producerNode.waitForHeadToAdvance()
 
-       # Check if a pending policy exists
-       finalizerInfo = producerNode.getFinalizerInfo()
-       Print(f"{finalizerInfo}")
-       if finalizerInfo["payload"]["pending_finalizer_policy"] is not None and finalizerInfo["payload"]["pending_finalizer_policy"]["finalizers"][0]["public_key"] == newBlsPubKey:
-          Print(f"Got a pending policy in {i+1} attempts")
-          break
-       else:
-          Print(f"Trying to get a pending policy, {i+1} attempts")
+    # Check if a pending policy exists
+    finalizerInfo = producerNode.getFinalizerInfo()
+    Print(f"{finalizerInfo}")
+    if (finalizerInfo["payload"]["pending_finalizer_policy"] is not None
+        and finalizerInfo["payload"]["pending_finalizer_policy"]["finalizers"] is not None):
+        Print("pending policy exists")
+    else:
+        Utils.errorExit("pending policy does not exist")
 
-    # It is OK if pending policy does not exist. During manual tests,
-    # pending policy always exists at the first try
     Print("Shutdown producer producerNode")
     producerNode.kill(signal.SIGTERM)
     assert not producerNode.verifyAlive(), "producerNode did not shutdown"
 
+    # Configure the new key (using --signature-provider) and restart producerNode.
+    # LIB should advance
     Print("Restart producer producerNode")
-    producerNode.relaunch(chainArg=" -e ")
+    producerNode.relaunch(chainArg=" -e --signature-provider PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w=KEY:PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq")
 
     Print("Verify LIB advances after restart")
     assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
