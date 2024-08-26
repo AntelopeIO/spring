@@ -101,7 +101,7 @@ try:
     if maxReversibleBlocks > 0:
         if not cluster.getNode(0).kill(killSignal):
             errorExit("Failed to kill Node0")
-        # should immediately exit as max-reversible-blocks set to 2
+        # should immediately exit as max-reversible-blocks set to 2, verifies node not stuck in infinite loop on startup
         if not cluster.getNode(0).relaunch(addSwapFlags={"--max-reversible-blocks":"2"}, waitForTerm=True):
             errorExit("Failed to relaunch Node0 with --max-reversible-blocks 2")
 
