@@ -35,7 +35,7 @@ struct finality_block_data {
 
 };
 
-finality_block_data get_finality_block_data(const ibc_block_data_t block_result){
+finality_block_data get_finality_block_data(const ibc_block_data_t& block_result){
 
     return finality_block_data {
         .block_num = block_result.block->block_num(),
@@ -50,11 +50,11 @@ finality_block_data get_finality_block_data(const ibc_block_data_t block_result)
     };
 }
 
-mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy, 
-                    const finality_block_data fake_qc_block, 
-                    const qc_t fake_qc, 
-                    const finality_block_data real_qc_block, 
-                    const qc_t real_qc){
+mvo prepare_rule_1_proof(  const finalizer_policy& active_finalizer_policy, 
+                    const finality_block_data& fake_qc_block, 
+                    const qc_t& fake_qc, 
+                    const finality_block_data& real_qc_block, 
+                    const qc_t& real_qc){
 
     return mvo()
         ("finalizer_policy", active_finalizer_policy)
@@ -95,11 +95,11 @@ mvo prepare_rule_1_proof(  const finalizer_policy active_finalizer_policy,
 
 }
 
-mvo prepare_rule_2_3_proof(  const finalizer_policy active_finalizer_policy, 
-                    const finality_block_data high_qc_block, 
-                    const qc_t high_qc, 
-                    const finality_block_data low_qc_block, 
-                    const qc_t low_qc, 
+mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy, 
+                    const finality_block_data& high_qc_block, 
+                    const qc_t& high_qc, 
+                    const finality_block_data& low_qc_block, 
+                    const qc_t& low_qc, 
                     const std::vector<digest_type> digests){
 
     return mvo()
@@ -143,7 +143,7 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy active_finalizer_policy,
 }
 
 
-bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
+bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name& rule, const mvo& proof){
 
     try {
 
@@ -164,7 +164,7 @@ bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_n
 
 }
 
-bool shouldFail(const finality_proof::proof_test_cluster& chain, const account_name rule, const mvo proof){
+bool shouldFail(const finality_proof::proof_test_cluster& chain, const account_name& rule, const mvo& proof){
 
     bool last_action_failed = false;
     try {
@@ -178,7 +178,7 @@ bool shouldFail(const finality_proof::proof_test_cluster& chain, const account_n
     
 }
 
-digest_type compute_block_ref_digest(const ibc_block_data_t b){
+digest_type compute_block_ref_digest(const ibc_block_data_t& b){
 
     block_ref_digest_data data = {
        .block_num        = b.block->block_num(),
@@ -193,7 +193,7 @@ digest_type compute_block_ref_digest(const ibc_block_data_t b){
 
 }
 
-digest_type compute_block_ref_digest(const finality_block_data b){
+digest_type compute_block_ref_digest(const finality_block_data& b){
 
     block_ref_digest_data data = {
        .block_num        = b.block_num,
