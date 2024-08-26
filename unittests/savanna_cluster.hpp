@@ -112,7 +112,10 @@ namespace savanna_cluster {
 
       void set_node_finalizers(std::span<const account_name> names) {
          _node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
-         tester::set_node_finalizers(_node_finalizers);
+         if (control) {
+            // node is "open", se we can update the tester immediately
+            tester::set_node_finalizers(_node_finalizers);
+         }
       }
 
       void transition_to_savanna(std::span<const account_name> finalizer_policy_names) {

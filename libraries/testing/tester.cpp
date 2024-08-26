@@ -1304,8 +1304,7 @@ namespace eosio::testing {
          auto [privkey, pubkey, pop] = get_bls_key(name);
          local_finalizer_keys[pubkey.to_string()] = privkey.to_string();
       }
-      if (control)
-         control->set_node_finalizer_keys(local_finalizer_keys);
+      control->set_node_finalizer_keys(local_finalizer_keys);
    }
 
    base_tester::set_finalizers_output_t base_tester::set_active_finalizers(std::span<const account_name> names) {
