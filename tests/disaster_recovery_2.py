@@ -93,30 +93,21 @@ try:
     assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after snapshot"
 
     Print("Pause production on Node0")
-    # loop until we have a lib advance after pause, pause may happen between blocks, need current block to be produced
-    retrys = 10
-    while retrys > 0:
-        lib = node0.getIrreversibleBlockNum()
-        node0.processUrllibRequest("producer", "pause")
-        # wait for lib because waitForBlock uses > not >=
-        if node0.waitForBlock(lib, blockType=BlockType.lib, timeout=10):
-            break
-        node0.processUrllibRequest("producer", "resume")
-        time.sleep(0.25)
-        retrys -= 1
-    assert retrys > 0, "Node0 did not advance LIB after pause"
-    time.sleep(1)
+    node0.processUrllibRequest("producer", "pause")
+    node0.waitForHeadToAdvance()
+    lib = node0.getIrreversibleBlockNum()
+    node0.waitForHeadToAdvance(timeout=3) # should time out
 
     Print("Disconnect the producing node (Node0) from peer Node1")
     node0.processUrllibRequest("net", "disconnect", "localhost:9877")
     assert not node0.waitForLibToAdvance(timeout=10), "Node0 LIB still advancing after disconnect"
+    assert not node1.waitForHeadToAdvance(timeout=5), "Node1 head still advancing after disconnect"
 
     Print("Resume production on Node0")
     node0.processUrllibRequest("producer", "resume")
-    assert node0.waitForHeadToAdvance(blocksToAdvance=2)
+    assert node0.waitForIrreversibleBlock(lib) # lib, not lib+1 because waitForIrreversibleBlock uses >
     libN = node0.getIrreversibleBlockNum()
-
-    assert not node1.waitForHeadToAdvance(timeout=5), "Node1 head still advancing after disconnect"
+    assert libN > lib
 
     for node in [node1, node2, node3, node4]:
         lib = node.getIrreversibleBlockNum()
