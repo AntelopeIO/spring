@@ -258,10 +258,7 @@ namespace finality_proof {
          }
         
          //process votes
-         if (vote_propagation.size() == 0) this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
-         else this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
-
-         //this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
+         this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
 
          // compute the IBC-relevant data
          finality_data_t finality_data = *this->node0.control->head_finality_data();
