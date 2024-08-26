@@ -98,6 +98,13 @@ try:
         errorExit("Failed to relaunch Eos instance")
     Print("nodeos instance relaunched.")
 
+    if maxReversibleBlocks > 0:
+        if not cluster.getNode(0).kill(killSignal):
+            errorExit("Failed to kill Node0")
+        # should immediately exit as max-reversible-blocks set to 2
+        if not cluster.getNode(0).relaunch(addSwapFlags={"--max-reversible-blocks":"2"}, waitForTerm=True):
+            errorExit("Failed to relaunch Node0 with --max-reversible-blocks 2")
+
     testSuccessful=True
 finally:
     TestHelper.shutdown(cluster, walletMgr, testSuccessful=testSuccessful, dumpErrorDetails=dumpErrorDetails)
