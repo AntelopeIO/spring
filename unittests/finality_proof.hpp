@@ -200,7 +200,7 @@ namespace finality_proof {
          return {finality_leaves.begin(), finality_leaves.begin() + cutoff + 1};
       }
 
-      ibc_block_data_t process_result(eosio::testing::produce_block_result_t result){
+      ibc_block_data_t process_result(const eosio::testing::produce_block_result_t& result){
 
          signed_block_ptr block = result.block;
 
