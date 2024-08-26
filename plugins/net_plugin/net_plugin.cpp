@@ -245,15 +245,15 @@ namespace eosio {
 
    private:
       constexpr static auto stage_str( stages s );
-      bool                  set_state( stages newstate );
-      bool                  is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx);
-      bool                  is_sync_request_ahead_allowed() const REQUIRES(sync_mtx);
-      void                  request_next_chunk( const connection_ptr& conn = connection_ptr() ) REQUIRES(sync_mtx);
-      connection_ptr        find_next_sync_node(); // call with locked mutex
-      void                  start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
-      bool                  sync_recently_active() const;
-      bool                  verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
-      uint32_t              active_sync_fetch_span(bool log) const;
+      bool set_state( stages newstate );
+      bool is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx);
+      bool is_sync_request_ahead_allowed() const REQUIRES(sync_mtx);
+      void request_next_chunk( const connection_ptr& conn = connection_ptr() ) REQUIRES(sync_mtx);
+      connection_ptr find_next_sync_node(); // call with locked mutex
+      void start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
+      bool sync_recently_active() const;
+      bool verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
+      uint32_t active_sync_fetch_span(bool log) const;
    public:
       enum class closing_mode {
          immediately,  // closing connection immediately
