@@ -1,7 +1,7 @@
 #include "finality_violation.hpp"
 
 //Verify QCs presented as proof
-void check_qcs( const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2){
+void check_qcs( const finalizer_policy_input& finalizer_policy, const finality_proof& proof_1, const finality_proof& proof_2){
 
     //Verify we have our level 3 commitments for both proofs
     check(proof_1.qc_block.level_3_commitments.has_value(), "level 3 commitments structure must be present in both proofs to prove a finality violation");
@@ -18,7 +18,7 @@ void check_qcs( const finalizer_policy_input finalizer_policy, const finality_pr
 }
 
 //Rule #1 : Do not vote on different blocks with the same timestamp
-std::pair<std::string, std::string> finality_violation::rule1(const finalizer_policy_input finalizer_policy, const finality_proof proof_1, const finality_proof proof_2){
+std::pair<std::string, std::string> finality_violation::rule1(const finalizer_policy_input& finalizer_policy, const finality_proof& proof_1, const finality_proof& proof_2){
 
     //Verify QCs
     check_qcs(finalizer_policy, proof_1, proof_2);
@@ -47,10 +47,10 @@ std::pair<std::string, std::string> finality_violation::rule1(const finalizer_po
 }
 
 //Rule #2 : Do not vote on a block that conflicts with the time interval of a strong vote
-std::pair<std::string, std::string> finality_violation::rule2(   const finalizer_policy_input finalizer_policy, 
-                                    const finality_proof high_proof,
-                                    const finality_proof low_proof,
-                                    const std::vector<checksum256> reversible_blocks_digests){
+std::pair<std::string, std::string> finality_violation::rule2(   const finalizer_policy_input& finalizer_policy, 
+                                    const finality_proof& high_proof,
+                                    const finality_proof& low_proof,
+                                    const std::vector<checksum256>& reversible_blocks_digests){
 
     //Verify QCs
     check_qcs(finalizer_policy, high_proof, low_proof);
@@ -88,10 +88,10 @@ std::pair<std::string, std::string> finality_violation::rule2(   const finalizer
 }
 
 //Rule #3 : Do not vote on a block that conflicts with another block on which you are locked
-std::pair<std::string, std::string> finality_violation::rule3(   const finalizer_policy_input finalizer_policy, 
-                                    const finality_proof high_proof,
-                                    const finality_proof low_proof,
-                                    const std::vector<checksum256> reversible_blocks_digests){
+std::pair<std::string, std::string> finality_violation::rule3(   const finalizer_policy_input& finalizer_policy, 
+                                    const finality_proof& high_proof,
+                                    const finality_proof& low_proof,
+                                    const std::vector<checksum256>& reversible_blocks_digests){
 
     //Verify QCs
     check_qcs(finalizer_policy, high_proof, low_proof);
@@ -130,7 +130,7 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
 }
 
 //For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
-ACTION finality_violation::testmroot(const checksum256 root, const std::vector<checksum256> reversible_blocks_digests){
+ACTION finality_violation::testmroot(const checksum256& root, const std::vector<checksum256>& reversible_blocks_digests){
     checksum256 c_root = get_merkle_root(reversible_blocks_digests);
     check(c_root == root, "invalid root");
 }

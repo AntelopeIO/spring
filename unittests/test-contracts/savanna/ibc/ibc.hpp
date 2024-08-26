@@ -60,11 +60,11 @@ CONTRACT ibc : public contract {
       finalizer_policy_input _get_stored_finalizer_policy(const uint64_t finalizer_policy_generation);
 
       void _check_finality_proof(const finality_proof& finality_proof, const block_proof_of_inclusion& target_block_proof_of_inclusion);
-      void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root);
+      void _check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256>& reference_root);
 
       ACTION setfpolicy(const finalizer_policy_input& policy, const uint32_t from_block_num); //set finality policy
       ACTION checkproof(const proof& proof);
 
-      ACTION testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector, const uint32_t finalizers_count);
+      ACTION testbitset(const std::string& bitset_string, const std::vector<uint8_t>& bitset_vector, const uint32_t finalizers_count);
 
 };

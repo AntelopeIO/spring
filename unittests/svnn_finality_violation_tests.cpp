@@ -100,7 +100,7 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy,
                     const qc_t& high_qc, 
                     const finality_block_data& low_qc_block, 
                     const qc_t& low_qc, 
-                    const std::vector<digest_type> digests){
+                    const std::vector<digest_type>& digests){
 
     return mvo()
         ("finalizer_policy", active_finalizer_policy)

@@ -123,7 +123,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
 
 }
 
-void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256> reference_root){
+void ibc::_check_target_block_proof_of_inclusion(const block_proof_of_inclusion& proof, const std::optional<checksum256>& reference_root){
 
     //resolve the proof to its merkle root
     checksum256 finality_mroot = proof.root();
@@ -174,7 +174,7 @@ ACTION ibc::checkproof(const proof& proof){
 
 }
 
-ACTION ibc::testbitset(const std::string bitset_string, const std::vector<uint8_t> bitset_vector, const uint32_t finalizers_count){
+ACTION ibc::testbitset(const std::string& bitset_string, const std::vector<uint8_t>& bitset_vector, const uint32_t finalizers_count){
     savanna::bitset b(finalizers_count, bitset_vector);
 
     check(b.to_string() == bitset_string, "bitset mismatch");

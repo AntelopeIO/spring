@@ -72,7 +72,7 @@ namespace savanna {
    };
 
    //Compute the maximum number of layers of a merkle tree for a given number of leaves
-   uint64_t calculate_max_depth(uint64_t node_count) {
+   uint64_t calculate_max_depth(const uint64_t node_count) {
       if(node_count <= 1)
          return node_count;
       return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1)))); //instead of std::bit_ceil available in C++ 20 
@@ -82,7 +82,7 @@ namespace savanna {
       return __builtin_bswap32(input);
    }
 
-   checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
+   checksum256 hash_pair(const std::pair<checksum256, checksum256>& p){
       auto result = eosio::pack(p);
       return sha256(result.data(), result.size());
    }
@@ -95,7 +95,7 @@ namespace savanna {
    }
 
    //compute path for proof of inclusion
-   std::vector<bool> _get_proof_path(uint64_t leaf_index, const uint64_t leaf_count) {
+   std::vector<bool> _get_proof_path(const uint64_t leaf_index, const uint64_t leaf_count) {
        std::vector<bool> proof_path;
        uint64_t current_leaf_count = leaf_count;
        uint64_t current_index = leaf_index;
@@ -117,7 +117,7 @@ namespace savanna {
    }
 
    //compute the merkle root of target node and vector of merkle branches
-   checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
+   checksum256 _compute_root(const std::vector<checksum256>& proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
        check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
@@ -141,7 +141,7 @@ namespace savanna {
    }
    
    //verify that the quorum certificate over the finality digest is valid
-   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
+   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy){
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
       size_t finalizer_count = finalizer_policy.finalizers.size();
@@ -184,7 +184,7 @@ namespace savanna {
       check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
    }
 
-   checksum256 get_merkle_root(std::vector<checksum256> leaves) {
+   checksum256 get_merkle_root(const std::vector<checksum256>& leaves) {
       std::vector<std::vector<checksum256>> tree;
 
       tree.push_back(leaves);
@@ -295,7 +295,7 @@ namespace savanna {
    struct level_3_commitments_t : level_3_commitments_input {
       checksum256 base_digest;
 
-      level_3_commitments_t(const level_3_commitments_input& base, const checksum256 _base_digest) : 
+      level_3_commitments_t(const level_3_commitments_input& base, const checksum256& _base_digest) : 
          level_3_commitments_input(base), 
          base_digest(_base_digest){
       }
