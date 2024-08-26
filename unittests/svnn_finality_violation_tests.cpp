@@ -143,24 +143,15 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy,
 }
 
 
-bool shouldPass(const finality_proof::proof_test_cluster& chain, const account_name& rule, const mvo& proof){
+void shouldPass(const finality_proof::proof_test_cluster& chain, const account_name& rule, const mvo& proof){
 
-    try {
+    action_trace trace =  chain.node0.push_action("violation"_n, rule, "violation"_n, proof)->action_traces[0];
 
-        action_trace trace =  chain.node0.push_action("violation"_n, rule, "violation"_n, proof)->action_traces[0];
+    std::pair<std::string, std::string> blame = fc::raw::unpack<std::pair<std::string, std::string>>(trace.return_value);
 
-        std::pair<std::string, std::string> blame = fc::raw::unpack<std::pair<std::string, std::string>>(trace.return_value);
-
-        //finalizers 0 and 1 are guilty, while finalizer 2 and 3 are innocent, see bitset tests in svnn_ibc_tests
-        BOOST_TEST(blame.first == "30"); //0011 (reverse order)
-        BOOST_TEST(blame.second == "c0"); //1100 (reverse order)
-
-    }
-    catch (const eosio_assert_message_exception& e){
-        std::rethrow_exception(std::current_exception());
-    }
-
-    return true;
+    //finalizers 0 and 1 are guilty, while finalizer 2 and 3 are innocent, see bitset tests in svnn_ibc_tests
+    BOOST_TEST(blame.first == "30"); //0011 (reverse order)
+    BOOST_TEST(blame.second == "c0"); //1100 (reverse order)
 
 }
 
@@ -516,7 +507,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     get_finality_block_data(real_chain_block_7_result), 
                                                                     get_finality_block_data(real_chain_block_8_result).qc_data.qc.value());
 
-        BOOST_CHECK(shouldPass(real_chain, "rule1"_n, valid_rule_1_proof));
+        shouldPass(real_chain, "rule1"_n, valid_rule_1_proof);
 
         //we temporarily disable a finalizer on the fake chain, which allow us to set up a proof of violation of rule #2
         fake_chain.vote_propagation = {1,0,0};
@@ -623,7 +614,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
                                                                     block_14_reversible_blocks_digests);
 
-        BOOST_CHECK(shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2));
+        shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2);
 
         //Fake chain resume production, catches up with real chain
         auto fake_chain_block_15_result = light_client_data.scan_block(fake_chain.produce_block());
@@ -681,7 +672,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
                                                                     block_19_reversible_blocks_digests);
 
-        BOOST_CHECK(shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1));
+        shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1);
 
         //Resume production on fake chain
         auto fake_chain_block_20_result = light_client_data.scan_block(fake_chain.produce_block());
@@ -750,7 +741,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     get_finality_block_data(real_chain_block_24_result).qc_data.qc.value(), 
                                                                     block_24_reversible_blocks_digests);
 
-        BOOST_CHECK(shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_2));
+        shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_2);
 
 
     } FC_LOG_AND_RETHROW() }
