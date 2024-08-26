@@ -87,9 +87,13 @@ namespace savanna_cluster {
    private:
       size_t                                          _node_idx;
       bool                                            _pushing_a_block{false};
-      bool                                            _propagate_votes{true};
+      bool                                            _propagate_votes{true}; // if false, votes are dropped
       vote_t                                          _last_vote;
       std::vector<account_name>                       _node_finalizers;
+
+      size_t                                          _vote_delay{0};         // delay vote propagation by this much
+      std::vector<vote_message_ptr>                   _delayed_votes;
+
       std::function<void(const block_signal_params&)> _accepted_block_cb;
       std::function<void(const vote_signal_params&)>  _voted_block_cb;
 
@@ -101,6 +105,8 @@ namespace savanna_cluster {
       node_t(node_t&&) = default;
 
       bool& propagate_votes() { return _propagate_votes; }
+
+      size_t& vote_delay() { return _vote_delay; }
 
       const vote_t& last_vote() const { return _last_vote; }
 

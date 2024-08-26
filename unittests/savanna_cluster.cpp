@@ -18,8 +18,18 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       if (status == vote_result_t::success) {
          vote_message_ptr vote_msg = std::get<2>(v);
          _last_vote = vote_t(vote_msg);
-         if (_propagate_votes)
-            cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote_msg);
+
+         if (_propagate_votes) {
+            if (_vote_delay)
+               _delayed_votes.push_back(std::move(vote_msg));
+            while (_delayed_votes.size() > _vote_delay) {
+               vote_message_ptr vote = _delayed_votes.front();
+               _delayed_votes.erase(_delayed_votes.cbegin());
+               cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote);
+            }
+            if (!_vote_delay)
+               cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote_msg);
+         }
       }
    };
 
