@@ -164,6 +164,75 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
 //
 // This testcase fails prior to https://github.com/AntelopeIO/spring/issues/621 being fixed.
 // -----------------------------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------------------------------
+                                 testcase
+                                 --------
+Time:        t1      t2      t3      t4      t5      t6      t7      t8
+Blocks:
+     B0 <--- B1 <--- B2 <-|- B3
+                          |
+                          \--------- B4 <--- B5 <--- B6 <--- B7 <--- B8
+QC claim:
+           Strong  Strong  Strong  Strong  Strong   Weak    Weak   Strong
+             B0      B1      B2      B2      B2      B4      B5      B6
+
+Vote:      Strong  Strong  Strong   Weak    Weak   Strong  Strong  Strong
+
+
+
+In the above example, things are moving along normally until time t4 when a microfork occurs.
+Instead of building block B4 off of block B3, the producer builds block B4 off of block B2.
+And then going forward, for some reason, it takes slightly longer for votes to propagate that a
+QC on a block cannot be formed in time to be included in the very next block; instead the QC goes
+in the block after.
+
+The finalizer of interest is voting on all of the blocks as they come. For this example, it is
+sufficient to only have one finalizer. The first time the finalizer is forced to vote weak is on
+block B4. As the other blocks continue to build on that new branch, it votes on them appropriately
+and the producer collects the vote and forms a QC as soon as it can, which always remains one block
+late. The finalizer should begin voting strong again starting with block B6. However, prior to the
+changes described in this issue, the finalizer would remain stuck voting weak indefinitely.
+
+The expected state of the fsi record for the finalizer after each vote is provided below. It also
+records what the new LIB should be after processing the block. In addition to checking that the blocks
+have the claims as required above and the LIB as noted below, the test should also check that the fsi
+record after each vote is as expected below.
+
+Finalizer fsi after voting strong on block B2 (LIB B0):
+last_vote: B2
+lock:      B1
+other_branch_latest_time: empty
+
+Finalizer fsi after voting strong on block B3 (LIB B1):
+last_vote: B3
+lock:      B2
+other_branch_latest_time: empty
+
+Finalizer fsi after voting weak on block B4 (LIB B1):
+last_vote: B4
+lock:      B2
+other_branch_latest_time: t3
+
+Finalizer fsi after voting weak on block B5 (LIB B1):
+last_vote: B5
+lock:      B2
+other_branch_latest_time: t3
+
+Finalizer fsi after voting strong on block B6 (LIB B1):
+last_vote: B6
+lock:      B4
+other_branch_latest_time: empty
+
+Finalizer fsi after voting strong on block B7 (LIB B1):
+last_vote: B7
+lock:      B5
+other_branch_latest_time: empty
+
+Finalizer fsi after voting strong on block B8 (LIB B4):
+last_vote: B8
+lock:      B6
+other_branch_latest_time: empty
+--------------------------------------------------------------------------------------------------------- */
 BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
 #if 0
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
