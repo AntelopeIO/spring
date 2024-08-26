@@ -204,7 +204,7 @@ namespace finality_proof {
 
          signed_block_ptr block = result.block;
 
-         //BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
+         BOOST_REQUIRE(result.onblock_trace->action_traces.size()>0);
 
          action_trace onblock_trace = result.onblock_trace->action_traces[0];
 
