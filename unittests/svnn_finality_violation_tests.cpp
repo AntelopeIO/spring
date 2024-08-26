@@ -337,17 +337,27 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
                 if (block_result.qc_data.qc.has_value()) {
 
-                    auto high_qc_block_itr = std::find_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto& r) {
-                        return r.block_num == block_result.qc_data.qc.value().to_qc_claim().block_num;
-                    });
+                    auto high_qc_block_itr = std::lower_bound(
+                        reversible_blocks.begin(), 
+                        reversible_blocks.end(), 
+                        block_result.qc_data.qc.value().to_qc_claim().block_num, 
+                        [](const auto& r, const auto& block_num) {
+                            return r.block_num < block_num;
+                        }
+                    );
 
                     if ( high_qc_block_itr != reversible_blocks.end()
                          && high_qc_block_itr->qc_data.qc.has_value()) {
 
-                        auto last_final_block_itr = std::find_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto& r) {
-                            return r.block_num == high_qc_block_itr->qc_data.qc.value().to_qc_claim().block_num;
-                        });
-
+                        auto last_final_block_itr = std::lower_bound(
+                            reversible_blocks.begin(), 
+                            reversible_blocks.end(), 
+                            high_qc_block_itr->qc_data.qc.value().to_qc_claim().block_num, 
+                            [](const auto& r, const auto& block_num) {
+                                return r.block_num < block_num;
+                            }
+                        );
+                        
                         if ( last_final_block_itr !=  reversible_blocks.end()
                              && block_result.qc_data.qc.value().to_qc_claim().is_strong_qc) {
 
