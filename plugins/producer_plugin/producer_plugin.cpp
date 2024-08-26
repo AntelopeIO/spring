@@ -494,14 +494,19 @@ public:
    using signature_provider_type = signature_provider_plugin::signature_provider_type;
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
-   std::set<bls_public_key>                          _finalizers;
    std::set<chain::account_name>                     _producers;
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
    pending_block_mode                                _pending_block_mode = pending_block_mode::speculating;
    unapplied_transaction_queue                       _unapplied_transactions;
+   alignas(hardware_destructive_interference_sz)
    std::atomic<int32_t>                              _max_transaction_time_ms; // modified by app thread, read by net_plugin thread pool
+   alignas(hardware_destructive_interference_sz)
    std::atomic<uint32_t>                             _received_block{0};       // modified by net_plugin thread pool
+   alignas(hardware_destructive_interference_sz)
+   std::atomic<fc::time_point>                       _last_other_vote_received;
+   std::atomic<fc::time_point>                       _last_producer_vote_received;
+   fc::microseconds                                  _production_pause_vote_timeout;
    fc::microseconds                                  _max_irreversible_block_age_us;
    // produce-block-offset is in terms of the complete round, internally use calculated value for each block of round
    fc::microseconds                                  _produce_block_cpu_effort;
@@ -511,6 +516,11 @@ public:
    bool                                              _disable_subjective_p2p_billing              = true;
    bool                                              _disable_subjective_api_billing              = true;
    fc::time_point                                    _irreversible_block_time;
+   fc::time_point                                    _accepted_block_time;
+   bool                                              _is_savanna_active                           = false;
+   bool                                              _is_producer_active_finalizer                = false;
+   // are there any active finalizers that are not part of producers of this node (not expected to be false outside tests)
+   bool                                              _other_active_finalizers                     = false;
 
    std::vector<chain::digest_type> _protocol_features_to_activate;
    bool                            _protocol_features_signaled = false; // to mark whether it has been signaled in start_block
@@ -529,6 +539,8 @@ public:
    std::optional<scoped_connection> _accepted_block_header_connection;
    std::optional<scoped_connection> _irreversible_block_connection;
    std::optional<scoped_connection> _block_start_connection;
+   std::optional<scoped_connection> _vote_block_connection;
+   std::optional<scoped_connection> _aggregate_vote_connection;
 
    /*
     * HACK ALERT
@@ -551,7 +563,6 @@ public:
    std::function<void(producer_plugin::produced_block_metrics)> _update_produced_block_metrics;
    std::function<void(producer_plugin::speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(producer_plugin::incoming_block_metrics)> _update_incoming_block_metrics;
-   std::function<void(producer_plugin::vote_block_metrics&&)> _update_vote_block_metrics;
 
    // ro for read-only
    struct ro_trx_t {
@@ -600,6 +611,7 @@ public:
    fc::microseconds                  _ro_read_window_time_us{60000};
    static constexpr fc::microseconds _ro_read_window_minimum_time_us{10000};
    fc::microseconds                  _ro_read_window_effective_time_us{0}; // calculated during option initialization
+   alignas(hardware_destructive_interference_sz)
    std::atomic<int64_t>              _ro_all_threads_exec_time_us; // total time spent by all threads executing transactions.
                                                                    // use atomic for simplicity and performance
    fc::time_point                 _ro_read_window_start_time;
@@ -607,6 +619,7 @@ public:
    boost::asio::deadline_timer    _ro_timer;              // only accessible from the main thread
    fc::microseconds               _ro_max_trx_time_us{0}; // calculated during option initialization
    ro_trx_queue_t                 _ro_exhausted_trx_queue;
+   alignas(hardware_destructive_interference_sz)
    std::atomic<uint32_t>          _ro_num_active_exec_tasks{0};
    std::vector<std::future<bool>> _ro_exec_tasks_fut;
 
@@ -628,63 +641,45 @@ public:
                                ((_produce_block_cpu_effort.count() / 1000) * config::producer_repetitions) );
    }
 
-   void log_missing_votes(const signed_block_ptr& block, const block_id_type& id,
-                          const qc_vote_metrics_t::fin_auth_set_t& missing_votes) {
-      if (vote_logger.is_enabled(fc::log_level::info)) {
-         auto now = fc::time_point::now();
-         if (now - block->timestamp < fc::minutes(5) || (block->block_num() % 1000 == 0)) {
-            std::string not_voted;
-            for (const auto& f : missing_votes) {
-               if (_finalizers.contains(f->public_key)) {
-                  fc_wlog(vote_logger, "Local finalizer ${f} did not vote on block ${n} : ${id}",
-                          ("f", f->description)("n", block->block_num())("id", id.str().substr(8,16)));
-               }
-               not_voted += f->description;
-               not_voted += ',';
+   void update_active_finalizers() {
+      if (!_is_savanna_active || _producers.empty())
+         return;
+
+      auto& chain  = chain_plug->chain();
+      finalizer_policy_ptr fin_policy = chain.head_active_finalizer_policy();
+      assert(fin_policy);
+      _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+         return _producers.contains(to_account_name_safe(f.description));
+      });
+      _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+         return !_producers.contains(to_account_name_safe(f.description));
+      });
+      if (!_is_producer_active_finalizer || !_other_active_finalizers) {
+         if (fin_policy = chain.head_pending_finalizer_policy(); fin_policy) {
+            if (!_is_producer_active_finalizer) {
+               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                  return _producers.contains(to_account_name_safe(f.description));
+               });
             }
-            if (!not_voted.empty()) {
-               not_voted.resize(not_voted.size() - 1); // remove ','
-               fc_ilog(vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes from finalizers: ${v}",
-                    ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                    ("l", (now - block->timestamp).count() / 1000)("v", not_voted));
+            if (!_other_active_finalizers) {
+               _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+                  return !_producers.contains(to_account_name_safe(f.description));
+               });
             }
          }
       }
-   }
-
-   void update_vote_block_metrics(block_num_type block_num, const qc_vote_metrics_t& vm) {
-      producer_plugin::vote_block_metrics m;
-      m.block_num = block_num;
-      m.strong_votes.resize(vm.strong_votes.size());
-      m.weak_votes.resize(vm.weak_votes.size());
-      m.no_votes.resize(vm.missing_votes.size());
-
-      std::ranges::transform(vm.strong_votes, m.strong_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.weak_votes, m.weak_votes.begin(), [](const auto& f) { return f->description; });
-      std::ranges::transform(vm.missing_votes, m.no_votes.begin(), [](const auto& f) { return f->description; });
-      _update_vote_block_metrics(std::move(m));
    }
 
    void on_block(const signed_block_ptr& block, const block_id_type& id) {
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
       _unapplied_transactions.clear_applied(block);
-      chain.get_mutable_subjective_billing().on_block(_log, block, fc::time_point::now());
+      auto now = fc::time_point::now();
+      chain.get_mutable_subjective_billing().on_block(_log, block, now);
+      _accepted_block_time = now;
+      update_active_finalizers();
       if (before > 0) {
          fc_dlog(_log, "Removed applied transactions before: ${before}, after: ${after}", ("before", before)("after", _unapplied_transactions.size()));
-      }
-      if (vote_logger.is_enabled(fc::log_level::info) || _update_vote_block_metrics) {
-         if (block->contains_extension(quorum_certificate_extension::extension_id())) {
-            const auto& qc_ext = block->extract_extension<quorum_certificate_extension>();
-            if (_update_vote_block_metrics) {
-               qc_vote_metrics_t vm = chain.vote_metrics(id, qc_ext.qc);
-               log_missing_votes(block, id, vm.missing_votes);
-               update_vote_block_metrics(block->block_num(), vm);
-            } else {
-               auto missing = chain.missing_votes(id, qc_ext.qc);
-               log_missing_votes(block, id, missing);
-            }
-         }
       }
    }
 
@@ -700,6 +695,82 @@ public:
       EOS_ASSERT(chain.is_write_window(), producer_exception, "write window is expected for on_irreversible_block signal");
       _irreversible_block_time = lib->timestamp.to_time_point();
       _snapshot_scheduler.on_irreversible_block(lib, chain);
+      if (!_is_savanna_active) {
+         _is_savanna_active = lib->is_proper_svnn_block();
+         auto now = fc::time_point::now();
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
+         _last_producer_vote_received.store(now, std::memory_order_relaxed);
+      }
+   }
+
+   // does not validate n is a valid account_name
+   // Used for lookup of producer name, if n is not a valid producer name then the conversion will create an
+   // account_name that doesn't match.
+   static account_name to_account_name_safe(const std::string& n) {
+      // quick conversion without full checks
+      if (n.size() > 12)
+         return {}; // producer names (account_name) are limited to 12 chars, tables and other names can be 13
+      return eosio::chain::string_to_name(n); // n with invalid chars are encoded as 0 without throwing exception
+   }
+
+   // called from multiple threads
+   void on_vote(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
+                const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
+      switch( status ) {
+      case vote_result_t::success:
+      case vote_result_t::duplicate:
+         break;
+      case vote_result_t::unknown_public_key:
+      case vote_result_t::invalid_signature:
+      case vote_result_t::max_exceeded:
+      case vote_result_t::unknown_block:
+         return;
+      default:
+         assert(false); // should never happen
+      }
+
+      if (!active_auth && !pending_auth) {
+         elog("vote signal contains no valid authority ${m}", ("m", msg));
+         return;
+      }
+
+      auto now = fc::time_point::now();
+      account_name auth_desc = active_auth ? to_account_name_safe(active_auth->description)
+                                           : to_account_name_safe(pending_auth->description);
+      if (auth_desc.empty()) {
+         ilog("Finalizer authority description is not a valid producer name ${d}",
+              ("d", active_auth ? active_auth->description : pending_auth->description));
+         // running with core contract that does not associate finalizer_authority->description with a producer
+         // reset times otherwise the producer would pause
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
+         _last_producer_vote_received.store(now, std::memory_order_relaxed);
+         return;
+      }
+
+      if (_producers.contains(auth_desc)) { // _producers not modified, thread safe
+         _last_producer_vote_received.store(now, std::memory_order_relaxed);
+      } else {
+         _last_other_vote_received.store(now, std::memory_order_relaxed);
+      }
+   }
+
+   // true if paused due to not receiving votes
+   bool is_implicitly_paused() const {
+      if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
+         return false;
+      if (!_is_savanna_active)
+         return false; // no implicit pause in legacy
+      if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
+         return false;
+
+      auto last_producer_vote_received = _last_producer_vote_received.load(std::memory_order_relaxed);
+      auto last_other_vote_received    = _last_other_vote_received.load(std::memory_order_relaxed);
+
+      // need a vote within timeout of last accepted block
+      return (_is_producer_active_finalizer &&
+              _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout)
+          || (_other_active_finalizers &&
+              _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout);
    }
 
    void abort_block() {
@@ -1016,6 +1087,11 @@ public:
 
    void resume() {
       _pause_production = false;
+      // reset vote received so production can be explicitly resumed, will pause again when received vote time limit hit again
+      auto now = fc::time_point::now();
+      _last_other_vote_received.store(now, std::memory_order_relaxed);
+      _last_producer_vote_received.store(now, std::memory_order_relaxed);
+
       // it is possible that we are only speculating because of this policy which we have now changed
       // re-evaluate that now
       //
@@ -1085,7 +1161,10 @@ void producer_plugin::set_program_options(
    producer_options.add_options()
       ("enable-stale-production,e", boost::program_options::bool_switch()->notifier([this](bool e){my->_production_enabled = e;}),
        "Enable block production, even if the chain is stale.")
-         ("pause-on-startup,x", boost::program_options::bool_switch()->notifier([this](bool p){my->_pause_production = p;}), "Start this node in a state where production is paused")
+         ("pause-on-startup,x", boost::program_options::bool_switch()->notifier([this](bool p){my->_pause_production = p;}),
+          "Start this node in a state where production is paused")
+         ("production-pause-vote-timeout-ms", bpo::value<uint32_t>()->default_value(config::default_production_pause_vote_timeout_ms),
+          "Received vote timeout. If no vote from producer-name finalizers or other finalizers then pauses block production. 0 disables.")
          ("max-transaction-time", bpo::value<int32_t>()->default_value(config::block_interval_ms-1),
           "Setting this value (in milliseconds) will restrict the allowed transaction execution time to a value potentially lower than the on-chain consensus max_transaction_cpu_usage value.")
          ("max-irreversible-block-age", bpo::value<int32_t>()->default_value( -1 ),
@@ -1181,7 +1260,6 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
             if (bls) {
                const auto& [pubkey, privkey] = *bls;
                _finalizer_keys[pubkey.to_string()] = privkey.to_string();
-               _finalizers.insert(pubkey);
             }
          } catch(secure_enclave_exception& e) {
             elog("Error with Secure Enclave signature provider: ${e}; ignoring ${val}", ("e", e.top_message())("val", key_spec_pair));
@@ -1223,6 +1301,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
               "subjective-account-decay-time-minutes ${dt} must be greater than 0",
               ("dt", subjective_account_decay_time.to_seconds() / 60));
    chain.get_mutable_subjective_billing().set_expired_accumulator_average_window(subjective_account_decay_time);
+
+   _production_pause_vote_timeout = fc::microseconds(options.at("production-pause-vote-timeout-ms").as<uint32_t>() * 1000u);
 
    _max_transaction_time_ms = options.at("max-transaction-time").as<int32_t>();
 
@@ -1415,6 +1495,17 @@ void producer_plugin_impl::plugin_startup() {
             }
          }));
 
+         if (!_producers.empty()) { // track votes if producer to verify votes are being processed
+            auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
+               try {
+                  const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
+                  on_vote(connection_id, status, msg, active_auth, pending_auth);
+               } LOG_AND_DROP()
+            };
+            _aggregate_vote_connection.emplace(chain.aggregated_vote().connect(on_vote_signal));
+            _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
+         }
+
          const auto lib_num = chain.last_irreversible_block_num();
          const auto lib     = chain.fetch_block_by_number(lib_num);
          if (lib) {
@@ -1502,7 +1593,7 @@ void producer_plugin::resume() {
 }
 
 bool producer_plugin::paused() const {
-   return my->_pause_production;
+   return my->_pause_production || my->is_implicitly_paused();
 }
 
 void producer_plugin_impl::update_runtime_options(const producer_plugin::runtime_options& options) {
@@ -1608,6 +1699,9 @@ producer_plugin::schedule_snapshot(const chain::snapshot_scheduler::snapshot_req
       .end_block_num   = srp.end_block_num ? *srp.end_block_num : std::numeric_limits<uint32_t>::max(),
       .snapshot_description = srp.snapshot_description ? *srp.snapshot_description : ""
    };
+   //treat a 0 end_block_num as max for compatibility with leap4 behavior
+   if(sri.end_block_num == 0)
+      sri.end_block_num = std::numeric_limits<uint32_t>::max();
 
    return my->_snapshot_scheduler.schedule_snapshot(sri);
 }
@@ -1830,14 +1924,13 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-   uint32_t head_block_num = chain.head().block_num();
 
-   if (chain.get_terminate_at_block() > 0 && chain.get_terminate_at_block() <= head_block_num) {
-      ilog("Block ${n} reached configured maximum block ${num}; terminating", ("n",head_block_num)("num", chain.get_terminate_at_block()));
+   if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
 
+   block_num_type             head_block_num    = chain.head().block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1845,7 +1938,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    _pending_block_mode = pending_block_mode::producing;
 
    // copy as reference is invalidated by abort_block() below
-   const producer_authority scheduled_producer = chain.active_producers().get_scheduled_producer(block_time);
+   const producer_authority scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
 
    size_t num_relevant_signatures = 0;
    scheduled_producer.for_each_key([&](const public_key_type& key) {
@@ -1857,6 +1950,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    auto irreversible_block_age = get_irreversible_block_age();
 
+   bool not_producing_when_time = false;
    // If the next block production opportunity is in the present or future, we're synced.
    if (!_production_enabled) {
       _pending_block_mode = pending_block_mode::speculating;
@@ -1866,13 +1960,34 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
               ("authority", scheduled_producer.authority));
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    } else if (_pause_production) {
       fc_wlog(_log, "Not producing block because production is explicitly paused");
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
       fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
               ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
       _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
+   } else if (is_implicitly_paused()) {
+      fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
+              ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
+              ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
+      _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
+   }
+
+   // !not_producing_when_time to avoid tight spin because of error or paused production
+   if (in_speculating_mode() && !not_producing_when_time) {
+      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
+      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
+      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
+         auto head_block_age = now - chain.head().block_time();
+         if (head_block_age > fc::seconds(5))
+            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
+      }
+      last_start_block_time = now;
    }
 
    if (in_producing_mode()) {
@@ -1893,17 +2008,6 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       }
    }
 
-   if (in_speculating_mode()) {
-      static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
-      // Determine if we are syncing: if we have recently started an old block then assume we are syncing
-      if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
-            return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
-      }
-      last_start_block_time = now;
-   }
-
    if (in_producing_mode()) {
       uint32_t production_round_index = block_timestamp_type(block_time).slot % chain::config::producer_repetitions;
       if (production_round_index == 0) {
@@ -1917,18 +2021,22 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       }
    }
 
-   // create speculative blocks at regular intervals, so we create blocks with "current" block time
+   // Calculate block deadline for both produced blocks and speculative blocks. Even though speculative blocks are
+   // ephemeral, re-start them at block intervals so that speculative transactions execute with current block times.
    _pending_block_deadline = block_timing_util::calculate_producing_block_deadline(_produce_block_cpu_effort, block_time);
    if (in_speculating_mode()) { // if we are producing, then produce block even if deadline has passed
-      // speculative block, no reason to start a block that will immediately be re-started, set deadline in the future
-      // a block should come in during this time, if not then just keep creating the block every produce_block_cpu_effort
-      if (now + fc::milliseconds(config::block_interval_ms/10) > _pending_block_deadline) {
-         _pending_block_deadline = now + _produce_block_cpu_effort;
+      // For a speculative block there is no reason to start a block that will immediately be re-started.
+      // Normally a block should come in during this time; if not, create a speculative block every block_interval_ms.
+      // Ideally, we would abort a transaction as soon as a block is received. For now, this block deadline allows for a
+      // full block interval to attempt to fit in transactions.
+      if (now + fc::milliseconds(config::block_interval_ms) > _pending_block_deadline) {
+         _pending_block_deadline = now + fc::milliseconds(config::block_interval_ms);
       }
    }
    const auto& preprocess_deadline = _pending_block_deadline;
 
-   fc_dlog(_log, "Starting block #${n} at ${time} producer ${p}", ("n", pending_block_num)("time", now)("p", scheduled_producer.producer_name));
+   fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}, deadline ${d}",
+           ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name)("d", _pending_block_deadline));
 
    try {
 
@@ -2649,6 +2757,13 @@ bool producer_plugin_impl::maybe_produce_block() {
 
    fc_dlog(_log, "Aborting block due to produce_block error");
    abort_block();
+   reschedule.cancel();
+
+   // block failed to produce, wait until the next block to try again
+   block_timestamp_type block_time = calculate_pending_block_time();
+   fc_dlog(_log, "Not starting block until ${bt}", ("bt", block_time));
+   schedule_delayed_production_loop(weak_from_this(), block_time);
+
    return false;
 }
 
@@ -2712,7 +2827,7 @@ void producer_plugin_impl::produce_block() {
    br.total_time += fc::time_point::now() - start;
    chain.commit_block(br);
 
-   const auto& new_b = chain.head().block();
+   const signed_block_ptr new_b = chain.head().block();
    if (_update_produced_block_metrics) {
       producer_plugin::produced_block_metrics metrics;
       metrics.unapplied_transactions_total = _unapplied_transactions.size();
@@ -2958,10 +3073,6 @@ void producer_plugin::register_update_speculative_block_metrics(std::function<vo
 
 void producer_plugin::register_update_incoming_block_metrics(std::function<void(producer_plugin::incoming_block_metrics)>&& fun) {
    my->_update_incoming_block_metrics = std::move(fun);
-}
-
-void producer_plugin::register_update_vote_block_metrics(std::function<void(producer_plugin::vote_block_metrics&&)>&& fun) {
-   my->_update_vote_block_metrics = std::move(fun);
 }
 
 } // namespace eosio

@@ -177,7 +177,7 @@ namespace eosio { namespace chain {
       using value_type = std::array<uint128_t, N>;
 
       static value_type true_lowest() {
-         value_type arr;
+         value_type arr = {};
          return arr;
       }
 
@@ -311,6 +311,14 @@ namespace detail {
             });
       }
    };
+
+   //the typenames for these can be different across stdlibs due to the template parameters
+#define SNAPSHOT_SECONDARY_SECTION_NAME(N) template<> struct snapshot_section_traits<N> { static std::string section_name() {return #N ;} };
+   SNAPSHOT_SECONDARY_SECTION_NAME(eosio::chain::index64_object)
+   SNAPSHOT_SECONDARY_SECTION_NAME(eosio::chain::index128_object)
+   SNAPSHOT_SECONDARY_SECTION_NAME(eosio::chain::index256_object)
+   SNAPSHOT_SECONDARY_SECTION_NAME(eosio::chain::index_double_object)
+   SNAPSHOT_SECONDARY_SECTION_NAME(eosio::chain::index_long_double_object)
 }
 
 } }  // namespace eosio::chain

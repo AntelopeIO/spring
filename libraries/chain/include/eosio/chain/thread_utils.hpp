@@ -3,6 +3,7 @@
 #include <eosio/chain/name.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/log/logger_config.hpp>
+#include <fc/scoped_exit.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <future>
@@ -12,15 +13,17 @@
 
 namespace eosio { namespace chain {
 
-   // should be defined for c++17, but clang++16 still has not implemented it
-#ifdef __cpp_lib_hardware_interference_size
-   using std::hardware_constructive_interference_size;
-   using std::hardware_destructive_interference_size;
-#else
+   // Avoid GCC warning:
+   // libraries/chain/include/eosio/chain/thread_utils.hpp:28:15: warning: use of ‘std::hardware_destructive_interference_size’ [-Winterference-size]
+   //   28 |       alignas(hardware_destructive_interference_size)
+   //      |               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   // thread_utils.hpp:28:15: note: its value can vary between compiler versions or with different ‘-mtune’ or ‘-mcpu’ flags
+   // thread_utils.hpp:28:15: note: if this use is part of a public ABI, change it to instead use a constant variable you define
+   // thread_utils.hpp:28:15: note: the default value for the current CPU tuning is 64 bytes
+   // thread_utils.hpp:28:15: note: you can stabilize this value with ‘--param hardware_destructive_interference_size=64’, or disable this warning with ‘-Wno-interference-size’
+   //
    // 64 bytes on x86-64 │ L1_CACHE_BYTES │ L1_CACHE_SHIFT │ __cacheline_aligned │ ...
-   [[maybe_unused]] constexpr std::size_t hardware_constructive_interference_size = 64;
-   [[maybe_unused]] constexpr std::size_t hardware_destructive_interference_size  = 64;
-#endif
+   constexpr std::size_t hardware_destructive_interference_sz = 64;
 
    // Use instead of std::atomic when std::atomic does not support type
    template <typename T>
@@ -78,6 +81,16 @@ namespace eosio { namespace chain {
          return ds;
       }
    };
+
+   inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
+      std::string tn = boost::core::demangle(tinfo.name());
+      const size_t offset = tn.rfind("::");
+      if(offset != std::string::npos)
+         tn.erase(0, offset+2);
+      tn = tn.substr(0, tn.find('>')) + "-" + std::to_string(i);
+      fc::set_thread_name(tn);
+      return tn;
+   }
 
    /**
     * Wrapper class for thread pool of boost asio io_context run.
@@ -171,12 +184,7 @@ namespace eosio { namespace chain {
 
          try {
             try {
-               tn = boost::core::demangle(typeid(this).name());
-               auto offset = tn.rfind("::");
-               if (offset != std::string::npos)
-                  tn.erase(0, offset+2);
-               tn = tn.substr(0, tn.find('>')) + "-" + std::to_string( i );
-               fc::set_thread_name( tn );
+               tn = set_current_thread_name_to_typename( typeid(this), i );
                if ( init )
                   init();
             } FC_LOG_AND_RETHROW()
@@ -227,6 +235,55 @@ namespace eosio { namespace chain {
       std::optional<ioc_work_t>      _ioc_work;
    };
 
+   /// Submit work to be done in a thread pool, and then wait for that work to complete (or until a thread throws an exception
+   /// which will be rethrown on the thread waiting for completion)
+   template<typename NamePrefixTag>
+   struct sync_threaded_work {
+      boost::asio::io_context& io_context() {
+         return ctx;
+      }
+
+      void run(const unsigned num_threads) {
+         run(num_threads, std::chrono::years::max(), [](){});
+      }
+
+      /// ping will be called every ping_interval while waiting for all work to complete. This time isn't precise, but
+      /// good enough for a log or similar.
+      template<typename Rep, typename Period, typename F>
+      void run(const unsigned num_threads, const std::chrono::duration<Rep, Period>& ping_interval, F&& ping) {
+         std::vector<std::promise<void>> thread_promises(num_threads);
+         std::list<std::thread> threads;
+
+         //this scoped_exit can go away with jthread; but still marked experimental in libc++18
+         auto join = fc::make_scoped_exit([&threads]() {
+            for(std::thread& t : threads)
+               t.join();
+         });
+
+         for(unsigned i = 0; i < num_threads; ++i)
+            threads.emplace_back([this, i, &prom = thread_promises[i]] {
+               try {
+                  set_current_thread_name_to_typename(typeid(this), i);
+                  ctx.run();
+                  prom.set_value();
+               }
+               catch(...) {
+                  ctx.stop();
+                  prom.set_exception(std::current_exception());
+               }
+            });
+
+         for(std::promise<void>& p : thread_promises) {
+            std::future<void> f = p.get_future();
+            while(f.wait_for(ping_interval) != std::future_status::ready)
+               ping();
+            f.get();
+         }
+      }
+
+   private:
+      boost::asio::io_context ctx;
+   };
 
    // async on io_context and return future
    template<typename F>

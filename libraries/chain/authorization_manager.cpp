@@ -93,24 +93,18 @@ namespace eosio { namespace chain {
       };
    }
 
-   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-      authorization_index_set::walk_indices([this, &snapshot]( auto utils ){
-         using section_t = typename decltype(utils)::index_t::value_type;
-
-         // skip the permission_usage_index as its inlined with permission_index
-         if (std::is_same<section_t, permission_usage_object>::value) {
+   size_t authorization_manager::expected_snapshot_row_count() const {
+      size_t ret = 0;
+      authorization_index_set::walk_indices([this, &ret]( auto utils ) {
+         using index_t = typename decltype(utils)::index_t;
+         if(std::is_same_v<typename index_t::value_type, permission_usage_object>)
             return;
-         }
-
-         snapshot->write_section<section_t>([this]( auto& section ){
-            decltype(utils)::walk(_db, [this, &section]( const auto &row ) {
-               section.add_row(row, _db);
-            });
-         });
+         ret += _db.get_index<index_t>().size();
       });
+      return ret;
    }
 
-   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
+   void authorization_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
       authorization_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
          using section_t = typename decltype(utils)::index_t::value_type;
 
@@ -119,13 +113,31 @@ namespace eosio { namespace chain {
             return;
          }
 
-         snapshot->read_section<section_t>([this, &row_counter]( auto& section ) {
+         snapshot->write_section<section_t>([this, &row_counter]( auto& section ){
+            decltype(utils)::walk(_db, [this, &section, &row_counter]( const auto &row ) {
+               section.add_row(row, _db);
+               row_counter.progress();
+            });
+         });
+      });
+   }
+
+   void authorization_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+      authorization_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ){
+         using section_t = typename decltype(utils)::index_t::value_type;
+
+         // skip the permission_usage_index as its inlined with permission_index
+         if (std::is_same<section_t, permission_usage_object>::value) {
+            return;
+         }
+
+         snapshot->read_section<section_t>([this, &read_row_count]( auto& section ) {
             bool more = !section.empty();
             while(more) {
                decltype(utils)::create(_db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, _db);
                });
-               row_counter.progress();
+               read_row_count.fetch_add(1u, std::memory_order_relaxed);
             }
          });
       });

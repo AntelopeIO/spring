@@ -16,7 +16,7 @@ set( CXX_STANDARD_REQUIRED ON)
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 0)
 set(VERSION_PATCH 0)
-set(VERSION_SUFFIX dev)
+set(VERSION_SUFFIX rc2)
 
 if(VERSION_SUFFIX)
     set(VERSION_FULL "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}-${VERSION_SUFFIX}")
@@ -178,6 +178,10 @@ set(CMAKE_DISABLE_FIND_PACKAGE_OpenSSL On)
 # many tests require handling of signals themselves and even when they don't we'd like for them to generate a core dump, this
 # is effectively --catch_system_errors=no broadly across all tests
 add_compile_definitions(BOOST_TEST_DEFAULTS_TO_CORE_DUMP)
+
+# Unless this is set, some boost unordered headers include `arm_neon.h` when building on ARM processors,
+# which includes a definition for `float16_t` conflicting with the one in `libraries/softfloat`.
+add_compile_definitions(BOOST_UNORDERED_DISABLE_NEON)
 
 add_subdirectory( libraries )
 add_subdirectory( plugins )

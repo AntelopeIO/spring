@@ -4,13 +4,16 @@
 #include <eosio/testing/tester.hpp>
 #include <eosio/testing/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <test-data.hpp>
 
 using namespace eosio;
 using namespace eosio::chain;
 using namespace eosio::testing;
+using namespace std::string_literals;
 
 using tstamp  = block_timestamp_type;
 using fsi_t   = finalizer_safety_information;
+using fsi_map = my_finalizers_t::fsi_map;
 
 struct bls_keys_t {
    bls_private_key privkey;
@@ -25,14 +28,27 @@ struct bls_keys_t {
    }
 };
 
+// -------------------------------------------------------------------------------------
+//                       **DO NOT MODIFY**
+//                       -----------------
+// Do not modify the existing data provided by this function (additions are OK) because
+// it was used for generating the reference files in `test-data/fsi`, and is used
+// to generate the new file used in the test `finalizer_safety_file_versioning`
+// -------------------------------------------------------------------------------------
 template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
    res.reserve(count);
-   for (size_t i=0; i<count; ++i) {
-      res.push_back(FSI{tstamp(i),
-                        block_ref{sha256::hash((const char *)"vote"), tstamp(i*100 + 3)},
-                        block_ref{sha256::hash((const char *)"lock"), tstamp(i*100)} });
+   for (size_t i = 0; i < count; ++i) {
+      res.push_back(FSI{
+         .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
+                                            tstamp(i * 100 + 3),
+                                            sha256::hash("vote_digest"s + std::to_string(i))},
+         .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
+                                            tstamp(i * 100),
+                                            sha256::hash("lock_digest"s + std::to_string(i))},
+         .votes_forked_since_latest_strong_vote = false
+      });
       if (i)
          assert(res.back() != res[0]);
    }
@@ -45,7 +61,8 @@ std::vector<block_ref> create_proposal_refs(size_t count) {
    for (size_t i=0; i<count; ++i) {
       std::string id_str {"vote"};
       id_str += std::to_string(i);
-      res.push_back(block_ref{sha256::hash(id_str.c_str()), tstamp(i)});
+      auto id = sha256::hash(id_str.c_str());
+      res.push_back(block_ref{id, tstamp(i), id});
    }
    return res;
 }
@@ -82,16 +99,16 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       fset.set_fsi(k.pubkey, fsi);
       fset.save_finalizer_safety_info();
@@ -102,7 +119,7 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false); // that's when the finalizer safety file is read
+      fset.set_keys(local_finalizers); // that's when the finalizer safety file is read
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(k.pubkey), fsi);
@@ -115,16 +132,16 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
    auto safety_file_path = tempdir.path() / "finalizers" / "safety.dat";
    auto proposals { create_proposal_refs(10) };
 
-   fsi_t fsi { .last_vote_range_start = tstamp(0),
-               .last_vote = proposals[6],
-               .lock = proposals[2] };
+   fsi_t fsi { .last_vote = proposals[6],
+               .lock = proposals[2],
+               .votes_forked_since_latest_strong_vote = false };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
 
    {
       my_finalizers_t fset{safety_file_path};
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       fset.set_fsi(k.pubkey, fsi);
       fset.save_finalizer_safety_info();
@@ -141,7 +158,7 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
 
    {
       my_finalizers_t fset{safety_file_path};
-      BOOST_REQUIRE_THROW(fset.set_keys(local_finalizers, false),     // that's when the finalizer safety file is read
+      BOOST_REQUIRE_THROW(fset.set_keys(local_finalizers),     // that's when the finalizer safety file is read
                           finalizer_safety_exception);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
@@ -161,7 +178,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<1, 3, 5, 6>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       set_fsi<decltype(fsi), 1, 3, 5, 6>(fset, keys, fsi);
       fset.save_finalizer_safety_info();
@@ -173,7 +190,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<3>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[3].pubkey), fsi[3]);
@@ -188,7 +205,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<3>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[3].pubkey), fsi[4]);
@@ -199,12 +216,91 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
    {
       my_finalizers_t fset{safety_file_path};
       bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<1, 5, 6>(keys);
-      fset.set_keys(local_finalizers, false);
+      fset.set_keys(local_finalizers);
 
       // make sure the safety info for our previously inactive finalizer was preserved
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[1].pubkey), fsi[1]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[5].pubkey), fsi[5]);
       BOOST_CHECK_EQUAL(fset.get_fsi(keys[6].pubkey), fsi[6]);
+   }
+
+} FC_LOG_AND_RETHROW()
+
+
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
+   namespace fs = std::filesystem;
+
+   fs::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto fsi_reference_dir = test_data_path / "fsi";
+
+   auto create_fsi_reference = [&](my_finalizers_t& fset) {
+      std::vector<bls_keys_t> keys = create_keys(3);
+      std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
+
+      bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
+      fset.set_keys(local_finalizers);
+      set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
+   };
+
+   auto create_fsi_reference_file = [&](const fs::path& safety_file_path) {
+      my_finalizers_t fset{safety_file_path};
+      create_fsi_reference(fset);
+      fset.save_finalizer_safety_info();
+   };
+
+   auto mk_versioned_fsi_file_path = [&](uint32_t v) {
+      return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+   };
+
+   auto current_version = my_finalizers_t::current_safety_file_version;
+
+   // run this unittest with the option `-- --save-fsi-ref` to save ref file for the current version.
+   // -----------------------------------------------------------------------------------------------
+   bool save_fsi_reference_file = [](){
+      auto argc = boost::unit_test::framework::master_test_suite().argc;
+      auto argv = boost::unit_test::framework::master_test_suite().argv;
+      return std::any_of(argv, argv + argc, [&](const std::string &a){ return a == "--save-fsi-ref";} );
+   }();
+
+   if (save_fsi_reference_file)
+      create_fsi_reference_file(mk_versioned_fsi_file_path(current_version));
+
+   auto load_fsi_map = [&](const fs::path& safety_file_path, bool save_after_load) {
+      BOOST_REQUIRE(fs::exists(safety_file_path));
+      my_finalizers_t fset{safety_file_path};
+      auto map = fset.load_finalizer_safety_info();
+      if (save_after_load) {
+         bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(create_keys(3));
+         fset.set_keys(local_finalizers);   // need to call set_keys otherwise inactive keys not saved.
+         fset.save_finalizer_safety_info();
+
+      }
+      return map;
+   };
+
+   // Make sure we can read previous versions of the safety file correctly.
+   // --------------------------------------------------------------------
+   fc::temp_directory tempdir;
+
+   for (size_t i=0; i<current_version; ++i) {
+      auto ref_path = mk_versioned_fsi_file_path(i);
+      auto copy_path = tempdir.path() / ref_path.filename();
+      fs::copy_file(ref_path, copy_path, fs::copy_options::none);
+      std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+      // first load the reference file in the old format, and then save it in the new version format
+      // -------------------------------------------------------------------------------------------
+      auto last_write = fs::last_write_time(copy_path);
+      auto last_size  = fs::file_size(copy_path);
+      auto fsi_map_vi = load_fsi_map(copy_path, true);
+
+      BOOST_REQUIRE(fs::last_write_time(copy_path) > last_write); // just a sanity check.
+      BOOST_REQUIRE_NE(fs::file_size(copy_path), last_size);      // we expect the size to be different if the format changes
+
+      // then load it again as the new version
+      auto fsi_map_vn = load_fsi_map(copy_path, false);
+
+      BOOST_REQUIRE(fsi_map_vi == fsi_map_vn);
    }
 
 } FC_LOG_AND_RETHROW()

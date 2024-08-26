@@ -268,6 +268,9 @@ class Cluster(object):
             nodeosArgs += f" --p2p-max-nodes-per-host {maximumP2pPerHost}"
         if "--max-clients" not in extraNodeosArgs:
             nodeosArgs += f" --max-clients {maximumClients}"
+        if "--connection-cleanup-period" not in extraNodeosArgs:
+            # Quicker retry, default is 30s, since many tests launch multiple nodes at the same time
+            nodeosArgs += f" --connection-cleanup-period 15"
         if Utils.Debug and "--contracts-console" not in extraNodeosArgs:
             nodeosArgs += " --contracts-console"
         if PFSetupPolicy.hasPreactivateFeature(pfSetupPolicy):
@@ -489,6 +492,7 @@ class Cluster(object):
                         launch_time=launcher.launch_time, walletMgr=self.walletMgr, nodeosVers=self.nodeosVers)
             node.keys = instance.keys
             node.isProducer = len(instance.producers) > 0
+            node.producerName = instance.producers[0] if node.isProducer else None
             if nodeNum == Node.biosNodeId:
                 self.biosNode = node
             else:
@@ -1039,7 +1043,8 @@ class Cluster(object):
         setFinStr += f'  "finalizers": ['
         finNum = 1
         for n in nodes:
-            setFinStr += f'    {{"description": "finalizer #{finNum}", '
+            finName = n.producerName if n.producerName is not None else f"finalizer{finNum}"
+            setFinStr += f'    {{"description": "{finName}", '
             setFinStr += f'     "weight":1, '
             setFinStr += f'     "public_key": "{n.keys[0].blspubkey}", '
             setFinStr += f'     "pop": "{n.keys[0].blspop}"'

@@ -50,6 +50,12 @@ namespace eosio::chain {
       irrelevant_finalizer
    };
 
+   struct aggregate_vote_result_t {
+      vote_result_t           result{vote_result_t::unknown_public_key};
+      finalizer_authority_ptr active_authority;
+      finalizer_authority_ptr pending_authority;
+   };
+
    struct qc_sig_t {
       bool is_weak()   const { return !!weak_votes; }
       bool is_strong() const { return !weak_votes; }
@@ -60,6 +66,12 @@ namespace eosio::chain {
 
       // called from net threads
       void verify(const finalizer_policy_ptr& fin_policy, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+      void verify_vote_format(const finalizer_policy_ptr& fin_policy) const;
+
+      // returns true if vote indicated by my_vote_index in strong_votes or
+      // weak_votes are is the same as the one indicated by other_vote_index
+      // in `other` signature's strong_votes or weak_votes
+      bool vote_same_at(const qc_sig_t& other, uint32_t my_vote_index, uint32_t other_vote_index) const;
    };
 
    struct qc_t {
@@ -77,6 +89,10 @@ namespace eosio::chain {
       qc_claim_t to_qc_claim() const {
          return { .block_num = block_num, .is_strong_qc = is_strong() };
       }
+
+      // returns true if vote indicated by active_vote_index in active_policy
+      // is the same as vote indicated by pending_vote_index in pending_policy
+      bool vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index) const;
    };
 
    struct qc_data_t {
@@ -109,7 +125,7 @@ namespace eosio::chain {
          friend struct fc::has_reflector_init<votes_t>;
          friend class aggregating_qc_sig_t;
          struct bit_processed {
-            alignas(hardware_destructive_interference_size)
+            alignas(hardware_destructive_interference_sz)
             std::atomic<bool> value;
          };
 
@@ -195,16 +211,24 @@ namespace eosio::chain {
 
    // finalizer authority of strong, weak, or missing votes
    struct qc_vote_metrics_t {
+      struct fin_auth {
+         finalizer_authority_ptr fin_auth;
+         // If the finalizer votes in both active and pending policies,
+         // use pending finalizer policy's generation.
+         uint32_t                generation{0};
+      };
       struct fin_auth_less {
-         bool operator()(const finalizer_authority_ptr& lhs, const finalizer_authority_ptr& rhs) const {
-            return lhs->public_key < rhs->public_key;
+         bool operator()(const fin_auth& lhs, const fin_auth& rhs) const {
+            return lhs.fin_auth->public_key < rhs.fin_auth->public_key;
          };
       };
-      using fin_auth_set_t = std::set<finalizer_authority_ptr, fin_auth_less>;
+      using fin_auth_set_t = std::set<fin_auth, fin_auth_less>;
 
-      fin_auth_set_t strong_votes;
-      fin_auth_set_t weak_votes;
-      fin_auth_set_t missing_votes;
+      fin_auth_set_t       strong_votes;
+      fin_auth_set_t       weak_votes;
+      fin_auth_set_t       missing_votes;
+      block_timestamp_type voted_for_block_timestamp;
+      block_id_type        voted_for_block_id;
    };
 
    /**
@@ -233,8 +257,8 @@ namespace eosio::chain {
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
       bool received_qc_is_strong() const;
-      vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
-                                   block_num_type block_num, std::span<const uint8_t> finalizer_digest);
+      aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
+                                             const block_id_type& block_id, std::span<const uint8_t> finalizer_digest);
       vote_status_t has_voted(const bls_public_key& key) const;
       bool is_quorum_met() const;
 
@@ -244,6 +268,9 @@ namespace eosio::chain {
       finalizer_policy_ptr                pending_finalizer_policy; // not modified after construction
       aggregating_qc_sig_t                active_policy_sig;
       std::optional<aggregating_qc_sig_t> pending_policy_sig;
+
+      // verify qc against active and pending policy
+      void verify_dual_finalizers_votes(const qc_t& qc) const;
    };
 
 } //eosio::chain

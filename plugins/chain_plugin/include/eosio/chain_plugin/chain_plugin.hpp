@@ -3,6 +3,7 @@
 #include <eosio/chain_plugin/account_query_db.hpp>
 #include <eosio/chain_plugin/trx_retry_db.hpp>
 #include <eosio/chain_plugin/trx_finality_status_processing.hpp>
+#include <eosio/chain_plugin/tracked_votes.hpp>
 
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/asset.hpp>
@@ -139,6 +140,7 @@ protected:
 class read_only : public api_base {
    const controller& db;
    const std::optional<account_query_db>& aqdb;
+   const std::optional<tracked_votes>& last_tracked_votes;
    const fc::microseconds abi_serializer_max_time;
    const fc::microseconds http_max_response_time;
    bool  shorten_abi_errors = true;
@@ -149,10 +151,12 @@ public:
    static const string KEYi64;
 
    read_only(const controller& db, const std::optional<account_query_db>& aqdb,
+             const std::optional<tracked_votes>& last_tracked_votes,
              const fc::microseconds& abi_serializer_max_time, const fc::microseconds& http_max_response_time,
              const trx_finality_status_processing* trx_finality_status_proc)
       : db(db)
       , aqdb(aqdb)
+      , last_tracked_votes(last_tracked_votes)
       , abi_serializer_max_time(abi_serializer_max_time)
       , http_max_response_time(http_max_response_time)
       , trx_finality_status_proc(trx_finality_status_proc) {
@@ -485,6 +489,22 @@ public:
    };
 
    fc::variant get_currency_stats( const get_currency_stats_params& params, const fc::time_point& deadline )const;
+
+   struct get_finalizer_info_params {
+   };
+
+   struct get_finalizer_info_result {
+      fc::variant                            active_finalizer_policy;  // current active policy
+      fc::variant                            pending_finalizer_policy; // current pending policy. Empty if not existing
+
+      // Last tracked vote information for each of the finalizers in
+      // active_finalizer_policy and pending_finalizer_policy.
+      // if a finalizer votes on both active_finalizer_policy and pending_finalizer_policy,
+      // the vote information on pending_finalizer_policy is used.
+      std::vector<tracked_votes::vote_info>  last_tracked_votes;
+   };
+
+   get_finalizer_info_result get_finalizer_info( const get_finalizer_info_params& params, const fc::time_point& deadline )const;
 
    struct get_producers_params {
       bool        json = false;
@@ -1006,6 +1026,7 @@ public:
    fc::variant get_log_trx(const transaction& trx) const;
 
    const controller::config& chain_config() const;
+
 private:
 
    unique_ptr<class chain_plugin_impl> my;
@@ -1046,6 +1067,9 @@ FC_REFLECT( eosio::chain_apis::read_only::get_table_by_scope_result, (rows)(more
 FC_REFLECT( eosio::chain_apis::read_only::get_currency_balance_params, (code)(account)(symbol));
 FC_REFLECT( eosio::chain_apis::read_only::get_currency_stats_params, (code)(symbol));
 FC_REFLECT( eosio::chain_apis::read_only::get_currency_stats_result, (supply)(max_supply)(issuer));
+
+FC_REFLECT_EMPTY( eosio::chain_apis::read_only::get_finalizer_info_params )
+FC_REFLECT( eosio::chain_apis::read_only::get_finalizer_info_result, (active_finalizer_policy)(pending_finalizer_policy)(last_tracked_votes) );
 
 FC_REFLECT( eosio::chain_apis::read_only::get_producers_params, (json)(lower_bound)(limit)(time_limit_ms) )
 FC_REFLECT( eosio::chain_apis::read_only::get_producers_result, (rows)(total_producer_vote_weight)(more) );

@@ -55,7 +55,8 @@ try:
     extraNodeosArgs=" --transaction-finality-status-max-storage-size-gb 1 " + \
                    f"--transaction-finality-status-success-duration-sec {successDuration} --transaction-finality-status-failure-duration-sec {failure_duration}"
     extraNodeosArgs+=" --http-max-response-time-ms 990000"
-
+    # test expects split network to advance with single producer
+    extraNodeosArgs+=" --production-pause-vote-timeout-ms 0 "
 
     # ***   setup topogrophy   ***
 

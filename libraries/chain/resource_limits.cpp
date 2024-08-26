@@ -71,25 +71,34 @@ void resource_limits_manager::initialize_database() {
    }
 }
 
-void resource_limits_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot ) const {
-   resource_index_set::walk_indices([this, &snapshot]( auto utils ){
-      snapshot->write_section<typename decltype(utils)::index_t::value_type>([this]( auto& section ){
-         decltype(utils)::walk(_db, [this, &section]( const auto &row ) {
+size_t resource_limits_manager::expected_snapshot_row_count() const {
+   size_t ret = 0;
+   resource_index_set::walk_indices([this, &ret]( auto utils ) {
+      ret += _db.get_index<typename decltype(utils)::index_t>().size();
+   });
+   return ret;
+}
+
+void resource_limits_manager::add_to_snapshot( const snapshot_writer_ptr& snapshot, snapshot_written_row_counter& row_counter ) const {
+   resource_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
+      snapshot->write_section<typename decltype(utils)::index_t::value_type>([this, &row_counter]( auto& section ){
+         decltype(utils)::walk(_db, [this, &section, &row_counter]( const auto &row ) {
             section.add_row(row, _db);
+            row_counter.progress();
          });
       });
    });
 }
 
-void resource_limits_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, snapshot_loaded_row_counter& row_counter ) {
-   resource_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
-      snapshot->read_section<typename decltype(utils)::index_t::value_type>([this, &row_counter]( auto& section ) {
+void resource_limits_manager::read_from_snapshot( const snapshot_reader_ptr& snapshot, std::atomic_size_t& read_row_count, boost::asio::io_context& ctx ) {
+   resource_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ){
+      snapshot->read_section<typename decltype(utils)::index_t::value_type>([this, &read_row_count]( auto& section ) {
          bool more = !section.empty();
          while(more) {
             decltype(utils)::create(_db, [this, &section, &more]( auto &row ) {
                more = section.read_row(row, _db);
             });
-            row_counter.progress();
+            read_row_count.fetch_add(1u, std::memory_order_relaxed);
          }
       });
    });

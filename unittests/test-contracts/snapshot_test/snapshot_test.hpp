@@ -39,4 +39,14 @@ public:
       eosio::indexed_by< "byiiii"_n, eosio::const_mem_fun< main_record, const eosio::checksum256&,
                                                            &main_record::get_index_i256 > >
    >;
+
+   struct [[eosio::table("test")]] test_record {
+      uint64_t id = 0;
+      eosio::checksum256 payload;
+      uint64_t primary_key() const {return id;}
+   };
+   using test_table = eosio::multi_index<"test"_n, test_record>;
+   [[eosio::action]] void add(eosio::name scope, uint64_t id, eosio::checksum256 payload);
+   [[eosio::action]] void remove(eosio::name scope, uint64_t id);
+   [[eosio::action]] void verify(eosio::name scope, uint64_t id, eosio::checksum256 payload);
 };

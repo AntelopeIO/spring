@@ -416,7 +416,7 @@ namespace eosio { namespace chain {
             fc::raw::unpack(stream, size);
          } EOS_RETHROW_EXCEPTIONS( unpack_exception, "Unable to unpack size of array '${p}'", ("p", ctx.get_path_string()) )
          vector<fc::variant> vars;
-         vars.reserve(size);
+         vars.reserve(std::min(size.value, 1024u)); // limit the maximum size that can be reserved before data is read
          auto h1 = ctx.push_to_path( impl::array_index_path_item{} );
          for( decltype(size.value) i = 0; i < size; ++i ) {
             ctx.set_array_index_of_path_back(i);
@@ -635,8 +635,8 @@ namespace eosio { namespace chain {
    }
 
    void impl::abi_to_variant::add_block_header_finality_extension( mutable_variant_object& mvo, const header_extension_multimap& header_exts ) {
-      if (header_exts.count(finality_extension::extension_id())) {
-         const auto& f_ext = std::get<finality_extension>(header_exts.lower_bound(finality_extension::extension_id())->second);
+      if (auto it = header_exts.find(finality_extension::extension_id()); it != header_exts.end()) {
+         const auto& f_ext = std::get<finality_extension>(it->second);
          mvo("finality_extension", f_ext);
       }
    }

@@ -47,6 +47,7 @@ namespace eosio::chain {
 
       void open( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void close( std::ofstream& out );
+      size_t size() const;
 
       bsp_t get_block( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool block_exists( const block_id_type& id ) const;
@@ -168,6 +169,10 @@ namespace eosio::chain {
       // not thread safe, expected to be called from main thread before allowing concurrent access
       void open( validator_t& validator );
       void close();
+      bool file_exists() const;
+
+      // return the size of the active fork_database
+      size_t size() const;
 
       // switches to using both legacy and savanna during transition
       void switch_from_legacy(const block_state_ptr& root);
@@ -258,9 +263,28 @@ namespace eosio::chain {
       }
 
       /// @param legacy_f the lambda to execute if in legacy mode
-      /// @param savanna_f the lambda to execute if in savanna instant-finality mode
+      /// @param savanna_f the lambda to execute if in savanna mode
       template <class R, class LegacyF, class SavannaF>
       R apply(const LegacyF& legacy_f, const SavannaF& savanna_f) {
+         if constexpr (std::is_same_v<void, R>) {
+            if (in_use.load() == in_use_t::legacy) {
+               legacy_f(fork_db_l);
+            } else {
+               savanna_f(fork_db_s);
+            }
+         } else {
+            if (in_use.load() == in_use_t::legacy) {
+               return legacy_f(fork_db_l);
+            } else {
+               return savanna_f(fork_db_s);
+            }
+         }
+      }
+
+      /// @param legacy_f the lambda to execute if in legacy mode
+      /// @param savanna_f the lambda to execute if in savanna mode
+      template <class R, class LegacyF, class SavannaF>
+      R apply(const LegacyF& legacy_f, const SavannaF& savanna_f) const {
          if constexpr (std::is_same_v<void, R>) {
             if (in_use.load() == in_use_t::legacy) {
                legacy_f(fork_db_l);

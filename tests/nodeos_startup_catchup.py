@@ -67,6 +67,8 @@ try:
     specificExtraNodeosArgs[pnodes+7] = f' --sync-fetch-span 1597 '
     specificExtraNodeosArgs[pnodes+8] = f' --sync-fetch-span 6765 '
     specificExtraNodeosArgs[pnodes+9] = f' --sync-fetch-span 28657 '
+    if not activateIF:
+        specificExtraNodeosArgs[pnodes+9] += " --max-reversible-blocks 2 " # should be ignored for pre-savanna blocks
     specificExtraNodeosArgs[pnodes+10] = f' --sync-fetch-span 89 --read-mode irreversible '
     specificExtraNodeosArgs[pnodes+11] = f' --sync-fetch-span 377 --read-mode irreversible '
     if cluster.launch(prodCount=prodCount, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF, onlyBios=False,

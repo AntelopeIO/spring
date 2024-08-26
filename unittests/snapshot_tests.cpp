@@ -5,85 +5,17 @@
 #include <eosio/chain/snapshot.hpp>
 #include <eosio/testing/tester.hpp>
 #include "snapshot_suites.hpp"
+#include <snapshots.hpp>
+#include <snapshot_tester.hpp>
 
-#include <boost/mpl/list.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include <test_contracts.hpp>
-#include <snapshots.hpp>
 #include "test_wasts.hpp"
 
 using namespace eosio;
 using namespace testing;
 using namespace chain;
-
-std::filesystem::path get_parent_path(std::filesystem::path blocks_dir, int ordinal) {
-   std::filesystem::path leaf_dir = blocks_dir.filename();
-   if (leaf_dir.generic_string() == std::string("blocks")) {
-      blocks_dir = blocks_dir.parent_path();
-      leaf_dir = blocks_dir.filename();
-      try {
-         boost::lexical_cast<int>(leaf_dir.generic_string());
-         blocks_dir = blocks_dir.parent_path();
-      }
-      catch(const boost::bad_lexical_cast& ) {
-         // no extra ordinal directory added to path
-      }
-   }
-   return blocks_dir / std::to_string(ordinal);
-}
-
-controller::config copy_config(const controller::config& config, int ordinal) {
-   controller::config copied_config = config;
-   auto parent_path = get_parent_path(config.blocks_dir, ordinal);
-   copied_config.finalizers_dir   = parent_path / config.finalizers_dir.filename().generic_string();;
-   copied_config.blocks_dir = parent_path / config.blocks_dir.filename().generic_string();
-   copied_config.state_dir  = parent_path / config.state_dir.filename().generic_string();
-   return copied_config;
-}
-
-controller::config copy_config_and_files(const controller::config& config, int ordinal) {
-   controller::config copied_config = copy_config(config, ordinal);
-   std::filesystem::create_directories(copied_config.blocks_dir);
-   std::filesystem::copy_file(config.blocks_dir / "blocks.log", copied_config.blocks_dir / "blocks.log", std::filesystem::copy_options::none);
-   std::filesystem::copy_file(config.blocks_dir / "blocks.index", copied_config.blocks_dir / "blocks.index", std::filesystem::copy_options::none);
-   return copied_config;
-}
-
-class snapshotted_tester : public base_tester {
-public:
-   enum config_file_handling { dont_copy_config_files, copy_config_files };
-   snapshotted_tester(const controller::config& config, const snapshot_reader_ptr& snapshot, int ordinal,
-           config_file_handling copy_files_from_config = config_file_handling::dont_copy_config_files) {
-      FC_ASSERT(config.blocks_dir.filename().generic_string() != "."
-                && config.state_dir.filename().generic_string() != ".", "invalid path names in controller::config");
-
-      controller::config copied_config = (copy_files_from_config == copy_config_files)
-                                         ? copy_config_and_files(config, ordinal) : copy_config(config, ordinal);
-
-      BOOST_CHECK_GT(snapshot->total_row_count(), 0u);
-      init(copied_config, snapshot);
-   }
-
-   produce_block_result_t produce_block_ex( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
-      return _produce_block(skip_time, false, no_throw);
-   }
-
-   signed_block_ptr produce_block( fc::microseconds skip_time = default_skip_time, bool no_throw = false )override {
-      return produce_block_ex(skip_time, no_throw).block;
-   }
-
-   signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
-      control->abort_block();
-      return _produce_block(skip_time, true);
-   }
-
-   signed_block_ptr finish_block()override {
-      return _finish_block();
-   }
-
-   bool validate() { return true; }
-};
 
 BOOST_AUTO_TEST_SUITE(snapshot_tests)
 
@@ -169,19 +101,21 @@ namespace {
    void verify_integrity_hash(controller& lhs, controller& rhs) {
       const auto lhs_integrity_hash = lhs.calculate_integrity_hash();
       const auto rhs_integrity_hash = rhs.calculate_integrity_hash();
-      if (std::is_same_v<SNAPSHOT_SUITE, variant_snapshot_suite> && lhs_integrity_hash.str() != rhs_integrity_hash.str()) {
-         auto lhs_latest_writer = SNAPSHOT_SUITE::get_writer();
-         lhs.write_snapshot(lhs_latest_writer);
-         auto lhs_latest = SNAPSHOT_SUITE::finalize(lhs_latest_writer);
+      if constexpr (std::is_same_v<SNAPSHOT_SUITE, variant_snapshot_suite>) {
+         if(lhs_integrity_hash.str() != rhs_integrity_hash.str()) {
+            auto lhs_latest_writer = SNAPSHOT_SUITE::get_writer();
+            lhs.write_snapshot(lhs_latest_writer);
+            auto lhs_latest = SNAPSHOT_SUITE::finalize(lhs_latest_writer);
 
-         auto rhs_latest_writer = SNAPSHOT_SUITE::get_writer();
-         rhs.write_snapshot(rhs_latest_writer);
-         auto rhs_latest = SNAPSHOT_SUITE::finalize(rhs_latest_writer);
+            auto rhs_latest_writer = SNAPSHOT_SUITE::get_writer();
+            rhs.write_snapshot(rhs_latest_writer);
+            auto rhs_latest = SNAPSHOT_SUITE::finalize(rhs_latest_writer);
 
-         print_variant_diff(lhs_latest, rhs_latest);
-         // more than print the different, also save snapshots json gz files under path build/unittests/snapshots
-         SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_lhs", lhs_latest);
-         SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_rhs", rhs_latest);
+            print_variant_diff(lhs_latest, rhs_latest);
+            // more than print the different, also save snapshots json gz files under path build/unittests/snapshots
+            SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_lhs", lhs_latest);
+            SNAPSHOT_SUITE::write_to_file("snapshot_debug_verify_integrity_hash_rhs", rhs_latest);
+         }
       }
       BOOST_REQUIRE_EQUAL(lhs_integrity_hash.str(), rhs_integrity_hash.str());
    }
@@ -483,7 +417,9 @@ void compatible_versions_test()
    // 5. add the 3 new snapshot files in git.
    // -------------------------------------------------------------------------------------------------------------
    // Only want to save one snapshot, use Savanna as that is the latest
-   if constexpr (std::is_same_v<TESTER, savanna_tester>) {
+   // And skip the threaded_snapshot_suite: its saving-to-file ability isn't implemented and, besides, its snapshot
+   //  creation half just uses the ostream snapshot writer again (using writer_t = ostream_snapshot_writer)
+   if constexpr (std::is_same_v<TESTER, savanna_tester> && !std::is_same_v<SNAPSHOT_SUITE, threaded_snapshot_suite>) {
       if (save_snapshot)
       {
          // create a latest snapshot
@@ -754,6 +690,51 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(jumbo_row, SNAPSHOT_SUITE, snapshot_suites)
 {
    jumbo_row_test<legacy_tester, SNAPSHOT_SUITE>();
    jumbo_row_test<savanna_tester, SNAPSHOT_SUITE>();
+}
+
+template<typename TESTER, typename SNAPSHOT_SUITE>
+void removed_table_snapshot_test() {
+   typename SNAPSHOT_SUITE::snapshot_t snap;
+   controller::config cfg;
+   {
+      TESTER chain;
+
+      chain.create_account("snapshot"_n);
+      chain.set_code("snapshot"_n, test_contracts::snapshot_test_wasm());
+      chain.set_abi("snapshot"_n, test_contracts::snapshot_test_abi());
+      chain.produce_block();
+
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "apple"_n) ("id", 1u)("payload",sha256::hash("1")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "apple"_n) ("id", 2u)("payload",sha256::hash("2")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 3u)("payload",sha256::hash("3")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 4u)("payload",sha256::hash("4")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 5u)("payload",sha256::hash("5")));
+      chain.push_action("snapshot"_n, "add"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 6u)("payload",sha256::hash("6")));
+
+      chain.produce_block();
+
+      chain.push_action("snapshot"_n, "remove"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 3u));
+      chain.push_action("snapshot"_n, "remove"_n, "snapshot"_n, mutable_variant_object()("scope", "banana"_n)("id", 4u));
+
+      chain.produce_block();
+
+      chain.control->abort_block();
+      auto writer = SNAPSHOT_SUITE::get_writer();
+      chain.control->write_snapshot(writer);
+      snap = SNAPSHOT_SUITE::finalize(writer);
+      cfg = chain.get_config();
+   }
+   {
+      snapshotted_tester chain2(cfg, SNAPSHOT_SUITE::get_reader(snap), 0);
+
+      chain2.push_action("snapshot"_n, "verify"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 5u)("payload",sha256::hash("5")));
+      chain2.push_action("snapshot"_n, "verify"_n, "snapshot"_n, mutable_variant_object()("scope", "carrot"_n)("id", 6u)("payload",sha256::hash("6")));
+   }
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(removed_table, SNAPSHOT_SUITE, snapshot_suites) {
+   removed_table_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
+   removed_table_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -76,6 +76,8 @@ class Node(Transactions):
         self.config_dir=config_dir
         self.launch_time=launch_time
         self.isProducer=False
+        # if multiple producers configured for a Node, this is the first one
+        self.producerName=None
         self.keys: List[KeyStrings] = field(default_factory=list)
         self.configureVersion()
 
@@ -343,20 +345,25 @@ class Node(Transactions):
             if logStatus: Utils.Print(f'Determined node id {self.nodeId} (pid={pid}) is alive')
             return True
 
-    def rmFromCmd(self, matchValue: str):
-        '''Removes all instances of matchValue from cmd array and succeeding value if it's an option value string.'''
+    def rmFromCmd(self, matchValue: str) -> str:
+        '''Removes all instances of matchValue from cmd array and succeeding value if it's an option value string.
+           Returns the removed strings as a space-delimited string.'''
         if not self.cmd:
-            return
+            return ''
+
+        removed_items = []
 
         while True:
             try:
                 i = self.cmd.index(matchValue)
-                self.cmd.pop(i)
+                removed_items.append(self.cmd.pop(i))  # Store the matchValue
                 if len(self.cmd) > i:
-                    if self.cmd[i][0] != '-':
-                        self.cmd.pop(i)
+                    if self.cmd[i][0] != '-':  # Check if the next value isn't an option (doesn't start with '-')
+                        removed_items.append(self.cmd.pop(i))  # Store the succeeding value
             except ValueError:
                 break
+
+        return ' '.join(removed_items)  # Return the removed strings as a space-delimited string
 
     # pylint: disable=too-many-locals
     # If nodeosPath is equal to None, it will use the existing nodeos path
@@ -467,6 +474,8 @@ class Node(Transactions):
             self.pid = popen.pid
             self.cmd = cmd
             self.isProducer = '--producer-name' in self.cmd
+            # first configured producer or None
+            self.producerName = re.search('--producer-name (\w+)', " ".join(cmd))[1] if re.search('--producer-name (\w+)', " ".join(cmd)) is not None else None
         with pidf.open('w') as pidout:
             pidout.write(str(popen.pid))
         try:

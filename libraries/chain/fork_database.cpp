@@ -24,9 +24,8 @@ namespace eosio::chain {
 
    std::string log_fork_comparison(const block_state& bs) {
       std::string r;
-      r += "[ last_final_block_timestamp: " + bs.last_final_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "[ latest_qc_block_timestamp: " + bs.latest_qc_block_timestamp().to_time_point().to_iso_string() + ", ";
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;
@@ -36,7 +35,7 @@ namespace eosio::chain {
       std::string r;
       r += "[ irreversible_blocknum: " + std::to_string(bs.irreversible_blocknum()) + ", ";
       r += "block_num: " + std::to_string(bs.block_num()) + ", ";
-      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string();
+      r += "timestamp: " + bs.timestamp().to_time_point().to_iso_string() + ", ";
       r += "id: " + bs.id().str();
       r += " ]";
       return r;
@@ -69,11 +68,10 @@ namespace eosio::chain {
       using by_best_branch_if_t = ordered_unique<
          tag<by_best_branch>,
          composite_key<block_state,
-                       const_mem_fun<block_state,     block_timestamp_type, &block_state::last_final_block_timestamp>,
                        const_mem_fun<block_state,     block_timestamp_type, &block_state::latest_qc_block_timestamp>,
                        const_mem_fun<block_state,     block_timestamp_type, &block_state::timestamp>,
                        const_mem_fun<block_state,     const block_id_type&, &block_state::id>>,
-         composite_key_compare<std::greater<block_timestamp_type>, std::greater<block_timestamp_type>,
+         composite_key_compare<std::greater<block_timestamp_type>,
                                std::greater<block_timestamp_type>, std::greater<block_id_type>>>;
 
       using by_best_branch_t = std::conditional_t<std::is_same_v<bs_t, block_state>,
@@ -152,6 +150,12 @@ namespace eosio::chain {
    void fork_database_t<BSP>::close(std::ofstream& out) {
       std::lock_guard g( my->mtx );
       my->close_impl(out);
+   }
+
+   template<class BSP>
+   size_t fork_database_t<BSP>::size() const {
+      std::lock_guard g( my->mtx );
+      return my->index.size();
    }
 
    template<class BSP>
@@ -266,9 +270,8 @@ namespace eosio::chain {
          try {
             const auto& exts = n->header_exts;
 
-            if (exts.count(protocol_feature_activation::extension_id()) > 0) {
-               const auto& pfa = exts.lower_bound(protocol_feature_activation::extension_id())->second;
-               const auto& new_protocol_features = std::get<protocol_feature_activation>(pfa).protocol_features;
+            if (auto it = exts.find(protocol_feature_activation::extension_id()); it != exts.end()) {
+               const auto& new_protocol_features = std::get<protocol_feature_activation>(it->second).protocol_features;
                validator(n->timestamp(), prev_bh->get_activated_protocol_features()->protocol_features, new_protocol_features);
             }
          }
@@ -304,6 +307,7 @@ namespace eosio::chain {
 
    template<class BSP>
    bool fork_database_t<BSP>::has_root() const {
+      std::lock_guard g( my->mtx );
       return !!my->root;
    }
 
@@ -657,6 +661,11 @@ namespace eosio::chain {
          fork_db_s.close(out);
    }
 
+   bool fork_database::file_exists() const {
+      auto fork_db_file = data_dir / config::forkdb_filename;
+      return std::filesystem::exists( fork_db_file );
+   };
+
    void fork_database::open( validator_t& validator ) {
       if (!std::filesystem::is_directory(data_dir))
          std::filesystem::create_directories(data_dir);
@@ -724,6 +733,12 @@ namespace eosio::chain {
          } FC_CAPTURE_AND_RETHROW( (fork_db_file) );
          std::filesystem::remove( fork_db_file );
       }
+   }
+
+   size_t fork_database::size() const {
+      return apply<size_t>([](const auto& forkdb) {
+         return forkdb.size();
+      });
    }
 
    // only called from the main thread

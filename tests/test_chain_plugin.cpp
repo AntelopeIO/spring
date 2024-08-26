@@ -226,7 +226,7 @@ public:
     read_only::get_account_results get_account_info(const account_name acct){
        auto account_object = control->get_account(acct);
        read_only::get_account_params params = { account_object.name };
-       chain_apis::read_only plugin(*(control.get()), {}, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
+       chain_apis::read_only plugin(*(control.get()), {}, {}, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
        auto res =   plugin.get_account(params, fc::time_point::maximum())();
        BOOST_REQUIRE(!std::holds_alternative<fc::exception_ptr>(res));
        return std::get<chain_apis::read_only::get_account_results>(std::move(res));
@@ -346,7 +346,11 @@ public:
         }
         produce_block();
         produce_block(fc::seconds(1000));
-        produce_block();
+        auto b = produce_block();
+        auto index = b->timestamp.slot % config::producer_repetitions;
+        produce_blocks(config::producer_repetitions - index - 1); // until the last block of round 1
+        produce_blocks(config::producer_repetitions); // round 2
+        produce_block(); // round 3
 
         auto producer_keys = control->active_producers().producers;
         BOOST_CHECK_EQUAL( 21u, producer_keys.size() );

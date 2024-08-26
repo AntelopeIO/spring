@@ -1,8 +1,5 @@
 #include "savanna_cluster.hpp"
 
-#include <eosio/chain/abi_serializer.hpp>
-#include <eosio/chain/fork_database.hpp>
-
 #include "fork_test_utilities.hpp"
 
 using namespace eosio::chain;
@@ -81,7 +78,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 
    const vector<account_name> producers {"a"_n, "b"_n, "c"_n, "d"_n, "e"_n};
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers); // set new producers and produce blocks until the switch is pending
 
    auto sb = _nodes[0].produce_block();       // now the next block can be produced on any node (here _nodes[0])
    BOOST_REQUIRE_EQUAL(sb->producer,
@@ -207,11 +204,11 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
-   _nodes[0].produce_block(); // produce an extra block at the beginning so that producer schedules align
+   _nodes[0].produce_blocks(2); // produce two extra blocks at the beginning so that producer schedules align
    
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // first block produced by producers[prod]
@@ -224,19 +221,17 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    // process in-flight QC and reset lib
    _nodes[0].produce_block();
    _nodes[3].produce_block();
-   reset_lib();
 
-   // now that the network is split, produce 9 blocks on _nodes[0]
-   sb = _nodes[0].produce_blocks(9);
-   BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
-
-   // verify that lib doesn't advance
-   BOOST_REQUIRE_EQUAL(num_lib_advancing(), 0u);
+   BOOST_REQUIRE_EQUAL(0u, num_lib_advancing([&]() {
+      // now that the network is split, produce 9 blocks on _nodes[0]
+      sb = _nodes[0].produce_blocks(9);
+      BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // 11th block produced by producers[prod]
+   }));
 
    // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"cam"_n} );
    const vector<account_name> new_producers { "dan"_n, "sam"_n, "pam"_n, "cam"_n };
-   auto new_prod = set_producers(0, new_producers);
+   auto new_prod = _nodes[0].set_producers(new_producers);
 
    sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, new_producers[new_prod]);  // new_prod will be "sam"
@@ -298,7 +293,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
 BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t) try {
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
-   auto prod = set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   auto prod = _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    auto sb_common = _nodes[0].produce_blocks(4);
    auto lib = _nodes[0].lib_num();
@@ -350,7 +345,7 @@ BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t)
 BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_block();
@@ -360,7 +355,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
 
    legacy_tester irreversible(setup_policy::none, db_read_mode::IRREVERSIBLE);
 
-   _nodes[0].push_blocks(irreversible, hbn1);
+   _nodes[0].push_blocks_to(irreversible, hbn1);
    BOOST_CHECK_EQUAL( irreversible.fork_db_head().block_num(), hbn1 );
    BOOST_CHECK_EQUAL( irreversible.head().block_num(), lib1 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), false );
@@ -371,7 +366,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
    auto lib2 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_GT(lib2, lib1);
 
-   _nodes[0].push_blocks(irreversible, hbn2);
+   _nodes[0].push_blocks_to(irreversible, hbn2);
    BOOST_CHECK_EQUAL( irreversible.fork_db_head().block_num(), hbn2 );
    BOOST_CHECK_EQUAL( irreversible.head().block_num(), lib2 );
    BOOST_CHECK_EQUAL( does_account_exist( irreversible, "alice"_n ), true );
@@ -382,7 +377,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
    auto lib3 = _nodes[0].last_irreversible_block_num();
    BOOST_CHECK_GT(lib3, lib2);
 
-   _nodes[0].push_blocks(irreversible, hbn3);
+   _nodes[0].push_blocks_to(irreversible, hbn3);
    BOOST_CHECK_EQUAL( irreversible.fork_db_head().block_num(), hbn3 );
    BOOST_CHECK_EQUAL( irreversible.head().block_num(), lib3 );
 } FC_LOG_AND_RETHROW()
@@ -403,7 +398,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
 BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);   // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
 
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(3);
@@ -447,7 +442,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 
    // push the branch where `lib` has not advanced past lib1
    // ------------------------------------------------------
-   _nodes[3].push_blocks(irreversible, hbn3);
+   _nodes[3].push_blocks_to(irreversible, hbn3);
 
    BOOST_CHECK_EQUAL( irreversible.fork_db_head().block_num(), hbn3 );
    BOOST_CHECK_EQUAL( irreversible.head().block_num(), lib3 );
@@ -499,7 +494,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
    auto lib0 = _nodes[0].last_irreversible_block_num();
@@ -546,7 +541,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna_cluster::cluster_t  ) try {
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
-   set_producers(0, producers);               // set new producers and produce blocks until the switch is pending
+   _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
    _nodes[0].create_accounts( {"alice"_n} );
    _nodes[0].produce_blocks(12);
    auto lib0           = _nodes[0].last_irreversible_block_num();

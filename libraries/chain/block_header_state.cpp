@@ -24,15 +24,14 @@ digest_type block_header_state::compute_base_digest() const {
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
-   for (const auto& pp_pair : proposer_policies) {
-      fc::raw::pack( enc, pp_pair.first );
-      assert(pp_pair.second);
-      fc::raw::pack( enc, *pp_pair.second );
-   }
+   // For things that are optionally present we should always pack the bool
+   // indicating if they are there.
+   fc::raw::pack( enc, latest_proposed_proposer_policy );
+   fc::raw::pack( enc, latest_pending_proposer_policy );
 
-   if (activated_protocol_features) {
-      fc::raw::pack( enc, *activated_protocol_features );
-   }
+   // Should be always present
+   assert(activated_protocol_features);
+   fc::raw::pack( enc, *activated_protocol_features );
 
    return enc.result();
 }
@@ -71,8 +70,52 @@ digest_type block_header_state::compute_finality_digest() const {
    return fc::sha256::hash(finality_digest_data);
 }
 
+// returns scheduled active proposer policy for a given block at timestamp `t`
+const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_block_at(block_timestamp_type next_block_timestamp) const {
+   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
+
+   // if the block is in the same round of current block, use current active_proposer_policy
+   if (detail::in_same_round(next_block_timestamp, timestamp())) {
+      return active_proposer_policy;
+   }
+
+   // if there is no pending nor proposed proposer policy, use current active_proposer_policy
+   if (!latest_proposed_proposer_policy && !latest_pending_proposer_policy) {
+      return active_proposer_policy;
+   }
+
+   // at this point, the next block (with timestamp `next_block_timestamp`)
+   // must be the first block in a round after the current round
+   std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
+   if (latest_proposed_proposer_policy && prior_round_start_slot &&
+         latest_proposed_proposer_policy->proposal_time.slot < *prior_round_start_slot &&
+         latest_proposed_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_proposed_proposer_policy;
+   }
+
+   if (latest_pending_proposer_policy &&
+         latest_pending_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_pending_proposer_policy;
+   }
+
+   return active_proposer_policy;
+}
+
 const producer_authority& block_header_state::get_scheduled_producer(block_timestamp_type t) const {
    return detail::get_scheduled_producer(active_proposer_policy->proposer_schedule.producers, t);
+}
+
+// returns producer using the proposer policy calculated by time `t`
+const producer_authority& block_header_state::get_producer_for_block_at(block_timestamp_type next_block_timestamp) const {
+   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
+   return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule.producers, next_block_timestamp);
+}
+
+const producer_authority_schedule* block_header_state::pending_producers() const {
+   if (latest_pending_proposer_policy) {
+      return &latest_pending_proposer_policy->proposer_schedule;
+   }
+   return nullptr;
 }
 
 const vector<digest_type>& block_header_state::get_new_protocol_feature_activations()const {
@@ -100,13 +143,14 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
-   if (proposer_policies.empty()) {
-      assert(active_proposer_policy);
-      return *active_proposer_policy;
+   if (latest_proposed_proposer_policy) {
+      return *latest_proposed_proposer_policy;
    }
-   auto it = proposer_policies.rbegin();
-   assert(it != proposer_policies.rend());
-   return *it->second;
+   if (latest_pending_proposer_policy) {
+      return *latest_pending_proposer_policy;
+   }
+   assert(active_proposer_policy);
+   return *active_proposer_policy;
 }
 
 // This function evaluates possible promotions from pending to active
@@ -191,6 +235,27 @@ void evaluate_finalizer_policies_for_promotion(const block_header_state& prev,
    }
 }
 
+void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
+                                              block_header_state& next) {
+   assert(next.timestamp() > prev.timestamp()); // next block timestamp must be greater than nextent timestamp
+
+   auto& new_policy = prev.get_active_proposer_policy_for_block_at(next.timestamp());
+   if (new_policy != next.active_proposer_policy) {
+      next.active_proposer_policy = new_policy;
+      if (next.latest_proposed_proposer_policy && new_policy == next.latest_proposed_proposer_policy) {
+         next.latest_proposed_proposer_policy = nullptr;
+         next.latest_pending_proposer_policy = nullptr;
+      } else if (next.latest_pending_proposer_policy && new_policy == next.latest_pending_proposer_policy)
+         next.latest_pending_proposer_policy = nullptr;
+   }
+
+   if (detail::first_block_of_round(next.timestamp(), prev.timestamp()) &&
+      next.latest_proposed_proposer_policy && !next.latest_pending_proposer_policy) {
+      next.latest_pending_proposer_policy = next.latest_proposed_proposer_policy;
+      next.latest_proposed_proposer_policy = nullptr;
+   }
+}
+
 // -------------------------------------------------------------------------------------------------
 // `finish_next` updates the next `block_header_state` according to the contents of the
 // header extensions (either new protocol_features or finality_extension) applicable to this
@@ -216,40 +281,28 @@ void finish_next(const block_header_state& prev,
    // proposer policy
    // ---------------
    next_header_state.active_proposer_policy = prev.active_proposer_policy;
+   next_header_state.latest_proposed_proposer_policy = prev.latest_proposed_proposer_policy;
+   next_header_state.latest_pending_proposer_policy = prev.latest_pending_proposer_policy;
 
-   if (!prev.proposer_policies.empty()) {
-      auto it = prev.proposer_policies.begin();
-      // +1 since this is called after the block is built, this will be the active schedule for the next block
-      if (it->first.slot <= next_header_state.header.timestamp.slot + 1) {
-         next_header_state.active_proposer_policy = it->second;
-         next_header_state.proposer_policies = { ++it, prev.proposer_policies.end() };
-      } else {
-         next_header_state.proposer_policies = prev.proposer_policies;
-      }
-   }
+   evaluate_proposer_policies_for_promotion(prev, next_header_state);
 
-   std::optional<proposer_policy> new_proposer_policy;
    if (f_ext.new_proposer_policy_diff) {
-      new_proposer_policy = prev.get_last_proposed_proposer_policy().apply_diff(*f_ext.new_proposer_policy_diff);
-   }
-   if (new_proposer_policy) {
       // called when assembling the block
-      next_header_state.proposer_policies[new_proposer_policy->active_time] =
-         std::make_shared<proposer_policy>(std::move(*new_proposer_policy));
+      next_header_state.latest_proposed_proposer_policy =
+         std::make_shared<proposer_policy>(prev.get_last_proposed_proposer_policy().apply_diff(*f_ext.new_proposer_policy_diff));
    }
 
    // finality_core
    // -------------
-   block_ref parent_block {
-      .block_id        = prev.block_id,
-      .timestamp       = prev.timestamp(),
-      .finality_digest = prev.compute_finality_digest()
-   };
+   block_ref parent_block = prev.make_block_ref();
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
    // finalizer policy
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
+
+   // will be reset in evaluate_finalizer_policies_for_promotion if needed
+   next_header_state.last_pending_finalizer_policy_start_timestamp = prev.last_pending_finalizer_policy_start_timestamp;
 
    evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
@@ -291,6 +344,14 @@ void finish_next(const block_header_state& prev,
          ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
               ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
          ilog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+              ("n",block_header::num_from_id(id))("id", id)("pol", *act));
+      }
+
+      if (next_header_state.active_proposer_policy->proposer_schedule.version != prev.active_proposer_policy->proposer_schedule.version) {
+         const auto& act = next_header_state.active_proposer_policy;
+         dlog("Proposer policy version change: ${old_ver} -> ${new_ver}",
+              ("old_ver", prev.active_proposer_policy->proposer_schedule.version)("new_ver",act->proposer_schedule.version));
+         dlog("New proposer policy becoming active in block ${n}:${id}: ${pol}",
               ("n",block_header::num_from_id(id))("id", id)("pol", *act));
       }
    }
@@ -351,7 +412,7 @@ block_header_state block_header_state::next(block_header_state_input& input) con
  *  then validate that the provided header matches the template.
  */
 block_header_state block_header_state::next(const signed_block_header& h, validator_t& validator) const {
-   auto producer = detail::get_scheduled_producer(active_proposer_policy->proposer_schedule.producers, h.timestamp).producer_name;
+   auto producer = get_producer_for_block_at(h.timestamp).producer_name;
    
    EOS_ASSERT( h.previous == block_id, unlinkable_block_exception,
                "previous mismatch ${p} != ${id}", ("p", h.previous)("id", block_id) );
@@ -369,8 +430,7 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
    // retrieve protocol_feature_activation from incoming block header extension
    // -------------------------------------------------------------------------
    vector<digest_type> new_protocol_feature_activations;
-   if( exts.count(protocol_feature_activation::extension_id() > 0) ) {
-      auto  pfa_entry = exts.lower_bound(protocol_feature_activation::extension_id());
+   if (auto  pfa_entry = exts.find(protocol_feature_activation::extension_id()); pfa_entry != exts.end()) {
       auto& pfa_ext   = std::get<protocol_feature_activation>(pfa_entry->second);
       new_protocol_feature_activations = pfa_ext.protocol_features;
       validator( timestamp(), activated_protocol_features->protocol_features, new_protocol_feature_activations );
@@ -378,9 +438,9 @@ block_header_state block_header_state::next(const signed_block_header& h, valida
 
    // retrieve finality_extension data from block header extension
    // --------------------------------------------------------------------
-   EOS_ASSERT(exts.count(finality_extension::extension_id()) > 0, invalid_block_header_extension,
+   auto  f_entry = exts.find(finality_extension::extension_id());
+   EOS_ASSERT(f_entry != exts.end(), invalid_block_header_extension,
               "Instant Finality Extension is expected to be present in all block headers after switch to IF");
-   auto  f_entry     = exts.lower_bound(finality_extension::extension_id());
    const auto& f_ext = std::get<finality_extension>(f_entry->second);
 
    if (h.is_proper_svnn_block()) {
