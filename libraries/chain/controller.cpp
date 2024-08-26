@@ -1679,8 +1679,6 @@ struct controller_impl {
    }
 
    void replay(startup_t startup) {
-      replaying = true;
-
       bool replay_block_log_needed = should_replay_block_log();
 
       auto blog_head = blog.head();
@@ -1827,8 +1825,6 @@ struct controller_impl {
 
       };
       fork_db.apply<void>(replay_fork_db);
-
-      replaying = false;
 
       if( except_ptr ) {
          std::rethrow_exception( except_ptr );
@@ -1978,6 +1974,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
+      replaying = true;
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -2057,6 +2054,8 @@ struct controller_impl {
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
       }
+
+      replaying = false;
    }
 
    ~controller_impl() {
@@ -4834,7 +4833,8 @@ struct controller_impl {
    }
 
    int32_t max_reversible_blocks_allowed() const {
-      if (conf.max_reversible_blocks == 0)
+      // replaying is true on startup when processing the blocks from the fork database
+      if (conf.max_reversible_blocks == 0 || replaying)
          return std::numeric_limits<int32_t>::max();
 
       return fork_db.apply<int32_t>(
