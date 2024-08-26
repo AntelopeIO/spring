@@ -54,13 +54,30 @@ namespace savanna_cluster {
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
-      size_t                  node_idx;
-      bool                    pushing_a_block {false };
+      size_t node_idx;
+      bool   pushing_a_block{false};
 
       std::function<void(const block_signal_params&)> accepted_block_cb;
       std::function<void(const vote_signal_params&)>  voted_block_cb;
 
    public:
+      struct vote_t {
+         vote_t() : strong(false) {}
+         explicit vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
+         explicit vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
+            s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const vote_t&) const = default;
+
+         block_id_type id;
+         bool          strong;
+      };
+
+      bool   propagate_votes{true};
+      vote_t last_vote;
       std::vector<account_name> node_finalizers;
 
    public:
@@ -151,8 +168,7 @@ namespace savanna_cluster {
       void push_block(const signed_block_ptr& b) {
          if (is_open() && !fetch_block_by_id(b->calculate_id())) {
             assert(!pushing_a_block);
-            pushing_a_block = true;
-            auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
+            fc::scoped_set_value set_pushing_a_block(pushing_a_block, true);
             tester::push_block(b);
          }
       }
@@ -403,7 +419,7 @@ namespace savanna_cluster {
 
       // returns the number of nodes where `lib` has advanced after executing `f`
       template<class F>
-      size_t num_lib_advancing(F&& f) {
+      size_t num_lib_advancing(F&& f) const {
          std::vector<uint32_t> libs(_nodes.size());
          for (size_t i=0; i<_nodes.size(); ++i)
             libs[i] = _nodes[i].lib_num();
@@ -455,9 +471,44 @@ namespace savanna_cluster {
 
       size_t num_nodes() const { return _num_nodes; }
 
+      // Class for comparisons in BOOST_REQUIRE_EQUAL
+      // --------------------------------------------
+      struct qc_s {
+         explicit qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+         explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+
+         friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
+            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+            return s;
+         }
+         bool operator==(const qc_s&) const = default;
+
+         uint32_t block_num; // claimed block
+         bool     strong;
+      };
+
+      static qc_claim_t qc_claim(const signed_block_ptr& b) {
+         return b->extract_header_extension<finality_extension>().qc_claim;
+      }
+
+      static std::optional<qc_t> qc(const signed_block_ptr& b) {
+         if (b->contains_extension(quorum_certificate_extension::extension_id()))
+             return b->extract_extension<quorum_certificate_extension>().qc;
+         return {};
+      }
+
+      // debugging utilities
+      // -------------------
+      void print(const char* name, const signed_block_ptr& b) const {
+         if (_debug_mode)
+            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+                      << ", previous = " << b->previous.str().substr(8, 16) << '\n';
+      }
+
    public:
       std::vector<node_t>  _nodes;
       fin_keys_t           _fin_keys;
+      bool                 _debug_mode{false};
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);
