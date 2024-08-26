@@ -37,7 +37,7 @@ namespace finality_proof {
       
    };
 
-   static std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+   inline std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
       static const char* hexchar = "0123456789abcdef";
 
       boost::dynamic_bitset<unsigned char> bs(bitset);
@@ -56,7 +56,7 @@ namespace finality_proof {
       return result;
    }
 
-   static std::string binary_to_hex(const std::string& bin) {
+   inline std::string binary_to_hex(const std::string& bin) {
       boost::dynamic_bitset<unsigned char> bitset(bin.size());
       for (size_t i = 0; i < bin.size(); ++i) {
           if (bin[i] == '1') {
@@ -66,7 +66,7 @@ namespace finality_proof {
       return bitset_to_input_string(bitset);
    }
 
-   static auto finalizers_string = [](const vote_bitset_t finalizers)  {
+   inline auto finalizers_string = [](const vote_bitset_t finalizers)  {
       return bitset_to_input_string(finalizers);
    };
 
