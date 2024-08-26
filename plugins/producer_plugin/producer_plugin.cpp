@@ -2388,11 +2388,12 @@ producer_plugin_impl::handle_push_result(const transaction_metadata_ptr&        
       if( exception_is_exhausted( *trace->except ) ) {
          if( in_producing_mode() ) {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
-                    "[TRX_TRACE] Block ${block_num} for producer ${prod} COULD NOT FIT, tx: ${txid} RETRYING ",
-                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx->id()));
+                    "[TRX_TRACE] Block ${bn} for producer ${prod} COULD NOT FIT, elapsed ${e}us, tx: ${txid} RETRYING ",
+                    ("bn", chain.head().block_num() + 1)("e", trace->elapsed)("prod", get_pending_block_producer())("txid", trx->id()));
          } else {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
-                    "[TRX_TRACE] Speculative execution COULD NOT FIT tx: ${txid} RETRYING", ("txid", trx->id()));
+                    "[TRX_TRACE] Speculative execution COULD NOT FIT, elapsed ${e}us, tx: ${txid} RETRYING",
+                    ("e", trace->elapsed)("txid", trx->id()));
          }
          if (!trx->is_read_only())
             pr.block_exhausted = block_is_exhausted(); // smaller trx might fit
