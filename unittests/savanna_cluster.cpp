@@ -4,12 +4,12 @@ namespace savanna_cluster {
 
 node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = setup_policy::none */)
    : tester(policy)
-   , node_idx(node_idx) {
+   , _node_idx(node_idx) {
 
    // since we are creating forks, finalizers may be locked on another fork and unable to vote.
    do_check_for_votes(false);
 
-   voted_block_cb = [&, node_idx](const eosio::chain::vote_signal_params& v) {
+   _voted_block_cb = [&, node_idx](const eosio::chain::vote_signal_params& v) {
       // no mutex needed because controller is set in tester (via `disable_async_voting(true)`)
       // to vote (and emit the `voted_block` signal) synchronously.
       // --------------------------------------------------------------------------------------
@@ -17,15 +17,15 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
 
       if (status == vote_result_t::success) {
          vote_message_ptr vote_msg = std::get<2>(v);
-         last_vote = vote_t(vote_msg);
-         if (propagate_votes)
-            cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, std::get<2>(v));
+         _last_vote = vote_t(vote_msg);
+         if (_propagate_votes)
+            cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote_msg);
       }
    };
 
    // called on `commit_block`, for both blocks received from `push_block` and produced blocks
-   accepted_block_cb = [&, node_idx](const eosio::chain::block_signal_params& p) {
-      if (!pushing_a_block) {
+   _accepted_block_cb = [&, node_idx](const eosio::chain::block_signal_params& p) {
+      if (!_pushing_a_block) {
          // we want to propagate only blocks we produce, not the ones we receive from the network
          auto& b = std::get<0>(p);
          cluster.push_block_to_peers(node_idx, skip_self_t::yes, b);
@@ -33,9 +33,9 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
    };
 
    auto node_initialization_fn = [&, node_idx]() {
-      [[maybe_unused]] auto _a = control->voted_block().connect(voted_block_cb);
-      [[maybe_unused]] auto _b = control->accepted_block().connect(accepted_block_cb);
-      tester::set_node_finalizers(node_finalizers);
+      [[maybe_unused]] auto _a = control->voted_block().connect(_voted_block_cb);
+      [[maybe_unused]] auto _b = control->accepted_block().connect(_accepted_block_cb);
+      tester::set_node_finalizers(_node_finalizers);
       cluster.get_new_blocks_from_peers(node_idx);
    };
 

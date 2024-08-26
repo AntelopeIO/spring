@@ -51,34 +51,47 @@ namespace savanna_cluster {
       vector<bls_private_key> privkeys;
    };
 
+   // two classes for comparisons in BOOST_REQUIRE_EQUAL
+   // --------------------------------------------------
+   struct vote_t {
+      vote_t() : strong(false) {}
+      explicit vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
+      explicit vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
+
+      friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
+         s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
+         return s;
+      }
+      bool operator==(const vote_t&) const = default;
+
+      block_id_type id;
+      bool          strong;
+   };
+
+   struct qc_s {
+      explicit qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+
+      friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
+         s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+         return s;
+      }
+      bool operator==(const qc_s&) const = default;
+
+      uint32_t block_num; // claimed block
+      bool     strong;
+   };
+
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
-      size_t node_idx;
-      bool   pushing_a_block{false};
-
-      std::function<void(const block_signal_params&)> accepted_block_cb;
-      std::function<void(const vote_signal_params&)>  voted_block_cb;
-
-   public:
-      struct vote_t {
-         vote_t() : strong(false) {}
-         explicit vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
-         explicit vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
-
-         friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
-            s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
-            return s;
-         }
-         bool operator==(const vote_t&) const = default;
-
-         block_id_type id;
-         bool          strong;
-      };
-
-      bool   propagate_votes{true};
-      vote_t last_vote;
-      std::vector<account_name> node_finalizers;
+      size_t                                          _node_idx;
+      bool                                            _pushing_a_block{false};
+      bool                                            _propagate_votes{true};
+      vote_t                                          _last_vote;
+      std::vector<account_name>                       _node_finalizers;
+      std::function<void(const block_signal_params&)> _accepted_block_cb;
+      std::function<void(const vote_signal_params&)>  _voted_block_cb;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
@@ -87,9 +100,13 @@ namespace savanna_cluster {
 
       node_t(node_t&&) = default;
 
+      bool& propagate_votes() { return _propagate_votes; }
+
+      const vote_t& last_vote() const { return _last_vote; }
+
       void set_node_finalizers(std::span<const account_name> names) {
-         node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
-         tester::set_node_finalizers(node_finalizers);
+         _node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
+         tester::set_node_finalizers(_node_finalizers);
       }
 
       void transition_to_savanna(std::span<const account_name> finalizer_policy_names) {
@@ -167,8 +184,8 @@ namespace savanna_cluster {
 
       void push_block(const signed_block_ptr& b) {
          if (is_open() && !fetch_block_by_id(b->calculate_id())) {
-            assert(!pushing_a_block);
-            fc::scoped_set_value set_pushing_a_block(pushing_a_block, true);
+            assert(!_pushing_a_block);
+            fc::scoped_set_value set_pushing_a_block(_pushing_a_block, true);
             tester::push_block(b);
          }
       }
@@ -189,19 +206,19 @@ namespace savanna_cluster {
       }
 
       std::string snapshot() const {
-         dlog("node ${i} - taking snapshot", ("i", node_idx));
+         dlog("node ${i} - taking snapshot", ("i", _node_idx));
          auto writer = buffered_snapshot_suite::get_writer();
          control->write_snapshot(writer);
          return buffered_snapshot_suite::finalize(writer);
       }
 
       void open_from_snapshot(const std::string& snapshot) {
-         dlog("node ${i} - restoring from snapshot", ("i", node_idx));
+         dlog("node ${i} - restoring from snapshot", ("i", _node_idx));
          open(buffered_snapshot_suite::get_reader(snapshot));
       }
 
       std::vector<uint8_t> save_fsi() const {
-         dlog("node ${i} - saving fsi", ("i", node_idx));
+         dlog("node ${i} - saving fsi", ("i", _node_idx));
          auto finalizer_path = get_fsi_path();
          std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
          std::streamsize size = file.tellg();
@@ -214,7 +231,7 @@ namespace savanna_cluster {
       }
 
       void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
-         dlog("node ${i} - overwriting fsi", ("i", node_idx));
+         dlog("node ${i} - overwriting fsi", ("i", _node_idx));
          auto finalizer_path = get_fsi_path();
          std::ofstream file(finalizer_path.generic_string(), std::ios::binary);
          assert(!fsi.empty());
@@ -222,13 +239,13 @@ namespace savanna_cluster {
       }
 
       void remove_fsi() {
-         dlog("node ${i} - removing fsi", ("i", node_idx));
+         dlog("node ${i} - removing fsi", ("i", _node_idx));
          remove_all(get_fsi_path());
       }
 
       void remove_state() {
          auto state_path = cfg.state_dir;
-         dlog("node ${i} - removing state data from: ${state_path}", ("i", node_idx)("${state_path}", state_path));
+         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("${state_path}", state_path));
          remove_all(state_path);
          fs::create_directories(state_path);
       }
@@ -246,7 +263,7 @@ namespace savanna_cluster {
          for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
             auto path = dir_entry.path();
             if (path.filename().generic_string() != "reversible") {
-               dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
+               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
                remove_all(path);
             }
          }
@@ -259,7 +276,7 @@ namespace savanna_cluster {
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
          auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
+         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
@@ -470,22 +487,6 @@ namespace savanna_cluster {
       }
 
       size_t num_nodes() const { return _num_nodes; }
-
-      // Class for comparisons in BOOST_REQUIRE_EQUAL
-      // --------------------------------------------
-      struct qc_s {
-         explicit qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
-         explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
-
-         friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
-            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
-            return s;
-         }
-         bool operator==(const qc_s&) const = default;
-
-         uint32_t block_num; // claimed block
-         bool     strong;
-      };
 
       static qc_claim_t qc_claim(const signed_block_ptr& b) {
          return b->extract_header_extension<finality_extension>().qc_claim;
