@@ -3,6 +3,7 @@
 #include <eosio/chain/finality/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <fc/io/datastream_crc.hpp>
 #include <compare>
 #include <mutex>
 #include <ranges>
@@ -70,21 +71,34 @@ namespace eosio::chain {
    // ----------------------------------------------------------------------------------------
    struct my_finalizers_t {
    public:
-      static constexpr uint64_t current_safety_file_version = 0;
+      ///
+      /// Version 0: Spring 1.0.0 RC2 - File has fixed packed sizes with inactive safety info written to the end
+      ///                               of the file. Consists of [finalizer public_key, FSI]..
+      /// Version 1: Spring 1.0.0 RC3 - Variable length FSI with inactive safety info written at the beginning of
+      ///                               the file. Uses crc32 checksum to verify data on read.
+      ///
+      static constexpr uint64_t safety_file_version_0       = 0;
+      static constexpr uint64_t safety_file_version_1       = 1;
+      static constexpr uint64_t current_safety_file_version = safety_file_version_1;
 
       using fsi_t   = finalizer_safety_information;
       using fsi_map = std::map<bls_public_key, fsi_t>;
       using vote_t  = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
 
    private:
+      using persist_file_t = fc::datastream_crc<fc::datastream<fc::cfile>>;
+      using finalizer_map_t = std::map<bls_public_key, finalizer>;
+
       const std::filesystem::path       persist_file_path;     // where we save the safety data
       std::atomic<bool>                 has_voted{false};      // true if this node has voted and updated safety info
       mutable std::mutex                mtx;
-      mutable fc::datastream<fc::cfile> persist_file;          // we want to keep the file open for speed
-      std::map<bls_public_key, finalizer>  finalizers;         // the active finalizers for this node, loaded at startup, not mutated afterwards
+      mutable fc::datastream<fc::cfile> cfile_ds;              // we want to keep the file open for speed
+      mutable persist_file_t            persist_file{cfile_ds};// we want to calculate checksum
+      finalizer_map_t                   finalizers;            // the active finalizers for this node, loaded at startup, not mutated afterwards
       fsi_map                           inactive_safety_info;  // loaded at startup, not mutated afterwards
       fsi_t                             default_fsi = fsi_t::unset_fsi(); // default provided at spring startup
-      mutable bool                      inactive_safety_info_written{false};
+      mutable long                      inactive_safety_info_written_pos{0};
+      mutable boost::crc_32_type        inactive_crc32; // cached value
 
    public:
       explicit my_finalizers_t(const std::filesystem::path& persist_file_path)
@@ -167,6 +181,11 @@ namespace eosio::chain {
       // for testing purposes only, not thread safe
       const fsi_t& get_fsi(const bls_public_key& k) { return finalizers[k].fsi; }
       void         set_fsi(const bls_public_key& k, const fsi_t& fsi) { finalizers[k].fsi = fsi; }
+
+   private:
+      void load_finalizer_safety_info_v0(fsi_map& res);
+      void load_finalizer_safety_info_v1(fsi_map& res);
+
    };
 
 }
