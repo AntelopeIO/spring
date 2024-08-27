@@ -26,7 +26,8 @@ public:
 
    bool is_valid() const { return !_bsp.valueless_by_exception() && std::visit([](const auto& bsp) { return !!bsp; }, _bsp); }
 
-   uint32_t                block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
+   block_num_type          block_num() const { return std::visit([](const auto& bsp) { return bsp->block_num(); }, _bsp); }
+   block_num_type          irreversible_blocknum() const { return std::visit([](const auto& bsp) { return bsp->irreversible_blocknum(); }, _bsp); }
    block_timestamp_type    timestamp() const { return std::visit([](const auto& bsp) { return bsp->timestamp(); }, _bsp); };
    time_point              block_time() const { return std::visit([](const auto& bsp) { return time_point{bsp->timestamp()}; }, _bsp); };
    const block_id_type&    id() const { return std::visit<const block_id_type&>([](const auto& bsp) -> const block_id_type& { return bsp->id(); }, _bsp); }
