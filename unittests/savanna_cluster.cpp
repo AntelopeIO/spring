@@ -4,7 +4,9 @@ namespace savanna_cluster {
 
 node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = setup_policy::none */)
    : tester(policy)
-   , _node_idx(node_idx) {
+   , _node_idx(node_idx)
+   , _last_vote({}, false)
+{
 
    // since we are creating forks, finalizers may be locked on another fork and unable to vote.
    do_check_for_votes(false);
@@ -17,7 +19,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
 
       if (status == vote_result_t::success) {
          vote_message_ptr vote_msg = std::get<2>(v);
-         _last_vote = vote_t(vote_msg);
+         _last_vote = vote_t(vote_msg->block_id, vote_msg->strong);
 
          if (_propagate_votes) {
             if (_vote_delay)

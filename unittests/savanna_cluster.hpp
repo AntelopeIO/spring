@@ -54,10 +54,6 @@ namespace savanna_cluster {
    // two classes for comparisons in BOOST_REQUIRE_EQUAL
    // --------------------------------------------------
    struct vote_t {
-      vote_t() : strong(false) {}
-      explicit vote_t(const vote_message_ptr& p) : id(p->block_id), strong(p->strong) {}
-      explicit vote_t(const signed_block_ptr& p, bool strong) : id(p->calculate_id()), strong(strong) {}
-
       friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
          s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
          return s;
@@ -68,8 +64,16 @@ namespace savanna_cluster {
       bool          strong;
    };
 
+   struct strong_vote : public vote_t {
+      explicit strong_vote(const signed_block_ptr& p) : vote_t(p->calculate_id(), true) {}
+   };
+   struct weak_vote : public vote_t {
+      explicit weak_vote(const signed_block_ptr& p) : vote_t(p->calculate_id(), false) {}
+   };
+
+
    struct qc_s {
-      explicit qc_s(const signed_block_ptr& p, bool strong) : block_num(p->block_num()), strong(strong) {}
+      explicit qc_s(uint32_t block_num, bool strong) : block_num(block_num), strong(strong) {}
       explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
 
       friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
@@ -80,6 +84,13 @@ namespace savanna_cluster {
 
       uint32_t block_num; // claimed block
       bool     strong;
+   };
+
+   struct strong_qc : public qc_s {
+      explicit strong_qc(const signed_block_ptr& p) : qc_s(p->block_num(), true) {}
+   };
+   struct weak_qc : public qc_s {
+      explicit weak_qc(const signed_block_ptr& p) : qc_s(p->block_num(), false) {}
    };
 
    // ----------------------------------------------------------------------------
