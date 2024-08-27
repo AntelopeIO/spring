@@ -95,6 +95,12 @@ namespace savanna_cluster {
       explicit weak_qc(const signed_block_ptr& p) : qc_s(p->block_num(), false) {}
    };
 
+   struct fsi_expect {
+      const signed_block_ptr& last_vote;
+      const signed_block_ptr& lock;
+      block_timestamp_type    other_branch_latest_time;
+   };
+
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
@@ -296,6 +302,13 @@ namespace savanna_cluster {
          assert(idx < _node_finalizers.size());
          auto [privkey, pubkey, pop] = get_bls_key(_node_finalizers[idx]);
          return control->get_node_finalizers().get_fsi(pubkey);
+      }
+
+      void check_fsi(const fsi_expect& expected) {
+         const fsi_t& fsi = get_fsi();
+         BOOST_REQUIRE_EQUAL(fsi.last_vote.block_id, expected.last_vote->calculate_id());
+         BOOST_REQUIRE_EQUAL(fsi.lock.block_id, expected.lock->calculate_id());
+         BOOST_REQUIRE_EQUAL(fsi.other_branch_latest_time, expected.other_branch_latest_time);
       }
 
    private:
