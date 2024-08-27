@@ -392,14 +392,9 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         /// @return true if terminate-at-block reached, or max-reversible-blocks reached
+         /// @return true if terminate-at-block reached
          /// not-thread-safe
          bool should_terminate() const;
-
-         /// Difference between max-reversible-blocks and fork database size.
-         /// Can return MAX_INT32 if disabled or pre-Savanna
-         /// @return the number of reversible blocks still allowed
-         int32_t max_reversible_blocks_allowed() const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
