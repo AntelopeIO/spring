@@ -61,35 +61,37 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
    // If we vote, update `fsi.last_vote` and also `fsi.lock` if we have a newer commit qc
    // -----------------------------------------------------------------------------------
    if (can_vote) {
-      // if `fsi.last_vote` is not set, it will be initialized with a timestamp slot of 0, so we
-      // don't need to check fsi.last_vote.empty()
-      // ---------------------------------------------------------------------------------------
-      bool voting_strong = fsi.last_vote.timestamp <= bsp->core.latest_qc_block_timestamp();
+      const auto latest_qc_block_timestamp = bsp->core.latest_qc_block_timestamp();
 
-      if (!voting_strong) {
-         // we can vote strong if the proposal is a descendant of (i.e. extends) our last vote id AND
-         // the latest (weak) vote did not mask a prior (weak) vote for a block not on the same branch.
-         // -------------------------------------------------------------------------------------------
-         voting_strong = !fsi.votes_forked_since_latest_strong_vote && bsp->core.extends(fsi.last_vote.block_id);
+      // If `fsi.last_vote` is not set, it will be initialized with a timestamp slot of 0,
+      // which means `fsi.last_vote.timestamp` would always be less than or equal
+      // to `latest_qc_block_timestamp`.
+      // So, we don't need to separately check for the case where `fsi.last_vote.empty()` is true.
+      if (fsi.last_vote.timestamp <= latest_qc_block_timestamp) {
+         res.decision = vote_decision::strong_vote;
+      } else if (bsp->core.extends(fsi.last_vote.block_id)) {
+         // If `fsi.other_branch_latest_time` is not present, it will have a timestamp slot of
+         // 0, which means it will always be less than or equal to `latest_qc_block_timestamp`.
+         // So, we don't need to separately check for the case where
+         // `fsi.other_branch_latest_time` is not present.
+         if (fsi.other_branch_latest_time <= latest_qc_block_timestamp) {
+            res.decision = vote_decision::strong_vote;
+         } else {
+            res.decision = vote_decision::weak_vote;
+         }
+      } else {
+         res.decision                 = vote_decision::weak_vote;
+         fsi.other_branch_latest_time = fsi.last_vote.timestamp;
       }
 
-      auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
-      if (voting_strong) {
-         fsi.votes_forked_since_latest_strong_vote = false;             // always reset to false on strong vote
-         if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp)
-            fsi.lock = latest_qc_claim__block_ref;
-      } else {
-         // On a weak vote, if `votes_forked_since_latest_strong_vote` was already true, then it should remain true.
-         // The only way `votes_forked_since_latest_strong_vote` can change from false to true is on a weak vote
-         // for a block b where the last_vote references a block that is not an ancestor of b
-         // --------------------------------------------------------------------------------------------------------
-         fsi.votes_forked_since_latest_strong_vote =
-            fsi.votes_forked_since_latest_strong_vote || !bsp->core.extends(fsi.last_vote.block_id);
+      if (res.decision == vote_decision::strong_vote) {
+         fsi.other_branch_latest_time = block_timestamp_type{};
+         if (latest_qc_block_timestamp > fsi.lock.timestamp) {
+            fsi.lock = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+         }
       }
 
       fsi.last_vote = bsp->make_block_ref();
-
-      res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
    }
 
    fc_dlog(vote_logger, "block=${bn} ${id}, liveness_check=${l}, safety_check=${s}, monotony_check=${m}, can vote=${can_vote}, voting=${v}, locked=${lbn} ${lid}",
@@ -103,9 +105,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
    if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
-      fsi.lock                                  = latest_qc_claim__block_ref;
-      fsi.last_vote                             = bsp->make_block_ref();
-      fsi.votes_forked_since_latest_strong_vote = false; // always reset to false on strong vote
+      fsi.lock                     = latest_qc_claim__block_ref;
+      fsi.last_vote                = bsp->make_block_ref();
+      fsi.other_branch_latest_time = block_timestamp_type{}; // always reset on strong vote
       return true;
    }
    return false;
@@ -219,14 +221,27 @@ void my_finalizers_t::save_finalizer_safety_info() const {
 
 // ----------------------------------------------------------------------------------------
 
+// Corresponds to safety_file_version_0
+struct finalizer_safety_information_v0 {
+   block_ref last_vote;
+   block_ref lock;
+   bool      votes_forked_since_latest_strong_vote {false};
+};
+
 void my_finalizers_t::load_finalizer_safety_info_v0(fsi_map& res) {
    uint64_t num_finalizers {0};
    fc::raw::unpack(persist_file, num_finalizers);
    for (size_t i=0; i<num_finalizers; ++i) {
       bls_public_key pubkey;
-      my_finalizers_t::fsi_t fsi;
+      finalizer_safety_information_v0 fsi_v0;
       fc::raw::unpack(persist_file, pubkey);
-      fc::raw::unpack(persist_file, fsi);
+      fc::raw::unpack(persist_file, fsi_v0);
+      my_finalizers_t::fsi_t fsi{
+         .last_vote = fsi_v0.last_vote,
+         .lock = fsi_v0.lock,
+         .other_branch_latest_time = fsi_v0.votes_forked_since_latest_strong_vote ? fsi_v0.last_vote.timestamp
+                                                                                  : block_timestamp_type{}
+      };
       res.emplace(pubkey, fsi);
    }
 }
@@ -371,3 +386,5 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
 }
 
 } // namespace eosio::chain
+
+FC_REFLECT(eosio::chain::finalizer_safety_information_v0, (last_vote)(lock)(votes_forked_since_latest_strong_vote));
