@@ -250,12 +250,16 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    const std::vector<size_t> partition {3};
    set_partition(partition);
 
-   auto check_fsi = [&](const node_t& node, const signed_block_ptr& last_vote, const signed_block_ptr& lock,
-                        block_timestamp_type other_branch_latest_time) {
+   struct fsi_expect {
+      const signed_block_ptr& last_vote;
+      const signed_block_ptr& lock;
+      block_timestamp_type other_branch_latest_time;
+   };
+   auto check_fsi = [&](const node_t& node, fsi_expect expected) {
       const fsi_t& fsi = node.get_fsi();
-      BOOST_REQUIRE_EQUAL(fsi.last_vote.block_id, last_vote->calculate_id());
-      BOOST_REQUIRE_EQUAL(fsi.lock.block_id, lock->calculate_id());
-      BOOST_REQUIRE_EQUAL(fsi.other_branch_latest_time, other_branch_latest_time);
+      BOOST_REQUIRE_EQUAL(fsi.last_vote.block_id, expected.last_vote->calculate_id());
+      BOOST_REQUIRE_EQUAL(fsi.lock.block_id, expected.lock->calculate_id());
+      BOOST_REQUIRE_EQUAL(fsi.other_branch_latest_time, expected.other_branch_latest_time);
    };
 
    auto b3 = D.produce_block();                          // produce a block on D
@@ -274,7 +278,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(qc_s(qc(b3)),  strong_qc(b2));    // b3 should include a strong qc on b2
    BOOST_REQUIRE_EQUAL(B.lib_number,  b1->block_num());  // don't use A.lib_number as A is partitioned by itself
                                                          // so it didn't see b3 and its enclosed QC.
-   check_fsi(B, b3, b2, {});
+   check_fsi(B, {.last_vote = b3, .lock = b2, .other_branch_latest_time = {}});
 
    set_partition(partition);                             // restore our original partition {A, B, C} and {D}
 
@@ -291,7 +295,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), weak_vote(b4));
    BOOST_REQUIRE_EQUAL(qc_s(qc(b4)),  strong_qc(b2));    // b4 should include a strong qc on b2
    BOOST_REQUIRE_EQUAL(A.lib_number,  b1->block_num());
-   check_fsi(B, b4, b2, b3->timestamp);
+   check_fsi(B, fsi_expect{.last_vote = b4, .lock = b2, .other_branch_latest_time = b3->timestamp });
 
    auto b5 = A.produce_block();                          // receives weak votes from {B, C}.
    print("b5", b5);
@@ -300,7 +304,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), weak_vote(b5));
    BOOST_REQUIRE(!qc(b5));                               // Because B's vote was delayed, b5 should not have a QC
    BOOST_REQUIRE_EQUAL(A.lib_number,  b1->block_num());
-   check_fsi(B, b5, b2, b3->timestamp);
+   check_fsi(B, fsi_expect{.last_vote = b5, .lock = b2, .other_branch_latest_time = b3->timestamp });
 
    auto b6 = A.produce_block();                          // receives strong votes from {A, B, C}.
    print("b6", b6);
@@ -309,7 +313,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), strong_vote(b6));  // with issue #627 fix, should start voting strong again
    BOOST_REQUIRE_EQUAL(qc_s(qc(b6)),  weak_qc(b4));      // Because B's vote was delayed, b6 has a weak QC on b4
    BOOST_REQUIRE_EQUAL(A.lib_number,  b1->block_num());
-   check_fsi(B, b6, b4, {});
+   check_fsi(B, fsi_expect{.last_vote = b6, .lock = b4, .other_branch_latest_time = {}});
 
    auto b7 = A.produce_block();                          // receives strong votes from {A, B, C}.
    print("b7", b7);
@@ -318,7 +322,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), strong_vote(b7));
    BOOST_REQUIRE_EQUAL(qc_s(qc(b7)),  weak_qc(b5));      // Because B's vote was delayed, b7 has a weak QC on b5
    BOOST_REQUIRE_EQUAL(A.lib_number,  b1->block_num());
-   check_fsi(B, b7, b5, {});
+   check_fsi(B, fsi_expect{.last_vote = b7, .lock = b5, .other_branch_latest_time = {}});
 
    auto b8 = A.produce_block();                          // receives strong votes from {A, B, C}.
    print("b8", b8);
@@ -327,7 +331,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), strong_vote(b8));
    BOOST_REQUIRE_EQUAL(qc_s(qc(b8)),  strong_qc(b6));    // Because of the strong votes on b6, b8 has a strong QC on b6
    BOOST_REQUIRE_EQUAL(A.lib_number,  b4->block_num());
-   check_fsi(B, b8, b6, {});
+   check_fsi(B, fsi_expect{.last_vote = b8, .lock = b6, .other_branch_latest_time = {}});
 
 } FC_LOG_AND_RETHROW()
 
