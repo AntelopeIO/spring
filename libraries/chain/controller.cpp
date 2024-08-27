@@ -1425,9 +1425,9 @@ struct controller_impl {
                        [&](const block_state_ptr& head) { return head->make_block_ref(); }});
          // doesn't matter chain_head is not updated for IRREVERSIBLE, cannot be in irreversible mode and be a finalizer
          my_finalizers.set_default_safety_information(
-            finalizer_safety_information{ .last_vote                             = ref,
-                                          .lock                                  = ref,
-                                          .votes_forked_since_latest_strong_vote = false});
+            finalizer_safety_information{ .last_vote                = ref,
+                                          .lock                     = ref,
+                                          .other_branch_latest_time = block_timestamp_type{} });
       }
    }
 
@@ -1636,9 +1636,9 @@ struct controller_impl {
                      // we create the non-legacy fork_db, as from this point we may need to cast votes to participate
                      // to the IF consensus. See https://github.com/AntelopeIO/leap/issues/2070#issuecomment-1941901836
                      my_finalizers.set_default_safety_information(
-                        finalizer_safety_information{.last_vote                             = prev->make_block_ref(),
-                                                     .lock                                  = prev->make_block_ref(),
-                                                     .votes_forked_since_latest_strong_vote = false});
+                        finalizer_safety_information{.last_vote                = prev->make_block_ref(),
+                                                     .lock                     = prev->make_block_ref(),
+                                                     .other_branch_latest_time = block_timestamp_type{} });
                   }
                }
             });
@@ -2040,9 +2040,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote = {},
-                                                .lock      = lib->make_block_ref(),
-                                                .votes_forked_since_latest_strong_vote = false });
+                  finalizer_safety_information{ .last_vote                = {},
+                                                .lock                     = lib->make_block_ref(),
+                                                .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2050,9 +2050,9 @@ struct controller_impl {
             auto set_finalizer_defaults = [&](auto& forkdb) -> void {
                auto lib = forkdb.root();
                my_finalizers.set_default_safety_information(
-                  finalizer_safety_information{ .last_vote = {},
-                                                .lock      = lib->make_block_ref(),
-                                                .votes_forked_since_latest_strong_vote = false });
+                  finalizer_safety_information{.last_vote                = {},
+                                               .lock                     = lib->make_block_ref(),
+                                               .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
@@ -4833,29 +4833,11 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   int32_t max_reversible_blocks_allowed() const {
-      if (conf.max_reversible_blocks == 0)
-         return std::numeric_limits<int32_t>::max();
-
-      return fork_db.apply<int32_t>(
-         [&](const fork_database_legacy_t& forkdb) {
-            return std::numeric_limits<int32_t>::max();
-         },
-         [&](const fork_database_if_t& forkdb) {
-            return conf.max_reversible_blocks - forkdb.size();
-         });
-   }
-
    bool should_terminate(block_num_type reversible_block_num) const {
       assert(reversible_block_num > 0);
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
-         return true;
-      }
-      if (max_reversible_blocks_allowed() <= 0) {
-         elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5664,10 +5646,6 @@ validation_mode controller::get_validation_mode()const {
 
 bool controller::should_terminate() const {
    return my->should_terminate();
-}
-
-int32_t controller:: max_reversible_blocks_allowed() const {
-   return my->max_reversible_blocks_allowed();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const

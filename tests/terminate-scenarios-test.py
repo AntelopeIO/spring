@@ -13,8 +13,6 @@ from TestHarness.TestHelper import AppArgs
 # (--delete-all-blocks), "hardReplay"(--hard-replay-blockchain), and "none" to indicate what kind of restart flag should
 # be used. This is one of the only test that actually verify that nodeos terminates with a good exit status.
 #
-# Also used to test max-reversible-blocks in savanna.
-#
 ###############################################################
 
 
@@ -22,8 +20,6 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs=AppArgs()
-appArgs.add(flag="--max-reversible-blocks", type=int, help="pass max-reversible-blocks to nodeos", default=0)
-
 args=TestHelper.parse_args({"-d","-c","--kill-sig","--keep-logs"
                             ,"--activate-if","--dump-error-details","-v","--leave-running"
                             ,"--terminate-at-block","--unshared"}, applicationSpecificArgs=appArgs)
@@ -37,7 +33,6 @@ killSignalStr=args.kill_sig
 activateIF=args.activate_if
 dumpErrorDetails=args.dump_error_details
 terminate=args.terminate_at_block
-maxReversibleBlocks=args.max_reversible_blocks
 
 seed=1
 Utils.Debug=debug
@@ -49,11 +44,6 @@ walletMgr=WalletMgr(True)
 
 try:
     TestHelper.printSystemInfo("BEGIN")
-    if maxReversibleBlocks > 0 and not activateIF:
-        errorExit("--max-reversible-blocks requires --activate-if")
-    if maxReversibleBlocks > 0 and terminate > 0:
-        errorExit("Test supports only one of --max-reversible-blocks requires --terminate-at-block")
-
     cluster.setWalletMgr(walletMgr)
     cluster.setChainStrategy(chainSyncStrategyStr)
 
@@ -63,11 +53,6 @@ try:
     Print("Stand up cluster")
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, totalProducers=pnodes, topo=topo, delay=delay, activateIF=activateIF) is False:
         errorExit("Failed to stand up eos cluster.")
-
-    # killing bios node means LIB will not advance as it hosts the only finalizer
-    if maxReversibleBlocks > 0:
-        Print ("Kill bios node")
-        cluster.biosNode.kill(signal.SIGTERM)
 
     Print ("Wait for Cluster stabilization")
     # wait for cluster to start producing blocks
@@ -88,13 +73,11 @@ try:
 
     Print ("Relaunch dead cluster node instance.")
     nodeArg = "--terminate-at-block %d" % terminate if terminate > 0 else ""
-    if nodeArg == "":
-        nodeArg = "--max-reversible-blocks %d --production-pause-vote-timeout-ms 0" % maxReversibleBlocks if maxReversibleBlocks > 0 else ""
     if nodeArg != "":
         if chainSyncStrategyStr == "hardReplay":
             nodeArg += " --truncate-at-block %d" % terminate
     nodeArg += " --enable-stale-production "
-    if cluster.relaunchEosInstances(nodeArgs=nodeArg, waitForTerm=(terminate > 0 or maxReversibleBlocks > 0)) is False:
+    if cluster.relaunchEosInstances(nodeArgs=nodeArg, waitForTerm=(terminate > 0)) is False:
         errorExit("Failed to relaunch Eos instance")
     Print("nodeos instance relaunched.")
 
