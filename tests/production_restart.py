@@ -11,27 +11,26 @@ from TestHarness.Node import BlockType
 #
 # Tests restart of a production node with a pending finalizer policy.
 #
-# Start up a network with two nodes. The first node has a producer (defproducera) and
-# a single finalizer key configured. The second node has a producer (defproducerb) and
+# Start up a network with two nodes. The first node (node0) has a producer (defproducera) and
+# a single finalizer key configured. The second node (node1) has a producer (defproducerb) and
 # a single finalizer key configured. Use the bios contract to transition
 # to Savanna consensus while keeping the existing producers and using a finalizer
 # policy with the two finalizers.
 #
 # Once everything has been confirmed to be working correctly and finality is advancing,
-# cleanly shut down the defproducera node but keep the defproducerb node running.
+# cleanly shut down node0 but keep node1 running.
 #
-# Then change the finalizer policy using an unconfigured key in the defproducera node
+# Then change the finalizer policy using an unconfigured key in node0
 # to guarantee to get the node stay in a state where it has a pending finalizer policy
-# because the key was not configured. At that point restart the defproducera node with
+# because the key was not configured. At that point restart node0 with
 # new key configured and stale production enabled so it produces blocks again.
 #
-# The correct behavior is for votes from the defproducerb node on the newly produced
-# blocks to be accepted by the defproducerb, QCs to be formed and included in new blocks,
+# The correct behavior is for votes from node1 on the newly produced
+# blocks to be accepted by node1, QCs to be formed and included in new blocks,
 # and finality to advance.
 #
-# Due to the bug in pre-1.0.0-rc1, we expect that on restart the defproducera node
-# will reject the votes received by the defproducerb node because the defproducera
-# node will be computing the wrong finality digest.
+# Due to the bug in pre-1.0.0-rc1, we expect that on restart node0 will reject the
+# votes received by node1 because the node0 will be computing the wrong finality digest.
 #
 ###############################################################
 
@@ -69,27 +68,27 @@ try:
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    producerNode = cluster.getNode(0)
-    finalizerNode = cluster.getNode(1)
+    node0 = cluster.getNode(0)
+    node1 = cluster.getNode(1)
 
     Print("Wait for lib to advance")
-    assert finalizerNode.waitForLibToAdvance(), "finalizerNode did not advance LIB"
-    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
 
     Print("Set finalizers so a pending is in play")
-    # Use an unconfigured key for new finalizer policy on producerNode such that
-    # producerNode stays in a state where it has a pending finalizer policy.
-    producerNode.keys[0].blspubkey = "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w" # setFinalizers uses the first key in key list (index 0)
-    producerNode.keys[0].blspop    = "SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
+    # Use an unconfigured key for new finalizer policy on node0 such that
+    # node0 stays in a state where it has a pending finalizer policy.
+    node0.keys[0].blspubkey = "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w" # setFinalizers uses the first key in key list (index 0)
+    node0.keys[0].blspop    = "SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
 
-    assert cluster.setFinalizers([producerNode, finalizerNode], producerNode), "setfinalizers failed"
-    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB after setfinalizers"
+    assert cluster.setFinalizers([node0, node1], node0), "setfinalizers failed"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB after setfinalizers"
     # Wait for head to advance twice to make sure pending policy is in place
-    producerNode.waitForHeadToAdvance()
-    producerNode.waitForHeadToAdvance()
+    node0.waitForHeadToAdvance()
+    node0.waitForHeadToAdvance()
 
     # Check if a pending policy exists
-    finalizerInfo = producerNode.getFinalizerInfo()
+    finalizerInfo = node0.getFinalizerInfo()
     Print(f"{finalizerInfo}")
     if (finalizerInfo["payload"]["pending_finalizer_policy"] is not None
         and finalizerInfo["payload"]["pending_finalizer_policy"]["finalizers"] is not None):
@@ -97,18 +96,18 @@ try:
     else:
         Utils.errorExit("pending policy does not exist")
 
-    Print("Shutdown producer producerNode")
-    producerNode.kill(signal.SIGTERM)
-    assert not producerNode.verifyAlive(), "producerNode did not shutdown"
+    Print("Shutdown producer node0")
+    node0.kill(signal.SIGTERM)
+    assert not node0.verifyAlive(), "node0 did not shutdown"
 
-    # Configure the new key (using --signature-provider) and restart producerNode.
+    # Configure the new key (using --signature-provider) and restart node0.
     # LIB should advance
-    Print("Restart producer producerNode")
-    producerNode.relaunch(chainArg=" -e --signature-provider PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w=KEY:PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq")
+    Print("Restart producer node0")
+    node0.relaunch(chainArg=" -e --signature-provider PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w=KEY:PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq")
 
     Print("Verify LIB advances after restart")
-    assert producerNode.waitForLibToAdvance(), "producerNode did not advance LIB"
-    assert finalizerNode.waitForLibToAdvance(), "finalizerNode did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
 
     testSuccessful=True
 finally:
