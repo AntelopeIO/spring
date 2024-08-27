@@ -143,7 +143,7 @@ struct simulator_t {
       forkdb.reset_root(genesis);
 
       block_ref genesis_ref(genesis->id(), genesis->timestamp(), genesis->id());
-      my_finalizer.fsi = fsi_t{genesis_ref, genesis_ref, false};
+      my_finalizer.fsi = fsi_t{genesis_ref, genesis_ref, {}};
    }
 
    vote_result vote(const bsp& p) {
