@@ -247,7 +247,7 @@ namespace eosio {
       constexpr static auto stage_str( stages s );
       bool set_state( stages newstate );
       bool is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx);
-      bool is_sync_request_ahead_allowed() const REQUIRES(sync_mtx);
+      bool is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx);
       void request_next_chunk( const connection_ptr& conn = connection_ptr() ) REQUIRES(sync_mtx);
       connection_ptr find_next_sync_node(); // call with locked mutex
       void start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
@@ -2208,13 +2208,13 @@ namespace eosio {
               sync_next_expected_num < sync_last_requested_num );
    }
 
-   bool sync_manager::is_sync_request_ahead_allowed() const REQUIRES(sync_mtx) {
-      if (sync_next_expected_num >= sync_last_requested_num) {
+   bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
+      if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          auto fetch_span = active_sync_fetch_span(false);
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
          uint32_t head = my_impl->get_chain_head_num();
-         if (sync_next_expected_num < head + fetch_span)
+         if (blk_num < head + fetch_span)
             return true;
       }
       return false;
@@ -2239,7 +2239,7 @@ namespace eosio {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
-      } else if (is_sync_request_ahead_allowed()) {
+      } else if (is_sync_request_ahead_allowed(sync_next_expected_num)) {
          // break
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2588,7 +2588,7 @@ namespace eosio {
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                } else {
-                  if (is_sync_request_ahead_allowed()) {
+                  if (is_sync_request_ahead_allowed(blk_num)) {
                      // block was not applied, possibly because we already have the block
                      fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                      "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
