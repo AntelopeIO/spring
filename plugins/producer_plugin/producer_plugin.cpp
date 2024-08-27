@@ -1935,7 +1935,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       return start_block_result::failed;
    }
 
-   block_num_type             head_block_num    = chain.head().block_num();
+   block_handle               head              = chain.head();
+   block_num_type             head_block_num    = head.block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1979,6 +1980,11 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
               ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
               ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
+      _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
+   } else if (head_block_num - head.irreversible_blocknum() >= _max_reversible_blocks) {
+      fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}.",
+              ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum()));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    }
