@@ -261,7 +261,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
                                                        // otherwise it will switch forks and build its next block (b4)
                                                        // on top of it
 
-   push_block(1, b3);                                  // push block to A, B and C, should receive strong votes
+   push_block(1, b3);                                  // push block to B and C, should receive strong votes
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b2, true));
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b3, true));
    BOOST_REQUIRE_EQUAL(C.last_vote(), vote_t(b3, true));
@@ -278,7 +278,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
 
    fc::scoped_set_value tmp(B.vote_delay(), 1);        // delaying just B's votes should be enough to delay QCs
 
-   auto b4 = A.produce_block(_block_interval_us * 2);  // receives weak votes from {B, C}.
+   auto b4 = A.produce_block(_block_interval_us * 2);  // b4 skips a slot. receives weak votes from {B, C}.
    print("b4", b4);
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b4, true));  // A votes strong because it didn't see (and vote on) B3
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b4, false)); // B's last vote even if it wasn't propagated
@@ -286,7 +286,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), qc_s(b2, true));     // b4 should include a strong qc on b2
    BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
-   auto b5 = A.produce_block(_block_interval_us * 2);     // receives weak votes from {B, C}.
+   auto b5 = A.produce_block();                           // receives weak votes from {B, C}.
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b5, true));  // A votes strong because it didn't see (and vote on) B3
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b5, false));
@@ -294,7 +294,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE(!qc(b5));                                // Because B's vote was delayed, b5 should not have a QC
    BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
-   auto b6 = A.produce_block(_block_interval_us * 2);     // receives strong votes from {A, B, C}.
+   auto b6 = A.produce_block();                           // receives strong votes from {A, B, C}.
    print("b6", b6);
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b6, true));  // A votes strong because it didn't see (and vote on) B3
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b6, true));  // with issue #627 fix, should start voting strong again
@@ -302,7 +302,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), qc_s(b4, false));    // Because B's vote was delayed, b6 has a weak QC on b4
    BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
-   auto b7 = A.produce_block(_block_interval_us * 2);     // receives strong votes from {A, B, C}.
+   auto b7 = A.produce_block();                           // receives strong votes from {A, B, C}.
    print("b7", b7);
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b7, true));
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b7, true));
@@ -310,7 +310,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), qc_s(b5, false));    // Because B's vote was delayed, b7 has a weak QC on b5
    BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
-   auto b8 = A.produce_block(_block_interval_us * 2);     // receives strong votes from {A, B, C}.
+   auto b8 = A.produce_block();                           // receives strong votes from {A, B, C}.
    print("b8", b8);
    BOOST_REQUIRE_EQUAL(A.last_vote(), vote_t(b8, true));
    BOOST_REQUIRE_EQUAL(B.last_vote(), vote_t(b8, true));
