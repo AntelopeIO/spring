@@ -115,10 +115,10 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
 
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
-                                                      // Now B broadcasts its votes again, so
-   auto b4 = A.produce_block();                       // b4 should receive 3 weak votes from A, B and C
-                                                      // and should include a strong QC claim on b1 (repeated)
-                                                      // since we don't have enough votes to form a QC on b3
+                                                       // Now B broadcasts its votes again, so
+   auto b4 = A.produce_block();                        // b4 should receive 3 weak votes from A, B and C
+                                                       // and should include a strong QC claim on b1 (repeated)
+                                                       // since we don't have enough votes to form a QC on b3
    print("b4", b4);
    BOOST_REQUIRE_EQUAL(A.last_vote(), strong_vote(b4));
    BOOST_REQUIRE_EQUAL(B.last_vote(), weak_vote(b4));
@@ -135,13 +135,13 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(A.last_vote(), strong_vote(b5));
    BOOST_REQUIRE_EQUAL(B.last_vote(), strong_vote(b5));
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), weak_qc(b4)); // b5 should include a weak qc on b4
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), weak_qc(b4));    // b5 should include a weak qc on b4
 
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
 
    auto b6 = A.produce_block();                       // should include a strong QC on b5, b1 should be final
    print("b6", b6);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b5)); // b6 should include a strong qc on b5
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b5));  // b6 should include a strong qc on b5
 
    BOOST_REQUIRE_EQUAL(A.last_vote(), strong_vote(b6));
    BOOST_REQUIRE_EQUAL(B.last_vote(), strong_vote(b6));
@@ -233,14 +233,13 @@ lock:      B6
 other_branch_latest_time: empty
 --------------------------------------------------------------------------------------------------------- */
 BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
-#if 0
    using namespace savanna_cluster;
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
    //_debug_mode = true;
-   auto b0 = A.produce_block();                       // receives strong votes from all finalizers
-   auto b1 = A.produce_block();                       // receives strong votes from all finalizers
-   auto b2 = A.produce_block();                       // receives strong votes from all finalizers
+   auto b0 = A.produce_block();                         // receives strong votes from all finalizers
+   auto b1 = A.produce_block();                         // receives strong votes from all finalizers
+   auto b2 = A.produce_block();                         // receives strong votes from all finalizers
    print("b1", b1);
    print("b2", b2);
    BOOST_REQUIRE_EQUAL(A.lib_number, b0->block_num());
@@ -251,24 +250,24 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    const std::vector<size_t> partition {3};
    set_partition(partition);
 
-   auto b3 = D.produce_block();                        // produce a block on D
+   auto b3 = D.produce_block();                          // produce a block on D
    print("b3", b3);
 
-   const std::vector<size_t> tmp_partition {0};        // we temporarily separate A (before pushing b3)
-   set_partition(tmp_partition);                       // because we don't want A to see the block produced by D (b3)
-                                                       // otherwise it will switch forks and build its next block (b4)
-                                                       // on top of it
+   const std::vector<size_t> tmp_partition {0};          // we temporarily separate A (before pushing b3)
+   set_partition(tmp_partition);                         // because we don't want A to see the block produced by D (b3)
+                                                         // otherwise it will switch forks and build its next block (b4)
+                                                         // on top of it
 
-   push_block(1, b3);                                  // push block to B and C, should receive strong votes
+   push_block(1, b3);                                    // push block to B and C, should receive strong votes
    BOOST_REQUIRE_EQUAL(A.last_vote(), strong_vote(b2));
    BOOST_REQUIRE_EQUAL(B.last_vote(), strong_vote(b3));
    BOOST_REQUIRE_EQUAL(C.last_vote(), strong_vote(b3));
    BOOST_REQUIRE_EQUAL(D.last_vote(), strong_vote(b3));
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b2));   // b3 should include a strong qc on b2
-   BOOST_REQUIRE_EQUAL(B.lib_number, b1->block_num()); // don't use A.lib_number as A is partitioned by itself
-                                                       // so it didn't see b3 and its enclosed QC.
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b2));     // b3 should include a strong qc on b2
+   BOOST_REQUIRE_EQUAL(B.lib_number, b1->block_num());   // don't use A.lib_number as A is partitioned by itself
+                                                         // so it didn't see b3 and its enclosed QC.
 
-   set_partition(partition);                           // restore our original partition {A, B, C} and {D}
+   set_partition(partition);                             // restore our original partition {A, B, C} and {D}
 
    // from now on, to reproduce the scenario where votes are delayed, so the QC we receive don't
    // claim the parent block, but an ancestor, we need to artificially delay propagating the votes.
@@ -315,7 +314,6 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(C.last_vote(), strong_vote(b8));
    BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), strong_qc(b6));     // Because of the strong votes on b6, b8 has a strong QC on b6
    BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());
-#endif
 } FC_LOG_AND_RETHROW()
 
 
