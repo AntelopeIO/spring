@@ -39,6 +39,7 @@
 
 #include <contracts.hpp>
 #include <test_contracts.hpp>
+#include <test_wasts.hpp>
 #include "test_cfd_transaction.hpp"
 
 
@@ -1486,6 +1487,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(compiler_builtins_tests, T, validating_testers) tr
 
    // test test_ashrti3
    CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_ashrti3", {});
+
+   chain.produce_block();
+   chain.set_code( "testapi"_n, divmod_host_function_overflow_wast );
+   chain.produce_block();
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "", {}); //divmod_host_function_overflow_wast ignores action name
 
    BOOST_REQUIRE_EQUAL( chain.validate(), true );
 } FC_LOG_AND_RETHROW()
