@@ -1982,7 +1982,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
               ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
-   } else if (head_block_num - head.irreversible_blocknum() >= _max_reversible_blocks) {
+   } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {
       fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}.",
               ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum()));
       _pending_block_mode = pending_block_mode::speculating;
