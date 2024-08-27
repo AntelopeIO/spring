@@ -11,23 +11,27 @@ from TestHarness.Node import BlockType
 #
 # Tests restart of a production node with a pending finalizer policy.
 #
-# Start up a network with two nodes. The first node is a producer node, defproducera that has vote-threads enabled. The
-# second node has a producer (defproducerb) and a single finalizer key configured. Use the bios contract to transition
-# to Savanna consensus while keeping the existing producers and using a finalizer policy with the two finalizers.
+# Start up a network with two nodes. The first node has a producer (defproducera) and
+# a single finalizer key configured. The second node has a producer (defproducerb) and
+# a single finalizer key configured. Use the bios contract to transition
+# to Savanna consensus while keeping the existing producers and using a finalizer
+# policy with the two finalizers.
 #
-# Once everything has been confirmed to be working correctly and finality is advancing, cleanly shut down the producer
-# defproducera node but keep the finalizer node of defproducerb running.
+# Once everything has been confirmed to be working correctly and finality is advancing,
+# cleanly shut down the defproducera node but keep the defproducerb node running.
 #
-# Then change the finalizer policy using an unconfigured key in node defproducera to gurantee
-# to get the node stay in a state where it has a pending finalizer policy because the key was
-# not configured. At that point restart the producer node defproducera with new key configured
-# and stale production enabled so it produces blocks again.
+# Then change the finalizer policy using an unconfigured key in the defproducera node
+# to guarantee to get the node stay in a state where it has a pending finalizer policy
+# because the key was not configured. At that point restart the defproducera node with
+# new key configured and stale production enabled so it produces blocks again.
 #
-# The correct behavior is for votes from the finalizer node on the newly produced blocks to be accepted by producer
-# node defproducera, QCs to be formed and included in new blocks, and finality to advance.
+# The correct behavior is for votes from the defproducerb node on the newly produced
+# blocks to be accepted by the defproducerb, QCs to be formed and included in new blocks,
+# and finality to advance.
 #
-# Due to the bug in pre-1.0.0-rc1, we expect that on restart the producer node will reject the votes received by the
-# finalizer node because the producer node will be computing the wrong finality digest.#
+# Due to the bug in pre-1.0.0-rc1, we expect that on restart the defproducera node
+# will reject the votes received by the defproducerb node because the defproducera
+# node will be computing the wrong finality digest.
 #
 ###############################################################
 
