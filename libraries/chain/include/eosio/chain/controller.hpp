@@ -9,6 +9,7 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -451,6 +452,8 @@ namespace eosio::chain {
 
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
+
+      const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi)
 
       private:
          friend class apply_context;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/chain/finality/finalizer_authority.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
 #include <eosio/testing/tester.hpp>
@@ -22,6 +23,7 @@ namespace savanna_cluster {
    using block_header     = eosio::chain::block_header;
    using tester           = eosio::testing::tester;
    using setup_policy     = eosio::testing::setup_policy;
+   using fsi_t            = eosio::chain::finalizer_safety_information;
 
    class cluster_t;
 
@@ -287,6 +289,13 @@ namespace savanna_cluster {
                remove_all(path);
             }
          }
+      }
+
+      const fsi_t& get_fsi(size_t idx = 0) const {
+         assert(control);
+         assert(idx < _node_finalizers.size());
+         auto [privkey, pubkey, pop] = get_bls_key(_node_finalizers[idx]);
+         return control->get_node_finalizers().get_fsi(pubkey);
       }
 
    private:
