@@ -508,6 +508,7 @@ public:
    std::atomic<fc::time_point>                       _last_producer_vote_received;
    fc::microseconds                                  _production_pause_vote_timeout;
    fc::microseconds                                  _max_irreversible_block_age_us;
+   block_num_type                                    _max_reversible_blocks{0};
    // produce-block-offset is in terms of the complete round, internally use calculated value for each block of round
    fc::microseconds                                  _produce_block_cpu_effort;
    fc::time_point                                    _pending_block_deadline;
@@ -1169,6 +1170,8 @@ void producer_plugin::set_program_options(
           "Setting this value (in milliseconds) will restrict the allowed transaction execution time to a value potentially lower than the on-chain consensus max_transaction_cpu_usage value.")
          ("max-irreversible-block-age", bpo::value<int32_t>()->default_value( -1 ),
           "Limits the maximum age (in seconds) of the DPOS Irreversible Block for a chain this node will produce blocks on (use negative value to indicate unlimited)")
+         ("max-reversible-blocks", bpo::value<uint32_t>()->default_value(config::default_max_reversible_blocks),
+           "Maximum allowed reversible blocks beyond irreversible before block production is paused. Specify 0 to disable.")
          ("producer-name,p", boost::program_options::value<vector<string>>()->composing()->multitoken(),
           "ID of producer controlled by this node (e.g. inita; may specify multiple times)")
          ("signature-provider", boost::program_options::value<vector<string>>()->composing()->multitoken()->default_value(
@@ -1307,6 +1310,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
    _max_transaction_time_ms = options.at("max-transaction-time").as<int32_t>();
 
    _max_irreversible_block_age_us = fc::seconds(options.at("max-irreversible-block-age").as<int32_t>());
+
+   _max_reversible_blocks = options.at("max-reversible-blocks").as<uint32_t>();
 
    auto max_incoming_transaction_queue_size = options.at("incoming-transaction-queue-size-mb").as<uint16_t>() * 1024 * 1024;
 
@@ -1930,7 +1935,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       return start_block_result::failed;
    }
 
-   block_num_type             head_block_num    = chain.head().block_num();
+   block_handle               head              = chain.head();
+   block_num_type             head_block_num    = head.block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1974,6 +1980,11 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
               ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
               ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
+      _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
+   } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {
+      fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}.",
+              ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum()));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    }
