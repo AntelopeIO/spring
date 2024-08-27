@@ -329,6 +329,16 @@ class datastream<fc::cfile, void> : public fc::cfile {
       return true;
    }
 
+   bool read( char* d, size_t s ) {
+      cfile::read( d, s );
+      return true;
+   }
+
+   bool write(const char* d, size_t s) {
+      cfile::write(d, s);
+      return true;
+   }
+
    fc::cfile&       storage() { return *this; }
    const fc::cfile& storage() const { return *this; }
 
