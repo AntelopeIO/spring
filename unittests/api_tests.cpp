@@ -1431,6 +1431,67 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_start, T, validating_testers) try {
 } FC_LOG_AND_RETHROW()
 
 /*************************************************************************************
+ * compiler_builtins_tests test case
+ *************************************************************************************/
+BOOST_AUTO_TEST_CASE_TEMPLATE(compiler_builtins_tests, T, validating_testers) try {
+   T chain;
+
+   chain.produce_blocks(2);
+   chain.create_account( "testapi"_n );
+   chain.produce_blocks(10);
+   chain.set_code( "testapi"_n, test_contracts::test_api_wasm() );
+   chain.produce_blocks(1);
+
+   // test test_multi3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_multi3", {});
+
+   // test test_divti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_divti3", {});
+
+   // test test_divti3_by_0
+   BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_divti3_by_0", {}), arithmetic_exception,
+         [](const fc::exception& e) {
+            return expect_assert_message(e, "divide by zero");
+         }
+      );
+
+   // test test_udivti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_udivti3", {});
+
+   // test test_udivti3_by_0
+   BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_udivti3_by_0", {}), arithmetic_exception,
+         [](const fc::exception& e) {
+            return expect_assert_message(e, "divide by zero");
+         }
+      );
+
+   // test test_modti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_modti3", {});
+
+   // test test_modti3_by_0
+   BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_modti3_by_0", {}), arithmetic_exception,
+         [](const fc::exception& e) {
+            return expect_assert_message(e, "divide by zero");
+         }
+      );
+
+   // test test_lshlti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_lshlti3", {});
+
+   // test test_lshrti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_lshrti3", {});
+
+   // test test_ashlti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_ashlti3", {});
+
+   // test test_ashrti3
+   CALL_TEST_FUNCTION( chain, "test_compiler_builtins", "test_ashrti3", {});
+
+   BOOST_REQUIRE_EQUAL( chain.validate(), true );
+} FC_LOG_AND_RETHROW()
+
+
+/*************************************************************************************
  * transaction_tests common function
  *************************************************************************************/
 template<typename T>
