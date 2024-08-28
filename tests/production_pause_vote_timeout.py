@@ -9,7 +9,34 @@ from TestHarness.Node import BlockType
 
 ###############################################################
 # production_pause_vote_timeout
+# Test production-pause-vote-timeout works as expected.
 #
+# Setup:
+#
+# Use five nodes in an hourglass topology. The center node is a relay node that
+# initially has vote-threads enabled. The other 4 peripheral nodes are:
+#
+# Node0: Enables block production for producera and has the finalizer key with
+#        description of producera. Has vote-threads enabled. Connect to the center node.
+# Node1: Enables block production for producerb and has the finalizer key with
+#        description of producerb. Has vote-threads enabled. Connect to the center node
+#        and Node1.
+# defproducercProducerNode: Enables block production for producerc.
+# defproducercFinalizerNode: Has the finalizer key with description of producerc.
+#        Has vote-threads enabled. Connect to the center node and defproducercProducerNode.
+# 
+# Test cases:
+#
+# 1. Bring down defproducercFinalizerNode. defproducercProducerNode should eventually
+#    automatically pause production due to not receiving votes from defproducercFinalizerNode.
+#    that are associated to its producerc. However, Node0 and Node1 should not pause.
+#    Then bring defproducercFinalizerNode. back up. defproducercProducerNode should
+#    automatically resume production.
+# 2. Bring down the center node. defproducercProducerNode should eventually automatically
+#    pause production due to not receiving votes from Node0 and Node1 that are
+#    associated with the other producers. However, Node0 and Node1 should not pause.
+#    Then bring the center node back up. defproducercProducerNode should automatically
+#    resume production.
 #
 ###############################################################
 
