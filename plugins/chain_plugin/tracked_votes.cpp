@@ -39,9 +39,11 @@ namespace eosio::chain_apis {
                return;
 
             if (!block->contains_extension(chain::quorum_certificate_extension::extension_id())) {
-               fc_ilog(chain::vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no votes",
+               std::optional<chain::block_header_extension> fin_ext = block->extract_header_extension(chain::finality_extension::extension_id());
+               chain::qc_claim_t claim = fin_ext ? std::get<chain::finality_extension>(*fin_ext).qc_claim : chain::qc_claim_t{};
+               fc_ilog(chain::vote_logger, "Block ${id}... #${n} @ ${t} produced by ${p}, latency: ${l}ms has no qc, claim: ${c}",
                        ("id", id.str().substr(8, 16))("n", block->block_num())("t", block->timestamp)("p", block->producer)
-                       ("l", (now - block->timestamp).count() / 1000));
+                       ("l", (now - block->timestamp).count() / 1000)("c", claim));
                return;
             }
 
