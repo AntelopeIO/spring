@@ -169,7 +169,7 @@ try:
     # disable production-pause-vote-timeout
     Print("Relaunch producercNode with --production-pause-vote-timeout-ms 0")
     addSwapFlags={"--production-pause-vote-timeout-ms": "0"}
-    producercNode.relaunch(addSwapFlags=addSwapFlags)
+    producercNode.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
 
     Print("Shutdown finalizercNode")
     finalizercNode.kill(signal.SIGTERM)
