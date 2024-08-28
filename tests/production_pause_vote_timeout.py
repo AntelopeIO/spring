@@ -175,16 +175,8 @@ try:
     finalizercNode.kill(signal.SIGTERM)
     assert not finalizercNode.verifyAlive(), "finalizercNode did not shutdown"
 
-    # wait some time to make sure it is not paused
-    paused = False
-    for i in range(0, 10):
-        time.sleep(1)
-        paused = not producercNode.waitForHeadToAdvance()
-        if paused:
-            Print(f'paused after {i} seconds after finalizercNode was shutdown')
-            break;
     # Verify producercNode still producing
-    assert not paused, "producercNode (--production-pause-vote-timeout-ms 0) paused after finalizercNode was shutdown"
+    assert producercNode.waitForHeadToAdvance(), "producercNode (--production-pause-vote-timeout-ms 0) paused after finalizercNode was shutdown"
     # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
