@@ -175,17 +175,14 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
    }
 }
 
-void my_finalizers_t::save_finalizer_safety_info() const {
-
-   if (!cfile_ds.is_open()) {
-      EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
-                 "path for storing finalizer safety information file not specified");
-      if (!std::filesystem::exists(persist_file_path.parent_path()))
-          std::filesystem::create_directories(persist_file_path.parent_path());
-      cfile_ds.set_file_path(persist_file_path);
-      cfile_ds.open(fc::cfile::truncate_rw_mode);
-   }
+bool my_finalizers_t::save_finalizer_safety_info() const {
    try {
+      if (!cfile_ds.is_open()) {
+         EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
+                    "path for storing finalizer safety information file not specified");
+         cfile_ds.set_file_path(persist_file_path);
+         cfile_ds.open(fc::cfile::truncate_rw_mode);
+      }
       // optimize by only calculating crc for inactive once
       if (inactive_safety_info_written_pos == 0) {
          persist_file.seekp(0);
@@ -216,7 +213,9 @@ void my_finalizers_t::save_finalizer_safety_info() const {
       fc::raw::pack(persist_file, cs);
 
       cfile_ds.flush();
-   } FC_LOG_AND_RETHROW()
+      return true;
+   } FC_LOG_AND_DROP()
+   return false;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -268,7 +267,9 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
               ("p", persist_file_path));
 
    if (!std::filesystem::exists(persist_file_path)) {
-      fc_ilog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist (which is expected on the first use of a BLS finalizer key)",
+      if (!std::filesystem::exists(persist_file_path.parent_path()))
+         std::filesystem::create_directories(persist_file_path.parent_path());
+      fc_ilog(vote_logger, "finalizer safety persistence file ${p} does not exist (which is expected on the first use of a BLS finalizer key)",
               ("p", persist_file_path));
       return res;
    }
@@ -276,16 +277,10 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    cfile_ds.set_file_path(persist_file_path);
 
    try {
-      // if we can't open the finalizer safety file, we return an empty map.
+      // if we can't open the finalizer safety file on startup, throw exception so producer_plugin startup fails
       cfile_ds.open(fc::cfile::update_rw_mode);
-   } catch(std::exception& e) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults. Exception: ${e}",
-              ("p", persist_file_path)("e", e.what()));
-      return res;
-   } catch(...) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults", ("p", persist_file_path));
-      return res;
-   }
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "unable to open finalizer safety persistence file ${p}", ("p", persist_file_path))
+
    try {
       persist_file.seekp(0);
 
@@ -373,6 +368,8 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 // possible, and allow for liveness which will allow the finalizers to eventually vote.
 // --------------------------------------------------------------------------------------------
 void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
+   std::lock_guard g(mtx);
+
    for (auto& [pub_key, f] : finalizers) {
       // update only finalizers which are uninitialized
       if (!f.fsi.last_vote.empty() || !f.fsi.lock.empty())

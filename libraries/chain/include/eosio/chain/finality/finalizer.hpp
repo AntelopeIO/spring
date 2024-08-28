@@ -148,11 +148,12 @@ namespace eosio::chain {
 
          // then save the safety info and, if successful, gossip the votes
          if (!votes.empty()) {
-            save_finalizer_safety_info();
-            g.unlock();
-            has_voted.store(true, std::memory_order::relaxed);
-            for (const auto& vote : votes)
-               std::forward<F>(process_vote)(vote);
+            if (save_finalizer_safety_info()) {
+               g.unlock();
+               has_voted.store(true, std::memory_order::relaxed);
+               for (const auto& vote : votes)
+                  std::forward<F>(process_vote)(vote);
+            }
          }
       }
 
@@ -172,12 +173,13 @@ namespace eosio::chain {
          return std::ranges::any_of(std::views::keys(finalizers), std::forward<F>(f));
       }
 
-      /// only call on startup
-      void    set_keys(const std::map<std::string, std::string>& finalizer_keys);
       void    set_default_safety_information(const fsi_t& fsi);
 
+      /// only call on startup
+      void    set_keys(const std::map<std::string, std::string>& finalizer_keys);
+
       // following two member functions could be private, but are used in testing, not thread safe
-      void    save_finalizer_safety_info() const;
+      bool    save_finalizer_safety_info() const;
       fsi_map load_finalizer_safety_info();
 
       // for testing purposes only, not thread safe
@@ -187,7 +189,6 @@ namespace eosio::chain {
    private:
       void load_finalizer_safety_info_v0(fsi_map& res);
       void load_finalizer_safety_info_v1(fsi_map& res);
-
    };
 
 }
