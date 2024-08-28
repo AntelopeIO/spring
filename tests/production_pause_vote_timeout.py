@@ -7,7 +7,7 @@ import time
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 from TestHarness.Node import BlockType
 
-###############################################################
+####################################################################################
 # production_pause_vote_timeout
 # Test production-pause-vote-timeout works as expected.
 #
@@ -38,7 +38,7 @@ from TestHarness.Node import BlockType
 #    Then bring the center node back up. defproducercProducerNode should automatically
 #    resume production.
 #
-###############################################################
+####################################################################################
 
 Print=Utils.Print
 errorExit=Utils.errorExit
@@ -47,9 +47,9 @@ args=TestHelper.parse_args({"-d","--keep-logs","--dump-error-details","-v","--le
 delay=args.d
 debug=args.v
 dumpErrorDetails=args.dump_error_details
-pnodes=3
-totalNodes=pnodes + 2
-prodCount=1
+pnodes=3 # number of producing nodes
+totalNodes=pnodes + 2 # plus 1 center node and 1 finalizer node for defproducerc
+prodCount=1 # number of producers per producing node
 
 Utils.Debug=debug
 testSuccessful=False
@@ -64,9 +64,13 @@ try:
 
     Print(f'producing nodes: {pnodes}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
+    # for defproducerc producing node
     specificExtraNodeosArgs={}
     specificExtraNodeosArgs[2]="--production-pause-vote-timeout-ms 1000"
+
     Print("Stand up cluster")
+    # Cannot use activateIF to transition to Savanna directly as it assumes
+    # each producer node has finalizer configured.
     if cluster.launch(pnodes=pnodes, totalNodes=totalNodes, totalProducers=pnodes, prodCount=prodCount, delay=delay, loadSystemContract=False,
                       specificExtraNodeosArgs=specificExtraNodeosArgs,
                       activateIF=False, signatureProviderForNonProducer=True,
@@ -82,61 +86,67 @@ try:
     centerNode = cluster.getNode(4)
 
     Print("Set finalizer policy and start transition to Savanna")
+    # Specifically, need to configure finalizer name for defproducercFinalizerNode
+    # as defproducerc
     transId = cluster.setFinalizers(nodes=[node0, node1, defproducercFinalizerNode], finalizerNames=["defproducera", "defproducerb", "defproducerc"])
     assert transId is not None, "setfinalizers failed"
-    if not cluster.biosNode.waitForTransFinalization(transId):
-        Print(f'ERROR: setfinalizers transaction {transId} was not rolled into a LIB block')
+    assert cluster.biosNode.waitForTransFinalization(transId), f"setfinalizers transaction {transId} was not rolled into a LIB block"
     assert cluster.biosNode.waitForLibToAdvance(), "LIB did not advance after setFinalizers"
 
+    # biosNode no longer needed
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    Print("Wait for lib to advance")
+    Print("Wait for LIB on all producing nodes to advance")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
 
-    Print("Shutdown producer defproducercFinalizerNode")
+    ####################### test 1 ######################
+
+    Print("Shutdown defproducercFinalizerNode")
     defproducercFinalizerNode.kill(signal.SIGTERM)
     assert not defproducercFinalizerNode.verifyAlive(), "defproducercFinalizerNode did not shutdown"
 
-    # production-pause-vote-timeout was set to 1 second. wait for at most 15 seconds
+    # wait some time for defproducercProducerNode paused
     paused = False
     for i in range(0, 15):
         time.sleep(1)
         paused = not defproducercProducerNode.waitForHeadToAdvance(timeout=1)
         if paused:
-            Print(f'paused after {i} seconds since defproducercProducerNode shutdown')
+            Print(f'paused after {i} seconds after defproducercFinalizerNode was shutdown')
             break;
+    # Verify defproducercProducerNode paused
     assert paused, "defproducercProducerNode still producing after defproducercFinalizerNode was shutdown"
-
-    # node0 and node1 still producing
+    # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after defproducercFinalizerNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after defproducercFinalizerNode was shutdown"
 
-    Print("Restart producer defproducercFinalizerNode")
+    Print("Restart defproducercFinalizerNode")
     defproducercFinalizerNode.relaunch()
 
-    Print("Verify LIB advances after restart")
+    Print("Verify LIB advances after restart of defproducercFinalizerNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
+
+    ####################### test 2 ######################
 
     Print("Shutdown centerNode")
     centerNode.kill(signal.SIGTERM)
     assert not centerNode.verifyAlive(), "centerNode did not shutdown"
 
-    # wait for at most 15 seconds
+    # wait some time for defproducercProducerNode paused
     paused = False
     for i in range(0, 15):
         time.sleep(1)
         paused = not defproducercProducerNode.waitForHeadToAdvance(timeout=1)
         if paused:
-            Print(f'paused after {i} seconds since centerNode shutdown')
+            Print(f'paused after {i} seconds after centerNode was shutdown')
             break;
+    # Verify defproducercProducerNode paused
     assert paused, "defproducercProducerNode still producing after centerNode was shutdown" 
-
-    # node0 and node1 still producing
+    # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after centerNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after centerNode was shutdown"
 
