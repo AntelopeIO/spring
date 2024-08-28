@@ -757,8 +757,8 @@ public:
 
    enum class implicit_pause {
       not_paused,   // not implicitly paused
-      prod_paused,  // paused do to not receiving vote associated with producer
-      other_paused  // paused do to not receiving vote from finalizers not associated with producer
+      prod_paused,  // paused due to not receiving vote associated with producer
+      other_paused  // paused due to not receiving vote from finalizers not associated with producer
    };
    implicit_pause implicitly_paused() const {
       if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
