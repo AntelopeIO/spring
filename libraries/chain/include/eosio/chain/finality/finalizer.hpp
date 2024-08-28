@@ -148,9 +148,9 @@ namespace eosio::chain {
 
          // then save the safety info and, if successful, gossip the votes
          if (!votes.empty()) {
+            has_voted.store(true, std::memory_order::relaxed);
             if (save_finalizer_safety_info()) {
                g.unlock();
-               has_voted.store(true, std::memory_order::relaxed);
                for (const auto& vote : votes)
                   std::forward<F>(process_vote)(vote);
             }
