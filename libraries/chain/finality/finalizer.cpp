@@ -61,35 +61,37 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
    // If we vote, update `fsi.last_vote` and also `fsi.lock` if we have a newer commit qc
    // -----------------------------------------------------------------------------------
    if (can_vote) {
-      // if `fsi.last_vote` is not set, it will be initialized with a timestamp slot of 0, so we
-      // don't need to check fsi.last_vote.empty()
-      // ---------------------------------------------------------------------------------------
-      bool voting_strong = fsi.last_vote.timestamp <= bsp->core.latest_qc_block_timestamp();
+      const auto latest_qc_block_timestamp = bsp->core.latest_qc_block_timestamp();
 
-      if (!voting_strong) {
-         // we can vote strong if the proposal is a descendant of (i.e. extends) our last vote id AND
-         // the latest (weak) vote did not mask a prior (weak) vote for a block not on the same branch.
-         // -------------------------------------------------------------------------------------------
-         voting_strong = !fsi.votes_forked_since_latest_strong_vote && bsp->core.extends(fsi.last_vote.block_id);
+      // If `fsi.last_vote` is not set, it will be initialized with a timestamp slot of 0,
+      // which means `fsi.last_vote.timestamp` would always be less than or equal
+      // to `latest_qc_block_timestamp`.
+      // So, we don't need to separately check for the case where `fsi.last_vote.empty()` is true.
+      if (fsi.last_vote.timestamp <= latest_qc_block_timestamp) {
+         res.decision = vote_decision::strong_vote;
+      } else if (bsp->core.extends(fsi.last_vote.block_id)) {
+         // If `fsi.other_branch_latest_time` is not present, it will have a timestamp slot of
+         // 0, which means it will always be less than or equal to `latest_qc_block_timestamp`.
+         // So, we don't need to separately check for the case where
+         // `fsi.other_branch_latest_time` is not present.
+         if (fsi.other_branch_latest_time <= latest_qc_block_timestamp) {
+            res.decision = vote_decision::strong_vote;
+         } else {
+            res.decision = vote_decision::weak_vote;
+         }
+      } else {
+         res.decision                 = vote_decision::weak_vote;
+         fsi.other_branch_latest_time = fsi.last_vote.timestamp;
       }
 
-      auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
-      if (voting_strong) {
-         fsi.votes_forked_since_latest_strong_vote = false;             // always reset to false on strong vote
-         if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp)
-            fsi.lock = latest_qc_claim__block_ref;
-      } else {
-         // On a weak vote, if `votes_forked_since_latest_strong_vote` was already true, then it should remain true.
-         // The only way `votes_forked_since_latest_strong_vote` can change from false to true is on a weak vote
-         // for a block b where the last_vote references a block that is not an ancestor of b
-         // --------------------------------------------------------------------------------------------------------
-         fsi.votes_forked_since_latest_strong_vote =
-            fsi.votes_forked_since_latest_strong_vote || !bsp->core.extends(fsi.last_vote.block_id);
+      if (res.decision == vote_decision::strong_vote) {
+         fsi.other_branch_latest_time = block_timestamp_type{};
+         if (latest_qc_block_timestamp > fsi.lock.timestamp) {
+            fsi.lock = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+         }
       }
 
       fsi.last_vote = bsp->make_block_ref();
-
-      res.decision = voting_strong ? vote_decision::strong_vote : vote_decision::weak_vote;
    }
 
    fc_dlog(vote_logger, "block=${bn} ${id}, liveness_check=${l}, safety_check=${s}, monotony_check=${m}, can vote=${can_vote}, voting=${v}, locked=${lbn} ${lid}",
@@ -103,9 +105,9 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
 bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
    if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
-      fsi.lock                                  = latest_qc_claim__block_ref;
-      fsi.last_vote                             = bsp->make_block_ref();
-      fsi.votes_forked_since_latest_strong_vote = false; // always reset to false on strong vote
+      fsi.lock                     = latest_qc_claim__block_ref;
+      fsi.last_vote                = bsp->make_block_ref();
+      fsi.other_branch_latest_time = block_timestamp_type{}; // always reset on strong vote
       return true;
    }
    return false;
@@ -117,15 +119,17 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
                                        const digest_type& digest) {
    finalizer::vote_decision decision = decide_vote(bsp).decision;
    if (decision == vote_decision::strong_vote || decision == vote_decision::weak_vote) {
-      bls_signature sig;
-      if (decision == vote_decision::weak_vote) {
-         // if voting weak, the digest to sign should be a hash of the concatenation of the finalizer_digest
-         // and the string "WEAK"
-         sig =  priv_key.sign(create_weak_digest(digest));
-      } else {
-         sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
-      }
-      return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
+      try {
+         bls_signature sig;
+         if (decision == vote_decision::weak_vote) {
+            // if voting weak, the digest to sign should be a hash of the concatenation of the finalizer_digest
+            // and the string "WEAK"
+            sig =  priv_key.sign(create_weak_digest(digest));
+         } else {
+            sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
+         }
+         return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
+      } FC_LOG_AND_DROP() // bls_signature can throw if invalid signature
    }
    return {};
 }
@@ -173,17 +177,14 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
    }
 }
 
-void my_finalizers_t::save_finalizer_safety_info() const {
-
-   if (!cfile_ds.is_open()) {
-      EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
-                 "path for storing finalizer safety information file not specified");
-      if (!std::filesystem::exists(persist_file_path.parent_path()))
-          std::filesystem::create_directories(persist_file_path.parent_path());
-      cfile_ds.set_file_path(persist_file_path);
-      cfile_ds.open(fc::cfile::truncate_rw_mode);
-   }
+bool my_finalizers_t::save_finalizer_safety_info() const {
    try {
+      if (!cfile_ds.is_open()) {
+         EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
+                    "path for storing finalizer safety information file not specified");
+         cfile_ds.set_file_path(persist_file_path);
+         cfile_ds.open(fc::cfile::truncate_rw_mode);
+      }
       // optimize by only calculating crc for inactive once
       if (inactive_safety_info_written_pos == 0) {
          persist_file.seekp(0);
@@ -214,19 +215,34 @@ void my_finalizers_t::save_finalizer_safety_info() const {
       fc::raw::pack(persist_file, cs);
 
       cfile_ds.flush();
-   } FC_LOG_AND_RETHROW()
+      return true;
+   } FC_LOG_AND_DROP()
+   return false;
 }
 
 // ----------------------------------------------------------------------------------------
+
+// Corresponds to safety_file_version_0
+struct finalizer_safety_information_v0 {
+   block_ref last_vote;
+   block_ref lock;
+   bool      votes_forked_since_latest_strong_vote {false};
+};
 
 void my_finalizers_t::load_finalizer_safety_info_v0(fsi_map& res) {
    uint64_t num_finalizers {0};
    fc::raw::unpack(persist_file, num_finalizers);
    for (size_t i=0; i<num_finalizers; ++i) {
       bls_public_key pubkey;
-      my_finalizers_t::fsi_t fsi;
+      finalizer_safety_information_v0 fsi_v0;
       fc::raw::unpack(persist_file, pubkey);
-      fc::raw::unpack(persist_file, fsi);
+      fc::raw::unpack(persist_file, fsi_v0);
+      my_finalizers_t::fsi_t fsi{
+         .last_vote = fsi_v0.last_vote,
+         .lock = fsi_v0.lock,
+         .other_branch_latest_time = fsi_v0.votes_forked_since_latest_strong_vote ? fsi_v0.last_vote.timestamp
+                                                                                  : block_timestamp_type{}
+      };
       res.emplace(pubkey, fsi);
    }
 }
@@ -253,7 +269,9 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
               ("p", persist_file_path));
 
    if (!std::filesystem::exists(persist_file_path)) {
-      fc_ilog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist (which is expected on the first use of a BLS finalizer key)",
+      if (!std::filesystem::exists(persist_file_path.parent_path()))
+         std::filesystem::create_directories(persist_file_path.parent_path());
+      fc_ilog(vote_logger, "finalizer safety persistence file ${p} does not exist (which is expected on the first use of a BLS finalizer key)",
               ("p", persist_file_path));
       return res;
    }
@@ -261,16 +279,10 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    cfile_ds.set_file_path(persist_file_path);
 
    try {
-      // if we can't open the finalizer safety file, we return an empty map.
+      // if we can't open the finalizer safety file on startup, throw exception so producer_plugin startup fails
       cfile_ds.open(fc::cfile::update_rw_mode);
-   } catch(std::exception& e) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults. Exception: ${e}",
-              ("p", persist_file_path)("e", e.what()));
-      return res;
-   } catch(...) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults", ("p", persist_file_path));
-      return res;
-   }
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "unable to open finalizer safety persistence file ${p}", ("p", persist_file_path))
+
    try {
       persist_file.seekp(0);
 
@@ -358,6 +370,8 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 // possible, and allow for liveness which will allow the finalizers to eventually vote.
 // --------------------------------------------------------------------------------------------
 void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
+   std::lock_guard g(mtx);
+
    for (auto& [pub_key, f] : finalizers) {
       // update only finalizers which are uninitialized
       if (!f.fsi.last_vote.empty() || !f.fsi.lock.empty())
@@ -371,3 +385,5 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
 }
 
 } // namespace eosio::chain
+
+FC_REFLECT(eosio::chain::finalizer_safety_information_v0, (last_vote)(lock)(votes_forked_since_latest_strong_vote));

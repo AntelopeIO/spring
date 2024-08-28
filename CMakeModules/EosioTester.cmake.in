@@ -99,6 +99,7 @@ target_link_libraries(EosioChain INTERFACE
    Boost::interprocess
    Boost::asio
    Boost::beast
+   Boost::crc
    Boost::signals2
    Boost::iostreams
    "-lz" # Needed by Boost iostreams
