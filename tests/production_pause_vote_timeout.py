@@ -48,14 +48,14 @@ try:
 
     assert cluster.biosNode.getInfo(exitOnError=True)["head_block_producer"] != "eosio", "launch should have waited for production to change"
 
-    node0 = cluster.getNode(0)
-    node1 = cluster.getNode(1)
-    node2 = cluster.getNode(2)
-    node3 = cluster.getNode(3)
+    node0 = cluster.getNode(0)                     # producer and finalizer node for defproducera
+    node1 = cluster.getNode(1)                     # producer and finalizer node for defproducerb
+    defproducercProducerNode = cluster.getNode(2)  # producer node for defproducerc
+    defproducercFinalizerNode = cluster.getNode(3) # finalizer node for defproducerc
     centerNode = cluster.getNode(4)
 
     Print("Set finalizer policy and start transition to Savanna")
-    transId = cluster.setFinalizers(nodes=[node0, node1, node3], finalizerNames=["defproducera", "defproducerb", "defproducerc"])
+    transId = cluster.setFinalizers(nodes=[node0, node1, defproducercFinalizerNode], finalizerNames=["defproducera", "defproducerb", "defproducerc"])
     assert transId is not None, "setfinalizers failed"
     if not cluster.biosNode.waitForTransFinalization(transId):
         Print(f'ERROR: setfinalizers transaction {transId} was not rolled into a LIB block')
@@ -65,35 +65,35 @@ try:
     cluster.waitOnClusterSync(blockAdvancing=5)
 
     Print("Wait for lib to advance")
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
-    assert node2.waitForLibToAdvance(), "Node2 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
 
-    Print("Shutdown producer node3")
-    node3.kill(signal.SIGTERM)
-    assert not node3.verifyAlive(), "Node3 did not shutdown"
+    Print("Shutdown producer defproducercFinalizerNode")
+    defproducercFinalizerNode.kill(signal.SIGTERM)
+    assert not defproducercFinalizerNode.verifyAlive(), "defproducercFinalizerNode did not shutdown"
 
     # production-pause-vote-timeout was set to 1 second. wait for at most 15 seconds
     paused = False
     for i in range(0, 15):
         time.sleep(1)
-        paused = not node2.waitForHeadToAdvance(timeout=1)
+        paused = not defproducercProducerNode.waitForHeadToAdvance(timeout=1)
         if paused:
-            Print(f'paused after {i} seconds since node2 shutdown')
+            Print(f'paused after {i} seconds since defproducercProducerNode shutdown')
             break;
-    assert paused, "node2 head still advancing after node3 was shutdown" 
+    assert paused, "defproducercProducerNode still producing after defproducercFinalizerNode was shutdown"
 
-    # Lib on node0 and node1 still advance
-    assert node0.waitForHeadToAdvance(), "node0 paused after node3 was shutdown"
-    assert node1.waitForHeadToAdvance(), "node1 paused after node3 was shutdown"
+    # node0 and node1 still producing
+    assert node0.waitForHeadToAdvance(), "node0 paused after defproducercFinalizerNode was shutdown"
+    assert node1.waitForHeadToAdvance(), "node1 paused after defproducercFinalizerNode was shutdown"
 
-    Print("Restart producer node3")
-    node3.relaunch()
+    Print("Restart producer defproducercFinalizerNode")
+    defproducercFinalizerNode.relaunch()
 
     Print("Verify LIB advances after restart")
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
-    assert node2.waitForLibToAdvance(), "Node2 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
 
     Print("Shutdown centerNode")
     centerNode.kill(signal.SIGTERM)
@@ -103,13 +103,13 @@ try:
     paused = False
     for i in range(0, 15):
         time.sleep(1)
-        paused = not node2.waitForHeadToAdvance(timeout=1)
+        paused = not defproducercProducerNode.waitForHeadToAdvance(timeout=1)
         if paused:
             Print(f'paused after {i} seconds since centerNode shutdown')
             break;
-    assert paused, "Node2 head still advancing after centerNode was shutdown" 
+    assert paused, "defproducercProducerNode still producing after centerNode was shutdown" 
 
-    # Lib on node0 and node1 still advance
+    # node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after centerNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after centerNode was shutdown"
 
@@ -117,9 +117,9 @@ try:
     centerNode.relaunch()
 
     Print("Verify LIB advances after restart")
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
-    assert node2.waitForLibToAdvance(), "Node2 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
 
     testSuccessful=True
 finally:
