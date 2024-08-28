@@ -37,6 +37,9 @@ from TestHarness.Node import BlockType
 #    associated with the other producers. However, Node0 and Node1 should not pause.
 #    Then bring the center node back up. defproducercProducerNode should automatically
 #    resume production.
+# 3. Restart defproducercProducerNode with "--production-pause-vote-timeout-ms 0" to
+#    disable production-pause-vote-timeout. Bring down defproducercFinalizerNode.
+#    defproducercProducerNode should keep producing.
 #
 ####################################################################################
 
@@ -157,6 +160,35 @@ try:
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert defproducercProducerNode.waitForLibToAdvance(), "defproducercProducerNode did not advance LIB"
+
+    ####################### test 3 ######################
+
+    Print("Shutdown defproducercProducerNode")
+    defproducercProducerNode.kill(signal.SIGTERM)
+    assert not defproducercProducerNode.verifyAlive(), "defproducercProducerNode did not shutdown"
+
+    # disable production-pause-vote-timeout
+    Print("Relaunch defproducercProducerNode with --production-pause-vote-timeout-ms 0")
+    addSwapFlags={"--production-pause-vote-timeout-ms": "0"}
+    defproducercProducerNode.relaunch(addSwapFlags=addSwapFlags)
+
+    Print("Shutdown defproducercFinalizerNode")
+    defproducercFinalizerNode.kill(signal.SIGTERM)
+    assert not defproducercFinalizerNode.verifyAlive(), "defproducercFinalizerNode did not shutdown"
+
+    # wait some time
+    paused = False
+    for i in range(0, 10):
+        time.sleep(1)
+        paused = not defproducercProducerNode.waitForHeadToAdvance(timeout=1)
+        if paused:
+            Print(f'paused after {i} seconds after defproducercFinalizerNode was shutdown')
+            break;
+    # Verify defproducercProducerNode still producing 
+    assert not paused, "defproducercProducerNode (--production-pause-vote-timeout-ms 0) paused after defproducercFinalizerNode was shutdown"
+    # Verify node0 and node1 still producing
+    assert node0.waitForHeadToAdvance(), "node0 paused after defproducercFinalizerNode was shutdown"
+    assert node1.waitForHeadToAdvance(), "node1 paused after defproducercFinalizerNode was shutdown"
 
     testSuccessful=True
 finally:
