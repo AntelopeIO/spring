@@ -246,13 +246,13 @@ namespace eosio {
    private:
       constexpr static auto stage_str( stages s );
       bool set_state( stages newstate );
-      bool is_sync_required( uint32_t fork_head_block_num ); // call with locked mutex
+      bool is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx);
+      bool is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx);
       void request_next_chunk( const connection_ptr& conn = connection_ptr() ) REQUIRES(sync_mtx);
       connection_ptr find_next_sync_node(); // call with locked mutex
       void start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
       bool sync_recently_active() const;
       bool verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
-      uint32_t active_sync_fetch_span() const;
    public:
       enum class closing_mode {
          immediately,  // closing connection immediately
@@ -1999,23 +1999,6 @@ namespace eosio {
    {
    }
 
-   uint32_t sync_manager::active_sync_fetch_span() const {
-      int32_t reversible_remaining = my_impl->chain_plug->chain().max_reversible_blocks_allowed();
-      if (reversible_remaining <= 0) {
-         auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-         fc_wlog(logger, "max-reversible-blocks exceeded by ${ex}, fork_db_size ${fs}",
-                 ("ex", -reversible_remaining)("fs", fork_db_size));
-         reversible_remaining = 0;
-      }
-      if (reversible_remaining < sync_fetch_span) {
-         auto fork_db_size = my_impl->chain_plug->chain().fork_db_size();
-         fc_wlog(logger, "sync-fetch-span ${sfs} restricted to ${r} by max-reversible-blocks, fork_db_size ${fs}",
-                 ("sfs", sync_fetch_span)("r", reversible_remaining)("fs", fork_db_size));
-         return reversible_remaining;
-      }
-      return sync_fetch_span;
-   }
-
    constexpr auto sync_manager::stage_str(stages s) {
     switch (s) {
     case in_sync : return "in sync";
@@ -2159,8 +2142,7 @@ namespace eosio {
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
          uint32_t start = sync_next_expected_num;
-         auto fetch_span = active_sync_fetch_span();
-         uint32_t end = start + fetch_span - 1;
+         uint32_t end = start + sync_fetch_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
          if( end > 0 && end >= start ) {
@@ -2189,13 +2171,24 @@ namespace eosio {
       } );
    }
 
-   bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) REQUIRES(sync_mtx) {
+   bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx) {
       fc_dlog( logger, "last req = ${req}, last recv = ${recv} known = ${known} our fhead = ${h}",
                ("req", sync_last_requested_num)( "recv", sync_next_expected_num )( "known", sync_known_lib_num )
                ("h", fork_head_block_num ) );
 
       return( sync_last_requested_num < sync_known_lib_num ||
               sync_next_expected_num < sync_last_requested_num );
+   }
+
+   bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
+      if (blk_num >= sync_last_requested_num) {
+         // do not allow to get too far ahead (sync_fetch_span) of chain head
+         // use chain head instead of fork head so we do not get too far ahead of applied blocks
+         uint32_t head = my_impl->get_chain_head_num();
+         if (blk_num < head + sync_fetch_span)
+            return true;
+      }
+      return false;
    }
 
    // called from c's connection strand
@@ -2217,7 +2210,7 @@ namespace eosio {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
-      } else if (sync_next_expected_num >= sync_last_requested_num) {
+      } else if (is_sync_request_ahead_allowed(sync_next_expected_num)) {
          // break
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2566,20 +2559,14 @@ namespace eosio {
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                } else {
-                  if (blk_num >= sync_last_requested_num) {
-                     // do not allow to get too far ahead (sync_fetch_span) of chain head
-                     auto fetch_span = active_sync_fetch_span();
-                     // use chain head instead of fork head so we do not get too far ahead of applied blocks
-                     uint32_t head = my_impl->get_chain_head_num();
-                     if (blk_num < head + fetch_span) {
-                        // block was not applied, possibly because we already have the block
-                        fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                        "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                                ("fs", fetch_span)("h", head)("fh", my_impl->get_fork_head_num())
-                                ("bn", blk_num)("nen", sync_next_expected_num)
-                                ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                        request_next_chunk();
-                     }
+                  if (is_sync_request_ahead_allowed(blk_num)) {
+                     // block was not applied, possibly because we already have the block
+                     fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                             ("fs", sync_fetch_span)("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("bn", blk_num)("nen", sync_next_expected_num)
+                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                     request_next_chunk();
                   }
                }
             } else { // blk_applied
