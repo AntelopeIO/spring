@@ -162,8 +162,7 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
                           finalizer_safety_exception);
 
       // make sure the safety info for our finalizer that we saved above is restored correctly
-      BOOST_CHECK_NE(fset.get_fsi(k.pubkey), fsi);
-      BOOST_CHECK_EQUAL(fset.get_fsi(k.pubkey), fsi_t());
+      BOOST_CHECK(!fset.contains(k.pubkey));
    }
 
 } FC_LOG_AND_RETHROW()
