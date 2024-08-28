@@ -225,9 +225,59 @@ try:
     Print("Shutdown bridge node")
     nonProdNode.kill(signal.SIGTERM)
 
+    Print("Test starting ship from replay")
+    isRelaunchSuccess = shipNode.relaunch(chainArg=" --replay-blockchain")
+    assert isRelaunchSuccess, "relaunch from replay failed"
+
+    afterReplayBlockNum = shipNode.getBlockNum()
+
+    Print("Verify we can stream from ship after start from a replay with no incoming trxs")
+    start_block_num = afterReplayBlockNum
+    block_range = 0
+    end_block_num = start_block_num + block_range
+    cmd = f"{shipClient} --start-block-num {start_block_num} --end-block-num {end_block_num} --fetch-block --fetch-traces --fetch-deltas"
+    if args.finality_data_history:
+        cmd += "  --fetch-finality-data"
+    if Utils.Debug: Utils.Print(f"cmd: {cmd}")
+    clients = []
+    files = []
+    starts = []
+    for i in range(0, args.num_clients):
+        start = time.perf_counter()
+        outFile = open(f"{shipClientFilePrefix}{i}_replay.out", "w")
+        errFile = open(f"{shipClientFilePrefix}{i}_replay.err", "w")
+        Print(f"Start client {i}")
+        popen=Utils.delayedCheckOutput(cmd, stdout=outFile, stderr=errFile)
+        starts.append(time.perf_counter())
+        clients.append((popen, cmd))
+        files.append((outFile, errFile))
+        Print(f"Client {i} started, Ship node head is: {shipNode.getBlockNum()}")
+
+    Print(f"Stopping all {args.num_clients} clients")
+    for index, (popen, _), (out, err), start in zip(range(len(clients)), clients, files, starts):
+        popen.wait()
+        Print(f"Stopped client {index}.  Ran for {time.perf_counter() - start:.3f} seconds.")
+        out.close()
+        err.close()
+        outFile = open(f"{shipClientFilePrefix}{index}_replay.out", "r")
+        data = json.load(outFile)
+        block_num = start_block_num
+        for i in data:
+            # fork can cause block numbers to be repeated
+            this_block_num = i['get_blocks_result_v1']['this_block']['block_num']
+            if this_block_num < block_num:
+                block_num = this_block_num
+            assert block_num == this_block_num, f"{block_num} != {this_block_num}"
+            assert isinstance(i['get_blocks_result_v1']['deltas'], str) # verify deltas in result
+            block_num += 1
+        assert block_num-1 == end_block_num, f"{block_num-1} != {end_block_num}"
+
+    Print("Shutdown state_history_plugin nodeos after replay")
+    shipNode.kill(signal.SIGTERM)
+
     Print("Test starting ship from snapshot")
     shipNode.removeDataDir()
-    isRelaunchSuccess = shipNode.relaunch(chainArg=" --snapshot {}".format(shipNode.getLatestSnapshot()))
+    isRelaunchSuccess = shipNode.relaunch(rmArgs="--replay-blockchain", chainArg=" --snapshot {}".format(shipNode.getLatestSnapshot()))
     assert isRelaunchSuccess, "relaunch from snapshot failed"
 
     afterSnapshotBlockNum = shipNode.getBlockNum()
