@@ -34,7 +34,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
 
       if (!res.liveness_check) {
-         fc_ilog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
+         fc_dlog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
                  ("bn", bsp->block_num())("id", bsp->id())("c", bsp->core.latest_qc_block_timestamp())("l", fsi.lock.timestamp)
                  ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)
                  ("qc", bsp->core.latest_qc_claim()));
