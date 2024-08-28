@@ -38,7 +38,7 @@ BOOST_FIXTURE_TEST_CASE(policy_change, savanna_cluster::cluster_t) try {
    // --------------------------------------------------------------------------------------------------
    B.close();
    // update `B.node_finalizers` with the new key so that B can vote both on the active and pending policy
-   B.node_finalizers = std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes()] }; // see node_t::node_t
+   B.set_node_finalizers(std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes()] }); // see node_t::node_t
    B.open();
 
    // quick sanity check
@@ -144,8 +144,8 @@ BOOST_FIXTURE_TEST_CASE(policy_change_reduce_threshold_replace_all_keys, savanna
    // -----------------------------------------------------------------------------------------------
    A.close();
    B.close();
-   A.node_finalizers = std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] };
-   B.node_finalizers = std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] };
+   A.set_node_finalizers(std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] });
+   B.set_node_finalizers(std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] });
    A.open();
    B.open();
 
@@ -206,9 +206,9 @@ BOOST_FIXTURE_TEST_CASE(policy_change_restart_from_snapshot, savanna_cluster::cl
    A.close();
    B.close();
    C.close();
-   A.node_finalizers = std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] };
-   B.node_finalizers = std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] };
-   C.node_finalizers = std::vector<account_name>{ _fin_keys[2], _fin_keys[num_nodes() + 2] };
+   A.set_node_finalizers(std::vector<account_name>{ _fin_keys[0], _fin_keys[num_nodes()] });
+   B.set_node_finalizers(std::vector<account_name>{ _fin_keys[1], _fin_keys[num_nodes() + 1] });
+   C.set_node_finalizers(std::vector<account_name>{ _fin_keys[2], _fin_keys[num_nodes() + 2] });
    A.open();
    B.open();
    C.open();
