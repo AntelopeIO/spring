@@ -50,7 +50,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       // Safety and Liveness both fail if `fsi.lock` is empty. It should not happen.
       // `fsi.lock` is initially set to `lib` when switching to IF or starting from a snapshot.
       // -------------------------------------------------------------------------------------
-      fc_dlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty",
+      fc_wlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty",
               ("bn", bsp->block_num())("id", bsp->id()));
       res.liveness_check = false;
       res.safety_check   = false;
