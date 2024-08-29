@@ -72,6 +72,7 @@
         ],
         "peers": [
           "bios",
+          "testnet_03",
           "testnet_04"
         ],
         "producers": [

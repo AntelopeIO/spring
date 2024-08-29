@@ -20,8 +20,9 @@ from TestHarness.Node import BlockType
 #        description of producera. Has vote-threads enabled. Connect to the center node.
 # node1: Enables block production for producerb and has the finalizer key with
 #        description of producerb. Has vote-threads enabled. Connect to the center node
-#        and Node1.
-# producercNode: Enables block production for producerc.
+#        and node0.
+# producercNode: Enables block production for producerc. Has vote-threads enabled.
+#        Connect to the center node and finalizercNode.
 # finalizercNode: Has the finalizer key with description of producerc.
 #        Has vote-threads enabled. Connect to the center node and producercNode.
 # 
