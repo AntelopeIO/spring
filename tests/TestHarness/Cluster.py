@@ -1034,9 +1034,6 @@ class Cluster(object):
             node = self.biosNode
         numFins = len(nodes)
         threshold = int(numFins * 2 / 3 + 1)
-        if threshold > 2 and threshold == numFins:
-            # nodes are often stopped, so do not require all node votes
-            threshold = threshold - 1
         if Utils.Debug: Utils.Print(f"threshold: {threshold}, numFins: {numFins}")
         setFinStr =  f'{{"finalizer_policy": {{'
         setFinStr += f'  "threshold": {threshold}, '
