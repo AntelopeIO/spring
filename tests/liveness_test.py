@@ -40,7 +40,7 @@ try:
     # test relies on production continuing
     extraNodeosArgs=" --production-pause-vote-timeout-ms 0 "
     # "mesh" shape connects nodeA and nodeB to each other
-    if cluster.launch(topo="mesh", pnodes=totalProducerNodes,
+    if cluster.launch(topo="mesh", pnodes=totalProducerNodes, extraNodeosArgs=extraNodeosArgs,
                       totalNodes=totalNodes, totalProducers=totalProducerNodes, loadSystemContract=False,
                       activateIF=activateIF, biosFinalizer=False) is False:
         Utils.cmdError("launcher")
