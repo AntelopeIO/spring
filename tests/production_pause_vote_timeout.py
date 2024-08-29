@@ -123,9 +123,11 @@ try:
             break;
     # Verify producercNode paused
     assert paused, "producercNode still producing after finalizercNode was shutdown"
-    # Verify node0 and node1 still producing
+    # Verify node0 and node1 still producing but LIB should not advance
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
+    assert not node0.waitForLibToAdvance(timeout=10), "LIB should not advance on node0 after finalizercNode was shutdown"
+    assert not node1.waitForLibToAdvance(timeout=10), "LIB should not advance on node1 after finalizercNode was shutdown"
 
     Print("Restart finalizercNode")
     finalizercNode.relaunch()
@@ -151,9 +153,11 @@ try:
             break;
     # Verify producercNode paused
     assert paused, "producercNode still producing after centerNode was shutdown"
-    # Verify node0 and node1 still producing
+    # Verify node0 and node1 still producing but LIB should not advance
     assert node0.waitForHeadToAdvance(), "node0 paused after centerNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after centerNode was shutdown"
+    assert not node0.waitForLibToAdvance(timeout=10), "LIB should not advance on node0 after centerNode was shutdown"
+    assert not node1.waitForLibToAdvance(timeout=10), "LIB should not advance on node1 after centerNode was shutdown"
 
     Print("Restart centerNode")
     centerNode.relaunch()
