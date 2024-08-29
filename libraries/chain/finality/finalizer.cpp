@@ -339,7 +339,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
       // close file after write
       cfile_ds.close();
-   } FC_LOG_AND_RETHROW()
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "corrupted finalizer safety persistence file ${p}", ("p", persist_file_path))
    // don't remove file we can't load
    return res;
 }
