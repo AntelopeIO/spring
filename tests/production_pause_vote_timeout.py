@@ -137,8 +137,8 @@ try:
     Print("Verify production unpaused and LIB advances after restart of finalizercNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
-    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after finalizercNode restarted"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after finalizercNode restarted"
 
     ####################### test 2 ######################
 
@@ -170,8 +170,8 @@ try:
     Print("Verify production unpaused and LIB advances after restart of centerNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
-    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after centerNode restarted"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after centerNode restarted"
 
     ####################### test 3 ######################
 
