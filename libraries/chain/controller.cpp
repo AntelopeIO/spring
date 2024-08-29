@@ -5973,6 +5973,10 @@ bool controller::is_node_finalizer_key(const bls_public_key& key) const {
    return my->my_finalizers.contains(key);
 }
 
+const my_finalizers_t& controller::get_node_finalizers() const {
+   return my->my_finalizers;
+}
+
 /// Protocol feature activation handlers:
 
 template<>

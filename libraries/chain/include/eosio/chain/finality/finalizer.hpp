@@ -181,7 +181,7 @@ namespace eosio::chain {
       fsi_map load_finalizer_safety_info();
 
       // for testing purposes only, not thread safe
-      const fsi_t& get_fsi(const bls_public_key& k) { return finalizers[k].fsi; }
+      const fsi_t& get_fsi(const bls_public_key& k) const { return finalizers.at(k).fsi; }
       void         set_fsi(const bls_public_key& k, const fsi_t& fsi) { finalizers[k].fsi = fsi; }
 
    private:

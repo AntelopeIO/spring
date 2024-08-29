@@ -9,6 +9,7 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -20,6 +21,10 @@ namespace chainbase {
 }
 namespace boost::asio {
    class thread_pool;
+}
+
+namespace savanna_cluster {
+   class node_t;
 }
 
 namespace eosio::vm { class wasm_allocator; }
@@ -450,9 +455,13 @@ namespace eosio::chain {
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
 
+
       private:
+         const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
+
          friend class apply_context;
          friend class transaction_context;
+         friend class savanna_cluster::node_t;
 
          chainbase::database& mutable_db()const;
 
