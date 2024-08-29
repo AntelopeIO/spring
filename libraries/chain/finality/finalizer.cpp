@@ -34,7 +34,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
 
       if (!res.liveness_check) {
-         fc_ilog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
+         fc_dlog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
                  ("bn", bsp->block_num())("id", bsp->id())("c", bsp->core.latest_qc_block_timestamp())("l", fsi.lock.timestamp)
                  ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)
                  ("qc", bsp->core.latest_qc_claim()));
@@ -42,7 +42,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          // Safety check : check if this proposal extends the proposal we're locked on
          res.safety_check = bsp->core.extends(fsi.lock.block_id);
          if (!res.safety_check) {
-            fc_wlog(vote_logger, "safety  check  failed, block ${bn} ${id} did not extend fsi.lock ${lbn} ${lid}",
+            fc_dlog(vote_logger, "safety check failed, block ${bn} ${id} did not extend fsi.lock ${lbn} ${lid}",
                     ("bn", bsp->block_num())("id", bsp->id())("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
          }
       }
@@ -50,7 +50,8 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       // Safety and Liveness both fail if `fsi.lock` is empty. It should not happen.
       // `fsi.lock` is initially set to `lib` when switching to IF or starting from a snapshot.
       // -------------------------------------------------------------------------------------
-      fc_wlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty", ("bn", bsp->block_num())("id", bsp->id()));
+      fc_wlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty",
+              ("bn", bsp->block_num())("id", bsp->id()));
       res.liveness_check = false;
       res.safety_check   = false;
    }
@@ -94,9 +95,21 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       fsi.last_vote = bsp->make_block_ref();
    }
 
-   fc_dlog(vote_logger, "block=${bn} ${id}, liveness_check=${l}, safety_check=${s}, monotony_check=${m}, can vote=${can_vote}, voting=${v}, locked=${lbn} ${lid}",
-           ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)("m",res.monotony_check)
-           ("can_vote",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   if (res.liveness_check) {
+      fc_dlog(vote_logger, "block=${bn} ${id}, liveness=${l}, can vote=${cn}, voting=${v}, locked=${lbn} ${lid}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)
+              ("cn",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   } else if (can_vote) {
+      fc_dlog(vote_logger, "block=${bn} ${id}, liveness=${l}, safety=${s}, can vote=${cn}, voting=${v}, locked=${lbn} ${lid}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)
+              ("cn",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   } else {
+      fc_ilog(vote_logger, "block=${bn} ${id}, liveness=${l}, safety=${s}, can vote=${cn}, voting=${v}, "
+                           "${ct} <= ${lt}, locked=${lbn} ${lid}, latest_qc_claim: ${qc}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)
+              ("cn",can_vote)("v", res.decision)("ct", bsp->core.latest_qc_block_timestamp())("lt", fsi.lock.timestamp)
+              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)("qc", bsp->core.latest_qc_claim()));
+   }
    return res;
 }
 
@@ -326,7 +339,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
       // close file after write
       cfile_ds.close();
-   } FC_LOG_AND_RETHROW()
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "corrupted finalizer safety persistence file ${p}", ("p", persist_file_path))
    // don't remove file we can't load
    return res;
 }
