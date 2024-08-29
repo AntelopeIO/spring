@@ -47,7 +47,7 @@ std::vector<FSI> create_random_fsi(size_t count) {
          .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
                                             tstamp(i * 100),
                                             sha256::hash("lock_digest"s + std::to_string(i))},
-         .other_branch_latest_time = {}
+         .other_branch_latest_time = block_timestamp_type{}
       });
       if (i)
          assert(res.back() != res[0]);
@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
 
    fsi_t fsi { .last_vote = proposals[6],
                .lock = proposals[2],
-               .other_branch_latest_time = {} };
+               .other_branch_latest_time = block_timestamp_type{} };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };
@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE( corrupt_finalizer_safety_file ) try {
 
    fsi_t fsi { .last_vote = proposals[6],
                .lock = proposals[2],
-               .other_branch_latest_time = {} };
+               .other_branch_latest_time = block_timestamp_type{} };
 
    bls_keys_t k("alice"_n);
    bls_pub_priv_key_map_t local_finalizers = { { k.pubkey_str, k.privkey_str } };

@@ -71,6 +71,7 @@ public:
 
    // only use with p==0, otherwise use seekp() below
    bool seekp(size_t p) {
+      assert(p == 0);
       if (p == 0) {
          crc_.reset();
          return ds_.seekp(0);

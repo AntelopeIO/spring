@@ -85,7 +85,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       }
 
       if (res.decision == vote_decision::strong_vote) {
-         fsi.other_branch_latest_time = {};
+         fsi.other_branch_latest_time = block_timestamp_type{};
          if (latest_qc_block_timestamp > fsi.lock.timestamp) {
             fsi.lock = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
          }
@@ -107,7 +107,7 @@ bool finalizer::maybe_update_fsi(const block_state_ptr& bsp) {
    if (latest_qc_claim__block_ref.timestamp > fsi.lock.timestamp && bsp->timestamp() > fsi.last_vote.timestamp) {
       fsi.lock                     = latest_qc_claim__block_ref;
       fsi.last_vote                = bsp->make_block_ref();
-      fsi.other_branch_latest_time = {}; // always reset on strong vote
+      fsi.other_branch_latest_time = block_timestamp_type{}; // always reset on strong vote
       return true;
    }
    return false;

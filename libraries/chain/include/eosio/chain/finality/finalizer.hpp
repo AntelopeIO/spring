@@ -75,7 +75,9 @@ namespace eosio::chain {
       /// Version 0: Spring 1.0.0 RC2 - File has fixed packed sizes with inactive safety info written to the end
       ///                               of the file. Consists of [finalizer public_key, FSI]..
       /// Version 1: Spring 1.0.0 RC3 - File has inactive FSIs written at the beginning of the file. Uses crc32
-      ///                               checksum to verify data on read.
+      ///                               checksum to verify data on read. Removes FSI
+      ///                               votes_forked_since_latest_strong_vote from the version 0 FSI and replaces it
+      ///                               with other_branch_latest_time.
       ///
       static constexpr uint64_t safety_file_version_0       = 0;
       static constexpr uint64_t safety_file_version_1       = 1;

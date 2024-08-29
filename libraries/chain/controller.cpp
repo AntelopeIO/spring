@@ -941,6 +941,7 @@ struct controller_impl {
    std::optional<pending_state>    pending;
    block_handle                    chain_head;
    block_state_ptr                 chain_head_trans_svnn_block; // chain_head's Savanna representation during transition
+   std::vector<block_state_legacy_ptr> transition_legacy_branch; // transition legacy branch used during replay
    fork_database                   fork_db;
    resource_limits_manager         resource_limits;
    subjective_billing              subjective_bill;
@@ -1427,7 +1428,7 @@ struct controller_impl {
          my_finalizers.set_default_safety_information(
             finalizer_safety_information{ .last_vote                = ref,
                                           .lock                     = ref,
-                                          .other_branch_latest_time = {} });
+                                          .other_branch_latest_time = block_timestamp_type{} });
       }
    }
 
@@ -1604,21 +1605,20 @@ struct controller_impl {
       std::exception_ptr except_ptr;
       ilog( "existing block log, attempting to replay from ${s} to ${n} blocks", ("s", start_block_num)("n", blog_head->block_num()) );
       try {
-         std::vector<block_state_legacy_ptr> legacy_branch; // for blocks that will need to be converted to IF blocks
          while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
             block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
                if (next->is_proper_svnn_block()) {
                   const bool skip_validate_signee = true; // validated already or not in replay_push_block according to conf.force_all_checks;
-                  assert(!legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
+                  assert(!transition_legacy_branch.empty()); // should have started with a block_state chain_head or we transition during replay
                   // transition to savanna
                   block_state_ptr prev = chain_head_trans_svnn_block;
                   bool replay_not_from_snapshot = !chain_head_trans_svnn_block;
-                  for (size_t i = 0; i < legacy_branch.size(); ++i) {
+                  for (size_t i = 0; i < transition_legacy_branch.size(); ++i) {
                      if (i == 0 && replay_not_from_snapshot) {
                         assert(!prev);
-                        prev = block_state::create_if_genesis_block(*legacy_branch[0]);
+                        prev = block_state::create_if_genesis_block(*transition_legacy_branch[0]);
                      } else {
-                        const auto& bspl = legacy_branch[i];
+                        const auto& bspl = transition_legacy_branch[i];
                         assert(read_mode == db_read_mode::IRREVERSIBLE || bspl->action_mroot_savanna.has_value());
                         auto new_bsp = block_state::create_transition_block(
                               *prev,
@@ -1638,20 +1638,12 @@ struct controller_impl {
                      my_finalizers.set_default_safety_information(
                         finalizer_safety_information{.last_vote                = prev->make_block_ref(),
                                                      .lock                     = prev->make_block_ref(),
-                                                     .other_branch_latest_time = {} });
+                                                     .other_branch_latest_time = block_timestamp_type{} });
                   }
                }
             });
             block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
                replay_push_block<T>( next, controller::block_status::irreversible );
-            });
-            block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) { // chain_head is updated via replay_push_block
-               assert(!next->is_proper_svnn_block());
-               if (next->contains_header_extension(finality_extension::extension_id())) {
-                  assert(legacy_branch.empty() || head->block->previous == legacy_branch.back()->block->calculate_id());
-                  legacy_branch.push_back(head);
-                  // note if is_proper_svnn_block is not reached then transistion will happen live
-               }
             });
             if( check_shutdown() ) {  // needed on every loop for terminate-at-block
                ilog( "quitting from replay_block_log because of shutdown" );
@@ -1664,6 +1656,7 @@ struct controller_impl {
       } catch(  const database_guard_exception& e ) {
          except_ptr = std::current_exception();
       }
+      transition_legacy_branch.clear(); // not needed after replay
       auto end = fc::time_point::now();
       ilog( "${n} irreversible blocks replayed", ("n", 1 + chain_head.block_num() - start_block_num) );
       ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
@@ -2042,7 +2035,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{ .last_vote                = {},
                                                 .lock                     = lib->make_block_ref(),
-                                                .other_branch_latest_time = {} });
+                                                .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          } else {
@@ -2052,7 +2045,7 @@ struct controller_impl {
                my_finalizers.set_default_safety_information(
                   finalizer_safety_information{.last_vote                = {},
                                                .lock                     = lib->make_block_ref(),
-                                               .other_branch_latest_time = {} });
+                                               .other_branch_latest_time = block_timestamp_type{} });
             };
             fork_db.apply_s<void>(set_finalizer_defaults);
          }
@@ -3400,6 +3393,18 @@ struct controller_impl {
          }
 
          chain_head = block_handle{cb.bsp};
+
+         if (s == controller::block_status::irreversible && replaying) {
+            block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
+                  assert(!head->block->is_proper_svnn_block());
+                  if (head->block->contains_header_extension(finality_extension::extension_id())) {
+                     assert(transition_legacy_branch.empty() || head->block->previous == transition_legacy_branch.back()->block->calculate_id());
+                     transition_legacy_branch.push_back(head);
+                  }
+               });
+         }
+
+         chain_head = block_handle{cb.bsp};
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
@@ -4649,10 +4654,20 @@ struct controller_impl {
    block_state_ptr get_transition_savanna_block(const block_state_legacy_ptr& head) const {
       fork_database_legacy_t::branch_t legacy_branch;
       block_state_legacy_ptr legacy_root;
-      fork_db.apply_l<void>([&](const auto& forkdb) {
-         legacy_root = forkdb.root();
-         legacy_branch = forkdb.fetch_branch(head->id());
-      });
+
+      if (!transition_legacy_branch.empty()) { // used during replay
+         assert(replaying);
+         legacy_root = transition_legacy_branch[0];
+         legacy_branch = {transition_legacy_branch.begin()+1, transition_legacy_branch.end()};
+         std::ranges::reverse(legacy_branch);
+      } else {
+         fork_db.apply_l<void>([&](const auto& forkdb) {
+            legacy_root = forkdb.root();
+            legacy_branch = forkdb.fetch_branch(head->id());
+         });
+      }
+
+      EOS_ASSERT(legacy_root, fork_database_exception, "legacy fork datbabase root not set");
 
       block_state_ptr prev;
       auto bitr = legacy_branch.rbegin();
@@ -4809,29 +4824,11 @@ struct controller_impl {
       return conf.block_validation_mode == validation_mode::LIGHT || conf.trusted_producers.count(producer);
    }
 
-   int32_t max_reversible_blocks_allowed() const {
-      if (conf.max_reversible_blocks == 0)
-         return std::numeric_limits<int32_t>::max();
-
-      return fork_db.apply<int32_t>(
-         [&](const fork_database_legacy_t& forkdb) {
-            return std::numeric_limits<int32_t>::max();
-         },
-         [&](const fork_database_if_t& forkdb) {
-            return conf.max_reversible_blocks - forkdb.size();
-         });
-   }
-
    bool should_terminate(block_num_type reversible_block_num) const {
       assert(reversible_block_num > 0);
       if (conf.terminate_at_block > 0 && conf.terminate_at_block <= reversible_block_num) {
          ilog("Block ${n} reached configured maximum block ${num}; terminating",
               ("n", reversible_block_num)("num", conf.terminate_at_block) );
-         return true;
-      }
-      if (max_reversible_blocks_allowed() <= 0) {
-         elog("Exceeded max reversible blocks allowed, fork db size ${s} >= max-reversible-blocks ${m}",
-              ("s", fork_db_size())("m", conf.max_reversible_blocks));
          return true;
       }
       return false;
@@ -5636,10 +5633,6 @@ validation_mode controller::get_validation_mode()const {
 
 bool controller::should_terminate() const {
    return my->should_terminate();
-}
-
-int32_t controller:: max_reversible_blocks_allowed() const {
-   return my->max_reversible_blocks_allowed();
 }
 
 const apply_handler* controller::find_apply_handler( account_name receiver, account_name scope, action_name act ) const
