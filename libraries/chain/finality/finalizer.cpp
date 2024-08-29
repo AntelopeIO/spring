@@ -34,7 +34,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       res.liveness_check = bsp->core.latest_qc_block_timestamp() > fsi.lock.timestamp;
 
       if (!res.liveness_check) {
-         fc_ilog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
+         fc_dlog(vote_logger, "liveness check failed, block ${bn} ${id}: ${c} <= ${l}, fsi.lock ${lbn} ${lid}, latest_qc_claim: ${qc}",
                  ("bn", bsp->block_num())("id", bsp->id())("c", bsp->core.latest_qc_block_timestamp())("l", fsi.lock.timestamp)
                  ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)
                  ("qc", bsp->core.latest_qc_claim()));
@@ -42,7 +42,7 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
          // Safety check : check if this proposal extends the proposal we're locked on
          res.safety_check = bsp->core.extends(fsi.lock.block_id);
          if (!res.safety_check) {
-            fc_wlog(vote_logger, "safety  check  failed, block ${bn} ${id} did not extend fsi.lock ${lbn} ${lid}",
+            fc_dlog(vote_logger, "safety check failed, block ${bn} ${id} did not extend fsi.lock ${lbn} ${lid}",
                     ("bn", bsp->block_num())("id", bsp->id())("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
          }
       }
@@ -50,7 +50,8 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       // Safety and Liveness both fail if `fsi.lock` is empty. It should not happen.
       // `fsi.lock` is initially set to `lib` when switching to IF or starting from a snapshot.
       // -------------------------------------------------------------------------------------
-      fc_wlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty", ("bn", bsp->block_num())("id", bsp->id()));
+      fc_wlog(vote_logger, "liveness check & safety check failed, block ${bn} ${id}, fsi.lock is empty",
+              ("bn", bsp->block_num())("id", bsp->id()));
       res.liveness_check = false;
       res.safety_check   = false;
    }
@@ -94,9 +95,21 @@ finalizer::vote_result finalizer::decide_vote(const block_state_ptr& bsp) {
       fsi.last_vote = bsp->make_block_ref();
    }
 
-   fc_dlog(vote_logger, "block=${bn} ${id}, liveness_check=${l}, safety_check=${s}, monotony_check=${m}, can vote=${can_vote}, voting=${v}, locked=${lbn} ${lid}",
-           ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)("m",res.monotony_check)
-           ("can_vote",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   if (res.liveness_check) {
+      fc_dlog(vote_logger, "block=${bn} ${id}, liveness=${l}, can vote=${cn}, voting=${v}, locked=${lbn} ${lid}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)
+              ("cn",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   } else if (can_vote) {
+      fc_dlog(vote_logger, "block=${bn} ${id}, liveness=${l}, safety=${s}, can vote=${cn}, voting=${v}, locked=${lbn} ${lid}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)
+              ("cn",can_vote)("v", res.decision)("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id));
+   } else {
+      fc_ilog(vote_logger, "block=${bn} ${id}, liveness=${l}, safety=${s}, can vote=${cn}, voting=${v}, "
+                           "${ct} <= ${lt}, locked=${lbn} ${lid}, latest_qc_claim: ${qc}",
+              ("bn", bsp->block_num())("id", bsp->id())("l",res.liveness_check)("s",res.safety_check)
+              ("cn",can_vote)("v", res.decision)("ct", bsp->core.latest_qc_block_timestamp())("lt", fsi.lock.timestamp)
+              ("lbn", fsi.lock.block_num())("lid", fsi.lock.block_id)("qc", bsp->core.latest_qc_claim()));
+   }
    return res;
 }
 
@@ -119,15 +132,17 @@ vote_message_ptr finalizer::maybe_vote(const bls_public_key& pub_key,
                                        const digest_type& digest) {
    finalizer::vote_decision decision = decide_vote(bsp).decision;
    if (decision == vote_decision::strong_vote || decision == vote_decision::weak_vote) {
-      bls_signature sig;
-      if (decision == vote_decision::weak_vote) {
-         // if voting weak, the digest to sign should be a hash of the concatenation of the finalizer_digest
-         // and the string "WEAK"
-         sig =  priv_key.sign(create_weak_digest(digest));
-      } else {
-         sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
-      }
-      return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
+      try {
+         bls_signature sig;
+         if (decision == vote_decision::weak_vote) {
+            // if voting weak, the digest to sign should be a hash of the concatenation of the finalizer_digest
+            // and the string "WEAK"
+            sig =  priv_key.sign(create_weak_digest(digest));
+         } else {
+            sig =  priv_key.sign({(uint8_t*)digest.data(), (uint8_t*)digest.data() + digest.data_size()});
+         }
+         return std::make_shared<vote_message>(bsp->id(), decision == vote_decision::strong_vote, pub_key, sig);
+      } FC_LOG_AND_DROP() // bls_signature can throw if invalid signature
    }
    return {};
 }
@@ -175,17 +190,14 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
    }
 }
 
-void my_finalizers_t::save_finalizer_safety_info() const {
-
-   if (!cfile_ds.is_open()) {
-      EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
-                 "path for storing finalizer safety information file not specified");
-      if (!std::filesystem::exists(persist_file_path.parent_path()))
-          std::filesystem::create_directories(persist_file_path.parent_path());
-      cfile_ds.set_file_path(persist_file_path);
-      cfile_ds.open(fc::cfile::truncate_rw_mode);
-   }
+bool my_finalizers_t::save_finalizer_safety_info() const {
    try {
+      if (!cfile_ds.is_open()) {
+         EOS_ASSERT(!persist_file_path.empty(), finalizer_safety_exception,
+                    "path for storing finalizer safety information file not specified");
+         cfile_ds.set_file_path(persist_file_path);
+         cfile_ds.open(fc::cfile::truncate_rw_mode);
+      }
       // optimize by only calculating crc for inactive once
       if (inactive_safety_info_written_pos == 0) {
          persist_file.seekp(0);
@@ -216,7 +228,9 @@ void my_finalizers_t::save_finalizer_safety_info() const {
       fc::raw::pack(persist_file, cs);
 
       cfile_ds.flush();
-   } FC_LOG_AND_RETHROW()
+      return true;
+   } FC_LOG_AND_DROP()
+   return false;
 }
 
 // ----------------------------------------------------------------------------------------
@@ -268,7 +282,9 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
               ("p", persist_file_path));
 
    if (!std::filesystem::exists(persist_file_path)) {
-      fc_ilog(vote_logger, "unable to open finalizer safety persistence file ${p}, file doesn't exist (which is expected on the first use of a BLS finalizer key)",
+      if (!std::filesystem::exists(persist_file_path.parent_path()))
+         std::filesystem::create_directories(persist_file_path.parent_path());
+      fc_ilog(vote_logger, "finalizer safety persistence file ${p} does not exist (which is expected on the first use of a BLS finalizer key)",
               ("p", persist_file_path));
       return res;
    }
@@ -276,16 +292,10 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    cfile_ds.set_file_path(persist_file_path);
 
    try {
-      // if we can't open the finalizer safety file, we return an empty map.
+      // if we can't open the finalizer safety file on startup, throw exception so producer_plugin startup fails
       cfile_ds.open(fc::cfile::update_rw_mode);
-   } catch(std::exception& e) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults. Exception: ${e}",
-              ("p", persist_file_path)("e", e.what()));
-      return res;
-   } catch(...) {
-      fc_elog(vote_logger, "unable to open finalizer safety persistence file ${p}, using defaults", ("p", persist_file_path));
-      return res;
-   }
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "unable to open finalizer safety persistence file ${p}", ("p", persist_file_path))
+
    try {
       persist_file.seekp(0);
 
@@ -329,7 +339,7 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
 
       // close file after write
       cfile_ds.close();
-   } FC_LOG_AND_RETHROW()
+   } FC_RETHROW_EXCEPTIONS(log_level::error, "corrupted finalizer safety persistence file ${p}", ("p", persist_file_path))
    // don't remove file we can't load
    return res;
 }
@@ -373,6 +383,8 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
 // possible, and allow for liveness which will allow the finalizers to eventually vote.
 // --------------------------------------------------------------------------------------------
 void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
+   std::lock_guard g(mtx);
+
    for (auto& [pub_key, f] : finalizers) {
       // update only finalizers which are uninitialized
       if (!f.fsi.last_vote.empty() || !f.fsi.lock.empty())

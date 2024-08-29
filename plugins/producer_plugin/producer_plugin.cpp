@@ -755,23 +755,32 @@ public:
       }
    }
 
-   // true if paused due to not receiving votes
-   bool is_implicitly_paused() const {
+   enum class implicit_pause {
+      not_paused,   // not implicitly paused
+      prod_paused,  // paused due to not receiving vote associated with producer
+      other_paused  // paused due to not receiving any vote from finalizers not associated with producer
+   };
+   implicit_pause implicitly_paused() const {
       if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
-         return false;
+         return implicit_pause::not_paused;
       if (!_is_savanna_active)
-         return false; // no implicit pause in legacy
+         return implicit_pause::not_paused; // no implicit pause in legacy
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
-         return false;
+         return implicit_pause::not_paused;
 
       auto last_producer_vote_received = _last_producer_vote_received.load(std::memory_order_relaxed);
       auto last_other_vote_received    = _last_other_vote_received.load(std::memory_order_relaxed);
 
       // need a vote within timeout of last accepted block
-      return (_is_producer_active_finalizer &&
-              _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout)
-          || (_other_active_finalizers &&
-              _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout);
+      if (_is_producer_active_finalizer &&
+          _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout) {
+         return implicit_pause::prod_paused;
+      }
+      if (_other_active_finalizers &&
+          _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout) {
+         return implicit_pause::other_paused;
+      }
+      return implicit_pause::not_paused;
    }
 
    void abort_block() {
@@ -1591,7 +1600,7 @@ void producer_plugin::resume() {
 }
 
 bool producer_plugin::paused() const {
-   return my->_pause_production || my->is_implicitly_paused();
+   return my->_pause_production || (my->implicitly_paused() != producer_plugin_impl::implicit_pause::not_paused);
 }
 
 void producer_plugin_impl::update_runtime_options(const producer_plugin::runtime_options& options) {
@@ -1956,28 +1965,30 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
-      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
-              ("authority", scheduled_producer.authority));
+      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}, block ${t}",
+              ("authority", scheduled_producer.authority)("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_pause_production) {
-      fc_wlog(_log, "Not producing block because production is explicitly paused");
+      fc_wlog(_log, "Not producing block because production is explicitly paused, block ${t}", ("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
-      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
-              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
+      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s], block ${t}",
+              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000)
+              ("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
-   } else if (is_implicitly_paused()) {
-      fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
-              ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
+   } else if (implicit_pause p = implicitly_paused(); p != implicit_pause::not_paused) {
+      std::string reason = p == implicit_pause::prod_paused ? "producer votes" : "votes received";
+      fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, last producer vote ${pv}, other votes ${ov}, last accepted block time ${bt}",
+              ("r", std::move(reason))("t", block_time)("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
               ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {
-      fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}.",
-              ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum()));
+      fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}, block ${t}",
+              ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum())("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    }

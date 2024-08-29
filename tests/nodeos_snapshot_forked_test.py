@@ -82,7 +82,8 @@ try:
     # "bridge" shape connects defprocera through defproducerb (in node0) to each other and defproducerc is alone (in node01)
     # and the only connection between those 2 groups is through the bridge node
     if cluster.launch(prodCount=2, topo="bridge", pnodes=totalProducerNodes,
-                      totalNodes=totalNodes, totalProducers=totalProducers, activateIF=activateIF,
+                      totalNodes=totalNodes, totalProducers=totalProducers,
+                      activateIF=activateIF, biosFinalizer=False,
                       specificExtraNodeosArgs=specificExtraNodeosArgs,
                       extraNodeosArgs=extraNodeosArgs) is False:
         Utils.cmdError("launcher")
