@@ -213,9 +213,9 @@ try:
         # See https://github.com/AntelopeIO/spring/issues/81 for fix to reduce the number of expected unlinkable blocks
         # Test verifies LIB is advancing, check to see that not too many unlinkable block exceptions are generated
         # while syncing up to head.
-        numUnlinkable = contents.count("3030001 unlinkable_block_exception: Unlinkable block")
+        numUnlinkable = contents.count("unlinkable_block")
         numUnlinkableAllowed = 500
-        Print(f"Node{catchupNodeNum} has {numUnlinkable} unlinkable_block_exception in {logFile}")
+        Print(f"Node{catchupNodeNum} has {numUnlinkable} unlinkable_block in {logFile}")
         if numUnlinkable > numUnlinkableAllowed:
             errorExit(f"Node{catchupNodeNum} has {numUnlinkable} which is more than the configured "
                       f"allowed {numUnlinkableAllowed} unlinkable blocks: {logFile}.")
