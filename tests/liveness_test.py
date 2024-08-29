@@ -37,9 +37,10 @@ try:
     cluster.setWalletMgr(walletMgr)
     Print("Stand up cluster")
 
-    # ***   setup topogrophy   ***
-    # "mesh" shape connects nodeA and nodeA to each other
-    if cluster.launch(topo="mesh", pnodes=totalProducerNodes,
+    # test relies on production continuing
+    extraNodeosArgs=" --production-pause-vote-timeout-ms 0 "
+    # "mesh" shape connects nodeA and nodeB to each other
+    if cluster.launch(topo="mesh", pnodes=totalProducerNodes, extraNodeosArgs=extraNodeosArgs,
                       totalNodes=totalNodes, totalProducers=totalProducerNodes, loadSystemContract=False,
                       activateIF=activateIF, biosFinalizer=False) is False:
         Utils.cmdError("launcher")
@@ -73,7 +74,7 @@ try:
 
     # relaunch node A so that quorum can be met
     Print("Relaunching node A to make quorum")
-    if not prodA.relaunch():
+    if not prodA.relaunch(chainArg="--enable-stale-production"):
         errorExit(f"Failure - node A should have restarted")
 
     # verify LIB advances on both nodes
