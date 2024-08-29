@@ -135,81 +135,6 @@ namespace eosio {
       >
       > peer_block_state_index;
 
-   struct unlinkable_block_state {
-      block_id_type    id;
-      signed_block_ptr block;
-
-      uint32_t block_num() const { return block_header::num_from_id(id); }
-      const block_id_type& prev() const { return block->previous; }
-      const block_timestamp_type& timestamp() const { return block->timestamp; }
-   };
-
-   class unlinkable_block_state_cache {
-   private:
-      struct by_timestamp;
-      struct by_block_num_id;
-      struct by_prev;
-      using unlinkable_block_state_index = multi_index_container<
-            eosio::unlinkable_block_state,
-            indexed_by<
-                  ordered_unique<tag<by_block_num_id>,
-                        composite_key<unlinkable_block_state,
-                              const_mem_fun<unlinkable_block_state, uint32_t, &eosio::unlinkable_block_state::block_num>,
-                              member<unlinkable_block_state, block_id_type, &eosio::unlinkable_block_state::id>
-                        >,
-                                 composite_key_compare<std::less<>, std::less<block_id_type>>
-                  >,
-                  ordered_non_unique<tag<by_timestamp>,
-                        const_mem_fun<unlinkable_block_state, const block_timestamp_type&, &unlinkable_block_state::timestamp>
-                  >,
-                  ordered_non_unique<tag<by_prev>,
-                        const_mem_fun<unlinkable_block_state, const block_id_type&, &unlinkable_block_state::prev>
-                  >
-            >
-      >;
-
-      alignas(hardware_destructive_interference_sz)
-      mutable fc::mutex            unlinkable_blk_state_mtx;
-      unlinkable_block_state_index unlinkable_blk_state GUARDED_BY(unlinkable_blk_state_mtx);
-      // 30 should be plenty large enough as any unlinkable block that will be usable is likely to be usable
-      // almost immediately (blocks came in from multiple peers out of order). 30 allows for one block per
-      // producer round until lib. When queue larger than max, remove by block timestamp farthest in the past.
-      static constexpr size_t max_unlinkable_cache_size = 30;
-
-   public:
-      // returns block id of any block removed because of a full cache
-      std::optional<block_id_type> add_unlinkable_block( signed_block_ptr b, const block_id_type& id ) {
-         fc::lock_guard g(unlinkable_blk_state_mtx);
-         unlinkable_blk_state.insert( {id, std::move(b)} ); // does not insert if already there
-         if (unlinkable_blk_state.size() > max_unlinkable_cache_size) {
-            auto& index = unlinkable_blk_state.get<by_timestamp>();
-            auto begin = index.begin();
-            block_id_type rm_block_id = begin->id;
-            index.erase( begin );
-            return rm_block_id;
-         }
-         return {};
-      }
-
-      unlinkable_block_state pop_possible_linkable_block(const block_id_type& blkid) {
-         fc::lock_guard g(unlinkable_blk_state_mtx);
-         auto& index = unlinkable_blk_state.get<by_prev>();
-         auto blk_itr = index.find( blkid );
-         if (blk_itr != index.end()) {
-            unlinkable_block_state result = *blk_itr;
-            index.erase(blk_itr);
-            return result;
-         }
-         return {};
-      }
-
-      void expire_blocks( uint32_t lib_num ) {
-         fc::lock_guard g(unlinkable_blk_state_mtx);
-         auto& stale_blk = unlinkable_blk_state.get<by_block_num_id>();
-         stale_blk.erase( stale_blk.lower_bound( 1 ), stale_blk.upper_bound( lib_num ) );
-      }
-   };
-
    class sync_manager {
    private:
       enum stages {
@@ -283,8 +208,6 @@ namespace eosio {
       mutable fc::mutex      local_txns_mtx;
       node_transaction_index  local_txns GUARDED_BY(local_txns_mtx);
 
-      unlinkable_block_state_cache unlinkable_block_cache;
-
    public:
       boost::asio::io_context::strand  strand;
 
@@ -310,17 +233,6 @@ namespace eosio {
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
-
-      void add_unlinkable_block( signed_block_ptr b, const block_id_type& id ) {
-         std::optional<block_id_type> rm_blk_id = unlinkable_block_cache.add_unlinkable_block(std::move(b), id);
-         if (rm_blk_id) {
-            // rm_block since we are no longer tracking this not applied block, allowing it to flow back in if needed
-            rm_block(*rm_blk_id);
-         }
-      }
-      unlinkable_block_state pop_possible_linkable_block( const block_id_type& blkid ) {
-         return unlinkable_block_cache.pop_possible_linkable_block(blkid);
-      }
    };
 
    /**
@@ -2675,8 +2587,6 @@ namespace eosio {
    }
 
    void dispatch_manager::expire_blocks( uint32_t lib_num ) {
-      unlinkable_block_cache.expire_blocks( lib_num );
-
       fc::lock_guard g( blk_state_mtx );
       auto& stale_blk = blk_state.get<by_connection_id>();
       stale_blk.erase( stale_blk.lower_bound( 1 ), stale_blk.upper_bound( lib_num ) );
@@ -3791,6 +3701,10 @@ namespace eosio {
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
          if( exception || !obh) {
+            if (!obh) {
+               fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
+                       ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
+            }
             c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
                my_impl->dispatcher.rejected_block( id );
@@ -3853,7 +3767,6 @@ namespace eosio {
       fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, header validated, lib #${lib}",
                ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("lib", lib) );
 
-      go_away_reason reason = no_reason;
       bool accepted = false;
       try {
          accepted = my_impl->chain_plug->accept_block(block, blk_id, bh);
@@ -3861,23 +3774,18 @@ namespace eosio {
       } catch( const unlinkable_block_exception &ex) {
          fc_ilog(logger, "unlinkable_block_exception connection - ${cid}: #${n} ${id}...: ${m}",
                  ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-         reason = unlinkable;
       } catch( const block_validate_exception &ex ) {
          fc_ilog(logger, "block_validate_exception connection - ${cid}: #${n} ${id}...: ${m}",
                  ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-         reason = validation;
       } catch( const assert_exception &ex ) {
          fc_wlog(logger, "block assert_exception connection - ${cid}: #${n} ${id}...: ${m}",
                  ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-         reason = fatal_other;
       } catch( const fc::exception &ex ) {
          fc_ilog(logger, "bad block exception connection - ${cid}: #${n} ${id}...: ${m}",
                  ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-         reason = fatal_other;
       } catch( ... ) {
          fc_wlog(logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
                  ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16)));
-         reason = fatal_other;
       }
 
       if( accepted ) {
@@ -3885,18 +3793,6 @@ namespace eosio {
          boost::asio::post( my_impl->thread_pool.get_executor(), [&dispatcher = my_impl->dispatcher, c, blk_id, blk_num]() {
             fc_dlog( logger, "accepted signed_block : #${n} ${id}...", ("n", blk_num)("id", blk_id.str().substr(8,16)) );
             dispatcher.add_peer_block( blk_id, c->connection_id );
-
-            while (true) { // attempt previously unlinkable blocks where prev_unlinkable->block->previous == blk_id
-               unlinkable_block_state prev_unlinkable = dispatcher.pop_possible_linkable_block(blk_id);
-               if (!prev_unlinkable.block)
-                  break;
-               fc_dlog( logger, "retrying previous unlinkable block #${n} ${id}...",
-                        ("n", block_header::num_from_id(prev_unlinkable.id))("id", prev_unlinkable.id.str().substr(8,16)) );
-               // post at medium_high since this is likely the next block that should be processed (other block processing is at priority::medium)
-               app().executor().post(priority::medium_high, exec_queue::read_write, [prev_unlinkable{std::move(prev_unlinkable)}, c]() mutable {
-                  c->process_signed_block( prev_unlinkable.id, std::move(prev_unlinkable.block), {} );
-               });
-            }
          });
          c->strand.post( [sync_master = my_impl->sync_master.get(),
                           c, blk_id, blk_num, latency = age]() {
@@ -3904,15 +3800,9 @@ namespace eosio {
          });
       } else {
          c->strand.post( [sync_master = my_impl->sync_master.get(), &dispatcher = my_impl->dispatcher, c,
-                          block{std::move(block)}, blk_id, blk_num, reason]() mutable {
-            if( reason == unlinkable || reason == no_reason ) {
-               dispatcher.add_unlinkable_block( std::move(block), blk_id );
-            }
-            // reason==no_reason means accept_block() return false which is a fatal error, don't call rejected_block which sends handshake
-            if( reason != no_reason ) {
-               sync_master->rejected_block( c, blk_num, sync_manager::closing_mode::handshake );
-            }
-            dispatcher.rejected_block( blk_id );
+                          block{std::move(block)}, blk_id, blk_num]() mutable {
+             sync_master->rejected_block( c, blk_num, sync_manager::closing_mode::handshake );
+             dispatcher.rejected_block( blk_id );
          });
       }
    }
