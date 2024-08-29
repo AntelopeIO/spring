@@ -134,9 +134,10 @@ try:
     Print("Restart finalizercNode")
     finalizercNode.relaunch()
 
-    Print("Verify LIB advances after restart of finalizercNode")
+    Print("Verify production unpaused and LIB advances after restart of finalizercNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after finalizercNode restarted"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
 
     ####################### test 2 ######################
@@ -166,9 +167,10 @@ try:
     Print("Restart centerNode")
     centerNode.relaunch()
 
-    Print("Verify LIB advances after restart")
+    Print("Verify production unpaused and LIB advances after restart of centerNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode should have resumed production after centerNode restarted"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
 
     ####################### test 3 ######################
@@ -187,7 +189,10 @@ try:
     assert not finalizercNode.verifyAlive(), "finalizercNode did not shutdown"
 
     # Verify producercNode still producing
-    assert producercNode.waitForHeadToAdvance(), "producercNode (--production-pause-vote-timeout-ms 0) paused after finalizercNode was shutdown"
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode (--production-pause-vote-timeout-ms 0) paused after finalizercNode was shutdown"
+    # Check again after at least 1 round (6 seconds)
+    time.sleep(7)
+    assert producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "producercNode (--production-pause-vote-timeout-ms 0) paused after finalizercNode was shutdown"
     # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
