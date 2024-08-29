@@ -2211,14 +2211,13 @@ namespace eosio {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
-      } else if (is_sync_request_ahead_allowed(sync_next_expected_num)) {
-         // break
+         request_next_chunk( c );
+      } else if (sync_last_requested_num > 0 && is_sync_request_ahead_allowed(sync_next_expected_num)) {
+         request_next_chunk();
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
-         return;
       }
 
-      request_next_chunk( c );
    }
 
    // thread safe
