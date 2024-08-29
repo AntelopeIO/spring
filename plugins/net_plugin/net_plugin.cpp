@@ -1000,7 +1000,7 @@ namespace eosio {
       // std::chrono::nanoseconds (not used) dst{0}; //!< destination timestamp, Time at the client when the reply arrived from the server.
       /** @} */
       // timestamp for the lastest message
-      std::chrono::system_clock::time_point       latest_msg_time{std::chrono::system_clock::time_point::min()};
+      std::chrono::steady_clock::time_point       latest_msg_time{std::chrono::steady_clock::time_point::min()};
       std::chrono::milliseconds                   hb_timeout{std::chrono::milliseconds{def_keepalive_interval}};
       std::chrono::steady_clock::time_point       latest_blk_time{std::chrono::steady_clock::time_point::min()};
 
@@ -1044,7 +1044,7 @@ namespace eosio {
        */
       /**  \brief Check heartbeat time and send Time_message
        */
-      void check_heartbeat( std::chrono::system_clock::time_point current_time );
+      void check_heartbeat( std::chrono::steady_clock::time_point current_time );
       /**  \brief Populate and queue time_message
        */
       void send_time();
@@ -1486,7 +1486,7 @@ namespace eosio {
       cancel_sync_wait();
       sync_last_requested_block = 0;
       org = std::chrono::nanoseconds{0};
-      latest_msg_time = std::chrono::system_clock::time_point::min();
+      latest_msg_time = std::chrono::steady_clock::time_point::min();
       latest_blk_time = std::chrono::steady_clock::time_point::min();
       set_state(connection_state::closed);
       block_sync_send_start = 0ns;
@@ -1607,8 +1607,8 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::check_heartbeat( std::chrono::system_clock::time_point current_time ) {
-      if( latest_msg_time > std::chrono::system_clock::time_point::min() ) {
+   void connection::check_heartbeat( std::chrono::steady_clock::time_point current_time ) {
+      if( latest_msg_time > std::chrono::steady_clock::time_point::min() ) {
          if( current_time > latest_msg_time + hb_timeout ) {
             no_retry = benign_other;
             if( !peer_address().empty() ) {
@@ -3043,7 +3043,7 @@ namespace eosio {
       bytes_received += message_length;
       last_bytes_received = get_time();
       try {
-         latest_msg_time = std::chrono::system_clock::now();
+         auto now = latest_msg_time = std::chrono::steady_clock::now();
 
          // if next message is a block we already have, exit early
          auto peek_ds = pending_message_buffer.create_peek_datastream();
@@ -3051,7 +3051,7 @@ namespace eosio {
          fc::raw::unpack( peek_ds, which );
 
          if( which == signed_block_which ) {
-            latest_blk_time = std::chrono::steady_clock::now();
+            latest_blk_time = now;
             return process_next_block_message( message_length );
          } else if( which == packed_transaction_which ) {
             return process_next_trx_message( message_length );
@@ -3945,7 +3945,7 @@ namespace eosio {
                fc_wlog( logger, "Peer keepalive ticked sooner than expected: ${m}", ("m", ec.message()) );
             }
 
-            auto current_time = std::chrono::system_clock::now();
+            auto current_time = std::chrono::steady_clock::now();
             my->connections.for_each_connection( [current_time]( const connection_ptr& c ) {
                if( c->socket_is_open() ) {
                   c->strand.post([c, current_time]() {
