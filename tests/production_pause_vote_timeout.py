@@ -4,7 +4,7 @@ import shutil
 import signal
 import time
 
-from TestHarness import Cluster, TestHelper, Utils, WalletMgr
+from TestHarness import Cluster, TestHelper, Utils, WalletMgr, ReturnType
 from TestHarness.Node import BlockType
 
 ####################################################################################
@@ -114,8 +114,10 @@ try:
     paused = False
     for i in range(0, 15):
         time.sleep(1)
-        paused = not producercNode.waitForHeadToAdvance(timeout=1)
-        if paused:
+        # Do not use waitForHeadToAdvance() to check for pausing, as producercNode
+        # still receive blocks from node0 and node1 and can make head advance
+        paused = producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw)
+        if paused == b'true':
             Print(f'paused after {i} seconds after finalizercNode was shutdown')
             break;
     # Verify producercNode paused
@@ -142,8 +144,8 @@ try:
     paused = False
     for i in range(0, 15):
         time.sleep(1)
-        paused = not producercNode.waitForHeadToAdvance(timeout=1)
-        if paused:
+        paused = producercNode.processUrllibRequest("producer", "paused", returnType=ReturnType.raw)
+        if paused == b'true':
             Print(f'paused after {i} seconds after centerNode was shutdown')
             break;
     # Verify producercNode paused
