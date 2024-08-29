@@ -2228,7 +2228,6 @@ namespace eosio {
    // called from connection strand
    void sync_manager::sync_wait(const connection_ptr& c) {
       ++sync_timers_active;
-      sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
       peer_dlog(c, "sync wait, active_timers ${t}", ("t", sync_timers_active.load()));
    }
 
@@ -2484,6 +2483,7 @@ namespace eosio {
          return;
       }
       c->latest_blk_time = std::chrono::system_clock::now();
+      sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
       if (blk_applied)
          c->block_status_monitor_.accepted();
       if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
