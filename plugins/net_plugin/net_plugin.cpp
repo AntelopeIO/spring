@@ -1002,7 +1002,7 @@ namespace eosio {
       // timestamp for the lastest message
       std::chrono::system_clock::time_point       latest_msg_time{std::chrono::system_clock::time_point::min()};
       std::chrono::milliseconds                   hb_timeout{std::chrono::milliseconds{def_keepalive_interval}};
-      std::chrono::system_clock::time_point       latest_blk_time{std::chrono::system_clock::time_point::min()};
+      std::chrono::steady_clock::time_point       latest_blk_time{std::chrono::steady_clock::time_point::min()};
 
       bool connected() const;
       bool closed() const; // socket is not open or is closed or closing, thread safe
@@ -1487,7 +1487,7 @@ namespace eosio {
       sync_last_requested_block = 0;
       org = std::chrono::nanoseconds{0};
       latest_msg_time = std::chrono::system_clock::time_point::min();
-      latest_blk_time = std::chrono::system_clock::time_point::min();
+      latest_blk_time = std::chrono::steady_clock::time_point::min();
       set_state(connection_state::closed);
       block_sync_send_start = 0ns;
       block_sync_frame_bytes_sent = 0;
@@ -1622,7 +1622,7 @@ namespace eosio {
          }
          if (!my_impl->sync_master->syncing_from_peer()) {
             const std::chrono::milliseconds timeout = std::max(hb_timeout/2, 2*std::chrono::milliseconds(config::block_interval_ms));
-            if (current_time > latest_blk_time + timeout) {
+            if (std::chrono::steady_clock::now() > latest_blk_time + timeout) {
                peer_wlog(this, "half heartbeat timed out, sending handshake");
                send_handshake();
                return;
@@ -1910,7 +1910,7 @@ namespace eosio {
 
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
-      latest_blk_time = std::chrono::system_clock::now();
+      latest_blk_time = std::chrono::steady_clock::now();
       enqueue_buffer( sb, no_reason, to_sync_queue);
       return sb->size();
    }
@@ -2482,8 +2482,7 @@ namespace eosio {
          c->close( false, true );
          return;
       }
-      c->latest_blk_time = std::chrono::system_clock::now();
-      sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
+      c->latest_blk_time = sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
       if (blk_applied)
          c->block_status_monitor_.accepted();
       if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
@@ -2703,7 +2702,7 @@ namespace eosio {
          send_buffer_type sb = buff_factory.get_send_buffer( b );
 
          cp->strand.post( [cp, bnum, sb{std::move(sb)}]() {
-            cp->latest_blk_time = std::chrono::system_clock::now();
+            cp->latest_blk_time = std::chrono::steady_clock::now();
             bool has_block = cp->peer_lib_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
@@ -3052,7 +3051,7 @@ namespace eosio {
          fc::raw::unpack( peek_ds, which );
 
          if( which == signed_block_which ) {
-            latest_blk_time = std::chrono::system_clock::now();
+            latest_blk_time = std::chrono::steady_clock::now();
             return process_next_block_message( message_length );
          } else if( which == packed_transaction_which ) {
             return process_next_trx_message( message_length );
