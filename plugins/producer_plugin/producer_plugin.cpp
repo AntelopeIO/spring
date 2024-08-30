@@ -1929,7 +1929,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+   chain.maybe_apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
 

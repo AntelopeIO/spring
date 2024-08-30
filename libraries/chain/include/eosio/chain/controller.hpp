@@ -196,7 +196,7 @@ namespace eosio::chain {
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
-         void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+         void maybe_apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
          // returns true if new best head and empty optional if block b is unlinkable
