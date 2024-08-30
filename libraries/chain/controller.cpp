@@ -4228,6 +4228,8 @@ struct controller_impl {
    {
       auto do_apply_blocks = [&](auto& forkdb) {
          auto new_head = forkdb.head(); // use best head
+         if (!new_head)
+            return; // nothing to do, forkdb at root
          auto branches = forkdb.fetch_branch_from( new_head->id(), chain_head.id() );
 
          bool switch_fork = !branches.second.empty();
