@@ -522,8 +522,7 @@ namespace eosio::testing {
          }
       });
 
-      controller::block_report br;
-      control->assemble_and_complete_block( br, [&]( digest_type d ) {
+      control->assemble_and_complete_block( [&]( digest_type d ) {
          std::vector<signature_type> result;
          result.reserve(signing_keys.size());
          for (const auto& k: signing_keys)
@@ -532,7 +531,7 @@ namespace eosio::testing {
          return result;
       } );
 
-      control->commit_block(br);
+      control->commit_block();
 
       block_handle head = control->head();
 

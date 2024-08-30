@@ -1293,10 +1293,9 @@ struct controller_impl {
    bool apply_irreversible_block(ForkDB& forkdb, const BSP& bsp) {
       if (read_mode != db_read_mode::IRREVERSIBLE)
          return true; // ignore
-      controller::block_report br;
       if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(bsp)>>) {
          // before transition to savanna
-         return apply_block(br, bsp, controller::block_status::complete, trx_meta_cache_lookup{});
+         return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
       } else {
          assert(bsp->block);
          if (bsp->block->is_proper_svnn_block()) {
@@ -1306,7 +1305,7 @@ struct controller_impl {
                assert(prev);
                chain_head = block_handle{prev};
             });
-            return apply_block(br, bsp, controller::block_status::complete, trx_meta_cache_lookup{});
+            return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
          }
          // only called during transition when not a proper savanna block
          return fork_db.apply_l<bool>([&](const auto& forkdb_l) {
@@ -1314,7 +1313,7 @@ struct controller_impl {
             fork_db.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
             block_state_ptr prev = forkdb.get_block(legacy->previous(), include_root_t::yes);
             assert(prev);
-            if( apply_block(br, legacy, controller::block_status::complete, trx_meta_cache_lookup{}) ) {
+            if( apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{}) ) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
@@ -1801,17 +1800,10 @@ struct controller_impl {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.head()) {
-            auto head_block_num = chain_head.block_num();
-            auto branch = forkdb.fetch_branch(forkdb.head()->id());
-            int rev = 0;
-            for( auto i = branch.rbegin(); i != branch.rend(); ++i ) {
-               if( check_shutdown() ) break; // needed on every loop for terminate-at-block
-               if( !(*i)->is_valid() ) break;
-               if( (*i)->block_num() <= head_block_num ) continue;
-               ++rev;
-               replay_push_block<BSP>( (*i)->block, controller::block_status::validated );
-            }
-            ilog( "${n} reversible blocks replayed", ("n",rev) );
+            // applies all blocks up to forkdb head from forkdb
+            maybe_switch_forks(BSP{}, controller::block_status::validated, {}, trx_meta_cache_lookup{});
+            auto head = forkdb.head();
+            ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", head->block_num())("id", head->id()) );
          }
 
          if( !forkdb.head() ) {
@@ -1993,8 +1985,7 @@ struct controller_impl {
                if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
                   for( ; pending_head->id() != chain_head.id(); pending_head = forkdb.head() ) {
                      ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
-                     controller::block_report br;
-                     maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+                     maybe_switch_forks( pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
                   }
                }
             }
@@ -2750,7 +2741,6 @@ struct controller_impl {
          trace->elapsed = fc::time_point::now() - start;
          pending->_block_report.total_cpu_usage_us += billed_cpu_time_us;
          pending->_block_report.total_elapsed_time += trace->elapsed;
-         pending->_block_report.total_time += trace->elapsed;
          dmlog_applied_transaction(trace);
          emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
          undo_session.squash();
@@ -2827,7 +2817,6 @@ struct controller_impl {
          pending->_block_report.total_net_usage += trace->net_usage;
          pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
          pending->_block_report.total_elapsed_time += trace->elapsed;
-         pending->_block_report.total_time += fc::time_point::now() - start;
 
          return trace;
       } catch( const disallowed_transaction_extensions_bad_block_exception& ) {
@@ -2866,7 +2855,6 @@ struct controller_impl {
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
             pending->_block_report.total_elapsed_time += trace->elapsed;
-            pending->_block_report.total_time += trace->elapsed;
             return trace;
          }
          trace->elapsed = fc::time_point::now() - start;
@@ -2916,7 +2904,6 @@ struct controller_impl {
       pending->_block_report.total_net_usage += trace->net_usage;
       if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
       pending->_block_report.total_elapsed_time += trace->elapsed;
-      pending->_block_report.total_time += fc::time_point::now() - start;
 
       return trace;
    } FC_CAPTURE_AND_RETHROW() } /// push_scheduled_transaction
@@ -3072,7 +3059,6 @@ struct controller_impl {
                pending->_block_report.total_net_usage += trace->net_usage;
                pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
                pending->_block_report.total_elapsed_time += trace->elapsed;
-               pending->_block_report.total_time += fc::time_point::now() - start;
             }
 
             return trace;
@@ -3100,7 +3086,6 @@ struct controller_impl {
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
             pending->_block_report.total_elapsed_time += trace->elapsed;
-            pending->_block_report.total_time += fc::time_point::now() - start;
          }
 
          return trace;
@@ -3360,9 +3345,7 @@ struct controller_impl {
    /**
     * @post regardless of the success of commit block there is no active pending block
     */
-   void commit_block( controller::block_report& br, controller::block_status s ) {
-      fc::time_point start = fc::time_point::now();
-
+   void commit_block( controller::block_status s ) {
       auto reset_pending_on_exit = fc::make_scoped_exit([this]{
          pending.reset();
       });
@@ -3404,7 +3387,6 @@ struct controller_impl {
                });
          }
 
-         chain_head = block_handle{cb.bsp};
          emit( accepted_block, std::tie(chain_head.block(), chain_head.id()), __FILE__, __LINE__ );
 
          if ( s == controller::block_status::incomplete || s == controller::block_status::complete || s == controller::block_status::validated ) {
@@ -3450,17 +3432,7 @@ struct controller_impl {
                         });
          }
 
-         if (s == controller::block_status::incomplete) {
-            const auto& id = chain_head.id();
-            const auto& new_b = chain_head.block();
-            br.total_time += fc::time_point::now() - start;
-
-            ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
-                 ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
-                 ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("net", br.total_net_usage)
-                 ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)("confs", new_b->confirmed));
-         }
+         log_applied(s);
 
       } catch (...) {
          // dont bother resetting pending, instead abort the block
@@ -3471,6 +3443,45 @@ struct controller_impl {
 
       // push the state for pending.
       pending->push();
+   }
+
+   void log_applied(controller::block_status s) const {
+      if (replaying) // fork_db_root_block_num not available during replay
+         return;
+      fc::time_point now = fc::time_point::now();
+      // if syncing and not current block, then only report every 1000 blocks
+      if (now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0)
+         return;
+
+      const auto& br = pending->_block_report;
+      if (s == controller::block_status::incomplete) {
+         const auto& new_b = chain_head.block();
+         ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
+              "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
+              ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
+              ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("confs", new_b->confirmed)
+              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
+              ("tt", fc::time_point::now() - br.start_time));
+         return;
+      }
+
+      ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
+           "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
+           ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
+           ("count", chain_head.block()->transactions.size())("lib", fork_db_root_block_num())
+           ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
+           ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
+      const auto& hb_id = chain_head.id();
+      const auto& hb = chain_head.block();
+      if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != chain_head.id() && hb != nullptr) { // not applied to head
+         ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
+              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
+              ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
+              ("count", hb->transactions.size())("lib", fork_db_root_block_num())
+              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)
+              ("time", now - br.start_time)
+              ("latency", (now - hb->timestamp).count() / 1000));
+      }
    }
 
    void apply_trx_block_context(trx_block_context& trx_blk_context) {
@@ -3612,33 +3623,8 @@ struct controller_impl {
    }
 
 
-   template<typename BSP>
-   void log_applied(controller::block_report& br, const BSP& bsp) const {
-      if (replaying) // fork_db_root_block_num not available during replay
-         return;
-      fc::time_point now = fc::time_point::now();
-      if (now - bsp->timestamp() < fc::minutes(5) || (bsp->block_num() % 1000 == 0)) {
-         ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
-              ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
-              ("count", bsp->block->transactions.size())("lib", fork_db_root_block_num())
-              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
-              ("elapsed", br.total_elapsed_time)("time", br.total_time)("latency", (now - bsp->timestamp()).count() / 1000));
-         const auto& hb_id = chain_head.id();
-         const auto& hb = chain_head.block();
-         if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != bsp->id() && hb != nullptr) { // not applied to head
-            ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
-                 ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-                 ("count", hb->transactions.size())("lib", fork_db_root_block_num())
-                 ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", br.total_time)
-                 ("latency", (now - hb->timestamp).count() / 1000));
-         }
-      }
-   }
-
    template<class BSP>
-   bool apply_block( controller::block_report& br, const BSP& bsp, controller::block_status s,
+   bool apply_block( const BSP& bsp, controller::block_status s,
                      const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
@@ -3647,7 +3633,7 @@ struct controller_impl {
                return false;
             }
 
-            auto start = fc::time_point::now();
+            auto start = fc::time_point::now(); // want to report total time of applying a block
 
             const bool already_valid = bsp->is_valid();
             // Only need to consider voting if not already validated, if already validated then we have already voted.
@@ -3659,6 +3645,9 @@ struct controller_impl {
             const auto& producer_block_id = bsp->id();
 
             start_block( b->timestamp, b->confirmed, new_protocol_feature_activations, s, producer_block_id, fc::time_point::maximum() );
+            assert(pending); // created by start_block
+
+            pending->_block_report.start_time = start;
 
             // validated in create_block_handle()
             std::get<building_block>(pending->_block_stage).trx_mroot_or_receipt_digests() = b->transaction_mroot;
@@ -3782,12 +3771,7 @@ struct controller_impl {
             // create completed_block with the existing block_state as we just verified it is the same as assembled_block
             pending->_block_stage = completed_block{ block_handle{bsp} };
 
-            br = pending->_block_report; // copy before commit block destroys pending
-            br.total_time += fc::time_point::now() - start;
-            commit_block(br, s);
-
-            if (!already_valid)
-               log_applied(br, bsp);
+            commit_block(s);
 
             return true;
          } catch ( const std::bad_alloc& ) {
@@ -4188,7 +4172,7 @@ struct controller_impl {
 
             if( read_mode != db_read_mode::IRREVERSIBLE ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
-                  maybe_switch_forks( br, forkdb.head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
+                  maybe_switch_forks( forkdb.head(include_root_t::yes), s, forked_branch_cb, trx_lookup );
             } else {
                log_irreversible();
                transition_to_savanna_if_needed();
@@ -4230,9 +4214,8 @@ struct controller_impl {
 
                emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
-               controller::block_report br;
                if (s == controller::block_status::irreversible) {
-                  if (apply_block(br, bsp, s, trx_meta_cache_lookup{})) {
+                  if (apply_block(bsp, s, trx_meta_cache_lookup{})) {
                      // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
                      // So emit it explicitly here.
                      emit( irreversible_block, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -4244,7 +4227,7 @@ struct controller_impl {
                } else {
                   EOS_ASSERT(read_mode != db_read_mode::IRREVERSIBLE, block_validate_exception,
                              "invariant failure: cannot replay reversible blocks while in irreversible mode");
-                  maybe_switch_forks(br, bsp, s, {}, trx_meta_cache_lookup{});
+                  maybe_switch_forks(bsp, s, {}, trx_meta_cache_lookup{});
                }
             }
          };
@@ -4259,8 +4242,7 @@ struct controller_impl {
             auto pending_head = forkdb.head(include_root_t::yes);
             if (chain_head.id() != pending_head->id()) {
                dlog("switching forks on controller->maybe_switch_forks call");
-               controller::block_report br;
-               maybe_switch_forks(br, pending_head,
+               maybe_switch_forks(pending_head,
                                   pending_head->is_valid() ? controller::block_status::validated
                                                            : controller::block_status::complete,
                                   cb, trx_lookup);
@@ -4272,126 +4254,114 @@ struct controller_impl {
    }
 
    template<class BSP>
-   void maybe_switch_forks( controller::block_report& br, const BSP& new_head, controller::block_status s,
+   void maybe_switch_forks( const BSP& provided_head, controller::block_status s,
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
-      auto do_maybe_switch_forks = [&](auto& forkdb) {
-         if( new_head->header.previous == chain_head.id() ) {
-            try {
-               apply_block( br, new_head, s, trx_lookup );
-            } catch ( const std::exception& e ) {
-               dlog("Exception during apply block: ${e}", ("e", e.what()));
-               forkdb.remove( new_head->id() );
-               throw;
-            }
-         } else if( new_head->id() != chain_head.id() ) {
-            auto branches = forkdb.fetch_branch_from( new_head->id(), chain_head.id() );
+      auto do_apply_blocks = [&](auto& forkdb) {
+         auto new_head = forkdb.head(); // use best head
+         auto branches = forkdb.fetch_branch_from( new_head->id(), chain_head.id() );
 
-            bool switch_fork = !branches.second.empty();
-            if( switch_fork ) {
-               auto head_fork_comp_str =
-                  block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
-               ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                    ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
-                    ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
+         bool switch_fork = !branches.second.empty();
+         if( switch_fork ) {
+            auto head_fork_comp_str =
+               block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
+            ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
+                 ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+                 ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
 
-               // not possible to log transaction specific info when switching forks
-               if (auto dm_logger = get_deep_mind_logger(false)) {
-                  dm_logger->on_switch_forks(chain_head.id(), new_head->id());
-               }
-
-               for( auto itr = branches.second.begin(); itr != branches.second.end(); ++itr ) {
-                  pop_block();
-               }
-               EOS_ASSERT( chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
-                           "loss of sync between fork_db and chainbase during fork switch" ); // _should_ never fail
-
-               if( forked_cb ) {
-                  // forked_branch is in reverse order, maintain execution order
-                  for( auto ritr = branches.second.rbegin(), rend = branches.second.rend(); ritr != rend; ++ritr ) {
-                     const auto& bsptr = *ritr;
-                     for( auto itr = bsptr->trxs_metas().begin(), end = bsptr->trxs_metas().end(); itr != end; ++itr ) {
-                        forked_cb(*itr);
-                     }
-                  }
-               }
-            } else if (!branches.first.empty()) {
-               if (fc::time_point::now() - new_head->timestamp() < fc::minutes(5)) {
-                  ilog("applying ${n} fork db blocks from ${cbn}:${cbid} to ${nbn}:${nbid}",
-                       ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
-                       ("nbid", new_head->id())("nbn", new_head->block_num()));
-               }
+            // not possible to log transaction specific info when switching forks
+            if (auto dm_logger = get_deep_mind_logger(false)) {
+               dm_logger->on_switch_forks(chain_head.id(), new_head->id());
             }
 
-            for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
-               auto except = std::exception_ptr{};
-               try {
-                  const auto& bsp = *ritr;
+            for( auto itr = branches.second.begin(); itr != branches.second.end(); ++itr ) {
+               pop_block();
+            }
+            EOS_ASSERT( chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+                        "loss of sync between fork_db and chainbase during fork switch" ); // _should_ never fail
 
-                  br = controller::block_report{};
-                  bool applied = apply_block( br, bsp, bsp->is_valid() ? controller::block_status::validated
-                                                                       : controller::block_status::complete, trx_lookup );
-                  if (!switch_fork && (!applied || check_shutdown())) {
-                     shutdown();
-                     break;
+            if( forked_cb ) {
+               // forked_branch is in reverse order, maintain execution order
+               for( auto ritr = branches.second.rbegin(), rend = branches.second.rend(); ritr != rend; ++ritr ) {
+                  const auto& bsptr = *ritr;
+                  for( auto itr = bsptr->trxs_metas().begin(), end = bsptr->trxs_metas().end(); itr != end; ++itr ) {
+                     forked_cb(*itr);
                   }
-               } catch ( const std::bad_alloc& ) {
-                  throw;
-               } catch ( const boost::interprocess::bad_alloc& ) {
-                  throw;
-               } catch (const fc::exception& e) {
-                  elog("exception thrown while switching forks ${e}", ("e", e.to_detail_string()));
-                  except = std::current_exception();
-               } catch (const std::exception& e) {
-                  elog("exception thrown while switching forks ${e}", ("e", e.what()));
-                  except = std::current_exception();
                }
-
-               if( except ) {
-                  // ritr currently points to the block that threw
-                  // Remove the block that threw and all forks built off it.
-                  forkdb.remove( (*ritr)->id() );
-
-                  // pop all blocks from the bad fork, discarding their transactions
-                  // ritr base is a forward itr to the last block successfully applied
-                  auto applied_itr = ritr.base();
-                  for( auto itr = applied_itr; itr != branches.first.end(); ++itr ) {
-                     pop_block();
-                  }
-                  EOS_ASSERT( !switch_fork || chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
-                              "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
-
-                  // re-apply good blocks
-                  for( auto ritr = branches.second.rbegin(); ritr != branches.second.rend(); ++ritr ) {
-                     br = controller::block_report{};
-                     apply_block( br, *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
-                  }
-                  std::rethrow_exception(except);
-               } // end if exception
-            } /// end for each block in branch
-
-            if (switch_fork && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::info)) {
-               auto get_ids = [&](auto& container)->std::string {
-                  std::string ids;
-                  for(auto ritr = container.rbegin(), e = container.rend(); ritr != e; ++ritr) {
-                     ids += std::to_string((*ritr)->block_num()) + ":" + (*ritr)->id().str() + ",";
-                  }
-                  if (!ids.empty()) ids.resize(ids.size()-1);
-                  return ids;
-               };
-               ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
-                    ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
+            }
+         } else if (!branches.first.empty()) {
+            if (fc::time_point::now() - new_head->timestamp() < fc::minutes(5)) {
+               dlog("applying ${n} fork db blocks from ${cbn}:${cbid} to ${nbn}:${nbid}",
+                    ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
+                    ("nbid", new_head->id())("nbn", new_head->block_num()));
             }
          } else {
             // irreversible can change even if block not applied to head, integrated qc can move LIB
             log_irreversible();
             transition_to_savanna_if_needed();
          }
+
+         for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
+            auto except = std::exception_ptr{};
+            try {
+               const auto& bsp = *ritr;
+
+               bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
+                                                                : controller::block_status::complete, trx_lookup );
+               if (!switch_fork && (!applied || check_shutdown())) {
+                  shutdown();
+                  break;
+               }
+            } catch ( const std::bad_alloc& ) {
+               throw;
+            } catch ( const boost::interprocess::bad_alloc& ) {
+               throw;
+            } catch (const fc::exception& e) {
+               elog("exception thrown while switching forks ${e}", ("e", e.to_detail_string()));
+               except = std::current_exception();
+            } catch (const std::exception& e) {
+               elog("exception thrown while switching forks ${e}", ("e", e.what()));
+               except = std::current_exception();
+            }
+
+            if( except ) {
+               // ritr currently points to the block that threw
+               // Remove the block that threw and all forks built off it.
+               forkdb.remove( (*ritr)->id() );
+
+               // pop all blocks from the bad fork, discarding their transactions
+               // ritr base is a forward itr to the last block successfully applied
+               auto applied_itr = ritr.base();
+               for( auto itr = applied_itr; itr != branches.first.end(); ++itr ) {
+                  pop_block();
+               }
+               EOS_ASSERT( !switch_fork || chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+                           "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
+
+               // re-apply good blocks
+               for( auto ritr = branches.second.rbegin(); ritr != branches.second.rend(); ++ritr ) {
+                  apply_block( *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
+               }
+               std::rethrow_exception(except);
+            } // end if exception
+         } /// end for each block in branch
+
+         if (switch_fork && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::info)) {
+            auto get_ids = [&](auto& container)->std::string {
+               std::string ids;
+               for(auto ritr = container.rbegin(), e = container.rend(); ritr != e; ++ritr) {
+                  ids += std::to_string((*ritr)->block_num()) + ":" + (*ritr)->id().str() + ",";
+               }
+               if (!ids.empty()) ids.resize(ids.size()-1);
+               return ids;
+            };
+            ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
+                 ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
+         }
       };
 
-      fork_db.apply<void>(do_maybe_switch_forks);
-
-   } /// push_block
+      fork_db.apply<void>(do_apply_blocks);
+   }
 
    deque<transaction_metadata_ptr> abort_block() {
       deque<transaction_metadata_ptr> applied_trxs;
@@ -5118,7 +5088,7 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
                            bs, std::optional<block_id_type>(), deadline );
 }
 
-void controller::assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback ) {
+void controller::assemble_and_complete_block( const signer_callback_type& signer_callback ) {
    validate_db_available_size();
 
    my->assemble_block(false, {}, nullptr);
@@ -5130,13 +5100,11 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
       [](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features, const vector<digest_type>& new_features) {},
       signer_callback,
       valid_block_signing_authority);
-
-   br = my->pending->_block_report;
 }
 
-void controller::commit_block(block_report& br) {
+void controller::commit_block() {
    validate_db_available_size();
-   my->commit_block(br, block_status::incomplete);
+   my->commit_block(block_status::incomplete);
 }
 
 void controller::testing_allow_voting(bool val) {

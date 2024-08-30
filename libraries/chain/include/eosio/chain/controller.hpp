@@ -186,12 +186,12 @@ namespace eosio::chain {
             size_t             total_net_usage = 0;
             size_t             total_cpu_usage_us = 0;
             fc::microseconds   total_elapsed_time{};
-            fc::microseconds   total_time{};
+            fc::time_point     start_time{};
          };
 
-         void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
+         void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
-         void commit_block(block_report& br);
+         void commit_block();
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);

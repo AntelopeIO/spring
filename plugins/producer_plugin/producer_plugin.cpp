@@ -874,16 +874,17 @@ public:
          _production_enabled = true;
       }
 
-      if (_update_incoming_block_metrics) { // only includes those blocks pushed, not those that are accepted and processed internally
-         _update_incoming_block_metrics({.trxs_incoming_total   = block->transactions.size(),
-                                         .cpu_usage_us          = br.total_cpu_usage_us,
-                                         .total_elapsed_time_us = br.total_elapsed_time.count(),
-                                         .total_time_us         = br.total_time.count(),
-                                         .net_usage_us          = br.total_net_usage,
-                                         .block_latency_us      = (now - block->timestamp).count(),
-                                         .last_irreversible     = chain.last_irreversible_block_num(),
-                                         .head_block_num        = blk_num});
-      }
+      // TODO: if we are keeping prometheus then this needs to be moved to controller
+      // if (_update_incoming_block_metrics) { // only includes those blocks pushed, not those that are accepted and processed internally
+      //    _update_incoming_block_metrics({.trxs_incoming_total   = block->transactions.size(),
+      //                                    .cpu_usage_us          = br.total_cpu_usage_us,
+      //                                    .total_elapsed_time_us = br.total_elapsed_time.count(),
+      //                                    .total_time_us         = br.total_time.count(),
+      //                                    .net_usage_us          = br.total_net_usage,
+      //                                    .block_latency_us      = (now - block->timestamp).count(),
+      //                                    .last_irreversible     = chain.last_irreversible_block_num(),
+      //                                    .head_block_num        = blk_num});
+      // }
 
       return true;
    }
@@ -2827,9 +2828,8 @@ void producer_plugin_impl::produce_block() {
    }
 
    // idump( (fc::time_point::now() - chain.pending_block_time()) );
-   controller::block_report br;
-   chain.assemble_and_complete_block(br, [&](const digest_type& d) {
-      auto                   debug_logger = maybe_make_debug_time_logger();
+   chain.assemble_and_complete_block([&](const digest_type& d) {
+      auto debug_logger = maybe_make_debug_time_logger();
       vector<signature_type> sigs;
       sigs.reserve(relevant_providers.size());
 
@@ -2840,8 +2840,7 @@ void producer_plugin_impl::produce_block() {
       return sigs;
    });
 
-   br.total_time += fc::time_point::now() - start;
-   chain.commit_block(br);
+   chain.commit_block();
 
    const signed_block_ptr new_b = chain.head().block();
    if (_update_produced_block_metrics) {
@@ -2850,10 +2849,11 @@ void producer_plugin_impl::produce_block() {
       metrics.subjective_bill_account_size_total = chain.get_subjective_billing().get_account_cache_size();
       metrics.scheduled_trxs_total = chain.db().get_index<generated_transaction_multi_index, by_delay>().size();
       metrics.trxs_produced_total = new_b->transactions.size();
-      metrics.cpu_usage_us = br.total_cpu_usage_us;
-      metrics.total_elapsed_time_us = br.total_elapsed_time.count();
-      metrics.total_time_us = br.total_time.count();
-      metrics.net_usage_us = br.total_net_usage;
+      // TODO: if we are going to continue to support prometheus, this needs move to controller
+      // metrics.cpu_usage_us = br.total_cpu_usage_us;
+      // metrics.total_elapsed_time_us = br.total_elapsed_time.count();
+      // metrics.total_time_us = br.total_time.count();
+      // metrics.net_usage_us = br.total_net_usage;
       metrics.last_irreversible = chain.last_irreversible_block_num();
       metrics.head_block_num = chain.head().block_num();
       _update_produced_block_metrics(metrics);
