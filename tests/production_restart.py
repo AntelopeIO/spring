@@ -81,11 +81,12 @@ try:
     node0.keys[0].blspubkey = "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w" # setFinalizers uses the first key in key list (index 0)
     node0.keys[0].blspop    = "SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
 
-    assert cluster.setFinalizers([node0, node1], node0), "setfinalizers failed"
-    assert node0.waitForLibToAdvance(), "node0 did not advance LIB after setfinalizers"
-    # Wait for head to advance twice to make sure pending policy is in place
-    node0.waitForHeadToAdvance()
-    node0.waitForHeadToAdvance()
+    transId = cluster.setFinalizers([node0, node1], node0)
+    assert transId, "setfinalizers failed"
+    # A proposed finalizer policy is promoted to pending only after the block where it
+    # was proposed become irreversible.
+    # Wait for pending policy is in place.
+    assert node0.waitForTransFinalization(transId), f'setfinalizer transaction {transId} failed to be rolled into a LIB block'
 
     # Check if a pending policy exists
     finalizerInfo = node0.getFinalizerInfo()
