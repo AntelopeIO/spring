@@ -306,6 +306,7 @@ namespace eosio::testing {
    void base_tester::close() {
       control.reset();
       chain_transactions.clear();
+      blocks_signaled.clear();
    }
 
    bool base_tester::is_open() const { return !!control; }
@@ -341,20 +342,39 @@ namespace eosio::testing {
       control->add_indices();
       control->testing_allow_voting(true);
       if (lambda) lambda();
-      chain_transactions.clear();
-      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
-        const auto& [ block, id ] = t;
-        FC_ASSERT( block );
-          for( auto receipt : block->transactions ) {
-              if( std::holds_alternative<packed_transaction>(receipt.trx) ) {
-                  auto &pt = std::get<packed_transaction>(receipt.trx);
-                  chain_transactions[pt.get_transaction().id()] = std::move(receipt);
-              } else {
-                  auto& id = std::get<transaction_id_type>(receipt.trx);
-                  chain_transactions[id] = std::move(receipt);
-              }
-          }
+      [[maybe_unused]] auto block_start_connection = control->block_start().connect([](block_num_type num) {
+         // only block number is signaled, in forking tests will get the same block number more than once.
       });
+      [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([this](const block_signal_params& t) {
+            const auto& [block, id] = t;
+            FC_ASSERT(block);
+            auto i = blocks_signaled.find(id);
+            BOOST_TEST((i == blocks_signaled.end()), "should get accepted_block_header signal only once, and before accepted_block signal");
+            blocks_signaled[id] = block_signal::accepted_block_header;
+         });
+      chain_transactions.clear();
+      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this](const block_signal_params& t) {
+            const auto& [block, id] = t;
+            FC_ASSERT(block);
+            BOOST_TEST(block->block_num() > lib_number);
+            auto i = blocks_signaled.find(id);
+            BOOST_TEST_REQUIRE((i != blocks_signaled.end()), "should get accepted_block signal after accepted_block_header signal");
+            if (i->second == block_signal::accepted_block) {
+               // fork switch, accepted block signaled when block re-applied
+            }
+            BOOST_TEST((i->second == block_signal::accepted_block_header || i->second == block_signal::accepted_block));
+            i->second = block_signal::accepted_block;
+
+            for (auto receipt : block->transactions) {
+               if (std::holds_alternative<packed_transaction>(receipt.trx)) {
+                  const auto& pt = std::get<packed_transaction>(receipt.trx);
+                  chain_transactions[pt.get_transaction().id()] = std::move(receipt);
+               } else {
+                  const auto& tid = std::get<transaction_id_type>(receipt.trx);
+                  chain_transactions[tid] = std::move(receipt);
+               }
+            }
+         });
 
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
@@ -366,9 +386,17 @@ namespace eosio::testing {
          const auto& [ block, id ] = t;
          lib_block = block;
          lib_id    = id;
-         assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
+         BOOST_TEST(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
-      });
+         auto i = blocks_signaled.find(id);
+         if (i == blocks_signaled.end()) {
+            // can be signaled on restart as the first thing since other signals happened before shutdown
+            blocks_signaled[id] = block_signal::accepted_block_header;
+         } else {
+            BOOST_TEST((i->second == block_signal::accepted_block), "should get irreversible_block signal only once");
+            i->second = block_signal::irreversible_block;
+         }
+     });
 
       if (_open_callback)
          _open_callback();

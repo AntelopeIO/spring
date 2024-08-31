@@ -590,6 +590,8 @@ namespace eosio::testing {
          controller::config                            cfg;
          map<transaction_id_type, transaction_receipt> chain_transactions;
          map<account_name, block_id_type>              last_produced_block;
+         enum class block_signal { block_start, accepted_block_header, accepted_block, irreversible_block };
+         map<block_id_type, block_signal>              blocks_signaled;
          unapplied_transaction_queue                   unapplied_transactions;
 
       public:
