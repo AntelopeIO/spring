@@ -359,11 +359,10 @@ namespace eosio::testing {
             BOOST_TEST(block->block_num() > lib_number);
             auto i = blocks_signaled.find(id);
             BOOST_TEST_REQUIRE((i != blocks_signaled.end()), "should get accepted_block signal after accepted_block_header signal");
-            if (i->second == block_signal::accepted_block) {
-               // fork switch, accepted block signaled when block re-applied
+            if (i->second != block_signal::accepted_block) { // on fork switch, accepted block signaled when block re-applied
+               BOOST_TEST((i->second == block_signal::accepted_block_header));
+               i->second = block_signal::accepted_block;
             }
-            BOOST_TEST((i->second == block_signal::accepted_block_header || i->second == block_signal::accepted_block));
-            i->second = block_signal::accepted_block;
 
             for (auto receipt : block->transactions) {
                if (std::holds_alternative<packed_transaction>(receipt.trx)) {
