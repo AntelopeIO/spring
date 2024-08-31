@@ -11,6 +11,30 @@ from TestHarness.Node import BlockType
 # production_pause_max_rev_blks_test
 # Test --max-reversible-blocks works as expected.
 #
+# Setup:
+#
+# The test network consits of 3 nodes. 2 of them are producer nodes, with
+# producera and producerb. Configure --max-reversible-blocks but
+# disable --production-pause-vote-timeout-ms to avoid interfernce.
+#
+# node0: Enables block production for producera and has the finalizer key with
+#        description of producera. Has vote-threads enabled. Connect to producerbNode.
+# producerbNode: Enables block production for producerb. Has vote-threads enabled.
+#        Connect to finalizerbNode and node0.
+# finalizerbNode: Has the finalizer key with description of producerb.
+#        Has vote-threads enabled. Connect to producerbNode.
+#
+# Test cases:
+#
+# 1. Bring down finalizerbNode. producerbNode and node0 should eventually
+#    automatically pause production due to not receiving votes from finalizerbNode,
+#    LIB stopping advancing, and number of reversible blocks keeping growing
+#    on both production nodes.
+# 2. Bring down node0 and restart it with a larger --max-reversible-blocks.
+#    node0 should resume production until the new limit is reached.
+# 3. Restart finalizerbNode. producerbNode and node0 should automatically unpause
+#    production because the number of reversible blocks decreases due to LIB
+#    advances on both nodes.
 ####################################################################################
 
 Print=Utils.Print
@@ -20,7 +44,7 @@ args=TestHelper.parse_args({"-d","--keep-logs","--dump-error-details","-v","--le
 delay=args.d
 debug=args.v
 dumpErrorDetails=args.dump_error_details
-pnodes=2 # number of producing nodes
+pnodes=2 # number of producing nodes. producers are defproducera and defproducerb
 totalNodes=pnodes + 1 # plus 1 finalizer node for defproducerb
 prodCount=1 # number of producers per producing node
 
