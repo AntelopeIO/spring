@@ -108,7 +108,7 @@ CONTRACT eosmechanics : public eosio::contract {
             uint64_t id;
             std::string one;
 
-            auto primary_key()const { return id; }
+            uint64_t primary_key()const { return id; }
             EOSLIB_SERIALIZE(ramdata, (id)(one))
         };
 
