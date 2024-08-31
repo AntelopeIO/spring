@@ -391,7 +391,7 @@ namespace eosio::testing {
          auto i = blocks_signaled.find(id);
          if (i == blocks_signaled.end()) {
             // can be signaled on restart as the first thing since other signals happened before shutdown
-            blocks_signaled[id] = block_signal::accepted_block_header;
+            blocks_signaled[id] = block_signal::irreversible_block;
          } else {
             BOOST_TEST((i->second == block_signal::accepted_block), "should get irreversible_block signal only once");
             i->second = block_signal::irreversible_block;
