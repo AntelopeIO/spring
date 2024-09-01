@@ -364,11 +364,12 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                 //new strong QC
                                 last_final_block = *last_final_block_itr;
                                 last_final_qc = high_qc_block_itr->qc_data.qc.value();
-
+/*
                                 reversible_blocks.erase(std::remove_if(reversible_blocks.begin(), reversible_blocks.end(), [&](auto &r){
                                     return r.block_num <= last_final_block.block_num;
-                                }), reversible_blocks.end());
+                                }), reversible_blocks.end());*/
 
+                                reversible_blocks.erase(reversible_blocks.begin(), ++last_final_block_itr);
 
                         }
 
