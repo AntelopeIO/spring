@@ -11,22 +11,26 @@ from TestHarness.Node import BlockType
 #
 # Tests restart of a production node with a pending finalizer policy.
 #
-# Start up a network with two nodes. The first node is a producer node, defproducera that has vote-threads enabled. The
-# second node has a producer (defproducerb) and a single finalizer key configured. Use the bios contract to transition
-# to Savanna consensus while keeping the existing producers and using a finalizer policy with the two finalizers.
+# Start up a network with two nodes. The first node (node0) has a producer (defproducera) and
+# a single finalizer key configured. The second node (node1) has a producer (defproducerb) and
+# a single finalizer key configured. Use the bios contract to transition
+# to Savanna consensus while keeping the existing producers and using a finalizer
+# policy with the two finalizers.
 #
-# Once everything has been confirmed to be working correctly and finality is advancing, cleanly shut down the producer
-# defproducera node but keep the finalizer node of defproducerb running.
+# Once everything has been confirmed to be working correctly and finality is advancing,
+# cleanly shut down node0 but keep node1 running.
 #
-# Then change the finalizer policy (e.g. switch the order of the two finalizers) to get the nodes into a state where
-# they have a pending finalizer policy. At that point restart the producer node defproducera (with stale production
-# enabled so it produces blocks again).
+# Then change the finalizer policy using an unconfigured key in node0
+# to guarantee to get the node stay in a state where it has a pending finalizer policy
+# because the key was not configured. At that point restart node0 with
+# new key configured and stale production enabled so it produces blocks again.
 #
-# The correct behavior is for votes from the finalizer node on the newly produced blocks to be accepted by producer
-# node defproducera, QCs to be formed and included in new blocks, and finality to advance.
+# The correct behavior is for votes from node1 on the newly produced
+# blocks to be accepted by node1, QCs to be formed and included in new blocks,
+# and finality to advance.
 #
-# Due to the bug in pre-1.0.0-rc1, we expect that on restart the producer node will reject the votes received by the
-# finalizer node because the producer node will be computing the wrong finality digest.#
+# Due to the bug in pre-1.0.0-rc1, we expect that on restart node0 will reject the
+# votes received by node1 because the node0 will be computing the wrong finality digest.
 #
 ###############################################################
 
@@ -64,28 +68,47 @@ try:
     cluster.biosNode.kill(signal.SIGTERM)
     cluster.waitOnClusterSync(blockAdvancing=5)
 
-    node0 = cluster.getNode(0) # producer
-    node1 = cluster.getNode(1) # finalizer
+    node0 = cluster.getNode(0)
+    node1 = cluster.getNode(1)
 
     Print("Wait for lib to advance")
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
 
     Print("Set finalizers so a pending is in play")
-    assert cluster.setFinalizers([node1, node0], node0), "setfinalizers failed" # switch order
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB after setfinalizers"
-    node0.waitForHeadToAdvance() # get additional qc
+    # Use an unconfigured key for new finalizer policy on node0 such that
+    # node0 stays in a state where it has a pending finalizer policy.
+    node0.keys[0].blspubkey = "PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w" # setFinalizers uses the first key in key list (index 0)
+    node0.keys[0].blspop    = "SIG_BLS_Z5fJqFv6DIsHFhBFpkHmL_R48h80zVKQHtB5lrKGOVZTaSQNuVaXD_eHg7HBvKwY6zqgA_vryCLQo5W0Inu6HtLkGL2gYX2UHJjrZJZpfJSKG0ynqAZmyrCglxRLNm8KkFdGGR8oJXf5Yzyu7oautqTPniuKLBvNeQxGJGDOQtHSQ0uP3mD41pWzPFRoi10BUor9MbwUTQ7fO7Of4ZjhVM3IK4JrqX1RBXkDX83Wi9xFzs_fdPIyMqmgEzFgolgUa8XN4Q"
+
+    transId = cluster.setFinalizers([node0, node1], node0)
+    assert transId, "setfinalizers failed"
+    # A proposed finalizer policy is promoted to pending only after the block where it
+    # was proposed become irreversible.
+    # Wait for pending policy is in place.
+    assert node0.waitForTransFinalization(transId), f'setfinalizer transaction {transId} failed to be rolled into a LIB block'
+
+    # Check if a pending policy exists
+    finalizerInfo = node0.getFinalizerInfo()
+    Print(f"{finalizerInfo}")
+    if (finalizerInfo["payload"]["pending_finalizer_policy"] is not None
+        and finalizerInfo["payload"]["pending_finalizer_policy"]["finalizers"] is not None):
+        Print("pending policy exists")
+    else:
+        Utils.errorExit("pending policy does not exist")
 
     Print("Shutdown producer node0")
     node0.kill(signal.SIGTERM)
-    assert not node0.verifyAlive(), "Node0 did not shutdown"
+    assert not node0.verifyAlive(), "node0 did not shutdown"
 
+    # Configure the new key (using --signature-provider) and restart node0.
+    # LIB should advance
     Print("Restart producer node0")
-    node0.relaunch(chainArg=" -e ")
+    node0.relaunch(chainArg=" -e --signature-provider PUB_BLS_JzblSr2sf_UhxQjGxOtHbRCBkHgSB1RG4xUbKKl-fKtUjx6hyOHajnVQT4IvBF4PutlX7JTC14IqIjADlP-3_G2MXRhBlkB57r2u59OCwRQQEDqmVSADf6CoT8zFUXcSgHFw7w=KEY:PVT_BLS_QRxLAVbe2n7RaPWx2wHbur8erqUlAs-V_wXasGhjEA78KlBq")
 
     Print("Verify LIB advances after restart")
-    assert node0.waitForLibToAdvance(), "Node0 did not advance LIB"
-    assert node1.waitForLibToAdvance(), "Node1 did not advance LIB"
+    assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
+    assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
 
     testSuccessful=True
 finally:

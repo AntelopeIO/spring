@@ -9,6 +9,7 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -20,6 +21,10 @@ namespace chainbase {
 }
 namespace boost::asio {
    class thread_pool;
+}
+
+namespace savanna_cluster {
+   class node_t;
 }
 
 namespace eosio::vm { class wasm_allocator; }
@@ -95,7 +100,6 @@ namespace eosio::chain {
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
             uint16_t                 vote_thread_pool_size  =  0;
-            int32_t                  max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -392,14 +396,9 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         /// @return true if terminate-at-block reached, or max-reversible-blocks reached
+         /// @return true if terminate-at-block reached
          /// not-thread-safe
          bool should_terminate() const;
-
-         /// Difference between max-reversible-blocks and fork database size.
-         /// Can return MAX_INT32 if disabled or pre-Savanna
-         /// @return the number of reversible blocks still allowed
-         int32_t max_reversible_blocks_allowed() const;
 
          void set_subjective_cpu_leeway(fc::microseconds leeway);
          std::optional<fc::microseconds> get_subjective_cpu_leeway() const;
@@ -458,9 +457,13 @@ namespace eosio::chain {
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
 
+
       private:
+         const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
+
          friend class apply_context;
          friend class transaction_context;
+         friend class savanna_cluster::node_t;
 
          chainbase::database& mutable_db()const;
 

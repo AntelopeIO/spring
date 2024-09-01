@@ -1029,21 +1029,21 @@ class Cluster(object):
                 return None, transId
         return True, transId
 
-    def setFinalizers(self, nodes, node=None):
+    # finalizerNames specifies non-default finalizer name for each node
+    def setFinalizers(self, nodes, node=None, finalizerNames=None):
+        # finalizerNames, if present, must specify finalizer names for all the nodes
+        assert(finalizerNames is None or len(nodes) == len(finalizerNames))
         if node is None:
             node = self.biosNode
         numFins = len(nodes)
         threshold = int(numFins * 2 / 3 + 1)
-        if threshold > 2 and threshold == numFins:
-            # nodes are often stopped, so do not require all node votes
-            threshold = threshold - 1
         if Utils.Debug: Utils.Print(f"threshold: {threshold}, numFins: {numFins}")
         setFinStr =  f'{{"finalizer_policy": {{'
         setFinStr += f'  "threshold": {threshold}, '
         setFinStr += f'  "finalizers": ['
         finNum = 1
         for n in nodes:
-            finName = n.producerName if n.producerName is not None else f"finalizer{finNum}"
+            finName = finalizerNames[finNum-1] if finalizerNames is not None else  n.producerName if n.producerName is not None else f"finalizer{finNum}"
             setFinStr += f'    {{"description": "{finName}", '
             setFinStr += f'     "weight":1, '
             setFinStr += f'     "public_key": "{n.keys[0].blspubkey}", '

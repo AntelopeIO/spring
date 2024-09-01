@@ -541,6 +541,9 @@ class Node(Transactions):
         with open(jsonPath, "w") as f:
             json.dump(protocolFeatureJson, f, indent=2)
 
+    def getFinalizerInfo(self):
+       return self.processUrllibRequest("chain", "get_finalizer_info",silentErrors=False, exitOnError=True)
+
     # Require producer_api_plugin
     def createSnapshot(self):
         return self.processUrllibRequest("producer", "create_snapshot")
