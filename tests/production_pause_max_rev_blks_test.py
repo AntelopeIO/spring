@@ -5,7 +5,6 @@ import signal
 import time
 
 from TestHarness import Cluster, TestHelper, Utils, WalletMgr
-from TestHarness.Node import BlockType
 
 ####################################################################################
 # production_pause_max_rev_blks_test
@@ -26,10 +25,9 @@ from TestHarness.Node import BlockType
 #
 # Test cases:
 #
-# 1. Bring down finalizerbNode. producerbNode and node0 should eventually
-#    automatically pause production due to not receiving votes from finalizerbNode,
-#    LIB stopping advancing, and number of reversible blocks keeping growing
-#    on both production nodes.
+# 1. Bring down finalizerbNode. producerbNode and node0 should automatically
+#    pause production due to the number of reversible blocks keeping growing
+#    because not receiving votes from finalizerbNode and LIB stopping advancings.
 # 2. Bring down node0 and restart it with a larger --max-reversible-blocks.
 #    node0 should resume production until the new limit is reached.
 # 3. Restart finalizerbNode. producerbNode and node0 should automatically unpause
@@ -55,21 +53,22 @@ cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs
 walletMgr=WalletMgr(True, keepRunning=args.leave_running, keepLogs=args.keep_logs)
 
 try:
-    ####################### set up  ######################
+    ####################### setting up  ######################
     TestHelper.printSystemInfo("BEGIN")
 
     cluster.setWalletMgr(walletMgr)
 
     Print(f'producing nodes: {pnodes}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
-    # Set --max-reversible-blocks to a small number so it is quick to be hit
-    # and disable production-pause-vote-timeout so that production pause is only
+    # Set --max-reversible-blocks to a small number so it is exceeded quickly.
+    # Disable production-pause-vote-timeout so that production pause is only
     # caused by max-reversible-blocks reached.
     extraNodeosArgs="--max-reversible-blocks 48 --production-pause-vote-timeout-ms 0"
 
     Print("Stand up cluster")
     # Cannot use activateIF to transition to Savanna directly as it assumes
     # each producer node has finalizer configured.
+    # In this test, node1 does not have finalizer configured.
     if cluster.launch(pnodes=pnodes, totalNodes=totalNodes,
                       totalProducers=pnodes, prodCount=prodCount,
                       delay=delay, loadSystemContract=False,
@@ -100,21 +99,28 @@ try:
     assert producerbNode.waitForLibToAdvance(), "producerbNode did not advance LIB"
 
     ####################### test 1 ######################
+    # production paused due to max reversible blocks exceeded
 
     Print("Shutdown finalizerbNode")
     finalizerbNode.kill(signal.SIGTERM)
     assert not finalizerbNode.verifyAlive(), "finalizerbNode did not shutdown"
 
-    time.sleep(24)
-
-    # Verify producerbNode paused
-    assert producerbNode.paused(), "producerbNode still producing after finalizerbNode was shutdown"
-    # Verify node0 and node1 still producing but LIB should not advance
-    assert node0.paused(), "node0 still producing after finalizerbNode was shutdown"
+    # Verify LIB stalled on node0 and producerbNode due to finalizerNode was shutdown
+    if producerbNode.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
+        assert not producerbNode.waitForLibToAdvance(timeout=5), "LIB should not advance on producerbNode after finalizerbNode was shutdown"
     if node0.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
         assert not node0.waitForLibToAdvance(timeout=5), "LIB should not advance on node0 after finalizerbNode was shutdown"
 
-    ####################### test 2 ######################
+    # give time for max reversible blocks to be exceeded
+    time.sleep(24) # 24 is the time to produce 48 blocks which is the configured max-reversible-blocks
+
+    # Verify node0 and producerbNode then paused due to max reversible blocks exceeded
+    assert producerbNode.paused(), "producerbNode still producing after finalizerbNode was shutdown"
+    assert node0.paused(), "node0 still producing after finalizerbNode was shutdown"
+
+    ####################### test 2 ###########################
+    # nodeos can restart with a higher --max-reversible-blocks
+
     node0.getInfo()
     prevHeadBlockNum=node0.lastRetrievedHeadBlockNum
 
@@ -123,24 +129,29 @@ try:
     assert not node0.verifyAlive(), "node0 did not shutdown"
 
     addSwapFlags={"--max-reversible-blocks": "96"}
-    Print("Restart node0")
+    Print("Restart node0 with a higher max-reversible-blocks")
     node0.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
 
     time.sleep(7)
     node0.getInfo()
+    Print("Verify head block advances on node0 after restart")
     assert node0.lastRetrievedHeadBlockNum > prevHeadBlockNum, f'node0 head {node0.lastRetrievedHeadBlockNum} did not advance from previous {prevHeadBlockNum}'
 
     ####################### test 3 ######################
+    # Restart finalizer node make all nodes unpause production
 
     Print("Restart finalizerbNode")
     finalizerbNode.relaunch()
 
-    Print("Verify production unpaused and LIB advances after restart of finalizerbNode")
+    Print("Verify LIB advances after restart of finalizerbNode")
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert producerbNode.waitForLibToAdvance(), "producerbNode did not advance LIB"
-    time.sleep(13)
-    assert not node0.paused(), "node0 should have resumed production after finalizerbNode restarted"
-    assert not producerbNode.paused(), "producerbNode should have resumed production after finalizerbNode restarted"
+
+    # After LIB advances, number of reversible blocks should decrease and
+    # as a result production is unpaused
+    Print("Verify production unpaused after LIB advances")
+    assert not node0.paused(), "node0 should have unpaused production after LIB advances"
+    assert not producerbNode.paused(), "producerbNode should have unpaused production after LIB advances"
 
     testSuccessful=True
 finally:
