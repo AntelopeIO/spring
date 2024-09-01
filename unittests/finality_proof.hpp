@@ -70,12 +70,12 @@ namespace finality_proof {
       return bitset_to_input_string(finalizers);
    };
 
-   static digest_type hash_pair(const digest_type& a, const digest_type& b) {
+   inline digest_type hash_pair(const digest_type& a, const digest_type& b) {
       return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
    }
 
    //generate a proof of inclusion for a node at index from a list of leaves
-   static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type>& leaves, const size_t index) {
+   inline std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type>& leaves, const size_t index) {
       auto _leaves = leaves;
       auto _index = index;
 
@@ -109,7 +109,7 @@ namespace finality_proof {
    }
 
    //extract instant finality data from block header extension, as well as qc data from block extension
-   static qc_data_t extract_qc_data(const signed_block_ptr& b) {
+   inline qc_data_t extract_qc_data(const signed_block_ptr& b) {
       assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
       if (auto f_entry = hexts.find(finality_extension::extension_id()); f_entry != hexts.end()) {
@@ -126,7 +126,7 @@ namespace finality_proof {
       return {};
    }
 
-   static bool has_finalizer_policy_diffs(const signed_block_ptr& block){
+   inline bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
       finality_extension f_ext = block->extract_header_extension<finality_extension>();
@@ -135,7 +135,7 @@ namespace finality_proof {
 
    }
 
-   static finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
+   inline finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
 
       // extract new finalizer policy
       finality_extension f_ext = block->extract_header_extension<finality_extension>();
