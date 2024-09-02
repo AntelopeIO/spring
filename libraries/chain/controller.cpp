@@ -4224,9 +4224,8 @@ struct controller_impl {
 
          for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
             auto except = std::exception_ptr{};
+            const auto& bsp = *ritr;
             try {
-               const auto& bsp = *ritr;
-
                bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
                                                                 : controller::block_status::complete, trx_lookup );
                if (!switch_fork && (!applied || check_shutdown())) {
@@ -4238,7 +4237,8 @@ struct controller_impl {
             } catch ( const boost::interprocess::bad_alloc& ) {
                throw;
             } catch (const fc::exception& e) {
-               elog("exception thrown while switching forks ${e}", ("e", e.to_detail_string()));
+               elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
+                    ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
                except = std::current_exception();
             } catch (const std::exception& e) {
                elog("exception thrown while switching forks ${e}", ("e", e.what()));
