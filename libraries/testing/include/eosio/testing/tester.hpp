@@ -808,7 +808,7 @@ namespace eosio::testing {
       }
 
       void validate_push_block(const signed_block_ptr& sb) {
-         auto [best_head, obh] = validating_node->create_block_handle( sb->calculate_id(), sb );
+         auto [best_head, obh] = validating_node->accept_block( sb->calculate_id(), sb );
          EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", sb->calculate_id()));
          validating_node->apply_blocks( {}, trx_meta_cache_lookup{} );
          _check_for_vote_if_needed(*validating_node, *obh);

@@ -202,7 +202,7 @@ namespace eosio::chain {
 
          // thread-safe
          // returns true if new best head and empty optional if block b is unlinkable
-         std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const;
+         std::tuple<bool, std::optional<block_handle>> accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          boost::asio::io_context& get_thread_pool();
 

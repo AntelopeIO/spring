@@ -3692,7 +3692,7 @@ namespace eosio {
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
             // this will return empty optional<block_handle> if block is not linkable
-            std::tie(best_head, obh) = cc.create_block_handle( id, ptr );
+            std::tie(best_head, obh) = cc.accept_block( id, ptr );
          } catch( const invalid_qc_claim& ex) {
             exception = true;
             close_mode = sync_manager::closing_mode::immediately;

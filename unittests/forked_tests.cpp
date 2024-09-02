@@ -245,7 +245,7 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    signed_block bad_block = std::move(*b);
    bad_block.action_mroot = bad_block.previous;
    auto bad_id = bad_block.calculate_id();
-   BOOST_REQUIRE_EXCEPTION(c.control->create_block_handle(bad_id, std::make_shared<signed_block>(std::move(bad_block))),
+   BOOST_REQUIRE_EXCEPTION(c.control->accept_block(bad_id, std::make_shared<signed_block>(std::move(bad_block))),
       fc::exception, [] (const fc::exception& ex)->bool {
          return ex.to_detail_string().find("block signed by unexpected key") != std::string::npos;
       });

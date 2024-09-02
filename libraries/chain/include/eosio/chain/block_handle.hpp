@@ -6,7 +6,7 @@
 
 namespace eosio::chain {
 
-// Created via controller::create_block_handle(const block_id_type& id, const signed_block_ptr& b)
+// Created via controller::accept_block(const block_id_type& id, const signed_block_ptr& b)
 // Valid to request id and signed_block_ptr it was created from.
 struct block_handle {
 private:

@@ -3652,7 +3652,7 @@ struct controller_impl {
 
             pending->_block_report.start_time = start;
 
-            // validated in create_block_handle()
+            // validated in accept_block()
             std::get<building_block>(pending->_block_stage).trx_mroot_or_receipt_digests() = b->transaction_mroot;
 
             const bool existing_trxs_metas = !bsp->trxs_metas().empty();
@@ -5051,7 +5051,7 @@ boost::asio::io_context& controller::get_thread_pool() {
    return my->thread_pool.get_executor();
 }
 
-std::tuple<bool, std::optional<block_handle>> controller::create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const {
+std::tuple<bool, std::optional<block_handle>> controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
 }
 

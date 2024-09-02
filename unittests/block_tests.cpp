@@ -53,7 +53,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   auto [best_head, obh] = validator.control->create_block_handle( copy_b->calculate_id(), copy_b );
+   auto [best_head, obh] = validator.control->accept_block( copy_b->calculate_id(), copy_b );
    BOOST_REQUIRE(obh);
    validator.control->abort_block();
    BOOST_REQUIRE_EXCEPTION(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), fc::exception ,
@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   BOOST_REQUIRE_EXCEPTION(validator.control->create_block_handle( copy_b->calculate_id(), copy_b ), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( copy_b->calculate_id(), copy_b ), fc::exception,
                            [] (const fc::exception &e)->bool {
                               return e.code() == block_validate_exception::code_value &&
                                      e.to_detail_string().find("invalid block transaction merkle root") != std::string::npos;

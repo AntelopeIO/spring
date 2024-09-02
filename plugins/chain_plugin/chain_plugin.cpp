@@ -2117,7 +2117,7 @@ void read_write::push_block(read_write::push_block_params&& params, next_functio
    try {
       auto b = std::make_shared<signed_block>( std::move(params) );
       block_id_type id = b->calculate_id();
-      auto [best_head, obh] = db.create_block_handle( id, b );
+      auto [best_head, obh] = db.accept_block( id, b );
       EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
       app().get_method<incoming::methods::block_sync>()(b, id, *obh);
    } catch ( boost::interprocess::bad_alloc& ) {

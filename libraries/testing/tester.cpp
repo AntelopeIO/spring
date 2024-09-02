@@ -427,7 +427,7 @@ namespace eosio::testing {
 
    void base_tester::push_block(const signed_block_ptr& b) {
       auto block_id = b->calculate_id();
-      auto [best_fork, obh] = control->create_block_handle(block_id, b);
+      auto [best_fork, obh] = control->accept_block(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );
       EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", b->calculate_id()));
       const block_handle& bh = *obh;
@@ -1198,7 +1198,7 @@ namespace eosio::testing {
             auto block = a.control->fetch_block_by_number(i);
             if( block ) { //&& !b.control->is_known_block(block->id()) ) {
                auto id = block->calculate_id();
-               auto [best_head, obh] = b.control->create_block_handle( id, block );
+               auto [best_head, obh] = b.control->accept_block( id, block );
                b.control->abort_block();
                EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
                b.control->apply_blocks({}, trx_meta_cache_lookup{}); //, eosio::chain::validation_steps::created_block);

@@ -2253,7 +2253,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    tester2.produce_block();
 
    // Push the block with delayed transaction to the second chain
-   auto [best_head, obh] = tester2.control->create_block_handle( copy_b->calculate_id(), copy_b );
+   auto [best_head, obh] = tester2.control->accept_block( copy_b->calculate_id(), copy_b );
    BOOST_REQUIRE(obh);
    tester2.control->abort_block();
 
