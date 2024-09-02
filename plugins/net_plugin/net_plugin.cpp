@@ -3691,6 +3691,8 @@ namespace eosio {
          bool best_head = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
+            EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+                       "received a block from the future, ignoring it: ${id}", ("id", id));
             // this will return empty optional<block_handle> if block is not linkable
             std::tie(best_head, obh) = cc.accept_block( id, ptr );
          } catch( const invalid_qc_claim& ex) {
@@ -3708,7 +3710,7 @@ namespace eosio {
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
          if( exception || !obh) {
-            if (!obh) {
+            if (!exception && !obh) {
                if (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block()) {
                   fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                           ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
@@ -3730,6 +3732,13 @@ namespace eosio {
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
 
+         ++c->unique_blocks_rcvd_count;
+         c->strand.post([sync_master = my_impl->sync_master.get(), c, id, block_num, timestamp=obh->timestamp()]() {
+            const fc::microseconds age(fc::time_point::now() - timestamp);
+            bool blk_applied = true; // not really applied, but accepted by controller into forkdb
+            sync_master->sync_recv_block(c, id, block_num, blk_applied, age);
+         });
+
          if (best_head) {
             fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
             app().executor().post(priority::medium, exec_queue::read_write,
@@ -3739,12 +3748,6 @@ namespace eosio {
 
             // ready to process immediately, so signal producer to interrupt start_block
             my_impl->producer_plug->received_block(block_num);
-         } else {
-            c->strand.post([sync_master = my_impl->sync_master.get(), c, id, block_num, timestamp=obh->timestamp()]() {
-               const fc::microseconds age(fc::time_point::now() - timestamp);
-               bool blk_applied = true; // not really applied, but accepted by controller into forkdb
-               sync_master->sync_recv_block(c, id, block_num, blk_applied, age);
-            });
          }
       });
    }
@@ -3769,51 +3772,20 @@ namespace eosio {
          }
       } catch( const assert_exception& ex ) {
          // possible corrupted block log
-         fc_elog( logger, "caught assert on fetch_block_by_id, ${ex}, id ${id}, conn ${c}", ("ex", ex.to_string())("id", blk_id)("c", connection_id) );
+         fc_elog(logger, "caught assert on validated_block_exists, ${ex}, id ${id}, conn ${c}",
+                 ("ex", ex.to_string())("id", blk_id)("c", connection_id));
       } catch( ... ) {
-         fc_elog( logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}", ("id", blk_id)("c", connection_id) );
+         fc_elog(logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}",
+                 ("id", blk_id)("c", connection_id));
       }
 
       fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, header validated, lib #${lib}",
                ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("lib", lib) );
 
-      bool accepted = false;
       try {
-         accepted = my_impl->chain_plug->accept_block(block, blk_id, bh);
-         my_impl->update_chain_info();
-      } catch( const unlinkable_block_exception &ex) {
-         fc_ilog(logger, "unlinkable_block_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const block_validate_exception &ex ) {
-         fc_ilog(logger, "block_validate_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const assert_exception &ex ) {
-         fc_wlog(logger, "block assert_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const fc::exception &ex ) {
-         fc_ilog(logger, "bad block exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
+         my_impl->producer_plug->on_incoming_block();
       } catch( ... ) {
-         fc_wlog(logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16)));
-      }
-
-      if( accepted ) {
-         ++unique_blocks_rcvd_count;
-         boost::asio::post( my_impl->thread_pool.get_executor(), [&dispatcher = my_impl->dispatcher, c, blk_id, blk_num]() {
-            fc_dlog( logger, "accepted signed_block : #${n} ${id}...", ("n", blk_num)("id", blk_id.str().substr(8,16)) );
-            dispatcher.add_peer_block( blk_id, c->connection_id );
-         });
-         c->strand.post( [sync_master = my_impl->sync_master.get(),
-                          c, blk_id, blk_num, latency = age]() {
-            sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
-         });
-      } else {
-         c->strand.post( [sync_master = my_impl->sync_master.get(), &dispatcher = my_impl->dispatcher, c,
-                          block{std::move(block)}, blk_id, blk_num]() mutable {
-             sync_master->rejected_block( c, blk_num, sync_manager::closing_mode::handshake );
-             dispatcher.rejected_block( blk_id );
-         });
+         // errors on applied blocks logged in controller
       }
    }
 
@@ -3882,6 +3854,8 @@ namespace eosio {
    }
 
    void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
+      update_chain_info();
+
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
          on_pending_schedule(*pending_producers);

@@ -803,46 +803,28 @@ public:
       _time_tracker.clear();
    }
 
-   bool on_incoming_block(const signed_block_ptr& block, const block_id_type& id, const block_handle& bh) {
+   bool on_incoming_block() {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
-      assert(block);
-      auto blk_num = block->block_num();
-
-      if (now - block->timestamp < fc::minutes(5) || (blk_num % 1000 == 0)) // only log every 1000 during sync
-         fc_dlog(_log, "received incoming block ${n} ${id}", ("n", blk_num)("id", id));
-
       auto& chain = chain_plug->chain();
-
-      // de-dupe here... no point in aborting block if we already know the block
-      if (chain.validated_block_exists(id)) {
-         fc_dlog(_log, "already have validated block ${n} ${id}", ("n", blk_num)("id", id));
-         _time_tracker.add_other_time();
-         return true; // return true because the block was already accepted
-      }
-
-      EOS_ASSERT(block->timestamp < (now + fc::seconds(7)), block_from_the_future, "received a block from the future, ignoring it: ${id}", ("id", id));
 
       // start processing of block
       if (in_producing_mode()) {
-         fc_ilog(_log, "producing, incoming block #${num} id: ${id}", ("num", blk_num)("id", id));
+         if (_log.is_enabled(fc::log_level::info)) {
+            auto fhead = chain.fork_db_head();
+            fc_ilog(_log, "producing, fork database head at: #${num} id: ${id}",
+                    ("num", fhead.block_num())("id", fhead.id()));
+         }
          _time_tracker.add_other_time();
          return true; // return true because block was accepted
       }
 
-      // start a new speculative block
+      // start a new speculative block, adds to time tracker which includes this method's time
       auto ensure = fc::make_scoped_exit([this]() { schedule_production_loop(); });
 
       // abort the pending block
       abort_block();
-
-      // push the new block
-      auto handle_error = [&](const auto& e) {
-         fc_ilog(_log, "Exception on block ${bn}: ${e}", ("bn", blk_num)("e", e.to_detail_string()));
-         app().get_channel<channels::rejected_block>().publish(priority::medium, block);
-         throw;
-      };
 
       try {
          chain.apply_blocks(
@@ -860,12 +842,12 @@ public:
          appbase::app().quit();
          return false;
       } catch (const fc::exception& e) {
-         handle_error(e);
+         throw;
       } catch (const std::exception& e) {
-         handle_error(fc::std_exception_wrapper::from_current_exception(e));
+         throw fc::std_exception_wrapper::from_current_exception(e);
       }
 
-      now             = fc::time_point::now();
+      now = fc::time_point::now();
       if (chain.head().timestamp().next().to_time_point() >= now) {
          _production_enabled = true;
       }
@@ -1413,7 +1395,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
 
    _incoming_block_sync_provider = app().get_method<incoming::methods::block_sync>().register_provider(
       [this](const signed_block_ptr& block, const block_id_type& block_id, const block_handle& bh) {
-         return on_incoming_block(block, block_id, bh);
+         return on_incoming_block();
       });
 
    _incoming_transaction_async_provider =
@@ -1585,6 +1567,10 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(trx_logger_name, _trx_log);
    fc::logger::update(transient_trx_successful_trace_logger_name, _transient_trx_successful_trace_log);
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
+}
+
+bool producer_plugin::on_incoming_block() {
+   return my->on_incoming_block();
 }
 
 void producer_plugin::pause() {

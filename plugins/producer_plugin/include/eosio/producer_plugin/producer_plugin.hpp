@@ -81,6 +81,8 @@ public:
    virtual void plugin_shutdown();
    void handle_sighup() override;
 
+   bool on_incoming_block();
+
    void pause();
    void resume();
    bool paused() const;
