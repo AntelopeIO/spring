@@ -828,12 +828,19 @@ struct building_block {
 
 using block_stage_type = std::variant<building_block, assembled_block, completed_block>;
       
+struct block_report {
+   size_t             total_net_usage = 0;
+   size_t             total_cpu_usage_us = 0;
+   fc::microseconds   total_elapsed_time{};
+   fc::time_point     start_time{};
+};
+
 struct pending_state {
    maybe_session                  _db_session;
    block_stage_type               _block_stage;
    controller::block_status       _block_status = controller::block_status::ephemeral;
    std::optional<block_id_type>   _producer_block_id;
-   controller::block_report       _block_report{};
+   block_report                   _block_report{};
 
    // Legacy
    pending_state(maybe_session&& s,
