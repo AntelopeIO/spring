@@ -196,22 +196,13 @@ namespace eosio::chain {
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
-         void maybe_apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+
+         /// Apply any blocks that are ready from the forkdb
+         void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          // thread-safe
          // returns true if new best head and empty optional if block b is unlinkable
          std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const;
-
-         /**
-          * @param br returns statistics for block
-          * @param b block to push, created by create_block_handle
-          * @param cb calls cb with forked applied transactions for each forked block
-          * @param trx_lookup user provided lookup function for externally cached transaction_metadata
-          */
-         void push_block( block_report& br,
-                          const block_handle& b,
-                          const forked_callback_t& cb,
-                          const trx_meta_cache_lookup& trx_lookup );
 
          boost::asio::io_context& get_thread_pool();
 

@@ -2256,10 +2256,9 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    auto [best_head, obh] = tester2.control->create_block_handle( copy_b->calculate_id(), copy_b );
    BOOST_REQUIRE(obh);
    tester2.control->abort_block();
-   controller::block_report br;
 
    // The block is invalidated
-   BOOST_REQUIRE_EXCEPTION(tester2.control->push_block( br, *obh, {}, trx_meta_cache_lookup{} ),
+   BOOST_REQUIRE_EXCEPTION(tester2.control->apply_blocks( {}, trx_meta_cache_lookup{} ),
       fc::exception, fc_exception_message_starts_with("transaction cannot be delayed")
    );
 } FC_LOG_AND_RETHROW() } /// block_validation_after_stage_1_test

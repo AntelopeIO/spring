@@ -1801,7 +1801,7 @@ struct controller_impl {
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && forkdb.head()) {
             // applies all blocks up to forkdb head from forkdb
-            apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
+            maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
             auto head = forkdb.head();
             ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", head->block_num())("id", head->id()) );
          }
@@ -1983,7 +1983,7 @@ struct controller_impl {
                // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
                if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
                   ilog("applying branch from fork database ending with block: ${id}", ("id", pending_head->id()));
-                  apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
+                  maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
                }
             }
          } else {
@@ -3632,6 +3632,9 @@ struct controller_impl {
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
+            const signed_block_ptr& b = bsp->block;
+            fc::scoped_set_value prod_light_validation(trusted_producer_light_validation, is_trusted_producer(b->producer));
+
             const bool already_valid = bsp->is_valid();
             if (!already_valid || replaying) {
                emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -3641,7 +3644,6 @@ struct controller_impl {
                consider_voting(bsp, use_thread_pool_t::yes);
             }
 
-            const signed_block_ptr& b = bsp->block;
             const auto& new_protocol_feature_activations = bsp->get_new_protocol_feature_activations();
             const auto& producer_block_id = bsp->id();
 
@@ -4120,41 +4122,6 @@ struct controller_impl {
    }
 
    template <class BSP>
-   void push_block( controller::block_report& br,
-                    const BSP& bsp,
-                    const forked_callback_t& forked_branch_cb,
-                    const trx_meta_cache_lookup& trx_lookup )
-   {
-      assert(bsp && bsp->block);
-
-      EOS_ASSERT(!pending, block_validate_exception, "it is not valid to push a block when there is a pending block");
-
-      auto reset_prod_light_validation = fc::make_scoped_exit([old_value=trusted_producer_light_validation, this]() {
-         trusted_producer_light_validation = old_value;
-      });
-      try {
-         const auto& b = bsp->block;
-
-         auto do_push = [&](auto& forkdb) {
-            if (is_trusted_producer(b->producer)) {
-               trusted_producer_light_validation = true;
-            };
-
-            if( !irreversible_mode() ) {
-               if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
-                  apply_blocks( forked_branch_cb, trx_lookup );
-            } else {
-               log_irreversible();
-               transition_to_savanna_if_needed();
-            }
-         };
-
-         fork_db.apply<void>(do_push);
-
-      } FC_LOG_AND_RETHROW( )
-   }
-
-   template <class BSP>
    void replay_push_irreversible_block( const signed_block_ptr& b ) {
       validate_db_available_size();
 
@@ -4189,14 +4156,18 @@ struct controller_impl {
       } FC_LOG_AND_RETHROW( )
    }
 
-   void maybe_apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
-      if (irreversible_mode())
-         return;
-
-      apply_blocks(cb, trx_lookup);
+   void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+      try {
+         if( !irreversible_mode() ) {
+            maybe_apply_blocks( cb, trx_lookup );
+         } else {
+            log_irreversible();
+            transition_to_savanna_if_needed();
+         }
+      } FC_LOG_AND_RETHROW( )
    }
 
-   void apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
+   void maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_apply_blocks = [&](auto& forkdb) {
          auto new_head = forkdb.head(); // use best head
@@ -5066,9 +5037,9 @@ void controller::set_async_aggregation(async_t val) {
    my->async_aggregation = val;
 }
 
-void controller::maybe_apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+void controller::apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
    validate_db_available_size();
-   my->maybe_apply_blocks(cb, trx_lookup);
+   my->apply_blocks(cb, trx_lookup);
 }
 
 
@@ -5082,15 +5053,6 @@ boost::asio::io_context& controller::get_thread_pool() {
 
 std::tuple<bool, std::optional<block_handle>> controller::create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
-}
-
-void controller::push_block( block_report& br,
-                             const block_handle& bh,
-                             const forked_callback_t& forked_cb,
-                             const trx_meta_cache_lookup& trx_lookup )
-{
-   validate_db_available_size();
-   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
 }
 
 transaction_trace_ptr controller::push_transaction( const transaction_metadata_ptr& trx,

@@ -844,11 +844,8 @@ public:
          throw;
       };
 
-      controller::block_report br;
       try {
-         chain.push_block(
-            br,
-            bh,
+         chain.apply_blocks(
             [this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
@@ -1928,8 +1925,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   chain.maybe_apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                            [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+   chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                      [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
 
    if (chain.should_terminate()) {

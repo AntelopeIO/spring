@@ -56,8 +56,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    auto [best_head, obh] = validator.control->create_block_handle( copy_b->calculate_id(), copy_b );
    BOOST_REQUIRE(obh);
    validator.control->abort_block();
-   controller::block_report br;
-   BOOST_REQUIRE_EXCEPTION(validator.control->push_block( br, *obh, {}, trx_meta_cache_lookup{} ), fc::exception ,
+   BOOST_REQUIRE_EXCEPTION(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), fc::exception ,
    [] (const fc::exception &e)->bool {
       return e.code() == account_name_exists_exception::code_value ;
    }) ;
