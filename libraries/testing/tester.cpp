@@ -348,8 +348,7 @@ namespace eosio::testing {
       [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([this](const block_signal_params& t) {
             const auto& [block, id] = t;
             FC_ASSERT(block);
-            auto i = blocks_signaled.find(id);
-            BOOST_TEST((i == blocks_signaled.end()), "should get accepted_block_header signal only once, and before accepted_block signal");
+            BOOST_TEST(!blocks_signaled.contains(id), "should get accepted_block_header signal only once, and before accepted_block signal");
             blocks_signaled[id] = block_signal::accepted_block_header;
          });
       chain_transactions.clear();
@@ -357,11 +356,11 @@ namespace eosio::testing {
             const auto& [block, id] = t;
             FC_ASSERT(block);
             BOOST_TEST(block->block_num() > lib_number);
-            auto i = blocks_signaled.find(id);
-            BOOST_TEST_REQUIRE((i != blocks_signaled.end()), "should get accepted_block signal after accepted_block_header signal");
-            if (i->second != block_signal::accepted_block) { // on fork switch, accepted block signaled when block re-applied
-               BOOST_TEST((i->second == block_signal::accepted_block_header));
-               i->second = block_signal::accepted_block;
+            auto itr = blocks_signaled.find(id);
+            BOOST_TEST_REQUIRE((itr != blocks_signaled.end()), "should get accepted_block signal after accepted_block_header signal");
+            if (itr->second != block_signal::accepted_block) { // on fork switch, accepted block signaled when block re-applied
+               BOOST_TEST((itr->second == block_signal::accepted_block_header));
+               itr->second = block_signal::accepted_block;
             }
 
             for (auto receipt : block->transactions) {
@@ -387,13 +386,13 @@ namespace eosio::testing {
          lib_id    = id;
          BOOST_TEST(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
-         auto i = blocks_signaled.find(id);
-         if (i == blocks_signaled.end()) {
+         auto itr = blocks_signaled.find(id);
+         if (itr == blocks_signaled.end()) {
             // can be signaled on restart as the first thing since other signals happened before shutdown
             blocks_signaled[id] = block_signal::irreversible_block;
          } else {
-            BOOST_TEST((i->second == block_signal::accepted_block), "should get irreversible_block signal only once");
-            i->second = block_signal::irreversible_block;
+            BOOST_TEST((itr->second == block_signal::accepted_block), "should get irreversible_block signal only once");
+            itr->second = block_signal::irreversible_block;
          }
      });
 
