@@ -3633,9 +3633,13 @@ struct controller_impl {
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
             const bool already_valid = bsp->is_valid();
-            // Only need to consider voting if not already validated, if already validated then we have already voted.
-            if (!already_valid)
+            if (!already_valid || replaying) {
+               emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
+            }
+            if (!already_valid && !replaying) {
+               // Only need to consider voting if not already validated, if already validated then we have already voted
                consider_voting(bsp, use_thread_pool_t::yes);
+            }
 
             const signed_block_ptr& b = bsp->block;
             const auto& new_protocol_feature_activations = bsp->get_new_protocol_feature_activations();
