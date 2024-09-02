@@ -827,7 +827,6 @@ public:
       // start processing of block
       if (in_producing_mode()) {
          fc_ilog(_log, "producing, incoming block #${num} id: ${id}", ("num", blk_num)("id", id));
-         chain.accept_block(bh);
          _time_tracker.add_other_time();
          return true; // return true because block was accepted
       }

@@ -213,9 +213,6 @@ namespace eosio::chain {
                           const forked_callback_t& cb,
                           const trx_meta_cache_lookup& trx_lookup );
 
-         /// Accept block into fork_database
-         void accept_block(const block_handle& b);
-
          boost::asio::io_context& get_thread_pool();
 
          const chainbase::database& db()const;

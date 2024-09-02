@@ -4116,20 +4116,6 @@ struct controller_impl {
    }
 
    template <class BSP>
-   void accept_block(const BSP& bsp) {
-      assert(bsp && bsp->block);
-
-      // consider voting again as latest_qc_claim__block_ref may have been validated since the bsp was created in create_block_state_i
-      consider_voting(bsp, use_thread_pool_t::yes);
-
-      auto do_accept_block = [&](auto& forkdb) {
-         emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
-      };
-
-      fork_db.apply<void>(do_accept_block);
-   }
-
-   template <class BSP>
    void push_block( controller::block_report& br,
                     const BSP& bsp,
                     const forked_callback_t& forked_branch_cb,
@@ -4149,8 +4135,6 @@ struct controller_impl {
             if (is_trusted_producer(b->producer)) {
                trusted_producer_light_validation = true;
             };
-
-            emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
             if( !irreversible_mode() ) {
                if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(forkdb.root())>>)
@@ -4184,8 +4168,6 @@ struct controller_impl {
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),validator, skip_validate_signee);
-
-               emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{})) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
@@ -5105,10 +5087,6 @@ void controller::push_block( block_report& br,
 {
    validate_db_available_size();
    block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->push_block( br, bsp, forked_cb, trx_lookup); });
-}
-
-void controller::accept_block(const block_handle& bh) {
-   block_handle_accessor::apply<void>(bh, [&](const auto& bsp) { my->accept_block(bsp); });
 }
 
 transaction_trace_ptr controller::push_transaction( const transaction_metadata_ptr& trx,
