@@ -277,7 +277,7 @@ class Node(Transactions):
     def paused(self):
         # Cannot use producer_plugin's paused() endpoint as it does not
         # include paused due to max-reversible-blocks exceeded.
-        # The idea is to find the expected start block of node's producer's
+        # The idea is to find the scheduled start block of node's producer's
         # next round. If that block is not produced, it means block production
         # on the node is paused.
 
@@ -288,34 +288,35 @@ class Node(Transactions):
         if Utils.Debug: Utils.Print(f'scheduled_producers {scheduled_producers}')
 
         self.getInfo()
-        headBlockNum=self.lastRetrievedHeadBlockNum
-        headBlockProducer=self.lastRetrievedHeadBlockProducer
-        blocksRemainedCurrRound = 12 - headBlockNum%12 - 1
-        if Utils.Debug: Utils.Print(f'headBlockNum {headBlockNum}, headBlockProducer {headBlockProducer}, blocksRemainedCurrRound {blocksRemainedCurrRound}')
+        currBlockNum=self.lastRetrievedHeadBlockNum
+        currProducer=self.lastRetrievedHeadBlockProducer
+        blocksRemainedInCurrRound = 12 - currBlockNum % 12 - 1
+        if Utils.Debug: Utils.Print(f'currBlockNum {currBlockNum}, currProducer {currProducer}, blocksRemainedInCurrRound {blocksRemainedInCurrRound}')
 
         # find the positions of currProducerPos and nodeProducer in the schedule
         currProducerPos=0
         nodeProducerPos=0
         for i in range(0, len(scheduled_producers)):
-            if scheduled_producers[i] == headBlockProducer:
+            if scheduled_producers[i] == currProducer:
                 currProducerPos=i
             if scheduled_producers[i] == self.producerName:
                 nodeProducerPos=i
 
-        # find the block number of the node producer's next scheduled round
+        # find the number of the blocks to node producer's next scheduled round
         blocksToNextScheduledRound = 0
         if currProducerPos < nodeProducerPos:
             # nodeProducerPos - currProducerPos - 1 is the number of producers
             # from current producer to the node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos - currProducerPos - 1) * 12 + blocksRemainedCurrRound
+            blocksToNextScheduledRound = (nodeProducerPos - currProducerPos - 1) * 12 + blocksRemainedInCurrRound + 1
         else:
             # nodeProducerPos is the number of producers before node producer in the schedule
             # len(scheduled_producers) - currProducerPos - 1 is the number
             # of producers after node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos + (len(scheduled_producers)  - currProducerPos - 1)) * 12 + blocksRemainedCurrRound
+            blocksToNextScheduledRound = (nodeProducerPos + (len(scheduled_producers)  - currProducerPos - 1)) * 12 + blocksRemainedInCurrRound + 1
 
-        nextScheduledRoundBlockNum=headBlockNum + blocksToNextScheduledRound + 1
-        timeout=blocksToNextScheduledRound/2 + 3 # leave 3 seconds for avoid timing issues
+        # find the block number of the node producer's next scheduled round
+        nextScheduledRoundBlockNum=currBlockNum + blocksToNextScheduledRound
+        timeout=blocksToNextScheduledRound/2 + 2 # leave 2 seconds for avoid flakiness
         if Utils.Debug: Utils.Print(f'blocksToNextScheduledRound {blocksToNextScheduledRound}, nextScheduledRoundBlockNum {nextScheduledRoundBlockNum}, timeout {timeout}')
 
         return not self.waitForBlock(nextScheduledRoundBlockNum, timeout=timeout)
