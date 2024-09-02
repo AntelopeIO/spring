@@ -1607,7 +1607,7 @@ struct controller_impl {
          while( auto next = blog.read_block_by_num( chain_head.block_num() + 1 ) ) {
             block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
                if (next->is_proper_svnn_block()) {
-                  // validated already or not in replay_push_irreversible_block according to conf.force_all_checks;
+                  // validated already or not in replay_irreversible_block according to conf.force_all_checks;
                   const bool skip_validate_signee = true;
                   // should have started with a block_state chain_head or we transition during replay
                   assert(!transition_legacy_branch.empty());
@@ -1644,7 +1644,7 @@ struct controller_impl {
                }
             });
             block_handle_accessor::apply<void>(chain_head, [&]<typename T>(const T&) {
-               replay_push_irreversible_block<T>( next );
+               replay_irreversible_block<T>( next );
             });
             if( check_shutdown() ) {  // needed on every loop for terminate-at-block
                ilog( "quitting from replay_block_log because of shutdown" );
@@ -4122,7 +4122,7 @@ struct controller_impl {
    }
 
    template <class BSP>
-   void replay_push_irreversible_block( const signed_block_ptr& b ) {
+   void replay_irreversible_block( const signed_block_ptr& b ) {
       validate_db_available_size();
 
       EOS_ASSERT(!pending, block_validate_exception, "it is not valid to push a block when there is a pending block");
