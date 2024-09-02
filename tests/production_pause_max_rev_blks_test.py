@@ -43,7 +43,7 @@ delay=args.d
 debug=args.v
 dumpErrorDetails=args.dump_error_details
 pnodes=2 # number of producing nodes. producers are defproducera and defproducerb
-totalNodes=pnodes + 1 # plus 1 finalizer node for defproducerb
+totalNodes=pnodes + 1 # 1 is for the finalizer node of defproducerb
 prodCount=1 # number of producers per producing node
 
 Utils.Debug=debug
@@ -58,9 +58,10 @@ try:
 
     cluster.setWalletMgr(walletMgr)
 
-    Print(f'producing nodes: {pnodes}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
+    Print(f'producing nodes: {pnodes}, totalNodes: {totalNodes}, prodCount: {prodCount}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
-    # Set --max-reversible-blocks to a small number so it is exceeded quickly.
+    # Set --max-reversible-blocks to a small number so it is exceeded quickly
+    # but it needs to be big enough for transitioning to Savanna..
     # Disable production-pause-vote-timeout so that production pause is only
     # caused by max-reversible-blocks reached.
     extraNodeosArgs="--max-reversible-blocks 48 --production-pause-vote-timeout-ms 0"
@@ -106,6 +107,7 @@ try:
     assert not finalizerbNode.verifyAlive(), "finalizerbNode did not shutdown"
 
     # Verify LIB stalled on node0 and producerbNode due to finalizerNode was shutdown
+    Print("Verify LIB stalled  after shutdown of finalizerbNode")
     if producerbNode.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
         assert not producerbNode.waitForLibToAdvance(timeout=5), "LIB should not advance on producerbNode after finalizerbNode was shutdown"
     if node0.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
@@ -115,6 +117,7 @@ try:
     time.sleep(24) # 24 is the time to produce 48 blocks which is the configured max-reversible-blocks
 
     # Verify node0 and producerbNode then paused due to max reversible blocks exceeded
+    Print("Verify production paused after LIB stalled")
     assert producerbNode.paused(), "producerbNode still producing after finalizerbNode was shutdown"
     assert node0.paused(), "node0 still producing after finalizerbNode was shutdown"
 
@@ -132,9 +135,11 @@ try:
     Print("Restart node0 with a higher max-reversible-blocks")
     node0.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
 
+    Print("Wait for one round")
     time.sleep(7)
+
+    Print("Verify head block advances after node0 restart")
     node0.getInfo()
-    Print("Verify head block advances on node0 after restart")
     assert node0.lastRetrievedHeadBlockNum > prevHeadBlockNum, f'node0 head {node0.lastRetrievedHeadBlockNum} did not advance from previous {prevHeadBlockNum}'
 
     ####################### test 3 ######################
