@@ -60,11 +60,11 @@ try:
 
     Print(f'producing nodes: {pnodes}, totalNodes: {totalNodes}, prodCount: {prodCount}, delay between nodes launch: {delay} second{"s" if delay != 1 else ""}')
 
-    # Set --max-reversible-blocks to a small number so it is exceeded quickly
-    # but it needs to be big enough for transitioning to Savanna..
+    # Do not configure --max-reversible-blocks before transition to Savanna
+    # but it needs to be big enough while in Legacy.
     # Disable production-pause-vote-timeout so that production pause is only
     # caused by max-reversible-blocks reached.
-    extraNodeosArgs="--max-reversible-blocks 48 --production-pause-vote-timeout-ms 0"
+    extraNodeosArgs="--production-pause-vote-timeout-ms 0"
 
     Print("Stand up cluster")
     # Cannot use activateIF to transition to Savanna directly as it assumes
@@ -99,6 +99,15 @@ try:
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert producerbNode.waitForLibToAdvance(), "producerbNode did not advance LIB"
 
+    Print("Restart node0 and producerbNode with max-reversible-blocks")
+    node0.kill(signal.SIGTERM)
+    assert not node0.verifyAlive(), "node0 did not shutdown"
+    producerbNode.kill(signal.SIGTERM)
+    assert not producerbNode.verifyAlive(), "producerbNode did not shutdown"
+    addSwapFlags={"--max-reversible-blocks": "6"}
+    node0.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
+    producerbNode.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
+
     ####################### test 1 ######################
     # production paused due to max reversible blocks exceeded
 
@@ -107,7 +116,7 @@ try:
     assert not finalizerbNode.verifyAlive(), "finalizerbNode did not shutdown"
 
     # Verify LIB stalled on node0 and producerbNode due to finalizerNode was shutdown
-    Print("Verify LIB stalled  after shutdown of finalizerbNode")
+    Print("Verify LIB stalled after shutdown of finalizerbNode")
     if producerbNode.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
         assert not producerbNode.waitForLibToAdvance(timeout=5), "LIB should not advance on producerbNode after finalizerbNode was shutdown"
     if node0.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
@@ -133,7 +142,7 @@ try:
 
     addSwapFlags={"--max-reversible-blocks": "96"}
     Print("Restart node0 with a higher max-reversible-blocks")
-    node0.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
+    node0.relaunch(addSwapFlags=addSwapFlags) # enable-stale-production was already configured in last relaunch
 
     Print("Wait for one round")
     time.sleep(7)
