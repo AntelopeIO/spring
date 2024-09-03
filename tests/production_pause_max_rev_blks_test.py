@@ -142,7 +142,7 @@ try:
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "node0 did not shutdown"
 
-    higherMaxReversibleBlocks=maxReversibleBlocks+12
+    higherMaxReversibleBlocks=maxReversibleBlocks+10 # 10 is just a value chosen for test
     addSwapFlags={"--max-reversible-blocks": str(higherMaxReversibleBlocks)}
     Print("Restart node0 with a higher max-reversible-blocks")
     node0.relaunch(addSwapFlags=addSwapFlags) # enable-stale-production was already configured in last relaunch
