@@ -2497,10 +2497,10 @@ namespace eosio {
                   // Did not request blocks ahead, likely because too far ahead of head
                   // Do not restrict sync_fetch_span as we want max-reversible-blocks to shut down the node for applied blocks
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                                  "sync_last_requested_num: ${lrn}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
                           ("bn", blk_num)("nen", sync_next_expected_num)
-                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                          ("lrn", sync_last_requested_num));
                   request_next_chunk();
                }
             }
