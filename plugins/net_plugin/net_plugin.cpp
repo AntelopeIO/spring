@@ -1032,8 +1032,6 @@ namespace eosio {
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
 
-      void process_signed_block( const block_id_type& id, signed_block_ptr block, const block_handle& bh );
-
       fc::variant_object get_logger_variant() const {
          fc::mutable_variant_object mvo;
          mvo( "_name", log_p2p_address)
@@ -3745,57 +3743,18 @@ namespace eosio {
 
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
-            fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
+            fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
             app().executor().post(priority::medium, exec_queue::read_write,
                                   []() {
                                      try {
                                         my_impl->producer_plug->on_incoming_block();
-                                     } catch (...) {
-                                        // errors on applied blocks logged in controller
-                                     }
+                                     } catch (...) {} // errors on applied blocks logged in controller
                                   });
 
             // ready to process immediately, so signal producer to interrupt start_block
             my_impl->producer_plug->received_block(block_num);
          }
       });
-   }
-
-   // called from application thread
-   void connection::process_signed_block( const block_id_type& blk_id, signed_block_ptr block, const block_handle& bh ) {
-      controller& cc = my_impl->chain_plug->chain();
-      uint32_t blk_num = block_header::num_from_id(blk_id);
-      // use c in this method instead of this to highlight that all methods called on c-> must be thread safe
-      connection_ptr c = shared_from_this();
-
-      uint32_t lib = cc.last_irreversible_block_num();
-      fc::microseconds age(fc::time_point::now() - block->timestamp);
-      try {
-         if( blk_num <= lib || cc.validated_block_exists(blk_id) ) {
-            c->strand.post( [sync_master = my_impl->sync_master.get(),
-                             &dispatcher = my_impl->dispatcher, c, blk_id, blk_num, latency = age]() {
-               dispatcher.add_peer_block( blk_id, c->connection_id );
-               sync_master->sync_recv_block( connection_ptr{}, blk_id, blk_num, latency );
-            });
-            return;
-         }
-      } catch( const assert_exception& ex ) {
-         // possible corrupted block log
-         fc_elog(logger, "caught assert on validated_block_exists, ${ex}, id ${id}, conn ${c}",
-                 ("ex", ex.to_string())("id", blk_id)("c", connection_id));
-      } catch( ... ) {
-         fc_elog(logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}",
-                 ("id", blk_id)("c", connection_id));
-      }
-
-      fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, header validated, lib #${lib}",
-               ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("lib", lib) );
-
-      try {
-         my_impl->producer_plug->on_incoming_block();
-      } catch( ... ) {
-         // errors on applied blocks logged in controller
-      }
    }
 
    // thread safe
