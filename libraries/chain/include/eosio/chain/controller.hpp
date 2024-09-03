@@ -9,6 +9,7 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/config.hpp>
 #include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 
 #include <chainbase/pinnable_mapped_file.hpp>
 
@@ -20,6 +21,10 @@ namespace chainbase {
 }
 namespace boost::asio {
    class thread_pool;
+}
+
+namespace savanna_cluster {
+   class node_t;
 }
 
 namespace eosio::vm { class wasm_allocator; }
@@ -95,7 +100,6 @@ namespace eosio::chain {
             uint32_t                 sig_cpu_bill_pct       =  chain::config::default_sig_cpu_bill_pct;
             uint16_t                 chain_thread_pool_size =  chain::config::default_controller_thread_pool_size;
             uint16_t                 vote_thread_pool_size  =  0;
-            uint32_t                 max_reversible_blocks  =  chain::config::default_max_reversible_blocks;
             bool                     read_only              =  false;
             bool                     force_all_checks       =  false;
             bool                     disable_replay_opts    =  false;
@@ -104,6 +108,7 @@ namespace eosio::chain {
             uint32_t                 maximum_variable_signature_length = chain::config::default_max_variable_signature_length;
             bool                     disable_all_subjective_mitigations = false; //< for developer & testing purposes, can be configured using `disable-all-subjective-mitigations` when `EOSIO_DEVELOPER` build option is provided
             uint32_t                 terminate_at_block     = 0;
+            uint32_t                 num_configured_p2p_peers = 0;
             bool                     integrity_hash_on_start= false;
             bool                     integrity_hash_on_stop = false;
 
@@ -301,7 +306,8 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
-         bool fork_db_has_root() const;
+         bool   fork_db_has_root() const;
+         size_t fork_db_size() const;
 
          // thread-safe, applied LIB, fork db root
          uint32_t last_irreversible_block_num() const;
@@ -390,7 +396,7 @@ namespace eosio::chain {
 
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
-         /// @return true if terminate-at-block reached, or max-reversible-blocks reached
+         /// @return true if terminate-at-block reached
          /// not-thread-safe
          bool should_terminate() const;
 
@@ -451,9 +457,13 @@ namespace eosio::chain {
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
 
+
       private:
+         const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).
+
          friend class apply_context;
          friend class transaction_context;
+         friend class savanna_cluster::node_t;
 
          chainbase::database& mutable_db()const;
 

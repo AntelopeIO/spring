@@ -151,7 +151,6 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
 
    for (auto& N : failing_nodes) {
       N->open_from_snapshot(snapshot_C);
-      A.push_blocks_to(*N);
    }
 
    // A produces blocks until we reach the critical block (i.e. until lib advances past the genesis block)
@@ -253,7 +252,6 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_end_of_transition_while_preserv
 
    for (auto& N : failing_nodes) {
       N->open_from_snapshot(snapshot_C);
-      A.push_blocks_to(*N);
    }
 
    // with partition gone, transition to Savanna will complete and lib will start advancing again
@@ -331,7 +329,6 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_with_lo
 
    for (auto& N : failing_nodes) {
       N->open_from_snapshot(snapshot_C);
-      A.push_blocks_to(*N);
    }
 
    // A produces blocks until we reach the critical block (i.e. until lib advances past the genesis block)

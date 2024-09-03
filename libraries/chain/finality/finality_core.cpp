@@ -19,9 +19,9 @@ block_num_type block_ref::block_num() const {
  *  @post returned core has latest_qc_claim() == {.block_num=block_num, .is_strong_qc=false}
  *  @post returned core has last_final_block_num() == block_num
  */
-finality_core finality_core::create_core_for_genesis_block(const block_ref& genesis_block)
+finality_core finality_core::create_core_for_genesis_block(const block_id_type& block_id, block_time_type timestamp)
 {
-   block_num_type block_num = block_header::num_from_id(genesis_block.block_id);
+   block_num_type block_num = block_header::num_from_id(block_id);
    return finality_core {
       .links                        = {
          qc_link{
@@ -31,7 +31,7 @@ finality_core finality_core::create_core_for_genesis_block(const block_ref& gene
          },
       },
       .refs                         = {},
-      .genesis_timestamp            = genesis_block.timestamp
+      .genesis_timestamp            = timestamp
    };
 
    // Invariants 1 to 7 can be easily verified to be satisfied for the returned core.

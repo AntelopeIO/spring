@@ -508,6 +508,7 @@ public:
    std::atomic<fc::time_point>                       _last_producer_vote_received;
    fc::microseconds                                  _production_pause_vote_timeout;
    fc::microseconds                                  _max_irreversible_block_age_us;
+   block_num_type                                    _max_reversible_blocks{0};
    // produce-block-offset is in terms of the complete round, internally use calculated value for each block of round
    fc::microseconds                                  _produce_block_cpu_effort;
    fc::time_point                                    _pending_block_deadline;
@@ -754,23 +755,32 @@ public:
       }
    }
 
-   // true if paused due to not receiving votes
-   bool is_implicitly_paused() const {
+   enum class implicit_pause {
+      not_paused,   // not implicitly paused
+      prod_paused,  // paused due to not receiving vote associated with producer
+      other_paused  // paused due to not receiving any vote from finalizers not associated with producer
+   };
+   implicit_pause implicitly_paused() const {
       if (_producers.empty() || _production_pause_vote_timeout.count() == 0)
-         return false;
+         return implicit_pause::not_paused;
       if (!_is_savanna_active)
-         return false; // no implicit pause in legacy
+         return implicit_pause::not_paused; // no implicit pause in legacy
       if (_producers.contains(eosio::chain::config::system_account_name)) // disable implicit pause for eosio
-         return false;
+         return implicit_pause::not_paused;
 
       auto last_producer_vote_received = _last_producer_vote_received.load(std::memory_order_relaxed);
       auto last_other_vote_received    = _last_other_vote_received.load(std::memory_order_relaxed);
 
       // need a vote within timeout of last accepted block
-      return (_is_producer_active_finalizer &&
-              _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout)
-          || (_other_active_finalizers &&
-              _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout);
+      if (_is_producer_active_finalizer &&
+          _accepted_block_time - last_producer_vote_received > _production_pause_vote_timeout) {
+         return implicit_pause::prod_paused;
+      }
+      if (_other_active_finalizers &&
+          _accepted_block_time - last_other_vote_received    > _production_pause_vote_timeout) {
+         return implicit_pause::other_paused;
+      }
+      return implicit_pause::not_paused;
    }
 
    void abort_block() {
@@ -1169,6 +1179,8 @@ void producer_plugin::set_program_options(
           "Setting this value (in milliseconds) will restrict the allowed transaction execution time to a value potentially lower than the on-chain consensus max_transaction_cpu_usage value.")
          ("max-irreversible-block-age", bpo::value<int32_t>()->default_value( -1 ),
           "Limits the maximum age (in seconds) of the DPOS Irreversible Block for a chain this node will produce blocks on (use negative value to indicate unlimited)")
+         ("max-reversible-blocks", bpo::value<uint32_t>()->default_value(config::default_max_reversible_blocks),
+           "Maximum allowed reversible blocks beyond irreversible before block production is paused. Specify 0 to disable.")
          ("producer-name,p", boost::program_options::value<vector<string>>()->composing()->multitoken(),
           "ID of producer controlled by this node (e.g. inita; may specify multiple times)")
          ("signature-provider", boost::program_options::value<vector<string>>()->composing()->multitoken()->default_value(
@@ -1307,6 +1319,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
    _max_transaction_time_ms = options.at("max-transaction-time").as<int32_t>();
 
    _max_irreversible_block_age_us = fc::seconds(options.at("max-irreversible-block-age").as<int32_t>());
+
+   _max_reversible_blocks = options.at("max-reversible-blocks").as<uint32_t>();
 
    auto max_incoming_transaction_queue_size = options.at("incoming-transaction-queue-size-mb").as<uint16_t>() * 1024 * 1024;
 
@@ -1593,7 +1607,7 @@ void producer_plugin::resume() {
 }
 
 bool producer_plugin::paused() const {
-   return my->_pause_production || my->is_implicitly_paused();
+   return my->_pause_production || (my->implicitly_paused() != producer_plugin_impl::implicit_pause::not_paused);
 }
 
 void producer_plugin_impl::update_runtime_options(const producer_plugin::runtime_options& options) {
@@ -1699,6 +1713,9 @@ producer_plugin::schedule_snapshot(const chain::snapshot_scheduler::snapshot_req
       .end_block_num   = srp.end_block_num ? *srp.end_block_num : std::numeric_limits<uint32_t>::max(),
       .snapshot_description = srp.snapshot_description ? *srp.snapshot_description : ""
    };
+   //treat a 0 end_block_num as max for compatibility with leap4 behavior
+   if(sri.end_block_num == 0)
+      sri.end_block_num = std::numeric_limits<uint32_t>::max();
 
    return my->_snapshot_scheduler.schedule_snapshot(sri);
 }
@@ -1927,7 +1944,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       return start_block_result::failed;
    }
 
-   block_num_type             head_block_num    = chain.head().block_num();
+   block_handle               head              = chain.head();
+   block_num_type             head_block_num    = head.block_num();
    const fc::time_point       now               = fc::time_point::now();
    const block_timestamp_type block_time        = calculate_pending_block_time();
    const uint32_t             pending_block_num = head_block_num + 1;
@@ -1954,23 +1972,30 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    } else if (_producers.find(scheduled_producer.producer_name) == _producers.end()) {
       _pending_block_mode = pending_block_mode::speculating;
    } else if (num_relevant_signatures == 0) {
-      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}",
-              ("authority", scheduled_producer.authority));
+      fc_elog(_log, "Not producing block because I don't have any private keys relevant to authority: ${authority}, block ${t}",
+              ("authority", scheduled_producer.authority)("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_pause_production) {
-      fc_wlog(_log, "Not producing block because production is explicitly paused");
+      fc_wlog(_log, "Not producing block because production is explicitly paused, block ${t}", ("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_max_irreversible_block_age_us.count() >= 0 && irreversible_block_age >= _max_irreversible_block_age_us) {
-      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s]",
-              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000));
+      fc_elog(_log, "Not producing block because the irreversible block is too old [age:${age}s, max:${max}s], block ${t}",
+              ("age", irreversible_block_age.count() / 1'000'000)("max", _max_irreversible_block_age_us.count() / 1'000'000)
+              ("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
-   } else if (is_implicitly_paused()) {
-      fc_elog(_log, "Not producing block because no recent votes, last producer vote ${pv}, other votes ${ov}, last block time ${bt}",
-              ("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
+   } else if (implicit_pause p = implicitly_paused(); p != implicit_pause::not_paused) {
+      std::string reason = p == implicit_pause::prod_paused ? "producer votes" : "votes received";
+      fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, last producer vote ${pv}, other votes ${ov}, last accepted block time ${bt}",
+              ("r", std::move(reason))("t", block_time)("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
               ("ov", _last_other_vote_received.load(std::memory_order_relaxed))("bt", _accepted_block_time));
+      _pending_block_mode = pending_block_mode::speculating;
+      not_producing_when_time = true;
+   } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {
+      fc_elog(_log, "Not producing block because max-reversible-blocks ${m} reached, head ${h}, lib ${l}, block ${t}",
+              ("m", _max_reversible_blocks)("h", head_block_num)("l", head.irreversible_blocknum())("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    }
@@ -2385,11 +2410,12 @@ producer_plugin_impl::handle_push_result(const transaction_metadata_ptr&        
       if( exception_is_exhausted( *trace->except ) ) {
          if( in_producing_mode() ) {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
-                    "[TRX_TRACE] Block ${block_num} for producer ${prod} COULD NOT FIT, tx: ${txid} RETRYING ",
-                    ("block_num", chain.head().block_num() + 1)("prod", get_pending_block_producer())("txid", trx->id()));
+                    "[TRX_TRACE] Block ${bn} for producer ${prod} COULD NOT FIT, elapsed ${e}us, tx: ${txid} RETRYING ",
+                    ("bn", chain.head().block_num() + 1)("e", trace->elapsed)("prod", get_pending_block_producer())("txid", trx->id()));
          } else {
             fc_dlog(trx->is_transient() ? _transient_trx_failed_trace_log : _trx_failed_trace_log,
-                    "[TRX_TRACE] Speculative execution COULD NOT FIT tx: ${txid} RETRYING", ("txid", trx->id()));
+                    "[TRX_TRACE] Speculative execution COULD NOT FIT, elapsed ${e}us, tx: ${txid} RETRYING",
+                    ("e", trace->elapsed)("txid", trx->id()));
          }
          if (!trx->is_read_only())
             pr.block_exhausted = block_is_exhausted(); // smaller trx might fit

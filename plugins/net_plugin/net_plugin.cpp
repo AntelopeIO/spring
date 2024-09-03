@@ -225,11 +225,13 @@ namespace eosio {
       uint32_t       sync_next_expected_num  GUARDED_BY(sync_mtx) {0};  // the next block number we need from peer
       connection_ptr sync_source             GUARDED_BY(sync_mtx);      // connection we are currently syncing from
 
-      const uint32_t sync_req_span {0};
+      const uint32_t sync_fetch_span {0};
       const uint32_t sync_peer_limit {0};
 
       alignas(hardware_destructive_interference_sz)
       std::atomic<stages> sync_state{in_sync};
+      std::atomic<int32_t> sync_timers_active{0};
+      std::atomic<std::chrono::steady_clock::time_point> sync_active_time{};
       std::atomic<uint32_t> sync_ordinal{0};
       // indicate that we have received blocks to catch us up to head, delay sending out handshakes until we have
       // applied the blocks and our controller head is updated
@@ -244,12 +246,13 @@ namespace eosio {
    private:
       constexpr static auto stage_str( stages s );
       bool set_state( stages newstate );
-      bool is_sync_required( uint32_t fork_head_block_num ); // call with locked mutex
+      bool is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx);
+      bool is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx);
       void request_next_chunk( const connection_ptr& conn = connection_ptr() ) REQUIRES(sync_mtx);
       connection_ptr find_next_sync_node(); // call with locked mutex
       void start_sync( const connection_ptr& c, uint32_t target ); // locks mutex
+      bool sync_recently_active() const;
       bool verify_catchup( const connection_ptr& c, uint32_t num, const block_id_type& id ); // locks mutex
-
    public:
       enum class closing_mode {
          immediately,  // closing connection immediately
@@ -260,6 +263,8 @@ namespace eosio {
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
       bool is_in_sync() const { return sync_state == in_sync; }
       void sync_reset_lib_num( const connection_ptr& conn, bool closing );
+      void sync_timeout(const connection_ptr& c, const boost::system::error_code& ec);
+      void sync_wait(const connection_ptr& c);
       void sync_reassign_fetch( const connection_ptr& c );
       void rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode );
       void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied,
@@ -1077,7 +1082,6 @@ namespace eosio {
 
       void cancel_sync_wait();
       void sync_wait();
-      void sync_timeout(boost::system::error_code ec);
 
       void queue_write(const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback,
@@ -1941,21 +1945,11 @@ namespace eosio {
       connection_ptr c(shared_from_this());
       fc::lock_guard g( sync_response_expected_timer_mtx );
       sync_response_expected_timer.expires_from_now( my_impl->resp_expected_period );
+      my_impl->sync_master->sync_wait(c);
       sync_response_expected_timer.async_wait(
             boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec ) {
-               c->sync_timeout( ec );
+               my_impl->sync_master->sync_timeout(c, ec);
             } ) );
-   }
-
-   // called from connection strand
-   void connection::sync_timeout( boost::system::error_code ec ) {
-      if( !ec ) {
-         peer_dlog(this, "sync timeout");
-         my_impl->sync_master->sync_reassign_fetch( shared_from_this() );
-         close(true);
-      } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
-         peer_elog( this, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
-      }
    }
 
    // called from connection strand
@@ -1999,7 +1993,7 @@ namespace eosio {
       ,sync_last_requested_num( 0 )
       ,sync_next_expected_num( 1 )
       ,sync_source()
-      ,sync_req_span( span )
+      ,sync_fetch_span( span )
       ,sync_peer_limit( sync_peer_limit )
       ,sync_state(in_sync)
       ,min_blocks_distance(min_blocks_distance)
@@ -2113,8 +2107,8 @@ namespace eosio {
    void sync_manager::request_next_chunk( const connection_ptr& conn ) REQUIRES(sync_mtx) {
       auto chain_info = my_impl->get_chain_info();
 
-      fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync_req_span: ${s}, fhead: ${h}, lib: ${lib}",
-               ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_req_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
+      fc_dlog( logger, "sync_last_requested_num: ${r}, sync_next_expected_num: ${e}, sync_known_lib_num: ${k}, sync-fetch-span: ${s}, fhead: ${h}, lib: ${lib}",
+               ("r", sync_last_requested_num)("e", sync_next_expected_num)("k", sync_known_lib_num)("s", sync_fetch_span)("h", chain_info.fork_head_num)("lib", chain_info.lib_num) );
 
       if (conn) {
          // p2p_high_latency_test.py test depends on this exact log statement.
@@ -2149,13 +2143,14 @@ namespace eosio {
       bool request_sent = false;
       if( sync_last_requested_num != sync_known_lib_num ) {
          uint32_t start = sync_next_expected_num;
-         uint32_t end = start + sync_req_span - 1;
+         uint32_t end = start + sync_fetch_span - 1;
          if( end > sync_known_lib_num )
             end = sync_known_lib_num;
          if( end > 0 && end >= start ) {
             sync_last_requested_num = end;
             sync_source = new_sync_source;
             request_sent = true;
+            sync_active_time = std::chrono::steady_clock::now();
             new_sync_source->strand.post( [new_sync_source, start, end, fork_head_num=chain_info.fork_head_num, lib=chain_info.lib_num]() {
                peer_ilog( new_sync_source, "requesting range ${s} to ${e}, fhead ${h}, lib ${lib}", ("s", start)("e", end)("h", fork_head_num)("lib", lib) );
                new_sync_source->request_sync_blocks( start, end );
@@ -2177,13 +2172,24 @@ namespace eosio {
       } );
    }
 
-   bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) REQUIRES(sync_mtx) {
+   bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx) {
       fc_dlog( logger, "last req = ${req}, last recv = ${recv} known = ${known} our fhead = ${h}",
                ("req", sync_last_requested_num)( "recv", sync_next_expected_num )( "known", sync_known_lib_num )
                ("h", fork_head_block_num ) );
 
       return( sync_last_requested_num < sync_known_lib_num ||
               sync_next_expected_num < sync_last_requested_num );
+   }
+
+   bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
+      if (blk_num >= sync_last_requested_num) {
+         // do not allow to get too far ahead (sync_fetch_span) of chain head
+         // use chain head instead of fork head so we do not get too far ahead of applied blocks
+         uint32_t head = my_impl->get_chain_head_num();
+         if (blk_num < head + sync_fetch_span)
+            return true;
+      }
+      return false;
    }
 
    // called from c's connection strand
@@ -2201,16 +2207,43 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup ) {
+      if( sync_state != lib_catchup || !sync_recently_active()) {
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
+      } else if (is_sync_request_ahead_allowed(sync_next_expected_num)) {
+         // break
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
          return;
       }
 
       request_next_chunk( c );
+   }
+
+   // thread safe
+   bool sync_manager::sync_recently_active() const {
+      return std::chrono::steady_clock::now() - sync_active_time.load() < my_impl->resp_expected_period;
+   }
+
+   // called from connection strand
+   void sync_manager::sync_wait(const connection_ptr& c) {
+      ++sync_timers_active;
+      sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
+      peer_dlog(c, "sync wait, active_timers ${t}", ("t", sync_timers_active.load()));
+   }
+
+   // called from connection strand
+   void sync_manager::sync_timeout(const connection_ptr& c, const boost::system::error_code& ec) {
+      if( !ec ) {
+         peer_dlog(c, "sync timeout");
+         sync_reassign_fetch( c );
+         close(true);
+      } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
+         peer_elog( c, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
+      }
+      --sync_timers_active;
+      peer_dlog(c, "sync timeout, active_timers ${t}", ("t", sync_timers_active.load()));
    }
 
    // called from connection strand
@@ -2527,14 +2560,11 @@ namespace eosio {
                             ("bn", blk_num)("kn", sync_known_lib_num));
                   send_handshakes_when_synced = true;
                } else {
-                  // use chain head instead of fork head so we do not get too far ahead of applied blocks
-                  uint32_t head = my_impl->get_chain_head_num();
-                  // do not allow to get too far ahead (one sync_req_span) of chain head
-                  if (blk_num >= sync_last_requested_num && blk_num < head + sync_req_span) {
+                  if (is_sync_request_ahead_allowed(blk_num)) {
                      // block was not applied, possibly because we already have the block
-                     fc_dlog(logger, "Requesting blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                     fc_dlog(logger, "Requesting ${fs} blocks ahead, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                      "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("fs", sync_fetch_span)("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
                              ("bn", blk_num)("nen", sync_next_expected_num)
                              ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
                      request_next_chunk();
@@ -2543,6 +2573,7 @@ namespace eosio {
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
                   // Did not request blocks ahead, likely because too far ahead of head
+                  // Do not restrict sync_fetch_span as we want max-reversible-blocks to shut down the node for applied blocks
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                   "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
@@ -4228,6 +4259,9 @@ namespace eosio {
       try {
          fc_ilog( logger, "Initialize net plugin" );
 
+         chain_plug = app().find_plugin<chain_plugin>();
+         EOS_ASSERT( chain_plug, chain::missing_chain_plugin_exception, ""  );
+
          peer_log_format = options.at( "peer-log-format" ).as<string>();
 
          txn_exp_period = def_txn_expire_wait;
@@ -4345,8 +4379,6 @@ namespace eosio {
             }
          }
 
-         chain_plug = app().find_plugin<chain_plugin>();
-         EOS_ASSERT( chain_plug, chain::missing_chain_plugin_exception, ""  );
          chain_id = chain_plug->get_chain_id();
          fc::rand_pseudo_bytes( node_id.data(), node_id.data_size());
          const controller& cc = chain_plug->chain();

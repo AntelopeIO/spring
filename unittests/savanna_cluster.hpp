@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/chain/finality/finalizer_authority.hpp>
+#include <eosio/chain/finality/finalizer.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
 #include <eosio/testing/tester.hpp>
@@ -22,6 +23,7 @@ namespace savanna_cluster {
    using block_header     = eosio::chain::block_header;
    using tester           = eosio::testing::tester;
    using setup_policy     = eosio::testing::setup_policy;
+   using fsi_t            = eosio::chain::finalizer_safety_information;
 
    class cluster_t;
 
@@ -51,16 +53,68 @@ namespace savanna_cluster {
       vector<bls_private_key> privkeys;
    };
 
+   // two classes for comparisons in BOOST_REQUIRE_EQUAL
+   // --------------------------------------------------
+   struct vote_t {
+      friend std::ostream& operator<<(std::ostream& s, const vote_t& v) {
+         s << "vote_t(" << v.id.str().substr(8, 16) << ", " << (v.strong ? "strong" : "weak") << ")";
+         return s;
+      }
+      bool operator==(const vote_t&) const = default;
+
+      block_id_type id;
+      bool          strong;
+   };
+
+   struct strong_vote : public vote_t {
+      explicit strong_vote(const signed_block_ptr& p) : vote_t(p->calculate_id(), true) {}
+   };
+   struct weak_vote : public vote_t {
+      explicit weak_vote(const signed_block_ptr& p) : vote_t(p->calculate_id(), false) {}
+   };
+
+
+   struct qc_s {
+      explicit qc_s(uint32_t block_num, bool strong) : block_num(block_num), strong(strong) {}
+      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+
+      friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
+         s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+         return s;
+      }
+      bool operator==(const qc_s&) const = default;
+
+      uint32_t block_num; // claimed block
+      bool     strong;
+   };
+
+   struct strong_qc : public qc_s {
+      explicit strong_qc(const signed_block_ptr& p) : qc_s(p->block_num(), true) {}
+   };
+   struct weak_qc : public qc_s {
+      explicit weak_qc(const signed_block_ptr& p) : qc_s(p->block_num(), false) {}
+   };
+
+   struct fsi_expect {
+      const signed_block_ptr& last_vote;
+      const signed_block_ptr& lock;
+      block_timestamp_type    other_branch_latest_time;
+   };
+
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
-      size_t                  node_idx;
-      bool                    pushing_a_block {false };
+      size_t                                          _node_idx;
+      bool                                            _pushing_a_block{false};
+      bool                                            _propagate_votes{true}; // if false, votes are dropped
+      vote_t                                          _last_vote;
+      std::vector<account_name>                       _node_finalizers;
 
-      std::function<void(const block_signal_params&)> accepted_block_cb;
-      std::function<void(const vote_signal_params&)>  voted_block_cb;
-   public:
-      std::vector<account_name> node_finalizers;
+      size_t                                          _vote_delay{0};         // delay vote propagation by this much
+      std::vector<vote_message_ptr>                   _delayed_votes;
+
+      std::function<void(const block_signal_params&)> _accepted_block_cb;
+      std::function<void(const vote_signal_params&)>  _voted_block_cb;
 
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
@@ -69,9 +123,18 @@ namespace savanna_cluster {
 
       node_t(node_t&&) = default;
 
+      bool& propagate_votes() { return _propagate_votes; }
+
+      size_t& vote_delay() { return _vote_delay; }
+
+      const vote_t& last_vote() const { return _last_vote; }
+
       void set_node_finalizers(std::span<const account_name> names) {
-         node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
-         tester::set_node_finalizers(node_finalizers);
+         _node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
+         if (control) {
+            // node is "open", se we can update the tester immediately
+            tester::set_node_finalizers(_node_finalizers);
+         }
       }
 
       void transition_to_savanna(std::span<const account_name> finalizer_policy_names) {
@@ -112,12 +175,10 @@ namespace savanna_cluster {
          BOOST_REQUIRE_EQUAL(lib_num(), pt_block->block_num());
       }
 
-      // updates producers (producer updates will be propagated to connected nodes), and
-      // wait until one of the new producers is pending.
+      // wait until one of `producers` is the producer that will be used for the next block produced.
       // return the index of the pending new producer (we assume no duplicates in producer list)
-      // -----------------------------------------------------------------------------------
-      size_t set_producers(const std::vector<account_name>& producers) {
-         tester::set_producers(producers);
+      // --------------------------------------------------------------------------------------------
+      size_t wait_for_producer(const std::vector<account_name>& producers) {
          account_name pending;
          size_t max_blocks_produced = 400;
          while (--max_blocks_produced) {
@@ -128,6 +189,15 @@ namespace savanna_cluster {
          }
          BOOST_REQUIRE_GT(max_blocks_produced, 0u);
          return ranges::find(producers, pending) - producers.begin();
+      }
+
+      // updates producers (producer updates will be propagated to connected nodes), and
+      // wait until one of `producers` is the producer that will be used for the next block produced.
+      // return the index of the pending new producer (we assume no duplicates in producer list)
+      // --------------------------------------------------------------------------------------------
+      size_t set_producers(const std::vector<account_name>& producers) {
+         tester::set_producers(producers);
+         return wait_for_producer(producers);
       }
 
       uint32_t lib_num() const { return lib_number; }
@@ -141,10 +211,11 @@ namespace savanna_cluster {
       }
 
       void push_block(const signed_block_ptr& b) {
-         assert(!pushing_a_block);
-         pushing_a_block = true;
-         auto reset_pending_on_exit = fc::make_scoped_exit([this]{ pushing_a_block = false; });
-         tester::push_block(b);
+         if (is_open() && !fetch_block_by_id(b->calculate_id())) {
+            assert(!_pushing_a_block);
+            fc::scoped_set_value set_pushing_a_block(_pushing_a_block, true);
+            tester::push_block(b);
+         }
       }
 
       template <class Node>
@@ -163,19 +234,19 @@ namespace savanna_cluster {
       }
 
       std::string snapshot() const {
-         dlog("node ${i} - taking snapshot", ("i", node_idx));
+         dlog("node ${i} - taking snapshot", ("i", _node_idx));
          auto writer = buffered_snapshot_suite::get_writer();
          control->write_snapshot(writer);
          return buffered_snapshot_suite::finalize(writer);
       }
 
       void open_from_snapshot(const std::string& snapshot) {
-         dlog("node ${i} - restoring from snapshot", ("i", node_idx));
+         dlog("node ${i} - restoring from snapshot", ("i", _node_idx));
          open(buffered_snapshot_suite::get_reader(snapshot));
       }
 
       std::vector<uint8_t> save_fsi() const {
-         dlog("node ${i} - saving fsi", ("i", node_idx));
+         dlog("node ${i} - saving fsi", ("i", _node_idx));
          auto finalizer_path = get_fsi_path();
          std::ifstream file(finalizer_path.generic_string(), std::ios::binary | std::ios::ate);
          std::streamsize size = file.tellg();
@@ -188,7 +259,7 @@ namespace savanna_cluster {
       }
 
       void overwrite_fsi(const std::vector<uint8_t>& fsi) const {
-         dlog("node ${i} - overwriting fsi", ("i", node_idx));
+         dlog("node ${i} - overwriting fsi", ("i", _node_idx));
          auto finalizer_path = get_fsi_path();
          std::ofstream file(finalizer_path.generic_string(), std::ios::binary);
          assert(!fsi.empty());
@@ -196,13 +267,13 @@ namespace savanna_cluster {
       }
 
       void remove_fsi() {
-         dlog("node ${i} - removing fsi", ("i", node_idx));
+         dlog("node ${i} - removing fsi", ("i", _node_idx));
          remove_all(get_fsi_path());
       }
 
       void remove_state() {
          auto state_path = cfg.state_dir;
-         dlog("node ${i} - removing state data from: ${state_path}", ("i", node_idx)("${state_path}", state_path));
+         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("${state_path}", state_path));
          remove_all(state_path);
          fs::create_directories(state_path);
       }
@@ -220,10 +291,24 @@ namespace savanna_cluster {
          for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
             auto path = dir_entry.path();
             if (path.filename().generic_string() != "reversible") {
-               dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
+               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
                remove_all(path);
             }
          }
+      }
+
+      const fsi_t& get_fsi(size_t idx = 0) const {
+         assert(control);
+         assert(idx < _node_finalizers.size());
+         auto [privkey, pubkey, pop] = get_bls_key(_node_finalizers[idx]);
+         return control->get_node_finalizers().get_fsi(pubkey);
+      }
+
+      void check_fsi(const fsi_expect& expected) {
+         const fsi_t& fsi = get_fsi();
+         BOOST_REQUIRE_EQUAL(fsi.last_vote.block_id, expected.last_vote->calculate_id());
+         BOOST_REQUIRE_EQUAL(fsi.lock.block_id, expected.lock->calculate_id());
+         BOOST_REQUIRE_EQUAL(fsi.other_branch_latest_time, expected.other_branch_latest_time);
       }
 
    private:
@@ -233,7 +318,7 @@ namespace savanna_cluster {
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
          auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing : ${path}", ("i", node_idx)("${path}", path));
+         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
@@ -393,7 +478,7 @@ namespace savanna_cluster {
 
       // returns the number of nodes where `lib` has advanced after executing `f`
       template<class F>
-      size_t num_lib_advancing(F&& f) {
+      size_t num_lib_advancing(F&& f) const {
          std::vector<uint32_t> libs(_nodes.size());
          for (size_t i=0; i<_nodes.size(); ++i)
             libs[i] = _nodes[i].lib_num();
@@ -419,7 +504,7 @@ namespace savanna_cluster {
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];
-         assert(src.is_open() &&  _nodes[dst_idx].is_open());
+         assert(src.is_open() && _nodes[dst_idx].is_open());
 
          auto end_block_num   = src.fork_db_head().block_num();
 
@@ -445,9 +530,28 @@ namespace savanna_cluster {
 
       size_t num_nodes() const { return _num_nodes; }
 
+      static qc_claim_t qc_claim(const signed_block_ptr& b) {
+         return b->extract_header_extension<finality_extension>().qc_claim;
+      }
+
+      static std::optional<qc_t> qc(const signed_block_ptr& b) {
+         if (b->contains_extension(quorum_certificate_extension::extension_id()))
+             return b->extract_extension<quorum_certificate_extension>().qc;
+         return {};
+      }
+
+      // debugging utilities
+      // -------------------
+      void print(const char* name, const signed_block_ptr& b) const {
+         if (_debug_mode)
+            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+                      << ", previous = " << b->previous.str().substr(8, 16) << '\n';
+      }
+
    public:
       std::vector<node_t>  _nodes;
       fin_keys_t           _fin_keys;
+      bool                 _debug_mode{false};
 
       static constexpr fc::microseconds _block_interval_us =
          fc::milliseconds(eosio::chain::config::block_interval_ms);
@@ -464,26 +568,35 @@ namespace savanna_cluster {
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          static uint32_t connection_id = 0;
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            n.control->process_vote_message(++connection_id, msg);
+            if (n.is_open())
+               n.control->process_vote_message(++connection_id, msg);
          });
       }
 
       void push_block_to_peers(size_t node_idx, skip_self_t skip_self, const signed_block_ptr& b) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            if (!n.fetch_block_by_id(b->calculate_id()))
-               n.push_block(b);
+            n.push_block(b);
+         });
+      }
+
+      // when a node restarts, simulate receiving newly produced blocks from peers
+      void get_new_blocks_from_peers(size_t node_idx) {
+         assert(_nodes[node_idx].is_open());
+         for_each_peer(node_idx, skip_self_t::yes, [&](node_t& n) {
+            if (n.is_open())
+               n.push_blocks_to(_nodes[node_idx]);
          });
       }
 
       template<class CB>
       void for_each_peer(size_t node_idx, skip_self_t skip_self, const CB& cb) {
-         if (_shutting_down)
+         if (_shutting_down || _peers.empty())
             return;
          assert(_peers.find(node_idx) != _peers.end());
          const auto& peers = _peers[node_idx];
          for (auto i : peers) {
             bool dont_skip = skip_self == skip_self_t::no || i != node_idx;
-            if (dont_skip && _nodes[i].is_open())
+            if (dont_skip)
                cb(_nodes[i]);
          }
       }

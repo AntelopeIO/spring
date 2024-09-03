@@ -24,12 +24,14 @@ digest_type block_header_state::compute_base_digest() const {
    assert(active_proposer_policy);
    fc::raw::pack( enc, *active_proposer_policy );
 
+   // For things that are optionally present we should always pack the bool
+   // indicating if they are there.
    fc::raw::pack( enc, latest_proposed_proposer_policy );
    fc::raw::pack( enc, latest_pending_proposer_policy );
 
-   if (activated_protocol_features) {
-      fc::raw::pack( enc, *activated_protocol_features );
-   }
+   // Should be always present
+   assert(activated_protocol_features);
+   fc::raw::pack( enc, *activated_protocol_features );
 
    return enc.result();
 }
@@ -86,14 +88,14 @@ const proposer_policy_ptr& block_header_state::get_active_proposer_policy_for_bl
    // must be the first block in a round after the current round
    std::optional<uint32_t> prior_round_start_slot = detail::get_prior_round_start_slot(timestamp());
    if (latest_proposed_proposer_policy && prior_round_start_slot &&
-         (*latest_proposed_proposer_policy)->proposal_time.slot < *prior_round_start_slot &&
-         (*latest_proposed_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
-      return *latest_proposed_proposer_policy;
+         latest_proposed_proposer_policy->proposal_time.slot < *prior_round_start_slot &&
+         latest_proposed_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_proposed_proposer_policy;
    }
 
    if (latest_pending_proposer_policy &&
-         (*latest_pending_proposer_policy)->proposal_time <= core.last_final_block_timestamp()) {
-      return *latest_pending_proposer_policy;
+         latest_pending_proposer_policy->proposal_time <= core.last_final_block_timestamp()) {
+      return latest_pending_proposer_policy;
    }
 
    return active_proposer_policy;
@@ -111,7 +113,7 @@ const producer_authority& block_header_state::get_producer_for_block_at(block_ti
 
 const producer_authority_schedule* block_header_state::pending_producers() const {
    if (latest_pending_proposer_policy) {
-      return &(*latest_pending_proposer_policy)->proposer_schedule;
+      return &latest_pending_proposer_policy->proposer_schedule;
    }
    return nullptr;
 }
@@ -142,10 +144,10 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
    if (latest_proposed_proposer_policy) {
-      return *(*latest_proposed_proposer_policy);
+      return *latest_proposed_proposer_policy;
    }
    if (latest_pending_proposer_policy) {
-      return *(*latest_pending_proposer_policy);
+      return *latest_pending_proposer_policy;
    }
    assert(active_proposer_policy);
    return *active_proposer_policy;
@@ -240,17 +242,17 @@ void evaluate_proposer_policies_for_promotion(const block_header_state& prev,
    auto& new_policy = prev.get_active_proposer_policy_for_block_at(next.timestamp());
    if (new_policy != next.active_proposer_policy) {
       next.active_proposer_policy = new_policy;
-      if (next.latest_proposed_proposer_policy && new_policy == *next.latest_proposed_proposer_policy) {
-         next.latest_proposed_proposer_policy = std::nullopt;
-         next.latest_pending_proposer_policy = std::nullopt;
-      } else if (next.latest_pending_proposer_policy && new_policy == *next.latest_pending_proposer_policy)
-         next.latest_pending_proposer_policy = std::nullopt;
+      if (next.latest_proposed_proposer_policy && new_policy == next.latest_proposed_proposer_policy) {
+         next.latest_proposed_proposer_policy = nullptr;
+         next.latest_pending_proposer_policy = nullptr;
+      } else if (next.latest_pending_proposer_policy && new_policy == next.latest_pending_proposer_policy)
+         next.latest_pending_proposer_policy = nullptr;
    }
 
    if (detail::first_block_of_round(next.timestamp(), prev.timestamp()) &&
       next.latest_proposed_proposer_policy && !next.latest_pending_proposer_policy) {
       next.latest_pending_proposer_policy = next.latest_proposed_proposer_policy;
-      next.latest_proposed_proposer_policy = std::nullopt;
+      next.latest_proposed_proposer_policy = nullptr;
    }
 }
 
@@ -292,16 +294,15 @@ void finish_next(const block_header_state& prev,
 
    // finality_core
    // -------------
-   block_ref parent_block {
-      .block_id        = prev.block_id,
-      .timestamp       = prev.timestamp(),
-      .finality_digest = prev.compute_finality_digest()
-   };
+   block_ref parent_block = prev.make_block_ref();
    next_header_state.core = prev.core.next(parent_block, f_ext.qc_claim);
 
    // finalizer policy
    // ----------------
    next_header_state.active_finalizer_policy = prev.active_finalizer_policy;
+
+   // will be reset in evaluate_finalizer_policies_for_promotion if needed
+   next_header_state.last_pending_finalizer_policy_start_timestamp = prev.last_pending_finalizer_policy_start_timestamp;
 
    evaluate_finalizer_policies_for_promotion(prev, next_header_state);
 
@@ -343,6 +344,14 @@ void finish_next(const block_header_state& prev,
          ilog("Finalizer policy generation change: ${old_gen} -> ${new_gen}",
               ("old_gen", prev.active_finalizer_policy->generation)("new_gen",act->generation));
          ilog("New finalizer policy becoming active in block ${n}:${id}: ${pol}",
+              ("n",block_header::num_from_id(id))("id", id)("pol", *act));
+      }
+
+      if (next_header_state.active_proposer_policy->proposer_schedule.version != prev.active_proposer_policy->proposer_schedule.version) {
+         const auto& act = next_header_state.active_proposer_policy;
+         dlog("Proposer policy version change: ${old_ver} -> ${new_ver}",
+              ("old_ver", prev.active_proposer_policy->proposer_schedule.version)("new_ver",act->proposer_schedule.version));
+         dlog("New proposer policy becoming active in block ${n}:${id}: ${pol}",
               ("n",block_header::num_from_id(id))("id", id)("pol", *act));
       }
    }
