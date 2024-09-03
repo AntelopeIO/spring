@@ -98,8 +98,8 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
     block_timestamp low_proof_last_claim_timestamp = low_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
     block_timestamp high_proof_last_claim_timestamp = high_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
-    //If the high proof timestamp is higher than the low proof timestamp, but the high proof last QC claim timestamp is lower than the low proof last QC claim, the lock was violated
-    bool lock_violation = high_proof_timestamp > low_proof_timestamp && high_proof_last_claim_timestamp < low_proof_timestamp;
+    //If the low proof timestamp is less than the high proof timestamp, but the high proof last QC claim timestamp is lower than or equal to the low proof last QC claim, the lock was violated
+    bool lock_violation = high_proof_last_claim_timestamp <= low_proof_last_claim_timestamp && low_proof_timestamp < high_proof_timestamp ;
     
     check(lock_violation, "proofs must demonstrate a lock violation");
 
