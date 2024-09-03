@@ -11,6 +11,8 @@ void check_qcs( const finalizer_policy_input& finalizer_policy, const finality_p
     checksum256 digest_1 = block_finality_data_internal(proof_1.qc_block).finality_digest();
     checksum256 digest_2 = block_finality_data_internal(proof_2.qc_block).finality_digest();
 
+    check(digest_1 != digest_2, "finality digests must be different");
+
     //Verify QC signatures over the finality digests
     _check_qc(proof_1.active_policy_qc, digest_1, finalizer_policy);
     _check_qc(proof_2.active_policy_qc, digest_2, finalizer_policy);
@@ -28,12 +30,6 @@ std::pair<std::string, std::string> finality_violation::rule1(const finalizer_po
     block_timestamp timestamp_2 = proof_2.qc_block.level_3_commitments.value().timestamp;
     
     check(timestamp_1 == timestamp_2, "proofs must be over blocks that have the same timestamp");
-
-    //Verify that finality digests are different
-    checksum256 digest_1 = block_finality_data_internal(proof_1.qc_block).finality_digest();
-    checksum256 digest_2 = block_finality_data_internal(proof_2.qc_block).finality_digest();
-
-    check(digest_1 != digest_2, "finality digests must be different");
 
     //Proof of rule #1 finality violation
 
