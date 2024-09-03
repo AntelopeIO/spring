@@ -347,6 +347,8 @@ namespace eosio::testing {
          return !present ||
                 (present && itr->second == block_signal::accepted_block);
       }
+
+      return false;
    }
 
    void base_tester::open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id, const std::function<void()>& lambda ) {
