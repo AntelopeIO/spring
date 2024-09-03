@@ -3999,6 +3999,27 @@ struct controller_impl {
       bsp->verify_qc(qc_proof);
    }
 
+   // Verify Legacy blocks do not have a block header finality extension or
+   // a block QC extension.
+   void verify_legacy_block_exts( const signed_block_ptr& b ) {
+      uint32_t block_num = b->block_num();
+
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+      EOS_ASSERT( !qc_extension_present,
+                  block_validate_exception,
+                  "Legacy block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      auto f_ext_id = finality_extension::extension_id();
+      std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
+      EOS_ASSERT( !header_ext,
+                  block_validate_exception,
+                  "Legacy block #${b} includes a finality block header extension",
+                  ("b", block_num) );
+   }
+
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
@@ -4009,7 +4030,11 @@ struct controller_impl {
       // This is the only place the evaluation is done.
       // Note: the purpose of running verify_qc_claim on Legacy blocks too is to
       // safe guard Legacy blocks.
-      verify_qc_claim(id, b, prev);
+      if constexpr (savanna_mode) {
+         verify_qc_claim(id, b, prev);
+      } else {
+         verify_legacy_block_exts(b);
+      }
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
