@@ -3878,6 +3878,39 @@ struct controller_impl {
           });
    }
 
+   // verify qc claim invariants assumed by block_state constructor
+   void verify_qc_claim_invariants(const signed_block_ptr& b, const block_header_state& prev ) {
+
+      std::optional<block_header_extension> header_ext = b->extract_header_extension(finality_extension::extension_id());
+
+      EOS_ASSERT(header_ext, invalid_block_header_extension,
+                 "Finality Extension is expected to be present in all block headers after switch to Savanna");
+
+      const auto& f_ext = std::get<finality_extension>(*header_ext);
+      const auto& new_qc_claim = f_ext.qc_claim;
+
+      uint32_t block_num = b->block_num();
+      const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
+      // If there is a header extension, but the previous block does not have a header extension,
+      // ensure the block does not have a QC and the QC claim of the current block has a block_num
+      // of the current block’s number and that it is a claim of a weak QC. Then return early.
+      // -------------------------------------------------------------------------------------------------
+      if (!prev_finality_ext) {
+         // Note that qc_extension_present is verified in verify_qc_claim
+         EOS_ASSERT( new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false, invalid_qc_claim,
+                     "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
+                     ("b", block_num) );
+         return;
+      }
+
+      const auto& prev_qc_claim = prev_finality_ext->qc_claim;
+
+      // new claimed QC block number cannot be smaller than previous block's
+      EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num, invalid_qc_claim,
+                  "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
+                  ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
+   }
+
    // Verify QC claim made by finality_extension in header extension
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
@@ -3889,7 +3922,7 @@ struct controller_impl {
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
@@ -3915,7 +3948,7 @@ struct controller_impl {
 
       assert(header_ext);
       const auto& f_ext        = std::get<finality_extension>(*header_ext);
-      const auto  new_qc_claim = f_ext.qc_claim;
+      const auto& new_qc_claim = f_ext.qc_claim;
 
       dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
            ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
@@ -4002,12 +4035,14 @@ struct controller_impl {
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const shared_ptr<BS>& prev ) {
+      assert(b && prev);
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
       std::future<void> verify_future;
       if constexpr (savanna_mode) {
          // Verify claim made by finality_extension in block header extension and
          // quorum_certificate_extension in block extension are valid.
          // This is the only place the evaluation is done.
+         verify_qc_claim_invariants(b, *prev);
          verify_future = post_async_task(thread_pool.get_executor(), [this, id, b, prev]() {
             verify_qc_claim(id, b, *prev);
          });
