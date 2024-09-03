@@ -14,8 +14,8 @@ void check_qcs( const finalizer_policy_input& finalizer_policy, const finality_p
     check(digest_1 != digest_2, "finality digests must be different");
 
     //Verify QC signatures over the finality digests
-    _check_qc(proof_1.active_policy_qc, digest_1, finalizer_policy);
-    _check_qc(proof_2.active_policy_qc, digest_2, finalizer_policy);
+    _check_qc(proof_1.active_policy_qc, digest_1, finalizer_policy, false);
+    _check_qc(proof_2.active_policy_qc, digest_2, finalizer_policy, false);
 
 }
 

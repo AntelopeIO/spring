@@ -141,7 +141,7 @@ namespace savanna {
    }
    
    //verify that the quorum certificate over the finality digest is valid
-   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy){
+   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy, const bool enforce_threshold_check){
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
       size_t finalizer_count = finalizer_policy.finalizers.size();
@@ -168,8 +168,8 @@ namespace savanna {
           fa_itr++;
       }
 
-      //verify that we have enough vote weight to meet the quorum threshold of the target policy
-      check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
+      //if enforce_threshold_check is true, verify that we have enough vote weight to meet the quorum threshold of the target policy
+      if (enforce_threshold_check) check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
 
       std::string message;
 
