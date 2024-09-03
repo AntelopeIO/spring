@@ -4003,12 +4003,13 @@ struct controller_impl {
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
-      if constexpr (savanna_mode) {
-         // Verify claim made by finality_extension in block header extension and
-         // quorum_certificate_extension in block extension are valid.
-         // This is the only place the evaluation is done.
-         verify_qc_claim(id, b, prev);
-      }
+
+      // Verify claim made by finality_extension in block header extension and
+      // quorum_certificate_extension in block extension are valid.
+      // This is the only place the evaluation is done.
+      // Note: the purpose of running verify_qc_claim on Legacy blocks too is to
+      // safe guard Legacy blocks.
+      verify_qc_claim(id, b, prev);
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
