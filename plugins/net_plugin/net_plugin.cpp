@@ -3747,8 +3747,12 @@ namespace eosio {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
             app().executor().post(priority::medium, exec_queue::read_write,
-                                  [ptr{std::move(ptr)}, bh{std::move(*obh)}, id, c{std::move(c)}]() mutable {
-                                     c->process_signed_block(id, std::move(ptr), bh);
+                                  []() {
+                                     try {
+                                        my_impl->producer_plug->on_incoming_block();
+                                     } catch (...) {
+                                        // errors on applied blocks logged in controller
+                                     }
                                   });
 
             // ready to process immediately, so signal producer to interrupt start_block
