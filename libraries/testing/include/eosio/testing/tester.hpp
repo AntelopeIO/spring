@@ -576,6 +576,9 @@ namespace eosio::testing {
          signed_block_ptr       _finish_block();
          void                   _check_for_vote_if_needed(controller& c, const block_handle& bh);
 
+         enum class block_signal { block_start, accepted_block_header, accepted_block, irreversible_block };
+         bool                   _check_signal(const block_id_type& id, block_signal sig);
+
       // Fields:
       protected:
          bool                   _expect_votes {true};                          // if set, ensure the node votes on each block
@@ -591,9 +594,8 @@ namespace eosio::testing {
          controller::config                            cfg;
          map<transaction_id_type, transaction_receipt> chain_transactions;
          map<account_name, block_id_type>              last_produced_block;
-         enum class block_signal { block_start, accepted_block_header, accepted_block, irreversible_block };
-         boost::unordered_flat_map<block_id_type, block_signal> blocks_signaled;
          unapplied_transaction_queue                   unapplied_transactions;
+         boost::unordered_flat_map<block_id_type, block_signal> blocks_signaled;
 
       public:
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;
