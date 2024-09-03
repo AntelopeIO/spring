@@ -8,6 +8,7 @@
 #include <fc/io/json.hpp>
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple_io.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 #include <eosio/testing/bls_utils.hpp>
 
@@ -591,7 +592,7 @@ namespace eosio::testing {
          map<transaction_id_type, transaction_receipt> chain_transactions;
          map<account_name, block_id_type>              last_produced_block;
          enum class block_signal { block_start, accepted_block_header, accepted_block, irreversible_block };
-         map<block_id_type, block_signal>              blocks_signaled;
+         boost::unordered_flat_map<block_id_type, block_signal> blocks_signaled;
          unapplied_transaction_queue                   unapplied_transactions;
 
       public:
