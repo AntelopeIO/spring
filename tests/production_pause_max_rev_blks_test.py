@@ -104,7 +104,8 @@ try:
     assert not node0.verifyAlive(), "node0 did not shutdown"
     producerbNode.kill(signal.SIGTERM)
     assert not producerbNode.verifyAlive(), "producerbNode did not shutdown"
-    addSwapFlags={"--max-reversible-blocks": "6"}
+    maxReversibleBlocks=6
+    addSwapFlags={"--max-reversible-blocks": str(maxReversibleBlocks)}
     node0.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
     producerbNode.relaunch(chainArg="--enable-stale-production", addSwapFlags=addSwapFlags)
 
@@ -122,8 +123,9 @@ try:
     if node0.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
         assert not node0.waitForLibToAdvance(timeout=5), "LIB should not advance on node0 after finalizerbNode was shutdown"
 
-    # give time for max reversible blocks to be exceeded
-    time.sleep(24) # 24 is the time to produce 48 blocks which is the configured max-reversible-blocks
+    # Wait until enough reversible blocks are produced
+    node0.getInfo()
+    node0.waitForBlock(node0.lastRetrievedLIB + maxReversibleBlocks)
 
     # Verify node0 and producerbNode then paused due to max reversible blocks exceeded
     Print("Verify production paused after LIB stalled")
