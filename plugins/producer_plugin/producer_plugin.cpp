@@ -820,6 +820,11 @@ public:
          return true; // return true because block was accepted
       }
 
+      // no reason to abort_block if we have nothing ready to process
+      if (chain.head().id() == chain.fork_db_head().id()) {
+         return true; // return true as nothing failed
+      }
+
       // start a new speculative block, adds to time tracker which includes this method's time
       auto ensure = fc::make_scoped_exit([this]() { schedule_production_loop(); });
 
