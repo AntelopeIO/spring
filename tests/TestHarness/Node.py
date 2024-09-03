@@ -273,13 +273,17 @@ class Node(Transactions):
             f"Waited for {time.perf_counter()-start} sec but never found producer: {producer}. Started with {initialProducer} and ended with {self.getInfo()['head_block_producer']}"
         return found
 
-    # returns True if the node has paused production.
-    def paused(self):
+    # returns True if the node has missed next scheduled production round.
+    def missedNextProductionRound(self):
         # Cannot use producer_plugin's paused() endpoint as it does not
         # include paused due to max-reversible-blocks exceeded.
         # The idea is to find the scheduled start block of node's producer's
         # next round. If that block is not produced, it means block production
         # on the node is paused.
+
+        assert self.isProducer, 'missedNextProductionRound can be only called on a producer'
+
+        blocksPerProducer = 12
 
         scheduled_producers = []
         schedule = self.processUrllibRequest("chain", "get_producer_schedule")
@@ -290,7 +294,7 @@ class Node(Transactions):
         self.getInfo()
         currBlockNum=self.lastRetrievedHeadBlockNum
         currProducer=self.lastRetrievedHeadBlockProducer
-        blocksRemainedInCurrRound = 12 - currBlockNum % 12 - 1
+        blocksRemainedInCurrRound = blocksPerProducer - currBlockNum % blocksPerProducer - 1
         if Utils.Debug: Utils.Print(f'currBlockNum {currBlockNum}, currProducer {currProducer}, blocksRemainedInCurrRound {blocksRemainedInCurrRound}')
 
         # find the positions of currProducerPos and nodeProducer in the schedule
@@ -307,12 +311,12 @@ class Node(Transactions):
         if currProducerPos < nodeProducerPos:
             # nodeProducerPos - currProducerPos - 1 is the number of producers
             # from current producer to the node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos - currProducerPos - 1) * 12 + blocksRemainedInCurrRound + 1
+            blocksToNextScheduledRound = (nodeProducerPos - currProducerPos - 1) * blocksPerProducer + blocksRemainedInCurrRound + 1
         else:
             # nodeProducerPos is the number of producers before node producer in the schedule
             # len(scheduled_producers) - currProducerPos - 1 is the number
             # of producers after node producer in the schedule
-            blocksToNextScheduledRound = (nodeProducerPos + (len(scheduled_producers)  - currProducerPos - 1)) * 12 + blocksRemainedInCurrRound + 1
+            blocksToNextScheduledRound = (nodeProducerPos + (len(scheduled_producers)  - currProducerPos - 1)) * blocksPerProducer + blocksRemainedInCurrRound + 1
 
         # find the block number of the node producer's next scheduled round
         nextScheduledRoundBlockNum=currBlockNum + blocksToNextScheduledRound

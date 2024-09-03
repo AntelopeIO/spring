@@ -129,8 +129,8 @@ try:
 
     # Verify node0 and producerbNode then paused due to max reversible blocks exceeded
     Print("Verify production paused after LIB stalled")
-    assert producerbNode.paused(), "producerbNode still producing after finalizerbNode was shutdown"
-    assert node0.paused(), "node0 still producing after finalizerbNode was shutdown"
+    assert producerbNode.missedNextProductionRound(), "producerbNode still producing after finalizerbNode was shutdown"
+    assert node0.missedNextProductionRound(), "node0 still producing after finalizerbNode was shutdown"
 
     ####################### test 2 ###########################
     # nodeos can restart with a higher --max-reversible-blocks
@@ -166,8 +166,8 @@ try:
     # After LIB advances, number of reversible blocks should decrease and
     # as a result production is unpaused
     Print("Verify production unpaused after LIB advances")
-    assert not node0.paused(), "node0 should have unpaused production after LIB advances"
-    assert not producerbNode.paused(), "producerbNode should have unpaused production after LIB advances"
+    assert not node0.missedNextProductionRound(), "node0 should have unpaused production after LIB advances"
+    assert not producerbNode.missedNextProductionRound(), "producerbNode should have unpaused production after LIB advances"
 
     testSuccessful=True
 finally:
