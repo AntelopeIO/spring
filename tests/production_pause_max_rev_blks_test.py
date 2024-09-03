@@ -14,7 +14,7 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 #
 # The test network consits of 3 nodes. 2 of them are producer nodes, with
 # producera and producerb. Configure --max-reversible-blocks but
-# disable --production-pause-vote-timeout-ms to avoid interfernce.
+# disable --production-pause-vote-timeout-ms to avoid interference.
 #
 # node0: Enables block production for producera and has the finalizer key with
 #        description of producera. Has vote-threads enabled. Connect to producerbNode.
