@@ -72,7 +72,7 @@ mvo prepare_rule_1_proof(  const finalizer_policy& active_finalizer_policy,
            )
            ("active_policy_qc", mvo()
               ("signature", fake_qc.active_policy_sig.sig.to_string())
-              ("finalizers", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
+              ("strong_votes", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
            )
         )
         ("proof_2", mvo()
@@ -89,7 +89,7 @@ mvo prepare_rule_1_proof(  const finalizer_policy& active_finalizer_policy,
            )
            ("active_policy_qc", mvo()
               ("signature", real_qc.active_policy_sig.sig.to_string())
-              ("finalizers", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
+              ("strong_votes", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
            )
         );
 
@@ -118,7 +118,7 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy,
            )
            ("active_policy_qc", mvo()
               ("signature", high_qc.active_policy_sig.sig.to_string())
-              ("finalizers", finality_proof::finalizers_string(high_qc.active_policy_sig.strong_votes.value())) 
+              ("strong_votes", finality_proof::finalizers_string(high_qc.active_policy_sig.strong_votes.value())) 
            )
         )
         ("low_proof", mvo()
@@ -135,7 +135,7 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy,
            )
            ("active_policy_qc", mvo()
               ("signature", low_qc.active_policy_sig.sig.to_string())
-              ("finalizers", finality_proof::finalizers_string(low_qc.active_policy_sig.strong_votes.value())) 
+              ("strong_votes", finality_proof::finalizers_string(low_qc.active_policy_sig.strong_votes.value())) 
            )
         )
         ("reversible_blocks_digests", digests);

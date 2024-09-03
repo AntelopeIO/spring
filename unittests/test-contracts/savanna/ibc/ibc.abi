@@ -329,7 +329,7 @@
             "base": "",
             "fields": [
                 {
-                    "name": "finalizers",
+                    "name": "strong_votes",
                     "type": "bytes"
                 },
                 {

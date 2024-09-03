@@ -24,7 +24,8 @@ namespace savanna {
 
    struct quorum_certificate_input {
        //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
-       std::vector<uint8_t>   finalizers;
+       std::vector<uint8_t>   strong_votes;
+
        //string representation of a BLS signature
        std::string            signature;
        std::optional<bool>    is_weak;
@@ -145,7 +146,7 @@ namespace savanna {
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
       size_t finalizer_count = finalizer_policy.finalizers.size();
-      savanna::bitset b(finalizer_count, qc.finalizers);
+      savanna::bitset b(finalizer_count, qc.strong_votes);
 
       bool first = true;
 
