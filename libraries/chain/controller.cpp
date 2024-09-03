@@ -4241,7 +4241,8 @@ struct controller_impl {
                     ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
                except = std::current_exception();
             } catch (const std::exception& e) {
-               elog("exception thrown while switching forks ${e}", ("e", e.what()));
+               elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
+                    ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.what()));
                except = std::current_exception();
             }
 
