@@ -142,12 +142,12 @@ try:
     node0.kill(signal.SIGTERM)
     assert not node0.verifyAlive(), "node0 did not shutdown"
 
-    addSwapFlags={"--max-reversible-blocks": "96"}
+    higherMaxReversibleBlocks=maxReversibleBlocks+12
+    addSwapFlags={"--max-reversible-blocks": str(higherMaxReversibleBlocks)}
     Print("Restart node0 with a higher max-reversible-blocks")
     node0.relaunch(addSwapFlags=addSwapFlags) # enable-stale-production was already configured in last relaunch
 
-    Print("Wait for one round")
-    time.sleep(7)
+    node0.waitForBlock(prevHeadBlockNum + 1)
 
     Print("Verify head block advances after node0 restart")
     node0.getInfo()
