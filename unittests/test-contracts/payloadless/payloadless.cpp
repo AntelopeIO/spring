@@ -29,8 +29,8 @@ bool is_prime(int p) {
 bool is_mersenne_prime(int p) {
    if (p == 2) return true;
 
-   const long long unsigned m_p = (1LLU << p) - 1;
    long long unsigned s = 4;
+   const long long unsigned m_p = (1LLU << (p % (sizeof(s) * 8))) - 1;
    int i;
    for (i = 3; i <= p; i++) {
       s = (s * s - 2) % m_p;
