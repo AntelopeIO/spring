@@ -3883,6 +3883,8 @@ struct controller_impl {
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
    void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+      assert(b->is_proper_svnn_block());
+
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       auto f_ext_id  = finality_extension::extension_id();
 
@@ -4071,6 +4073,8 @@ struct controller_impl {
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(is_proper_savanna_block == b->is_proper_svnn_block());
+
       // If is_proper_savanna_block is true, then it means that the parent block of block b has a block_state.
       //
       // For a block to have a block_state it means the block must be a Savanna block,
