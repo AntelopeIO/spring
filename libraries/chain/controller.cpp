@@ -4028,6 +4028,10 @@ struct controller_impl {
                   block_validate_exception,
                   "Transition block #${b} has a strong QC claim",
                   ("b", block_num) );
+      EOS_ASSERT( !f_ext.new_proposer_policy_diff,
+                  block_validate_exception,
+                  "Transition block #${b} has new_proposer_policy_diff",
+                  ("b", block_num) );
 
       if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
          const auto& prev_finality_ext = std::get<finality_extension>(it->second);
