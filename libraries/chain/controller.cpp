@@ -4001,13 +4001,13 @@ struct controller_impl {
                   "Legacy block #${b} has invalid schedule_version",
                   ("b", block_num) );
 
-      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
-                  "Legacy block #${b} may not have previous block that is a Proper Savanna block",
-                  ("b", block_num) );
-
+      // Verify we don't go back from Savanna (Transition or Proper) block to Legacy block
       auto it = prev.header_exts.find(finality_extension::extension_id());
       EOS_ASSERT( it == prev.header_exts.end(), invalid_qc_claim,
                   "Legacy block #${b} has previous block which contains finality block header extension",
+                  ("b", block_num) );
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
+                  "Legacy block #${b} may not have previous block that is a Proper Savanna block",
                   ("b", block_num) );
    }
 
@@ -4043,6 +4043,7 @@ struct controller_impl {
                   ("b", block_num) );
 
       if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
+         // Transition block other than Genesis Block
          const auto& prev_finality_ext = std::get<finality_extension>(it->second);
          EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
                      invalid_qc_claim,
@@ -4098,9 +4099,6 @@ struct controller_impl {
       // A block that has a Transition block as a parent must either be a Transition
       // block or a Proper Savanna block.
 
-      // Verify claim made by finality_extension in block header extension and
-      // quorum_certificate_extension in block extension are valid.
-      // This is the only place the evaluation is done.
       if constexpr (is_proper_savanna_block) {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Savanna block while its parent is a Savanna block",
