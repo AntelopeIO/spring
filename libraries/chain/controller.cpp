@@ -4046,7 +4046,7 @@ struct controller_impl {
          const auto& prev_finality_ext = std::get<finality_extension>(it->second);
          EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
                      invalid_qc_claim,
-                     "Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
+                     "Non Genesis Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
                      ("b", block_num) );
          EOS_ASSERT( !f_ext.new_finalizer_policy_diff, invalid_qc_claim,
                      "Non Genesis Transition block #${b} finality block header extension may not have new_finalizer_policy_diff",
