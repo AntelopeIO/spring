@@ -236,6 +236,7 @@ namespace savanna_cluster {
       std::string snapshot() const {
          dlog("node ${i} - taking snapshot", ("i", _node_idx));
          auto writer = buffered_snapshot_suite::get_writer();
+         control->abort_block();
          control->write_snapshot(writer);
          return buffered_snapshot_suite::finalize(writer);
       }
