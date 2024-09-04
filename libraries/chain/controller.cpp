@@ -3999,8 +3999,9 @@ struct controller_impl {
       bsp->verify_qc(qc_proof);
    }
 
-   // Verify Legacy blocks do not have a block header finality extension or
-   // a block QC extension.
+   // Verify a Legacy block does not have a QC block extension.
+   // (It can have a finality block header extension during transition to
+   // Savanna)
    void verify_legacy_block_exts( const signed_block_ptr& b ) {
       uint32_t block_num = b->block_num();
 
@@ -4010,13 +4011,6 @@ struct controller_impl {
       EOS_ASSERT( !qc_extension_present,
                   block_validate_exception,
                   "Legacy block #${b} includes a QC block extension",
-                  ("b", block_num) );
-
-      auto f_ext_id = finality_extension::extension_id();
-      std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
-      EOS_ASSERT( !header_ext,
-                  block_validate_exception,
-                  "Legacy block #${b} includes a finality block header extension",
                   ("b", block_num) );
    }
 
