@@ -42,17 +42,15 @@ public:
       diff_result result;
       while (s < source.size() || t < target.size()) {
          if (s < source.size() && t < target.size()) {
+            FC_ASSERT(s < std::numeric_limits<SizeType>::max());
+            FC_ASSERT(t < std::numeric_limits<SizeType>::max());
             if (source[s] == target[t]) {
                // nothing to do, skip over
-               FC_ASSERT(s <= std::numeric_limits<SizeType>::max());
-               FC_ASSERT(t <= std::numeric_limits<SizeType>::max());
                ++s;
                ++t;
             } else { // not equal
                if (s == source.size() - 1 && t == target.size() - 1) {
                   // both at end, insert target and remove source
-                  FC_ASSERT(s <= std::numeric_limits<SizeType>::max());
-                  FC_ASSERT(t <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
                   FC_ASSERT(result.remove_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
@@ -61,8 +59,6 @@ public:
                   ++t;
                } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
                   // misalignment, but next value equal, insert and remove
-                  FC_ASSERT(s <= std::numeric_limits<SizeType>::max());
-                  FC_ASSERT(t <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
                   FC_ASSERT(result.remove_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
@@ -71,13 +67,11 @@ public:
                   ++t;
                } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
                   // source equals next target, insert current target
-                  FC_ASSERT(t <= std::numeric_limits<SizeType>::max());
                   result.insert_indexes.emplace_back(t, target[t]);
                   FC_ASSERT(result.insert_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
                   ++t;
                } else { // source[s + 1] == target[t]
                   // target matches next source, remove current source
-                  FC_ASSERT(s <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   FC_ASSERT(result.remove_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
                   ++s;
@@ -85,13 +79,11 @@ public:
             }
          } else if (s < source.size()) {
             // remove extra in source
-            FC_ASSERT(s <= std::numeric_limits<SizeType>::max());
             result.remove_indexes.push_back(s);
             FC_ASSERT(result.remove_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
             ++s;
          } else if (t < target.size()) {
             // insert extra in target
-            FC_ASSERT(t <= std::numeric_limits<SizeType>::max());
             result.insert_indexes.emplace_back(t, target[t]);
             FC_ASSERT(result.insert_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
             ++t;
@@ -113,7 +105,7 @@ public:
       // Remove from the source based on diff.remove_indexes
       std::ptrdiff_t offset = 0;
       for (SizeType index : diff.remove_indexes) {
-         FC_ASSERT(index + offset <= container.size(), "diff.remove_indexes index ${idx} + offset ${o} not in range ${s}",
+         FC_ASSERT(index + offset < container.size(), "diff.remove_indexes index ${idx} + offset ${o} not in range ${s}",
                    ("idx", index)("o", offset)("s", container.size()));
          container.erase(container.begin() + index + offset);
          --offset;
