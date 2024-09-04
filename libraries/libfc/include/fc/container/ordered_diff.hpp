@@ -43,6 +43,8 @@ public:
       while (s < source.size() || t < target.size()) {
          FC_ASSERT(s < std::numeric_limits<SizeType>::max());
          FC_ASSERT(t < std::numeric_limits<SizeType>::max());
+         FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
+         FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
          if (s < source.size() && t < target.size()) {
             if (source[s] == target[t]) {
                // nothing to do, skip over
@@ -50,16 +52,12 @@ public:
                ++t;
             } else { // not equal
                if (s == source.size() - 1 && t == target.size() - 1) {
-                  FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
-                  FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
                   // both at end, insert target and remove source
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++s;
                   ++t;
                } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
-                  FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
-                  FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
                   // misalignment, but next value equal, insert and remove
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
@@ -67,24 +65,20 @@ public:
                   ++t;
                } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
                   // source equals next target, insert current target
-                  FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++t;
                } else { // source[s + 1] == target[t]
                   // target matches next source, remove current source
-                  FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
                   result.remove_indexes.push_back(s);
                   ++s;
                }
             }
          } else if (s < source.size()) {
             // remove extra in source
-            FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
             result.remove_indexes.push_back(s);
             ++s;
          } else if (t < target.size()) {
             // insert extra in target
-            FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
             result.insert_indexes.emplace_back(t, target[t]);
             ++t;
          }
