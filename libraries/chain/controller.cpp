@@ -3908,17 +3908,14 @@ struct controller_impl {
            ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
            ("qc", new_qc_claim)("p", b->previous));
 
-      // If there is a header extension, but the previous block does not have a header extension,
-      // ensure the block does not have a QC and the QC claim of the current block has a block_num
-      // of the current block’s number and that it is a claim of a weak QC. Then return early.
+      // The only time a block should have a finality block header extension but
+      // its parent block does not, is if it is a Savanna Genesis block (which is
+      // necessarily a Transition block). Since verify_qc_claim will not be called
+      // on Transition blocks, prev_finality_ext should always be present
       // -------------------------------------------------------------------------------------------------
-      if (!prev_finality_ext) {
-         EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
-                     invalid_qc_claim,
-                     "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
-                     ("b", block_num) );
-         return;
-      }
+      EOS_ASSERT( prev_finality_ext, invalid_qc_claim,
+                  "Previous block of Block #${b} doesn't have finality block header extension",
+                  ("b", block_num) );
 
       // at this point both current block and its parent have IF extensions, and we are past the
       // IF transition block
