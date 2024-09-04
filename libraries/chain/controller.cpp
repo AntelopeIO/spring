@@ -4010,10 +4010,10 @@ struct controller_impl {
                   ("b", block_num) );
 
       auto f_ext_id = finality_extension::extension_id();
-      std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
 
       // Make sure Transition block is not gone back to Legacy
-      if (!header_ext) {
+      if (!finality_ext) {
          auto it = prev.header_exts.find(finality_extension::extension_id());
          EOS_ASSERT( it == prev.header_exts.end(),
                      block_validate_exception,
@@ -4024,7 +4024,7 @@ struct controller_impl {
       }
 
       // Transition Block
-      const auto& f_ext = std::get<finality_extension>(*header_ext);
+      const auto& f_ext = std::get<finality_extension>(*finality_ext);
       EOS_ASSERT( !f_ext.qc_claim.is_strong_qc,
                   block_validate_exception,
                   "Transition block #${b} has a strong QC claim",
