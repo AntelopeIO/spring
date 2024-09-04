@@ -5,8 +5,9 @@
 
 namespace eosio::chain {
 
-static_assert(std::numeric_limits<uint16_t>::max() >= config::max_proposers - 1);
 using producer_auth_differ = fc::ordered_diff<producer_authority, uint16_t>;
+// verify producer_auth_differ size_type can represent all values of max_proposers
+static_assert(std::numeric_limits<producer_auth_differ::size_type>::max() >= config::max_proposers - 1);
 using producer_auth_diff_t = producer_auth_differ::diff_result;
 
 struct proposer_policy_diff {
