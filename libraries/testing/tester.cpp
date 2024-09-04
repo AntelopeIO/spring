@@ -306,6 +306,7 @@ namespace eosio::testing {
    void base_tester::close() {
       control.reset();
       chain_transactions.clear();
+      blocks_signaled.clear();
    }
 
    bool base_tester::is_open() const { return !!control; }
@@ -320,6 +321,35 @@ namespace eosio::testing {
 
    void base_tester::open( std::optional<chain_id_type> expected_chain_id ) {
       open( make_protocol_feature_set(), expected_chain_id );
+   }
+
+   bool base_tester::_check_signal(const block_id_type& id, block_signal sig) {
+      auto update_sig = fc::make_scoped_exit([&]() { blocks_signaled[id] = sig; });
+
+      auto itr = blocks_signaled.find(id);
+      bool present = itr != blocks_signaled.end();
+
+      switch(sig) {
+      case block_signal::block_start:
+         return true;  // only block number is signaled,
+
+      case block_signal::accepted_block_header:
+         // should get accepted_block_header signal only once, and before accepted_block signal;
+         return !present;
+
+      case block_signal::accepted_block:
+         // should get accepted_block signal after accepted_block_header signal
+         // or after accepted_block (on fork switch, accepted block signaled when block re-applied)
+         return present && (itr->second == block_signal::accepted_block_header ||
+                            itr->second == block_signal::accepted_block);
+
+      case block_signal::irreversible_block:
+         // can be signaled on restart as the first thing since other signals happened before shutdown
+         return !present ||
+                (present && itr->second == block_signal::accepted_block);
+      }
+
+      return false;
    }
 
    void base_tester::open( protocol_feature_set&& pfs, std::optional<chain_id_type> expected_chain_id, const std::function<void()>& lambda ) {
@@ -341,20 +371,31 @@ namespace eosio::testing {
       control->add_indices();
       control->testing_allow_voting(true);
       if (lambda) lambda();
-      chain_transactions.clear();
-      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this]( block_signal_params t ){
-        const auto& [ block, id ] = t;
-        FC_ASSERT( block );
-          for( auto receipt : block->transactions ) {
-              if( std::holds_alternative<packed_transaction>(receipt.trx) ) {
-                  auto &pt = std::get<packed_transaction>(receipt.trx);
-                  chain_transactions[pt.get_transaction().id()] = std::move(receipt);
-              } else {
-                  auto& id = std::get<transaction_id_type>(receipt.trx);
-                  chain_transactions[id] = std::move(receipt);
-              }
-          }
+      [[maybe_unused]] auto block_start_connection = control->block_start().connect([](block_num_type num) {
+         // only block number is signaled, in forking tests will get the same block number more than once.
       });
+      [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([this](const block_signal_params& t) {
+            const auto& [block, id] = t;
+            assert(block);
+            assert(_check_signal(id, block_signal::accepted_block_header));
+         });
+      chain_transactions.clear();
+      [[maybe_unused]] auto accepted_block_connection = control->accepted_block().connect([this](const block_signal_params& t) {
+            const auto& [block, id] = t;
+            assert(block);
+            assert(block->block_num() > lib_number);
+            assert(_check_signal(id, block_signal::accepted_block));
+
+            for (auto receipt : block->transactions) {
+               if (std::holds_alternative<packed_transaction>(receipt.trx)) {
+                  const auto& pt = std::get<packed_transaction>(receipt.trx);
+                  chain_transactions[pt.get_transaction().id()] = std::move(receipt);
+               } else {
+                  const auto& tid = std::get<transaction_id_type>(receipt.trx);
+                  chain_transactions[tid] = std::move(receipt);
+               }
+            }
+         });
 
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
@@ -364,11 +405,13 @@ namespace eosio::testing {
       lib_block = control->fetch_block_by_id(lib_id);
       [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
          const auto& [ block, id ] = t;
+         assert(block);
+         assert(_check_signal(id, block_signal::irreversible_block));
          lib_block = block;
          lib_id    = id;
          assert(lib_block->block_num() > lib_number); // let's make sure that lib always increases
          lib_number = lib_block->block_num();
-      });
+     });
 
       if (_open_callback)
          _open_callback();
