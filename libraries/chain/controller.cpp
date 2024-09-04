@@ -3882,7 +3882,7 @@ struct controller_impl {
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       auto f_ext_id  = finality_extension::extension_id();
 
@@ -3910,7 +3910,7 @@ struct controller_impl {
 
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
-      // necessarily a Transition block). Since verify_qc_claim will not be called
+      // necessarily a Transition block). Since verify_proper_block_exts will not be called
       // on Transition blocks, prev_finality_ext should always be present
       // -------------------------------------------------------------------------------------------------
       EOS_ASSERT( prev_finality_ext, invalid_qc_claim,
@@ -4101,7 +4101,7 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Savanna block while its parent is a Savanna block",
                      ("b", b->block_num()) );
-         verify_qc_claim(id, b, prev);
+         verify_proper_block_exts(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Savanna block while its parent is not a Savanna block",
@@ -4199,7 +4199,7 @@ struct controller_impl {
       return fork_db.apply<std::optional<block_handle>>(unlinkable, f);
    }
 
-   // thread safe, QC already verified by verify_qc_claim
+   // thread safe, QC already verified by verify_proper_block_exts
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
       assert(bsp_in->block);
