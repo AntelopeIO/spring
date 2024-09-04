@@ -323,5 +323,70 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
 
 } FC_LOG_AND_RETHROW()
 
+// ---------------------------------------------------------------------------------------------------
+//                    Policy change: restart from snapshot with no blocklog or fork database
+// B1 <- B2 <- B3 <- B4 <- B5 <- B6
+//
+// where:
+// B2 claims a strong QC on B1.
+// B3 claims a strong QC on B1.
+// B4 claims a strong QC on B2. (B4 makes B1 final.)
+// B5 claims a strong QC on B4. (B5 makes B2 final.)
+// B6 claims a strong QC on B5. (B6 makes B4 final.)
+//
+// Let's say a node operator decided to take a snapshot on B3. After their node receives B6, B4 becomes final and the
+// snapshot on B3 becomes available.
+//
+// Then the operator shuts down nodeos and decides to restart from the snapshot on B3.
+//
+// After starting up from the snapshot, their node receives block B4 from the P2P network. Since B4 advances the QC
+// claim relative to its parent (from a strong QC claimed on B1 to a strong QC claimed on B2), it must include a QC
+// attached to justify its claim. It does in fact contain the strong QC on block B2, but how does this node verify the
+// QC? It started with B3 as the root block of its fork database, so block B2 does not exist in the fork database.
+// ---------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster::cluster_t) try {
+   using namespace savanna_cluster;
+   auto& A=_nodes[0];
+
+   _debug_mode = true;
+   auto b1 = A.produce_block();                         // receives strong votes from all finalizers
+
+   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b2 (yet)
+   set_partition(partition);
+
+   auto b2 = A.produce_block();                         // receives just 1 strong vote fron A
+   auto b3 = A.produce_block();                         // b3 repeats b2 strong qc claim on b1 (because no qc on b2)
+   auto b3_snapshot = A.snapshot();
+
+   set_partition({});                                   // remove partition so A will receive votes on b2 and b3
+
+   push_block(0, b2);
+   auto b4 = A.produce_block();                         // b4 claims a strong QC on b2. (b4 makes b1 final.)
+
+   push_block(0, b3);
+   auto b5 = A.produce_block();                         // b5 claims a strong QC on b4. (b5 makes b2 final.)
+
+   auto b6 = A.produce_block();                         // b6 claims a strong QC on b5. (b6 makes b4 final.)
+
+   // Then the operator shuts down nodeos and decides to restart from the snapshot on B3.
+   A.close();
+   A.remove_state();
+   A.remove_reversible_data_and_blocks_log();
+
+   A.open_from_snapshot(b3_snapshot);
+
+   // After starting up from the snapshot, their node receives block b4 from the P2P network.
+   // Since b4 advances the QC claim relative to its parent (from a strong QC claimed on b1
+   // to a strong QC claimed on b2), it must include a QC attached to justify its claim.
+   // It does in fact contain the strong QC on block b2, but how does this node verify the QC?
+   // It started with b3 as the root block of its fork database, so block b2 does not exist in
+   // the fork database.
+   // -----------------------------------------------------------------------------------------
+   A.push_block(b4);
+   A.push_block(b5);
+   A.push_block(b6);
+
+} FC_LOG_AND_RETHROW()
+
 
 BOOST_AUTO_TEST_SUITE_END()
