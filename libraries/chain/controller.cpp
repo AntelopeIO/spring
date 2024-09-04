@@ -4049,6 +4049,13 @@ struct controller_impl {
                      block_validate_exception,
                      "Savanna Genesis block #${b} finality block header extension misses new_finalizer_policy_diff",
                      ("b", block_num) );
+
+         finalizer_policy no_policy;
+         finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
+         EOS_ASSERT( genesis_policy.generation == 1,
+                     block_validate_exception,
+                     "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
+                     ("b", block_num)("g", genesis_policy.generation) );
       }
    }
 
