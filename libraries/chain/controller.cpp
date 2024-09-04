@@ -3983,30 +3983,26 @@ struct controller_impl {
       bsp->verify_qc(qc_proof);
    }
 
-   // Verify common properties applying to both Legacy and Transition blocks.
-   void verify_legacy_and_transition_block_exts_common( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
-      uint32_t block_num = b->block_num();
-
-      auto block_exts = b->validate_and_extract_extensions();
-      auto qc_ext_id = quorum_certificate_extension::extension_id();
-      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
-      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
-                  "Legacy or Transition block #${b} includes a QC block extension",
-                  ("b", block_num) );
-
-      EOS_ASSERT( !b->is_proper_svnn_block(), invalid_qc_claim,
-                  "Legacy or Transition block #${b} has invalid schedule_version",
-                  ("b", block_num) );
-
-      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
-                  "Legacy or Transition block #${b} may not have previous block that is a Proper Savanna block",
-                  ("b", block_num) );
-   }
-
    void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       assert(b->is_legacy_block());
 
       uint32_t block_num = b->block_num();
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+                  "Legacy block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !b->is_proper_svnn_block(), invalid_qc_claim,
+                  "Legacy block #${b} has invalid schedule_version",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
+                  "Legacy block #${b} may not have previous block that is a Proper Savanna block",
+                  ("b", block_num) );
+
       auto it = prev.header_exts.find(finality_extension::extension_id());
       EOS_ASSERT( it == prev.header_exts.end(), invalid_qc_claim,
                   "Legacy block #${b} has previous block which contains finality block header extension",
@@ -4016,11 +4012,27 @@ struct controller_impl {
    void verify_transition_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       assert(!b->is_legacy_block());
 
+      uint32_t block_num = b->block_num();
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+                  "Transition block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !b->is_proper_svnn_block(), invalid_qc_claim,
+                  "Transition block #${b} has invalid schedule_version",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
+                  "Transition block #${b} may not have previous block that is a Proper Savanna block",
+                  ("b", block_num) );
+
       auto f_ext_id = finality_extension::extension_id();
       std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
       const auto& f_ext = std::get<finality_extension>(*finality_ext);
 
-      uint32_t block_num = b->block_num();
       EOS_ASSERT( !f_ext.qc_claim.is_strong_qc, invalid_qc_claim,
                   "Transition block #${b} has a strong QC claim",
                   ("b", block_num) );
@@ -4091,8 +4103,6 @@ struct controller_impl {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Savanna block while its parent is not a Savanna block",
                      ("b", b->block_num()) );
-
-         verify_legacy_and_transition_block_exts_common(b, prev);
 
          if (b->is_legacy_block()) {
             verify_legacy_block_exts(b, prev);
