@@ -3996,27 +3996,28 @@ struct controller_impl {
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       EOS_ASSERT( !qc_extension_present,
                   block_validate_exception,
-                  "Legacy block #${b} includes a QC block extension",
+                  "Legacy or Transition block #${b} includes a QC block extension",
                   ("b", block_num) );
 
       EOS_ASSERT( !b->is_proper_svnn_block(),
                   block_validate_exception,
-                  "Legacy block #${b} may not be Proper Savnanna block",
+                  "Legacy or Transition block #${b} has invalid schedule_version",
                   ("b", block_num) );
 
       EOS_ASSERT( !prev.header.is_proper_svnn_block(),
                   block_validate_exception,
-                  "Legacy block's #${b} previous block may not be Proper Savnanna block",
+                  "Legacy or Transition block #${b} may not have previous block that is a Proper Savanna block",
                   ("b", block_num) );
 
       auto f_ext_id = finality_extension::extension_id();
       std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
 
+      // Make sure Transition block is not gone back to Legacy
       if (!header_ext) {
          auto it = prev.header_exts.find(finality_extension::extension_id());
          EOS_ASSERT( it == prev.header_exts.end(),
                      block_validate_exception,
-                     "Block #${b} does not have finality block header extension but its previous block does have",
+                     "Legacy block #${b} does not have finality block header extension but its previous block does have",
                      ("b", block_num) );
 
          return;
