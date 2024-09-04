@@ -29,6 +29,8 @@ template <typename T, typename SizeType = size_t, template<typename Y, typename.
 requires std::equality_comparable<T> && std::random_access_iterator<typename Container<T>::iterator>
 class ordered_diff {
 public:
+   using size_type = SizeType;
+
    struct diff_result {
       Container<SizeType>                remove_indexes;
       Container<std::pair<SizeType, T>>  insert_indexes;
@@ -39,48 +41,65 @@ public:
       size_t s = 0;
       size_t t = 0;
 
+      FC_ASSERT(source.empty() || (source.size() - 1) <= std::numeric_limits<SizeType>::max());
+      FC_ASSERT(target.empty() || (target.size() - 1) <= std::numeric_limits<SizeType>::max());
+
       diff_result result;
       while (s < source.size() || t < target.size()) {
-         FC_ASSERT(s < std::numeric_limits<SizeType>::max());
-         FC_ASSERT(t < std::numeric_limits<SizeType>::max());
-         FC_ASSERT(result.remove_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
-         FC_ASSERT(result.insert_indexes.size() < MAX_NUM_ARRAY_ELEMENTS);
+         assert(s <= source.size());
+         assert(t <= target.size());
          if (s < source.size() && t < target.size()) {
             if (source[s] == target[t]) {
                // nothing to do, skip over
                ++s;
                ++t;
+               assert(s > 0 && t > 0);
             } else { // not equal
                if (s == source.size() - 1 && t == target.size() - 1) {
                   // both at end, insert target and remove source
+                  assert(s <= std::numeric_limits<SizeType>::max());
+                  assert(t <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++s;
                   ++t;
+                  assert(s > 0 && t > 0);
                } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
                   // misalignment, but next value equal, insert and remove
+                  assert(s <= std::numeric_limits<SizeType>::max());
+                  assert(t <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++s;
                   ++t;
+                  assert(s > 0 && t > 0);
                } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
                   // source equals next target, insert current target
+                  assert(t <= std::numeric_limits<SizeType>::max());
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++t;
-               } else { // source[s + 1] == target[t]
-                  // target matches next source, remove current source
+                  assert(t > 0);
+               } else {
+                  // not misalignment by one and source not equal to next target, so remove from source
+                  // may be inserted later by other conditions if needed
+                  assert(t <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   ++s;
+                  assert(s > 0);
                }
             }
          } else if (s < source.size()) {
             // remove extra in source
+            assert(s <= std::numeric_limits<SizeType>::max());
             result.remove_indexes.push_back(s);
             ++s;
+            assert(s > 0);
          } else if (t < target.size()) {
             // insert extra in target
+            assert(t <= std::numeric_limits<SizeType>::max());
             result.insert_indexes.emplace_back(t, target[t]);
             ++t;
+            assert(t > 0);
          }
       }
 
@@ -93,9 +112,6 @@ public:
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
    static Container<T> apply_diff(Container<T>&& container, X&& diff) {
-      FC_ASSERT(diff.remove_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
-      FC_ASSERT(diff.insert_indexes.size() <= MAX_NUM_ARRAY_ELEMENTS);
-
       // Remove from the source based on diff.remove_indexes
       std::ptrdiff_t offset = 0;
       for (SizeType index : diff.remove_indexes) {
@@ -109,7 +125,6 @@ public:
       for (auto& [index, value] : diff.insert_indexes) {
          FC_ASSERT(index <= container.size(), "diff.insert_indexes index ${idx} not in range ${s}",
                    ("idx", index)("s", container.size()));
-         FC_ASSERT(container.size() < MAX_NUM_ARRAY_ELEMENTS);
          container.insert(container.begin() + index, std::move(value));
       }
       return container;
