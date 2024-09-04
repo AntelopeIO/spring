@@ -360,7 +360,7 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
 
    set_partition({});                                   // remove partition so A will receive votes on b2 and b3
 
-   push_block(0, b2);
+   push_block(0, b2);                                   // other nodes receive b2 and vote on it, so A forms a qc on b2
    auto b4 = A.produce_block();                         // b4 claims a strong QC on b2. (b4 makes b1 final.)
 
    push_block(0, b3);
