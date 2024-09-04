@@ -344,6 +344,7 @@ namespace eosio::testing {
                             itr->second == block_signal::accepted_block);
 
       case block_signal::irreversible_block:
+         // can be signaled on restart as the first thing since other signals happened before shutdown
          return !present ||
                 (present && itr->second == block_signal::accepted_block);
       }
