@@ -3986,9 +3986,8 @@ struct controller_impl {
       bsp->verify_qc(qc_proof);
    }
 
-   // Verify a Legacy block does not have a QC block extension.
-   // (It can have a finality block header extension during transition to
-   // Savanna)
+   // Verify QC block extension and finality block header extension on a Legacy
+   // or Transition block.
    void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       uint32_t block_num = b->block_num();
 
@@ -4000,27 +3999,52 @@ struct controller_impl {
                   "Legacy block #${b} includes a QC block extension",
                   ("b", block_num) );
 
+      EOS_ASSERT( !b->is_proper_svnn_block(),
+                  block_validate_exception,
+                  "Legacy block #${b} may not be Proper Savnanna block",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(),
+                  block_validate_exception,
+                  "Legacy block's #${b} previous block may not be Proper Savnanna block",
+                  ("b", block_num) );
+
       auto f_ext_id = finality_extension::extension_id();
       std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
-      if (header_ext) {
-         const auto& f_ext = std::get<finality_extension>(*header_ext);
-         EOS_ASSERT( !f_ext.qc_claim.is_strong_qc,
+
+      if (!header_ext) {
+         auto it = prev.header_exts.find(finality_extension::extension_id());
+         EOS_ASSERT( it == prev.header_exts.end(),
                      block_validate_exception,
-                     "Transition block #${b} has a strong QC claim",
+                     "Block #${b} does not have finality block header extension but its previous block does have",
                      ("b", block_num) );
 
-         if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
-            const auto& prev_finality_ext = std::get<finality_extension>(it->second);
-            EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
-                        block_validate_exception,
-                        "Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
-                        ("b", block_num) );
-         } else {
-            EOS_ASSERT( f_ext.qc_claim.block_num == block_num,
-                        block_validate_exception,
-                        "Transition block #${b} QC claim block_num not equal to current block_num",
-                        ("b", block_num) );
-         }
+         return;
+      }
+
+      // Transition Block
+      const auto& f_ext = std::get<finality_extension>(*header_ext);
+      EOS_ASSERT( !f_ext.qc_claim.is_strong_qc,
+                  block_validate_exception,
+                  "Transition block #${b} has a strong QC claim",
+                  ("b", block_num) );
+
+      if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
+         const auto& prev_finality_ext = std::get<finality_extension>(it->second);
+         EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
+                     block_validate_exception,
+                     "Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
+                     ("b", block_num) );
+      } else {
+         // Savanna Genesis Block
+         EOS_ASSERT( f_ext.qc_claim.block_num == block_num,
+                     block_validate_exception,
+                     "Savanna Genesis block #${b} QC claim block_num not equal to current block_num",
+                     ("b", block_num) );
+         EOS_ASSERT( f_ext.new_finalizer_policy_diff,
+                     block_validate_exception,
+                     "Savanna Genesis block #${b} finality block header extension misses new_finalizer_policy_diff",
+                     ("b", block_num) );
       }
    }
 
