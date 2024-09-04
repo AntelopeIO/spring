@@ -4067,8 +4067,8 @@ struct controller_impl {
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
-      constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
-      // If savanna_mode is true, then it means that the parent block of block b has a block_state.
+      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      // If is_proper_savanna_block is true, then it means that the parent block of block b has a block_state.
       //
       // For a block to have a block_state it means the block must be a Savanna block,
       // which means either Transition block or a Proper Savanna block.
@@ -4079,7 +4079,7 @@ struct controller_impl {
       // So given that the parent block has a block_state, we know that block b must either be
       // a Transition block or a Proper Savanna block.
 
-      // If savanna_mode is false, then it means that the parent block of block b
+      // If is_proper_savanna_block is false, then it means that the parent block of block b
       // has a block_state_legacy.
       //
       // For a block to have a block_state_legacy it means the block must either be
@@ -4094,7 +4094,7 @@ struct controller_impl {
       // Verify claim made by finality_extension in block header extension and
       // quorum_certificate_extension in block extension are valid.
       // This is the only place the evaluation is done.
-      if constexpr (savanna_mode) {
+      if constexpr (is_proper_savanna_block) {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Savanna block while its parent is a Savanna block",
                      ("b", b->block_num()) );
@@ -4111,7 +4111,7 @@ struct controller_impl {
          }
       }
 
-      auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
+      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
                   block_validate_exception,
                   "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
@@ -4131,14 +4131,14 @@ struct controller_impl {
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
-      if constexpr (savanna_mode) {
+      if constexpr (is_proper_savanna_block) {
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
       if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
-         if constexpr (savanna_mode)
+         if constexpr (is_proper_savanna_block)
             vote_processor.notify_new_block(async_aggregation);
       }
 
