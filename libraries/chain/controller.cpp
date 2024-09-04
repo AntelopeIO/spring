@@ -4059,17 +4059,40 @@ struct controller_impl {
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      // If savanna_mode is true, then it means that the parent block of block b has a block_state.
+      //
+      // For a block to have a block_state it means the block must be a Savanna block,
+      // which means either Transition block or a Proper Savanna block.
+      //
+      // A block that has a Savanna block as a parent must also be a Savanna block.
+      // A block that has a Proper Savanna block as a parent must also be a Proper Savanna block.
+      //
+      // So given that the parent block has a block_state, we know that block b must either be
+      // a Transition block or a Proper Savanna block.
+
+      // If savanna_mode is false, then it means that the parent block of block b
+      // has a block_state_legacy.
+      //
+      // For a block to have a block_state_legacy it means the block must either be
+      // a Legacy block or a Transition block.
+      //
+      // A block that has a Legacy block as a parent must either be a Legacy block
+      // or a Transition block.
+      //
+      // A block that has a Transition block as a parent must either be a Transition
+      // block or a Proper Savanna block.
 
       // Verify claim made by finality_extension in block header extension and
       // quorum_certificate_extension in block extension are valid.
       // This is the only place the evaluation is done.
-      // Note: the purpose of running verify_qc_claim on Legacy blocks too is to
-      // safe guard Legacy blocks.
       if constexpr (savanna_mode) {
+         EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is not a Savanna block while its parent is a Savanna block",
+                     ("b", b->block_num()) );
          verify_qc_claim(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
-                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block while its parent is a Legacy block or a Transition block",
+                     "create_block_state_i cannot be called on block #${b} which is a Savanna block while its parent is not a Savanna block",
                      ("b", b->block_num()) );
 
          verify_legacy_and_transition_block_exts_common(b, prev);
