@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       BOOST_TEST(source == target);
    }
    { // full
-      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()-1);
+      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()+1);
       std::iota(source.begin(), source.end(), 0);
       vector<uint8_t> target(source.size());
       std::reverse_copy(source.begin(), source.end(), target.begin());
