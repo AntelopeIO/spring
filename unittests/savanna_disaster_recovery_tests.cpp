@@ -299,7 +299,8 @@ BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_clust
 
    BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
    auto snapshot = C.snapshot();
-   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
+   signed_block_ptr b1, b2;
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { b1 = A.produce_block();  b2 = A.produce_block(); }));
    C.close();
    C.remove_state();
    C.remove_reversible_data_and_blocks_log();
@@ -307,6 +308,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_clust
    C.open_from_snapshot(snapshot);
    C.close();
    C.open();
+   C.push_block(b1);
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()
