@@ -4031,7 +4031,7 @@ struct controller_impl {
       assert(finality_ext);
       const auto& f_ext = std::get<finality_extension>(*finality_ext);
 
-      EOS_ASSERT( !f_ext.new_proposer_policy_diff, invalid_qc_claim,
+      EOS_ASSERT( !f_ext.new_proposer_policy_diff, block_validate_exception,
                   "Transition block #${b} has new_proposer_policy_diff",
                   ("b", block_num) );
 
