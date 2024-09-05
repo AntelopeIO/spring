@@ -40,7 +40,7 @@ nodeos --full-version
 ```
 You should see a [semantic version](https://semver.org) string followed by a `git` commit hash with no errors. For example:
 ```
-v3.1.2-0b64f879e3ebe2e4df09d2e62f1fc164cc1125d1
+v1.0.1-9026a03c09c9b4f93edca696b5eef259f0ab96b3
 ```
 
 ## Build and Install from Source
@@ -84,7 +84,7 @@ cd spring
 ```
 
 ### Step 2 - Checkout Release Tag or Branch
-Choose which [release](https://github.com/AntelopeIO/spring/releases) or [branch](#branches) you would like to build, then check it out. If you are not sure, use the [latest release](https://github.com/AntelopeIO/spring/releases/latest). For example, if you want to build release 3.1.2 then you would check it out using its tag, `v3.1.2`. In the example below, replace `v0.0.0` with your selected release tag accordingly:
+Choose which [release](https://github.com/AntelopeIO/spring/releases) or [branch](#branches) you would like to build, then check it out. If you are not sure, use the [latest release](https://github.com/AntelopeIO/spring/releases/latest). For example, if you want to build release 1.0.1 then you would check it out using its tag, `v1.0.1`. In the example below, replace `v0.0.0` with your selected release tag accordingly:
 ```bash
 git fetch --all --tags
 git checkout v0.0.0
