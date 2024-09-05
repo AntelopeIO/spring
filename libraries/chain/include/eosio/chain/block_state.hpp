@@ -181,9 +181,6 @@ public:
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
-   static void verify_signee(const signed_block_ptr& block, const block_id_type& block_id,
-                             const std::vector<signature_type>& additional_signatures,
-                             const block_signing_authority& valid_block_signing_authority);
 };
 
 using block_state_ptr       = std::shared_ptr<block_state>;
