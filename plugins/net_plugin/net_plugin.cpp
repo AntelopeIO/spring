@@ -1480,6 +1480,7 @@ namespace eosio {
          conn_node_id = fc::sha256();
       }
       peer_lib_num = 0;
+      peer_ping_time_ns = std::numeric_limits<decltype(peer_ping_time_ns)::value_type>::max();
       peer_requested.reset();
       sent_handshake_count = 0;
       if( !shutdown) my_impl->sync_master->sync_reset_lib_num( shared_from_this(), true );
@@ -2222,7 +2223,13 @@ namespace eosio {
 
    // thread safe
    bool sync_manager::sync_recently_active() const {
-      return std::chrono::steady_clock::now() - sync_active_time.load() < my_impl->resp_expected_period;
+      auto time_since_active = std::chrono::steady_clock::now() - sync_active_time.load();
+      bool active = time_since_active < my_impl->resp_expected_period;
+      if (!active) {
+         fc_dlog(logger, "sync not recently active, time since last sync block ${t}ms",
+                 ("t", std::chrono::duration_cast<std::chrono::milliseconds>(time_since_active).count()));
+      }
+      return active;
    }
 
    // called from connection strand
@@ -2588,8 +2595,9 @@ namespace eosio {
       }
    }
 
-   // thread safe
+   // thread safe, called when block received
    void sync_manager::send_handshakes_if_synced(const fc::microseconds& blk_latency) {
+      sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
       if (blk_latency.count() < config::block_interval_us && send_handshakes_when_synced) {
          fc_dlog(logger, "Block latency within block interval, synced, sending handshakes");
          send_handshakes();
