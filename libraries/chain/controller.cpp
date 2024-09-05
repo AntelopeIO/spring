@@ -4061,9 +4061,7 @@ struct controller_impl {
             EOS_ASSERT( genesis_policy.generation == 1, block_validate_exception,
                         "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
                         ("b", block_num)("g", genesis_policy.generation) );
-         } catch( ... ) {
-            EOS_THROW(block_validate_exception, "Failed to apply Genesis block finalizer_policy_diff");
-         }
+         } EOS_RETHROW_EXCEPTIONS(block_validate_exception, "applying diff of Savanna Genesis Bloc")
       }
    }
 
