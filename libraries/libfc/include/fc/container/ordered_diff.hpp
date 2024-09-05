@@ -53,7 +53,6 @@ public:
                // nothing to do, skip over
                ++s;
                ++t;
-               assert(s > 0 && t > 0);
             } else { // not equal
                if (s == source.size() - 1 && t == target.size() - 1) {
                   // both at end, insert target and remove source
@@ -63,7 +62,6 @@ public:
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++s;
                   ++t;
-                  assert(s > 0 && t > 0);
                } else if (s + 1 < source.size() && t + 1 < target.size() && source[s + 1] == target[t + 1]) {
                   // misalignment, but next value equal, insert and remove
                   assert(s <= std::numeric_limits<SizeType>::max());
@@ -72,20 +70,17 @@ public:
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++s;
                   ++t;
-                  assert(s > 0 && t > 0);
                } else if (t + 1 < target.size() && source[s] == target[t + 1]) {
                   // source equals next target, insert current target
                   assert(t <= std::numeric_limits<SizeType>::max());
                   result.insert_indexes.emplace_back(t, target[t]);
                   ++t;
-                  assert(t > 0);
                } else {
                   // not misalignment by one and source not equal to next target, so remove from source
                   // may be inserted later by other conditions if needed
-                  assert(t <= std::numeric_limits<SizeType>::max());
+                  assert(s <= std::numeric_limits<SizeType>::max());
                   result.remove_indexes.push_back(s);
                   ++s;
-                  assert(s > 0);
                }
             }
          } else if (s < source.size()) {
@@ -93,13 +88,11 @@ public:
             assert(s <= std::numeric_limits<SizeType>::max());
             result.remove_indexes.push_back(s);
             ++s;
-            assert(s > 0);
          } else if (t < target.size()) {
             // insert extra in target
             assert(t <= std::numeric_limits<SizeType>::max());
             result.insert_indexes.emplace_back(t, target[t]);
             ++t;
-            assert(t > 0);
          }
       }
 
