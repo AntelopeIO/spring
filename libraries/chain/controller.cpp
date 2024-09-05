@@ -3919,9 +3919,6 @@ struct controller_impl {
                   "Proper Savanna block #${b} may not have previous block that is a Legacy block",
                   ("b", block_num) );
 
-      // at this point both current block and its parent have IF extensions, and we are past the
-      // IF transition block
-      // ----------------------------------------------------------------------------------------
       assert(prev_finality_ext);
       const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
@@ -4068,10 +4065,10 @@ struct controller_impl {
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
-      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
-      assert(is_proper_savanna_block == b->is_proper_svnn_block());
+      constexpr bool prev_is_of_type_block_state = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(prev_is_of_type_block_state == b->is_proper_svnn_block());
 
-      if constexpr (is_proper_savanna_block) {
+      if constexpr (prev_is_of_type_block_state) {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
@@ -4088,7 +4085,7 @@ struct controller_impl {
          }
       }
 
-      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
+      auto trx_mroot = calculate_trx_merkle( b->transactions, prev_is_of_type_block_state );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
                   block_validate_exception,
                   "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
@@ -4108,14 +4105,14 @@ struct controller_impl {
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
-      if constexpr (is_proper_savanna_block) {
+      if constexpr (prev_is_of_type_block_state) {
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
       if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
-         if constexpr (is_proper_savanna_block)
+         if constexpr (prev_is_of_type_block_state)
             vote_processor.notify_new_block(async_aggregation);
       }
 
