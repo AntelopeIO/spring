@@ -92,6 +92,9 @@ namespace eosio::chain {
       // finality extension must exist.
       bool is_proper_svnn_block() const { return ( schedule_version == proper_svnn_schedule_version ); }
 
+      // Returns true if the block is a pure Legacy block
+      bool is_legacy_block() const { return !contains_header_extension(finality_extension::extension_id()); }
+
       header_extension_multimap validate_and_extract_header_extensions()const;
       std::optional<block_header_extension> extract_header_extension(uint16_t extension_id)const;
       template<typename Ext> Ext extract_header_extension()const {
