@@ -291,4 +291,22 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    }));
 } FC_LOG_AND_RETHROW()
 
+
+// --------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& C=_nodes[2];
+
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
+   auto snapshot = C.snapshot();
+   BOOST_REQUIRE_EQUAL(2u, A.lib_advances_by([&]() { A.produce_blocks(2);  }));
+   C.close();
+   C.remove_state();
+   C.remove_reversible_data_and_blocks_log();
+
+   C.open_from_snapshot(snapshot);
+   C.close();
+   C.open();
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()
