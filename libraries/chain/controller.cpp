@@ -4015,10 +4015,6 @@ struct controller_impl {
                   "Transition block #${b} includes a QC block extension",
                   ("b", block_num) );
 
-      EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
-                  "Transition block #${b} has invalid schedule_version",
-                  ("b", block_num) );
-
       EOS_ASSERT( !prev.header.is_proper_svnn_block(), block_validate_exception,
                   "Transition block #${b} may not have previous block that is a Proper Savanna block",
                   ("b", block_num) );
