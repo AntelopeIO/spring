@@ -6,8 +6,10 @@
 
 namespace eosio::chain {
 
-   static_assert(std::numeric_limits<uint16_t>::max() >= config::max_finalizers - 1);
    using finalizers_differ = fc::ordered_diff<finalizer_authority, uint16_t>;
+   // Verify finalizers_differ::size_type can represent all index values in the
+   // diff between two policies that could each hold up to max_finalizers entries.
+   static_assert(std::numeric_limits<finalizers_differ::size_type>::max() >= config::max_finalizers - 1);
    using finalizers_diff_t = finalizers_differ::diff_result;
 
    struct finalizer_policy_diff {
