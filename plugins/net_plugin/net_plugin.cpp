@@ -2226,7 +2226,7 @@ namespace eosio {
       auto time_since_active = std::chrono::steady_clock::now() - sync_active_time.load();
       bool active = time_since_active < my_impl->resp_expected_period;
       if (!active) {
-         fc_dlog(logger, "sync has not received a block recently, time since sync block ${t}ms",
+         fc_dlog(logger, "sync not recently active, time since last sync block ${t}ms",
                  ("t", std::chrono::duration_cast<std::chrono::milliseconds>(time_since_active).count()));
       }
       return active;
