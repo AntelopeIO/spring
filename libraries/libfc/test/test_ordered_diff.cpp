@@ -3,6 +3,9 @@
 #include <fc/container/ordered_diff.hpp>
 #include <fc/exception/exception.hpp>
 
+#include <algorithm>
+#include <random>
+
 using namespace fc;
 
 BOOST_AUTO_TEST_SUITE(ordered_diff_tests)
@@ -39,6 +42,13 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char, int>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // All elements removed, size 1
+      vector<char> source = {'a'};
+      vector<char> target;
+      auto result = ordered_diff<char, int>::diff(source, target);
+      source = ordered_diff<char, int>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
    { // All elements inserted
       vector<char> source;
       vector<char> target = {'a', 'b', 'c', 'd', 'e'};
@@ -46,8 +56,22 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // All elements inserted, size 1
+      vector<char> source;
+      vector<char> target = {'a'};
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
    { // No change
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
+      vector<char> target = source;
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // No change, size 1
+      vector<char> source = {'a'};
       vector<char> target = source;
       auto result = ordered_diff<char>::diff(source, target);
       source = ordered_diff<char>::apply_diff(std::move(source), result);
@@ -74,9 +98,37 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
+   { // Complete change, size 1
+      vector<char> source = {'a'};
+      vector<char> target = {'f'};
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Complete change equal sizes
+      vector<char> source = {'a', 'b', 'c', 'd'};
+      vector<char> target = {'f', 'g', 'h', 'i'};
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
    { // Diff order
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target = {'e', 'd', 'c', 'b', 'a'};
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Diff order, size 2
+      vector<char> source = {'a', 'b'};
+      vector<char> target = {'b', 'a'};
+      auto result = ordered_diff<char>::diff(source, target);
+      source = ordered_diff<char>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // Diff order, size 2
+      vector<char> source = {'b', 'a'};
+      vector<char> target = {'a', 'b'};
       auto result = ordered_diff<char>::diff(source, target);
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
@@ -103,8 +155,29 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       BOOST_TEST(source == target);
    }
    { // full
-      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()-1);
+      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()+1);
       std::iota(source.begin(), source.end(), 0);
+      vector<uint8_t> target(source.size());
+      std::reverse_copy(source.begin(), source.end(), target.begin());
+      auto result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      source = ordered_diff<uint8_t, uint8_t>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+      target.clear();
+      result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      source = ordered_diff<uint8_t, uint8_t>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+      source.clear();
+      result = ordered_diff<uint8_t, uint8_t>::diff(source, target);
+      source = ordered_diff<uint8_t, uint8_t>::apply_diff(std::move(source), result);
+      BOOST_TEST(source == target);
+   }
+   { // full, random
+      std::random_device rnd_device;
+      std::mt19937 mersenne_engine {rnd_device()};
+      std::uniform_int_distribution<uint8_t> dist {0, std::numeric_limits<uint8_t>::max()};
+      auto gen = [&](){ return dist(mersenne_engine); };
+      vector<uint8_t> source(std::numeric_limits<uint8_t>::max()+1);
+      std::generate(source.begin(), source.end(), gen);
       vector<uint8_t> target(source.size());
       std::reverse_copy(source.begin(), source.end(), target.begin());
       auto result = ordered_diff<uint8_t, uint8_t>::diff(source, target);

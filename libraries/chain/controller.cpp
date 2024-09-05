@@ -3882,49 +3882,44 @@ struct controller_impl {
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+      assert(b->is_proper_svnn_block());
+
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       auto f_ext_id  = finality_extension::extension_id();
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
 
       // This function is called only in Savanna. Finality block header
       // extension must exist
-      EOS_ASSERT( header_ext,
-                  invalid_qc_claim,
-                  "Block #${b} doesn't have a finality header extension",
+      EOS_ASSERT( finality_ext, block_validate_exception,
+                  "Proper Savanna block #${b} does not have a finality header extension",
                   ("b", block_num) );
 
-      const auto& f_ext        = std::get<finality_extension>(*header_ext);
+      assert(finality_ext);
+      const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
       dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
            ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
            ("qc", new_qc_claim)("p", b->previous));
 
-      // If there is a header extension, but the previous block does not have a header extension,
-      // ensure the block does not have a QC and the QC claim of the current block has a block_num
-      // of the current block’s number and that it is a claim of a weak QC. Then return early.
+      // The only time a block should have a finality block header extension but
+      // its parent block does not, is if it is a Savanna Genesis block (which is
+      // necessarily a Transition block). Since verify_proper_block_exts will not be called
+      // on Transition blocks, previous block may not be a Legacy block
       // -------------------------------------------------------------------------------------------------
-      if (!prev_finality_ext) {
-         EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
-                     invalid_qc_claim,
-                     "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
-                     ("b", block_num) );
-         return;
-      }
+      EOS_ASSERT( !prev.header.is_legacy_block(), block_validate_exception,
+                  "Proper Savanna block #${b} may not have previous block that is a Legacy block",
+                  ("b", block_num) );
 
-      // at this point both current block and its parent have IF extensions, and we are past the
-      // IF transition block
-      // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_finality_ext);
-
+      assert(prev_finality_ext);
       const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
@@ -3986,97 +3981,107 @@ struct controller_impl {
       bsp->verify_qc(qc_proof);
    }
 
-   // Verify QC block extension and finality block header extension on a Legacy
-   // or Transition block.
    void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
-      uint32_t block_num = b->block_num();
+      assert(b->is_legacy_block());
 
+      uint32_t block_num = b->block_num();
       auto block_exts = b->validate_and_extract_extensions();
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
-      EOS_ASSERT( !qc_extension_present,
-                  block_validate_exception,
+
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
                   "Legacy block #${b} includes a QC block extension",
                   ("b", block_num) );
 
-      EOS_ASSERT( !b->is_proper_svnn_block(),
-                  block_validate_exception,
-                  "Legacy block #${b} may not be Proper Savnanna block",
+      EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
+                  "Legacy block #${b} has invalid schedule_version",
                   ("b", block_num) );
 
-      EOS_ASSERT( !prev.header.is_proper_svnn_block(),
-                  block_validate_exception,
-                  "Legacy block's #${b} previous block may not be Proper Savnanna block",
+      // Verify we don't go back from Savanna (Transition or Proper) block to Legacy block
+      EOS_ASSERT( prev.header.is_legacy_block(), block_validate_exception,
+                  "Legacy block #${b} must have previous block that is also a Legacy block",
+                  ("b", block_num) );
+   }
+
+   void verify_transition_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
+      assert(!b->is_legacy_block() && !b->is_proper_svnn_block());
+
+      uint32_t block_num = b->block_num();
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+                  "Transition block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), block_validate_exception,
+                  "Transition block #${b} may not have previous block that is a Proper Savanna block",
                   ("b", block_num) );
 
       auto f_ext_id = finality_extension::extension_id();
-      std::optional<block_header_extension> header_ext = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
+      assert(finality_ext);
+      const auto& f_ext = std::get<finality_extension>(*finality_ext);
 
-      if (!header_ext) {
-         auto it = prev.header_exts.find(finality_extension::extension_id());
-         EOS_ASSERT( it == prev.header_exts.end(),
-                     block_validate_exception,
-                     "Block #${b} does not have finality block header extension but its previous block does have",
-                     ("b", block_num) );
-
-         return;
-      }
-
-      // Transition Block
-      const auto& f_ext = std::get<finality_extension>(*header_ext);
-      EOS_ASSERT( !f_ext.qc_claim.is_strong_qc,
-                  block_validate_exception,
-                  "Transition block #${b} has a strong QC claim",
-                  ("b", block_num) );
-      EOS_ASSERT( !f_ext.new_proposer_policy_diff,
-                  block_validate_exception,
+      EOS_ASSERT( !f_ext.new_proposer_policy_diff, block_validate_exception,
                   "Transition block #${b} has new_proposer_policy_diff",
                   ("b", block_num) );
 
       if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
+         // Transition block other than Genesis Block
          const auto& prev_finality_ext = std::get<finality_extension>(it->second);
-         EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
-                     block_validate_exception,
-                     "Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
+         EOS_ASSERT( f_ext.qc_claim == prev_finality_ext.qc_claim, invalid_qc_claim,
+                     "Non Genesis Transition block #${b} QC claim ${this_qc_claim} not equal to previous QC claim ${prev_qc_claim}",
+                     ("b", block_num)("this_qc_claim", f_ext.qc_claim)("prev_qc_claim", prev_finality_ext.qc_claim) );
+         EOS_ASSERT( !f_ext.new_finalizer_policy_diff, block_validate_exception,
+                     "Non Genesis Transition block #${b} finality block header extension may not have new_finalizer_policy_diff",
                      ("b", block_num) );
       } else {
          // Savanna Genesis Block
-         EOS_ASSERT( f_ext.qc_claim.block_num == block_num,
-                     block_validate_exception,
-                     "Savanna Genesis block #${b} QC claim block_num not equal to current block_num",
-                     ("b", block_num) );
-         EOS_ASSERT( f_ext.new_finalizer_policy_diff,
-                     block_validate_exception,
+         qc_claim_t genesis_qc_claim {.block_num = block_num, .is_strong_qc = false};
+         EOS_ASSERT( f_ext.qc_claim == genesis_qc_claim, invalid_qc_claim,
+                     "Savanna Genesis block #${b} has invalid QC claim ${qc_claim}",
+                     ("b", block_num)("qc_claim", f_ext.qc_claim) );
+         EOS_ASSERT( f_ext.new_finalizer_policy_diff, block_validate_exception,
                      "Savanna Genesis block #${b} finality block header extension misses new_finalizer_policy_diff",
                      ("b", block_num) );
 
-         finalizer_policy no_policy;
-         // apply_diff will FC_ASSERT if new_finalizer_policy_diff is malformated
-         finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
-         EOS_ASSERT( genesis_policy.generation == 1,
-                     block_validate_exception,
-                     "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
-                     ("b", block_num)("g", genesis_policy.generation) );
+         // apply_diff will FC_ASSERT if new_finalizer_policy_diff is malformed
+         try {
+            finalizer_policy no_policy;
+            finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
+            EOS_ASSERT( genesis_policy.generation == 1, block_validate_exception,
+                        "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
+                        ("b", block_num)("g", genesis_policy.generation) );
+         } EOS_RETHROW_EXCEPTIONS(block_validate_exception, "applying diff of Savanna Genesis Block")
       }
    }
 
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
-      constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      // Verify claim made by finality_extension in block header extension and
-      // quorum_certificate_extension in block extension are valid.
-      // This is the only place the evaluation is done.
-      // Note: the purpose of running verify_qc_claim on Legacy blocks too is to
-      // safe guard Legacy blocks.
-      if constexpr (savanna_mode) {
-         verify_qc_claim(id, b, prev);
+      if constexpr (is_proper_savanna_block) {
+         EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
+                     ("b", b->block_num()) );
+         verify_proper_block_exts(id, b, prev);
       } else {
-         verify_legacy_block_exts(b, prev);
+         EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
+                     ("b", b->block_num()) );
+
+         if (b->is_legacy_block()) {
+            verify_legacy_block_exts(b, prev);
+         } else {
+            verify_transition_block_exts(b, prev);
+         }
       }
 
-      auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
+      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
                   block_validate_exception,
                   "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
@@ -4096,14 +4101,14 @@ struct controller_impl {
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
-      if constexpr (savanna_mode) {
+      if constexpr (is_proper_savanna_block) {
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
       if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
-         if constexpr (savanna_mode)
+         if constexpr (is_proper_savanna_block)
             vote_processor.notify_new_block(async_aggregation);
       }
 
@@ -4161,7 +4166,7 @@ struct controller_impl {
       return fork_db.apply<std::optional<block_handle>>(unlinkable, f);
    }
 
-   // thread safe, QC already verified by verify_qc_claim
+   // thread safe, QC already verified by verify_proper_block_exts
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
       assert(bsp_in->block);
