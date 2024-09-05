@@ -3989,7 +3989,7 @@ struct controller_impl {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, block_validate_exception,
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
                   "Legacy block #${b} includes a QC block extension",
                   ("b", block_num) );
 
@@ -4011,7 +4011,7 @@ struct controller_impl {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, block_validate_exception,
+      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
                   "Transition block #${b} includes a QC block extension",
                   ("b", block_num) );
 
