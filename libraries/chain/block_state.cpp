@@ -63,7 +63,7 @@ using namespace eosio::chain::detail;
 // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
 block_state::block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
                          const validator_t& validator, bool skip_validate_signee)
-   : block_header_state(verify_block_sig(prev, b, skip_validate_signee) ? prev.next(*b, validator) : block_header_state{})
+   : block_header_state((verify_block_sig(prev, b, skip_validate_signee), prev.next(*b, validator)))
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
