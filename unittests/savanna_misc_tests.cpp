@@ -355,18 +355,31 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    set_partition(partition);
 
    auto b2 = A.produce_block();                         // receives just 1 strong vote fron A
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b2)), strong_qc(b1));    // b4 claims a strong QC on b1
+
    auto b3 = A.produce_block();                         // b3 repeats b2 strong qc claim on b1 (because no qc on b2)
+   BOOST_REQUIRE(!qc(b3));
+
    auto b3_snapshot = A.snapshot();
 
    set_partition({});                                   // remove partition so A will receive votes on b2 and b3
 
    push_block(0, b2);                                   // other nodes receive b2 and vote on it, so A forms a qc on b2
-   auto b4 = A.produce_block();                         // b4 claims a strong QC on b2. (b4 makes b1 final.)
+   auto b4 = A.produce_block();
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b2));    // b4 claims a strong QC on b2. (b4 makes b1 final.)
+   BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());
 
    push_block(0, b3);
-   auto b5 = A.produce_block();                         // b5 claims a strong QC on b4. (b5 makes b2 final.)
+   push_block(0, b4);                                   // push b4 again as it was unlinkable until the other
+                                                        // nodes received b3
 
-   auto b6 = A.produce_block();                         // b6 claims a strong QC on b5. (b6 makes b4 final.)
+   auto b5 = A.produce_block();
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));    // b5 claims a strong QC on b4. (b5 makes b2 final.)
+   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());
+
+   auto b6 = A.produce_block();
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b5));    // b6 claims a strong QC on b5. (b6 makes b4 final.)
+   BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());
 
    // Then the operator shuts down nodeos and decides to restart from the snapshot on B3.
    A.close();
