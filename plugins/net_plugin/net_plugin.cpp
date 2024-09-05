@@ -2224,7 +2224,7 @@ namespace eosio {
    // thread safe
    bool sync_manager::sync_recently_active() const {
       auto time_since_active = std::chrono::steady_clock::now() - sync_active_time.load();
-      bool active = std::chrono::steady_clock::now() - sync_active_time.load() < my_impl->resp_expected_period;
+      bool active = time_since_active < my_impl->resp_expected_period;
       if (!active) {
          fc_dlog(logger, "sync has not received a block recently, time since sync block ${t}ms",
                  ("t", std::chrono::duration_cast<std::chrono::milliseconds>(time_since_active).count()));
