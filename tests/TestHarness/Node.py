@@ -510,6 +510,26 @@ class Node(Transactions):
         Utils.Print("launchUnstarted cmd: %s" % (self.cmd))
         self.popenProc = self.launchCmd(self.cmd, self.data_dir, self.launch_time)
 
+        def isNodeAlive():
+            """wait for node to be responsive."""
+            try:
+                return True if self.checkPulse() else False
+            except (TypeError) as _:
+                pass
+            return False
+
+        isAlive=Utils.waitForBool(isNodeAlive)
+
+        if isAlive:
+            if Utils.Debug: Utils.Print("Node launch was successful.")
+        else:
+            Utils.Print("ERROR: Node launch Failed.")
+            # Ensure the node process is really killed
+            if self.popenProc:
+                self.popenProc.send_signal(signal.SIGTERM)
+                self.popenProc.wait()
+            self.pid=None
+
     def launchCmd(self, cmd: List[str], data_dir: Path, launch_time: str):
         dd = data_dir
         out = dd / 'stdout.txt'
