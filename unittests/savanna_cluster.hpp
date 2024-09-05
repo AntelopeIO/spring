@@ -545,7 +545,7 @@ namespace savanna_cluster {
       // -------------------
       void print(const char* name, const signed_block_ptr& b) const {
          if (_debug_mode)
-            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+            std::cout << name << " (" << b->block_num() << ") timestamp = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
                       << ", previous = " << b->previous.str().substr(8, 16) << '\n';
       }
 
