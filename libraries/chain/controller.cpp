@@ -3891,19 +3891,19 @@ struct controller_impl {
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext  = b->extract_header_extension(f_ext_id);
 
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
       uint32_t block_num = b->block_num();
 
       // This function is called only in Savanna. Finality block header
       // extension must exist
-      EOS_ASSERT( header_ext,
-                  invalid_qc_claim,
-                  "Block #${b} doesn't have a finality header extension",
+      EOS_ASSERT( finality_ext, block_validate_exception,
+                  "Proper Savanna block #${b} does not have a finality header extension",
                   ("b", block_num) );
 
-      const auto& f_ext        = std::get<finality_extension>(*header_ext);
+      assert(finality_ext);
+      const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
       dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
@@ -3913,17 +3913,16 @@ struct controller_impl {
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
       // necessarily a Transition block). Since verify_proper_block_exts will not be called
-      // on Transition blocks, prev_finality_ext should always be present
+      // on Transition blocks, previous block may not be a Legacy block
       // -------------------------------------------------------------------------------------------------
-      EOS_ASSERT( prev_finality_ext, invalid_qc_claim,
-                  "Previous block of Block #${b} doesn't have finality block header extension",
+      EOS_ASSERT( !prev.header.is_legacy_block(), block_validate_exception,
+                  "Proper Savanna block #${b} may not have previous block that is a Legacy block",
                   ("b", block_num) );
 
       // at this point both current block and its parent have IF extensions, and we are past the
       // IF transition block
       // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_finality_ext);
-
+      assert(prev_finality_ext);
       const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
@@ -3993,51 +3992,45 @@ struct controller_impl {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
                   "Legacy block #${b} includes a QC block extension",
                   ("b", block_num) );
 
-      EOS_ASSERT( !b->is_proper_svnn_block(), invalid_qc_claim,
+      EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                   "Legacy block #${b} has invalid schedule_version",
                   ("b", block_num) );
 
       // Verify we don't go back from Savanna (Transition or Proper) block to Legacy block
-      auto it = prev.header_exts.find(finality_extension::extension_id());
-      EOS_ASSERT( it == prev.header_exts.end(), invalid_qc_claim,
-                  "Legacy block #${b} has previous block which contains finality block header extension",
-                  ("b", block_num) );
-      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
-                  "Legacy block #${b} may not have previous block that is a Proper Savanna block",
+      EOS_ASSERT( prev.header.is_legacy_block(), block_validate_exception,
+                  "Legacy block #${b} must have previous block that is also a Legacy block",
                   ("b", block_num) );
    }
 
    void verify_transition_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
-      assert(!b->is_legacy_block());
+      assert(!b->is_legacy_block() && !b->is_proper_svnn_block());
 
       uint32_t block_num = b->block_num();
       auto block_exts = b->validate_and_extract_extensions();
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
                   "Transition block #${b} includes a QC block extension",
                   ("b", block_num) );
 
-      EOS_ASSERT( !b->is_proper_svnn_block(), invalid_qc_claim,
+      EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                   "Transition block #${b} has invalid schedule_version",
                   ("b", block_num) );
 
-      EOS_ASSERT( !prev.header.is_proper_svnn_block(), invalid_qc_claim,
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), block_validate_exception,
                   "Transition block #${b} may not have previous block that is a Proper Savanna block",
                   ("b", block_num) );
 
       auto f_ext_id = finality_extension::extension_id();
       std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
+      assert(finality_ext);
       const auto& f_ext = std::get<finality_extension>(*finality_ext);
 
-      EOS_ASSERT( !f_ext.qc_claim.is_strong_qc, invalid_qc_claim,
-                  "Transition block #${b} has a strong QC claim",
-                  ("b", block_num) );
       EOS_ASSERT( !f_ext.new_proposer_policy_diff, invalid_qc_claim,
                   "Transition block #${b} has new_proposer_policy_diff",
                   ("b", block_num) );
@@ -4045,28 +4038,32 @@ struct controller_impl {
       if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
          // Transition block other than Genesis Block
          const auto& prev_finality_ext = std::get<finality_extension>(it->second);
-         EOS_ASSERT( f_ext.qc_claim.block_num == prev_finality_ext.qc_claim.block_num,
-                     invalid_qc_claim,
-                     "Non Genesis Transition block #${b} QC claim block_num not equal to previous QC claim block_num",
-                     ("b", block_num) );
-         EOS_ASSERT( !f_ext.new_finalizer_policy_diff, invalid_qc_claim,
+         EOS_ASSERT( f_ext.qc_claim == prev_finality_ext.qc_claim, invalid_qc_claim,
+                     "Non Genesis Transition block #${b} QC claim ${this_qc_claim} not equal to previous QC claim ${prev_qc_claim}",
+                     ("b", block_num)("this_qc_claim", f_ext.qc_claim)("prev_qc_claim", prev_finality_ext.qc_claim) );
+         EOS_ASSERT( !f_ext.new_finalizer_policy_diff, block_validate_exception,
                      "Non Genesis Transition block #${b} finality block header extension may not have new_finalizer_policy_diff",
                      ("b", block_num) );
       } else {
          // Savanna Genesis Block
-         EOS_ASSERT( f_ext.qc_claim.block_num == block_num, invalid_qc_claim,
-                     "Savanna Genesis block #${b} QC claim block_num not equal to current block_num",
-                     ("b", block_num) );
-         EOS_ASSERT( f_ext.new_finalizer_policy_diff, invalid_qc_claim,
+         qc_claim_t genesis_qc_claim {.block_num = block_num, .is_strong_qc = false};
+         EOS_ASSERT( f_ext.qc_claim == genesis_qc_claim, invalid_qc_claim,
+                     "Savanna Genesis block #${b} has invalid QC claim ${qc_claim}",
+                     ("b", block_num)("qc_claim", f_ext.qc_claim) );
+         EOS_ASSERT( f_ext.new_finalizer_policy_diff, block_validate_exception,
                      "Savanna Genesis block #${b} finality block header extension misses new_finalizer_policy_diff",
                      ("b", block_num) );
 
-         finalizer_policy no_policy;
-         // apply_diff will FC_ASSERT if new_finalizer_policy_diff is malformated
-         finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
-         EOS_ASSERT( genesis_policy.generation == 1, invalid_qc_claim,
-                     "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
-                     ("b", block_num)("g", genesis_policy.generation) );
+         // apply_diff will FC_ASSERT if new_finalizer_policy_diff is malformed
+         try {
+            finalizer_policy no_policy;
+            finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
+            EOS_ASSERT( genesis_policy.generation == 1, block_validate_exception,
+                        "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
+                        ("b", block_num)("g", genesis_policy.generation) );
+         } catch( ... ) {
+            EOS_THROW(block_validate_exception, "Failed to apply Genesis block finalizer_policy_diff");
+         }
       }
    }
 
@@ -4076,37 +4073,14 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      // If is_proper_savanna_block is true, then it means that the parent block of block b has a block_state.
-      //
-      // For a block to have a block_state it means the block must be a Savanna block,
-      // which means either Transition block or a Proper Savanna block.
-      //
-      // A block that has a Savanna block as a parent must also be a Savanna block.
-      // A block that has a Proper Savanna block as a parent must also be a Proper Savanna block.
-      //
-      // So given that the parent block has a block_state, we know that block b must either be
-      // a Transition block or a Proper Savanna block.
-
-      // If is_proper_savanna_block is false, then it means that the parent block of block b
-      // has a block_state_legacy.
-      //
-      // For a block to have a block_state_legacy it means the block must either be
-      // a Legacy block or a Transition block.
-      //
-      // A block that has a Legacy block as a parent must either be a Legacy block
-      // or a Transition block.
-      //
-      // A block that has a Transition block as a parent must either be a Transition
-      // block or a Proper Savanna block.
-
       if constexpr (is_proper_savanna_block) {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
-                     "create_block_state_i cannot be called on block #${b} which is not a Savanna block while its parent is a Savanna block",
+                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
          verify_proper_block_exts(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
-                     "create_block_state_i cannot be called on block #${b} which is a Savanna block while its parent is not a Savanna block",
+                     "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
                      ("b", b->block_num()) );
 
          if (b->is_legacy_block()) {
