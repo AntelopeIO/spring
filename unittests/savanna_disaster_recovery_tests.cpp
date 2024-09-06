@@ -317,10 +317,8 @@ BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_clust
    C.close();                        // close node
    C.open();                         // and open(), so we get the root block_state from fork_db and not from the snapshot
 
-#if 0  // uncomment when issue #709 is fixed.
    C.push_block(b1);                 // when creating the block_state for b1, `prev` will be the root block_state loaded from
                                      // fork_db, which doesn't have the header extension cache created (issue #709)
-#endif
 } FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()

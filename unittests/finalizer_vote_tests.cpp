@@ -93,14 +93,14 @@ bsp make_bsp(const proposal_t& p, const bsp& previous, finalizer_policy_ptr finp
       // special case of genesis block
       auto id = calc_id(fc::sha256::hash("genesis"), 0);
       auto tstamp = block_timestamp_type{0};
-      bhs new_bhs { id, block_header{tstamp}, {}, finality_core::create_core_for_genesis_block(id, tstamp),
+      bhs new_bhs { {}, id, block_header{tstamp}, {}, finality_core::create_core_for_genesis_block(id, tstamp),
                     std::move(finpol), std::make_shared<proposer_policy>() };
       return makeit(std::move(new_bhs));
    }
 
    assert(claim);
    block_ref ref = previous ? previous->make_block_ref() : block_ref{};
-   bhs new_bhs { p.calculate_id(), block_header{p.block_timestamp, {}, {}, previous->id()}, {}, previous->core.next(ref, *claim),
+   bhs new_bhs { {}, p.calculate_id(), block_header{p.block_timestamp, {}, {}, previous->id()}, {}, previous->core.next(ref, *claim),
       std::move(finpol), std::make_shared<proposer_policy>() }; // proposer_policy needed for make_block_ref
    return makeit(std::move(new_bhs));
 }
