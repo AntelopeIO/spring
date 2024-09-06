@@ -3882,7 +3882,7 @@ struct controller_impl {
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   void verify_proper_block_exts( const std::optional<block_id_type>& id, const signed_block_ptr& b, const block_header_state& prev, bool complete_qc_validation ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3906,9 +3906,11 @@ struct controller_impl {
       const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
-      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
-           ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
-           ("qc", new_qc_claim)("p", b->previous));
+      if (id) {
+         dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
+              ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", *id)
+              ("qc", new_qc_claim)("p", b->previous));
+      }
 
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
@@ -3970,15 +3972,17 @@ struct controller_impl {
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
-      EOS_ASSERT( bsp,
-                  invalid_qc_claim,
-                  "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
-                  ("q", new_qc_claim.block_num)("b", block_num) );
+      // It is expensive to do signature verification. Do it only when requested.
+      if (complete_qc_validation) {
+         // find the claimed block's block state on branch of id
+         auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
+         EOS_ASSERT( bsp,
+                     invalid_qc_claim,
+                     "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
+                     ("q", new_qc_claim.block_num)("b", block_num) );
 
-      // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof);
+         bsp->verify_qc(qc_proof);
+      }
    }
 
    void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
@@ -4058,6 +4062,31 @@ struct controller_impl {
       }
    }
 
+   template<typename BS>
+   void verify_block_exts(const signed_block_ptr& b, const BS& prev, bool complete_qc_validation) {
+      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(is_proper_savanna_block == b->is_proper_svnn_block());
+
+      if constexpr (is_proper_savanna_block) {
+         EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
+                     ("b", b->block_num()) );
+         verify_proper_block_exts({}, b, prev, complete_qc_validation);
+      } else {
+         EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
+                     ("b", b->block_num()) );
+
+         if (b->is_legacy_block()) {
+            verify_legacy_block_exts(b, prev);
+         } else {
+            verify_transition_block_exts(b, prev);
+         }
+      }
+
+      return;
+   }
+
    // thread safe, expected to be called from thread other than the main thread
    template<typename ForkDB, typename BS>
    block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
@@ -4068,7 +4097,8 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
-         verify_proper_block_exts(id, b, prev);
+         bool complete_qc_validation = true;
+         verify_proper_block_exts(id, b, prev, complete_qc_validation);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
@@ -4314,7 +4344,13 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),validator, skip_validate_signee);
+               // Cannot do complete_qc_validation in irreversible mode, as block states
+               // are not stored in forkdb and information about QC claimed block is
+               // unavailable.
+               bool complete_qc_validation = (s != controller::block_status::irreversible) && conf.force_all_checks;
+               verify_block_exts(b, *head, complete_qc_validation);
+
+               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
                if (s != controller::block_status::irreversible) {
                   fork_db.apply<void>([&](auto& forkdb) {
