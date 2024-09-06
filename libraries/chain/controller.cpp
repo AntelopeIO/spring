@@ -3878,13 +3878,15 @@ struct controller_impl {
           });
    }
 
-   enum class full_qc_validation_t { no, yes };
+   // basic verifies all aspects of QC except signatures, complete verifies
+   // singatures in addition to basic
+   enum class qc_validation_t { basic, complete };
 
    // Verify QC claim made by finality_extension in header extension
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_proper_block_exts( const std::optional<block_id_type>& id, const signed_block_ptr& b, const block_header_state& prev, full_qc_validation_t qc_validation ) {
+   void verify_proper_block_exts( const std::optional<block_id_type>& id, const signed_block_ptr& b, const block_header_state& prev, qc_validation_t qc_validation ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3975,7 +3977,7 @@ struct controller_impl {
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
       // It is expensive to do signature verification. Do it only when requested.
-      if (qc_validation == full_qc_validation_t::yes) {
+      if (qc_validation == qc_validation_t::complete) {
          // find the claimed block's block state on branch of id
          auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
          EOS_ASSERT( bsp,
@@ -4065,7 +4067,7 @@ struct controller_impl {
    }
 
    template<typename BS>
-   void verify_block_exts(const std::optional<block_id_type>& id, const signed_block_ptr& b, const BS& prev, full_qc_validation_t qc_validation) {
+   void verify_block_exts(const std::optional<block_id_type>& id, const signed_block_ptr& b, const BS& prev, qc_validation_t qc_validation) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4095,7 +4097,7 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      verify_block_exts(id, b, prev, full_qc_validation_t::yes);
+      verify_block_exts(id, b, prev, qc_validation_t::complete);
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
@@ -4330,7 +4332,7 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               full_qc_validation_t qc_validation = conf.force_all_checks ? full_qc_validation_t::yes : full_qc_validation_t::no;
+               qc_validation_t qc_validation = conf.force_all_checks ? qc_validation_t::complete : qc_validation_t::basic;
                verify_block_exts({}, b, *head, qc_validation);
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
