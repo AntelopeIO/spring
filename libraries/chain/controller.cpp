@@ -4063,7 +4063,7 @@ struct controller_impl {
    }
 
    template<typename BS>
-   void verify_block_exts(const signed_block_ptr& b, const BS& prev, bool complete_qc_validation) {
+   void verify_block_exts(const std::optional<block_id_type>& id, const signed_block_ptr& b, const BS& prev, bool complete_qc_validation) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4071,7 +4071,7 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
-         verify_proper_block_exts({}, b, prev, complete_qc_validation);
+         verify_proper_block_exts(id, b, prev, complete_qc_validation);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
@@ -4093,23 +4093,8 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      if constexpr (is_proper_savanna_block) {
-         EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
-                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
-                     ("b", b->block_num()) );
-         bool complete_qc_validation = true;
-         verify_proper_block_exts(id, b, prev, complete_qc_validation);
-      } else {
-         EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
-                     "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
-                     ("b", b->block_num()) );
-
-         if (b->is_legacy_block()) {
-            verify_legacy_block_exts(b, prev);
-         } else {
-            verify_transition_block_exts(b, prev);
-         }
-      }
+      bool complete_qc_validation = true;
+      verify_block_exts(id, b, prev, complete_qc_validation);
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
@@ -4348,7 +4333,7 @@ struct controller_impl {
                // are not stored in forkdb and information about QC claimed block is
                // unavailable.
                bool complete_qc_validation = (s != controller::block_status::irreversible) && conf.force_all_checks;
-               verify_block_exts(b, *head, complete_qc_validation);
+               verify_block_exts({}, b, *head, complete_qc_validation);
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
