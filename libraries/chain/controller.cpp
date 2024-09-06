@@ -3878,15 +3878,10 @@ struct controller_impl {
           });
    }
 
-   // basic verifies all aspects of QC except signatures, complete verifies
-   // singatures in addition to basic
-   enum class qc_validation_t { basic, complete };
-
-   // Verify QC claim made by finality_extension in header extension
-   // and quorum_certificate_extension in block extension are valid.
+   // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_proper_block_exts( const std::optional<block_id_type>& id, const signed_block_ptr& b, const block_header_state& prev, qc_validation_t qc_validation ) {
+   void verify_basic_proper_block_invariants( const std::optional<block_id_type>& id, const signed_block_ptr& b, const block_header_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3975,21 +3970,9 @@ struct controller_impl {
                   invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
-
-      // It is expensive to do signature verification. Do it only when requested.
-      if (qc_validation == qc_validation_t::complete) {
-         // find the claimed block's block state on branch of id
-         auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
-         EOS_ASSERT( bsp,
-                     invalid_qc_claim,
-                     "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
-                     ("q", new_qc_claim.block_num)("b", block_num) );
-
-         bsp->verify_qc(qc_proof);
-      }
    }
 
-   void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
+   void verify_legacy_block_invariants( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       assert(b->is_legacy_block());
 
       uint32_t block_num = b->block_num();
@@ -4011,7 +3994,7 @@ struct controller_impl {
                   ("b", block_num) );
    }
 
-   void verify_transition_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
+   void verify_transition_block_invariants( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       assert(!b->is_legacy_block() && !b->is_proper_svnn_block());
 
       uint32_t block_num = b->block_num();
@@ -4066,8 +4049,39 @@ struct controller_impl {
       }
    }
 
+   // This verifies BLS signatures and is expensive.
+   void verify_qc( const signed_block_ptr& b, const block_header_state& prev ) {
+      assert(b->is_proper_svnn_block());
+
+      auto qc_ext_id  = quorum_certificate_extension::extension_id();
+      auto block_exts = b->validate_and_extract_extensions();
+      if (block_exts.count(qc_ext_id) == 0) {
+         // It's OK QC block extension does not exist.
+         return;
+      }
+      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
+      const auto& qc_proof = qc_ext.qc;
+
+      // Assume verify_basic_proper_block_invariants succeeded before this function.
+      // finality header extension must exist.
+      auto f_ext_id  = finality_extension::extension_id();
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
+      assert(finality_ext);
+      const auto& f_ext        = std::get<finality_extension>(*finality_ext);
+      const auto  new_qc_claim = f_ext.qc_claim;
+
+      // find the claimed block's block state on branch of id
+      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
+      EOS_ASSERT( bsp,
+                  invalid_qc_claim,
+                  "Block state was not found in forkdb for claimed block ${q}. Current block number: ${b}",
+                  ("q", new_qc_claim.block_num)("b", b->block_num()) );
+
+      bsp->verify_qc(qc_proof);
+   }
+
    template<typename BS>
-   void verify_block_exts(const std::optional<block_id_type>& id, const signed_block_ptr& b, const BS& prev, qc_validation_t qc_validation) {
+   void verify_basic_block_invariants(const std::optional<block_id_type>& id, const signed_block_ptr& b, const BS& prev) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4075,16 +4089,16 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
-         verify_proper_block_exts(id, b, prev, qc_validation);
+         verify_basic_proper_block_invariants(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
                      ("b", b->block_num()) );
 
          if (b->is_legacy_block()) {
-            verify_legacy_block_exts(b, prev);
+            verify_legacy_block_invariants(b, prev);
          } else {
-            verify_transition_block_exts(b, prev);
+            verify_transition_block_invariants(b, prev);
          }
       }
    }
@@ -4095,7 +4109,11 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      verify_block_exts(id, b, prev, qc_validation_t::complete);
+      verify_basic_block_invariants(id, b, prev);
+
+      if constexpr (is_proper_savanna_block) {
+         verify_qc(b, prev);
+      }
 
       auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
@@ -4330,8 +4348,13 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               qc_validation_t qc_validation = conf.force_all_checks ? qc_validation_t::complete : qc_validation_t::basic;
-               verify_block_exts({}, b, *head, qc_validation);
+               verify_basic_block_invariants({}, b, *head);
+
+               if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
+                  if (conf.force_all_checks) {
+                     verify_qc(b, *head);
+                  }
+               }
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
