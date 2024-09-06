@@ -78,7 +78,7 @@ struct block_header_state_input : public building_block_input {
    digest_type                       finality_mroot_claim;
 };
 
-struct block_header_state {
+struct block_header_state : fc::reflect_init {
    // ------ data members ------------------------------------------------------------
    block_id_type                       block_id;
    block_header                        header;
@@ -197,6 +197,10 @@ struct block_header_state {
          return &std::get<Ext>(itr->second);
       }
       return nullptr;
+   }
+
+   void reflector_init() {
+      header_exts = header.validate_and_extract_header_extensions();
    }
 };
 
