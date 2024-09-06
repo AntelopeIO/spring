@@ -625,9 +625,7 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    print("b2", b2);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b2)), strong_qc(b1));    // b2 claims a strong QC on b1
 
-   A.create_account("tester"_n);                        // do something so the block is not empty
-   A.create_account("tester2"_n);
-
+   A.create_account(tester_account);                    // do something so the block is not empty
    auto b3 = A.produce_block();
    print("b3", b3);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b2));    // b3 claims a strong QC on b2
@@ -687,10 +685,9 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
    BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
 
-   auto b9_id = b9->calculate_id();
-   // std::cout << b9_id << '\n';
    // check that the block id of b9 match what we got with spring 1.0
-   BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"0000001396389f4eb681171774e56f7344f0d503a0742617ccc19d91c7db0915"});
+   auto b9_id = b9->calculate_id();
+   BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
 
 } FC_LOG_AND_RETHROW()
 
