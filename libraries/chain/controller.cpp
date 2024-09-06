@@ -3921,16 +3921,14 @@ struct controller_impl {
       // validate QC claim against previous block QC info
 
       // new claimed QC block number cannot be smaller than previous block's
-      EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num,
-                  invalid_qc_claim,
+      EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num, invalid_qc_claim,
                   "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
                   ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
 
       if( new_qc_claim.block_num == prev_qc_claim.block_num ) {
          if( new_qc_claim.is_strong_qc == prev_qc_claim.is_strong_qc ) {
             // QC block extension is redundant
-            EOS_ASSERT( !qc_extension_present,
-                        invalid_qc_claim,
+            EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
                         "Block #${b} should not provide a QC block extension since its QC claim is the same as the previous block's",
                         ("b", block_num) );
 
@@ -3940,33 +3938,30 @@ struct controller_impl {
          }
 
          // new claimed QC must be stronger than previous if the claimed block number is the same
-         EOS_ASSERT( new_qc_claim.is_strong_qc,
-                     invalid_qc_claim,
+         EOS_ASSERT( new_qc_claim.is_strong_qc, invalid_qc_claim,
                      "claimed QC (${s1}) must be stricter than previous block's (${s2}) if block number is the same. Block number: ${b}",
                      ("s1", new_qc_claim.is_strong_qc)("s2", prev_qc_claim.is_strong_qc)("b", block_num) );
       }
 
-      // At this point, we are making a new claim in this block, so it better include a QC to justify this claim.
-      EOS_ASSERT( qc_extension_present,
-                  invalid_qc_claim,
+      // At this point, we are making a new claim in this block, so it must includes a QC to justify this claim.
+      EOS_ASSERT( qc_extension_present, block_validate_exception,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
       const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
-      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num,
-                  invalid_qc_claim,
+      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num, invalid_qc_claim,
                   "Block #${b}: Mismatch between qc.block_num (${n1}) in block extension and block_num (${n2}) in header extension",
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
       // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc,
-                  invalid_qc_claim,
+      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, invalid_qc_claim,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
    }
 
+   // verify legacy block invariants
    void verify_legacy_block_invariants( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
       assert(b->is_legacy_block());
 
@@ -3975,7 +3970,7 @@ struct controller_impl {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
                   "Legacy block #${b} includes a QC block extension",
                   ("b", block_num) );
 
@@ -3998,7 +3993,7 @@ struct controller_impl {
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
 
-      EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
                   "Transition block #${b} includes a QC block extension",
                   ("b", block_num) );
 
