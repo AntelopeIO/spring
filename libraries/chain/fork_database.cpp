@@ -134,8 +134,6 @@ namespace eosio::chain {
       bsp_t _root = std::make_shared<bs_t>();
       fc::raw::unpack( ds, pending_savanna_lib_id );
       fc::raw::unpack( ds, *_root );
-      // if root was saved from a snapshot the block_state will not contain a block
-      _root->header_exts = _root->header.validate_and_extract_header_extensions();
       reset_root_impl( _root );
 
       unsigned_int size; fc::raw::unpack( ds, size );
@@ -143,7 +141,6 @@ namespace eosio::chain {
          bs_t s;
          fc::raw::unpack( ds, s );
          // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
-         s.header_exts = s.block->validate_and_extract_header_extensions();
          add_impl( std::make_shared<bs_t>( std::move( s ) ), ignore_duplicate_t::no, true, validator );
       }
    }

@@ -112,7 +112,7 @@ protected:
  *  @struct block_header_state_legacy
  *  @brief defines the minimum state necessary to validate transaction headers
  */
-struct block_header_state_legacy : public detail::block_header_state_legacy_common {
+struct block_header_state_legacy : public detail::block_header_state_legacy_common, fc::reflect_init {
    block_id_type                        id;
    signed_block_header                  header;
    detail::schedule_info                pending_schedule;
@@ -150,6 +150,10 @@ struct block_header_state_legacy : public detail::block_header_state_legacy_comm
    void                   verify_signee()const;
 
    const vector<digest_type>& get_new_protocol_feature_activations()const;
+
+   void reflector_init() {
+      header_exts = header.validate_and_extract_header_extensions();
+   }
 };
 
 using block_header_state_legacy_ptr = std::shared_ptr<block_header_state_legacy>;
