@@ -196,6 +196,38 @@ try:
     # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
+    
+    # shutdown node0 and make sure node1 does not pause
+    Print("Restart finalizercNode")
+    finalizercNode.relaunch()
+
+    Print("Shutdown Node0")
+    node0.kill(signal.SIGTERM)
+    assert not node0.verifyAlive(), "node0 did not shutdown"
+    
+    Print("Verify defproducerb does not pause and produces all blocks of its round")
+    assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
+    assert node1.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "node1 paused after node0 was shutdown"
+
+    # wait for c to make sure b is not currently producing
+    node1.waitForProducer("defproducerc", exitOnError=True)
+    # wait for b now to make sure a should have produced before it
+    node1.waitForProducer("defproducerb", exitOnError=True)
+    # wait for c again so b has produced its full round
+    node1.waitForProducer("defproducerc", exitOnError=True)
+    # verify node1 defproducerb produced all blocks of its round
+    blockNum = node1.getBlockNum()
+    prodBProducedBlocks = 0
+    while blockNum > 2:
+        blockNum -= 1
+        if prodBProducedBlocks == 0 and node1.getBlockProducerByNum(blockNum) == "defproducerc":
+            continue
+        if node1.getBlockProducerByNum(blockNum) == "defproducerb":
+            prodBProducedBlocks += 1
+            continue
+        break
+
+    assert prodBProducedBlocks == 12, f"Producer B Node1 only produced {prodBProducedBlocks} blocks of its round"
 
     testSuccessful=True
 finally:
