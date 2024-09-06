@@ -41,6 +41,8 @@ from TestHarness.Node import BlockType
 # 3. Restart producercNode with "--production-pause-vote-timeout-ms 0" to
 #    disable production-pause-vote-timeout. Bring down finalizercNode.
 #    producercNode should keep producing.
+# 4. Stop producer/finalizer producera and verify it does not cause producerb to
+#    pause production.
 #
 ####################################################################################
 
@@ -197,7 +199,9 @@ try:
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
     
+    ####################### test 4 ######################
     # shutdown node0 and make sure node1 does not pause
+
     Print("Restart finalizercNode")
     finalizercNode.relaunch()
 
