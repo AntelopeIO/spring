@@ -293,7 +293,7 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
 
 
 // --------------------------------------------------------------------------------------------
-// test to reproduce error from issue #709. When starting a node from a snapshot which a fork_db
+// test to reproduce error from issue #709. When starting a node from a snapshot with a fork_db
 // containing only the root block, we access `prev_finality_ext` which is empty because the
 // header extension cache has not been initialized.
 // --------------------------------------------------------------------------------------------
