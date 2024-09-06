@@ -4329,10 +4329,7 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               // Cannot do complete_qc_validation in irreversible mode, as block states
-               // are not stored in forkdb and information about QC claimed block is
-               // unavailable.
-               bool complete_qc_validation = (s != controller::block_status::irreversible) && conf.force_all_checks;
+               bool complete_qc_validation = conf.force_all_checks;
                verify_block_exts({}, b, *head, complete_qc_validation);
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
