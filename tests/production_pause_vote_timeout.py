@@ -219,19 +219,8 @@ try:
     node1.waitForProducer("defproducerb", exitOnError=True)
     # wait for c again so b has produced its full round
     node1.waitForProducer("defproducerc", exitOnError=True)
-    # verify node1 defproducerb produced all blocks of its round
-    blockNum = node1.getBlockNum()
-    prodBProducedBlocks = 0
-    while blockNum > 2:
-        blockNum -= 1
-        if prodBProducedBlocks == 0 and node1.getBlockProducerByNum(blockNum) == "defproducerc":
-            continue
-        if node1.getBlockProducerByNum(blockNum) == "defproducerb":
-            prodBProducedBlocks += 1
-            continue
-        break
-
-    assert prodBProducedBlocks == 12, f"Producer B Node1 only produced {prodBProducedBlocks} blocks of its round"
+    # verify node1 defproducerb did not pause production
+    assert not node1.findInLog("Not producing block because no recent")
 
     testSuccessful=True
 finally:

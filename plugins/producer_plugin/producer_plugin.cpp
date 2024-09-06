@@ -1987,6 +1987,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (implicit_pause p = implicitly_paused(); p != implicit_pause::not_paused) {
+      // "Not producing block because no recent" log message looked for in production_pause_vote_timeout.py
       std::string reason = p == implicit_pause::prod_paused ? "producer votes" : "votes received";
       fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, last producer vote ${pv}, other votes ${ov}, last accepted block time ${bt}",
               ("r", std::move(reason))("t", block_time)("pv", _last_producer_vote_received.load(std::memory_order_relaxed))
