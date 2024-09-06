@@ -291,4 +291,36 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    }));
 } FC_LOG_AND_RETHROW()
 
+
+// --------------------------------------------------------------------------------------------
+// test to reproduce error from issue #709. When starting a node from a snapshot with a fork_db
+// containing only the root block, we access `prev_finality_ext` which is empty because the
+// header extension cache has not been initialized.
+// --------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_cluster::cluster_t) try {
+   auto& C=_nodes[2];
+
+   BOOST_REQUIRE_EQUAL(2u, C.lib_advances_by([&]() { C.produce_blocks(2);  }));
+   auto snapshot = C.snapshot();
+   signed_block_ptr b1, b2;
+   BOOST_REQUIRE_EQUAL(2u, C.lib_advances_by([&]() { b1 = C.produce_block();  b2 = C.produce_block(); }));
+
+   // Partition C by itself, so it doesn't receive b1 and b2 when opebed
+   const std::vector<size_t> tmp_partition {2};
+   set_partition(tmp_partition);
+
+   C.close();
+   C.remove_state();
+   C.remove_reversible_data_and_blocks_log();
+
+   C.open_from_snapshot(snapshot);   // at this point, fork_db's root is the snapshot block, and doesn't contain any other blocks
+   C.close();                        // close node
+   C.open();                         // and open(), so we get the root block_state from fork_db and not from the snapshot
+
+#if 0  // uncomment when issue #709 is fixed.
+   C.push_block(b1);                 // when creating the block_state for b1, `prev` will be the root block_state loaded from
+                                     // fork_db, which doesn't have the header extension cache created (issue #709)
+#endif
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()
