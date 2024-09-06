@@ -4087,8 +4087,6 @@ struct controller_impl {
             verify_transition_block_exts(b, prev);
          }
       }
-
-      return;
    }
 
    // thread safe, expected to be called from thread other than the main thread
