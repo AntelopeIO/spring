@@ -143,10 +143,9 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 
 // Only defined for core.latest_qc_claim().block_num <= block_num <= core.current_block_num()
 // ------------------------------------------------------------------------------------------
-finalizer_policies_t block_header_state::get_finalizer_policies(block_num_type block_num) const {
+finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref& ref) const {
    finalizer_policies_t res;
 
-   const block_ref& ref = core.get_block_reference(block_num);
    res.finality_digest = ref.finality_digest;
 
    auto active_gen = ref.active_policy_generation;

@@ -3882,7 +3882,7 @@ struct controller_impl {
    // and quorum_certificate_extension in block extension are valid.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   void verify_proper_block_exts( const block_id_type& id, const signed_block_ptr& b, const block_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3970,15 +3970,8 @@ struct controller_impl {
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
-      EOS_ASSERT( bsp,
-                  invalid_qc_claim,
-                  "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
-                  ("q", new_qc_claim.block_num)("b", block_num) );
-
       // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof);
+      prev.verify_qc(qc_proof);
    }
 
    void verify_legacy_block_exts( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
