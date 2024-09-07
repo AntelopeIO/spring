@@ -10,16 +10,21 @@ using block_time_type = chain::block_timestamp_type;
 
 struct block_ref
 {
-   block_ref(const block_id_type& block_id, block_time_type timestamp, const digest_type& finality_digest)
+   block_ref(const block_id_type& block_id, block_time_type timestamp, const digest_type& finality_digest,
+             uint32_t active_policy_generation, uint32_t pending_policy_generation)
       : block_id(block_id)
       , timestamp(timestamp)
-      , finality_digest(finality_digest) {}
+      , finality_digest(finality_digest)
+      , active_policy_generation(active_policy_generation)
+      , pending_policy_generation(pending_policy_generation) {}
 
    block_ref() = default; // creates `empty` representation where `block_id.empty() == true`
 
    block_id_type    block_id;
    block_time_type  timestamp;
    digest_type      finality_digest;  // finality digest associated with the block
+   uint32_t         active_policy_generation{0};
+   uint32_t         pending_policy_generation{0};
 
    bool           empty() const { return block_id.empty(); }
    block_num_type block_num() const; // Extract from block_id.

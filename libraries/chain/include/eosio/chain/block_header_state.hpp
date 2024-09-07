@@ -164,7 +164,10 @@ struct block_header_state {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
-   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), compute_finality_digest() }; }
+   block_ref make_block_ref() const {
+      return block_ref{block_id, timestamp(), compute_finality_digest(), finalizer_policy_generation,
+                       pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
+   }
 
    // Returns true if the block is a Savanna Genesis Block.
    // This method is applicable to any transition block which is re-classified as a Savanna block.

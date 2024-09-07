@@ -127,7 +127,11 @@ public:
       return timestamp() > fc::time_point::now() - fc::seconds(30);
    }
 
-   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), strong_digest }; } // use the cached `finality_digest`
+   // use the cached `finality_digest`
+   block_ref make_block_ref() const {
+      return block_ref{block_id, timestamp(), strong_digest, finalizer_policy_generation,
+                       pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
+   }
 
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
    // build next valid structure from current one with input of next
