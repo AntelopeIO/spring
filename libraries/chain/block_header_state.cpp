@@ -182,6 +182,13 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
    return res;
 }
 
+// Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
+uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type block_num) const {
+   const block_ref& ref = core.get_block_reference(block_num);
+   return ref.active_policy_generation;
+}
+
+
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
    if (latest_proposed_proposer_policy) {
@@ -364,6 +371,21 @@ void finish_next(const block_header_state& prev,
          std::make_pair(next_header_state.block_num(), std::make_shared<finalizer_policy>(new_finalizer_policy)));
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
+   }
+
+   // now populate next_header_state.latest_qc_claim_block_active_finalizer_policy
+   // this keeps track of the finalizer policy which was active @ latest_qc_claim().block_num, but which
+   // can be overwritten by a previously pending police (member `active_finalizer_policy`)
+   // --------------------------------------------------------------------------------------------------
+   const auto& next_core                 = next_header_state.core;
+   auto        latest_qc_claim_block_num = next_core.latest_qc_claim().block_num;
+   const auto  active_generation_num     = next_header_state.active_finalizer_policy->generation;
+   if (next_header_state.get_active_finalizer_policy_generation(latest_qc_claim_block_num) != active_generation_num) {
+      const auto& latest_qc_claim_block_ref = next_core.get_block_reference(latest_qc_claim_block_num);
+      next_header_state.latest_qc_claim_block_active_finalizer_policy =
+         prev.get_finalizer_policies(latest_qc_claim_block_ref).active_finalizer_policy;
+   } else {
+      next_header_state.latest_qc_claim_block_active_finalizer_policy = nullptr;
    }
 
    // Finally update block id from header

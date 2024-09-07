@@ -182,7 +182,7 @@ struct block_header_state : fc::reflect_init {
    digest_type compute_finality_digest() const;
 
    block_ref make_block_ref() const {
-      return block_ref{block_id, timestamp(), compute_finality_digest(), finalizer_policy_generation,
+      return block_ref{block_id, timestamp(), compute_finality_digest(), active_finalizer_policy->generation,
                        pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
    }
 
@@ -214,6 +214,7 @@ struct block_header_state : fc::reflect_init {
 
    // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
    finalizer_policies_t get_finalizer_policies(const block_ref& ref) const;
+   uint32_t get_active_finalizer_policy_generation(block_num_type block_num) const;
 
    template<typename Ext> const Ext* header_extension() const {
       if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {

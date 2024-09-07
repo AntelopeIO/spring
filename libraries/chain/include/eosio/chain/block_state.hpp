@@ -129,7 +129,7 @@ public:
 
    // use the cached `finality_digest`
    block_ref make_block_ref() const {
-      return block_ref{block_id, timestamp(), strong_digest, finalizer_policy_generation,
+      return block_ref{block_id, timestamp(), strong_digest, active_finalizer_policy->generation,
                        pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
    }
 

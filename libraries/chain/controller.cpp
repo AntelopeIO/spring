@@ -3881,7 +3881,7 @@ struct controller_impl {
    // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   std::optional<qc_t> verify_basic_proper_block_invariants( const signed_block_ptr& b, const block_state& prev ) {
+   std::optional<qc_t> verify_basic_proper_block_invariants( const signed_block_ptr& b, const block_header_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -4070,14 +4070,8 @@ struct controller_impl {
    }
 
    // This verifies BLS signatures and is expensive.
-   void verify_qc( const signed_block_ptr& b, const block_header_state& prev, const qc_t& qc ) {
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), qc.block_num );
-      EOS_ASSERT( bsp, invalid_qc_claim,
-                  "Block state was not found in forkdb for claimed block ${bn}. Current block number: ${b}",
-                  ("bn", qc.block_num)("b", b->block_num()) );
-
-      bsp->verify_qc(qc);
+   void verify_qc( const block_state& prev, const qc_t& qc ) {
+      prev.verify_qc(qc);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -4090,7 +4084,7 @@ struct controller_impl {
 
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            verify_qc(b, prev, *qc);
+            verify_qc(prev, *qc);
 
             const auto  qc_claim = qc->to_qc_claim();
             dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
@@ -4336,7 +4330,7 @@ struct controller_impl {
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   if (conf.force_all_checks && qc) {
-                     verify_qc(b, *head, *qc);
+                     verify_qc(*head, *qc);
                   }
                }
 
