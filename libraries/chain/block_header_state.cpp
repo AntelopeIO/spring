@@ -156,6 +156,7 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
    else {
       // cannot be the pending one as it never was active
       assert(!pending_finalizer_policy || pending_finalizer_policy->second->generation > active_gen);
+      std::cout << ref << '\n';
 
       // has to be the one in latest_qc_claim_block_active_finalizer_policy
       assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
@@ -183,8 +184,10 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
 }
 
 // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
-uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type block_num) const {
-   const block_ref& ref = core.get_block_reference(block_num);
+uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type num) const {
+   if (num == block_num())
+      return active_finalizer_policy->generation;
+   const block_ref& ref = core.get_block_reference(num);
    return ref.active_policy_generation;
 }
 
@@ -380,8 +383,8 @@ void finish_next(const block_header_state& prev,
    const auto& next_core                 = next_header_state.core;
    auto        latest_qc_claim_block_num = next_core.latest_qc_claim().block_num;
    const auto  active_generation_num     = next_header_state.active_finalizer_policy->generation;
-   if (next_header_state.get_active_finalizer_policy_generation(latest_qc_claim_block_num) != active_generation_num) {
-      const auto& latest_qc_claim_block_ref = next_core.get_block_reference(latest_qc_claim_block_num);
+   if (prev.get_active_finalizer_policy_generation(latest_qc_claim_block_num) != active_generation_num) {
+      const auto& latest_qc_claim_block_ref = prev.core.get_block_reference(latest_qc_claim_block_num);
       next_header_state.latest_qc_claim_block_active_finalizer_policy =
          prev.get_finalizer_policies(latest_qc_claim_block_ref).active_finalizer_policy;
    } else {

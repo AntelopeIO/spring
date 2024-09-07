@@ -583,7 +583,7 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b6_snapshot);
 
-#if 0  // uncomment when issue #694 is fixed.
+#if 1  // uncomment when issue #694 is fixed.
    A.push_block(b7);                                    // when pushing b7, if we try to access any block state
    A.push_block(b8);                                    // before b6, we will fail with a `verify_qc_claim`
    A.push_block(b9);                                    // exception, which is what will happens until issue
