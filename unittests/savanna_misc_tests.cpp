@@ -397,7 +397,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b3_snapshot);
 
-#if 0  // uncomment when issue #694 is fixed.
    // After starting up from the snapshot, their node receives block b4 from the P2P network.
    // Since b4 advances the QC claim relative to its parent (from a strong QC claimed on b1
    // to a strong QC claimed on b2), it must include a QC attached to justify its claim.
@@ -409,7 +408,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    A.push_block(b5);                                    // before b3, we will fail with a `verify_qc_claim`
    A.push_block(b6);                                    // exception, which is what will happens until issue
                                                         // #694 is addressed.
-#endif
 } FC_LOG_AND_RETHROW()
 
 
