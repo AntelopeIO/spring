@@ -185,8 +185,6 @@ public:
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
-   void verify_signee(const std::vector<signature_type>& additional_signatures,
-                      const block_signing_authority& valid_block_signing_authority) const;
 
    finalizer_policies_t get_finalizer_policies(block_num_type num) const {
       if (num == block_num())

@@ -85,7 +85,7 @@ struct finalizer_policies_t {
    finalizer_policy_ptr pending_finalizer_policy; // Only null if the block has no pending finalizer policy
 };
 
-struct block_header_state {
+struct block_header_state : fc::reflect_init {
    // ------ data members ------------------------------------------------------------
    block_id_type                       block_id;
    block_header                        header;
@@ -220,6 +220,10 @@ struct block_header_state {
          return &std::get<Ext>(itr->second);
       }
       return nullptr;
+   }
+
+   void reflector_init() {
+      header_exts = header.validate_and_extract_header_extensions();
    }
 };
 

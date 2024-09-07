@@ -141,7 +141,6 @@ namespace eosio::chain {
          bs_t s;
          fc::raw::unpack( ds, s );
          // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
-         s.header_exts = s.block->validate_and_extract_header_extensions();
          add_impl( std::make_shared<bs_t>( std::move( s ) ), ignore_duplicate_t::no, true, validator );
       }
    }
