@@ -150,8 +150,10 @@ finalizer_policies_t block_header_state::get_finalizer_policies(block_num_type b
    res.finality_digest = ref.finality_digest;
 
    auto active_gen = ref.active_policy_generation;
+   assert(active_gen != 0);                                       // we should always have an active policy
+
    if (active_finalizer_policy->generation == active_gen)
-      res.active_finalizer_policy = active_finalizer_policy;
+      res.active_finalizer_policy = active_finalizer_policy;      // the one active at block_num is still active
    else {
       // cannot be the pending one as it never was active
       assert(!pending_finalizer_policy || pending_finalizer_policy->second->generation > active_gen);
@@ -160,16 +162,18 @@ finalizer_policies_t block_header_state::get_finalizer_policies(block_num_type b
       assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
       assert(latest_qc_claim_block_active_finalizer_policy->generation == active_gen);
       EOS_ASSERT(latest_qc_claim_block_active_finalizer_policy->generation == active_gen, chain_exception,
-                 "Logic error in finalizer policy retrieval");  // just in case
+                 "Logic error in finalizer policy retrieval");    // just in case
       res.active_finalizer_policy = latest_qc_claim_block_active_finalizer_policy;
    }
 
    auto pending_gen = ref.pending_policy_generation;
-   if (active_finalizer_policy->generation == pending_gen)
-      res.pending_finalizer_policy = active_finalizer_policy; // policy pending at block_num became active
+   if (pending_gen == 0)
+      res.pending_finalizer_policy = nullptr;                    // no pending policy at block_num.
+   else if (pending_gen == active_finalizer_policy->generation)
+      res.pending_finalizer_policy = active_finalizer_policy;    // policy pending at block_num became active
    else {
       // cannot be the one in latest_qc_claim_block_active_finalizer_policy since it was active at
-      // core.latest_qc_claim().block_num
+      // core.latest_qc_claim().block_num. So it must be the one still pending.
       assert(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen);
       EOS_ASSERT(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen, chain_exception,
                  "Logic error in finalizer policy retrieval");  // just in case
