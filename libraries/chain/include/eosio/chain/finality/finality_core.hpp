@@ -201,8 +201,8 @@ struct finality_core
       fc::raw::pack(s, links);
 
       // manually pack the vector of refs since we don't want to pack the generation numbers
-      fc::raw::pack( s, unsigned_int((uint32_t)refs.size()) );
-      for( const auto& ref : refs ) {
+      fc::raw::pack(s, unsigned_int((uint32_t)refs.size()));
+      for(const auto& ref : refs) {
          fc::raw::pack(s, ref.block_id);
          fc::raw::pack(s, ref.timestamp);
          fc::raw::pack(s, ref.finality_digest);
@@ -217,7 +217,8 @@ struct finality_core
 namespace std {
    // define std ostream output so we can use BOOST_CHECK_EQUAL in tests
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::block_ref& br) {
-      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ")";
+      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ", "
+         << br.active_policy_generation << ", " << br.pending_policy_generation << ")";
       return os;
    }
 
