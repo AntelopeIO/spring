@@ -191,6 +191,24 @@ struct finality_core
     *  @post returned core has last_final_block_num() >= this->last_final_block_num()
     */
    finality_core next(const block_ref& current_block, const qc_claim_t& most_recent_ancestor_with_qc) const;
+
+   // should match the serialization provided by FC_REFLECT below, except that for compatibility with
+   // spring 1.0 consensus we do not pack the two new members of `block_ref` which were added in
+   // spring 1.0.1 (the finalizer policy generations)
+   // ------------------------------------------------------------------------------------------------
+   template<typename Stream>
+   void pack_for_digest(Stream& s) const {
+      fc::raw::pack(s, links);
+
+      // manually pack the vector of refs since we don't want to pack the generation numbers
+      fc::raw::pack( s, unsigned_int((uint32_t)refs.size()) );
+      for( const auto& ref : refs ) {
+         fc::raw::pack(s, ref.block_id);
+         fc::raw::pack(s, ref.timestamp);
+         fc::raw::pack(s, ref.finality_digest);
+      }
+      fc::raw::pack(s, genesis_timestamp);
+   }
 };
 
 } /// eosio::chain
@@ -220,7 +238,7 @@ namespace std {
    }
 }
 
-FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest) )
+FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest)(active_policy_generation)(pending_policy_generation) )
 FC_REFLECT( eosio::chain::block_ref_digest_data, (block_num)(timestamp)(finality_digest)(parent_timestamp) )
 FC_REFLECT( eosio::chain::qc_link, (source_block_num)(target_block_num)(is_link_strong) )
 FC_REFLECT( eosio::chain::qc_claim_t, (block_num)(is_strong_qc) )
