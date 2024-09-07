@@ -3892,7 +3892,8 @@ struct controller_impl {
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
       std::optional<block_header_extension> finality_ext  = b->extract_header_extension(f_ext_id);
 
-      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+      const auto qc_ext_itr  = block_exts.find(qc_ext_id);
+      bool qc_extension_present = (qc_ext_itr != block_exts.end());
       uint32_t block_num = b->block_num();
 
       // This function is called only in Savanna. Finality block header
@@ -3904,7 +3905,6 @@ struct controller_impl {
       assert(finality_ext);
       const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
-
 
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
@@ -3947,7 +3947,8 @@ struct controller_impl {
       EOS_ASSERT( qc_extension_present, block_validate_exception,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
-      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
+      assert(qc_ext_itr);
+      const auto& qc_ext   = std::get<quorum_certificate_extension>(qc_ext_itr->second);
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
