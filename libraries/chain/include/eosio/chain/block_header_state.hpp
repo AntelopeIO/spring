@@ -213,7 +213,7 @@ struct block_header_state {
    const proposer_policy& get_last_proposed_proposer_policy() const;
 
    // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
-   finalizer_policies_t get_finalizer_policies(block_num_type num);
+   finalizer_policies_t get_finalizer_policies(block_num_type num) const;
 
    template<typename Ext> const Ext* header_extension() const {
       if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {

@@ -187,7 +187,10 @@ vote_status_t block_state::has_voted(const bls_public_key& key) const {
 
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
-   aggregating_qc.verify_qc(qc, strong_digest, weak_digest);
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num);
+   aggregating_qc_t aggregating_qc(policies.active_finalizer_policy, policies.pending_finalizer_policy);
+
+   aggregating_qc.verify_qc(qc, policies.finality_digest, create_weak_digest(policies.finality_digest));
 }
 
 qc_claim_t block_state::extract_qc_claim() const {
