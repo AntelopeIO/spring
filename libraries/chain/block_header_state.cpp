@@ -141,6 +141,44 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
    return *active_finalizer_policy;
 }
 
+// Only defined for core.latest_qc_claim().block_num <= block_num <= core.current_block_num()
+// ------------------------------------------------------------------------------------------
+finalizer_policies_t block_header_state::get_finalizer_policies(block_num_type block_num) {
+   finalizer_policies_t res;
+
+   const block_ref& ref = core.get_block_reference(block_num);
+   res.finality_digest = ref.finality_digest;
+
+   auto active_gen = ref.active_policy_generation;
+   if (active_finalizer_policy->generation == active_gen)
+      res.active_finalizer_policy = active_finalizer_policy;
+   else {
+      // cannot be the pending one as it never was active
+      assert(!pending_finalizer_policy || pending_finalizer_policy->second->generation > active_gen);
+
+      // has to be the one in latest_qc_claim_block_active_finalizer_policy
+      assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
+      assert(latest_qc_claim_block_active_finalizer_policy->generation == active_gen);
+      EOS_ASSERT(latest_qc_claim_block_active_finalizer_policy->generation == active_gen, chain_exception,
+                 "Logic error in finalizer policy retrieval");  // just in case
+      res.active_finalizer_policy = latest_qc_claim_block_active_finalizer_policy;
+   }
+
+   auto pending_gen = ref.pending_policy_generation;
+   if (active_finalizer_policy->generation == pending_gen)
+      res.pending_finalizer_policy = active_finalizer_policy; // policy pending at block_num became active
+   else {
+      // cannot be the one in latest_qc_claim_block_active_finalizer_policy since it was active at
+      // core.latest_qc_claim().block_num
+      assert(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen);
+      EOS_ASSERT(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen, chain_exception,
+                 "Logic error in finalizer policy retrieval");  // just in case
+      res.pending_finalizer_policy = pending_finalizer_policy->second;
+   }
+
+   return res;
+}
+
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
    if (latest_proposed_proposer_policy) {

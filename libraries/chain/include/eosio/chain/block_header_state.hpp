@@ -78,6 +78,13 @@ struct block_header_state_input : public building_block_input {
    digest_type                       finality_mroot_claim;
 };
 
+
+struct finalizer_policies_t {
+   digest_type          finality_digest;
+   finalizer_policy_ptr active_finalizer_policy;  // Never null
+   finalizer_policy_ptr pending_finalizer_policy; // Only null if the block has no pending finalizer policy
+};
+
 struct block_header_state {
    // ------ data members ------------------------------------------------------------
    block_id_type                       block_id;
@@ -204,6 +211,9 @@ struct block_header_state {
    const finalizer_policy& get_last_proposed_finalizer_policy() const;
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
+
+   // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
+   finalizer_policies_t get_finalizer_policies(block_num_type num);
 
    template<typename Ext> const Ext* header_extension() const {
       if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
