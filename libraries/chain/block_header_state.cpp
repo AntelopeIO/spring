@@ -16,7 +16,7 @@ digest_type block_header_state::compute_base_digest() const {
    digest_type::encoder enc;
 
    fc::raw::pack( enc, header );
-   fc::raw::pack( enc, core );
+   core.pack_for_digest( enc );
 
    fc::raw::pack( enc, proposed_finalizer_policies );
    fc::raw::pack( enc, pending_finalizer_policy );

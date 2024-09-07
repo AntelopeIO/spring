@@ -121,11 +121,21 @@ struct block_header_state {
    // When the block associated with a proposed finalizer policy becomes final,
    // it becomes pending.
    std::vector<std::pair<block_num_type, finalizer_policy_ptr>> proposed_finalizer_policies;
+
    // Track in-flight pending finalizer policy. At most one pending
    // finalizer policy at any moment.
    // When the block associated with the pending finalizer policy becomes final,
    // it becomes active.
    std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
+
+   // It may be that the `finality_core` references a finalizer policy generation which is neither the active
+   // or pending one. This can happen when a pending policy became active, replacing the previously active
+   // policy which would be lost if not tracked in the below member variable.
+   // When starting from a snapshot, it is critical that all finalizer policies referenced by the finality core
+   // can still be accessed, since they are needed for validating QCs for blocks as far back as core.latest_qc_claim().
+   // This pointer can (and will often) be nullptr, which means that a pending finalizer policy did not
+   // become active between `core.latest_qc_claim().block_num` and `core.current_block_num()` (inclusive).
+   finalizer_policy_ptr                latest_qc_claim_block_active_finalizer_policy;
 
    // generation increases by one each time a new finalizer_policy is proposed in a block
    // It matches the finalizer policy generation most recently included in this block's `finality_extension` or its ancestors
@@ -210,7 +220,7 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(latest_proposed_proposer_policy)(latest_pending_proposer_policy)(proposed_finalizer_policies)
-            (pending_finalizer_policy)(finalizer_policy_generation)
+            (pending_finalizer_policy)(latest_qc_claim_block_active_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest)(last_pending_finalizer_policy_start_timestamp))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
