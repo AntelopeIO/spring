@@ -183,6 +183,7 @@ public:
          const std::optional<digest_type>& action_mroot_savanna);
 
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
+   explicit block_state(snapshot_detail::snapshot_block_state_v8&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
 

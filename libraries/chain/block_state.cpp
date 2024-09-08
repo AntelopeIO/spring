@@ -208,6 +208,31 @@ block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
    header_exts = header.validate_and_extract_header_extensions();
 }
 
+block_state::block_state(snapshot_detail::snapshot_block_state_v8&& sbs)
+   : block_header_state {
+         .block_id                    = sbs.block_id,
+         .header                      = std::move(sbs.header),
+         .activated_protocol_features = std::move(sbs.activated_protocol_features),
+         .core                        = std::move(sbs.core),
+         .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
+         .active_proposer_policy      = std::move(sbs.active_proposer_policy),
+         .latest_proposed_proposer_policy = std::move(sbs.latest_proposed_proposer_policy),
+         .latest_pending_proposer_policy  = std::move(sbs.latest_pending_proposer_policy),
+         .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
+         .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
+         .latest_qc_claim_block_active_finalizer_policy = std::move(sbs.latest_qc_claim_block_active_finalizer_policy),
+         .finalizer_policy_generation = sbs.finalizer_policy_generation,
+         .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest,
+         .last_pending_finalizer_policy_start_timestamp = sbs.last_pending_finalizer_policy_start_timestamp
+      }
+   , strong_digest(compute_finality_digest())
+   , weak_digest(create_weak_digest(strong_digest))
+   , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
+   , valid(std::move(sbs.valid))
+{
+   header_exts = header.validate_and_extract_header_extensions();
+}
+
 deque<transaction_metadata_ptr> block_state::extract_trxs_metas() {
    pub_keys_recovered = false;
    auto result = std::move(cached_trxs);

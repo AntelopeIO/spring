@@ -12,6 +12,7 @@ namespace eosio::chain {
 
 namespace snapshot_detail {
   struct snapshot_block_state_v7;
+  struct snapshot_block_state_v8;
 }
 
 namespace detail { struct schedule_info; };

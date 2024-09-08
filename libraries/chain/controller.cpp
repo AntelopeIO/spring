@@ -2206,7 +2206,7 @@ struct controller_impl {
       });
 
       snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
+         section.add_row(snapshot_detail::snapshot_block_state_data_v8(get_block_state_to_snapshot()), db);
       });
       
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
@@ -2255,15 +2255,15 @@ struct controller_impl {
       });
 
       using namespace snapshot_detail;
-      using v7 = snapshot_block_state_data_v7;
+      using v8 = snapshot_block_state_data_v8;
 
       block_state_pair result;
-      if (header.version >= v7::minimum_version) {
+      if (header.version >= v8::minimum_version) {
          // loading a snapshot saved by Spring 1.0 and above.
          // -----------------------------------------------
-         if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
+         if (std::clamp(header.version, v8::minimum_version, v8::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
-               v7 block_state_data;
+               v8 block_state_data;
                section.read_row(block_state_data, db);
                assert(block_state_data.bs_l || block_state_data.bs);
                if (block_state_data.bs_l) {

@@ -583,12 +583,10 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b6_snapshot);
 
-#if 1  // uncomment when issue #694 is fixed.
    A.push_block(b7);                                    // when pushing b7, if we try to access any block state
    A.push_block(b8);                                    // before b6, we will fail with a `verify_qc_claim`
    A.push_block(b9);                                    // exception, which is what will happens until issue
                                                         // #694 is addressed.
-#endif
 
 } FC_LOG_AND_RETHROW()
 
@@ -602,8 +600,8 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
 BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
    auto& A=_nodes[0];
-   const auto& tester_account = "tester"_n;\
-   _debug_mode = true;
+   const auto& tester_account = "tester"_n;
+   //_debug_mode = true;
 
    // update finalizer_policy with a new key for B
    // --------------------------------------------

@@ -156,7 +156,6 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
    else {
       // cannot be the pending one as it never was active
       assert(!pending_finalizer_policy || pending_finalizer_policy->second->generation > active_gen);
-      std::cout << ref << '\n';
 
       // has to be the one in latest_qc_claim_block_active_finalizer_policy
       assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
