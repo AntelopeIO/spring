@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_SUITE(block_state_tests)
 BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   weak_digest_t weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   weak_digest_t weak_digest(create_weak_digest(strong_digest));
 
    const size_t num_finalizers = 3;
 
@@ -147,7 +147,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
                     bool include_pending) {
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -310,7 +310,7 @@ BOOST_AUTO_TEST_CASE(quorum_test) try {
 BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -556,7 +556,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -845,7 +845,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
