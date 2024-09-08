@@ -383,7 +383,7 @@ void finish_next(const block_header_state& prev,
    auto        latest_qc_claim_block_num = next_core.latest_qc_claim().block_num;
    const auto  active_generation_num     = next_header_state.active_finalizer_policy->generation;
    if (prev.get_active_finalizer_policy_generation(latest_qc_claim_block_num) != active_generation_num) {
-      const auto& latest_qc_claim_block_ref = prev.core.get_block_reference(latest_qc_claim_block_num);
+      const auto& latest_qc_claim_block_ref = next_header_state.core.get_block_reference(latest_qc_claim_block_num);
       next_header_state.latest_qc_claim_block_active_finalizer_policy =
          prev.get_finalizer_policies(latest_qc_claim_block_ref).active_finalizer_policy;
    } else {
