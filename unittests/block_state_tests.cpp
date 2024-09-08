@@ -334,7 +334,6 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
@@ -596,7 +595,6 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
    bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation+1, threshold, pending_finalizers ) };
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
@@ -887,7 +885,6 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
    constexpr uint64_t threshold = 8; // 2/3 of total weights of 12
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
    bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation+1, threshold, pending_finalizers ) };
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
