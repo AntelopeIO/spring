@@ -415,12 +415,12 @@ struct production_pause_vote_tracker {
       }
 
       const auto now = fc::time_point::now();
-      if (first_accepted_block_time_since_last_producer_vote != none) {
+      if (_is_producer_active_finalizer && first_accepted_block_time_since_last_producer_vote != none) {
          if (first_accepted_block_time_since_last_producer_vote + _production_pause_vote_timeout < now) {
             return implicit_pause::prod_paused;
          }
       }
-      if (first_accepted_block_time_since_last_other_vote != none) {
+      if (_other_active_finalizers && first_accepted_block_time_since_last_other_vote != none) {
          if (first_accepted_block_time_since_last_other_vote + _production_pause_vote_timeout < now) {
             return implicit_pause::other_paused;
          }
@@ -519,6 +519,7 @@ struct production_pause_vote_tracker {
       _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
          return !_producers.contains(to_account_name_safe(f.description));
       });
+      // if not active, check pending finalizer policy
       if (!_is_producer_active_finalizer || !_other_active_finalizers) {
          if (fin_policy = _chain->head_pending_finalizer_policy(); fin_policy) {
             if (!_is_producer_active_finalizer) {
