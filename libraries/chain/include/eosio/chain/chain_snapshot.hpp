@@ -28,7 +28,7 @@ struct chain_snapshot_header {
     *         - Each chainbase contract table placed in individual snapshot section instead of commingled "contract_tables" section
     *   8: Updated for Spring v1.0.1 release:
     *         - new member `latest_qc_claim_block_active_finalizer_policy` in `block_header_state`
-    *         - 2 new members (`pending` and `active` policy generations in every `block_ref` of the `finality_core`
+    *         - 2 new members (`pending` and `active` policy generations in every `block_ref` of the `finality_core`)
     *         - Spring v1.0.1 is incompatible with v7 format, but can read previous formats
     */
 
