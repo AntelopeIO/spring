@@ -417,29 +417,11 @@ struct production_pause_vote_tracker {
       const auto now = fc::time_point::now();
       if (first_accepted_block_time_since_last_producer_vote != none) {
          if (first_accepted_block_time_since_last_producer_vote + _production_pause_vote_timeout < now) {
-            auto p = implicit_pause::prod_paused;
-            std::string reason = p == production_pause_vote_tracker::implicit_pause::prod_paused ? "producer votes" : "votes received";
-            fc_elog(_log, "Not producing block because no recent ${r}, last producer vote ${pv}, other votes ${ov}, "
-                          "first accepted block time since last producer vote ${lpv}, since last other vote ${lov}",
-                    ("r", std::move(reason))
-                    ("pv", _last_producer_vote_time.load(std::memory_order_relaxed))
-                    ("ov", _last_other_vote_time.load(std::memory_order_relaxed))
-                    ("lpv", _first_accepted_block_time_since_last_producer_vote.load(std::memory_order_relaxed))
-                    ("lov", _first_accepted_block_time_since_last_other_vote.load(std::memory_order_relaxed)));
             return implicit_pause::prod_paused;
          }
       }
       if (first_accepted_block_time_since_last_other_vote != none) {
          if (first_accepted_block_time_since_last_other_vote + _production_pause_vote_timeout < now) {
-            auto p = implicit_pause::other_paused;
-            std::string reason = p == production_pause_vote_tracker::implicit_pause::prod_paused ? "producer votes" : "votes received";
-            fc_elog(_log, "Not producing block because no recent ${r}, last producer vote ${pv}, other votes ${ov}, "
-                          "first accepted block time since last producer vote ${lpv}, since last other vote ${lov}",
-                    ("r", std::move(reason))
-                    ("pv", _last_producer_vote_time.load(std::memory_order_relaxed))
-                    ("ov", _last_other_vote_time.load(std::memory_order_relaxed))
-                    ("lpv", _first_accepted_block_time_since_last_producer_vote.load(std::memory_order_relaxed))
-                    ("lov", _first_accepted_block_time_since_last_other_vote.load(std::memory_order_relaxed)));
             return implicit_pause::other_paused;
          }
       }
