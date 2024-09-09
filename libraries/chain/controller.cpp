@@ -1059,7 +1059,6 @@ struct controller_impl {
 
    // --------------- access fork_db head ----------------------------------------------------------------------
    block_handle fork_db_head()const {
-      assert(fork_db_has_root());
       return fork_db.apply<block_handle>(
          [&](const auto& forkdb) {
             return block_handle{forkdb.head(include_root_t::yes)};
