@@ -108,7 +108,7 @@ public:
       // Remove from the source based on diff.remove_indexes
       std::ptrdiff_t offset = 0;
       for (SizeType index : diff.remove_indexes) {
-         SizeType updated_index = index + offset;
+         auto updated_index = index + offset;
          // Safe to do static_cast as `updated_index >= 0` is verified first
          FC_ASSERT(updated_index >= 0 && (static_cast<Container<T>::size_type>(updated_index) < container.size()), "diff.remove_indexes index ${idx} + offset ${o} not in range ${s}",
                    ("idx", index)("o", offset)("s", container.size()));
