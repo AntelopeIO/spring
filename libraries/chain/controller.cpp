@@ -3427,15 +3427,13 @@ struct controller_impl {
          }
 
          if (auto* dm_logger = get_deep_mind_logger(false)) {
-            // forkdb not available during replay
             block_handle_accessor::apply<void>(chain_head,
                         [&](const block_state_legacy_ptr& head) {
                            if (head->block->contains_header_extension(finality_extension::extension_id())) {
-                              block_num_type lib = replaying ? chain_head.irreversible_blocknum() : fork_db_root_block_num();
                               auto bsp = get_transition_savanna_block(head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
-                              dm_logger->on_accepted_block_v2(head->id(), lib, head->block,
+                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
                                                               bsp->get_finality_data(),
                                                               bsp->active_proposer_policy,
                                                               finalizer_policy_with_string_key{*bsp->active_finalizer_policy});
@@ -3445,8 +3443,7 @@ struct controller_impl {
                         },
                         [&](const block_state_ptr& head) {
                            assert(head->active_finalizer_policy);
-                           block_num_type lib = replaying ? chain_head.irreversible_blocknum() : fork_db_root_block_num();
-                           dm_logger->on_accepted_block_v2(head->id(), lib, head->block,
+                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
                                                            head->get_finality_data(),
                                                            head->active_proposer_policy,
                                                            finalizer_policy_with_string_key{*head->active_finalizer_policy});
