@@ -1,5 +1,6 @@
 #include <eosio/producer_plugin/producer_plugin.hpp>
 #include <eosio/producer_plugin/block_timing_util.hpp>
+#include <eosio/producer_plugin/production_pause_vote_tracker.hpp>
 #include <eosio/chain/plugin_interface.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/generated_transaction_object.hpp>
@@ -361,9 +362,10 @@ struct block_time_tracker {
 };
 
 /**
- * Tracks active finalizers and votes to determine if implicit pause of production is needed.
+ * Tracks active finalizers and votes via production_pause_vote_tracker to determine if implicit pause
+ * of production is needed.
  */
-struct production_pause_vote_tracker {
+struct implicit_production_pause_vote_tracker {
 
    void init(const controller& chain,
              const std::set<chain::account_name>& producers,
@@ -371,11 +373,10 @@ struct production_pause_vote_tracker {
    {
       _chain = &chain;
       _producers = producers; // copy, normally contains at most one
-      _production_pause_vote_timeout = production_pause_vote_timeout;
+      _vt.set_vote_timeout(production_pause_vote_timeout);
    }
 
    // Only call when savanna is active
-   // Called on resume()
    void activate() {
       // disabled by configuration
       if (_production_pause_vote_timeout.count() == 0)
@@ -388,58 +389,26 @@ struct production_pause_vote_tracker {
          return;
 
       _active = true;
-
-      // since called on resume, reset to allow production until it times out again
-      _last_other_vote_time.store(fc::time_point{}, std::memory_order_relaxed);
-      _last_producer_vote_time.store(fc::time_point{}, std::memory_order_relaxed);
-      _first_accepted_block_time_since_last_other_vote.store(fc::time_point{}, std::memory_order_relaxed);
-      _first_accepted_block_time_since_last_producer_vote.store(fc::time_point{}, std::memory_order_relaxed);
    }
 
-   enum class implicit_pause {
-      not_paused,   // not implicitly paused
-      prod_paused,  // paused due to not receiving vote associated with producer
-      other_paused  // paused due to not receiving any vote from finalizers not associated with producer
-   };
+   // Called on resume()
+   void force_unpause() {
+      // currently active conditions can't chain after start except for savanna transition
+      if (_active)
+         _vt.force_unpause(); // safe to always call, but no need if not active
+   }
 
-   // called from the main thread
-   implicit_pause implicitly_paused() const {
+   // If active, check production_pause_vote_tracker if should pause now
+   bool should_pause() const {
       if (!_active)
-         return implicit_pause::not_paused;
-
-      auto first_accepted_block_time_since_last_producer_vote = _first_accepted_block_time_since_last_producer_vote.load(std::memory_order_relaxed);
-      auto first_accepted_block_time_since_last_other_vote    = _first_accepted_block_time_since_last_other_vote.load(std::memory_order_relaxed);
-      constexpr fc::time_point none;
-      if (first_accepted_block_time_since_last_producer_vote == none && first_accepted_block_time_since_last_other_vote == none) {
-         return implicit_pause::not_paused;
-      }
-
-      const auto now = fc::time_point::now();
-      if (_is_producer_active_finalizer && first_accepted_block_time_since_last_producer_vote != none) {
-         if (first_accepted_block_time_since_last_producer_vote + _production_pause_vote_timeout < now) {
-            return implicit_pause::prod_paused;
-         }
-      }
-      if (_other_active_finalizers && first_accepted_block_time_since_last_other_vote != none) {
-         if (first_accepted_block_time_since_last_other_vote + _production_pause_vote_timeout < now) {
-            return implicit_pause::other_paused;
-         }
-      }
-
-      return implicit_pause::not_paused;
+         return false;
+      return _vt.check_pause_status(fc::time_point::now()).should_pause();
    }
 
-   // called from the main thread
-   void log_not_producing(implicit_pause p, const block_timestamp_type& block_time) {
-      // "Not producing block because no recent" log message looked for in production_pause_vote_timeout.py
-      std::string reason = p == production_pause_vote_tracker::implicit_pause::prod_paused ? "producer votes" : "votes received";
-      fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, last producer vote ${pv}, other votes ${ov}, "
-                    "first accepted block time since last producer vote ${lpv}, since last other vote ${lov}",
-              ("r", std::move(reason))("t", block_time)
-              ("pv", _last_producer_vote_time.load(std::memory_order_relaxed))
-              ("ov", _last_other_vote_time.load(std::memory_order_relaxed))
-              ("lpv", _first_accepted_block_time_since_last_producer_vote.load(std::memory_order_relaxed))
-              ("lov", _first_accepted_block_time_since_last_other_vote.load(std::memory_order_relaxed)));
+   auto check_pause_status(fc::time_point now) const {
+      if (!_active)
+         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
+      return _vt.check_pause_status(now);
    }
 
    // called from multiple threads
@@ -475,39 +444,26 @@ struct production_pause_vote_tracker {
               ("d", active_auth ? active_auth->description : pending_auth->description));
          // running with core contract that does not associate finalizer_authority->description with a producer
          // reset times otherwise the producer would pause
-         _last_other_vote_time.store(now, std::memory_order_relaxed);
-         _last_producer_vote_time.store(now, std::memory_order_relaxed);
-         _first_accepted_block_time_since_last_producer_vote.store(fc::time_point{}, std::memory_order_relaxed);
-         _first_accepted_block_time_since_last_other_vote.store(fc::time_point{}, std::memory_order_relaxed);
+         _vt.record_received_producer_vote(now);
+         _vt.record_received_other_vote(now);
          return;
       }
 
       if (_producers.contains(auth_desc)) { // _producers not modified, thread safe
-         _last_producer_vote_time.store(now, std::memory_order_relaxed);
-         _first_accepted_block_time_since_last_producer_vote.store(fc::time_point{}, std::memory_order_relaxed);
+         _vt.record_received_producer_vote(now);
       } else {
-         _last_other_vote_time.store(now, std::memory_order_relaxed);
-         _first_accepted_block_time_since_last_other_vote.store(fc::time_point{}, std::memory_order_relaxed);
+         _vt.record_received_other_vote(now);
       }
    }
 
+   void record_received_block(fc::time_point now) {
+      _vt.record_received_block(now);
+   }
+
    // called from main thread
-   void on_accepted_block_header() {
+   void update_active_finalizers() {
       if (!_active)
          return;
-
-      // update accepted block times
-      const auto now = fc::time_point::now();
-      // if first_accepted_block_time_since_last_producer_vote is default set to now
-      fc::time_point none;
-      if (_last_producer_vote_time.load(std::memory_order_relaxed) < now - _signal_tolerance) {
-         _first_accepted_block_time_since_last_producer_vote.compare_exchange_weak(none, now, std::memory_order_relaxed);
-         none = fc::time_point{};
-      }
-      // if first_accepted_block_time_since_last_other_vote is default set to now
-      if (_last_other_vote_time.load(std::memory_order_relaxed) < now - _signal_tolerance) {
-         _first_accepted_block_time_since_last_other_vote.compare_exchange_weak(none, now, std::memory_order_relaxed);
-      }
 
       // update active finalizer tracking
       assert(_chain);
@@ -547,24 +503,14 @@ struct production_pause_vote_tracker {
    }
 
 private:
-   // votes can be signaled before accepted_block_header, accepted_block_header is currently only signaled from the
-   // main thread while votes can be signaled off the main thread. This allows votes to be signaled for a block before
-   // the block is signaled. We could track last accepted block id and correlate that with the vote signal, but simpler
-   // to add a signal_tolerance. Normally the tolerance only needs to be a few milliseconds, but no real harm in making
-   // it larger. Half a block interval is a nice value.
-   static constexpr fc::microseconds                 _signal_tolerance = fc::microseconds{config::block_interval_us / 2};
    const controller*                                 _chain = nullptr;
    std::set<chain::account_name>                     _producers;
    bool                                              _is_producer_active_finalizer = false;
    // are there any active finalizers that are not part of producers of this node (not expected to be false outside tests)
    bool                                              _other_active_finalizers = false;
-   alignas(hardware_destructive_interference_sz)
-   std::atomic<bool>                                 _active = false;
-   std::atomic<fc::time_point>                       _last_producer_vote_time;
-   std::atomic<fc::time_point>                       _last_other_vote_time;
-   std::atomic<fc::time_point>                       _first_accepted_block_time_since_last_producer_vote;
-   std::atomic<fc::time_point>                       _first_accepted_block_time_since_last_other_vote;
    fc::microseconds                                  _production_pause_vote_timeout;
+   production_pause_vote_tracker                     _vt;
+   std::atomic<bool>                                 _active = false;
 };
 
 } // anonymous namespace
@@ -710,7 +656,7 @@ public:
    std::atomic<int32_t>                              _max_transaction_time_ms; // modified by app thread, read by net_plugin thread pool
    alignas(hardware_destructive_interference_sz)
    std::atomic<uint32_t>                             _received_block{0};       // modified by net_plugin thread pool
-   production_pause_vote_tracker                     _implicit_pause_vote_tracker;
+   implicit_production_pause_vote_tracker            _implicit_pause_vote_tracker;
    fc::microseconds                                  _max_irreversible_block_age_us;
    block_num_type                                    _max_reversible_blocks{0};
    // produce-block-offset is in terms of the complete round, internally use calculated value for each block of round
@@ -843,7 +789,7 @@ public:
    }
 
    bool implicitly_paused() const {
-      return _implicit_pause_vote_tracker.implicitly_paused() != production_pause_vote_tracker::implicit_pause::not_paused;
+      return _implicit_pause_vote_tracker.should_pause();
    }
 
    void on_accepted_block(const signed_block_ptr& block, const block_id_type& id) {
@@ -863,7 +809,8 @@ public:
          if (_producers.contains(block->producer))
             _producer_watermarks.consider_new_watermark(block->producer, block->block_num(), block->timestamp);
       } else {
-         _implicit_pause_vote_tracker.on_accepted_block_header();
+         _implicit_pause_vote_tracker.update_active_finalizers();
+         _implicit_pause_vote_tracker.record_received_block(fc::time_point::now());
       }
    }
 
@@ -878,6 +825,12 @@ public:
             _implicit_pause_vote_tracker.activate();
          }
       }
+   }
+
+   // called from multiple non-main threads
+   void on_vote(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
+                const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
+      _implicit_pause_vote_tracker.on_vote(connection_id, status, msg, active_auth, pending_auth);
    }
 
    void abort_block() {
@@ -1196,7 +1149,7 @@ public:
       _pause_production = false;
       // reset vote received so production can be explicitly resumed, will pause again when received vote time limit hit again
       if (_is_savanna_active)
-         _implicit_pause_vote_tracker.activate();
+         _implicit_pause_vote_tracker.force_unpause();
 
       // it is possible that we are only speculating because of this policy which we have now changed
       // re-evaluate that now
@@ -1610,7 +1563,7 @@ void producer_plugin_impl::plugin_startup() {
             auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
                const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
                try {
-                  _implicit_pause_vote_tracker.on_vote(connection_id, status, msg, active_auth, pending_auth);
+                  on_vote(connection_id, status, msg, active_auth, pending_auth);
                } LOG_AND_DROP()
             };
             _aggregate_vote_connection.emplace(chain.aggregated_vote().connect(on_vote_signal));
@@ -2083,9 +2036,19 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
               ("t", block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
-   } else if (auto p = _implicit_pause_vote_tracker.implicitly_paused(); p != production_pause_vote_tracker::implicit_pause::not_paused) {
-      // log 'Not producing block because ...'
-      _implicit_pause_vote_tracker.log_not_producing(p, block_time);
+   } else if (const auto status = _implicit_pause_vote_tracker.check_pause_status(now); status.should_pause()) {
+      assert(status.earliest_conflicting_block_received_time.has_value());
+      const auto conflict_block_time = status.earliest_conflicting_block_received_time.value();
+      // "Not producing block because no recent" log message looked for in production_pause_vote_timeout.py
+      std::string reason = (status.latest_other_vote_received_time < conflict_block_time)
+                           ? ((status.latest_producer_vote_received_time < conflict_block_time)
+                              ? "producer votes"
+                              : "votes received from others")
+                           : "votes received from configured producer";
+      fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, "
+                    "last producer vote ${pv}, other votes ${ov}, earliest conflicting block time ${cb}",
+              ("r", std::move(reason))("t", block_time)("pv", status.latest_producer_vote_received_time)
+              ("ov", status.latest_other_vote_received_time)("cb", conflict_block_time));
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {

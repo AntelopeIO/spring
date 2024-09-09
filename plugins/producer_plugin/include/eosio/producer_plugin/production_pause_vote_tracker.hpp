@@ -36,6 +36,12 @@ public:
    //
    // Sets the block acceptance tolerance duration which determines the relevancy of blocks to record.
    //
+   // votes can be signaled before accepted_block_header, accepted_block_header is currently only signaled from the
+   // main thread while votes can be signaled off the main thread. This allows votes to be signaled for a block before
+   // the block is signaled. We could track last accepted block id and correlate that with the vote signal, but simpler
+   // to add a signal_tolerance. Normally the tolerance only needs to be a few milliseconds, but no real harm in making
+   // it larger. Half a block interval is a nice value.
+   //
    // Pre-condition: block_acceptance_tolerance should not be negative.
    void set_block_acceptance_tolerance(fc::microseconds block_acceptance_tolerance) {
       assert(block_acceptance_tolerance.count() >= 0);
@@ -96,9 +102,9 @@ public:
    }
 
    struct pause_status {
-      fc::time_point                latest_other_vote_received_time;
-      fc::time_point                latest_producer_vote_received_time;
-      std::optional<fc::time_point> earliest_conflicting_block_received_time;
+      fc::time_point                latest_other_vote_received_time{};
+      fc::time_point                latest_producer_vote_received_time{};
+      std::optional<fc::time_point> earliest_conflicting_block_received_time{};
 
       bool should_pause() const { return earliest_conflicting_block_received_time.has_value(); }
    };
