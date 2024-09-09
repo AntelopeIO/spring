@@ -39,7 +39,7 @@ template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
    res.reserve(count);
-   // generation numbers in `block_ref` constructor have to be 0 as they are not saved in fsi the file,
+   // generation numbers in `block_ref` constructor have to be 0 as they are not saved in the fsi file,
    // but compared to loaded ones which get the default values of 0.
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
