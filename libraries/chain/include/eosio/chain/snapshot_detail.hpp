@@ -155,6 +155,8 @@ namespace eosio::chain::snapshot_detail {
    /**
     *      Snapshot V8 Data structures
     *      ---------------------------
+    *  Spring 1.01 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
+    *  generation numbers. Also new member `block_state::latest_qc_claim_block_active_finalizer_policy`
     */
    struct snapshot_block_state_v8 {
       // from block_header_state

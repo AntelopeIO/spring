@@ -141,8 +141,10 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
    return *active_finalizer_policy;
 }
 
-// Only defined for core.latest_qc_claim().block_num <= block_num <= core.current_block_num()
-// ------------------------------------------------------------------------------------------
+// Only defined for core.latest_qc_claim().block_num <= ref.block_num() <= core.current_block_num()
+// Retrieves the finalizer policies applicatble for the block referenced by `ref`.
+// See full explanation in issue #694.
+// ------------------------------------------------------------------------------------------------
 finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref& ref) const {
    finalizer_policies_t res;
 
@@ -183,6 +185,9 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
 }
 
 // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
+// Retrieves the active finalizer policy generation applicatble for the block `num`, which
+// can be the current block or one of its ancestors up to core.latest_qc_claim().block_num (incl).
+// -----------------------------------------------------------------------------------------------
 uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type num) const {
    if (num == block_num())
       return active_finalizer_policy->generation;
@@ -378,6 +383,7 @@ void finish_next(const block_header_state& prev,
    // now populate next_header_state.latest_qc_claim_block_active_finalizer_policy
    // this keeps track of the finalizer policy which was active @ latest_qc_claim().block_num, but which
    // can be overwritten by a previously pending police (member `active_finalizer_policy`)
+   // See full explanation in issue #694.
    // --------------------------------------------------------------------------------------------------
    const auto& next_core                 = next_header_state.core;
    auto        latest_qc_claim_block_num = next_core.latest_qc_claim().block_num;
