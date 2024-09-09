@@ -535,9 +535,10 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    BOOST_REQUIRE_EQUAL(active->generation, p2);         // b6 has active finalizer policy p2
    BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
 
-   auto b6_snapshot = A.snapshot();
+   // At this point, in the Spring 1.0 implementation, policy  P2 is lost from the block_header_state
+   // of B6, which is the source of the problem
 
-   // At this point, in the current implementation policy ...
+   auto b6_snapshot = A.snapshot();
 
    push_block(0, b5);
 
