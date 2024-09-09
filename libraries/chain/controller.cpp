@@ -1059,6 +1059,7 @@ struct controller_impl {
 
    // --------------- access fork_db head ----------------------------------------------------------------------
    block_handle fork_db_head()const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_handle>(
          [&](const auto& forkdb) {
             return block_handle{forkdb.head(include_root_t::yes)};
@@ -1066,6 +1067,7 @@ struct controller_impl {
    }
 
    uint32_t fork_db_head_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->block_num();
@@ -1073,6 +1075,7 @@ struct controller_impl {
    }
 
    block_id_type fork_db_head_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->id();
@@ -1089,20 +1092,24 @@ struct controller_impl {
    }
 
    block_id_type fork_db_root_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
 
    uint32_t fork_db_root_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>([&](const auto& forkdb) { return forkdb.root()->block_num(); });
    }
 
    block_timestamp_type  fork_db_root_timestamp() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_timestamp_type>([&](const auto& forkdb) { return forkdb.root()->timestamp(); });
    }
 
    // ---------------  fork_db APIs ----------------------------------------------------------------------
    template<typename ForkDB>
    uint32_t pop_block(ForkDB& forkdb) {
+      assert(fork_db_has_root());
       typename ForkDB::bsp_t prev = forkdb.get_block( chain_head.previous() );
 
       if( !prev ) {
