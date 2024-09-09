@@ -109,6 +109,11 @@ public:
       bool should_pause() const { return earliest_conflicting_block_received_time.has_value(); }
    };
 
+   // Specify which vote timing check is needed.
+   // If not `both` then corresponding latest_ value in pause_status is not modified. pause_status.should_pause() is
+   // correct according to specified pause_check.
+   enum class pause_check { producer, other, both };
+
    // Can be called concurrently with all member functions except:
    //    + set_vote_timeout
    //
@@ -116,7 +121,7 @@ public:
    // which, most importantly, determines whether production should be paused.
    // To determine whether production should be paused or not, simply check the boolean value
    // returned from the should_pause member function of the returned struct.
-   pause_status check_pause_status(fc::time_point current_time) const {
+   pause_status check_pause_status(fc::time_point current_time, pause_check check = pause_check::both) const {
       pause_status status;
 
       const auto threshold_time = fc::time_point(current_time).safe_add(negative_vote_timeout);
@@ -138,7 +143,10 @@ public:
          }
       };
 
-      process_vote_timing(latest_other_vote, status.latest_other_vote_received_time);
+      if (check != pause_check::producer) {
+         assert(check == pause_check::both || check == pause_check::other);
+         process_vote_timing(latest_other_vote, status.latest_other_vote_received_time);
+      }
       process_vote_timing(latest_producer_vote, status.latest_producer_vote_received_time);
 
       return status;

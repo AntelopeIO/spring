@@ -398,17 +398,35 @@ struct implicit_production_pause_vote_tracker {
          _vt.force_unpause(); // safe to always call, but no need if not active
    }
 
-   // If active, check production_pause_vote_tracker if should pause now
+   // If active, check production_pause_vote_tracker should pause now
    bool should_pause() const {
       if (!_active)
          return false;
-      return _vt.check_pause_status(fc::time_point::now()).should_pause();
+      if (!_is_producer_active_finalizer && !_other_active_finalizers)
+         return false;
+
+      production_pause_vote_tracker::pause_check check = production_pause_vote_tracker::pause_check::both;
+      if (!_is_producer_active_finalizer)
+         check = production_pause_vote_tracker::pause_check::other;
+      else if (!_other_active_finalizers)
+         check = production_pause_vote_tracker::pause_check::producer;
+
+      return _vt.check_pause_status(fc::time_point::now(), check).should_pause();
    }
 
    auto check_pause_status(fc::time_point now) const {
       if (!_active)
          return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
-      return _vt.check_pause_status(now);
+      if (!_is_producer_active_finalizer && !_other_active_finalizers)
+         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
+
+      production_pause_vote_tracker::pause_check check = production_pause_vote_tracker::pause_check::both;
+      if (!_is_producer_active_finalizer)
+         check = production_pause_vote_tracker::pause_check::other;
+      else if (!_other_active_finalizers)
+         check = production_pause_vote_tracker::pause_check::producer;
+
+      return _vt.check_pause_status(now, check);
    }
 
    // called from multiple threads
