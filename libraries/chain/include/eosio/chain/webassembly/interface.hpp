@@ -1928,7 +1928,7 @@ namespace webassembly {
          void __lshrti3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint32_t) const;
          void __divti3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
          void __udivti3(legacy_ptr<uint128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
-         void __multi3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
+         void __multi3(legacy_ptr<uint128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
          void __modti3(legacy_ptr<int128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
          void __umodti3(legacy_ptr<uint128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
          void __addtf3(legacy_ptr<float128_t>, uint64_t, uint64_t, uint64_t, uint64_t) const;
