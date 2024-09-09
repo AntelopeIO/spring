@@ -394,8 +394,10 @@ struct implicit_production_pause_vote_tracker {
    // Called on resume()
    void force_unpause() {
       // currently active conditions can't chain after start except for savanna transition
-      if (_active)
-         _vt.force_unpause(); // safe to always call, but no need if not active
+      if (!_active)
+         return;
+
+      _vt.force_unpause(); // safe to always call, but no need if not active
    }
 
    // If active, check production_pause_vote_tracker should pause now
@@ -475,6 +477,9 @@ struct implicit_production_pause_vote_tracker {
    }
 
    void record_received_block(fc::time_point now) {
+      if (!_active)
+         return;
+
       _vt.record_received_block(now);
    }
 
