@@ -3440,7 +3440,7 @@ struct controller_impl {
                               auto bsp = get_transition_savanna_block(head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
-                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                              dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                               bsp->get_finality_data(),
                                                               bsp->active_proposer_policy,
                                                               finalizer_policy_with_string_key{*bsp->active_finalizer_policy});
@@ -3450,7 +3450,7 @@ struct controller_impl {
                         },
                         [&](const block_state_ptr& head) {
                            assert(head->active_finalizer_policy);
-                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                           dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                            head->get_finality_data(),
                                                            head->active_proposer_policy,
                                                            finalizer_policy_with_string_key{*head->active_finalizer_policy});
