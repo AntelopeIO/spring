@@ -24,9 +24,13 @@ namespace fc {
 
    dmlog_appender::dmlog_appender( const std::optional<dmlog_appender::config>& args )
    :dmlog_appender(){
-      if (!args || args->file == "-")
+      if (!args || (args->file == "-" || args->file == "-stdout"))
       {
          my->out = stdout;
+      }
+      else if (args && args->file == "-stderr")
+      {
+         my->out = stderr;
       }
       else
       {
