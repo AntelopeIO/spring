@@ -108,15 +108,17 @@ public:
       // Remove from the source based on diff.remove_indexes
       std::ptrdiff_t offset = 0;
       for (SizeType index : diff.remove_indexes) {
-         FC_ASSERT(index + offset < container.size(), "diff.remove_indexes index ${idx} + offset ${o} not in range ${s}",
+         SizeType updated_index = index + offset;
+         // Safe to do static_cast as `updated_index >= 0` is verified first
+         FC_ASSERT(updated_index >= 0 && (static_cast<Container<T>::size_type>(updated_index) < container.size()), "diff.remove_indexes index ${idx} + offset ${o} not in range ${s}",
                    ("idx", index)("o", offset)("s", container.size()));
-         container.erase(container.begin() + index + offset);
+         container.erase(container.begin() + updated_index);
          --offset;
       }
 
       // Insert into the source based on diff.insert_indexes
       for (auto& [index, value] : diff.insert_indexes) {
-         FC_ASSERT(index <= container.size(), "diff.insert_indexes index ${idx} not in range ${s}",
+         FC_ASSERT(index >= 0 && static_cast<Container<T>::size_type>(index) <= container.size(), "diff.insert_indexes index ${idx} not in range ${s}",
                    ("idx", index)("s", container.size()));
          container.insert(container.begin() + index, std::move(value));
       }
