@@ -2259,8 +2259,8 @@ struct controller_impl {
 
       block_state_pair result;
       if (header.version >= v8::minimum_version) {
-         // loading a snapshot saved by Spring 1.0 and above.
-         // -----------------------------------------------
+         // loading a snapshot saved by Spring 1.0.1 and above.
+         // ---------------------------------------------------
          if (std::clamp(header.version, v8::minimum_version, v8::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
                v8 block_state_data;
@@ -2286,6 +2286,9 @@ struct controller_impl {
             EOS_THROW(snapshot_exception, "Unsupported block_state version");
          }
       } else if (header.version == 7) {
+         // snapshot created with Spring 1.0, which was very soon superseded by Spring 1.0.1
+         // and a new snapshot format.
+         // --------------------------------------------------------------------------------
          EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.01 and above");
       } else {
          // loading a snapshot saved by Leap up to version 6.
