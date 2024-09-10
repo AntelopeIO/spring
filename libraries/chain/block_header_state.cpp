@@ -386,7 +386,7 @@ void finish_next(const block_header_state& prev,
 
    // now populate next_header_state.latest_qc_claim_block_active_finalizer_policy
    // this keeps track of the finalizer policy which was active @ latest_qc_claim().block_num, but which
-   // can be overwritten by a previously pending police (member `active_finalizer_policy`)
+   // can be overwritten by a previously pending policy (member `active_finalizer_policy`)
    // See full explanation in issue #694.
    // --------------------------------------------------------------------------------------------------
    const auto& next_core                 = next_header_state.core;

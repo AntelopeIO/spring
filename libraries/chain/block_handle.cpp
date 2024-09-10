@@ -7,7 +7,7 @@ namespace eosio::chain {
 // -------------------------------------------------------------------------------------------
 // prior to writing magic and version numbers, we simply serialized the class (*this) to
 // file. Let's call this the implicit version 0, which is not supported anymore in
-// Spring 1.01 and above.
+// Spring 1.0.1 and above.
 // However, we need to make sure that `chain_head_magic` can't match the tag of a std::variant
 // -------------------------------------------------------------------------------------------
 constexpr uint64_t chain_head_magic   = 0xf1f2f3f4f4f3f2f1;
