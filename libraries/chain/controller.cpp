@@ -3940,7 +3940,7 @@ struct controller_impl {
 
             // if previous block's header extension has the same claim, just return
             // (previous block already validated the claim)
-            return {};
+            return std::optional<qc_t>{};
          }
 
          // new claimed QC must be stronger than previous if the claimed block number is the same
@@ -3967,7 +3967,7 @@ struct controller_impl {
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      return qc_proof;
+      return std::optional{qc_proof};
    }
 
    // verify legacy block invariants
@@ -4072,7 +4072,7 @@ struct controller_impl {
          }
       }
 
-      return {};
+      return std::optional<qc_t>{};
    }
 
    // This verifies BLS signatures and is expensive.
