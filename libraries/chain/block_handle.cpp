@@ -29,10 +29,8 @@ void block_handle::write(const std::filesystem::path& state_file) {
 }
 
 bool block_handle::read(const std::filesystem::path& state_file) {
-   bool res = false;
-
    if (!std::filesystem::exists(state_file))
-      return res;
+      return false;
 
    EOS_ASSERT(std::filesystem::file_size(state_file) >= 2 * sizeof(chain_head_magic), chain_exception,
               "File `chain_head.dat` seems to be corrupted. The best course of action might be to restart from a snapshot (v8 or above)" );
@@ -52,13 +50,13 @@ bool block_handle::read(const std::filesystem::path& state_file) {
 
       fc::raw::unpack(f, *this);
       ilog("Loading chain_head block ${bn} ${id}", ("bn", block_num())("id", id()));
-      res = true;
    } catch (...) {
       throw;
    }
 
+   // remove the `chain_head.dat` file only if we were able to successfully load it.
    std::filesystem::remove(state_file);
-   return res;
+   return true;
 }
 
 } /// namespace eosio::chain
