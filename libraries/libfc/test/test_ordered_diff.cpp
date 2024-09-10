@@ -38,15 +38,15 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
    { // All elements removed
       vector<char> source = {'a', 'b', 'c', 'd', 'e'};
       vector<char> target;
-      auto result = ordered_diff<char, int>::diff(source, target);
-      source = ordered_diff<char, int>::apply_diff(std::move(source), result);
+      auto result = ordered_diff<char, unsigned int>::diff(source, target);
+      source = ordered_diff<char, unsigned int>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
    { // All elements removed, size 1
       vector<char> source = {'a'};
       vector<char> target;
-      auto result = ordered_diff<char, int>::diff(source, target);
-      source = ordered_diff<char, int>::apply_diff(std::move(source), result);
+      auto result = ordered_diff<char, unsigned int>::diff(source, target);
+      source = ordered_diff<char, unsigned int>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
    { // All elements inserted
