@@ -19,9 +19,10 @@ errorExit = Utils.errorExit
 cmdError = Utils.cmdError
 relaunchTimeout = 10
 numOfProducers = 1
-# One producing node, four regular terminate-at-block nodes, and three nodes
+# One producing node, four regular terminate-at-block nodes, and six nodes
 # where replay snapshot through block logs with terminate-at-block
-totalNodes = 8
+# and in combinations of --read-mode and --force-all-checks.
+totalNodes = 11
 
 # Parse command line arguments
 args = TestHelper.parse_args({
@@ -275,7 +276,10 @@ try:
     replayNodeosArgs = {
         5 : "--read-mode irreversible",
         6 : "--read-mode head",
-        7 : "--read-mode speculative"
+        7 : "--read-mode speculative",
+        8 : "--read-mode irreversible --force-all-checks",
+        9 : "--read-mode head --force-all-checks",
+        10 : "--read-mode speculative --force-all-checks"
     }
 
     # combine all together
