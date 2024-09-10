@@ -3958,16 +3958,16 @@ struct controller_impl {
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
-      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num, invalid_qc_claim,
+      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num, block_validate_exception,
                   "Block #${b}: Mismatch between qc.block_num (${n1}) in block extension and block_num (${n2}) in header extension",
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
-      // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, invalid_qc_claim,
+      // Verify claimed strength is the same as in proof
+      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, block_validate_exception,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      return qc_proof;
+      return std::optional{qc_proof};
    }
 
    // verify legacy block invariants
@@ -4098,10 +4098,9 @@ struct controller_impl {
          if (qc) {
             verify_qc(b, prev, *qc);
 
-            const auto  qc_claim = qc->to_qc_claim();
             dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
                  ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-                 ("qc_claim", qc_claim)("p", b->previous));
+                 ("qc_claim", qc->to_qc_claim())("p", b->previous));
          }
       }
 
