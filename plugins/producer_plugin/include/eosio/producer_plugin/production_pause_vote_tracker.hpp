@@ -23,7 +23,7 @@ public:
    //
    // Sets the vote timeout duration which drives the production pause status.
    //
-   // Pre-condition: vote_timeout should not be negative.
+   // Pre-condition: vote_timeout should be positive.
    void set_vote_timeout(fc::microseconds vote_timeout) {
       if (vote_timeout.count() > 0) {
          negative_vote_timeout = fc::microseconds(-vote_timeout.count());
@@ -46,7 +46,7 @@ public:
    void set_block_acceptance_tolerance(fc::microseconds block_acceptance_tolerance) {
       assert(block_acceptance_tolerance.count() >= 0);
 
-      if (block_acceptance_tolerance.count() > 0) {
+      if (block_acceptance_tolerance.count() >= 0) {
          block_acceptance_delta = fc::microseconds(-block_acceptance_tolerance.count());
       }
    }
