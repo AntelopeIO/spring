@@ -3955,7 +3955,7 @@ struct controller_impl {
 
       assert(qc_ext_itr != block_exts.end() );
       const auto& qc_ext   = std::get<quorum_certificate_extension>(qc_ext_itr->second);
-      const auto& qc_proof = qc_ext.qc;
+      const auto qc_proof  = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
       EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num, invalid_qc_claim,
