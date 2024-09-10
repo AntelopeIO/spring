@@ -45,6 +45,12 @@ namespace eosio { namespace chain { namespace webassembly {
 
       EOS_ASSERT(rhs != 0, arithmetic_exception, "divide by zero");
 
+      //force integer overflow to return dividend unchanged
+      if(lhs == std::numeric_limits<__int128>::min() && rhs == -1) {
+         *ret = lhs;
+         return;
+      }
+
       lhs /= rhs;
 
       *ret = lhs;
@@ -66,9 +72,9 @@ namespace eosio { namespace chain { namespace webassembly {
       *ret = lhs;
    }
 
-   void interface::__multi3(legacy_ptr<__int128> ret, uint64_t la, uint64_t ha, uint64_t lb, uint64_t hb) const {
-      __int128 lhs = ha;
-      __int128 rhs = hb;
+   void interface::__multi3(legacy_ptr<uint128_t> ret, uint64_t la, uint64_t ha, uint64_t lb, uint64_t hb) const {
+      uint128_t lhs = ha;
+      uint128_t rhs = hb;
 
       lhs <<= 64;
       lhs |=  la;
@@ -91,6 +97,12 @@ namespace eosio { namespace chain { namespace webassembly {
       rhs |=  lb;
 
       EOS_ASSERT(rhs != 0, arithmetic_exception, "divide by zero");
+
+      //force undefined behavior (due to lhs/rhs being an overflow) to return zero
+      if(lhs == std::numeric_limits<__int128>::min() && rhs == -1) {
+         *ret = 0;
+         return;
+      }
 
       lhs %= rhs;
       *ret = lhs;

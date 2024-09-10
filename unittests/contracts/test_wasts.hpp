@@ -1002,3 +1002,39 @@ static const char set_jumbo_row_wast[] = R"=====(
    )
 )
 )=====";
+
+static const char divmod_host_function_overflow_wast[] = R"=====(
+(module
+   (import "env" "__divti3" (func $__divti3 (param $ret_ptr i32) (param $la i64) (param $ha i64) (param $lb i64) (param $hb i64)))
+   (import "env" "__modti3" (func $__modti3 (param $ret_ptr i32) (param $la i64) (param $ha i64) (param $lb i64) (param $hb i64)))
+
+   (memory $0 1)
+   (export "apply" (func $apply))
+
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $__divti3 (i32.const 8)
+         (i64.const 0)                  (i64.const 0x8000000000000000)   ;; bytes: 0x00000000000000000000000000000080 (INT128_MIN)
+         (i64.const 0xffffffffffffffff) (i64.const 0xffffffffffffffff)   ;; -1
+      )
+      ;;should still be bytes 00000000000000000000000000000080
+      (if (i64.ne (i64.load (i32.const 8)) (i64.const 0)) (then
+         (unreachable)
+      ))
+      (if (i64.ne (i64.load (i32.const 16)) (i64.const 0x8000000000000000)) (then
+         (unreachable)
+      ))
+
+      (call $__modti3 (i32.const 8)
+         (i64.const 0)                  (i64.const 0x8000000000000000)   ;; bytes: 0x00000000000000000000000000000080 (INT128_MIN)
+         (i64.const 0xffffffffffffffff) (i64.const 0xffffffffffffffff)   ;; -1
+      )
+      ;;should still be all 00s
+      (if (i64.ne (i64.load (i32.const 8)) (i64.const 0)) (then
+         (unreachable)
+      ))
+      (if (i64.ne (i64.load (i32.const 16)) (i64.const 0)) (then
+         (unreachable)
+      ))
+   )
+)
+)=====";
