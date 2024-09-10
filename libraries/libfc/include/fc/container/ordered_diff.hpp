@@ -28,11 +28,12 @@ namespace fc {
 template <typename T, typename SizeType = size_t, template<typename Y, typename...> typename Container = std::vector>
 requires std::equality_comparable<T>
          && std::random_access_iterator<typename Container<T>::iterator>
-         && std::is_unsigned<SizeType>::value
+         && std::is_unsigned_v<SizeType>
          && (std::numeric_limits<typename Container<T>::size_type>::max() >= std::numeric_limits<SizeType>::max())
 class ordered_diff {
 public:
    using size_type = SizeType;
+   using container_size_type = typename Container<T>::size_type;
 
    struct diff_result {
       Container<SizeType>                remove_indexes;
@@ -109,13 +110,13 @@ public:
    requires std::same_as<std::decay_t<X>, diff_result>
    static Container<T> apply_diff(Container<T>&& container, X&& diff) {
       // Remove from the source based on diff.remove_indexes
-      for (typename Container<T>::size_type i = 0; i < diff.remove_indexes.size(); ++i) {
+      for (container_size_type i = 0; i < diff.remove_indexes.size(); ++i) {
          FC_ASSERT(i == 0 || diff.remove_indexes[i] > diff.remove_indexes[i-1],
                    "diff.remove_indexes not strictly monotonically increasing: current index ${c}, previous index ${p}",
                    ("c", diff.remove_indexes[i])("p", diff.remove_indexes[i-1]));
 
          assert(diff.remove_indexes[i] >= i);
-         assert(std::numeric_limits<typename Container<T>::size_type>::min() + i <= diff.remove_indexes[i]); // check for underflow of diff.remove_indexes[i] - i
+         assert(std::numeric_limits<container_size_type>::min() + i <= diff.remove_indexes[i]); // check for underflow of diff.remove_indexes[i] - i
          auto updated_index = diff.remove_indexes[i] - i;
          FC_ASSERT(updated_index < container.size(), "diff.remove_indexes index ${idx} - i ${i} not in range ${s}",
                    ("idx", diff.remove_indexes[i])("i", i)("s", container.size()));
@@ -123,7 +124,7 @@ public:
       }
 
       // Insert into the source based on diff.insert_indexes
-      for (typename Container<T>::size_type i = 0; i < diff.insert_indexes.size(); ++i) {
+      for (container_size_type i = 0; i < diff.insert_indexes.size(); ++i) {
          FC_ASSERT(i == 0 || diff.insert_indexes[i].first > diff.insert_indexes[i-1].first,
                    "diff.insert_indexes not strictly monotonically increasing: current index ${c}, previous index ${p}",
                    ("c", diff.insert_indexes[i].first)("p", diff.insert_indexes[i-1].first));
