@@ -107,7 +107,7 @@ public:
    uint32_t               block_num()         const { return block_header_state::block_num(); }
    block_timestamp_type   timestamp()         const { return block_header_state::timestamp(); }
    const extensions_type& header_extensions() const { return block_header_state::header.header_extensions; }
-   uint32_t               irreversible_blocknum() const { return core.last_final_block_num(); } // backwards compatibility
+   uint32_t               irreversible_blocknum() const { return core.last_final_block_num(); }
 
    uint32_t               last_final_block_num() const         { return core.last_final_block_num(); }
    block_timestamp_type   last_final_block_timestamp() const   { return core.last_final_block_timestamp(); }
@@ -181,7 +181,6 @@ public:
    explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
-   void verify_signee(const std::vector<signature_type>& additional_signatures, const block_signing_authority& valid_block_signing_authority) const;
 };
 
 using block_state_ptr       = std::shared_ptr<block_state>;

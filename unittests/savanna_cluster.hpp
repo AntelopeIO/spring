@@ -236,6 +236,7 @@ namespace savanna_cluster {
       std::string snapshot() const {
          dlog("node ${i} - taking snapshot", ("i", _node_idx));
          auto writer = buffered_snapshot_suite::get_writer();
+         control->abort_block();
          control->write_snapshot(writer);
          return buffered_snapshot_suite::finalize(writer);
       }
@@ -544,7 +545,7 @@ namespace savanna_cluster {
       // -------------------
       void print(const char* name, const signed_block_ptr& b) const {
          if (_debug_mode)
-            std::cout << name << " ts = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+            std::cout << name << " (" << b->block_num() << ") timestamp = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
                       << ", previous = " << b->previous.str().substr(8, 16) << '\n';
       }
 
