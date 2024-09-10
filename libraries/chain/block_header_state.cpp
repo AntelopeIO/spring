@@ -146,6 +146,8 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 // See full explanation in issue #694.
 // ------------------------------------------------------------------------------------------------
 finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref& ref) const {
+   assert(core.links.empty() ||   // called from a bogus block_state constructed in a test
+          (core.latest_qc_claim().block_num <= ref.block_num() && ref.block_num() <= core.current_block_num()));
    finalizer_policies_t res;
 
    res.finality_digest = ref.finality_digest;
@@ -189,6 +191,8 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
 // can be the current block or one of its ancestors up to core.latest_qc_claim().block_num (incl).
 // -----------------------------------------------------------------------------------------------
 uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type num) const {
+   assert(core.links.empty() ||   // called from a bogus block_state constructed in a test
+          (core.latest_qc_claim().block_num <= num && num <= core.current_block_num()));
    if (num == block_num())
       return active_finalizer_policy->generation;
    const block_ref& ref = core.get_block_reference(num);
