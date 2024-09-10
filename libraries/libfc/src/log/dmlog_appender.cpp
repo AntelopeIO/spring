@@ -28,7 +28,7 @@ namespace fc {
       {
          my->out = stdout;
       }
-      else if (args && args->file == "-stderr")
+      else if (args->file == "-stderr")
       {
          my->out = stderr;
       }
