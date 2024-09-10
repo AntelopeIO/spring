@@ -1066,6 +1066,7 @@ struct controller_impl {
    }
 
    uint32_t fork_db_head_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->block_num();
@@ -1073,6 +1074,7 @@ struct controller_impl {
    }
 
    block_id_type fork_db_head_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->id();
@@ -1089,20 +1091,24 @@ struct controller_impl {
    }
 
    block_id_type fork_db_root_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
 
    uint32_t fork_db_root_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>([&](const auto& forkdb) { return forkdb.root()->block_num(); });
    }
 
    block_timestamp_type  fork_db_root_timestamp() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_timestamp_type>([&](const auto& forkdb) { return forkdb.root()->timestamp(); });
    }
 
    // ---------------  fork_db APIs ----------------------------------------------------------------------
    template<typename ForkDB>
    uint32_t pop_block(ForkDB& forkdb) {
+      assert(fork_db_has_root());
       typename ForkDB::bsp_t prev = forkdb.get_block( chain_head.previous() );
 
       if( !prev ) {
@@ -3433,7 +3439,7 @@ struct controller_impl {
                               auto bsp = get_transition_savanna_block(head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
-                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                              dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                               bsp->get_finality_data(),
                                                               bsp->active_proposer_policy,
                                                               finalizer_policy_with_string_key{*bsp->active_finalizer_policy});
@@ -3443,7 +3449,7 @@ struct controller_impl {
                         },
                         [&](const block_state_ptr& head) {
                            assert(head->active_finalizer_policy);
-                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                           dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                            head->get_finality_data(),
                                                            head->active_proposer_policy,
                                                            finalizer_policy_with_string_key{*head->active_finalizer_policy});
