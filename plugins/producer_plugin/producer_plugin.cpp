@@ -371,62 +371,64 @@ struct implicit_production_pause_vote_tracker {
              const std::set<chain::account_name>& producers,
              fc::microseconds production_pause_vote_timeout)
    {
-      _chain = &chain;
+      _chain     = &chain;
       _producers = producers; // copy, normally contains at most one
-      _vt.set_vote_timeout(production_pause_vote_timeout);
+
+      // Can be disabled either by configuration (if production_pause_vote_timeout.count() == 0)
+      // or because there can never be any possible production to pause (if producers.empty()).
+      // If it is not disabled for either of those two reasons, then change the
+      // initial vote_track_mode from its default value of `vote_track_mode::disabled`
+      // to `vote_track_mode::inactive` so that a future call to `update_active_finalizers`
+      // has an opportunity to set it correctly going forward.
+      if (!producers.empty() && production_pause_vote_timeout.count() != 0) {
+         _vt.set_vote_timeout(production_pause_vote_timeout);
+         _vote_track_mode.store(vote_track_mode::inactive, std::memory_order_relaxed);
+      }
    }
 
-   // Only call when savanna is active
-   void activate() {
-      // disabled by configuration
-      if (_production_pause_vote_timeout.count() == 0)
-         return;
-      // disable implicit pause for eosio
-      if (_producers.contains(eosio::chain::config::system_account_name))
-         return;
-      // no producers configured so there is no possible production to pause
-      if (_producers.empty())
-         return;
+   enum class vote_track_mode {
+      disabled,
+      inactive,
+      only_other_votes,
+      only_producer_votes,
+      all_votes,
+   };
 
-      _active = true;
+   vote_track_mode get_vote_track_mode() const {
+      return _vote_track_mode.load(std::memory_order_relaxed);
+   }
+
+   static bool is_active(vote_track_mode vtm) {
+      return vtm != vote_track_mode::disabled && vtm != vote_track_mode::inactive;
    }
 
    // Called on resume()
    void force_unpause() {
-      // currently active conditions can't chain after start except for savanna transition
-      if (!_active)
+      if (!is_active(get_vote_track_mode()))
          return;
 
       _vt.force_unpause(); // safe to always call, but no need if not active
    }
 
-   // If active, check production_pause_vote_tracker should pause now
-   bool should_pause() const {
-      if (!_active)
-         return false;
-      if (!_is_producer_active_finalizer && !_other_active_finalizers)
-         return false;
-
-      production_pause_vote_tracker::pause_check check = production_pause_vote_tracker::pause_check::both;
-      if (!_is_producer_active_finalizer)
-         check = production_pause_vote_tracker::pause_check::other;
-      else if (!_other_active_finalizers)
-         check = production_pause_vote_tracker::pause_check::producer;
-
-      return _vt.check_pause_status(fc::time_point::now(), check).should_pause();
-   }
-
    auto check_pause_status(fc::time_point now) const {
-      if (!_active)
-         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
-      if (!_is_producer_active_finalizer && !_other_active_finalizers)
-         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
+      const auto vtm = get_vote_track_mode();
 
       production_pause_vote_tracker::pause_check check = production_pause_vote_tracker::pause_check::both;
-      if (!_is_producer_active_finalizer)
+
+      switch (vtm) {
+      case vote_track_mode::disabled:
+      case vote_track_mode::inactive:
+         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
+      case vote_track_mode::only_other_votes:
          check = production_pause_vote_tracker::pause_check::other;
-      else if (!_other_active_finalizers)
+         break;
+      case vote_track_mode::only_producer_votes:
          check = production_pause_vote_tracker::pause_check::producer;
+         break;
+      case vote_track_mode::all_votes:
+         check = production_pause_vote_tracker::pause_check::both;
+         break;
+      }
 
       return _vt.check_pause_status(now, check);
    }
@@ -435,7 +437,7 @@ struct implicit_production_pause_vote_tracker {
    void on_vote(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
                 const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth)
    {
-      if (!_active)
+      if (!is_active(get_vote_track_mode()))
          return;
 
       switch( status ) {
@@ -477,7 +479,7 @@ struct implicit_production_pause_vote_tracker {
    }
 
    void record_received_block(fc::time_point now) {
-      if (!_active)
+      if (!is_active(get_vote_track_mode()))
          return;
 
       _vt.record_received_block(now);
@@ -485,33 +487,50 @@ struct implicit_production_pause_vote_tracker {
 
    // called from main thread
    void update_active_finalizers() {
-      if (!_active)
+      const auto vtm = get_vote_track_mode();
+
+      if (vtm == vote_track_mode::disabled)
          return;
 
       // update active finalizer tracking
       assert(_chain);
       finalizer_policy_ptr fin_policy = _chain->head_active_finalizer_policy();
       assert(fin_policy);
-      _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+      bool finalizer_policy_contains_configured_producer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
          return _producers.contains(to_account_name_safe(f.description));
       });
-      _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+      bool finalizer_policy_contains_other_producer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
          return !_producers.contains(to_account_name_safe(f.description));
       });
       // if not active, check pending finalizer policy
-      if (!_is_producer_active_finalizer || !_other_active_finalizers) {
+      if (!finalizer_policy_contains_configured_producer || !finalizer_policy_contains_other_producer) {
          if (fin_policy = _chain->head_pending_finalizer_policy(); fin_policy) {
-            if (!_is_producer_active_finalizer) {
-               _is_producer_active_finalizer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+            if (!finalizer_policy_contains_configured_producer) {
+               finalizer_policy_contains_configured_producer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
                   return _producers.contains(to_account_name_safe(f.description));
                });
             }
-            if (!_other_active_finalizers) {
-               _other_active_finalizers = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
+            if (!finalizer_policy_contains_other_producer) {
+               finalizer_policy_contains_other_producer = std::ranges::any_of(fin_policy->finalizers, [&](const auto& f) {
                   return !_producers.contains(to_account_name_safe(f.description));
                });
             }
          }
+      }
+
+      vote_track_mode new_vtm = vote_track_mode::inactive;
+      if (finalizer_policy_contains_configured_producer && finalizer_policy_contains_other_producer) {
+         new_vtm = vote_track_mode::all_votes;
+      } else if (finalizer_policy_contains_configured_producer && !finalizer_policy_contains_other_producer) {
+         new_vtm = vote_track_mode::only_producer_votes;
+      } else if (!finalizer_policy_contains_configured_producer && finalizer_policy_contains_other_producer) {
+         new_vtm = vote_track_mode::only_other_votes;
+      }
+
+      if (vtm != new_vtm) {
+         _vote_track_mode.store(new_vtm, std::memory_order_relaxed);
+         // could be more precise about which one to reset, but easiest to just reset both
+         _vt.force_unpause();
       }
    }
 
@@ -528,12 +547,8 @@ struct implicit_production_pause_vote_tracker {
 private:
    const controller*                                 _chain = nullptr;
    std::set<chain::account_name>                     _producers;
-   bool                                              _is_producer_active_finalizer = false;
-   // are there any active finalizers that are not part of producers of this node (not expected to be false outside tests)
-   bool                                              _other_active_finalizers = false;
-   fc::microseconds                                  _production_pause_vote_timeout;
    production_pause_vote_tracker                     _vt;
-   std::atomic<bool>                                 _active = false;
+   std::atomic<vote_track_mode>                      _vote_track_mode{vote_track_mode::disabled};
 };
 
 } // anonymous namespace
@@ -812,7 +827,7 @@ public:
    }
 
    bool implicitly_paused() const {
-      return _implicit_pause_vote_tracker.should_pause();
+      return _implicit_pause_vote_tracker.check_pause_status(fc::time_point::now()).should_pause();
    }
 
    void on_accepted_block(const signed_block_ptr& block, const block_id_type& id) {
@@ -844,9 +859,6 @@ public:
       _snapshot_scheduler.on_irreversible_block(lib, chain);
       if (!_is_savanna_active) {
          _is_savanna_active = lib->is_proper_svnn_block();
-         if (_is_savanna_active) {
-            _implicit_pause_vote_tracker.activate();
-         }
       }
    }
 
@@ -2060,18 +2072,27 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (const auto status = _implicit_pause_vote_tracker.check_pause_status(now); status.should_pause()) {
-      assert(status.earliest_conflicting_block_received_time.has_value());
-      const auto conflict_block_time = status.earliest_conflicting_block_received_time.value();
       // "Not producing block because no recent" log message looked for in production_pause_vote_timeout.py
-      std::string reason = (status.latest_other_vote_received_time < conflict_block_time)
-                           ? ((status.latest_producer_vote_received_time < conflict_block_time)
-                              ? "producer votes"
-                              : "votes received from others")
-                           : "votes received from configured producer";
-      fc_elog(_log, "Not producing block because no recent ${r}, block ${t}, "
-                    "last producer vote ${pv}, other votes ${ov}, earliest conflicting block time ${cb}",
-              ("r", std::move(reason))("t", block_time)("pv", status.latest_producer_vote_received_time)
-              ("ov", status.latest_other_vote_received_time)("cb", conflict_block_time));
+      using pause_reason_t = production_pause_vote_tracker::pause_status::pause_reason;
+      const auto pause_reason = status.reason();
+      if (pause_reason == pause_reason_t::old_producer_vote) {
+         assert(status.producer_vote.earliest_conflict_block);
+         fc_elog(_log, "Not producing block because no recent votes received from configured producer, block ${t}, "
+                       "last producer vote ${pv}, conflict block ${pct}",
+                 ("t", block_time)("pv", status.producer_vote.latest_vote)("pct", *status.producer_vote.earliest_conflict_block));
+      } else if (pause_reason == pause_reason_t::old_other_vote) {
+         assert(status.other_vote.earliest_conflict_block);
+         fc_elog(_log, "Not producing block because no recent votes received from others, block ${t}, "
+                       "other votes ${ov}, conflict block ${oct}",
+                 ("t", block_time)("ov", status.other_vote.latest_vote)("oct", *status.other_vote.earliest_conflict_block));
+      } else {
+         assert(pause_reason == pause_reason_t::old_votes);
+         assert(status.producer_vote.earliest_conflict_block && status.other_vote.earliest_conflict_block);
+         fc_elog(_log, "Not producing block because no recent votes, block ${t}, "
+                       "last producer vote ${pv}, conflict block ${pct}, other votes ${ov}, conflict block ${oct}",
+                 ("t", block_time)("pv", status.producer_vote.latest_vote)("pct", *status.producer_vote.earliest_conflict_block)
+                 ("ov", status.other_vote.latest_vote)("oct", *status.other_vote.earliest_conflict_block));
+      }
       _pending_block_mode = pending_block_mode::speculating;
       not_producing_when_time = true;
    } else if (_max_reversible_blocks > 0 && head_block_num - head.irreversible_blocknum() > _max_reversible_blocks) {
