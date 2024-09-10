@@ -12,7 +12,7 @@ BOOST_AUTO_TEST_CASE(test_production_pause) {
    fc::time_point now(fc::milliseconds(1'000'000));
    auto tick = [&now](fc::microseconds duration = fc::microseconds(1000)) { now += duration; };
 
-   // Helper functions to record events with logs:
+   // Helper functions to record events with checks for expectations
    auto got_block = [&now, &vt](bool expect_recorded = true) {
       bool recorded = vt.record_received_block(now);
       BOOST_TEST(recorded == expect_recorded);
@@ -23,7 +23,6 @@ BOOST_AUTO_TEST_CASE(test_production_pause) {
       if (t == other) {
          recorded = vt.record_received_other_vote(now);
       } else {
-         // t == producer
          assert(t == producer);
          recorded = vt.record_received_producer_vote(now);
       }

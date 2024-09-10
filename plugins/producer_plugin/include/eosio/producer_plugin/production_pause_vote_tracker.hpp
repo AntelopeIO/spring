@@ -102,16 +102,47 @@ public:
    }
 
    struct pause_status {
-      fc::time_point                latest_other_vote_received_time{};
-      fc::time_point                latest_producer_vote_received_time{};
-      std::optional<fc::time_point> earliest_conflicting_block_received_time{};
+      struct received_times {
+         fc::time_point                latest_vote{};
+         std::optional<fc::time_point> earliest_conflict_block{}; // If present, must be greater than latest_vote.
+      };
 
-      bool should_pause() const { return earliest_conflicting_block_received_time.has_value(); }
+      enum class pause_reason : unsigned int {
+         not_paused        = 0b00,
+         old_other_vote    = 0b01,
+         old_producer_vote = 0b10,
+         old_votes         = old_other_vote | old_producer_vote,
+      };
+
+      received_times other_vote{};
+      received_times producer_vote{};
+
+      pause_reason reason() const {
+         unsigned int r = static_cast<unsigned int>(pause_reason::not_paused);
+
+         if (other_vote.earliest_conflict_block.has_value()) {
+            r |= static_cast<unsigned int>(pause_reason::old_other_vote);
+         }
+
+         if (producer_vote.earliest_conflict_block.has_value()) {
+            r |= static_cast<unsigned int>(pause_reason::old_producer_vote);
+         }
+
+         return static_cast<pause_reason>(r);
+      }
+
+      bool should_pause() const {
+         return reason() != pause_reason::not_paused;
+      }
    };
 
-   // Specify which vote timing check is needed.
-   // If not `both` then corresponding latest_ value in pause_status is not modified. pause_status.should_pause() is
-   // correct according to specified pause_check.
+   // Specify which vote timing check is needed in `check_pause_status`.
+   // If `producer`, then `other_vote` in returned `pause_status` is
+   // the default value and can be ignored.
+   // If `other`, then `producer_vote` in returned `pause_status` is
+   // the default value and can be ignored.
+   // Regardless, `should_pause()` and `reason()` called on returned
+   // `paused_status` is correct according to specified `pause_check`.
    enum class pause_check { producer, other, both };
 
    // Can be called concurrently with all member functions except:
@@ -127,27 +158,27 @@ public:
       const auto threshold_time = fc::time_point(current_time).safe_add(negative_vote_timeout);
 
       auto process_vote_timing =
-         [&](const vote_timing& vt, fc::time_point& latest_vote_received_time) {
+         [&](const vote_timing& vt, pause_status::received_times& rt) {
          const auto s = vt.get_vote_timing_status();
 
-         latest_vote_received_time = s.latest_vote;
+         rt.latest_vote = s.latest_vote;
 
          if (!s.first_block_after_vote.has_value())
             return;
 
          if (*s.first_block_after_vote < threshold_time) {
-            if (!status.earliest_conflicting_block_received_time.has_value()
-                || *status.earliest_conflicting_block_received_time < *s.first_block_after_vote) {
-               status.earliest_conflicting_block_received_time = *s.first_block_after_vote;
-            }
+            rt.earliest_conflict_block = *s.first_block_after_vote;
          }
       };
 
       if (check != pause_check::producer) {
          assert(check == pause_check::both || check == pause_check::other);
-         process_vote_timing(latest_other_vote, status.latest_other_vote_received_time);
+         process_vote_timing(latest_other_vote, status.other_vote);
       }
-      process_vote_timing(latest_producer_vote, status.latest_producer_vote_received_time);
+      if (check != pause_check::other) {
+         assert(check == pause_check::both || check == pause_check::producer);
+         process_vote_timing(latest_producer_vote, status.producer_vote);
+      }
 
       return status;
    }
