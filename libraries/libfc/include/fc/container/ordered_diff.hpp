@@ -104,12 +104,14 @@ public:
       return result;
    }
 
-   /// @param diff the diff_result created from diff(source, target), apply_diff(std::move(source), diff_result) => target
+   /// @param diff_in (input) the diff_result created from diff(source, target), apply_diff(std::move(source), diff_result) => target
    /// @param container the source of diff(source, target) to modify using the diff_result to produce original target
    /// @return the modified container now equal to original target
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
-   static Container<T> apply_diff(Container<T>&& container, X&& diff) {
+   static Container<T> apply_diff(Container<T>&& container, X&& diff_in) {
+      X diff = std::forward<X>(diff_in);
+
       // Remove from the source based on diff.remove_indexes
       for (container_size_type i = 0; i < diff.remove_indexes.size(); ++i) {
          FC_ASSERT(i == 0 || diff.remove_indexes[i] > diff.remove_indexes[i-1],
