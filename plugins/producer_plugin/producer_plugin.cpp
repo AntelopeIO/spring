@@ -518,10 +518,10 @@ struct implicit_production_pause_vote_tracker {
          }
       }
 
-      vote_track_mode new_vtm = vote_track_mode::inactive;
-      if (finalizer_policy_contains_configured_producer && finalizer_policy_contains_other_producer) {
-         new_vtm = vote_track_mode::all_votes;
-      } else if (finalizer_policy_contains_configured_producer && !finalizer_policy_contains_other_producer) {
+      assert(finalizer_policy_contains_configured_producer || finalizer_policy_contains_other_producer);
+
+      vote_track_mode new_vtm = vote_track_mode::all_votes;
+      if (finalizer_policy_contains_configured_producer && !finalizer_policy_contains_other_producer) {
          new_vtm = vote_track_mode::only_producer_votes;
       } else if (!finalizer_policy_contains_configured_producer && finalizer_policy_contains_other_producer) {
          new_vtm = vote_track_mode::only_other_votes;
