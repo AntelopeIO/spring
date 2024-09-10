@@ -39,14 +39,16 @@ template<class FSI>
 std::vector<FSI> create_random_fsi(size_t count) {
    std::vector<FSI> res;
    res.reserve(count);
+   // generation numbers in `block_ref` constructor have to be 0 as they are not saved in the fsi file,
+   // but compared to loaded ones which get the default values of 0.
    for (size_t i = 0; i < count; ++i) {
       res.push_back(FSI{
          .last_vote             = block_ref{sha256::hash("vote"s + std::to_string(i)),
                                             tstamp(i * 100 + 3),
-                                            sha256::hash("vote_digest"s + std::to_string(i))},
+                                            sha256::hash("vote_digest"s + std::to_string(i)), 0, 0},
          .lock                  = block_ref{sha256::hash("lock"s + std::to_string(i)),
                                             tstamp(i * 100),
-                                            sha256::hash("lock_digest"s + std::to_string(i))},
+                                            sha256::hash("lock_digest"s + std::to_string(i)), 0, 0},
          .other_branch_latest_time = block_timestamp_type{}
       });
       if (i)
@@ -62,7 +64,8 @@ std::vector<block_ref> create_proposal_refs(size_t count) {
       std::string id_str {"vote"};
       id_str += std::to_string(i);
       auto id = sha256::hash(id_str.c_str());
-      res.push_back(block_ref{id, tstamp(i), id});
+      // we use bogus generation numbers in `block_ref` constructor, but these are unused in the test
+      res.push_back(block_ref{id, tstamp(i), id, 0, 0}); // generation numbers both 0 as not saved in fsi file
    }
    return res;
 }

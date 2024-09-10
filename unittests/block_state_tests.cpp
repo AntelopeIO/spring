@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_SUITE(block_state_tests)
 BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   weak_digest_t weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   weak_digest_t weak_digest(create_weak_digest(strong_digest));
 
    const size_t num_finalizers = 3;
 
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
    {  // all finalizers can aggregate votes with pending
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
-      bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 10, 15, pending_finalizers ) };
+      bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 11, 15, pending_finalizers ) };
       bsp->strong_digest = strong_digest;
       bsp->weak_digest = weak_digest;
       bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
@@ -127,7 +127,7 @@ BOOST_AUTO_TEST_CASE(aggregate_vote_test) try {
    {  // public key does not exist in active & pending finalizer sets
       block_state_ptr bsp = std::make_shared<block_state>();
       bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( 10, 15, active_finalizers );
-      bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 10, 15, pending_finalizers ) };
+      bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( 11, 15, pending_finalizers ) };
       bsp->strong_digest = strong_digest;
       bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
 
@@ -147,7 +147,7 @@ void do_quorum_test(const std::vector<uint64_t>& weights,
                     bool include_pending) {
    digest_type block_id(fc::sha256("0000000000000000000000000000001"));
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -310,7 +310,7 @@ BOOST_AUTO_TEST_CASE(quorum_test) try {
 BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -334,7 +334,6 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, {} };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
@@ -556,7 +555,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test) try {
 BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -595,8 +594,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 4; // 2/3 of total weights of 6
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
-   bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation, threshold, pending_finalizers ) };
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+   bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation+1, threshold, pending_finalizers ) };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 
@@ -617,7 +615,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
       qc_sig_t active_qc_sig{strong_votes, {}, active_agg_sig};
       qc_sig_t pending_qc_sig{strong_votes, {}, pending_agg_sig};
       qc_t qc{bsp->block_num(), active_qc_sig, pending_qc_sig};
-
+      bsp->verify_qc(qc);
       BOOST_CHECK_NO_THROW( bsp->verify_qc(qc) );
    }
 
@@ -845,7 +843,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_test_with_pending) try {
 BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
    // prepare digests
    digest_type strong_digest(fc::sha256("0000000000000000000000000000002"));
-   auto weak_digest(create_weak_digest(fc::sha256("0000000000000000000000000000003")));
+   auto weak_digest(create_weak_digest(strong_digest));
 
    // initialize a set of private keys
    std::vector<bls_private_key> active_private_keys {
@@ -886,8 +884,7 @@ BOOST_AUTO_TEST_CASE(verify_qc_dual_finalizers) try {
    constexpr uint32_t generation = 1;
    constexpr uint64_t threshold = 8; // 2/3 of total weights of 12
    bsp->active_finalizer_policy = std::make_shared<finalizer_policy>( generation, threshold, active_finalizers );
-   bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation, threshold, pending_finalizers ) };
-   bsp->aggregating_qc = aggregating_qc_t{ bsp->active_finalizer_policy, bsp->pending_finalizer_policy->second };
+   bsp->pending_finalizer_policy = { bsp->block_num(), std::make_shared<finalizer_policy>( generation+1, threshold, pending_finalizers ) };
    bsp->strong_digest = strong_digest;
    bsp->weak_digest = weak_digest;
 

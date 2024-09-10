@@ -302,6 +302,6 @@ namespace eosio::chain {
 
       // Update max_supported_version if the persistent file format changes.
       static constexpr uint32_t min_supported_version = 1;
-      static constexpr uint32_t max_supported_version = 2;
+      static constexpr uint32_t max_supported_version = 3;
    };
 } /// eosio::chain
