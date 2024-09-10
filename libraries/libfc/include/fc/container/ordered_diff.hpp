@@ -29,6 +29,7 @@ template <typename T, typename SizeType = size_t, template<typename Y, typename.
 requires std::equality_comparable<T>
          && std::random_access_iterator<typename Container<T>::iterator>
          && std::is_unsigned_v<SizeType>
+         && std::is_unsigned_v<typename Container<T>::size_type>
          && (std::numeric_limits<typename Container<T>::size_type>::max() >= std::numeric_limits<SizeType>::max())
 class ordered_diff {
 public:
