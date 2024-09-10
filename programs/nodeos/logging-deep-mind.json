@@ -1,0 +1,170 @@
+{
+  "includes": [],
+  "appenders": [{
+      "name": "stderr",
+      "type": "console",
+      "args": {
+        "stream": "std_error",
+        "level_colors": [{
+            "level": "debug",
+            "color": "green"
+          },{
+            "level": "warn",
+            "color": "brown"
+          },{
+            "level": "error",
+            "color": "red"
+          }
+        ]
+      },
+      "enabled": true
+    },{
+      "name": "stdout",
+      "type": "console",
+      "args": {
+        "stream": "std_out",
+        "level_colors": [{
+            "level": "debug",
+            "color": "green"
+          },{
+            "level": "warn",
+            "color": "brown"
+          },{
+            "level": "error",
+            "color": "red"
+          }
+        ]
+      },
+      "enabled": true
+    },{
+      "name" : "deep-mind",
+      "type": "dmlog",
+      "args": {
+         "file": "-stderr",
+         "_comment": "file can be a filename or -, -stdout, -stderr. -stdout is same as -"
+      }
+    }
+  ],
+  "loggers": [{
+      "name": "default",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "net_plugin_impl",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "http_plugin",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "producer_plugin",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transaction_success_tracing",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transaction_failure_tracing",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "trace_api",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transaction_trace_success",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transaction_trace_failure",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transient_trx_success_tracing",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "transient_trx_failure_tracing",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+    "name": "state_history",
+    "level": "warn",
+    "enabled": true,
+    "additivity": false,
+    "appenders": [
+      "stderr"
+      ]
+    },{
+    "name": "vote",
+    "level": "warn",
+    "enabled": true,
+    "additivity": false,
+    "appenders": [
+      "stderr"
+      ]
+    },{
+      "name": "transaction",
+      "level": "warn",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "stderr"
+      ]
+    },{
+      "name": "deep-mind",
+      "level": "debug",
+      "enabled": true,
+      "additivity": false,
+      "appenders": [
+        "deep-mind"
+      ]
+    }
+  ]
+}
