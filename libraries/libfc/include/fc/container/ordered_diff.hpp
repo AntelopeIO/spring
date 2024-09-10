@@ -116,7 +116,6 @@ public:
                    ("c", diff.remove_indexes[i])("p", diff.remove_indexes[i-1]));
 
          assert(diff.remove_indexes[i] >= i);
-         assert(std::numeric_limits<container_size_type>::min() + i <= diff.remove_indexes[i]); // check for underflow of diff.remove_indexes[i] - i
          auto updated_index = diff.remove_indexes[i] - i;
          FC_ASSERT(updated_index < container.size(), "diff.remove_indexes index ${idx} - i ${i} not in range ${s}",
                    ("idx", diff.remove_indexes[i])("i", i)("s", container.size()));
