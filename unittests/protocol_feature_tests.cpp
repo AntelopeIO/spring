@@ -2219,7 +2219,7 @@ BOOST_AUTO_TEST_CASE( block_validation_after_stage_1_test ) { try {
    auto b = tester1.produce_block();
 
    // Make a copy of the block
-   auto copy_b = std::make_shared<signed_block>(std::move(*b));
+   auto copy_b = std::make_shared<signed_block>(b->clone());
    // Retrieve the last transaction
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    // Make a delayed transaction by forcing delay_sec greater than 0

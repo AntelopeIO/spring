@@ -242,10 +242,10 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    }
    wlog( "end push c2 blocks to c1" );
    wlog( "now push dan's block to c1 but first corrupt it so it is a bad block" );
-   signed_block bad_block = std::move(*b);
+   signed_block bad_block{b->clone()};
    bad_block.action_mroot = bad_block.previous;
    auto bad_id = bad_block.calculate_id();
-   auto bad_block_btf = c.control->create_block_handle_future( bad_id, std::make_shared<signed_block>(std::move(bad_block)) );
+   auto bad_block_btf = c.control->create_block_handle_future( bad_id, std::make_shared<signed_block>(bad_block.clone()) );
    c.control->abort_block();
    controller::block_report br;
    BOOST_REQUIRE_EXCEPTION(c.control->push_block( br, bad_block_btf.get(), {}, trx_meta_cache_lookup{} ), fc::exception,
