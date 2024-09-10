@@ -2289,7 +2289,7 @@ struct controller_impl {
          // snapshot created with Spring 1.0, which was very soon superseded by Spring 1.0.1
          // and a new snapshot format.
          // --------------------------------------------------------------------------------
-         EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.01 and above");
+         EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.0.1 and above");
       } else {
          // loading a snapshot saved by Leap up to version 6.
          // -------------------------------------------------

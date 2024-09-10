@@ -649,10 +649,10 @@ namespace eosio::chain {
 
       // write out current version which is always max_supported_version
       // version == 1 -> legacy
-      // version == 2 -> Spring 1.0
+      // version == 2 -> Spring 1.0.0
       //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
       //                  unsupported by Spring 1.01 and above
-      // version == 3 -> Spring 1.01 updated block_header_state (core with policy gen #)
+      // version == 3 -> Spring 1.0.1 updated block_header_state (core with policy gen #)
       //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
       // ---------------------------------------------------------------------------------------------------------
       fc::raw::pack( out, max_supported_version );
@@ -698,7 +698,7 @@ namespace eosio::chain {
             uint32_t version = 0;
             fc::raw::unpack( ds, version );
             EOS_ASSERT( version != 2, fork_database_exception,
-                        "Version 2 of fork_database (created by Spring 1.0) is not supported" );
+                        "Version 2 of fork_database (created by Spring 1.0.0) is not supported" );
             EOS_ASSERT( version >= fork_database::min_supported_version && version <= fork_database::max_supported_version,
                         fork_database_exception,
                        "Unsupported version of fork database file '${filename}'. "
