@@ -4098,10 +4098,9 @@ struct controller_impl {
          if (qc) {
             verify_qc(b, prev, *qc);
 
-            const auto  qc_claim = qc->to_qc_claim();
             dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
                  ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-                 ("qc_claim", qc_claim)("p", b->previous));
+                 ("qc_claim", qc->to_qc_claim())("p", b->previous));
          }
       }
 
