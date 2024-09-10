@@ -33,8 +33,7 @@
           }
         ],
         "peers": [
-          "bios",
-          "testnet_04"
+          "bios"
         ],
         "producers": [
           "defproducera"
@@ -54,8 +53,7 @@
         ],
         "peers": [
           "bios",
-          "testnet_00",
-          "testnet_04"
+          "testnet_00"
         ],
         "producers": [
           "defproducerb"
@@ -72,8 +70,7 @@
         ],
         "peers": [
           "bios",
-          "testnet_03",
-          "testnet_04"
+          "testnet_03"
         ],
         "producers": [
           "defproducerc"
@@ -93,8 +90,7 @@
         ],
         "peers": [
           "bios",
-          "testnet_02",
-          "testnet_04"
+          "testnet_02"
         ],
         "producers": [
         ],
@@ -109,7 +105,11 @@
           }
         ],
         "peers": [
-          "bios"
+          "bios",
+          "testnet_00",
+          "testnet_01",
+          "testnet_02",
+          "testnet_03"
         ],
         "producers": [
         ],

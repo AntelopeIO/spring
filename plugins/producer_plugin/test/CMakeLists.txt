@@ -1,4 +1,5 @@
 add_executable( test_producer_plugin
+        test_production_pause_vote_tracker.cpp
         test_trx_full.cpp
         test_options.cpp
         test_block_timing_util.cpp
