@@ -3896,7 +3896,7 @@ struct controller_impl {
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> finality_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
 
       const auto qc_ext_itr  = block_exts.find(qc_ext_id);
       bool qc_extension_present = (qc_ext_itr != block_exts.end());
@@ -3910,7 +3910,7 @@ struct controller_impl {
 
       assert(finality_ext);
       const auto& f_ext        = std::get<finality_extension>(*finality_ext);
-      const auto  new_qc_claim = f_ext.qc_claim;
+      const auto& new_qc_claim = f_ext.qc_claim;
 
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
@@ -4093,15 +4093,17 @@ struct controller_impl {
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
       std::optional<qc_t> qc = verify_basic_block_invariants(b, prev);
+      std::future<void> verify_qc_future;
 
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            verify_qc(b, prev, *qc);
+            verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &b, &id, &prev] {
+               verify_qc(b, prev, *qc);
 
-            const auto  qc_claim = qc->to_qc_claim();
-            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
-                 ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-                 ("qc_claim", qc_claim)("p", b->previous));
+               dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
+                    ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
+                    ("qc_claim", qc->to_qc_claim())("p", b->previous));
+            });
          }
       }
 
@@ -4126,8 +4128,14 @@ struct controller_impl {
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
       if constexpr (is_proper_savanna_block) {
+         assert((qc && verify_qc_future.valid()) || (!qc && !verify_qc_future.valid()));
+         if (qc) {
+            verify_qc_future.get();
+         }
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
+      } else {
+         assert(!verify_qc_future.valid());
       }
 
       if (!should_terminate(bsp->block_num())) {
