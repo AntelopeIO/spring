@@ -3887,7 +3887,7 @@ struct controller_impl {
    // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   std::optional<qc_t> verify_basic_proper_block_invariants( const signed_block_ptr& b, const block_header_state& prev ) {
+   std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3931,6 +3931,15 @@ struct controller_impl {
                   "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
                   ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
 
+      if (!replaying && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::debug)) {
+         fc::time_point now = fc::time_point::now();
+         if (now - b->timestamp < fc::minutes(5) || (b->block_num() % 1000 == 0)) {
+            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, qc ${qc}, previous: ${p}",
+              ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
+              ("qc_claim", new_qc_claim)("qc", qc_extension_present ? "present" : "not present")("p", b->previous));
+         }
+      }
+
       if( new_qc_claim.block_num == prev_qc_claim.block_num ) {
          if( new_qc_claim.is_strong_qc == prev_qc_claim.is_strong_qc ) {
             // QC block extension is redundant
@@ -3949,7 +3958,7 @@ struct controller_impl {
                      ("s1", new_qc_claim.is_strong_qc)("s2", prev_qc_claim.is_strong_qc)("b", block_num) );
       }
 
-      // At this point, we are making a new claim in this block, so it must includes a QC to justify this claim.
+      // At this point, we are making a new claim in this block, so it must include a QC to justify this claim.
       EOS_ASSERT( qc_extension_present, block_validate_exception,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
@@ -4051,7 +4060,7 @@ struct controller_impl {
 
    // verify basic_block invariants
    template<typename BS>
-   std::optional<qc_t> verify_basic_block_invariants(const signed_block_ptr& b, const BS& prev) {
+   std::optional<qc_t> verify_basic_block_invariants(const block_id_type& id, const signed_block_ptr& b, const BS& prev) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4059,7 +4068,7 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
-         return verify_basic_proper_block_invariants(b, prev);
+         return verify_basic_proper_block_invariants(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
@@ -4092,15 +4101,11 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      std::optional<qc_t> qc = verify_basic_block_invariants(b, prev);
+      std::optional<qc_t> qc = verify_basic_block_invariants(id, b, prev);
 
       if constexpr (is_proper_savanna_block) {
          if (qc) {
             verify_qc(b, prev, *qc);
-
-            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
-                 ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-                 ("qc_claim", qc->to_qc_claim())("p", b->previous));
          }
       }
 
@@ -4337,7 +4342,7 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               std::optional<qc_t> qc = verify_basic_block_invariants(b, *head);
+               std::optional<qc_t> qc = verify_basic_block_invariants({}, b, *head);
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   if (conf.force_all_checks && qc) {
