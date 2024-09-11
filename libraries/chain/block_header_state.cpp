@@ -142,7 +142,7 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
 }
 
 // Only defined for core.latest_qc_claim().block_num <= ref.block_num() <= core.current_block_num()
-// Retrieves the finalizer policies applicatble for the block referenced by `ref`.
+// Retrieves the finalizer policies applicable for the block referenced by `ref`.
 // See full explanation in issue #694.
 // ------------------------------------------------------------------------------------------------
 finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref& ref) const {
@@ -164,8 +164,10 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
       // has to be the one in latest_qc_claim_block_active_finalizer_policy
       assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
       assert(latest_qc_claim_block_active_finalizer_policy->generation == active_gen);
-      EOS_ASSERT(latest_qc_claim_block_active_finalizer_policy->generation == active_gen, chain_exception,
-                 "Logic error in finalizer policy retrieval");    // just in case
+      EOS_ASSERT(latest_qc_claim_block_active_finalizer_policy != nullptr &&
+                    latest_qc_claim_block_active_finalizer_policy->generation == active_gen,
+                 chain_exception,
+                 "Logic error in finalizer policy retrieval"); // just in case
       res.active_finalizer_policy = latest_qc_claim_block_active_finalizer_policy;
    }
 
