@@ -16,7 +16,7 @@ digest_type block_header_state::compute_base_digest() const {
    digest_type::encoder enc;
 
    fc::raw::pack( enc, header );
-   fc::raw::pack( enc, core );
+   core.pack_for_digest( enc );
 
    fc::raw::pack( enc, proposed_finalizer_policies );
    fc::raw::pack( enc, pending_finalizer_policy );
@@ -140,6 +140,67 @@ const finalizer_policy& block_header_state::get_last_pending_finalizer_policy() 
    }
    return *active_finalizer_policy;
 }
+
+// Only defined for core.latest_qc_claim().block_num <= ref.block_num() <= core.current_block_num()
+// Retrieves the finalizer policies applicable for the block referenced by `ref`.
+// See full explanation in issue #694.
+// ------------------------------------------------------------------------------------------------
+finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref& ref) const {
+   assert(core.links.empty() ||   // called from a bogus block_state constructed in a test
+          (core.latest_qc_claim().block_num <= ref.block_num() && ref.block_num() <= core.current_block_num()));
+   finalizer_policies_t res;
+
+   res.finality_digest = ref.finality_digest;
+
+   auto active_gen = ref.active_policy_generation;
+   assert(active_gen != 0);                                       // we should always have an active policy
+
+   if (active_finalizer_policy->generation == active_gen)
+      res.active_finalizer_policy = active_finalizer_policy;      // the one active at block_num is still active
+   else {
+      // cannot be the pending one as it never was active
+      assert(!pending_finalizer_policy || pending_finalizer_policy->second->generation > active_gen);
+
+      // has to be the one in latest_qc_claim_block_active_finalizer_policy
+      assert(latest_qc_claim_block_active_finalizer_policy != nullptr);
+      assert(latest_qc_claim_block_active_finalizer_policy->generation == active_gen);
+      EOS_ASSERT(latest_qc_claim_block_active_finalizer_policy != nullptr &&
+                    latest_qc_claim_block_active_finalizer_policy->generation == active_gen,
+                 chain_exception,
+                 "Logic error in finalizer policy retrieval"); // just in case
+      res.active_finalizer_policy = latest_qc_claim_block_active_finalizer_policy;
+   }
+
+   auto pending_gen = ref.pending_policy_generation;
+   if (pending_gen == 0)
+      res.pending_finalizer_policy = nullptr;                    // no pending policy at block_num.
+   else if (pending_gen == active_finalizer_policy->generation)
+      res.pending_finalizer_policy = active_finalizer_policy;    // policy pending at block_num became active
+   else {
+      // cannot be the one in latest_qc_claim_block_active_finalizer_policy since it was active at
+      // core.latest_qc_claim().block_num. So it must be the one still pending.
+      assert(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen);
+      EOS_ASSERT(pending_finalizer_policy && pending_finalizer_policy->second->generation == pending_gen, chain_exception,
+                 "Logic error in finalizer policy retrieval");  // just in case
+      res.pending_finalizer_policy = pending_finalizer_policy->second;
+   }
+
+   return res;
+}
+
+// Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
+// Retrieves the active finalizer policy generation applicatble for the block `num`, which
+// can be the current block or one of its ancestors up to core.latest_qc_claim().block_num (incl).
+// -----------------------------------------------------------------------------------------------
+uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type num) const {
+   assert(core.links.empty() ||   // called from a bogus block_state constructed in a test
+          (core.last_final_block_num() <= num && num <= core.current_block_num()));
+   if (num == block_num())
+      return active_finalizer_policy->generation;
+   const block_ref& ref = core.get_block_reference(num);
+   return ref.active_policy_generation;
+}
+
 
 // The last proposed proposer policy, if none proposed then the active proposer policy
 const proposer_policy& block_header_state::get_last_proposed_proposer_policy() const {
@@ -323,6 +384,22 @@ void finish_next(const block_header_state& prev,
          std::make_pair(next_header_state.block_num(), std::make_shared<finalizer_policy>(new_finalizer_policy)));
    } else {
       next_header_state.finalizer_policy_generation = prev.finalizer_policy_generation;
+   }
+
+   // now populate next_header_state.latest_qc_claim_block_active_finalizer_policy
+   // this keeps track of the finalizer policy which was active @ latest_qc_claim().block_num, but which
+   // can be overwritten by a previously pending policy (member `active_finalizer_policy`)
+   // See full explanation in issue #694.
+   // --------------------------------------------------------------------------------------------------
+   const auto& next_core                 = next_header_state.core;
+   auto        latest_qc_claim_block_num = next_core.latest_qc_claim().block_num;
+   const auto  active_generation_num     = next_header_state.active_finalizer_policy->generation;
+   if (prev.get_active_finalizer_policy_generation(latest_qc_claim_block_num) != active_generation_num) {
+      const auto& latest_qc_claim_block_ref = next_header_state.core.get_block_reference(latest_qc_claim_block_num);
+      next_header_state.latest_qc_claim_block_active_finalizer_policy =
+         prev.get_finalizer_policies(latest_qc_claim_block_ref).active_finalizer_policy;
+   } else {
+      next_header_state.latest_qc_claim_block_active_finalizer_policy = nullptr;
    }
 
    // Finally update block id from header

@@ -11,8 +11,7 @@
 #include <boost/thread/mutex.hpp>
 #include <fc/exception/exception.hpp>
 #include <iomanip>
-#include <mutex>
-#include <sstream>
+#include <cstdio>
 
 namespace fc {
    class dmlog_appender::impl {
@@ -93,5 +92,8 @@ namespace fc {
          message_ptr = &message_ptr[written];
          remaining_size -= written;
       }
+      // attempt a flush, ignore any error
+      if (!my->is_stopped)
+         fflush(my->out);
    }
 }

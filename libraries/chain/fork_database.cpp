@@ -141,7 +141,6 @@ namespace eosio::chain {
          bs_t s;
          fc::raw::unpack( ds, s );
          // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
-         s.header_exts = s.block->validate_and_extract_header_extensions();
          add_impl( std::make_shared<bs_t>( std::move( s ) ), ignore_duplicate_t::no, true, validator );
       }
    }
@@ -647,10 +646,16 @@ namespace eosio::chain {
       std::ofstream out( fork_db_file.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
 
       fc::raw::pack( out, magic_number );
-      fc::raw::pack( out, max_supported_version ); // write out current version which is always max_supported_version
-                                                   // version == 1 -> legacy
-                                                   // version == 2 -> savanna (two possible fork_db, one containing `block_state_legacy`,
-                                                   //                          one containing `block_state`)
+
+      // write out current version which is always max_supported_version
+      // version == 1 -> legacy
+      // version == 2 -> Spring 1.0.0
+      //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
+      //                  unsupported by Spring 1.0.1 and above
+      // version == 3 -> Spring 1.0.1 updated block_header_state (core with policy gen #)
+      //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
+      // ---------------------------------------------------------------------------------------------------------
+      fc::raw::pack( out, max_supported_version );
 
       fc::raw::pack(out, static_cast<uint32_t>(in_use_value));
 
@@ -692,6 +697,8 @@ namespace eosio::chain {
 
             uint32_t version = 0;
             fc::raw::unpack( ds, version );
+            EOS_ASSERT( version != 2, fork_database_exception,
+                        "Version 2 of fork_database (created by Spring 1.0.0) is not supported" );
             EOS_ASSERT( version >= fork_database::min_supported_version && version <= fork_database::max_supported_version,
                         fork_database_exception,
                        "Unsupported version of fork database file '${filename}'. "
@@ -707,7 +714,7 @@ namespace eosio::chain {
                break;
             }
 
-            case 2:
+            case 3:
             {
                // ---------- Savanna format ----------------------------
                uint32_t in_use_raw;
