@@ -64,14 +64,14 @@ namespace eosio::chain {
    {}
 
    block_state_legacy::block_state_legacy( pending_block_header_state_legacy&& cur,
-                                           signed_block_ptr&& b,
+                                           mutable_signed_block_ptr&& b,
                                            deque<transaction_metadata_ptr>&& trx_metas,
                                            const std::optional<digests_t>& action_receipt_digests_savanna,
                                            const protocol_feature_set& pfs,
                                            const validator_t& validator,
                                            const signer_callback_type& signer
                            )
-   :block_header_state_legacy( inject_additional_signatures( std::move(cur), const_cast<signed_block&>(*b), pfs, validator, signer ) )
+   :block_header_state_legacy( inject_additional_signatures( std::move(cur), *b, pfs, validator, signer ) )
    ,block( std::move(b) )
    ,_pub_keys_recovered( true ) // called by produce_block so signature recovery of trxs must have been done
    ,_cached_trxs( std::move(trx_metas) )

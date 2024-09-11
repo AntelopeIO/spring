@@ -231,7 +231,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      signed_block_ptr                  unsigned_block;
+      mutable_signed_block_ptr          unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
