@@ -66,16 +66,16 @@ auto create_genesis_block_state() { // block 2
 auto create_test_block_state(const block_state_ptr& prev) {
    static block_timestamp_type timestamp;
    timestamp = timestamp.next(); // each test block state will be unique
-   signed_block_ptr block = std::make_shared<signed_block>(prev->block->clone());
-   std::const_pointer_cast<signed_block>(block)->producer = eosio::chain::config::system_account_name;
-   std::const_pointer_cast<signed_block>(block)->previous = prev->id();
-   std::const_pointer_cast<signed_block>(block)->timestamp = timestamp;
+   auto block = std::make_shared<signed_block>(prev->block->clone());
+   block->producer = eosio::chain::config::system_account_name;
+   block->previous = prev->id();
+   block->timestamp = timestamp;
 
    auto priv_key = eosio::testing::base_tester::get_private_key( block->producer, "active" );
    auto pub_key  = eosio::testing::base_tester::get_public_key( block->producer, "active" );
 
    auto sig_digest = digest_type::hash("something");
-   std::const_pointer_cast<signed_block>(block)->producer_signature = priv_key.sign( sig_digest );
+   block->producer_signature = priv_key.sign( sig_digest );
 
    vector<private_key_type> signing_keys;
    signing_keys.emplace_back( std::move( priv_key ) );
