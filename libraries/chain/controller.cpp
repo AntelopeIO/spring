@@ -3912,6 +3912,15 @@ struct controller_impl {
       const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
+      if (!replaying && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::debug)) {
+         fc::time_point now = fc::time_point::now();
+         if (now - b->timestamp < fc::minutes(5) || (b->block_num() % 1000 == 0)) {
+            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, qc ${qc}, previous: ${p}",
+              ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
+              ("qc_claim", new_qc_claim)("qc", qc_extension_present ? "present" : "not present")("p", b->previous));
+         }
+      }
+
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
       // necessarily a Transition block). Since verify_proper_block_exts will not be called
@@ -3930,15 +3939,6 @@ struct controller_impl {
       EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num, invalid_qc_claim,
                   "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
                   ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
-
-      if (!replaying && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::debug)) {
-         fc::time_point now = fc::time_point::now();
-         if (now - b->timestamp < fc::minutes(5) || (b->block_num() % 1000 == 0)) {
-            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, qc ${qc}, previous: ${p}",
-              ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-              ("qc_claim", new_qc_claim)("qc", qc_extension_present ? "present" : "not present")("p", b->previous));
-         }
-      }
 
       if( new_qc_claim.block_num == prev_qc_claim.block_num ) {
          if( new_qc_claim.is_strong_qc == prev_qc_claim.is_strong_qc ) {
