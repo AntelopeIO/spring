@@ -385,7 +385,7 @@ void compatible_versions_test()
    std::string current_version = "v8";
 
    int ordinal = 0;
-   for(std::string version : {"v2", "v3", "v4", "v5", "v6", "v8"}) // v7 version not supported in spring 1.0.1 and above
+   for(std::string version : {"v2", "v3", "v4", "v5", "v6", "v8"}) // v7 version not supported in Spring 1.0.1 and above
    {
       if(save_snapshot && version == current_version) continue;
       static_assert(chain_snapshot_header::minimum_compatible_version <= 2, "version 2 unit test is no longer needed.  Please clean up data files");
@@ -411,7 +411,7 @@ void compatible_versions_test()
    // 1. update `current_version` and the list of versions in `for` loop
    // 2. run: `unittests/unit_test -t "snapshot_tests/test_com*" -- --save-snapshot` to generate new snapshot files
    // 3. copy the newly generated files (see `ls -lrth ./unittests/snapshots/snap_*` to `spring/unittests/snapshots`
-   //    for example `cp ./unittests/snapshots/snap_v7.* ../unittests/snapshots`
+   //    for example `cp ./unittests/snapshots/snap_v8.* ../unittests/snapshots`
    // 4. edit `unittests/snapshots/CMakeLists.txt` and add the `configure_file` commands for the 3 new files.
    //    now the test should pass.
    // 5. add the 3 new snapshot files in git.
