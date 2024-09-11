@@ -4104,7 +4104,7 @@ struct controller_impl {
 
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            verify_qc(b, prev, *qc);
+            verify_qc(prev, *qc);
          }
       }
 
