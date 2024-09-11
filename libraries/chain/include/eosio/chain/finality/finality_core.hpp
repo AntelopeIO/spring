@@ -193,8 +193,8 @@ struct finality_core
    finality_core next(const block_ref& current_block, const qc_claim_t& most_recent_ancestor_with_qc) const;
 
    // should match the serialization provided by FC_REFLECT below, except that for compatibility with
-   // spring 1.0 consensus we do not pack the two new members of `block_ref` which were added in
-   // spring 1.0.1 (the finalizer policy generations)
+   // Spring 1.0.0 consensus we do not pack the two new members of `block_ref` which were added in
+   // Spring 1.0.1 (the finalizer policy generations)
    // ------------------------------------------------------------------------------------------------
    template<typename Stream>
    void pack_for_digest(Stream& s) const {

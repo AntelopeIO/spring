@@ -595,8 +595,8 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
 
 // ----------------------------------------------------------------------------------------------------
 // For issue #694, we need to change the finality core of the `block_header_state`, but we want to
-// ensure that this doesn't create a consensus incompatibility with spring 1.0.0, so the blocks created
-// with newer versions remain compatible (and linkable) by spring 1.0.0.
+// ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
+// with newer versions remain compatible (and linkable) by Spring 1.0.0.
 // ----------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -682,7 +682,7 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
    BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
 
-   // check that the block id of b9 match what we got with spring 1.0.0
+   // check that the block id of b9 match what we got with Spring 1.0.0
    auto b9_id = b9->calculate_id();
    BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
 
