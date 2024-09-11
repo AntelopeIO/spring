@@ -192,7 +192,7 @@ finalizer_policies_t block_header_state::get_finalizer_policies(const block_ref&
 // -----------------------------------------------------------------------------------------------
 uint32_t block_header_state::get_active_finalizer_policy_generation(block_num_type num) const {
    assert(core.links.empty() ||   // called from a bogus block_state constructed in a test
-          (core.latest_qc_claim().block_num <= num && num <= core.current_block_num()));
+          (core.last_final_block_num() <= num && num <= core.current_block_num()));
    if (num == block_num())
       return active_finalizer_policy->generation;
    const block_ref& ref = core.get_block_reference(num);
