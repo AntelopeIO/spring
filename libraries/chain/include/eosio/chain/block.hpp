@@ -93,9 +93,9 @@ namespace eosio { namespace chain {
    public:
       signed_block() = default;
       explicit signed_block( const signed_block_header& h ):signed_block_header(h){}
-      signed_block( signed_block&& ) = default;                // can be =delete once http push_block removed
+      signed_block( signed_block&& ) = default;
       signed_block& operator=(const signed_block&) = delete;
-      signed_block& operator=(signed_block&&) = default;       // can be =delete once http push_block removed
+      signed_block& operator=(signed_block&&) = default;
       signed_block clone() const { return *this; }
 
       deque<transaction_receipt>   transactions; /// new or generated transactions

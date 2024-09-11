@@ -10,16 +10,21 @@ using block_time_type = chain::block_timestamp_type;
 
 struct block_ref
 {
-   block_ref(const block_id_type& block_id, block_time_type timestamp, const digest_type& finality_digest)
+   block_ref(const block_id_type& block_id, block_time_type timestamp, const digest_type& finality_digest,
+             uint32_t active_policy_generation, uint32_t pending_policy_generation)
       : block_id(block_id)
       , timestamp(timestamp)
-      , finality_digest(finality_digest) {}
+      , finality_digest(finality_digest)
+      , active_policy_generation(active_policy_generation)
+      , pending_policy_generation(pending_policy_generation) {}
 
    block_ref() = default; // creates `empty` representation where `block_id.empty() == true`
 
    block_id_type    block_id;
    block_time_type  timestamp;
    digest_type      finality_digest;  // finality digest associated with the block
+   uint32_t         active_policy_generation{0};
+   uint32_t         pending_policy_generation{0};
 
    bool           empty() const { return block_id.empty(); }
    block_num_type block_num() const; // Extract from block_id.
@@ -186,6 +191,24 @@ struct finality_core
     *  @post returned core has last_final_block_num() >= this->last_final_block_num()
     */
    finality_core next(const block_ref& current_block, const qc_claim_t& most_recent_ancestor_with_qc) const;
+
+   // should match the serialization provided by FC_REFLECT below, except that for compatibility with
+   // Spring 1.0.0 consensus we do not pack the two new members of `block_ref` which were added in
+   // Spring 1.0.1 (the finalizer policy generations)
+   // ------------------------------------------------------------------------------------------------
+   template<typename Stream>
+   void pack_for_digest(Stream& s) const {
+      fc::raw::pack(s, links);
+
+      // manually pack the vector of refs since we don't want to pack the generation numbers
+      fc::raw::pack(s, unsigned_int((uint32_t)refs.size()));
+      for(const auto& ref : refs) {
+         fc::raw::pack(s, ref.block_id);
+         fc::raw::pack(s, ref.timestamp);
+         fc::raw::pack(s, ref.finality_digest);
+      }
+      fc::raw::pack(s, genesis_timestamp);
+   }
 };
 
 } /// eosio::chain
@@ -194,7 +217,8 @@ struct finality_core
 namespace std {
    // define std ostream output so we can use BOOST_CHECK_EQUAL in tests
    inline std::ostream& operator<<(std::ostream& os, const eosio::chain::block_ref& br) {
-      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ")";
+      os << "block_ref(" << br.block_id << ", " << br.timestamp << ", " << br.finality_digest << ", "
+         << br.active_policy_generation << ", " << br.pending_policy_generation << ")";
       return os;
    }
 
@@ -215,7 +239,7 @@ namespace std {
    }
 }
 
-FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest) )
+FC_REFLECT( eosio::chain::block_ref, (block_id)(timestamp)(finality_digest)(active_policy_generation)(pending_policy_generation) )
 FC_REFLECT( eosio::chain::block_ref_digest_data, (block_num)(timestamp)(finality_digest)(parent_timestamp) )
 FC_REFLECT( eosio::chain::qc_link, (source_block_num)(target_block_num)(is_link_strong) )
 FC_REFLECT( eosio::chain::qc_claim_t, (block_num)(is_strong_qc) )

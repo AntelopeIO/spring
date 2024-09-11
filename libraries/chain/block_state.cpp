@@ -185,25 +185,30 @@ block_state_ptr block_state::create_transition_block(
    return result_ptr;
 }
 
-block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
+// Spring 1.0.1 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
+// generation numbers. Also new member `block_state::latest_qc_claim_block_active_finalizer_policy`
+// ------------------------------------------------------------------------------------------------
+block_state::block_state(snapshot_detail::snapshot_block_state_v8&& sbs)
    : block_header_state {
-         .block_id                    = sbs.block_id,
-         .header                      = std::move(sbs.header),
-         .activated_protocol_features = std::move(sbs.activated_protocol_features),
-         .core                        = std::move(sbs.core),
-         .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
-         .active_proposer_policy      = std::move(sbs.active_proposer_policy),
+         .block_id                        = sbs.block_id,
+         .header                          = std::move(sbs.header),
+         .activated_protocol_features     = std::move(sbs.activated_protocol_features),
+         .core                            = std::move(sbs.core),
+         .active_finalizer_policy         = std::move(sbs.active_finalizer_policy),
+         .active_proposer_policy          = std::move(sbs.active_proposer_policy),
          .latest_proposed_proposer_policy = std::move(sbs.latest_proposed_proposer_policy),
          .latest_pending_proposer_policy  = std::move(sbs.latest_pending_proposer_policy),
-         .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
-         .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
-         .finalizer_policy_generation = sbs.finalizer_policy_generation,
+         .proposed_finalizer_policies     = std::move(sbs.proposed_finalizer_policies),
+         .pending_finalizer_policy        = std::move(sbs.pending_finalizer_policy),
+         .latest_qc_claim_block_active_finalizer_policy = std::move(sbs.latest_qc_claim_block_active_finalizer_policy),
+         .finalizer_policy_generation     = sbs.finalizer_policy_generation,
          .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest,
          .last_pending_finalizer_policy_start_timestamp = sbs.last_pending_finalizer_policy_start_timestamp
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
+   , aggregating_qc(active_finalizer_policy,
+                    pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
    , valid(std::move(sbs.valid))
 {
    header_exts = header.validate_and_extract_header_extensions();
@@ -234,7 +239,14 @@ vote_status_t block_state::has_voted(const bls_public_key& key) const {
 
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
-   aggregating_qc.verify_qc(qc, strong_digest, weak_digest);
+   // Do not use `block_state::aggregating_qc` which applies only for `this` block.
+   // `verify_qc()` can be called on a descendant `block_state` of `qc.block_num`, so we need
+   // to create a new `aggregating_qc_t` with the finalizer policies of the claimed block.
+   // ---------------------------------------------------------------------------------------
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num);
+   aggregating_qc_t aggregating_qc(policies.active_finalizer_policy, policies.pending_finalizer_policy);
+
+   aggregating_qc.verify_qc(qc, policies.finality_digest, create_weak_digest(policies.finality_digest));
 }
 
 qc_claim_t block_state::extract_qc_claim() const {

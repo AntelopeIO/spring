@@ -127,7 +127,11 @@ public:
       return timestamp() > fc::time_point::now() - fc::seconds(30);
    }
 
-   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), strong_digest }; } // use the cached `finality_digest`
+   // use the cached `finality_digest`
+   block_ref make_block_ref() const {
+      return block_ref{block_id, timestamp(), strong_digest, active_finalizer_policy->generation,
+                       pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
+   }
 
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
    // build next valid structure from current one with input of next
@@ -178,9 +182,16 @@ public:
          bool                              skip_validate_signee,
          const std::optional<digest_type>& action_mroot_savanna);
 
-   explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
+   explicit block_state(snapshot_detail::snapshot_block_state_v8&& sbs);
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
+
+   // Only defined for latest_qc_block_num() <= num <= block_num()
+   finalizer_policies_t get_finalizer_policies(block_num_type num) const {
+      if (num == block_num())
+         return block_header_state::get_finalizer_policies(make_block_ref());
+      return block_header_state::get_finalizer_policies(core.get_block_reference(num));
+   }
 };
 
 using block_state_ptr       = std::shared_ptr<block_state>;
