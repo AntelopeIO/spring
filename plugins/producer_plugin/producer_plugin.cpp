@@ -429,7 +429,7 @@ struct implicit_production_pause_vote_tracker {
          check = production_pause_vote_tracker::pause_check::both;
          break;
       default:
-         assert();
+         assert(false);
       }
 
       return _vt.check_pause_status(now, check);
