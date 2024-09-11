@@ -184,7 +184,7 @@ block_state_ptr block_state::create_transition_block(
    return result_ptr;
 }
 
-// Spring 1.01 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
+// Spring 1.0.1 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
 // generation numbers. Also new member `block_state::latest_qc_claim_block_active_finalizer_policy`
 // ------------------------------------------------------------------------------------------------
 block_state::block_state(snapshot_detail::snapshot_block_state_v8&& sbs)
