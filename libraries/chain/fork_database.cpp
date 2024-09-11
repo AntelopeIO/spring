@@ -651,7 +651,7 @@ namespace eosio::chain {
       // version == 1 -> legacy
       // version == 2 -> Spring 1.0.0
       //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
-      //                  unsupported by Spring 1.01 and above
+      //                  unsupported by Spring 1.0.1 and above
       // version == 3 -> Spring 1.0.1 updated block_header_state (core with policy gen #)
       //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
       // ---------------------------------------------------------------------------------------------------------
