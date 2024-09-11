@@ -50,9 +50,7 @@ bool block_handle::read(const std::filesystem::path& state_file) {
 
       fc::raw::unpack(f, *this);
       ilog("Loading chain_head block ${bn} ${id}", ("bn", block_num())("id", id()));
-   } catch (...) {
-      throw;
-   }
+   } FC_CAPTURE_AND_RETHROW( (state_file) );
 
    // remove the `chain_head.dat` file only if we were able to successfully load it.
    std::filesystem::remove(state_file);
