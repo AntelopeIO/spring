@@ -418,7 +418,7 @@ struct implicit_production_pause_vote_tracker {
       switch (vtm) {
       case vote_track_mode::disabled:
       case vote_track_mode::inactive:
-         return production_pause_vote_tracker::pause_status{}; // should_pause() will return false
+         return production_pause_vote_tracker::pause_status{}; // pause_status{}.should_pause() will return false
       case vote_track_mode::only_other_votes:
          check = production_pause_vote_tracker::pause_check::other;
          break;
@@ -428,6 +428,8 @@ struct implicit_production_pause_vote_tracker {
       case vote_track_mode::all_votes:
          check = production_pause_vote_tracker::pause_check::both;
          break;
+      default:
+         assert();
       }
 
       return _vt.check_pause_status(now, check);
@@ -435,7 +437,7 @@ struct implicit_production_pause_vote_tracker {
 
    // called from multiple threads
    void on_vote(uint32_t connection_id, vote_result_t status, const vote_message_ptr& msg,
-                const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth)
+                const finalizer_authority_ptr& active_finalizer_auth, const finalizer_authority_ptr& pending_finalizer_auth)
    {
       if (!is_active(get_vote_track_mode()))
          return;
@@ -453,17 +455,17 @@ struct implicit_production_pause_vote_tracker {
          assert(false); // should never happen
       }
 
-      if (!active_auth && !pending_auth) {
+      if (!active_finalizer_auth && !pending_finalizer_auth) {
          fc_elog(_log, "vote signal contains no valid authority ${m}", ("m", msg));
          return;
       }
 
       const auto now = fc::time_point::now();
-      account_name auth_desc = active_auth ? to_account_name_safe(active_auth->description)
-                                           : to_account_name_safe(pending_auth->description);
-      if (auth_desc.empty()) {
+      account_name finalizer_auth_desc = active_finalizer_auth ? to_account_name_safe(active_finalizer_auth->description)
+                                                               : to_account_name_safe(pending_finalizer_auth->description);
+      if (finalizer_auth_desc.empty()) {
          ilog("Finalizer authority description is not a valid producer name ${d}",
-              ("d", active_auth ? active_auth->description : pending_auth->description));
+              ("d", active_finalizer_auth ? active_finalizer_auth->description : pending_finalizer_auth->description));
          // running with core contract that does not associate finalizer_authority->description with a producer
          // reset times otherwise the producer would pause
          _vt.record_received_producer_vote(now);
@@ -471,7 +473,7 @@ struct implicit_production_pause_vote_tracker {
          return;
       }
 
-      if (_producers.contains(auth_desc)) { // _producers not modified, thread safe
+      if (_producers.contains(finalizer_auth_desc)) { // _producers not modified, thread safe
          _vt.record_received_producer_vote(now);
       } else {
          _vt.record_received_other_vote(now);

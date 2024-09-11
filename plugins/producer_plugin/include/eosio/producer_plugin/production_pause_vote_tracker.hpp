@@ -25,6 +25,8 @@ public:
    //
    // Pre-condition: vote_timeout should be positive.
    void set_vote_timeout(fc::microseconds vote_timeout) {
+      assert(vote_timeout.count() > 0);
+
       if (vote_timeout.count() > 0) {
          negative_vote_timeout = fc::microseconds(-vote_timeout.count());
       }
@@ -37,7 +39,7 @@ public:
    // Sets the block acceptance tolerance duration which determines the relevancy of blocks to record.
    //
    // votes can be signaled before accepted_block_header, accepted_block_header is currently only signaled from the
-   // main thread while votes can be signaled off the main thread. This allows votes to be signaled for a block before
+   // main thread while votes can be signaled from other threads. This allows votes to be signaled for a block before
    // the block is signaled. We could track last accepted block id and correlate that with the vote signal, but simpler
    // to add a signal_tolerance. Normally the tolerance only needs to be a few milliseconds, but no real harm in making
    // it larger. Half a block interval is a nice value.
@@ -104,31 +106,35 @@ public:
    struct pause_status {
       struct received_times {
          fc::time_point                latest_vote{};
+         // block time after the latest_vote, not set if latest_vote time is after latest block time
          std::optional<fc::time_point> earliest_conflict_block{}; // If present, must be greater than latest_vote.
       };
 
-      enum class pause_reason : unsigned int {
-         not_paused        = 0b00,
-         old_other_vote    = 0b01,
-         old_producer_vote = 0b10,
-         old_votes         = old_other_vote | old_producer_vote,
+      enum class pause_reason {
+         not_paused,
+         old_other_vote,
+         old_producer_vote,
+         old_votes,
       };
 
       received_times other_vote{};
       received_times producer_vote{};
 
       pause_reason reason() const {
-         unsigned int r = static_cast<unsigned int>(pause_reason::not_paused);
+         pause_reason r = pause_reason::not_paused;
 
          if (other_vote.earliest_conflict_block.has_value()) {
-            r |= static_cast<unsigned int>(pause_reason::old_other_vote);
+            r = pause_reason::old_other_vote;
          }
 
          if (producer_vote.earliest_conflict_block.has_value()) {
-            r |= static_cast<unsigned int>(pause_reason::old_producer_vote);
+            if (r == pause_reason::old_other_vote)
+               r = pause_reason::old_votes; // both
+            else
+               r = pause_reason::old_producer_vote; // only producer
          }
 
-         return static_cast<pause_reason>(r);
+         return r;
       }
 
       bool should_pause() const {
@@ -171,13 +177,18 @@ public:
          }
       };
 
-      if (check != pause_check::producer) {
-         assert(check == pause_check::both || check == pause_check::other);
+      switch (check) {
+      case pause_check::both:
          process_vote_timing(latest_other_vote, status.other_vote);
-      }
-      if (check != pause_check::other) {
-         assert(check == pause_check::both || check == pause_check::producer);
+         // no break
+      case pause_check::producer:
          process_vote_timing(latest_producer_vote, status.producer_vote);
+         break;
+      case pause_check::other:
+         process_vote_timing(latest_other_vote, status.other_vote);
+         break;
+      default:
+         assert(false);
       }
 
       return status;
@@ -206,11 +217,17 @@ private:
 
          const auto adjusted_block_received_time = fc::time_point(block_received_time).safe_add(block_acceptance_delta);
 
+         // votes (vote_time) can be signaled before the block the vote is associated with is
+         // signaled (block_received_time). If block received within the block_acceptance_delta tolerance
+         // then act as if the received block came before the last vote.
          if (adjusted_block_received_time <= vote_time)
             return false;
 
          auto block_orig = first_block_after_vote.load(std::memory_order_relaxed);
 
+         // if we have already received a block since our last vote then nothing to do.
+         // Also make sure the block received time is greater than the tracked block, should always
+         // be true unless a clock skew.
          if ((vote_time < block_orig) && (block_orig <= block_received_time))
             return false;
 
