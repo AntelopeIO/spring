@@ -682,7 +682,7 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
    BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
 
-   // check that the block id of b9 match what we got with spring 1.0
+   // check that the block id of b9 match what we got with spring 1.0.0
    auto b9_id = b9->calculate_id();
    BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
 
