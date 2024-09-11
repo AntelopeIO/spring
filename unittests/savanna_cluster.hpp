@@ -116,6 +116,8 @@ namespace savanna_cluster {
       std::function<void(const block_signal_params&)> _accepted_block_cb;
       std::function<void(const vote_signal_params&)>  _voted_block_cb;
 
+      cluster_t&                                      _cluster;
+
    public:
       node_t(size_t node_idx, cluster_t& cluster, setup_policy policy = setup_policy::none);
 
@@ -126,6 +128,8 @@ namespace savanna_cluster {
       bool& propagate_votes() { return _propagate_votes; }
 
       size_t& vote_delay() { return _vote_delay; }
+
+      void propagate_delayed_votes();
 
       const vote_t& last_vote() const { return _last_vote; }
 

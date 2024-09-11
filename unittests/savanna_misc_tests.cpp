@@ -592,7 +592,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
 } FC_LOG_AND_RETHROW()
 
 
-
 // ----------------------------------------------------------------------------------------------------
 // For issue #694, we need to change the finality core of the `block_header_state`, but we want to
 // ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
@@ -685,6 +684,177 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    // check that the block id of b9 match what we got with Spring 1.0.0
    auto b9_id = b9->calculate_id();
    BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
+
+} FC_LOG_AND_RETHROW()
+
+/* -----------------------------------------------------------------------------------------------------
+            Finality advancing past block claimed on alternate branch
+            =========================================================
+
+Time:        t1      t2      t3      t4      t5      t6      t7      t8
+Blocks:
+    B0 <---  B1 <--- B2 <--- B3 <-|- B4 <--- B5
+                                  |
+                                  \----------------- B6 <--- B7 <--- B8 <--- B9
+QC claim:
+           Strong          Strong  Strong  Strong  Strong   Weak   Strong  Strong
+             B0              B1      B3      B4      B2      B6      B7      B8
+
+Vote:                      Strong  Strong   Strong  Weak   Strong  Strong  Strong
+
+                                                     ^
+                                                     |
+                                                 validating those weak votes on b2
+                                                 would fail if nodes have received b4 and b5
+                                                 which advanced lib to b3
+
+    - Node D is isolated and has not seen B3, B4, and B5
+    - it received B3 via push_block, (so it can make it its head and produce a child of B3), but has not
+      received votes on b3 (only on b2), so b6 includes a strong QC on b2.
+    - when b6 is pushed to A, B and C, qc validation should fail.
+--------------------------------------------------------------------------------------------------------*/
+BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
+   using namespace savanna_cluster;
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   _debug_mode = true;
+
+   auto b0 = A.produce_block();
+   print("b0", b0);
+
+   signed_block_ptr b1, b2;
+   {
+      // delay votes from B and C (can't delay on A as A produces), so b2 will not include a QC on B1
+      fc::scoped_set_value tmp_B(B.vote_delay(), 1);
+      fc::scoped_set_value tmp_C(C.vote_delay(), 1);
+
+      b1 = A.produce_block();
+      print("b1", b1);
+      BOOST_REQUIRE_EQUAL(qc_s(qc(b1)), strong_qc(b0)); // b1 claims a strong QC on b0
+
+      b2 = A.produce_block();
+      print("b2", b2);
+      BOOST_REQUIRE(!qc(b2));                           // b2 should not include a QC (votes on b1 delayed)
+   }
+
+   // propagate
+
+   const std::vector<size_t> partition {3};             // partition D so that it doesn't see b3, b4 and b5
+   set_partition(partition);                            // and don't vote on it
+
+   auto b3 = A.produce_block();
+   print("b3", b3);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b1));    // b3 claims a strong QC on b1 (votes on b2 delayed)
+
+   D.push_block(b3);                                    // we want D to see b3, but not receive the votes on
+                                                        // b3, so that when it produces b6, b6 will have a
+                                                        // qc claim on b2
+
+   auto b4 = A.produce_block();
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));    // b4 claims a strong QC on b3
+
+   auto b5 = A.produce_block();
+   print("b5", b5);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));    // b5 claims a strong QC on b4
+
+
+   auto b6 = D.produce_block(_block_interval_us * 3);   // D (who has not seen b4 and b5) produces b6
+                                                        // b6 has a higher timestamp than b6
+   print("b6", b6);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b2));    // b6 claims a strong QC on b2
+
+
+#if 0
+   auto pending = A.head_pending_finalizer_policy();
+   BOOST_REQUIRE(!!pending);                            // check that we have a pending finalizer policy
+   auto p2 = pending->generation;                       // and its generation is higher than the active one
+   BOOST_REQUIRE_EQUAL(p2, p1 + 1);                     // b3 has new pending finalizer policy p2
+
+   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b4 (yet)
+   set_partition(partition);                            // and don't vote on it
+
+   auto b4 = A.produce_block();
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));    // b4 claims a strong QC on b3
+   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // b4 makes B2 final
+   pending = A.head_pending_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(pending->generation, p2);        // b4 has new pending finalizer policy p2
+
+   auto b5 = A.produce_block();
+   print("b5", b5);
+   BOOST_REQUIRE(!qc(b5));                              // b5 doesn't include a new qc (duplicates b4's strong claim on b3)
+   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // finality unchanged stays at b2
+   pending = A.head_pending_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(pending->generation, p2);        // b5 still has new pending finalizer policy p2
+                                                        // since finality did not advance
+
+   set_partition({});                                   // remove partition so A will receive votes on b4 and b5
+
+   push_block(0, b4);                                   // other nodes receive b4 and vote on it, so A forms a qc on b4
+   auto b6 = A.produce_block();
+   print("b6", b6);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b4));    // b6 claims a strong QC on b4
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // b6 makes b3 final.
+
+   auto active = A.head_active_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b6 has active finalizer policy p2
+   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
+
+   // At this point, in the Spring 1.0 implementation, policy  P2 is lost from the block_header_state
+   // of B6, which is the source of the problem
+
+   auto b6_snapshot = A.snapshot();
+
+   push_block(0, b5);
+
+   auto b7 = A.produce_block();
+   print("b7", b7);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b5));    // b7 claims a strong QC on b5
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // lib is still b3
+
+   active = A.head_active_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b7 has active finalizer policy p2
+   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
+
+   push_block(0, b6);                                   // push b6 again as it was unlinkable until the other
+                                                        // nodes received b5
+
+   auto b8 = A.produce_block();
+   print("b8", b8);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), strong_qc(b6));    // b8 claims a strong QC on b6
+   BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());  // b8 makes B4 final
+
+   active = A.head_active_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b8 has active finalizer policy p2
+   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
+
+   push_block(0, b7);                                   // push b7 and b8 as they were unlinkable until the other
+   push_block(0, b8);                                   // nodes received b6
+
+   auto b9 = A.produce_block();
+   print("b9", b9);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
+   BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
+
+   active = A.head_active_finalizer_policy();
+   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b9 has active finalizer policy p2
+   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
+
+   // restart from b6 snapshot.
+   // -------------------------
+   A.close();
+   A.remove_state();
+   A.remove_reversible_data_and_blocks_log();
+
+   set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
+   A.open_from_snapshot(b6_snapshot);
+
+   A.push_block(b7);                                    // when pushing b7, if we try to access any block state
+   A.push_block(b8);                                    // before b6, we will fail with a `verify_qc_claim`
+   A.push_block(b9);                                    // exception, which is what will happens until issue
+                                                        // #694 is addressed.
+#endif
 
 } FC_LOG_AND_RETHROW()
 
