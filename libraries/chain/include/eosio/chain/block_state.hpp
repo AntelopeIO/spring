@@ -186,6 +186,7 @@ public:
 
    void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
 
+   // Only defined for latest_qc_block_num() <= num <= block_num()
    finalizer_policies_t get_finalizer_policies(block_num_type num) const {
       if (num == block_num())
          return block_header_state::get_finalizer_policies(make_block_ref());

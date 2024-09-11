@@ -215,6 +215,8 @@ struct block_header_state : fc::reflect_init {
 
    // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
    finalizer_policies_t get_finalizer_policies(const block_ref& ref) const;
+
+   // Defined for core.last_final_block_num().block_num <= num <= core.current_block_num()
    uint32_t get_active_finalizer_policy_generation(block_num_type block_num) const;
 
    template<typename Ext> const Ext* header_extension() const {
