@@ -137,6 +137,7 @@ try:
     finalizercNode.relaunch()
 
     Print("Verify production unpaused and LIB advances after restart of finalizercNode")
+    assert finalizercNode.waitForLibToAdvance(), "finalizercNode did not see LIB advance"
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
