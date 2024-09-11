@@ -91,10 +91,12 @@ namespace eosio::chain::snapshot_detail {
    };
 
    /**
-    *      Snapshot V7 Data structures
+    *      Snapshot V8 Data structures
     *      ---------------------------
+    *  Spring 1.0.1 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
+    *  generation numbers. Also new member `block_state::latest_qc_claim_block_active_finalizer_policy`
     */
-   struct snapshot_block_state_v7 {
+   struct snapshot_block_state_v8 {
       // from block_header_state
       block_id_type                                       block_id;
       block_header                                        header;
@@ -106,6 +108,7 @@ namespace eosio::chain::snapshot_detail {
       proposer_policy_ptr                                 latest_pending_proposer_policy;
       std::vector<std::pair<block_num_type, finalizer_policy_ptr>>   proposed_finalizer_policies;
       std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
+      finalizer_policy_ptr                                latest_qc_claim_block_active_finalizer_policy;
       uint32_t                                            finalizer_policy_generation;
       digest_type                                         last_pending_finalizer_policy_digest;
       block_timestamp_type                                last_pending_finalizer_policy_start_timestamp;
@@ -113,10 +116,10 @@ namespace eosio::chain::snapshot_detail {
       // from block_state
       std::optional<valid_t>                              valid;
 
-      snapshot_block_state_v7() = default;
+      snapshot_block_state_v8() = default;
 
-      // When adding a member initialization here also update block_state(snapshot_block_state_v7) constructor
-      explicit snapshot_block_state_v7(const block_state& bs)
+      // When adding a member initialization here also update block_state(snapshot_block_state_v8) constructor
+      explicit snapshot_block_state_v8(const block_state& bs)
          : block_id(bs.block_id)
          , header(bs.header)
          , activated_protocol_features(bs.activated_protocol_features)
@@ -127,6 +130,7 @@ namespace eosio::chain::snapshot_detail {
          , latest_pending_proposer_policy(bs.latest_pending_proposer_policy)
          , proposed_finalizer_policies(bs.proposed_finalizer_policies)
          , pending_finalizer_policy(bs.pending_finalizer_policy)
+         , latest_qc_claim_block_active_finalizer_policy(bs.latest_qc_claim_block_active_finalizer_policy)
          , finalizer_policy_generation(bs.finalizer_policy_generation)
          , last_pending_finalizer_policy_digest(bs.last_pending_finalizer_policy_digest)
          , last_pending_finalizer_policy_start_timestamp(bs.last_pending_finalizer_policy_start_timestamp)
@@ -134,26 +138,25 @@ namespace eosio::chain::snapshot_detail {
       {}
    };
 
-   struct snapshot_block_state_data_v7 {
-      static constexpr uint32_t minimum_version = 7;
-      static constexpr uint32_t maximum_version = 7;
+   struct snapshot_block_state_data_v8 {
+      static constexpr uint32_t minimum_version = 8;
+      static constexpr uint32_t maximum_version = 8;
 
       std::optional<snapshot_block_header_state_legacy_v3> bs_l;
-      std::optional<snapshot_block_state_v7>               bs;
+      std::optional<snapshot_block_state_v8>               bs;
 
-      snapshot_block_state_data_v7() = default;
+      snapshot_block_state_data_v8() = default;
 
-      explicit snapshot_block_state_data_v7(const block_state_pair& p)
+      explicit snapshot_block_state_data_v8(const block_state_pair& p)
       {
          if (p.first)
             bs_l = snapshot_block_header_state_legacy_v3(*p.first);
          if (p.second)
-            bs = snapshot_block_state_v7(*p.second);
+            bs = snapshot_block_state_v8(*p.second);
       }
    };
 
 }
-
 
 FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_header_state_legacy_v2::schedule_info,
           ( schedule_lib_num )
@@ -195,7 +198,7 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_header_state_legacy_v3
           ( additional_signatures )
 )
 
-FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
+FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v8,
             (block_id)
             (header)
             (activated_protocol_features)
@@ -206,13 +209,14 @@ FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_v7,
             (latest_pending_proposer_policy)
             (proposed_finalizer_policies)
             (pending_finalizer_policy)
+            (latest_qc_claim_block_active_finalizer_policy)
             (finalizer_policy_generation)
             (last_pending_finalizer_policy_digest)
             (last_pending_finalizer_policy_start_timestamp)
             (valid)
    )
 
-FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_data_v7,
+FC_REFLECT( eosio::chain::snapshot_detail::snapshot_block_state_data_v8,
             (bs_l)
             (bs)
    )
