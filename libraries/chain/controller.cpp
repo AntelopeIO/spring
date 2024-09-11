@@ -2292,9 +2292,9 @@ struct controller_impl {
             EOS_THROW(snapshot_exception, "Unsupported block_state version");
          }
       } else if (header.version == 7) {
-         // snapshot created with Spring 1.0, which was very soon superseded by Spring 1.0.1
+         // snapshot created with Spring 1.0.0, which was very soon superseded by Spring 1.0.1
          // and a new snapshot format.
-         // --------------------------------------------------------------------------------
+         // ----------------------------------------------------------------------------------
          EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.0.1 and above");
       } else {
          // loading a snapshot saved by Leap up to version 6.
