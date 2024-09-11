@@ -2212,7 +2212,7 @@ struct controller_impl {
       });
 
       snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
+         section.add_row(snapshot_detail::snapshot_block_state_data_v8(get_block_state_to_snapshot()), db);
       });
       
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
@@ -2261,15 +2261,15 @@ struct controller_impl {
       });
 
       using namespace snapshot_detail;
-      using v7 = snapshot_block_state_data_v7;
+      using v8 = snapshot_block_state_data_v8;
 
       block_state_pair result;
-      if (header.version >= v7::minimum_version) {
-         // loading a snapshot saved by Spring 1.0 and above.
-         // -----------------------------------------------
-         if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
+      if (header.version >= v8::minimum_version) {
+         // loading a snapshot saved by Spring 1.0.1 and above.
+         // ---------------------------------------------------
+         if (std::clamp(header.version, v8::minimum_version, v8::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
-               v7 block_state_data;
+               v8 block_state_data;
                section.read_row(block_state_data, db);
                assert(block_state_data.bs_l || block_state_data.bs);
                if (block_state_data.bs_l) {
@@ -2291,8 +2291,13 @@ struct controller_impl {
          } else {
             EOS_THROW(snapshot_exception, "Unsupported block_state version");
          }
+      } else if (header.version == 7) {
+         // snapshot created with Spring 1.0.0, which was very soon superseded by Spring 1.0.1
+         // and a new snapshot format.
+         // ----------------------------------------------------------------------------------
+         EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.0.1 and above");
       } else {
-         // loading a snapshot saved by Leap up to version 5.
+         // loading a snapshot saved by Leap up to version 6.
          // -------------------------------------------------
          auto head_header_state = std::make_shared<block_state_legacy>();
          using v2 = snapshot_block_header_state_legacy_v2;
@@ -4085,14 +4090,8 @@ struct controller_impl {
    }
 
    // This verifies BLS signatures and is expensive.
-   void verify_qc( const signed_block_ptr& b, const block_header_state& prev, const qc_t& qc ) {
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), qc.block_num );
-      EOS_ASSERT( bsp, invalid_qc_claim,
-                  "Block state was not found in forkdb for claimed block ${bn}. Current block number: ${b}",
-                  ("bn", qc.block_num)("b", b->block_num()) );
-
-      bsp->verify_qc(qc);
+   void verify_qc( const block_state& prev, const qc_t& qc ) {
+      prev.verify_qc(qc);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -4346,7 +4345,7 @@ struct controller_impl {
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   if (conf.force_all_checks && qc) {
-                     verify_qc(b, *head, *qc);
+                     verify_qc(*head, *qc);
                   }
                }
 
