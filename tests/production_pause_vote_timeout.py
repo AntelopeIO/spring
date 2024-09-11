@@ -214,7 +214,8 @@ try:
     assert not node0.verifyAlive(), "node0 did not shutdown"
     
     Print("Verify defproducerb does not pause and produces all blocks of its round")
-    assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
+    # If Node0 A was producing then give time for C or B to produce
+    assert node1.waitForHeadToAdvance(timeout=30), "node1 paused after finalizercNode was shutdown"
     assert node1.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "node1 paused after node0 was shutdown"
 
     # wait for C to make sure B is not currently producing
