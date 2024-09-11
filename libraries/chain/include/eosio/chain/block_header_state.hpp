@@ -143,6 +143,10 @@ struct block_header_state : fc::reflect_init {
    // can still be accessed, since they are needed for validating QCs for blocks as far back as core.latest_qc_claim().
    // This pointer can (and will often) be nullptr, which means that a pending finalizer policy did not
    // become active between `core.latest_qc_claim().block_num` and `core.current_block_num()` (inclusive).
+   //
+   // note: It is also possible for the latest final block (which also is tracked in the finality_core) to have
+   // an active finalizer policy that is still not being tracked, but we don't care about that as it is not needed
+   // for QC verification.
    finalizer_policy_ptr                latest_qc_claim_block_active_finalizer_policy;
 
    // generation increases by one each time a new finalizer_policy is proposed in a block
