@@ -12,6 +12,7 @@ namespace eosio::chain {
 
 namespace snapshot_detail {
   struct snapshot_block_state_v7;
+  struct snapshot_block_state_v8;
 }
 
 namespace detail { struct schedule_info; };
@@ -78,6 +79,13 @@ struct block_header_state_input : public building_block_input {
    digest_type                       finality_mroot_claim;
 };
 
+
+struct finalizer_policies_t {
+   digest_type          finality_digest;
+   finalizer_policy_ptr active_finalizer_policy;  // Never null
+   finalizer_policy_ptr pending_finalizer_policy; // Only null if the block has no pending finalizer policy
+};
+
 struct block_header_state : fc::reflect_init {
    // ------ data members ------------------------------------------------------------
    block_id_type                       block_id;
@@ -121,11 +129,25 @@ struct block_header_state : fc::reflect_init {
    // When the block associated with a proposed finalizer policy becomes final,
    // it becomes pending.
    std::vector<std::pair<block_num_type, finalizer_policy_ptr>> proposed_finalizer_policies;
+
    // Track in-flight pending finalizer policy. At most one pending
    // finalizer policy at any moment.
    // When the block associated with the pending finalizer policy becomes final,
    // it becomes active.
    std::optional<std::pair<block_num_type, finalizer_policy_ptr>> pending_finalizer_policy;
+
+   // It may be that the `finality_core` references a finalizer policy generation which is neither the active
+   // or pending one. This can happen when a pending policy became active, replacing the previously active
+   // policy which would be lost if not tracked in the below member variable.
+   // When starting from a snapshot, it is critical that all finalizer policies referenced by the finality core
+   // can still be accessed, since they are needed for validating QCs for blocks as far back as core.latest_qc_claim().
+   // This pointer can (and will often) be nullptr, which means that a pending finalizer policy did not
+   // become active between `core.latest_qc_claim().block_num` and `core.current_block_num()` (inclusive).
+   //
+   // note: It is also possible for the latest final block (which also is tracked in the finality_core) to have
+   // an active finalizer policy that is still not being tracked, but we don't care about that as it is not needed
+   // for QC verification.
+   finalizer_policy_ptr                latest_qc_claim_block_active_finalizer_policy;
 
    // generation increases by one each time a new finalizer_policy is proposed in a block
    // It matches the finalizer policy generation most recently included in this block's `finality_extension` or its ancestors
@@ -164,7 +186,10 @@ struct block_header_state : fc::reflect_init {
    digest_type compute_base_digest() const;
    digest_type compute_finality_digest() const;
 
-   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), compute_finality_digest() }; }
+   block_ref make_block_ref() const {
+      return block_ref{block_id, timestamp(), compute_finality_digest(), active_finalizer_policy->generation,
+                       pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
+   }
 
    // Returns true if the block is a Savanna Genesis Block.
    // This method is applicable to any transition block which is re-classified as a Savanna block.
@@ -192,6 +217,12 @@ struct block_header_state : fc::reflect_init {
    const finalizer_policy& get_last_pending_finalizer_policy() const;
    const proposer_policy& get_last_proposed_proposer_policy() const;
 
+   // Only defined for core.latest_qc_claim().block_num <= num <= core.current_block_num()
+   finalizer_policies_t get_finalizer_policies(const block_ref& ref) const;
+
+   // Defined for core.last_final_block_num().block_num <= num <= core.current_block_num()
+   uint32_t get_active_finalizer_policy_generation(block_num_type block_num) const;
+
    template<typename Ext> const Ext* header_extension() const {
       if (auto itr = header_exts.find(Ext::extension_id()); itr != header_exts.end()) {
          return &std::get<Ext>(itr->second);
@@ -211,7 +242,7 @@ using block_header_state_ptr = std::shared_ptr<block_header_state>;
 FC_REFLECT( eosio::chain::block_header_state, (block_id)(header)
             (activated_protocol_features)(core)(active_finalizer_policy)
             (active_proposer_policy)(latest_proposed_proposer_policy)(latest_pending_proposer_policy)(proposed_finalizer_policies)
-            (pending_finalizer_policy)(finalizer_policy_generation)
+            (pending_finalizer_policy)(latest_qc_claim_block_active_finalizer_policy)(finalizer_policy_generation)
             (last_pending_finalizer_policy_digest)(last_pending_finalizer_policy_start_timestamp))
 
 FC_REFLECT( eosio::chain::level_3_commitments_t, (reversible_blocks_mroot)(latest_qc_claim_block_num )(latest_qc_claim_finality_digest)(latest_qc_claim_timestamp)(timestamp)(base_digest))
