@@ -71,7 +71,7 @@ namespace eosio::chain {
                                            const validator_t& validator,
                                            const signer_callback_type& signer
                            )
-   :block_header_state_legacy( inject_additional_signatures( std::move(cur), *b, pfs, validator, signer ) )
+   :block_header_state_legacy( inject_additional_signatures( std::move(cur), const_cast<signed_block&>(*b), pfs, validator, signer ) )
    ,block( std::move(b) )
    ,_pub_keys_recovered( true ) // called by produce_block so signature recovery of trxs must have been done
    ,_cached_trxs( std::move(trx_metas) )

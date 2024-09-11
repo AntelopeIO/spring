@@ -55,7 +55,7 @@ namespace eosio::trace_api {
 
       inline auto make_block( chain::block_id_type previous, uint32_t height, uint32_t slot, chain::name producer,
                               std::vector<chain::packed_transaction> trxs ) {
-         chain::signed_block_ptr block = std::make_shared<chain::signed_block>();
+         auto block = std::make_shared<chain::signed_block>();
          for( auto& trx : trxs ) {
             block->transactions.emplace_back( trx );
          }

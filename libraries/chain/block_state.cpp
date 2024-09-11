@@ -89,11 +89,12 @@ block_state::block_state(const block_header_state&                bhs,
    , cached_trxs(std::move(trx_metas))
    , action_mroot(action_mroot)
 {
-   block->transactions = std::move(trx_receipts);
+   std::const_pointer_cast<signed_block>(block)->transactions = std::move(trx_receipts);
 
    if( qc ) {
       fc_dlog(vote_logger, "integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
-      emplace_extension(block->block_extensions, quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
+      emplace_extension(std::const_pointer_cast<signed_block>(block)->block_extensions,
+                        quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
    }
 
    sign(signer, valid_block_signing_authority);
@@ -356,11 +357,11 @@ void block_state::sign(const signer_callback_type& signer, const block_signing_a
    auto sigs = signer( block_id );
 
    EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
-   block->producer_signature = sigs.back(); // last is producer signature, rest are additional signatures to inject in the block extension
+   std::const_pointer_cast<signed_block>(block)->producer_signature = sigs.back(); // last is producer signature, rest are additional signatures to inject in the block extension
    sigs.pop_back();
 
    verify_signee(block, block_id, sigs, valid_block_signing_authority);
-   inject_additional_signatures(*block, sigs);
+   inject_additional_signatures(const_cast<signed_block&>(*block), sigs);
 }
 
 } /// eosio::chain

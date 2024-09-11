@@ -35,7 +35,7 @@ bls_private_key bls_priv_key_2 = bls_private_key::generate();
 std::vector<bls_private_key> bls_priv_keys{bls_priv_key_0, bls_priv_key_1, bls_priv_key_2};
 
 auto create_genesis_block_state() { // block 2
-   signed_block_ptr block = std::make_shared<signed_block>();
+   auto block = std::make_shared<signed_block>();
 
    block->producer = eosio::chain::config::system_account_name;
    auto pub_key = eosio::testing::base_tester::get_public_key( block->producer, "active" );
@@ -56,7 +56,7 @@ auto create_genesis_block_state() { // block 2
    genesis->block = block;
    genesis->activated_protocol_features = std::make_shared<protocol_feature_activation_set>();
    genesis->active_finalizer_policy = std::make_shared<finalizer_policy>(new_finalizer_policy);
-   genesis->block->previous = make_block_id(1);
+   std::const_pointer_cast<signed_block>(genesis->block)->previous = make_block_id(1);
    genesis->active_proposer_policy = std::make_shared<proposer_policy>(proposer_policy{.proposer_schedule = schedule});
    genesis->core = finality_core::create_core_for_genesis_block(genesis->block_id, genesis->header.timestamp);
    genesis->block_id = genesis->block->calculate_id();
@@ -67,15 +67,15 @@ auto create_test_block_state(const block_state_ptr& prev) {
    static block_timestamp_type timestamp;
    timestamp = timestamp.next(); // each test block state will be unique
    signed_block_ptr block = std::make_shared<signed_block>(prev->block->clone());
-   block->producer = eosio::chain::config::system_account_name;
-   block->previous = prev->id();
-   block->timestamp = timestamp;
+   std::const_pointer_cast<signed_block>(block)->producer = eosio::chain::config::system_account_name;
+   std::const_pointer_cast<signed_block>(block)->previous = prev->id();
+   std::const_pointer_cast<signed_block>(block)->timestamp = timestamp;
 
    auto priv_key = eosio::testing::base_tester::get_private_key( block->producer, "active" );
    auto pub_key  = eosio::testing::base_tester::get_public_key( block->producer, "active" );
 
    auto sig_digest = digest_type::hash("something");
-   block->producer_signature = priv_key.sign( sig_digest );
+   std::const_pointer_cast<signed_block>(block)->producer_signature = priv_key.sign( sig_digest );
 
    vector<private_key_type> signing_keys;
    signing_keys.emplace_back( std::move( priv_key ) );
