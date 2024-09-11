@@ -11,8 +11,7 @@
 #include <boost/thread/mutex.hpp>
 #include <fc/exception/exception.hpp>
 #include <iomanip>
-#include <mutex>
-#include <sstream>
+#include <cstdio>
 
 namespace fc {
    class dmlog_appender::impl {
@@ -24,9 +23,13 @@ namespace fc {
 
    dmlog_appender::dmlog_appender( const std::optional<dmlog_appender::config>& args )
    :dmlog_appender(){
-      if (!args || args->file == "-")
+      if (!args || (args->file == "-" || args->file == "-stdout"))
       {
          my->out = stdout;
+      }
+      else if (args->file == "-stderr")
+      {
+         my->out = stderr;
       }
       else
       {
@@ -93,5 +96,8 @@ namespace fc {
          message_ptr = &message_ptr[written];
          remaining_size -= written;
       }
+      // attempt a flush, ignore any error
+      if (!my->is_stopped)
+         fflush(my->out);
    }
 }
