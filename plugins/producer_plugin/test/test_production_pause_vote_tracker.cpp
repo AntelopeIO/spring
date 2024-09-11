@@ -5,7 +5,7 @@ BOOST_AUTO_TEST_SUITE(production_pause_vote_tracker_tests)
 
 BOOST_AUTO_TEST_CASE(test_production_pause) {
    // Setup production pause vote tracker:
-   eosio::production_pause_vote_tracker vt; // Use default block acceptance threshold of 250 milliseconds.
+   eosio::production_pause_vote_tracker vt{fc::milliseconds(250)}; // Use block acceptance threshold of 250 milliseconds.
    vt.set_vote_timeout(fc::milliseconds(6000));
 
    // Setup infrastructure for tracking current time:
@@ -14,7 +14,7 @@ BOOST_AUTO_TEST_CASE(test_production_pause) {
 
    // Helper functions to record events with checks for expectations
    auto got_block = [&now, &vt](bool expect_recorded = true) {
-      bool recorded = vt.record_received_block(now);
+      bool recorded = vt.record_received_block(now, now);
       BOOST_TEST(recorded == expect_recorded);
    };
    enum vote_type { other, producer };

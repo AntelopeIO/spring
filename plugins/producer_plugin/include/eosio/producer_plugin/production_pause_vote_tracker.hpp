@@ -10,7 +10,7 @@ class production_pause_vote_tracker {
 public:
    // By default, start with maximum vote_timeout so that production pause mechanism is effectively disabled.
    // Pre-conditions: vote_timeout and block_acceptance_tolerance should both not be negative.
-   explicit production_pause_vote_tracker(fc::microseconds block_acceptance_tolerance = fc::milliseconds(250),
+   explicit production_pause_vote_tracker(fc::microseconds block_acceptance_tolerance = fc::seconds(1),
                                           fc::microseconds vote_timeout               = fc::microseconds::maximum())
       : negative_vote_timeout(), block_acceptance_delta(), latest_other_vote(), latest_producer_vote() {
       set_vote_timeout(vote_timeout);
@@ -83,15 +83,18 @@ public:
    //
    // A block will only be recorded if all the following conditions hold for either
    // the latest recorded other vote or the latest recorded producer vote:
-   //   1. The received time of the block must be more recent than received time of latest recorded
+   //   The received time RT is the minimum of block_received_time and block_time_stamp.
+   //   1. The RT must be more recent than received time of latest recorded
    //      (other/producer) vote by more than the current block acceptance threshold.
-   //   2. If there is a still tracked recorded block with a received time more recent than the received time of
-   //      the latest recorded (other/producer) vote, then that block's received time must be more recent than
+   //   2. If there is a still tracked recorded block with a RT more recent than the RT of
+   //      the latest recorded (other/producer) vote, then that block's RT must be more recent than
    //      the received time of the new block to record.
-   bool record_received_block(fc::time_point block_received_time) {
+   //   Above the block_time_stamp is important because you may receive an old block (syncing or on fork-switch)
+   //   which you can't vote on because of the monotony_check.
+   bool record_received_block(fc::time_point block_received_time, fc::time_point block_time_stamp) {
       bool recorded = false;
-      recorded |= latest_other_vote.record_received_block(block_received_time, block_acceptance_delta);
-      recorded |= latest_producer_vote.record_received_block(block_received_time, block_acceptance_delta);
+      recorded |= latest_other_vote.record_received_block(block_received_time, block_time_stamp, block_acceptance_delta);
+      recorded |= latest_producer_vote.record_received_block(block_received_time, block_time_stamp, block_acceptance_delta);
       return recorded;
    }
 
@@ -212,13 +215,14 @@ private:
       }
 
       // Can be called concurrently with all member functions.
-      bool record_received_block(fc::time_point block_received_time, fc::microseconds block_acceptance_delta) {
+      bool record_received_block(fc::time_point block_received_time, fc::time_point block_time_stamp, fc::microseconds block_acceptance_delta) {
          auto vote_time = latest_vote.load(std::memory_order_relaxed);
 
-         const auto adjusted_block_received_time = fc::time_point(block_received_time).safe_add(block_acceptance_delta);
+         const auto received_time = std::min(block_received_time, block_time_stamp);
+         const auto adjusted_block_received_time = fc::time_point(received_time).safe_add(block_acceptance_delta);
 
          // votes (vote_time) can be signaled before the block the vote is associated with is
-         // signaled (block_received_time). If block received within the block_acceptance_delta tolerance
+         // signaled (received_time). If block received within the block_acceptance_delta tolerance
          // then act as if the received block came before the last vote.
          if (adjusted_block_received_time <= vote_time)
             return false;
@@ -228,10 +232,10 @@ private:
          // if we have already received a block since our last vote then nothing to do.
          // Also make sure the block received time is greater than the tracked block, should always
          // be true unless a clock skew.
-         if ((vote_time < block_orig) && (block_orig <= block_received_time))
+         if ((vote_time < block_orig) && (block_orig <= received_time))
             return false;
 
-         first_block_after_vote.store(block_received_time, std::memory_order_relaxed);
+         first_block_after_vote.store(received_time, std::memory_order_relaxed);
 
          return true;
       }

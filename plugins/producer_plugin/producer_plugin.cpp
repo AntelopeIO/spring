@@ -480,11 +480,11 @@ struct implicit_production_pause_vote_tracker {
       }
    }
 
-   void record_received_block(fc::time_point now) {
+   void record_received_block(fc::time_point now, fc::time_point block_time_stamp) {
       if (!is_active(get_vote_track_mode()))
          return;
 
-      _vt.record_received_block(now);
+      _vt.record_received_block(now, block_time_stamp);
    }
 
    // called from main thread
@@ -850,7 +850,7 @@ public:
             _producer_watermarks.consider_new_watermark(block->producer, block->block_num(), block->timestamp);
       } else {
          _implicit_pause_vote_tracker.update_active_finalizers();
-         _implicit_pause_vote_tracker.record_received_block(fc::time_point::now());
+         _implicit_pause_vote_tracker.record_received_block(fc::time_point::now(), block->timestamp);
       }
    }
 
