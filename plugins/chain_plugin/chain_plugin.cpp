@@ -2115,7 +2115,7 @@ fc::variant read_only::get_block_header_state(const get_block_header_state_param
 
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {
    try {
-      auto b = std::make_shared<signed_block>( params.clone() );
+      auto b = std::make_shared<signed_block>( std::move(params) );
       app().get_method<incoming::methods::block_sync>()(b, b->calculate_id(), std::optional<block_handle>{});
    } catch ( boost::interprocess::bad_alloc& ) {
       handle_db_exhaustion();
