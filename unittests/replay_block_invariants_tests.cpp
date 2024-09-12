@@ -147,7 +147,8 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, blog_replay_fixture) try {
    try {
       eosio::testing::tester replay_chain(config, *genesis); // // start replay
       BOOST_FAIL("replay should have failed with invalid_qc_claim exception");
-   } catch (invalid_qc_claim &) {
+   } catch (invalid_qc_claim& e) {
+      BOOST_REQUIRE(e.to_detail_string().find("less than the previous block") != std::string::npos);
    } catch (...) {
       BOOST_FAIL("replay failed with non invalid_qc_claim exception");
    }
@@ -177,7 +178,8 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, blog_replay_fixture) try {
    try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
       BOOST_FAIL("replay should have failed with block_validate_exception exception");
-   } catch (block_validate_exception &) {
+   } catch (block_validate_exception& e) {
+      BOOST_REQUIRE(e.to_detail_string().find("Mismatch between qc.block_num") != std::string::npos);
    } catch (...) {
       BOOST_FAIL("replay failed with non block_validate_exception exception");
    }
