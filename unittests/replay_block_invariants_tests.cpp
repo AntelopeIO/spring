@@ -40,7 +40,7 @@ struct test_fixture {
    }
 
    // Removes state directory
-   void remove_existing_states(std::filesystem::path& state_path) {
+   void remove_existing_states(const std::filesystem::path& state_path) {
       std::filesystem::remove_all(state_path);
       std::filesystem::create_directories(state_path);
    }
@@ -139,7 +139,7 @@ struct test_fixture {
 
 // Test replay with invalid QC claim -- claimed block number goes backward
 BOOST_FIXTURE_TEST_CASE(invalid_qc, test_fixture) try {
-   controller::config config = chain.get_config();
+   const controller::config& config = chain.get_config();
    auto blocks_dir = config.blocks_dir;
 
    // set claimed block number backward
@@ -167,7 +167,7 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, test_fixture) try {
 // Test replay with irrelevant QC -- claims a block number other than the one
 // claimed in the block header
 BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
-   controller::config config = chain.get_config();
+   const controller::config& config = chain.get_config();
    auto blocks_dir = config.blocks_dir;
 
    block_log blog(blocks_dir, config.blog);
@@ -199,7 +199,7 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
 // Test replay with bad QC (signature validation), but run without --force-all-checks.
 // Replay should pass as QC is not validated.
 BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, test_fixture) try {
-   controller::config config = chain.get_config();
+   const controller::config& config = chain.get_config();
    auto blocks_dir = config.blocks_dir;
 
    corrupt_qc_signature_in_block_log();
