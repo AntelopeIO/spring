@@ -47,15 +47,15 @@ struct test_fixture {
 
    // Corrupts the signature of last block which attaches a QC in the blocks log
    void corrupt_qc_signature_in_block_log() {
-      controller::config config = chain.get_config();
-      auto blocks_dir = chain.get_config().blocks_dir;
+      controller::config config      = chain.get_config();
+      auto               blocks_dir  = chain.get_config().blocks_dir;
+      auto               qc_ext_id   = quorum_certificate_extension::extension_id();
 
       block_log blog(blocks_dir, chain.get_config().blog);
 
       // find the first block which has QC extension starting from the end of
       // block log and going backward
       uint32_t block_num = blog.head()->block_num();
-      auto qc_ext_id = quorum_certificate_extension::extension_id();
       while (!blog.read_block_by_num(block_num)->contains_extension(qc_ext_id)) {
          --block_num;
          BOOST_REQUIRE(block_num != 0);
@@ -101,8 +101,9 @@ struct test_fixture {
    // Corrupts finality_extension in the last block of the blocks log
    // by setting the claimed block number to a different one.
    void corrupt_finality_extension_in_block_log(uint32_t new_qc_claim_block_num) {
-      controller::config config = chain.get_config();
-      auto blocks_dir = chain.get_config().blocks_dir;
+      controller::config config      = chain.get_config();
+      auto               blocks_dir  = chain.get_config().blocks_dir;
+      auto               fin_ext_id  = finality_extension::extension_id();
 
       block_log blog(blocks_dir, chain.get_config().blog);
 
@@ -116,12 +117,12 @@ struct test_fixture {
       BOOST_REQUIRE_NO_THROW(block_log::smoke_test(blocks_dir, 1));
 
       // retrieve finality extension
-      std::optional<block_header_extension> head_fin_ext = last_block->extract_header_extension(finality_extension::extension_id());
+      std::optional<block_header_extension> head_fin_ext = last_block->extract_header_extension(fin_ext_id);
       BOOST_TEST(!!head_fin_ext);
 
       // remove finality extension from extensions
       auto& exts = last_block->header_extensions;
-      std::pair<uint16_t,vector<char>> target{finality_extension::extension_id(), {}};
+      std::pair<uint16_t,vector<char>> target{fin_ext_id, {}};
       auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
          return ext1.first < ext2.first;
       });
@@ -133,7 +134,7 @@ struct test_fixture {
       f_ext.qc_claim.block_num = new_qc_claim_block_num;
 
       // add the corrupted finality extension back to last block
-      emplace_extension(exts, finality_extension::extension_id(), fc::raw::pack(f_ext));
+      emplace_extension(exts, fin_ext_id, fc::raw::pack(f_ext));
 
       // add the corrupted block to block log
       block_log new_blog(blocks_dir, config.blog);
