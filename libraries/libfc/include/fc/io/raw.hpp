@@ -203,9 +203,10 @@ namespace fc {
     { try {
       bool b; fc::raw::unpack( s, b );
       if( b ) {
-         v = std::make_shared<T>();
-         // want to be able to unpack std::shared_ptr<const T>, note we already overwrote with a new one above
-         fc::raw::unpack( s, const_cast<std::remove_const_t<T>&>(*v) );
+         // want to be able to unpack std::shared_ptr<const T>
+         auto tmp = std::make_shared<std::remove_const_t<T>>();
+         fc::raw::unpack( s, *tmp );
+         v = std::move(tmp);
       }
     } FC_RETHROW_EXCEPTIONS( warn, "std::shared_ptr<T>", ("type",fc::get_typename<T>::name()) ) }
 
