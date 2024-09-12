@@ -38,7 +38,7 @@ struct test_core {
       auto prev_block_num = core.current_block_num();
       timestamp = timestamp.next();
       auto id = id_from_num(prev_block_num);
-      core = core.next(block_ref {id, timestamp, id}, qc_claim);
+      core = core.next(block_ref {id, timestamp, id, 1, 0}, qc_claim); // bogus generation numbers, but unused
       // next block num is previous  block number + 1, qc_claim becomes latest_qc_claim
       BOOST_REQUIRE_EQUAL(core.current_block_num(), prev_block_num + 1);
       BOOST_REQUIRE(core.latest_qc_claim() == qc_claim);
