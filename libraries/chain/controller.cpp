@@ -4100,49 +4100,36 @@ struct controller_impl {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
-      std::optional<qc_t> qc = verify_basic_block_invariants(b, prev);
-      std::future<void> verify_qc_future;
-      std::shared_ptr<BS> bsp;
-      try {
-         if constexpr (is_proper_savanna_block) {
-            if (qc) {
-               verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &b, &id, &prev] {
-                  verify_qc(prev, *qc);
-               });
-            }
+      std::optional<qc_t> qc = verify_basic_block_invariants(id, b, prev);
+      log_and_drop_future<void> verify_qc_future;
+      if constexpr (is_proper_savanna_block) {
+         if (qc) {
+            verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &prev] {
+               verify_qc(prev, *qc);
+            });
          }
-
-         auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
-         EOS_ASSERT( b->transaction_mroot == trx_mroot,
-                     block_validate_exception,
-                     "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
-
-         const bool skip_validate_signee = false;
-         bsp = std::make_shared<BS>(
-               prev,
-               b,
-               protocol_features.get_protocol_feature_set(),
-               [this]( block_timestamp_type timestamp,
-                       const flat_set<digest_type>& cur_features,
-                       const vector<digest_type>& new_features )
-               { check_protocol_features( timestamp, cur_features, new_features ); },
-               skip_validate_signee
-         );
-
-         EOS_ASSERT( id == bsp->id(), block_validate_exception,
-                     "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
-
-      } catch (...) {
-         if constexpr (is_proper_savanna_block) {
-            if (verify_qc_future.valid()) {
-               try {
-                  // qc also may fail, regardless we need to wait as the lambda captured state on the stack
-                  verify_qc_future.get();
-               } FC_LOG_AND_DROP()
-            }
-         }
-         throw; // rethrow the EOS_ASSERT or any other exception
       }
+
+      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
+      EOS_ASSERT( b->transaction_mroot == trx_mroot,
+                  block_validate_exception,
+                  "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
+
+      const bool skip_validate_signee = false;
+      auto bsp = std::make_shared<BS>(
+            prev,
+            b,
+            protocol_features.get_protocol_feature_set(),
+            [this]( block_timestamp_type timestamp,
+                    const flat_set<digest_type>& cur_features,
+                    const vector<digest_type>& new_features )
+            { check_protocol_features( timestamp, cur_features, new_features ); },
+            skip_validate_signee
+      );
+
+      EOS_ASSERT( id == bsp->id(), block_validate_exception,
+                  "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
+
 
       if constexpr (is_proper_savanna_block) {
          assert((qc && verify_qc_future.valid()) || (!qc && !verify_qc_future.valid()));

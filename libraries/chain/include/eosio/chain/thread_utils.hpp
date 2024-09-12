@@ -82,6 +82,40 @@ namespace eosio { namespace chain {
       }
    };
 
+   /**
+    * Wrap a std::future so that any exception on destruction is caught, logged, and dropped.
+    * @tparam Response future<Response> type
+    */
+   template<typename Response>
+   struct log_and_drop_future {
+      log_and_drop_future() = default;
+      explicit log_and_drop_future(std::future<Response>&& f) : fut(f) {};
+
+      log_and_drop_future& operator=(std::future<Response>&& f) {
+         if (fut.valid()) {
+            // Normally would not expect a log_and_drop_future to be reused, only assigned after default construction.
+            // However, do the right thing and clean up existing future.
+            auto tmp{std::move(fut_exit_scope_handler)};
+         }
+         fut = std::move(f);
+         return *this;
+      }
+
+      Response get() { cancel(); return fut.get(); }
+      bool valid() const { return fut.valid(); }
+      void cancel() { fut_exit_scope_handler.cancel(); }
+   private:
+      std::future<Response> fut;
+      fc::scoped_exit<std::function<void()>> fut_exit_scope_handler = [this] {
+         if (fut.valid()) {
+            try {
+               fut.get();
+            } FC_LOG_AND_DROP()
+         }
+      };
+   };
+
+
    inline std::string set_current_thread_name_to_typename(const std::type_info& tinfo, const unsigned i) {
       std::string tn = boost::core::demangle(tinfo.name());
       const size_t offset = tn.rfind("::");
@@ -294,5 +328,3 @@ namespace eosio { namespace chain {
    }
 
 } } // eosio::chain
-
-
