@@ -397,7 +397,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b3_snapshot);
 
-#if 0  // uncomment when issue #694 is fixed.
    // After starting up from the snapshot, their node receives block b4 from the P2P network.
    // Since b4 advances the QC claim relative to its parent (from a strong QC claimed on b1
    // to a strong QC claimed on b2), it must include a QC attached to justify its claim.
@@ -409,7 +408,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    A.push_block(b5);                                    // before b3, we will fail with a `verify_qc_claim`
    A.push_block(b6);                                    // exception, which is what will happens until issue
                                                         // #694 is addressed.
-#endif
 } FC_LOG_AND_RETHROW()
 
 
@@ -537,9 +535,10 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    BOOST_REQUIRE_EQUAL(active->generation, p2);         // b6 has active finalizer policy p2
    BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
 
-   auto b6_snapshot = A.snapshot();
+   // At this point, in the Spring 1.0.0 implementation (which has the bug described in issue #694),
+   // policy P2 is lost from the block_header_state of B6, which is the source of the problem
 
-   // At this point, in the current implementation policy ...
+   auto b6_snapshot = A.snapshot();
 
    push_block(0, b5);
 
@@ -585,12 +584,107 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b6_snapshot);
 
-#if 0  // uncomment when issue #694 is fixed.
    A.push_block(b7);                                    // when pushing b7, if we try to access any block state
    A.push_block(b8);                                    // before b6, we will fail with a `verify_qc_claim`
    A.push_block(b9);                                    // exception, which is what will happens until issue
                                                         // #694 is addressed.
-#endif
+
+} FC_LOG_AND_RETHROW()
+
+
+
+// ----------------------------------------------------------------------------------------------------
+// For issue #694, we need to change the finality core of the `block_header_state`, but we want to
+// ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
+// with newer versions remain compatible (and linkable) by Spring 1.0.0.
+// ----------------------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::cluster_t) try {
+   using namespace savanna_cluster;
+   auto& A=_nodes[0];
+   const auto& tester_account = "tester"_n;
+   //_debug_mode = true;
+
+   // update finalizer_policy with a new key for B
+   // --------------------------------------------
+   base_tester::finalizer_policy_input input;
+   for (size_t i=0; i<num_nodes(); ++i)
+      input.finalizers.emplace_back(_fin_keys[i], 1);
+   input.finalizers[1] = { _fin_keys[num_nodes()], 1 }; // overwrite finalizer key for B
+   input.threshold =  (input.finalizers.size() * 2) / 3 + 1;
+   A.set_finalizers(input);
+
+   auto b1 = A.produce_block();                         // b1 has active finalizer policy p1 and pending finalizer policy.
+   print("b1", b1);                                     // b1 proposes finalizer policy p2.
+   auto p1 = A.head_active_finalizer_policy()->generation;
+
+   A.create_account("currency"_n);                      // do something so the block is not empty
+   auto b2 = A.produce_block();
+   print("b2", b2);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b2)), strong_qc(b1));    // b2 claims a strong QC on b1
+
+   A.create_account(tester_account);                    // do something so the block is not empty
+   auto b3 = A.produce_block();
+   print("b3", b3);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b2));    // b3 claims a strong QC on b2
+   BOOST_REQUIRE_EQUAL(A.lib_number, b1->block_num());  // b3 makes B1 final
+
+   auto pending = A.head_pending_finalizer_policy();
+   BOOST_REQUIRE(!!pending);                            // check that we have a pending finalizer policy
+   auto p2 = pending->generation;                       // and its generation is higher than the active one
+   BOOST_REQUIRE_EQUAL(p2, p1 + 1);                     // b3 has new pending finalizer policy p2
+
+   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b4 (yet)
+   set_partition(partition);                            // and don't vote on it
+
+   // push action so that the block is not empty
+   A.push_action(config::system_account_name, updateauth::get_name(), tester_account,
+                 fc::mutable_variant_object()("account", "tester")("permission", "first")("parent", "active")(
+                    "auth", authority(A.get_public_key(tester_account, "first"))));
+
+   auto b4 = A.produce_block();
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));    // b4 claims a strong QC on b3
+   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // b4 makes B2 final
+
+   auto b5 = A.produce_block();
+   print("b5", b5);
+   BOOST_REQUIRE(!qc(b5));                              // b5 doesn't include a new qc (duplicates b4's strong claim on b3)
+   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // finality unchanged stays at b2
+
+   set_partition({});                                   // remove partition so A will receive votes on b4 and b5
+
+   push_block(0, b4);                                   // other nodes receive b4 and vote on it, so A forms a qc on b4
+   auto b6 = A.produce_block();
+   print("b6", b6);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b4));    // b6 claims a strong QC on b4
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // b6 makes b3 final.
+
+   push_block(0, b5);
+
+   auto b7 = A.produce_block();
+   print("b7", b7);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b5));    // b7 claims a strong QC on b5
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // lib is still b3
+
+   push_block(0, b6);                                   // push b6 again as it was unlinkable until the other
+                                                        // nodes received b5
+
+   auto b8 = A.produce_block();
+   print("b8", b8);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), strong_qc(b6));    // b8 claims a strong QC on b6
+   BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());  // b8 makes B4 final
+
+   push_block(0, b7);                                   // push b7 and b8 as they were unlinkable until the other
+   push_block(0, b8);                                   // nodes received b6
+
+   auto b9 = A.produce_block();
+   print("b9", b9);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
+   BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
+
+   // check that the block id of b9 match what we got with Spring 1.0.0
+   auto b9_id = b9->calculate_id();
+   BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
 
 } FC_LOG_AND_RETHROW()
 

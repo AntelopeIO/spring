@@ -231,7 +231,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      signed_block_ptr                  unsigned_block;
+      mutable_signed_block_ptr          unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
@@ -2212,7 +2212,7 @@ struct controller_impl {
       });
 
       snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
+         section.add_row(snapshot_detail::snapshot_block_state_data_v8(get_block_state_to_snapshot()), db);
       });
       
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
@@ -2261,15 +2261,15 @@ struct controller_impl {
       });
 
       using namespace snapshot_detail;
-      using v7 = snapshot_block_state_data_v7;
+      using v8 = snapshot_block_state_data_v8;
 
       block_state_pair result;
-      if (header.version >= v7::minimum_version) {
-         // loading a snapshot saved by Spring 1.0 and above.
-         // -----------------------------------------------
-         if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
+      if (header.version >= v8::minimum_version) {
+         // loading a snapshot saved by Spring 1.0.1 and above.
+         // ---------------------------------------------------
+         if (std::clamp(header.version, v8::minimum_version, v8::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
-               v7 block_state_data;
+               v8 block_state_data;
                section.read_row(block_state_data, db);
                assert(block_state_data.bs_l || block_state_data.bs);
                if (block_state_data.bs_l) {
@@ -2291,8 +2291,13 @@ struct controller_impl {
          } else {
             EOS_THROW(snapshot_exception, "Unsupported block_state version");
          }
+      } else if (header.version == 7) {
+         // snapshot created with Spring 1.0.0, which was very soon superseded by Spring 1.0.1
+         // and a new snapshot format.
+         // ----------------------------------------------------------------------------------
+         EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.0.1 and above");
       } else {
-         // loading a snapshot saved by Leap up to version 5.
+         // loading a snapshot saved by Leap up to version 6.
          // -------------------------------------------------
          auto head_header_state = std::make_shared<block_state_legacy>();
          using v2 = snapshot_block_header_state_legacy_v2;
@@ -3887,7 +3892,7 @@ struct controller_impl {
    // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   std::optional<qc_t> verify_basic_proper_block_invariants( const signed_block_ptr& b, const block_header_state& prev ) {
+   std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -3911,6 +3916,15 @@ struct controller_impl {
       assert(finality_ext);
       const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
+
+      if (!replaying && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::debug)) {
+         fc::time_point now = fc::time_point::now();
+         if (now - b->timestamp < fc::minutes(5) || (b->block_num() % 1000 == 0)) {
+            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, qc ${qc}, previous: ${p}",
+              ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
+              ("qc_claim", new_qc_claim)("qc", qc_extension_present ? "present" : "not present")("p", b->previous));
+         }
+      }
 
       // The only time a block should have a finality block header extension but
       // its parent block does not, is if it is a Savanna Genesis block (which is
@@ -3949,7 +3963,7 @@ struct controller_impl {
                      ("s1", new_qc_claim.is_strong_qc)("s2", prev_qc_claim.is_strong_qc)("b", block_num) );
       }
 
-      // At this point, we are making a new claim in this block, so it must includes a QC to justify this claim.
+      // At this point, we are making a new claim in this block, so it must include a QC to justify this claim.
       EOS_ASSERT( qc_extension_present, block_validate_exception,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
@@ -4051,7 +4065,7 @@ struct controller_impl {
 
    // verify basic_block invariants
    template<typename BS>
-   std::optional<qc_t> verify_basic_block_invariants(const signed_block_ptr& b, const BS& prev) {
+   std::optional<qc_t> verify_basic_block_invariants(const block_id_type& id, const signed_block_ptr& b, const BS& prev) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4059,7 +4073,7 @@ struct controller_impl {
          EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
                      ("b", b->block_num()) );
-         return verify_basic_proper_block_invariants(b, prev);
+         return verify_basic_proper_block_invariants(id, b, prev);
       } else {
          EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
                      "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
@@ -4076,14 +4090,8 @@ struct controller_impl {
    }
 
    // This verifies BLS signatures and is expensive.
-   void verify_qc( const signed_block_ptr& b, const block_header_state& prev, const qc_t& qc ) {
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), qc.block_num );
-      EOS_ASSERT( bsp, invalid_qc_claim,
-                  "Block state was not found in forkdb for claimed block ${bn}. Current block number: ${b}",
-                  ("bn", qc.block_num)("b", b->block_num()) );
-
-      bsp->verify_qc(qc);
+   void verify_qc( const block_state& prev, const qc_t& qc ) {
+      prev.verify_qc(qc);
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -4099,11 +4107,7 @@ struct controller_impl {
          if constexpr (is_proper_savanna_block) {
             if (qc) {
                verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &b, &id, &prev] {
-                  verify_qc(b, prev, *qc);
-
-                  dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, previous: ${p}",
-                       ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
-                       ("qc_claim", qc->to_qc_claim())("p", b->previous));
+                  verify_qc(prev, *qc);
                });
             }
          }
@@ -4360,11 +4364,11 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               std::optional<qc_t> qc = verify_basic_block_invariants(b, *head);
+               std::optional<qc_t> qc = verify_basic_block_invariants({}, b, *head);
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   if (conf.force_all_checks && qc) {
-                     verify_qc(b, *head, *qc);
+                     verify_qc(*head, *qc);
                   }
                }
 
@@ -5538,7 +5542,7 @@ bool controller::validated_block_exists(const block_id_type& id) const {
 
 std::optional<signed_block_header> controller::fetch_block_header_by_id( const block_id_type& id )const {
    auto sb_ptr = my->fork_db_fetch_block_by_id(id);
-   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<signed_block_header*>(sb_ptr.get())};
+   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<const signed_block_header*>(sb_ptr.get())};
    auto result = my->blog.read_block_header_by_num( block_header::num_from_id(id) );
    if( result && result->calculate_id() == id ) return result;
    return {};

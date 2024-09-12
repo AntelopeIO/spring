@@ -93,9 +93,9 @@ namespace eosio { namespace chain {
    public:
       signed_block() = default;
       explicit signed_block( const signed_block_header& h ):signed_block_header(h){}
-      signed_block( signed_block&& ) = default;                // can be =delete once http push_block removed
+      signed_block( signed_block&& ) = default;
       signed_block& operator=(const signed_block&) = delete;
-      signed_block& operator=(signed_block&&) = default;       // can be =delete once http push_block removed
+      signed_block& operator=(signed_block&&) = default;
       signed_block clone() const { return *this; }
 
       deque<transaction_receipt>   transactions; /// new or generated transactions
@@ -109,7 +109,8 @@ namespace eosio { namespace chain {
       }
       bool contains_extension(uint16_t extension_id)const;
    };
-   using signed_block_ptr = std::shared_ptr<signed_block>;
+   using signed_block_ptr = std::shared_ptr<const signed_block>;
+   using mutable_signed_block_ptr = std::shared_ptr<signed_block>;
 
    struct producer_confirmation {
       block_id_type   block_id;
