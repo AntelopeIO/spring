@@ -31,6 +31,46 @@ namespace eosio::vm { class wasm_allocator; }
 
 namespace eosio::chain {
 
+   struct speculative_block_metrics {
+      account_name block_producer{};
+      uint32_t     block_num             = 0;
+      int64_t      block_total_time_us   = 0;
+      int64_t      block_idle_us         = 0;
+      std::size_t  num_success_trx       = 0;
+      int64_t      success_trx_time_us   = 0;
+      std::size_t  num_fail_trx          = 0;
+      int64_t      fail_trx_time_us      = 0;
+      std::size_t  num_transient_trx     = 0;
+      int64_t      transient_trx_time_us = 0;
+      int64_t      block_other_time_us   = 0;
+   };
+
+   struct produced_block_metrics : public speculative_block_metrics {
+      std::size_t unapplied_transactions_total       = 0;
+      std::size_t subjective_bill_account_size_total = 0;
+      std::size_t scheduled_trxs_total               = 0;
+      std::size_t trxs_produced_total                = 0;
+      uint64_t    cpu_usage_us                       = 0;
+      int64_t     total_elapsed_time_us              = 0;
+      int64_t     total_time_us                      = 0;
+      uint64_t    net_usage_us                       = 0;
+
+      uint32_t last_irreversible = 0;
+      uint32_t head_block_num    = 0;
+   };
+
+   struct incoming_block_metrics {
+      std::size_t trxs_incoming_total   = 0;
+      uint64_t    cpu_usage_us          = 0;
+      int64_t     total_elapsed_time_us = 0;
+      int64_t     total_time_us         = 0;
+      uint64_t    net_usage_us          = 0;
+      int64_t     block_latency_us      = 0;
+
+      uint32_t last_irreversible = 0;
+      uint32_t head_block_num    = 0;
+   };
+
    using bls_pub_priv_key_map_t = std::map<std::string, std::string>;
    struct finalizer_policy;
 
@@ -436,6 +476,9 @@ namespace eosio::chain {
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
 
+      void register_update_produced_block_metrics(std::function<void(produced_block_metrics)>&&);
+      void register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&&);
+      void register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&&);
 
       private:
          const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).

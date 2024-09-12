@@ -994,6 +994,10 @@ struct controller_impl {
    vote_signal_t                             voted_block;     // emitted when a local finalizer votes on a block
    vote_signal_t                             aggregated_vote; // emitted when a vote received from the network is aggregated
 
+   std::function<void(produced_block_metrics)> _update_produced_block_metrics;
+   std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
+   std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
+
    vote_processor_t vote_processor{aggregated_vote,
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
@@ -3476,7 +3480,21 @@ struct controller_impl {
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
               ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("confs", new_b->confirmed)
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
-              ("tt", fc::time_point::now() - br.start_time));
+              ("tt", now - br.start_time));
+
+         if (_update_produced_block_metrics) {
+            produced_block_metrics metrics;
+            metrics.subjective_bill_account_size_total = subjective_bill.get_account_cache_size();
+            metrics.scheduled_trxs_total = db.get_index<generated_transaction_multi_index, by_delay>().size();
+            metrics.trxs_produced_total = new_b->transactions.size();
+            metrics.cpu_usage_us = br.total_cpu_usage_us;
+            metrics.total_elapsed_time_us = br.total_elapsed_time.count();
+            metrics.total_time_us = (now - br.start_time).count();
+            metrics.net_usage_us = br.total_net_usage;
+            metrics.last_irreversible = chain_head.irreversible_blocknum();
+            metrics.head_block_num = chain_head.block_num();
+            _update_produced_block_metrics(metrics);
+         }
          return;
       }
 
@@ -3496,6 +3514,16 @@ struct controller_impl {
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)
               ("time", now - br.start_time)
               ("latency", (now - hb->timestamp).count() / 1000));
+      }
+      if (_update_incoming_block_metrics) {
+         _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
+                                         .cpu_usage_us          = br.total_cpu_usage_us,
+                                         .total_elapsed_time_us = br.total_elapsed_time.count(),
+                                         .total_time_us         = (now - br.start_time).count(),
+                                         .net_usage_us          = br.total_net_usage,
+                                         .block_latency_us      = (now - chain_head.block()->timestamp).count(),
+                                         .last_irreversible     = chain_head.irreversible_blocknum(),
+                                         .head_block_num        = chain_head.block_num()});
       }
    }
 
@@ -5956,6 +5984,18 @@ bool controller::is_node_finalizer_key(const bls_public_key& key) const {
 
 const my_finalizers_t& controller::get_node_finalizers() const {
    return my->my_finalizers;
+}
+
+void controller::register_update_produced_block_metrics(std::function<void(produced_block_metrics)>&& fun) {
+   my->_update_produced_block_metrics = std::move(fun);
+}
+
+void controller::register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&& fun) {
+   my->_update_speculative_block_metrics = std::move(fun);
+}
+
+void controller::register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&& fun) {
+   my->_update_incoming_block_metrics = std::move(fun);
 }
 
 /// Protocol feature activation handlers:

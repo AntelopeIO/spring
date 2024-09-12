@@ -280,7 +280,7 @@ struct block_time_tracker {
       last_time_point = now;
    }
 
-   void report(uint32_t block_num, account_name producer, producer_plugin::speculative_block_metrics& metrics) {
+   void report(uint32_t block_num, account_name producer, speculative_block_metrics& metrics) {
       auto now = fc::time_point::now();
       report(block_num, producer, now);
       metrics.block_producer = producer;
@@ -747,9 +747,7 @@ public:
    // async snapshot scheduler
    snapshot_scheduler _snapshot_scheduler;
 
-   std::function<void(producer_plugin::produced_block_metrics)> _update_produced_block_metrics;
-   std::function<void(producer_plugin::speculative_block_metrics)> _update_speculative_block_metrics;
-   std::function<void(producer_plugin::incoming_block_metrics)> _update_incoming_block_metrics;
+   std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
 
    // ro for read-only
    struct ro_trx_t {
@@ -882,7 +880,7 @@ public:
 
       if (block_info) {
          auto[block_num, block_producer] = *block_info;
-         producer_plugin::speculative_block_metrics metrics;
+         speculative_block_metrics metrics;
          _time_tracker.report(block_num, block_producer, metrics);
          if (_update_speculative_block_metrics)
             _update_speculative_block_metrics(metrics);
@@ -956,18 +954,6 @@ public:
       if (chain.head().timestamp().next().to_time_point() >= now) {
          _production_enabled = true;
       }
-
-      // TODO: if we are keeping prometheus then this needs to be moved to controller
-      // if (_update_incoming_block_metrics) { // only includes those blocks pushed, not those that are accepted and processed internally
-      //    _update_incoming_block_metrics({.trxs_incoming_total   = block->transactions.size(),
-      //                                    .cpu_usage_us          = br.total_cpu_usage_us,
-      //                                    .total_elapsed_time_us = br.total_elapsed_time.count(),
-      //                                    .total_time_us         = br.total_time.count(),
-      //                                    .net_usage_us          = br.total_net_usage,
-      //                                    .block_latency_us      = (now - block->timestamp).count(),
-      //                                    .last_irreversible     = chain.last_irreversible_block_num(),
-      //                                    .head_block_num        = blk_num});
-      // }
 
       return true;
    }
@@ -2943,27 +2929,8 @@ void producer_plugin_impl::produce_block() {
    chain.commit_block();
 
    const signed_block_ptr new_b = chain.head().block();
-   if (_update_produced_block_metrics) {
-      producer_plugin::produced_block_metrics metrics;
-      metrics.unapplied_transactions_total = _unapplied_transactions.size();
-      metrics.subjective_bill_account_size_total = chain.get_subjective_billing().get_account_cache_size();
-      metrics.scheduled_trxs_total = chain.db().get_index<generated_transaction_multi_index, by_delay>().size();
-      metrics.trxs_produced_total = new_b->transactions.size();
-      // TODO: if we are going to continue to support prometheus, this needs move to controller
-      // metrics.cpu_usage_us = br.total_cpu_usage_us;
-      // metrics.total_elapsed_time_us = br.total_elapsed_time.count();
-      // metrics.total_time_us = br.total_time.count();
-      // metrics.net_usage_us = br.total_net_usage;
-      metrics.last_irreversible = chain.last_irreversible_block_num();
-      metrics.head_block_num = chain.head().block_num();
-      _update_produced_block_metrics(metrics);
-
-      _time_tracker.add_other_time();
-      _time_tracker.report(new_b->block_num(), new_b->producer, metrics);
-   } else {
-      _time_tracker.add_other_time();
-      _time_tracker.report(new_b->block_num(), new_b->producer);
-   }
+   _time_tracker.add_other_time();
+   _time_tracker.report(new_b->block_num(), new_b->producer);
    _time_tracker.clear();
 }
 
@@ -3179,16 +3146,8 @@ const std::set<account_name>& producer_plugin::producer_accounts() const {
    return my->_producers;
 }
 
-void producer_plugin::register_update_produced_block_metrics(std::function<void(producer_plugin::produced_block_metrics)>&& fun) {
-   my->_update_produced_block_metrics = std::move(fun);
-}
-
 void producer_plugin::register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)> && fun) {
    my->_update_speculative_block_metrics = std::move(fun);
-}
-
-void producer_plugin::register_update_incoming_block_metrics(std::function<void(producer_plugin::incoming_block_metrics)>&& fun) {
-   my->_update_incoming_block_metrics = std::move(fun);
 }
 
 } // namespace eosio
