@@ -50,7 +50,7 @@ struct blog_replay_fixture {
       }
 
       // clone the QC block
-      signed_block_ptr qc_block = std::make_shared<signed_block>(blog.read_block_by_num(block_num)->clone());
+      auto qc_block = std::make_shared<signed_block>(blog.read_block_by_num(block_num)->clone());
       BOOST_TEST(qc_block);
 
       // remove qc block until the end from block log
@@ -95,7 +95,7 @@ struct blog_replay_fixture {
 
       // retrieve the last block in block log
       uint32_t  last_block_num = blog.head()->block_num();
-      signed_block_ptr last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
+      auto last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
       BOOST_TEST(last_block);
 
       // remove last block from block log
