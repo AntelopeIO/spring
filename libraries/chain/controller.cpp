@@ -4156,12 +4156,9 @@ struct controller_impl {
          consider_voting(bsp, use_thread_pool_t::no);
       }
 
-      bool best_head = false;
-      if (!should_terminate(bsp->block_num())) {
-         best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
-         if constexpr (is_proper_savanna_block)
-            vote_processor.notify_new_block(async_aggregation);
-      }
+      bool best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
+      if constexpr (is_proper_savanna_block)
+         vote_processor.notify_new_block(async_aggregation);
 
       return std::tuple{best_head, block_handle{std::move(bsp)}};
    }
