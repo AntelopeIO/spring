@@ -70,10 +70,12 @@ try:
         specificExtraNodeosArgs[shipNodeNum]+=" --finality-data-history"
     # producer nodes will be mapped to 0 through totalProducerNodes-1, so the number totalProducerNodes will be the non-producing node
     specificExtraNodeosArgs[totalProducerNodes]="--plugin eosio::test_control_api_plugin  "
+    # test wants to generate a long fork
+    extraNodeosArgs=" --production-pause-vote-timeout-ms 0 "
 
     if cluster.launch(topo="./tests/bridge_for_fork_test_shape.json", pnodes=totalProducerNodes, loadSystemContract=False,
                       totalNodes=totalNodes, totalProducers=totalProducerNodes, activateIF=activateIF, biosFinalizer=False,
-                      specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
+                      extraNodeosArgs=extraNodeosArgs, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         Utils.cmdError("launcher")
         Utils.errorExit("Failed to stand up cluster.")
 
