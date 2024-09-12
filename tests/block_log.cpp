@@ -54,7 +54,7 @@ struct block_log_fixture {
       std::vector<char> a;
       a.assign(size, fillchar);
 
-      eosio::chain::signed_block_ptr p = std::make_shared<eosio::chain::signed_block>();
+      auto p = std::make_shared<eosio::chain::signed_block>();
       p->previous._hash[0] = fc::endian_reverse_u32(index-1);
       p->header_extensions.push_back(std::make_pair<uint16_t, std::vector<char>>(0, std::vector<char>(a)));
 
