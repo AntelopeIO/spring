@@ -231,7 +231,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      signed_block_ptr                  unsigned_block;
+      mutable_signed_block_ptr          unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
@@ -5519,7 +5519,7 @@ bool controller::validated_block_exists(const block_id_type& id) const {
 
 std::optional<signed_block_header> controller::fetch_block_header_by_id( const block_id_type& id )const {
    auto sb_ptr = my->fork_db_fetch_block_by_id(id);
-   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<signed_block_header*>(sb_ptr.get())};
+   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<const signed_block_header*>(sb_ptr.get())};
    auto result = my->blog.read_block_header_by_num( block_header::num_from_id(id) );
    if( result && result->calculate_id() == id ) return result;
    return {};

@@ -137,7 +137,7 @@ uint64_t get_id( const packed_transaction_ptr& ptr ) {
 
 auto make_block( uint32_t block_num, std::vector<chain::packed_transaction_ptr> trxs ) {
    name producer = "kevinh"_n;
-   chain::signed_block_ptr block = std::make_shared<chain::signed_block>();
+   auto block = std::make_shared<chain::signed_block>();
    for( auto& trx : trxs ) {
       block->transactions.emplace_back( *trx );
    }
