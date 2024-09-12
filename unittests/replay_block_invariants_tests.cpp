@@ -130,7 +130,8 @@ struct test_fixture {
       // add the corrupted finality extension back to last block
       emplace_extension(exts, fin_ext_id, fc::raw::pack(f_ext));
 
-      // add the corrupted block to block log
+      // add the corrupted block to block log. Need to instantiate a
+      // new_blog as a block has been removed from blocks log.
       block_log new_blog(blocks_dir, config.blog);
       new_blog.append(last_block, last_block->calculate_id());
    }
