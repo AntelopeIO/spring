@@ -231,7 +231,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      signed_block_ptr                  unsigned_block;
+      mutable_signed_block_ptr          unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
@@ -994,6 +994,10 @@ struct controller_impl {
    vote_signal_t                             voted_block;     // emitted when a local finalizer votes on a block
    vote_signal_t                             aggregated_vote; // emitted when a vote received from the network is aggregated
 
+   std::function<void(produced_block_metrics)> _update_produced_block_metrics;
+   std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
+   std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
+
    vote_processor_t vote_processor{aggregated_vote,
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db.apply_s<block_state_ptr>([&](const auto& forkdb) {
@@ -1073,6 +1077,7 @@ struct controller_impl {
    }
 
    uint32_t fork_db_head_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->block_num();
@@ -1080,6 +1085,7 @@ struct controller_impl {
    }
 
    block_id_type fork_db_head_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>(
          [&](const auto& forkdb) {
             return forkdb.head(include_root_t::yes)->id();
@@ -1096,20 +1102,24 @@ struct controller_impl {
    }
 
    block_id_type fork_db_root_block_id() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
    }
 
    uint32_t fork_db_root_block_num() const {
+      assert(fork_db_has_root());
       return fork_db.apply<uint32_t>([&](const auto& forkdb) { return forkdb.root()->block_num(); });
    }
 
    block_timestamp_type  fork_db_root_timestamp() const {
+      assert(fork_db_has_root());
       return fork_db.apply<block_timestamp_type>([&](const auto& forkdb) { return forkdb.root()->timestamp(); });
    }
 
    // ---------------  fork_db APIs ----------------------------------------------------------------------
    template<typename ForkDB>
    uint32_t pop_block(ForkDB& forkdb) {
+      assert(fork_db_has_root());
       typename ForkDB::bsp_t prev = forkdb.get_block( chain_head.previous() );
 
       if( !prev ) {
@@ -2201,7 +2211,7 @@ struct controller_impl {
       });
 
       snapshot->write_section("eosio::chain::block_state", [&]( auto& section ) {
-         section.add_row(snapshot_detail::snapshot_block_state_data_v7(get_block_state_to_snapshot()), db);
+         section.add_row(snapshot_detail::snapshot_block_state_data_v8(get_block_state_to_snapshot()), db);
       });
       
       controller_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ){
@@ -2250,15 +2260,15 @@ struct controller_impl {
       });
 
       using namespace snapshot_detail;
-      using v7 = snapshot_block_state_data_v7;
+      using v8 = snapshot_block_state_data_v8;
 
       block_state_pair result;
-      if (header.version >= v7::minimum_version) {
-         // loading a snapshot saved by Spring 1.0 and above.
-         // -----------------------------------------------
-         if (std::clamp(header.version, v7::minimum_version, v7::maximum_version) == header.version ) {
+      if (header.version >= v8::minimum_version) {
+         // loading a snapshot saved by Spring 1.0.1 and above.
+         // ---------------------------------------------------
+         if (std::clamp(header.version, v8::minimum_version, v8::maximum_version) == header.version ) {
             snapshot->read_section("eosio::chain::block_state", [this, &result]( auto &section ){
-               v7 block_state_data;
+               v8 block_state_data;
                section.read_row(block_state_data, db);
                assert(block_state_data.bs_l || block_state_data.bs);
                if (block_state_data.bs_l) {
@@ -2280,8 +2290,13 @@ struct controller_impl {
          } else {
             EOS_THROW(snapshot_exception, "Unsupported block_state version");
          }
+      } else if (header.version == 7) {
+         // snapshot created with Spring 1.0.0, which was very soon superseded by Spring 1.0.1
+         // and a new snapshot format.
+         // ----------------------------------------------------------------------------------
+         EOS_THROW(snapshot_exception, "v7 snapshots are not supported anymore in Spring 1.0.1 and above");
       } else {
-         // loading a snapshot saved by Leap up to version 5.
+         // loading a snapshot saved by Leap up to version 6.
          // -------------------------------------------------
          auto head_header_state = std::make_shared<block_state_legacy>();
          using v2 = snapshot_block_header_state_legacy_v2;
@@ -3419,7 +3434,7 @@ struct controller_impl {
                               auto bsp = get_transition_savanna_block(head);
                               assert(bsp);
                               assert(bsp->active_finalizer_policy);
-                              dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                              dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                               bsp->get_finality_data(),
                                                               bsp->active_proposer_policy,
                                                               finalizer_policy_with_string_key{*bsp->active_finalizer_policy});
@@ -3429,7 +3444,7 @@ struct controller_impl {
                         },
                         [&](const block_state_ptr& head) {
                            assert(head->active_finalizer_policy);
-                           dm_logger->on_accepted_block_v2(head->id(), fork_db_root_block_num(), head->block,
+                           dm_logger->on_accepted_block_v2(head->id(), chain_head.irreversible_blocknum(), head->block,
                                                            head->get_finality_data(),
                                                            head->active_proposer_policy,
                                                            finalizer_policy_with_string_key{*head->active_finalizer_policy});
@@ -3465,7 +3480,21 @@ struct controller_impl {
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
               ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("confs", new_b->confirmed)
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
-              ("tt", fc::time_point::now() - br.start_time));
+              ("tt", now - br.start_time));
+
+         if (_update_produced_block_metrics) {
+            produced_block_metrics metrics;
+            metrics.subjective_bill_account_size_total = subjective_bill.get_account_cache_size();
+            metrics.scheduled_trxs_total = db.get_index<generated_transaction_multi_index, by_delay>().size();
+            metrics.trxs_produced_total = new_b->transactions.size();
+            metrics.cpu_usage_us = br.total_cpu_usage_us;
+            metrics.total_elapsed_time_us = br.total_elapsed_time.count();
+            metrics.total_time_us = (now - br.start_time).count();
+            metrics.net_usage_us = br.total_net_usage;
+            metrics.last_irreversible = chain_head.irreversible_blocknum();
+            metrics.head_block_num = chain_head.block_num();
+            _update_produced_block_metrics(metrics);
+         }
          return;
       }
 
@@ -3485,6 +3514,16 @@ struct controller_impl {
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)
               ("time", now - br.start_time)
               ("latency", (now - hb->timestamp).count() / 1000));
+      }
+      if (_update_incoming_block_metrics) {
+         _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
+                                         .cpu_usage_us          = br.total_cpu_usage_us,
+                                         .total_elapsed_time_us = br.total_elapsed_time.count(),
+                                         .total_time_us         = (now - br.start_time).count(),
+                                         .net_usage_us          = br.total_net_usage,
+                                         .block_latency_us      = (now - chain_head.block()->timestamp).count(),
+                                         .last_irreversible     = chain_head.irreversible_blocknum(),
+                                         .head_block_num        = chain_head.block_num()});
       }
    }
 
@@ -3872,140 +3911,229 @@ struct controller_impl {
           });
    }
 
-   // Verify QC claim made by finality_extension in header extension
-   // and quorum_certificate_extension in block extension are valid.
+   // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   void verify_qc_claim( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+      assert(b->is_proper_svnn_block());
+
       auto qc_ext_id = quorum_certificate_extension::extension_id();
       auto f_ext_id  = finality_extension::extension_id();
 
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> header_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
 
-      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+      const auto qc_ext_itr  = block_exts.find(qc_ext_id);
+      bool qc_extension_present = (qc_ext_itr != block_exts.end());
       uint32_t block_num = b->block_num();
 
-      if( !header_ext ) {
-         // If there is no header extension, ensure the block does not have a QC and also the previous
-         // block doesn't have a header extension either. Then return early.
-         // ------------------------------------------------------------------------------------------
-         EOS_ASSERT( !qc_extension_present,
-                     invalid_qc_claim,
-                     "Block #${b} includes a QC block extension, but doesn't have a finality header extension",
-                     ("b", block_num) );
+      // This function is called only in Savanna. Finality block header
+      // extension must exist
+      EOS_ASSERT( finality_ext, block_validate_exception,
+                  "Proper Savanna block #${b} does not have a finality header extension",
+                  ("b", block_num) );
 
-         EOS_ASSERT( !prev_finality_ext,
-                     invalid_qc_claim,
-                     "Block #${b} doesn't have a finality header extension even though its predecessor does.",
-                     ("b", block_num) );
-
-         dlog("received block: #${bn} ${t} ${prod} ${id}, no qc claim, previous: ${p}",
-              ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)("p", b->previous));
-         return;
-      }
-
-      assert(header_ext);
-      const auto& f_ext        = std::get<finality_extension>(*header_ext);
+      assert(finality_ext);
+      const auto& f_ext        = std::get<finality_extension>(*finality_ext);
       const auto  new_qc_claim = f_ext.qc_claim;
 
-      dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc}, previous: ${p}",
-           ("bn", block_num)("t", b->timestamp)("prod", b->producer)("id", id)
-           ("qc", new_qc_claim)("p", b->previous));
-
-      // If there is a header extension, but the previous block does not have a header extension,
-      // ensure the block does not have a QC and the QC claim of the current block has a block_num
-      // of the current block’s number and that it is a claim of a weak QC. Then return early.
-      // -------------------------------------------------------------------------------------------------
-      if (!prev_finality_ext) {
-         EOS_ASSERT( !qc_extension_present && new_qc_claim.block_num == block_num && new_qc_claim.is_strong_qc == false,
-                     invalid_qc_claim,
-                     "Block #${b}, which is the finality transition block, doesn't have the expected extensions",
-                     ("b", block_num) );
-         return;
+      if (!replaying && fc::logger::get(DEFAULT_LOGGER).is_enabled(fc::log_level::debug)) {
+         fc::time_point now = fc::time_point::now();
+         if (now - b->timestamp < fc::minutes(5) || (b->block_num() % 1000 == 0)) {
+            dlog("received block: #${bn} ${t} ${prod} ${id}, qc claim: ${qc_claim}, qc ${qc}, previous: ${p}",
+              ("bn", b->block_num())("t", b->timestamp)("prod", b->producer)("id", id)
+              ("qc_claim", new_qc_claim)("qc", qc_extension_present ? "present" : "not present")("p", b->previous));
+         }
       }
 
-      // at this point both current block and its parent have IF extensions, and we are past the
-      // IF transition block
-      // ----------------------------------------------------------------------------------------
-      assert(header_ext && prev_finality_ext);
+      // The only time a block should have a finality block header extension but
+      // its parent block does not, is if it is a Savanna Genesis block (which is
+      // necessarily a Transition block). Since verify_proper_block_exts will not be called
+      // on Transition blocks, previous block may not be a Legacy block
+      // -------------------------------------------------------------------------------------------------
+      EOS_ASSERT( !prev.header.is_legacy_block(), block_validate_exception,
+                  "Proper Savanna block #${b} may not have previous block that is a Legacy block",
+                  ("b", block_num) );
 
+      assert(prev_finality_ext);
       const auto& prev_qc_claim = prev_finality_ext->qc_claim;
 
       // validate QC claim against previous block QC info
 
       // new claimed QC block number cannot be smaller than previous block's
-      EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num,
-                  invalid_qc_claim,
+      EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num, invalid_qc_claim,
                   "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
                   ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
 
       if( new_qc_claim.block_num == prev_qc_claim.block_num ) {
          if( new_qc_claim.is_strong_qc == prev_qc_claim.is_strong_qc ) {
             // QC block extension is redundant
-            EOS_ASSERT( !qc_extension_present,
-                        invalid_qc_claim,
+            EOS_ASSERT( !qc_extension_present, invalid_qc_claim,
                         "Block #${b} should not provide a QC block extension since its QC claim is the same as the previous block's",
                         ("b", block_num) );
 
             // if previous block's header extension has the same claim, just return
             // (previous block already validated the claim)
-            return;
+            return {};
          }
 
          // new claimed QC must be stronger than previous if the claimed block number is the same
-         EOS_ASSERT( new_qc_claim.is_strong_qc,
-                     invalid_qc_claim,
+         EOS_ASSERT( new_qc_claim.is_strong_qc, invalid_qc_claim,
                      "claimed QC (${s1}) must be stricter than previous block's (${s2}) if block number is the same. Block number: ${b}",
                      ("s1", new_qc_claim.is_strong_qc)("s2", prev_qc_claim.is_strong_qc)("b", block_num) );
       }
 
-      // At this point, we are making a new claim in this block, so it better include a QC to justify this claim.
-      EOS_ASSERT( qc_extension_present,
-                  invalid_qc_claim,
+      // At this point, we are making a new claim in this block, so it must include a QC to justify this claim.
+      EOS_ASSERT( qc_extension_present, block_validate_exception,
                   "Block #${b} is making a new finality claim, but doesn't include a qc to justify this claim", ("b", block_num) );
 
-      const auto& qc_ext   = std::get<quorum_certificate_extension>(block_exts.find(qc_ext_id)->second);
+      assert(qc_ext_itr != block_exts.end() );
+      const auto& qc_ext   = std::get<quorum_certificate_extension>(qc_ext_itr->second);
       const auto& qc_proof = qc_ext.qc;
 
       // Check QC information in header extension and block extension match
-      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num,
-                  invalid_qc_claim,
+      EOS_ASSERT( qc_proof.block_num == new_qc_claim.block_num, block_validate_exception,
                   "Block #${b}: Mismatch between qc.block_num (${n1}) in block extension and block_num (${n2}) in header extension",
                   ("n1", qc_proof.block_num)("n2", new_qc_claim.block_num)("b", block_num) );
 
-      // Verify claimed strictness is the same as in proof
-      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc,
-                  invalid_qc_claim,
+      // Verify claimed strength is the same as in proof
+      EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, block_validate_exception,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      // find the claimed block's block state on branch of id
-      auto bsp = fork_db_fetch_bsp_on_branch_by_num( prev.id(), new_qc_claim.block_num );
-      EOS_ASSERT( bsp,
-                  invalid_qc_claim,
-                  "Block state was not found in forkdb for block_num ${q}. Block number: ${b}",
-                  ("q", new_qc_claim.block_num)("b", block_num) );
+      return std::optional{qc_proof};
+   }
 
-      // verify the QC proof against the claimed block
-      bsp->verify_qc(qc_proof);
+   // verify legacy block invariants
+   void verify_legacy_block_invariants( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
+      assert(b->is_legacy_block());
+
+      uint32_t block_num = b->block_num();
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
+                  "Legacy block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
+                  "Legacy block #${b} has invalid schedule_version",
+                  ("b", block_num) );
+
+      // Verify we don't go back from Savanna (Transition or Proper) block to Legacy block
+      EOS_ASSERT( prev.header.is_legacy_block(), block_validate_exception,
+                  "Legacy block #${b} must have previous block that is also a Legacy block",
+                  ("b", block_num) );
+   }
+
+   // verify transition block invariants
+   void verify_transition_block_invariants( const signed_block_ptr& b, const block_header_state_legacy& prev ) {
+      assert(!b->is_legacy_block() && !b->is_proper_svnn_block());
+
+      uint32_t block_num = b->block_num();
+      auto block_exts = b->validate_and_extract_extensions();
+      auto qc_ext_id = quorum_certificate_extension::extension_id();
+      bool qc_extension_present = block_exts.count(qc_ext_id) != 0;
+
+      EOS_ASSERT( !qc_extension_present, block_validate_exception,
+                  "Transition block #${b} includes a QC block extension",
+                  ("b", block_num) );
+
+      EOS_ASSERT( !prev.header.is_proper_svnn_block(), block_validate_exception,
+                  "Transition block #${b} may not have previous block that is a Proper Savanna block",
+                  ("b", block_num) );
+
+      auto f_ext_id = finality_extension::extension_id();
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
+      assert(finality_ext);
+      const auto& f_ext = std::get<finality_extension>(*finality_ext);
+
+      EOS_ASSERT( !f_ext.new_proposer_policy_diff, block_validate_exception,
+                  "Transition block #${b} has new_proposer_policy_diff",
+                  ("b", block_num) );
+
+      if (auto it = prev.header_exts.find(finality_extension::extension_id()); it != prev.header_exts.end()) {
+         // Transition block other than Genesis Block
+         const auto& prev_finality_ext = std::get<finality_extension>(it->second);
+         EOS_ASSERT( f_ext.qc_claim == prev_finality_ext.qc_claim, invalid_qc_claim,
+                     "Non Genesis Transition block #${b} QC claim ${this_qc_claim} not equal to previous QC claim ${prev_qc_claim}",
+                     ("b", block_num)("this_qc_claim", f_ext.qc_claim)("prev_qc_claim", prev_finality_ext.qc_claim) );
+         EOS_ASSERT( !f_ext.new_finalizer_policy_diff, block_validate_exception,
+                     "Non Genesis Transition block #${b} finality block header extension may not have new_finalizer_policy_diff",
+                     ("b", block_num) );
+      } else {
+         // Savanna Genesis Block
+         qc_claim_t genesis_qc_claim {.block_num = block_num, .is_strong_qc = false};
+         EOS_ASSERT( f_ext.qc_claim == genesis_qc_claim, invalid_qc_claim,
+                     "Savanna Genesis block #${b} has invalid QC claim ${qc_claim}",
+                     ("b", block_num)("qc_claim", f_ext.qc_claim) );
+         EOS_ASSERT( f_ext.new_finalizer_policy_diff, block_validate_exception,
+                     "Savanna Genesis block #${b} finality block header extension misses new_finalizer_policy_diff",
+                     ("b", block_num) );
+
+         // apply_diff will FC_ASSERT if new_finalizer_policy_diff is malformed
+         try {
+            finalizer_policy no_policy;
+            finalizer_policy genesis_policy = no_policy.apply_diff(*f_ext.new_finalizer_policy_diff);
+            EOS_ASSERT( genesis_policy.generation == 1, block_validate_exception,
+                        "Savanna Genesis block #${b} finalizer policy generation (${g}) not 1",
+                        ("b", block_num)("g", genesis_policy.generation) );
+         } EOS_RETHROW_EXCEPTIONS(block_validate_exception, "applying diff of Savanna Genesis Block")
+      }
+   }
+
+   // verify basic_block invariants
+   template<typename BS>
+   std::optional<qc_t> verify_basic_block_invariants(const block_id_type& id, const signed_block_ptr& b, const BS& prev) {
+      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(is_proper_savanna_block == b->is_proper_svnn_block());
+
+      if constexpr (is_proper_savanna_block) {
+         EOS_ASSERT( b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is not a Proper Savanna block unless the prev block state provided is of type block_state",
+                     ("b", b->block_num()) );
+         return verify_basic_proper_block_invariants(id, b, prev);
+      } else {
+         EOS_ASSERT( !b->is_proper_svnn_block(), block_validate_exception,
+                     "create_block_state_i cannot be called on block #${b} which is a Proper Savanna block unless the prev block state provided is of type block_state_legacy",
+                     ("b", b->block_num()) );
+
+         if (b->is_legacy_block()) {
+            verify_legacy_block_invariants(b, prev);
+         } else {
+            verify_transition_block_invariants(b, prev);
+         }
+      }
+
+      return {};
+   }
+
+   // This verifies BLS signatures and is expensive.
+   void verify_qc( const block_state& prev, const qc_t& qc ) {
+      prev.verify_qc(qc);
    }
 
    // thread safe, expected to be called from thread other than the main thread
    // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
    std::tuple<bool, block_handle> create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
-      constexpr bool savanna_mode = std::is_same_v<typename std::decay_t<BS>, block_state>;
-      if constexpr (savanna_mode) {
-         // Verify claim made by finality_extension in block header extension and
-         // quorum_certificate_extension in block extension are valid.
-         // This is the only place the evaluation is done.
-         verify_qc_claim(id, b, prev);
+      constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
+      assert(is_proper_savanna_block == b->is_proper_svnn_block());
+
+      std::optional<qc_t> qc = verify_basic_block_invariants(id, b, prev);
+      log_and_drop_future<void> verify_qc_future;
+      if constexpr (is_proper_savanna_block) {
+         if (qc) {
+            verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &prev] {
+               verify_qc(prev, *qc);
+            });
+         }
       }
 
-      auto trx_mroot = calculate_trx_merkle( b->transactions, savanna_mode );
+      auto trx_mroot = calculate_trx_merkle( b->transactions, is_proper_savanna_block );
       EOS_ASSERT( b->transaction_mroot == trx_mroot,
                   block_validate_exception,
                   "invalid block transaction merkle root ${b} != ${c}", ("b", b->transaction_mroot)("c", trx_mroot) );
@@ -4025,18 +4153,21 @@ struct controller_impl {
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
-      if constexpr (savanna_mode) {
+
+      if constexpr (is_proper_savanna_block) {
+         assert(!!qc == verify_qc_future.valid());
+         if (qc) {
+            verify_qc_future.get();
+         }
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
+      } else {
+         assert(!verify_qc_future.valid());
       }
 
-      bool best_head = false;
-      // want to process terminate block, so 1 to allow it to pass, but still check max-reversible-blocks
-      if (!should_terminate(1)) {
-         best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
-         if constexpr (savanna_mode)
-            vote_processor.notify_new_block(async_aggregation);
-      }
+      bool best_head = forkdb.add(bsp, ignore_duplicate_t::yes);
+      if constexpr (is_proper_savanna_block)
+         vote_processor.notify_new_block(async_aggregation);
 
       return std::tuple{best_head, block_handle{std::move(bsp)}};
    }
@@ -4065,7 +4196,7 @@ struct controller_impl {
       return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(unlinkable, f);
    }
 
-   // thread safe, QC already verified by verify_qc_claim
+   // thread safe, QC already verified by verify_proper_block_exts
    void integrate_received_qc_to_block(const block_state_ptr& bsp_in) {
       // extract QC from block extension
       assert(bsp_in->block);
@@ -4145,7 +4276,15 @@ struct controller_impl {
 
          auto do_push = [&](const auto& head) {
             if constexpr (std::is_same_v<BSP, typename std::decay_t<decltype(head)>>) {
-               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(),validator, skip_validate_signee);
+               std::optional<qc_t> qc = verify_basic_block_invariants({}, b, *head);
+
+               if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
+                  if (conf.force_all_checks && qc) {
+                     verify_qc(*head, *qc);
+                  }
+               }
+
+               BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
                if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{})) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
@@ -5262,7 +5401,7 @@ bool controller::validated_block_exists(const block_id_type& id) const {
 
 std::optional<signed_block_header> controller::fetch_block_header_by_id( const block_id_type& id )const {
    auto sb_ptr = my->fork_db_fetch_block_by_id(id);
-   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<signed_block_header*>(sb_ptr.get())};
+   if( sb_ptr ) return std::optional<signed_block_header>{*static_cast<const signed_block_header*>(sb_ptr.get())};
    auto result = my->blog.read_block_header_by_num( block_header::num_from_id(id) );
    if( result && result->calculate_id() == id ) return result;
    return {};
@@ -5852,6 +5991,18 @@ bool controller::is_node_finalizer_key(const bls_public_key& key) const {
 
 const my_finalizers_t& controller::get_node_finalizers() const {
    return my->my_finalizers;
+}
+
+void controller::register_update_produced_block_metrics(std::function<void(produced_block_metrics)>&& fun) {
+   my->_update_produced_block_metrics = std::move(fun);
+}
+
+void controller::register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&& fun) {
+   my->_update_speculative_block_metrics = std::move(fun);
+}
+
+void controller::register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&& fun) {
+   my->_update_incoming_block_metrics = std::move(fun);
 }
 
 /// Protocol feature activation handlers:

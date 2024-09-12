@@ -242,10 +242,10 @@ BOOST_AUTO_TEST_CASE( forking ) try {
    }
    wlog( "end push c2 blocks to c1" );
    wlog( "now push dan's block to c1 but first corrupt it so it is a bad block" );
-   signed_block bad_block = std::move(*b);
+   signed_block bad_block{b->clone()};
    bad_block.action_mroot = bad_block.previous;
    auto bad_id = bad_block.calculate_id();
-   BOOST_REQUIRE_EXCEPTION(c.control->accept_block(bad_id, std::make_shared<signed_block>(std::move(bad_block))),
+   BOOST_REQUIRE_EXCEPTION(c.control->accept_block(bad_id, std::make_shared<signed_block>(bad_block.clone())),
       fc::exception, [] (const fc::exception& ex)->bool {
          return ex.to_detail_string().find("block signed by unexpected key") != std::string::npos;
       });
