@@ -5,6 +5,7 @@ BOOST_AUTO_TEST_SUITE(replay_block_invariants_tests)
 
 using namespace eosio::testing;
 using namespace eosio::chain;
+using namespace fc::crypto;
 
 struct blog_replay_fixture {
    eosio::testing::tester chain;
@@ -34,7 +35,7 @@ struct blog_replay_fixture {
       std::filesystem::create_directories(state_path);
    }
 
-   void corrupt_qc_extension_in_block_log() {
+   void corrupt_qc_signature_in_block_log() {
       controller::config config = chain.get_config();
       auto blocks_dir = chain.get_config().blocks_dir;
 
@@ -72,12 +73,11 @@ struct blog_replay_fixture {
       BOOST_REQUIRE(itr != exts.end());
       qc_block->block_extensions.erase(itr);
 
-      // intentionally corrupt QC's strength.
-      if (qc.active_policy_sig.strong_votes) {
-         (*qc.active_policy_sig.strong_votes)[0] ^= 1; // flip one bit
-      } else if (qc.active_policy_sig.weak_votes) {
-         (*qc.active_policy_sig.weak_votes)[0] ^= 1; // flip one bit
-      }
+      // intentionally corrupt QC's signature.
+      auto g2 = qc.active_policy_sig.sig.jacobian_montgomery_le();
+      g2 = bls12_381::aggregate_signatures(std::array{g2, g2});
+      auto affine = g2.toAffineBytesLE(bls12_381::from_mont::yes);
+      qc.active_policy_sig.sig = blslib::bls_aggregate_signature(blslib::bls_signature(affine));
 
       // add the corrupted QC block extension back to the block
       emplace_extension(exts, qc_ext_id, fc::raw::pack(qc_ext));
@@ -191,7 +191,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, blog_replay_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
-   corrupt_qc_extension_in_block_log();
+   corrupt_qc_signature_in_block_log();
 
    // remove the state files to make sure we are starting from block log
    remove_existing_states(config.state_dir);
@@ -212,7 +212,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, blog_replay_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
-   corrupt_qc_extension_in_block_log();
+   corrupt_qc_signature_in_block_log();
 
    // remove the state files to make sure we are starting from block log
    remove_existing_states(config.state_dir);
@@ -226,7 +226,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, blog_replay_fixture) try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
       BOOST_FAIL("replay should have failed with --force-all-checks");
    } catch (block_validate_exception& e) {
-      BOOST_REQUIRE(e.to_detail_string().find("strong quorum is not met") != std::string::npos);
+      BOOST_REQUIRE(e.to_detail_string().find("qc signature validation failed") != std::string::npos);
    } catch (...) {
       BOOST_FAIL("replay failed with non block_validate_exception exception");
    }
