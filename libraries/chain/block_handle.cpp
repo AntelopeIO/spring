@@ -45,7 +45,7 @@ bool block_handle::read(const std::filesystem::path& state_file) {
       fc::raw::unpack(f, version);
 
       EOS_ASSERT(magic == chain_head_magic && version == chain_head_version, chain_exception,
-                 "Error reading `chain_head.dat` file. It is likely a Spring 1.0.0 version which is not supported by Spring 1.0.1 and above"
+                 "Error reading `chain_head.dat` file. It is likely a Spring 1.0.0 version which is not supported by Spring 1.0.1 and above. "
                  "The best course of action might be to restart from a snapshot" );
 
       fc::raw::unpack(f, *this);
