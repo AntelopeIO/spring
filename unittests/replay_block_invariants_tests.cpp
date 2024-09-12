@@ -77,12 +77,9 @@ struct test_fixture {
 
       // remove QC block extension from QC block
       auto& exts = qc_block->block_extensions;
-      std::pair<uint16_t,vector<char>> target{qc_ext_id, {}};
-      auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
-         return ext1.first < ext2.first;
+      std::erase_if(exts, [&](const auto& ext) {
+         return ext.first == qc_ext_id;
       });
-      BOOST_REQUIRE(itr != exts.end());
-      qc_block->block_extensions.erase(itr);
 
       // intentionally corrupt QC's signature.
       auto g2 = qc.active_policy_sig.sig.jacobian_montgomery_le();
@@ -122,12 +119,9 @@ struct test_fixture {
 
       // remove finality extension from extensions
       auto& exts = last_block->header_extensions;
-      std::pair<uint16_t,vector<char>> target{fin_ext_id, {}};
-      auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
-         return ext1.first < ext2.first;
+      std::erase_if(exts, [&](const auto& ext) {
+         return ext.first == fin_ext_id;
       });
-      BOOST_REQUIRE(itr != exts.end());
-      exts.erase(itr);
 
       // intentionally corrupt finality extension by changing its block_num
       auto& f_ext = std::get<finality_extension>(*head_fin_ext);
