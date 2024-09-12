@@ -47,9 +47,9 @@ struct test_fixture {
 
    // Corrupts the signature of last block which attaches a QC in the blocks log
    void corrupt_qc_signature_in_block_log() {
-      controller::config config      = chain.get_config();
-      auto               blocks_dir  = config.blocks_dir;
-      auto               qc_ext_id   = quorum_certificate_extension::extension_id();
+      const controller::config& config     = chain.get_config();
+      auto                      blocks_dir = config.blocks_dir;
+      auto                      qc_ext_id  = quorum_certificate_extension::extension_id();
 
       block_log blog(blocks_dir, config.blog);
 
@@ -98,9 +98,9 @@ struct test_fixture {
    // Corrupts finality_extension in the last block of the blocks log
    // by setting the claimed block number to a different one.
    void corrupt_finality_extension_in_block_log(uint32_t new_qc_claim_block_num) {
-      controller::config config      = chain.get_config();
-      auto               blocks_dir  = config.blocks_dir;
-      auto               fin_ext_id  = finality_extension::extension_id();
+      const controller::config& config     = chain.get_config();
+      auto                      blocks_dir = config.blocks_dir;
+      auto                      fin_ext_id = finality_extension::extension_id();
 
       block_log blog(blocks_dir, config.blog);
 
