@@ -78,8 +78,6 @@ namespace LLVMJIT
 		else { return false; }
 	}
 
-	llvm::Value* CreateInBoundsGEPWAR(llvm::IRBuilder<>& irBuilder, llvm::Value* Ptr, llvm::Value* v1, llvm::Value* v2 = nullptr);
-
 	llvm::LLVMContext context;
 	llvm::Type* llvmResultTypes[(Uptr)ResultType::num];
 
@@ -322,7 +320,7 @@ namespace LLVMJIT
 			}
 
 			// Cast the pointer to the appropriate type.
-			auto bytePointer = CreateInBoundsGEPWAR(irBuilder, moduleContext.defaultMemoryBase, byteIndex);
+			auto bytePointer = irBuilder.CreateInBoundsGEP(moduleContext.defaultMemoryBase, byteIndex);
 
 			return irBuilder.CreatePointerCast(bytePointer,memoryType->getPointerTo(256));
 		}
@@ -750,8 +748,8 @@ namespace LLVMJIT
 				"eosvmoc_internal.indirect_call_oob",FunctionType::get(),{});
 
 			// Load the type for this table entry.
-			auto tablePointer = CreateInBoundsGEPWAR(irBuilder, moduleContext.defaultTablePointer, emitLiteral(0), emitLiteral(0));
-			auto functionTypePointerPointer = CreateInBoundsGEPWAR(irBuilder, tablePointer, functionIndexZExt, emitLiteral((U32)0));
+			auto tablePointer = irBuilder.CreateInBoundsGEP(moduleContext.defaultTablePointer, {emitLiteral(0), emitLiteral(0)});
+			auto functionTypePointerPointer = irBuilder.CreateInBoundsGEP(tablePointer, {functionIndexZExt, emitLiteral((U32)0)});
 			auto functionTypePointer = irBuilder.CreateLoad(functionTypePointerPointer);
 			auto llvmCalleeType = emitLiteralPointer(calleeType,llvmI8PtrType);
 			
@@ -765,7 +763,7 @@ namespace LLVMJIT
 			//If the WASM only contains table elements to function definitions internal to the wasm, we can take a
 			// simple and approach
 			if(moduleContext.tableOnlyHasDefinedFuncs) {
-				auto functionPointerPointer = CreateInBoundsGEPWAR(irBuilder, tablePointer, functionIndexZExt, emitLiteral((U32)1));
+				auto functionPointerPointer = irBuilder.CreateInBoundsGEP(tablePointer, {functionIndexZExt, emitLiteral((U32)1)});
 				auto functionInfo = irBuilder.CreateLoad(functionPointerPointer);  //offset of code
 				llvm::Value* running_code_start = irBuilder.CreateLoad(emitLiteralPointer((void*)OFFSET_OF_CONTROL_BLOCK_MEMBER(running_code_base), llvmI64Type->getPointerTo(256)));
 				llvm::Value* offset_from_start = irBuilder.CreateAdd(running_code_start, functionInfo);
@@ -776,7 +774,7 @@ namespace LLVMJIT
 				if(calleeType->ret != ResultType::none) { push(result); }
 			}
 			else {
-				auto functionPointerPointer = CreateInBoundsGEPWAR(irBuilder, tablePointer, functionIndexZExt, emitLiteral((U32)1));
+				auto functionPointerPointer = irBuilder.CreateInBoundsGEP(tablePointer, {functionIndexZExt, emitLiteral((U32)1)});
 				auto functionInfo = irBuilder.CreateLoad(functionPointerPointer);  //offset of code
 
 				auto is_intrnsic = irBuilder.CreateICmpSLT(functionInfo, typedZeroConstants[(Uptr)ValueType::i64]);
@@ -832,7 +830,7 @@ namespace LLVMJIT
 		llvm::Value* get_mutable_global_ptr(llvm::Value* global) {
 			if(global->getType()->isStructTy()) {
 			llvm::Value* globalsBasePtr = irBuilder.CreateExtractValue(global, 0);
-			        return CreateInBoundsGEPWAR(irBuilder, irBuilder.CreateLoad(globalsBasePtr), irBuilder.CreateExtractValue(global, 1));
+			        return irBuilder.CreateInBoundsGEP(irBuilder.CreateLoad(globalsBasePtr), irBuilder.CreateExtractValue(global, 1));
 			} else if(global->getType()->isPointerTy()) {
 			        return global;
 			} else {
@@ -879,7 +877,7 @@ namespace LLVMJIT
 		void current_memory(MemoryImm)
 		{
 			auto offset = emitLiteral((I32)OFFSET_OF_CONTROL_BLOCK_MEMBER(current_linear_memory_pages));
-			auto bytePointer = CreateInBoundsGEPWAR(irBuilder, moduleContext.defaultMemoryBase, offset);
+			auto bytePointer = irBuilder.CreateInBoundsGEP(moduleContext.defaultMemoryBase, offset);
 			auto ptrTo = irBuilder.CreatePointerCast(bytePointer,llvmI32Type->getPointerTo(256));
 			auto load = irBuilder.CreateLoad(ptrTo);
 			push(load);
