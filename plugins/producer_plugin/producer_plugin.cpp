@@ -480,11 +480,11 @@ struct implicit_production_pause_vote_tracker {
       }
    }
 
-   void record_received_block(fc::time_point now, fc::time_point block_time_stamp) {
+   void record_received_block(fc::time_point now, fc::time_point block_timestamp) {
       if (!is_active(get_vote_track_mode()))
          return;
 
-      _vt.record_received_block(now, block_time_stamp);
+      _vt.record_received_block(now, block_timestamp);
    }
 
    // called from main thread

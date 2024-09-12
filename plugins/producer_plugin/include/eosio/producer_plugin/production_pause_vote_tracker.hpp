@@ -83,18 +83,20 @@ public:
    //
    // A block will only be recorded if all the following conditions hold for either
    // the latest recorded other vote or the latest recorded producer vote:
-   //   The received time RT is the minimum of block_received_time and block_time_stamp.
+   //   The received time RT is the minimum of block_received_time and block_timestamp.
    //   1. The RT must be more recent than received time of latest recorded
    //      (other/producer) vote by more than the current block acceptance threshold.
    //   2. If there is a still tracked recorded block with a RT more recent than the RT of
    //      the latest recorded (other/producer) vote, then that block's RT must be more recent than
    //      the received time of the new block to record.
-   //   Above the block_time_stamp is important because you may receive an old block (syncing or on fork-switch)
-   //   which you can't vote on because of the monotony_check.
-   bool record_received_block(fc::time_point block_received_time, fc::time_point block_time_stamp) {
+   // It is important for RT to not exceed block_timestamp because nodes may receive a
+   // block late (syncing or on fork switch), i.e. with block_timestamp < block_received_time,
+   // but finalizer nodes might not vote on the late block due to the monotony_check which is
+   // based on the block's timestamp.
+   bool record_received_block(fc::time_point block_received_time, fc::time_point block_timestamp) {
       bool recorded = false;
-      recorded |= latest_other_vote.record_received_block(block_received_time, block_time_stamp, block_acceptance_delta);
-      recorded |= latest_producer_vote.record_received_block(block_received_time, block_time_stamp, block_acceptance_delta);
+      recorded |= latest_other_vote.record_received_block(block_received_time, block_timestamp, block_acceptance_delta);
+      recorded |= latest_producer_vote.record_received_block(block_received_time, block_timestamp, block_acceptance_delta);
       return recorded;
    }
 
@@ -215,10 +217,10 @@ private:
       }
 
       // Can be called concurrently with all member functions.
-      bool record_received_block(fc::time_point block_received_time, fc::time_point block_time_stamp, fc::microseconds block_acceptance_delta) {
+      bool record_received_block(fc::time_point block_received_time, fc::time_point block_timestamp, fc::microseconds block_acceptance_delta) {
          auto vote_time = latest_vote.load(std::memory_order_relaxed);
 
-         const auto received_time = std::min(block_received_time, block_time_stamp);
+         const auto received_time = std::min(block_received_time, block_timestamp);
          const auto adjusted_block_received_time = fc::time_point(received_time).safe_add(block_acceptance_delta);
 
          // votes (vote_time) can be signaled before the block the vote is associated with is
@@ -229,9 +231,13 @@ private:
 
          auto block_orig = first_block_after_vote.load(std::memory_order_relaxed);
 
-         // if we have already received a block since our last vote then nothing to do.
-         // Also make sure the block received time is greater than the tracked block, should always
-         // be true unless a clock skew.
+         // If we have already received a block since our last vote then nothing to do.
+         // Note: It is possible that we first accept a block on one branch that has timestamp t2 and then accept a
+         // block on another branch that has timestamp t1 where t1 < t2. Even though the block_received_time of the
+         // block with timestamp t1 would presumably be greater than the block_received_time of the block with timestamp
+         // t2 (since it was accepted after in nodeos), with the RT being the minimum and both blocks being late, the
+         // received_time for the first block would be t2 and the received_time for the second block would be the lower
+         // value t1.
          if ((vote_time < block_orig) && (block_orig <= received_time))
             return false;
 
