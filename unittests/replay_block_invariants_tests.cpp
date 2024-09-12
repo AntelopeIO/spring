@@ -2,12 +2,12 @@
 #include <boost/test/unit_test.hpp>
 
 // Test scenarios
-//    * replay through through a block containing an invalid QC claim block num (backward).
-//    * replay through through a block containing a QC claim block num referring to an
+//    * replay through a block containing an invalid QC claim block num (backward).
+//    * replay through a block containing a QC claim block num referring to an
 //      unknown block number.
-//    * replay through through a block containing a invalid QC signature,
+//    * replay through a block containing a invalid QC signature,
 //      without --force-all-checks
-//    * replay through through a block containing a invalid QC signature,
+//    * replay through a block containing a invalid QC signature,
 //      with --force-all-checks
 
 BOOST_AUTO_TEST_SUITE(replay_block_invariants_tests)
