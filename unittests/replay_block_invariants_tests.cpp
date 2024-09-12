@@ -48,10 +48,10 @@ struct test_fixture {
    // Corrupts the signature of last block which attaches a QC in the blocks log
    void corrupt_qc_signature_in_block_log() {
       controller::config config      = chain.get_config();
-      auto               blocks_dir  = chain.get_config().blocks_dir;
+      auto               blocks_dir  = config.blocks_dir;
       auto               qc_ext_id   = quorum_certificate_extension::extension_id();
 
-      block_log blog(blocks_dir, chain.get_config().blog);
+      block_log blog(blocks_dir, config.blog);
 
       // find the first block which has QC extension starting from the end of
       // block log and going backward
@@ -102,10 +102,10 @@ struct test_fixture {
    // by setting the claimed block number to a different one.
    void corrupt_finality_extension_in_block_log(uint32_t new_qc_claim_block_num) {
       controller::config config      = chain.get_config();
-      auto               blocks_dir  = chain.get_config().blocks_dir;
+      auto               blocks_dir  = config.blocks_dir;
       auto               fin_ext_id  = finality_extension::extension_id();
 
-      block_log blog(blocks_dir, chain.get_config().blog);
+      block_log blog(blocks_dir, config.blog);
 
       // retrieve the last block in block log
       uint32_t  last_block_num = blog.head()->block_num();
@@ -145,13 +145,13 @@ struct test_fixture {
 // Test replay with invalid QC claim -- claimed block number goes backward
 BOOST_FIXTURE_TEST_CASE(invalid_qc, test_fixture) try {
    controller::config config = chain.get_config();
-   auto blocks_dir = chain.get_config().blocks_dir;
+   auto blocks_dir = config.blocks_dir;
 
    // set claimed block number backward
    corrupt_finality_extension_in_block_log(0);
 
    // retrieve genesis
-   block_log blog(blocks_dir, chain.get_config().blog);
+   block_log blog(blocks_dir, config.blog);
    auto genesis = block_log::extract_genesis_state(blocks_dir);
    BOOST_REQUIRE(genesis);
 
@@ -173,9 +173,9 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, test_fixture) try {
 // claimed in the block header
 BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
    controller::config config = chain.get_config();
-   auto blocks_dir = chain.get_config().blocks_dir;
+   auto blocks_dir = config.blocks_dir;
 
-   block_log blog(blocks_dir, chain.get_config().blog);
+   block_log blog(blocks_dir, config.blog);
 
    // retrieve the last block in block log
    uint32_t last_block_num = blog.head()->block_num();
@@ -205,7 +205,7 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
 // Replay should pass as QC is not validated.
 BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, test_fixture) try {
    controller::config config = chain.get_config();
-   auto blocks_dir = chain.get_config().blocks_dir;
+   auto blocks_dir = config.blocks_dir;
 
    corrupt_qc_signature_in_block_log();
 
@@ -226,7 +226,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, test_fixture) try {
 // Replay should fail as QC is validated.
 BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, test_fixture) try {
    controller::config config = chain.get_config();
-   auto blocks_dir = chain.get_config().blocks_dir;
+   auto blocks_dir = config.blocks_dir;
 
    corrupt_qc_signature_in_block_log();
 
