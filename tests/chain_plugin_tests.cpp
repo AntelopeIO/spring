@@ -126,7 +126,7 @@ BOOST_FIXTURE_TEST_CASE( get_block_with_invalid_abi, validating_tester ) try {
 
    BOOST_TEST(get_bh_result.id == block->calculate_id());
    BOOST_TEST(json::to_string(get_bh_result.signed_block_header, fc::time_point::maximum()) ==
-              json::to_string(fc::variant{static_cast<signed_block_header&>(*block)}, fc::time_point::maximum()));
+              json::to_string(fc::variant{static_cast<const signed_block_header&>(*block)}, fc::time_point::maximum()));
 
 } FC_LOG_AND_RETHROW() /// get_block_with_invalid_abi
 

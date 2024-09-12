@@ -41,6 +41,8 @@ from TestHarness.Node import BlockType
 # 3. Restart producercNode with "--production-pause-vote-timeout-ms 0" to
 #    disable production-pause-vote-timeout. Bring down finalizercNode.
 #    producercNode should keep producing.
+# 4. Relaunch finalizercNode. Stop producer/finalizer producera and verify it does
+#    not cause producerb to pause production.
 #
 ####################################################################################
 
@@ -135,6 +137,7 @@ try:
     finalizercNode.relaunch()
 
     Print("Verify production unpaused and LIB advances after restart of finalizercNode")
+    assert finalizercNode.waitForLibToAdvance(), "finalizercNode did not see LIB advance"
     assert node0.waitForLibToAdvance(), "node0 did not advance LIB"
     assert node1.waitForLibToAdvance(), "node1 did not advance LIB"
     assert producercNode.waitForLibToAdvance(), "producercNode did not advance LIB"
@@ -196,6 +199,33 @@ try:
     # Verify node0 and node1 still producing
     assert node0.waitForHeadToAdvance(), "node0 paused after finalizercNode was shutdown"
     assert node1.waitForHeadToAdvance(), "node1 paused after finalizercNode was shutdown"
+    
+    ####################### test 4 ######################
+    # shutdown node0 and make sure node1 does not pause
+
+    Print("Restart finalizercNode")
+    finalizercNode.relaunch()
+
+    Print("Wait for LIB after finalizercNode back up")
+    assert finalizercNode.waitForLibToAdvance(), "finalizercNode did not advance LIB after relaunch"
+
+    Print("Shutdown Node0")
+    node0.kill(signal.SIGTERM)
+    assert not node0.verifyAlive(), "node0 did not shutdown"
+    
+    Print("Verify defproducerb does not pause and produces all blocks of its round")
+    # If Node0 A was producing then give time for C or B to produce
+    assert node1.waitForHeadToAdvance(timeout=30), "node1 paused after finalizercNode was shutdown"
+    assert node1.processUrllibRequest("producer", "paused", returnType=ReturnType.raw) == b'false', "node1 paused after node0 was shutdown"
+
+    # wait for C to make sure B is not currently producing
+    node1.waitForProducer("defproducerc", exitOnError=True)
+    # wait for B now to make sure A should have produced before it
+    node1.waitForProducer("defproducerb", exitOnError=True)
+    # wait for C again so B has produced its full round
+    node1.waitForProducer("defproducerc", exitOnError=True)
+    # verify node1 defproducerb did not pause production
+    assert not node1.findInLog("Not producing block because no recent")
 
     testSuccessful=True
 finally:
