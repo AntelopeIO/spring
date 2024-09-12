@@ -678,7 +678,7 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
    main.produce_blocks(3);
    BOOST_REQUIRE( main.control->pending_block_producer() == "alice"_n );
 
-   std::shared_ptr<signed_block> b;
+   mutable_signed_block_ptr b;
 
    // Generate a valid block and then corrupt it by adding an extra signature.
    {
@@ -694,7 +694,7 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
       BOOST_REQUIRE( valid_block->producer == "alice"_n );
 
       // Make a copy of pointer to the valid block.
-      b = valid_block;
+      b = std::make_shared<signed_block>(valid_block->clone());
       BOOST_REQUIRE_EQUAL( b->block_extensions.size(), 1u );
 
       // Extract the existing signatures.
@@ -712,7 +712,8 @@ BOOST_AUTO_TEST_CASE( extra_signatures_test ) try {
 
       // Serialize the augmented additional signatures back into the block extensions.
       b->block_extensions.clear();
-      emplace_extension(b->block_extensions, additional_sigs_eid, fc::raw::pack( additional_sigs ));
+      emplace_extension(b->block_extensions,
+                        additional_sigs_eid, fc::raw::pack( additional_sigs ));
    }
 
    // Push block with extra signature to the main chain.

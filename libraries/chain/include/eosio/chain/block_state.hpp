@@ -184,8 +184,6 @@ public:
 
    explicit block_state(snapshot_detail::snapshot_block_state_v8&& sbs);
 
-   void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
-
    // Only defined for latest_qc_block_num() <= num <= block_num()
    finalizer_policies_t get_finalizer_policies(block_num_type num) const {
       if (num == block_num())

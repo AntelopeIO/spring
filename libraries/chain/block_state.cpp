@@ -11,7 +11,7 @@ namespace eosio::chain {
 
 namespace detail {
 
-   inline void verify_signee(const signed_block_ptr& block, const block_id_type& block_id,
+   inline void verify_signee(const signature_type& producer_signature, const block_id_type& block_id,
                              const std::vector<signature_type>& additional_signatures,
                              const block_signing_authority& valid_block_signing_authority)
    {
@@ -24,7 +24,7 @@ namespace detail {
                  ("authority", valid_block_signing_authority));
 
       std::set<public_key_type> keys;
-      keys.emplace(fc::crypto::public_key(block->producer_signature, block_id, true));
+      keys.emplace(fc::crypto::public_key(producer_signature, block_id, true));
 
       for (const auto& s : additional_signatures) {
          auto res = keys.emplace(s, block_id, true);
@@ -51,10 +51,35 @@ namespace detail {
       if (!skip_validate_signee) {
          auto sigs = detail::extract_additional_signatures(block);
          const auto& valid_block_signing_authority = prev.get_producer_for_block_at(block->timestamp).authority;
-         verify_signee(block, block->calculate_id(), sigs, valid_block_signing_authority);
+         verify_signee(block->producer_signature, block->calculate_id(), sigs, valid_block_signing_authority);
       }
       return true;
    };
+
+   void inject_additional_signatures( signed_block& b, const std::vector<signature_type>& additional_signatures) {
+      if (!additional_signatures.empty()) {
+         // as an optimization we don't copy this out into the legitimate extension structure as it serializes
+         // the same way as the vector of signatures
+         static_assert(fc::reflector<additional_block_signatures_extension>::total_member_count == 1);
+         static_assert(std::is_same_v<decltype(additional_block_signatures_extension::signatures), std::vector<signature_type>>);
+
+         emplace_extension(b.block_extensions, additional_block_signatures_extension::extension_id(),
+                           fc::raw::pack(additional_signatures));
+      }
+   }
+
+   void sign(signed_block& block, const block_id_type& block_id,
+             const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority) {
+      auto sigs = signer(block_id);
+
+      EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
+      block.producer_signature = sigs.back();
+      // last is producer signature, rest are additional signatures to inject in the block extension
+      sigs.pop_back();
+
+      verify_signee(block.producer_signature, block_id, sigs, valid_block_signing_authority);
+      inject_additional_signatures(block, sigs);
+   }
 
 } // namespace detail
 
@@ -80,7 +105,7 @@ block_state::block_state(const block_header_state&                bhs,
                          const block_signing_authority&           valid_block_signing_authority,
                          const digest_type&                       action_mroot)
    : block_header_state(bhs)
-   , block(std::make_shared<signed_block>(signed_block_header{bhs.header}))
+   , block()
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
    , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
@@ -89,14 +114,18 @@ block_state::block_state(const block_header_state&                bhs,
    , cached_trxs(std::move(trx_metas))
    , action_mroot(action_mroot)
 {
-   block->transactions = std::move(trx_receipts);
+   mutable_signed_block_ptr new_block = std::make_shared<signed_block>(signed_block_header{bhs.header});
+   new_block->transactions = std::move(trx_receipts);
 
    if( qc ) {
       fc_dlog(vote_logger, "integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
-      emplace_extension(block->block_extensions, quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
+      emplace_extension(new_block->block_extensions,
+                        quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
    }
 
-   sign(signer, valid_block_signing_authority);
+   sign(*new_block, block_id, signer, valid_block_signing_authority);
+
+   block = std::move(new_block);
 }
 
 // Used for transition from dpos to Savanna.
@@ -350,29 +379,6 @@ finality_data_t block_state::get_finality_data() {
       .pending_finalizer_policy                 = std::move(pending_fin_pol),
       .last_pending_finalizer_policy_generation = get_last_pending_finalizer_policy().generation
    };
-}
-
-void inject_additional_signatures( signed_block& b, const std::vector<signature_type>& additional_signatures)
-{
-   if (!additional_signatures.empty()) {
-      // as an optimization we don't copy this out into the legitimate extension structure as it serializes
-      // the same way as the vector of signatures
-      static_assert(fc::reflector<additional_block_signatures_extension>::total_member_count == 1);
-      static_assert(std::is_same_v<decltype(additional_block_signatures_extension::signatures), std::vector<signature_type>>);
-
-      emplace_extension(b.block_extensions, additional_block_signatures_extension::extension_id(), fc::raw::pack( additional_signatures ));
-   }
-}
-
-void block_state::sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority ) {
-   auto sigs = signer( block_id );
-
-   EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
-   block->producer_signature = sigs.back(); // last is producer signature, rest are additional signatures to inject in the block extension
-   sigs.pop_back();
-
-   verify_signee(block, block_id, sigs, valid_block_signing_authority);
-   inject_additional_signatures(*block, sigs);
 }
 
 } /// eosio::chain
