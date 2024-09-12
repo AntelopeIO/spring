@@ -109,7 +109,8 @@ namespace eosio { namespace chain {
       }
       bool contains_extension(uint16_t extension_id)const;
    };
-   using signed_block_ptr = std::shared_ptr<signed_block>;
+   using signed_block_ptr = std::shared_ptr<const signed_block>;
+   using mutable_signed_block_ptr = std::shared_ptr<signed_block>;
 
    struct producer_confirmation {
       block_id_type   block_id;

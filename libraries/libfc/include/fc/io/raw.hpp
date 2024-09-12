@@ -202,7 +202,12 @@ namespace fc {
     inline void unpack( Stream& s, std::shared_ptr<T>& v)
     { try {
       bool b; fc::raw::unpack( s, b );
-      if( b ) { v = std::make_shared<T>(); fc::raw::unpack( s, *v ); }
+      if( b ) {
+         // want to be able to unpack std::shared_ptr<const T>
+         auto tmp = std::make_shared<std::remove_const_t<T>>();
+         fc::raw::unpack( s, *tmp );
+         v = std::move(tmp);
+      }
     } FC_RETHROW_EXCEPTIONS( warn, "std::shared_ptr<T>", ("type",fc::get_typename<T>::name()) ) }
 
     template<typename Stream> inline void pack( Stream& s, const signed_int& v ) {
@@ -243,11 +248,6 @@ namespace fc {
           by += 7;
       } while( uint8_t(b) & 0x80 && by < 32 );
       vi.value = static_cast<uint32_t>(v);
-    }
-
-    template<typename Stream, typename T> inline void unpack( Stream& s, const T& vi )
-    {
-       static_assert(not std::is_same_v<const T, const T>, "can't unpack const type");
     }
 
     template<typename Stream> inline void pack( Stream& s, const char* v ) {
