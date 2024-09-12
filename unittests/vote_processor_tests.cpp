@@ -53,10 +53,10 @@ auto create_genesis_block_state() { // block 2
 
    producer_authority_schedule schedule = { 0, { producer_authority{block->producer, block_signing_authority_v0{ 1, {{pub_key, 1}} } } } };
    auto genesis = std::make_shared<block_state>();
+   block->previous = make_block_id(1);
    genesis->block = block;
    genesis->activated_protocol_features = std::make_shared<protocol_feature_activation_set>();
    genesis->active_finalizer_policy = std::make_shared<finalizer_policy>(new_finalizer_policy);
-   std::const_pointer_cast<signed_block>(genesis->block)->previous = make_block_id(1);
    genesis->active_proposer_policy = std::make_shared<proposer_policy>(proposer_policy{.proposer_schedule = schedule});
    genesis->core = finality_core::create_core_for_genesis_block(genesis->block_id, genesis->header.timestamp);
    genesis->block_id = genesis->block->calculate_id();
