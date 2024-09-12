@@ -1,17 +1,26 @@
 #include <eosio/testing/tester.hpp>
 #include <boost/test/unit_test.hpp>
 
+// Test scenarios
+//    * replay through through a block containing an invalid QC claim block num (backward).
+//    * replay through through a block containing a QC claim block num referring to an
+//      unknown block number.
+//    * replay through through a block containing a invalid QC signature,
+//      without --force-all-checks
+//    * replay through through a block containing a invalid QC signature,
+//      with --force-all-checks
+
 BOOST_AUTO_TEST_SUITE(replay_block_invariants_tests)
 
 using namespace eosio::testing;
 using namespace eosio::chain;
 using namespace fc::crypto;
 
-struct blog_replay_fixture {
+struct test_fixture {
    eosio::testing::tester chain;
 
-   // Create blocks log
-   blog_replay_fixture() {
+   // Creates blocks log
+   test_fixture() {
       // Create a few accounts and produce a few blocks to fill in blocks log
       chain.create_account("replay1"_n);
       chain.produce_blocks(1);
@@ -30,11 +39,13 @@ struct blog_replay_fixture {
       chain.close();
    }
 
+   // Removes state directory
    void remove_existing_states(std::filesystem::path& state_path) {
       std::filesystem::remove_all(state_path);
       std::filesystem::create_directories(state_path);
    }
 
+   // Corrupts the signature of last block which attaches a QC in the blocks log
    void corrupt_qc_signature_in_block_log() {
       controller::config config = chain.get_config();
       auto blocks_dir = chain.get_config().blocks_dir;
@@ -87,6 +98,8 @@ struct blog_replay_fixture {
       new_blog.append(qc_block, qc_block->calculate_id());
    }
 
+   // Corrupts finality_extension in the last block of the blocks log
+   // by setting the claimed block number to a different one.
    void corrupt_finality_extension_in_block_log(uint32_t new_qc_claim_block_num) {
       controller::config config = chain.get_config();
       auto blocks_dir = chain.get_config().blocks_dir;
@@ -129,7 +142,7 @@ struct blog_replay_fixture {
 };
 
 // Test replay with invalid QC claim -- claimed block number goes backward
-BOOST_FIXTURE_TEST_CASE(invalid_qc, blog_replay_fixture) try {
+BOOST_FIXTURE_TEST_CASE(invalid_qc, test_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
@@ -145,7 +158,8 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, blog_replay_fixture) try {
    remove_existing_states(config.state_dir);
 
    try {
-      eosio::testing::tester replay_chain(config, *genesis); // // start replay
+      eosio::testing::tester replay_chain(config, *genesis); // start replay
+      // An exception should have thrown
       BOOST_FAIL("replay should have failed with invalid_qc_claim exception");
    } catch (invalid_qc_claim& e) {
       BOOST_REQUIRE(e.to_detail_string().find("less than the previous block") != std::string::npos);
@@ -156,14 +170,14 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, blog_replay_fixture) try {
 
 // Test replay with irrelevant QC -- claims a block number other than the one
 // claimed in the block header
-BOOST_FIXTURE_TEST_CASE(irrelevant_qc, blog_replay_fixture) try {
+BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
    block_log blog(blocks_dir, chain.get_config().blog);
 
    // retrieve the last block in block log
-   uint32_t  last_block_num = blog.head()->block_num();
+   uint32_t last_block_num = blog.head()->block_num();
 
    // set claimed block number to a non-existent number
    corrupt_finality_extension_in_block_log(last_block_num + 1);
@@ -177,6 +191,7 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, blog_replay_fixture) try {
 
    try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
+      // An exception should have thrown
       BOOST_FAIL("replay should have failed with block_validate_exception exception");
    } catch (block_validate_exception& e) {
       BOOST_REQUIRE(e.to_detail_string().find("Mismatch between qc.block_num") != std::string::npos);
@@ -187,7 +202,7 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, blog_replay_fixture) try {
 
 // Test replay with bad QC (signature validation), but run without --force-all-checks.
 // Replay should pass as QC is not validated.
-BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, blog_replay_fixture) try {
+BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, test_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
@@ -208,7 +223,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_no_force_all_checks, blog_replay_fixture) try {
 
 // Test replay with bad QC (signature validation), but run with --force-all-checks.
 // Replay should fail as QC is validated.
-BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, blog_replay_fixture) try {
+BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, test_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
@@ -224,6 +239,7 @@ BOOST_FIXTURE_TEST_CASE(bad_qc_force_all_checks, blog_replay_fixture) try {
 
    try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
+      // An exception should have thrown
       BOOST_FAIL("replay should have failed with --force-all-checks");
    } catch (block_validate_exception& e) {
       BOOST_REQUIRE(e.to_detail_string().find("qc signature validation failed") != std::string::npos);
