@@ -129,7 +129,7 @@ namespace savanna_cluster {
 
       size_t& vote_delay() { return _vote_delay; }
 
-      void propagate_delayed_votes();
+      void propagate_delayed_votes_to(node_t &to);
 
       const vote_t& last_vote() const { return _last_vote; }
 
@@ -549,7 +549,8 @@ namespace savanna_cluster {
       // -------------------
       void print(const char* name, const signed_block_ptr& b) const {
          if (_debug_mode)
-            std::cout << name << " (" << b->block_num() << ") timestamp = " << b->timestamp.slot << ", id = " << b->calculate_id().str().substr(8, 16)
+            std::cout << name << " (" << b->block_num() << ") timestamp = " << b->timestamp.slot
+                      << ", id = " << b->calculate_id().str().substr(8, 16)
                       << ", previous = " << b->previous.str().substr(8, 16) << '\n';
       }
 
@@ -567,14 +568,14 @@ namespace savanna_cluster {
       peers_t    _peers;
       size_t     _num_nodes;
       bool       _shutting_down {false};
+      uint32_t   _connection_id = 0;
 
       friend node_t;
 
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
-         static uint32_t connection_id = 0;
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
             if (n.is_open())
-               n.control->process_vote_message(++connection_id, msg);
+               n.control->process_vote_message(++_connection_id, msg);
          });
       }
 

@@ -737,7 +737,8 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
       BOOST_REQUIRE(!qc(b2));                           // b2 should not include a QC (votes on b1 delayed)
    }
 
-   // propagate
+   B.propagate_delayed_votes_to(D);                     // propagate votes on b2 to D, so it can form a QC on b2
+   C.propagate_delayed_votes_to(D);                     // which will be included in b6
 
    const std::vector<size_t> partition {3};             // partition D so that it doesn't see b3, b4 and b5
    set_partition(partition);                            // and don't vote on it
@@ -759,102 +760,19 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));    // b5 claims a strong QC on b4
 
 
+   set_partition({});                                   // remove partition so all nodes can vote on b6 and above
+
    auto b6 = D.produce_block(_block_interval_us * 3);   // D (who has not seen b4 and b5) produces b6
-                                                        // b6 has a higher timestamp than b6
+                                                        // b6 has a higher timestamp than b5
    print("b6", b6);
+   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());
+   BOOST_REQUIRE(!!qc(b6));                             // b6 should include a QC
    BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b2));    // b6 claims a strong QC on b2
 
-
-#if 0
-   auto pending = A.head_pending_finalizer_policy();
-   BOOST_REQUIRE(!!pending);                            // check that we have a pending finalizer policy
-   auto p2 = pending->generation;                       // and its generation is higher than the active one
-   BOOST_REQUIRE_EQUAL(p2, p1 + 1);                     // b3 has new pending finalizer policy p2
-
-   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b4 (yet)
-   set_partition(partition);                            // and don't vote on it
-
-   auto b4 = A.produce_block();
-   print("b4", b4);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));    // b4 claims a strong QC on b3
-   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // b4 makes B2 final
-   pending = A.head_pending_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(pending->generation, p2);        // b4 has new pending finalizer policy p2
-
-   auto b5 = A.produce_block();
-   print("b5", b5);
-   BOOST_REQUIRE(!qc(b5));                              // b5 doesn't include a new qc (duplicates b4's strong claim on b3)
-   BOOST_REQUIRE_EQUAL(A.lib_number, b2->block_num());  // finality unchanged stays at b2
-   pending = A.head_pending_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(pending->generation, p2);        // b5 still has new pending finalizer policy p2
-                                                        // since finality did not advance
-
-   set_partition({});                                   // remove partition so A will receive votes on b4 and b5
-
-   push_block(0, b4);                                   // other nodes receive b4 and vote on it, so A forms a qc on b4
-   auto b6 = A.produce_block();
-   print("b6", b6);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b4));    // b6 claims a strong QC on b4
-   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // b6 makes b3 final.
-
-   auto active = A.head_active_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b6 has active finalizer policy p2
-   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
-
-   // At this point, in the Spring 1.0 implementation, policy  P2 is lost from the block_header_state
-   // of B6, which is the source of the problem
-
-   auto b6_snapshot = A.snapshot();
-
-   push_block(0, b5);
-
-   auto b7 = A.produce_block();
+   auto b7 = D.produce_block();                         // D produces a block. It still has not seen b4 and b5.
    print("b7", b7);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b5));    // b7 claims a strong QC on b5
-   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());  // lib is still b3
-
-   active = A.head_active_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b7 has active finalizer policy p2
-   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
-
-   push_block(0, b6);                                   // push b6 again as it was unlinkable until the other
-                                                        // nodes received b5
-
-   auto b8 = A.produce_block();
-   print("b8", b8);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), strong_qc(b6));    // b8 claims a strong QC on b6
-   BOOST_REQUIRE_EQUAL(A.lib_number, b4->block_num());  // b8 makes B4 final
-
-   active = A.head_active_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b8 has active finalizer policy p2
-   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
-
-   push_block(0, b7);                                   // push b7 and b8 as they were unlinkable until the other
-   push_block(0, b8);                                   // nodes received b6
-
-   auto b9 = A.produce_block();
-   print("b9", b9);
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
-   BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
-
-   active = A.head_active_finalizer_policy();
-   BOOST_REQUIRE_EQUAL(active->generation, p2);         // b9 has active finalizer policy p2
-   BOOST_REQUIRE(!A.head_pending_finalizer_policy());   // and no pending finalizer policy.
-
-   // restart from b6 snapshot.
-   // -------------------------
-   A.close();
-   A.remove_state();
-   A.remove_reversible_data_and_blocks_log();
-
-   set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
-   A.open_from_snapshot(b6_snapshot);
-
-   A.push_block(b7);                                    // when pushing b7, if we try to access any block state
-   A.push_block(b8);                                    // before b6, we will fail with a `verify_qc_claim`
-   A.push_block(b9);                                    // exception, which is what will happens until issue
-                                                        // #694 is addressed.
-#endif
+   BOOST_REQUIRE(!!qc(b7));                             // b7 should include a QC
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), weak_qc(b6));      // b7 claims a weak QC on b6
 
 } FC_LOG_AND_RETHROW()
 
