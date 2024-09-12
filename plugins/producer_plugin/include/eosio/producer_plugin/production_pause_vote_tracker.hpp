@@ -185,7 +185,7 @@ public:
       switch (check) {
       case pause_check::both:
          process_vote_timing(latest_other_vote, status.other_vote);
-         // no break
+         [[fallthrough]];
       case pause_check::producer:
          process_vote_timing(latest_producer_vote, status.producer_vote);
          break;
