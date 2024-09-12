@@ -91,12 +91,9 @@ namespace eosio { namespace chain {
       log_and_drop_future() = default;
       explicit log_and_drop_future(std::future<Response>&& f) : fut(f) {};
 
+      // Only call on default constructed log_and_drop_future.
       log_and_drop_future& operator=(std::future<Response>&& f) {
-         if (fut.valid()) {
-            // Normally would not expect a log_and_drop_future to be reused, only assigned after default construction.
-            // However, do the right thing and clean up existing future.
-            auto tmp{std::move(fut_exit_scope_handler)};
-         }
+         assert(!fut.valid());
          fut = std::move(f);
          return *this;
       }
