@@ -86,6 +86,46 @@ struct blog_replay_fixture {
       block_log new_blog(blocks_dir, config.blog);
       new_blog.append(qc_block, qc_block->calculate_id());
    }
+
+   void corrupt_finality_extension_in_block_log(uint32_t new_qc_claim_block_num) {
+      controller::config config = chain.get_config();
+      auto blocks_dir = chain.get_config().blocks_dir;
+
+      block_log blog(blocks_dir, chain.get_config().blog);
+
+      // retrieve the last block in block log
+      uint32_t  last_block_num = blog.head()->block_num();
+      signed_block_ptr last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
+      BOOST_TEST(last_block);
+
+      // remove last block from block log
+      BOOST_REQUIRE_NO_THROW(block_log::trim_blocklog_end(blocks_dir, last_block_num-1));
+      BOOST_REQUIRE_NO_THROW(block_log::smoke_test(blocks_dir, 1));
+
+      // retrieve finality extension
+      std::optional<block_header_extension> head_fin_ext = last_block->extract_header_extension(finality_extension::extension_id());
+      BOOST_TEST(!!head_fin_ext);
+
+      // remove finality extension from extensions
+      auto& exts = last_block->header_extensions;
+      std::pair<uint16_t,vector<char>> target{finality_extension::extension_id(), {}};
+      auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
+         return ext1.first < ext2.first;
+      });
+      BOOST_REQUIRE(itr != exts.end());
+      exts.erase(itr);
+
+      // intentionally corrupt finality extension by changing its block_num
+      auto& f_ext = std::get<finality_extension>(*head_fin_ext);
+      f_ext.qc_claim.block_num = new_qc_claim_block_num;
+
+      // add the corrupted finality extension back to last block
+      emplace_extension(exts, finality_extension::extension_id(), fc::raw::pack(f_ext));
+
+      // add the corrupted block to block log
+      block_log new_blog(blocks_dir, config.blog);
+      new_blog.append(last_block, last_block->calculate_id());
+   }
 };
 
 // Test replay with invalid QC claim -- claimed block number goes backward
@@ -93,47 +133,16 @@ BOOST_FIXTURE_TEST_CASE(invalid_qc, blog_replay_fixture) try {
    controller::config config = chain.get_config();
    auto blocks_dir = chain.get_config().blocks_dir;
 
+   // set claimed block number backward
+   corrupt_finality_extension_in_block_log(0);
+
+   // retrieve genesis
    block_log blog(blocks_dir, chain.get_config().blog);
-
-   // retrieve the last block in block log
-   uint32_t  last_block_num = blog.head()->block_num();
-   signed_block_ptr last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
-   BOOST_TEST(last_block);
-
-   // remove last block from block log
-   BOOST_REQUIRE_NO_THROW(block_log::trim_blocklog_end(blocks_dir, last_block_num-1));
-   BOOST_REQUIRE_NO_THROW(block_log::smoke_test(blocks_dir, 1));
-
-   // retrieve finality extension
-   std::optional<block_header_extension> head_fin_ext = last_block->extract_header_extension(finality_extension::extension_id());
-   BOOST_TEST(!!head_fin_ext);
-
-   // remove finality extension from extensions
-   auto& exts = last_block->header_extensions; 
-   std::pair<uint16_t,vector<char>> target{finality_extension::extension_id(), {}};
-   auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
-      return ext1.first < ext2.first;
-   });
-   BOOST_REQUIRE(itr != exts.end());
-   exts.erase(itr);
-
-   // intentionally corrupt finality extension by making its claimed QC
-   // block number to be 0 so it is smaller than previous block's claimed QC block number
-   auto& f_ext = std::get<finality_extension>(*head_fin_ext);
-   f_ext.qc_claim.block_num = 0;
-
-   // add the corrupted finality extension back to last block
-   emplace_extension(exts, finality_extension::extension_id(), fc::raw::pack(f_ext));
-
-   // add the corrupted block to block log
-   block_log new_blog(blocks_dir, config.blog);
-   new_blog.append(last_block, last_block->calculate_id());
+   auto genesis = block_log::extract_genesis_state(blocks_dir);
+   BOOST_REQUIRE(genesis);
 
    // remove the state files to make sure we are starting from block log
    remove_existing_states(config.state_dir);
-
-   auto genesis = block_log::extract_genesis_state(blocks_dir); 
-   BOOST_REQUIRE(genesis);
 
    try {
       eosio::testing::tester replay_chain(config, *genesis); // // start replay
@@ -154,43 +163,16 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, blog_replay_fixture) try {
 
    // retrieve the last block in block log
    uint32_t  last_block_num = blog.head()->block_num();
-   signed_block_ptr last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
-   BOOST_TEST(last_block);
 
-   // remove last block from block log
-   BOOST_REQUIRE_NO_THROW(block_log::trim_blocklog_end(blocks_dir, last_block_num-1));
-   BOOST_REQUIRE_NO_THROW(block_log::smoke_test(blocks_dir, 1));
+   // set claimed block number to a non-existent number
+   corrupt_finality_extension_in_block_log(last_block_num + 1);
 
-   // retrieve finality extension
-   std::optional<block_header_extension> head_fin_ext = last_block->extract_header_extension(finality_extension::extension_id());
-   BOOST_TEST(!!head_fin_ext);
-
-   // remove finality extension from extensions
-   auto& exts = last_block->header_extensions; 
-   std::pair<uint16_t,vector<char>> target{finality_extension::extension_id(), {}};
-   auto itr = std::lower_bound(exts.begin(), exts.end(), target, [](const auto& ext1, const auto& ext2){
-      return ext1.first < ext2.first;
-   });
-   BOOST_REQUIRE(itr != exts.end());
-   exts.erase(itr);
-
-   // intentionally corrupt finality extension by making its claimed QC
-   // block number to be a non-existent block number
-   auto& f_ext = std::get<finality_extension>(*head_fin_ext);
-   f_ext.qc_claim.block_num = last_block_num + 1; // `last_block_num + 1` does not exist
-
-   // add the corrupted finality extension back to last block
-   emplace_extension(exts, finality_extension::extension_id(), fc::raw::pack(f_ext));
-
-   // add the corrupted block to block log
-   block_log new_blog(blocks_dir, config.blog);
-   new_blog.append(last_block, last_block->calculate_id());
+   // retrieve genesis
+   auto genesis = block_log::extract_genesis_state(blocks_dir); 
+   BOOST_REQUIRE(genesis);
 
    // remove the state files to make sure we are starting from block log
    remove_existing_states(config.state_dir);
-
-   auto genesis = block_log::extract_genesis_state(blocks_dir); 
-   BOOST_REQUIRE(genesis);
 
    try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
