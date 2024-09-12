@@ -3901,7 +3901,7 @@ struct controller_impl {
       // extract current block extension and previous header extension
       auto block_exts = b->validate_and_extract_extensions();
       const finality_extension* prev_finality_ext = prev.header_extension<finality_extension>();
-      std::optional<block_header_extension> finality_ext  = b->extract_header_extension(f_ext_id);
+      std::optional<block_header_extension> finality_ext = b->extract_header_extension(f_ext_id);
 
       const auto qc_ext_itr  = block_exts.find(qc_ext_id);
       bool qc_extension_present = (qc_ext_itr != block_exts.end());
@@ -4101,10 +4101,12 @@ struct controller_impl {
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
       std::optional<qc_t> qc = verify_basic_block_invariants(id, b, prev);
-
+      log_and_drop_future<void> verify_qc_future;
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            verify_qc(prev, *qc);
+            verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &prev] {
+               verify_qc(prev, *qc);
+            });
          }
       }
 
@@ -4128,10 +4130,18 @@ struct controller_impl {
       EOS_ASSERT( id == bsp->id(), block_validate_exception,
                   "provided id ${id} does not match block id ${bid}", ("id", id)("bid", bsp->id()) );
 
+
       if constexpr (is_proper_savanna_block) {
+         assert(!!qc == verify_qc_future.valid());
+         if (qc) {
+            verify_qc_future.get();
+         }
          integrate_received_qc_to_block(bsp); // Save the received QC as soon as possible, no matter whether the block itself is valid or not
          consider_voting(bsp, use_thread_pool_t::no);
+      } else {
+         assert(!verify_qc_future.valid());
       }
+
 
       if (!should_terminate(bsp->block_num())) {
          forkdb.add(bsp, ignore_duplicate_t::yes);
