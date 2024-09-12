@@ -190,6 +190,43 @@ void my_finalizers_t::maybe_update_fsi(const block_state_ptr& bsp, const qc_t& r
    }
 }
 
+
+// -------------------------------------------------------------------------------------------------
+//                                 Finalizer Safety File i/o
+// -------------------------------------------------------------------------------------------------
+
+// pack/unpack block_ref (omitting generation numbers)
+// ---------------------------------------------------
+template<typename Stream>
+void pack_v0(Stream& s, const block_ref& ref)  {
+   fc::raw::pack(s, ref.block_id);
+   fc::raw::pack(s, ref.timestamp);
+   fc::raw::pack(s, ref.finality_digest);
+}
+
+template<typename Stream>
+void unpack_v0(Stream& s, block_ref& ref) {
+   fc::raw::unpack(s, ref.block_id);
+   fc::raw::unpack(s, ref.timestamp);
+   fc::raw::unpack(s, ref.finality_digest);
+}
+
+// pack/unpack v1 fsi (last_vote and lock omitting generation numbers)
+// -------------------------------------------------------------------
+template<typename Stream>
+void pack_v1(Stream& s, const finalizer_safety_information& fsi) {
+   pack_v0(s, fsi.last_vote);
+   pack_v0(s, fsi.lock);
+   fc::raw::pack(s, fsi.other_branch_latest_time);
+}
+
+template<typename Stream>
+void unpack_v1(Stream& s, finalizer_safety_information& fsi) {
+   unpack_v0(s, fsi.last_vote);
+   unpack_v0(s, fsi.lock);
+   fc::raw::unpack(s, fsi.other_branch_latest_time);
+}
+
 bool my_finalizers_t::save_finalizer_safety_info() const {
    try {
       if (!cfile_ds.is_open()) {
@@ -210,7 +247,7 @@ bool my_finalizers_t::save_finalizer_safety_info() const {
          // finalizers not configured anymore.
          for (const auto& [pub_key, fsi] : inactive_safety_info) {
             fc::raw::pack(persist_file, pub_key);
-            fc::raw::pack(persist_file, fsi);
+            pack_v1(persist_file, fsi);
          }
          inactive_safety_info_written_pos = persist_file.tellp();
          inactive_crc32 = persist_file.crc();
@@ -221,7 +258,7 @@ bool my_finalizers_t::save_finalizer_safety_info() const {
       // active finalizers
       for (const auto& [pub_key, f] : finalizers) {
          fc::raw::pack(persist_file, pub_key);
-         fc::raw::pack(persist_file, f.fsi);
+         pack_v1(persist_file, f.fsi);
       }
 
       uint32_t cs = persist_file.checksum();
@@ -233,29 +270,25 @@ bool my_finalizers_t::save_finalizer_safety_info() const {
    return false;
 }
 
-// ----------------------------------------------------------------------------------------
-
-// Corresponds to safety_file_version_0
-struct finalizer_safety_information_v0 {
-   block_ref last_vote;
-   block_ref lock;
-   bool      votes_forked_since_latest_strong_vote {false};
-};
 
 void my_finalizers_t::load_finalizer_safety_info_v0(fsi_map& res) {
    uint64_t num_finalizers {0};
    fc::raw::unpack(persist_file, num_finalizers);
    for (size_t i=0; i<num_finalizers; ++i) {
       bls_public_key pubkey;
-      finalizer_safety_information_v0 fsi_v0;
       fc::raw::unpack(persist_file, pubkey);
-      fc::raw::unpack(persist_file, fsi_v0);
-      my_finalizers_t::fsi_t fsi{
-         .last_vote = fsi_v0.last_vote,
-         .lock = fsi_v0.lock,
-         .other_branch_latest_time = fsi_v0.votes_forked_since_latest_strong_vote ? fsi_v0.last_vote.timestamp
-                                                                                  : block_timestamp_type{}
-      };
+
+      my_finalizers_t::fsi_t fsi;
+
+      unpack_v0(persist_file, fsi.last_vote);
+      unpack_v0(persist_file, fsi.lock);
+
+      // special processing for v0's last member, which was this bool as last member instead of other_branch_latest_time
+      bool votes_forked_since_latest_strong_vote;
+      fc::raw::unpack(persist_file, votes_forked_since_latest_strong_vote);
+      fsi.other_branch_latest_time =
+         votes_forked_since_latest_strong_vote ? fsi.last_vote.timestamp : block_timestamp_type{};
+
       res.emplace(pubkey, fsi);
    }
 }
@@ -267,7 +300,7 @@ void my_finalizers_t::load_finalizer_safety_info_v1(fsi_map& res) {
       bls_public_key pubkey;
       my_finalizers_t::fsi_t fsi;
       fc::raw::unpack(persist_file, pubkey);
-      fc::raw::unpack(persist_file, fsi);
+      unpack_v1(persist_file, fsi);
       res.emplace(pubkey, fsi);
    }
 }
@@ -344,6 +377,11 @@ my_finalizers_t::fsi_map my_finalizers_t::load_finalizer_safety_info() {
    return res;
 }
 
+// -------------------------------------------------------------------------------------------------
+//                          End of Finalizer Safety File i/o
+// -------------------------------------------------------------------------------------------------
+
+
 // ----------------------------------------------------------------------------------------
 void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finalizer_keys) {
    if (finalizer_keys.empty())
@@ -398,5 +436,3 @@ void my_finalizers_t::set_default_safety_information(const fsi_t& fsi) {
 }
 
 } // namespace eosio::chain
-
-FC_REFLECT(eosio::chain::finalizer_safety_information_v0, (last_vote)(lock)(votes_forked_since_latest_strong_vote));

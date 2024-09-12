@@ -33,7 +33,8 @@
           }
         ],
         "peers": [
-          "bios"
+          "bios",
+          "testnet_01"
         ],
         "producers": [
           "defproducera"
@@ -44,16 +45,14 @@
         "name": "testnet_01",
         "keys": [
           {
-            "pubkey": "EOS8XH2gKxsef9zxmMHm4vaSvxQUhg7W4GC3nK2KSRxyYrNG5gZFS",
-            "privkey": "5JcoRRhDcgm51dkBrRTmErceTqrYhrq22UnmUjTZToMpH91B9N1",
-            "blspubkey":"PUB_BLS_Wf_O_QeyVhekDXS5q3qBxTyj_qxSrX_uiCY4z8ClpW0X2jrAVgAVHOQ9IR2H40QTWveD8QIGhhSbmSFPa0zFbs5k3yfnjfuuwpA7T1O13_LSdtxT19ehYiE4chZX6SUMJ09JFA",
-            "blsprivkey":"PVT_BLS_1ZLWim0k80ssXswSZp1T3ydHO9U3gLnKKlEBIDy8927XDLLj",
-            "blspop":"SIG_BLS_EL09aI3w-qCgarLM2Z5-T6sisSHBN0J4vMZxtGQklkOcAxgnCaPPXe0roxY4W0gVe2y6T01YrklmT_qZu2tAwqiNrVJcScY8QKvRSeczGBBab1MgnHvaAOuf6bA4JPAELIu2iPWfsS6-oLyLbNP5xtZpMXPHu3yaSJssXNOb5rcVs1KXaIUEagJeAlBBQEcKmFWfeAsJ_R8JDw4i9gSNmROzUjm6LVBpvB7vrnPDPFRA0BQ19H4FED6PtuFPShwJGVz4dg"
+            "pubkey": "EOS6Tkpf8kcDfa32WA9B4nTcEJ64ZdDMSNioDcaL6rzdMwnpzaWJB",
+            "privkey": "5KkQbdxFHr8Pg1N3DEMDdU7emFgUTwQvh99FDJrodFhUbbsAtQT"
           }
         ],
         "peers": [
           "bios",
-          "testnet_00"
+          "testnet_00",
+          "testnet_02"
         ],
         "producers": [
           "defproducerb"
@@ -62,23 +61,6 @@
       },
       "testnet_02":{
         "name": "testnet_02",
-        "keys": [
-          {
-            "pubkey": "EOS6Tkpf8kcDfa32WA9B4nTcEJ64ZdDMSNioDcaL6rzdMwnpzaWJB",
-            "privkey": "5KkQbdxFHr8Pg1N3DEMDdU7emFgUTwQvh99FDJrodFhUbbsAtQT"
-          }
-        ],
-        "peers": [
-          "bios",
-          "testnet_03"
-        ],
-        "producers": [
-          "defproducerc"
-        ],
-        "dont_start": false
-      },
-      "testnet_03":{
-        "name": "testnet_03",
         "keys": [
           {
             "pubkey": "EOS52ntDHqA2qj4xVo7KmxdezMRhvvBqpZBuKYJCsgihisxmywpAx",
@@ -90,26 +72,7 @@
         ],
         "peers": [
           "bios",
-          "testnet_02"
-        ],
-        "producers": [
-        ],
-        "dont_start": false
-      },
-      "testnet_04":{
-        "name": "testnet_04",
-        "keys": [
-          {
-            "pubkey":"EOS7K5pQCk22ojetRdyumrqp6nJX6eiQiTWWcGkZAMGhoBxgcsxhK",
-            "privkey":"5K3h9XiAmrx9EuqD8CRxHgQwEVDaWpqrhrnpdvwHtVzwJFMhNmE"
-          }
-        ],
-        "peers": [
-          "bios",
-          "testnet_00",
-          "testnet_01",
-          "testnet_02",
-          "testnet_03"
+          "testnet_01"
         ],
         "producers": [
         ],

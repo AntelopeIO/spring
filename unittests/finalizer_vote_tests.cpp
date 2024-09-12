@@ -76,7 +76,8 @@ struct proposal_t {
 
    explicit operator block_ref() const {
       auto id = calculate_id();
-      return block_ref{id, timestamp(), id}; // reuse id for the finality_digest which is not used in this test
+      // we use bogus generation numbers in `block_ref` constructor, but these are unused in the test
+      return block_ref{id, timestamp(), id, 1, 0}; // reuse id for the finality_digest which is not used in this test
    }
 };
 
@@ -93,14 +94,14 @@ bsp make_bsp(const proposal_t& p, const bsp& previous, finalizer_policy_ptr finp
       // special case of genesis block
       auto id = calc_id(fc::sha256::hash("genesis"), 0);
       auto tstamp = block_timestamp_type{0};
-      bhs new_bhs { id, block_header{tstamp}, {}, finality_core::create_core_for_genesis_block(id, tstamp),
+      bhs new_bhs { {}, id, block_header{tstamp}, {}, finality_core::create_core_for_genesis_block(id, tstamp),
                     std::move(finpol), std::make_shared<proposer_policy>() };
       return makeit(std::move(new_bhs));
    }
 
    assert(claim);
    block_ref ref = previous ? previous->make_block_ref() : block_ref{};
-   bhs new_bhs { p.calculate_id(), block_header{p.block_timestamp, {}, {}, previous->id()}, {}, previous->core.next(ref, *claim),
+   bhs new_bhs { {}, p.calculate_id(), block_header{p.block_timestamp, {}, {}, previous->id()}, {}, previous->core.next(ref, *claim),
       std::move(finpol), std::make_shared<proposer_policy>() }; // proposer_policy needed for make_block_ref
    return makeit(std::move(new_bhs));
 }
@@ -142,7 +143,7 @@ struct simulator_t {
       bsp_vec.push_back(genesis);
       forkdb.reset_root(genesis);
 
-      block_ref genesis_ref(genesis->id(), genesis->timestamp(), genesis->id());
+      block_ref genesis_ref(genesis->id(), genesis->timestamp(), genesis->id(), 1, 0);
       my_finalizer.fsi = fsi_t{genesis_ref, genesis_ref, {}};
    }
 
