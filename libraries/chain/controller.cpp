@@ -3954,7 +3954,7 @@ struct controller_impl {
 
             // if previous block's header extension has the same claim, just return
             // (previous block already validated the claim)
-            return std::optional<qc_t>{};
+            return {};
          }
 
          // new claimed QC must be stronger than previous if the claimed block number is the same
@@ -4086,7 +4086,7 @@ struct controller_impl {
          }
       }
 
-      return std::optional<qc_t>{};
+      return {};
    }
 
    // This verifies BLS signatures and is expensive.
@@ -4132,7 +4132,7 @@ struct controller_impl {
 
 
       if constexpr (is_proper_savanna_block) {
-         assert((qc && verify_qc_future.valid()) || (!qc && !verify_qc_future.valid()));
+         assert(!!qc == verify_qc_future.valid());
          if (qc) {
             verify_qc_future.get();
          }
