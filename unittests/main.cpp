@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain/finality/vote_message.hpp>
 
 #include <fc/log/logger.hpp>
 
@@ -19,6 +20,8 @@ static bool is_verbose = false;
 void setup_test_logging() {
    if(is_verbose) {
       fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
+      eosio::chain::vote_logger.set_log_level(fc::log_level::debug);
+      fc::logger::update(eosio::chain::vote_logger.get_name(), eosio::chain::vote_logger);
    } else {
       fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::off);
    }
