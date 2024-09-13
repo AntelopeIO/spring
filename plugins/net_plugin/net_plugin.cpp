@@ -2194,8 +2194,11 @@ namespace eosio {
          // might be in irreversible mode
          controller& cc = my_impl->chain_plug->chain();
          auto calculated_lib = cc.fork_db_head().irreversible_blocknum();
-         if (calculated_lib <= my_impl->get_chain_lib_num())
+         if (calculated_lib <= my_impl->get_chain_lib_num()) {
+            fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, forkdb size ${s}",
+                    ("sp", sync_fetch_span)("l", calculated_lib)("s", cc.fork_db_size()));
             return true;
+         }
       }
 
       fc_dlog(logger, "sync ahead not allowed ${bn} < sync_last_requested_num ${lrn}",
