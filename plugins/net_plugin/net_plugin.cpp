@@ -2257,14 +2257,14 @@ namespace eosio {
    // called from connection strand
    void sync_manager::sync_timeout(const connection_ptr& c, const boost::system::error_code& ec) {
       if( !ec ) {
-         peer_dlog(c, "sync timeout");
+         peer_dlog(c, "sync timed out");
          sync_reassign_fetch( c );
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( c, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
       }
       --sync_timers_active;
-      peer_dlog(c, "sync timeout, active_timers ${t}", ("t", sync_timers_active.load()));
+      peer_dlog(c, "sync active_timers ${t}", ("t", sync_timers_active.load()));
    }
 
    // called from connection strand
