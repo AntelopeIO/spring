@@ -2182,6 +2182,7 @@ namespace eosio {
               sync_next_expected_num < sync_last_requested_num );
    }
 
+   // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
       if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
@@ -2189,7 +2190,16 @@ namespace eosio {
          uint32_t head = my_impl->get_chain_head_num();
          if (blk_num < head + sync_fetch_span)
             return true;
+
+         // might be in irreversible mode
+         controller& cc = my_impl->chain_plug->chain();
+         auto calculated_lib = cc.fork_db_head().irreversible_blocknum();
+         if (calculated_lib <= my_impl->get_chain_lib_num())
+            return true;
       }
+
+      fc_dlog(logger, "sync ahead not allowed ${bn} < sync_last_requested_num ${lrn}",
+              ("bn", blk_num)("lrn", sync_last_requested_num));
       return false;
    }
 
@@ -2208,7 +2218,10 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup || !sync_recently_active()) {
+      stages current_sync_state = sync_state;
+      if( current_sync_state != lib_catchup || !sync_recently_active()) {
+         peer_dlog(c, "requesting next chuck, set to lib_catchup and request_next_chunk, sync_state ${s}, sync_next_expected_num ${nen}",
+                   ("s", stage_str(current_sync_state))("nen", sync_next_expected_num));
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
@@ -2577,14 +2590,15 @@ namespace eosio {
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
-                  // Did not request blocks ahead, likely because too far ahead of head
-                  // Do not restrict sync_fetch_span as we want max-reversible-blocks to shut down the node for applied blocks
-                  fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                          ("bn", blk_num)("nen", sync_next_expected_num)
-                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                  request_next_chunk();
+                  if (is_sync_request_ahead_allowed(blk_num)) {
+                     // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
+                     fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("bn", blk_num)("nen", sync_next_expected_num)
+                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                     request_next_chunk();
+                  }
                }
             }
          }
