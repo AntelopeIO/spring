@@ -2187,17 +2187,23 @@ namespace eosio {
       if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
-         uint32_t head = my_impl->get_chain_head_num();
-         if (blk_num < head + sync_fetch_span)
+         uint32_t head_num = my_impl->get_chain_head_num();
+         if (blk_num < head_num + sync_fetch_span)
             return true;
 
          // might be in irreversible mode
          controller& cc = my_impl->chain_plug->chain();
-         auto calculated_lib = cc.fork_db_head().irreversible_blocknum();
-         if (calculated_lib <= my_impl->get_chain_lib_num()) {
-            fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, forkdb size ${s}",
-                    ("sp", sync_fetch_span)("l", calculated_lib)("s", cc.fork_db_size()));
-            return true;
+         if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+            // chain head == lib == fork_db_root in irreversible
+            auto forkdb_head = cc.fork_db_head();
+            if (forkdb_head.block_num() - head_num >= sync_fetch_span) {
+               auto calculated_lib = forkdb_head.irreversible_blocknum();
+               if (calculated_lib <= head_num) {
+                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                          ("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+                  return true;
+               }
+            }
          }
       }
 
