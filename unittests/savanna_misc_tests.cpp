@@ -711,7 +711,9 @@ Vote:                      Strong  Strong   Strong  Weak   Strong  Strong  Stron
     - Node D is isolated and has not seen B3, B4, and B5
     - it received B3 via push_block, (so it can make it its head and produce a child of B3), but has not
       received votes on b3 (only on b2), so b6 includes a strong QC on b2.
-    - when b6 is pushed to A, B and C, qc validation should fail.
+    - when b6 is pushed to A, B and C, qc validation would fail in Spring 1.0.0 because the fork_db
+      lookup, but succeeds in Spring 1.0.1 as only the finality core of the claiming block is needed
+      to validate the QC.
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -769,10 +771,20 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    BOOST_REQUIRE(!!qc(b6));                             // b6 should include a QC
    BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b2));    // b6 claims a strong QC on b2
 
+   // ---------------------------------------------------------------------------------------------------
+   // After voting on `b5` (which makes `b3` final), the finalizers who voted on `b5` are locked on `b4`,
+   // and therefore cannot vote on `b6`:
+   //
+   // - liveness check fails because: `b6' s core.latest_qc_block_timestamp() <  fsi.lock.timestamp`
+   //   because `b2 timestamp < b4 timestamp`.
+   // - safety check fails because `b6` does not extend `b4`.
+   //
+   // As a result, we don't expect the next block (b7) to include a QC
+   // ---------------------------------------------------------------------------------------------------
+
    auto b7 = D.produce_block();                         // D produces a block. It still has not seen b4 and b5.
    print("b7", b7);
-   BOOST_REQUIRE(!!qc(b7));                             // b7 should include a QC
-   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), weak_qc(b6));      // b7 claims a weak QC on b6
+   BOOST_REQUIRE(!qc(b7));                              // b7 should include a QC
 
 } FC_LOG_AND_RETHROW()
 
