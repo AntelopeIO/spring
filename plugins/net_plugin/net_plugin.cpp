@@ -1007,7 +1007,7 @@ namespace eosio {
       bool connected() const;
       bool closed() const; // socket is not open or is closed or closing, thread safe
       bool current() const;
-      bool should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num) const;
+      bool should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num, uint32_t sync_fetch_span) const;
 
       /// @param reconnect true if we should try and reconnect immediately after close
       /// @param shutdown true only if plugin is shutting down
@@ -1429,7 +1429,7 @@ namespace eosio {
    }
 
    // thread safe
-   bool connection::should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num) const {
+   bool connection::should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num, uint32_t sync_fetch_span) const {
       fc_dlog(logger, "id: ${id} blocks conn: ${t} current: ${c} socket_open: ${so} syncing from us: ${s} state: ${con} peer_start_block: ${sb} peer_fhead: ${h} ping: ${p}us no_retry: ${g}",
               ("id", connection_id)("t", is_blocks_connection())
               ("c", current())("so", socket_is_open())("s", peer_syncing_from_us.load())("con", state_str(state()))
@@ -1437,7 +1437,8 @@ namespace eosio {
       if (is_blocks_connection() && current()) {
          if (no_retry == go_away_reason::no_reason) {
             if (peer_start_block_num <= sync_next_expected_num) { // has blocks we want
-               if (peer_fork_head_block_num >= sync_known_lib_num) { // is in sync
+               auto needed_end = std::min(sync_next_expected_num + sync_fetch_span, sync_known_lib_num);
+               if (peer_fork_head_block_num >= needed_end) { // has lib blocks
                   return true;
                }
             }
@@ -2060,8 +2061,9 @@ namespace eosio {
       deque<connection_ptr> conns;
       my_impl->connections.for_each_block_connection([sync_next_expected_num = sync_next_expected_num,
                                                       sync_known_lib_num = sync_known_lib_num,
+                                                      sync_fetch_span = sync_fetch_span,
                                                       &conns](const auto& c) {
-         if (c->should_sync_from(sync_next_expected_num, sync_known_lib_num)) {
+         if (c->should_sync_from(sync_next_expected_num, sync_known_lib_num, sync_fetch_span)) {
             conns.push_back(c);
          }
       });
