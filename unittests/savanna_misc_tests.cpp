@@ -719,7 +719,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    using namespace savanna_cluster;
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
-   _debug_mode = true;
+   // _debug_mode = true;
 
    auto b0 = A.produce_block();
    print("b0", b0);
