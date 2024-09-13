@@ -2206,11 +2206,15 @@ namespace eosio {
                   return true;
                }
             }
+            fc_dlog(logger, "sync ahead not allowed. head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${s}",
+                    ("h", head_num)("fh", forkdb_head.block_num())("fl", forkdb_head.irreversible_blocknum())
+                    ("s", sync_fetch_span));
+            return false;
          }
       }
 
-      fc_dlog(logger, "sync ahead not allowed ${bn} < sync_last_requested_num ${lrn}",
-              ("bn", blk_num)("lrn", sync_last_requested_num));
+      fc_dlog(logger, "sync ahead not allowed. block ${bn}, sync_last_requested_num ${lrn}, head ${h}, sync-fetch-span ${s}",
+              ("bn", blk_num)("lrn", sync_last_requested_num)("s", sync_fetch_span));
       return false;
    }
 
