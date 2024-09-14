@@ -2198,7 +2198,7 @@ namespace eosio {
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
             // chain head == lib == fork_db_root in irreversible
             auto forkdb_head = cc.fork_db_head();
-            if (forkdb_head.block_num() - head_num >= sync_fetch_span) {
+            if (forkdb_head.block_num() > head_num && forkdb_head.block_num() - head_num >= sync_fetch_span) {
                auto calculated_lib = forkdb_head.irreversible_blocknum();
                if (calculated_lib <= head_num) {
                   fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
