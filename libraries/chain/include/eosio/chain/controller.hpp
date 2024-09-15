@@ -320,6 +320,11 @@ namespace eosio::chain {
          signed_block_ptr fetch_block_by_number( uint32_t block_num )const;
          // thread-safe
          signed_block_ptr fetch_block_by_id( const block_id_type& id )const;
+         // thread-safe, retrieves signed block in serialized form, used by net_plugin
+         // to avoid deserialization and serialization
+         vector<char> fetch_serialized_block_by_number( uint32_t block_num )const;
+         // thread-safe
+         vector<char> fetch_serialized_block_by_id( const block_id_type& id )const;
          // thread-safe
          bool block_exists(const block_id_type& id) const;
          bool validated_block_exists(const block_id_type& id) const;

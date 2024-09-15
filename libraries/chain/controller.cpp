@@ -5513,6 +5513,13 @@ signed_block_ptr controller::fetch_block_by_id( const block_id_type& id )const {
    return signed_block_ptr();
 }
 
+std::vector<char> controller::fetch_serialized_block_by_id( const block_id_type& id )const { try {
+   auto sb_ptr = my->fork_db_fetch_block_by_id(id);
+   if( sb_ptr ) return fc::raw::pack(*sb_ptr);
+
+   return my->blog.read_serialized_block_by_id(id);
+} FC_CAPTURE_AND_RETHROW( (id) ) }
+
 bool controller::block_exists(const block_id_type& id) const {
    bool exists = my->fork_db_block_exists(id);
    if( exists ) return true;
@@ -5540,6 +5547,14 @@ signed_block_ptr controller::fetch_block_by_number( uint32_t block_num )const  {
       return b;
 
    return my->blog.read_block_by_num(block_num);
+} FC_CAPTURE_AND_RETHROW( (block_num) ) }
+
+vector<char> controller::fetch_serialized_block_by_number( uint32_t block_num )const  { try {
+   if (signed_block_ptr b = my->fork_db_fetch_block_on_best_branch_by_num(block_num)) {
+      return fc::raw::pack(*b);
+   }
+
+   return my->blog.read_serialized_block_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
 std::optional<signed_block_header> controller::fetch_block_header_by_number( uint32_t block_num )const  { try {
