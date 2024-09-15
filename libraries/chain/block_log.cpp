@@ -485,6 +485,7 @@ namespace eosio { namespace chain {
          virtual void     flush()                                                             = 0;
 
          virtual signed_block_ptr                   read_block_by_num(uint32_t block_num)        = 0;
+         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num)        = 0;
          virtual std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) = 0;
 
          virtual uint32_t version() const = 0;
@@ -518,6 +519,7 @@ namespace eosio { namespace chain {
          void flush() final {}
 
          signed_block_ptr read_block_by_num(uint32_t block_num) final { return {}; };
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final { return {}; };
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) final { return {}; };
 
          uint32_t         version() const final { return 0; }
@@ -611,6 +613,54 @@ namespace eosio { namespace chain {
                   return read_block(block_file, block_num);
                }
                return retry_read_block_by_num(block_num);
+            }
+            FC_LOG_AND_RETHROW()
+         }
+
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
+            try {
+               uint64_t pos = get_block_pos(block_num);
+
+               if (pos == block_log::npos || !head) {
+                  // Rare case. No need to write special code for it.
+                  // Just use the regular retry_read_block_by_num and then serialize.
+                  return fc::raw::pack(*(retry_read_block_by_num(block_num)));
+               }
+
+               uint64_t block_size     = 0;
+               uint32_t head_block_num = block_header::num_from_id(head->id);
+
+               if (block_num < head_block_num) {
+                  // current block is not the last block in the log file.
+                  uint64_t next_block_pos = get_block_pos(block_num + 1);
+                  if (next_block_pos == block_log::npos) {
+                     wlog("no position found for block ${n}", ("n", block_num + 1));
+                     return {};
+                  }
+                  if (next_block_pos <= pos) {
+                     wlog("next block position ${nn} should be greater than current block position ${cn}", ("nn", next_block_pos)("cn", pos));
+                     return {};
+                  }
+
+                  block_size = next_block_pos - pos - 8;
+               } else if (block_num == head_block_num) {
+                  // current block is the last block in the file.
+                  auto log_size = std::filesystem::file_size(block_file.get_file_path());
+                  block_size = log_size - pos - 8;
+               } else {
+                  wlog("read_serialized_block_by_num block_num LHUANG_ERR > head_block_num");
+                  EOS_ASSERT(false, block_log_exception,
+                             "Current block_num ${n} was greater than head_block_num ${h}", ("n", block_num)("h", head_block_num));
+                  return {};
+               }
+
+               std::vector<char> buff;
+               buff.resize(block_size);
+
+               block_file.seek(pos);
+               block_file.read(buff.data(), block_size);
+
+               return buff;
             }
             FC_LOG_AND_RETHROW()
          }
@@ -1228,6 +1278,11 @@ namespace eosio { namespace chain {
    signed_block_ptr block_log::read_block_by_num(uint32_t block_num) const {
       std::lock_guard g(my->mtx);
       return my->read_block_by_num(block_num);
+   }
+
+   std::vector<char> block_log::read_serialized_block_by_num(uint32_t block_num) const {
+      std::lock_guard g(my->mtx);
+      return my->read_serialized_block_by_num(block_num);
    }
 
    std::optional<signed_block_header> block_log::read_block_header_by_num(uint32_t block_num) const {
