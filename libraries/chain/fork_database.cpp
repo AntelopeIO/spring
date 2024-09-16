@@ -99,7 +99,7 @@ namespace eosio::chain {
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool             block_exists_impl( const block_id_type& id ) const;
-      bool             validated_block_exists_impl( const block_id_type& id ) const;
+      bool             validated_block_exists_impl( const block_id_type& id, uint32_t block_num ) const;
       void             reset_root_impl( const bsp_t& root_bs );
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
@@ -603,15 +603,24 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id) const {
+   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id, uint32_t block_num) const {
       std::lock_guard g( my->mtx );
-      return my->validated_block_exists_impl(id);
+      return my->validated_block_exists_impl(id, block_num);
    }
 
+   // returns true if block `id`, or one of its ancestors >= block_num, is found in fork_db and `is_valid()`
+   // precondition: `id` is already in fork_db, so is a descendent of `root`
+   // ------------------------------------------------------------------------------------------------------
    template<class BSP>
-   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id) const {
-      auto itr = index.find( id );
-      return itr != index.end() && (*itr)->is_valid();
+   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, uint32_t block_num) const {
+      assert(root && (root->id() == id || index.find(id) != index.end()));
+      if (root->block_num() >= block_num)
+         return true;
+      for (auto i = index.find(id); i != index.end() && (*i)->block_num() >= block_num; i = index.find((*i)->previous())) {
+         if ((*i)->is_valid())
+            return true;
+      }
+      return false;
    }
 
 // ------------------ fork_database -------------------------
