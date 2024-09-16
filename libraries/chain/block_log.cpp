@@ -197,6 +197,23 @@ namespace eosio { namespace chain {
          return bh;
       }
 
+      uint32_t get_block_num_at(fc::datastream<fc::cfile>& file, uint64_t position) {
+         // to derive blknum_offset==14 see block_header.hpp and note on disk struct is packed
+         //   block_timestamp_type timestamp;                  //bytes 0:3
+         //   account_name         producer;                   //bytes 4:11
+         //   uint16_t             confirmed;                  //bytes 12:13
+         //   block_id_type        previous;                   //bytes 14:45, low 4 bytes is big endian block number
+         //   of previous block
+
+         file.seek_end(0);
+         EOS_ASSERT(position <= file.tellp(), block_log_exception, "Invalid block position ${position}",
+                    ("position", position));
+
+         int      blknum_offset  = 14;
+         uint32_t prev_block_num = read_data_at<uint32_t>(file, position + blknum_offset);
+         return fc::endian_reverse_u32(prev_block_num) + 1;
+      }
+
       /// Provide the read only view of the blocks.log file
       class block_log_data : public chain::log_data_base<block_log_data> {
          block_log_preamble preamble;
@@ -238,19 +255,7 @@ namespace eosio { namespace chain {
          }
 
          uint32_t block_num_at(uint64_t position) {
-            // to derive blknum_offset==14 see block_header.hpp and note on disk struct is packed
-            //   block_timestamp_type timestamp;                  //bytes 0:3
-            //   account_name         producer;                   //bytes 4:11
-            //   uint16_t             confirmed;                  //bytes 12:13
-            //   block_id_type        previous;                   //bytes 14:45, low 4 bytes is big endian block number
-            //   of previous block
-
-            EOS_ASSERT(position <= size(), block_log_exception, "Invalid block position ${position}",
-                       ("position", position));
-
-            int      blknum_offset  = 14;
-            uint32_t prev_block_num = read_data_at<uint32_t>(file, position + blknum_offset);
-            return fc::endian_reverse_u32(prev_block_num) + 1;
+            return get_block_num_at(file, position);
          }
 
          auto& ro_stream_at(uint64_t pos) {
@@ -474,6 +479,12 @@ namespace eosio { namespace chain {
          };
          std::optional<signed_block_with_id> head;
 
+         enum class verify_block_num_t {
+            yes, // Verify block number when read a serialized block.
+            no   // Does not verify block number when read a serialized block.
+                 // This is for the case where block id is vefified seperately.
+         };
+
          virtual ~block_log_impl() = default;
 
          virtual uint32_t first_block_num()                                                   = 0;
@@ -485,7 +496,7 @@ namespace eosio { namespace chain {
          virtual void     flush()                                                             = 0;
 
          virtual signed_block_ptr                   read_block_by_num(uint32_t block_num)        = 0;
-         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num)        = 0;
+         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) = 0;
          virtual std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) = 0;
 
          virtual uint32_t version() const = 0;
@@ -519,7 +530,7 @@ namespace eosio { namespace chain {
          void flush() final {}
 
          signed_block_ptr read_block_by_num(uint32_t block_num) final { return {}; };
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final { return {}; };
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) final { return {}; };
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) final { return {}; };
 
          uint32_t         version() const final { return 0; }
@@ -617,7 +628,7 @@ namespace eosio { namespace chain {
             FC_LOG_AND_RETHROW()
          }
 
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) final {
             try {
                uint64_t pos = get_block_pos(block_num);
 
@@ -625,6 +636,15 @@ namespace eosio { namespace chain {
                   // Rare case. No need to write special code for it.
                   // Just use the regular retry_read_block_by_num and then serialize.
                   return fc::raw::pack(*(retry_read_block_by_num(block_num)));
+               }
+
+               if (verify_block_num == verify_block_num_t::yes) {
+                  auto bnum = get_block_num_at(block_file, pos);
+                  if (block_num != bnum) {
+                     wlog("Wrong block num was read from block log. expected block_num: ${n}, returned block num: ${bnum}",
+                           ("n", block_num)("bnum", bnum));
+                     return {};
+                  }
                }
 
                uint64_t block_size     = 0;
@@ -648,7 +668,6 @@ namespace eosio { namespace chain {
                   auto log_size = std::filesystem::file_size(block_file.get_file_path());
                   block_size = log_size - pos - 8;
                } else {
-                  wlog("read_serialized_block_by_num block_num LHUANG_ERR > head_block_num");
                   EOS_ASSERT(false, block_log_exception,
                              "Current block_num ${n} was greater than head_block_num ${h}", ("n", block_num)("h", head_block_num));
                   return {};
@@ -1282,7 +1301,28 @@ namespace eosio { namespace chain {
 
    std::vector<char> block_log::read_serialized_block_by_num(uint32_t block_num) const {
       std::lock_guard g(my->mtx);
-      return my->read_serialized_block_by_num(block_num);
+      return my->read_serialized_block_by_num(block_num, detail::block_log_impl::verify_block_num_t::yes);
+   }
+
+   std::vector<char> block_log::read_serialized_block_by_id(const block_id_type& id) const {
+      std::lock_guard g(my->mtx);
+
+      auto block_num = block_header::num_from_id(id);
+
+      std::optional<signed_block_header> h = my->read_block_header_by_num(block_num);
+      if (h) {
+         auto returd_id = h->calculate_id();
+         if (returd_id != id) {
+            wlog("wrong block id was read from block log, expected id: ${id}, returned id: ${rid}",
+                  ("id", id)("rid", returd_id));
+            return {};
+         }
+      } else {
+         wlog("no header found for block id: ${id}, block_num: ${n}", ("id", id)("n", block_num));
+         return {};
+      }
+
+      return my->read_serialized_block_by_num(block_num, detail::block_log_impl::verify_block_num_t::no);
    }
 
    std::optional<signed_block_header> block_log::read_block_header_by_num(uint32_t block_num) const {
