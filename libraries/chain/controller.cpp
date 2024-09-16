@@ -1140,9 +1140,9 @@ struct controller_impl {
    // returns true iff block `id`, or one of its ancestors >= block_num, is found in fork_db and `is_valid()`
    // precondition: `id` is already in fork_db
    // ------------------------------------------------------------------------------------------------------
-   bool fork_db_validated_block_exists( const block_id_type& id, uint32_t claimed_block_num ) const {
+   bool fork_db_validated_block_exists( const block_id_type& id, const block_id_type& claimed_id ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {
-         return forkdb.validated_block_exists(id, claimed_block_num);
+         return forkdb.validated_block_exists(id, claimed_id);
       });
    }
 
@@ -4250,13 +4250,15 @@ struct controller_impl {
          if (bsp->is_recent() || testing_allow_voting) {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
-                  if (fork_db_validated_block_exists(bsp->previous(), bsp->core.latest_qc_claim().block_num)) {
+                  const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+                  if (fork_db_validated_block_exists(bsp->previous(), latest_qc_claim__block_ref.block_id)) {
                      create_and_send_vote_msg(bsp);
                   }
                });
             } else {
                // bsp can be used directly instead of copy needed for post
-               if (fork_db_validated_block_exists(bsp->previous(), bsp->core.latest_qc_claim().block_num)) {
+               const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
+               if (fork_db_validated_block_exists(bsp->previous(), latest_qc_claim__block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
             }
