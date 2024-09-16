@@ -62,8 +62,8 @@ namespace eosio::chain {
       friend struct block_state;
 
       // not thread safe, expected to only be called from main thread
-      void set_valid(bool v) { validated = v; }
-      bool is_valid() const { return validated; }
+      void set_valid(bool v) { validated.store(v); }
+      bool is_valid() const { return validated.load(); }
 
       bool is_pub_keys_recovered()const { return _pub_keys_recovered; }
       
@@ -78,7 +78,7 @@ namespace eosio::chain {
          _cached_trxs = std::move( trxs_metas );
       }
 
-      bool                                                validated = false;
+      copyable_atomic<bool>                               validated{false};
 
       bool                                                _pub_keys_recovered = false;
       /// this data is redundant with the data stored in block, but facilitates
