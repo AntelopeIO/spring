@@ -1137,6 +1137,9 @@ struct controller_impl {
       });
    }
 
+   // returns true iff block `id`, or one of its ancestors >= block_num, is found in fork_db and `is_valid()`
+   // precondition: `id` is already in fork_db
+   // ------------------------------------------------------------------------------------------------------
    bool fork_db_validated_block_exists( const block_id_type& id, uint32_t claimed_block_num ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {
          return forkdb.validated_block_exists(id, claimed_block_num);
