@@ -635,7 +635,12 @@ namespace eosio { namespace chain {
                if (pos == block_log::npos || !head) {
                   // Rare case. No need a special code for it.
                   // Just fall back to the regular `retry_read_block_by_num` and then serialize.
-                  return fc::raw::pack(*(retry_read_block_by_num(block_num)));
+                  auto ret = retry_read_block_by_num(block_num);
+                  if (ret) {
+                     return fc::raw::pack(*ret);
+                  } else {
+                     return {};
+                  }
                }
 
                if (verify_block_num == verify_block_num_t::yes) {
