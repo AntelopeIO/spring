@@ -633,8 +633,8 @@ namespace eosio { namespace chain {
                uint64_t pos = get_block_pos(block_num);
 
                if (pos == block_log::npos || !head) {
-                  // Rare case. No need to write special code for it.
-                  // Just use the regular retry_read_block_by_num and then serialize.
+                  // Rare case. No need a special code for it.
+                  // Just fall back to the regular `retry_read_block_by_num` and then serialize.
                   return fc::raw::pack(*(retry_read_block_by_num(block_num)));
                }
 
@@ -649,6 +649,7 @@ namespace eosio { namespace chain {
 
                uint64_t block_size     = 0;
                uint32_t head_block_num = block_header::num_from_id(head->id);
+               constexpr uint32_t block_pos_size = sizeof(uint64_t); // size of block position field in the block log file
 
                if (block_num < head_block_num) {
                   // current block is not the last block in the log file.
@@ -662,11 +663,11 @@ namespace eosio { namespace chain {
                      return {};
                   }
 
-                  block_size = next_block_pos - pos - 8;
+                  block_size = next_block_pos - pos - block_pos_size;
                } else if (block_num == head_block_num) {
                   // current block is the last block in the file.
                   auto log_size = std::filesystem::file_size(block_file.get_file_path());
-                  block_size = log_size - pos - 8;
+                  block_size = log_size - pos - block_pos_size;
                } else {
                   EOS_ASSERT(false, block_log_exception,
                              "Current block_num ${n} was greater than head_block_num ${h}", ("n", block_num)("h", head_block_num));
