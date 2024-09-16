@@ -614,12 +614,15 @@ namespace eosio::chain {
    template<class BSP>
    bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, uint32_t block_num) const {
       assert(root && (root->id() == id || index.find(id) != index.end()));
-      if (root->block_num() >= block_num)
-         return true;
+
+      bsp_t last;
       for (auto i = index.find(id); i != index.end() && (*i)->block_num() >= block_num; i = index.find((*i)->previous())) {
          if ((*i)->is_valid())
             return true;
+         last = *i;
       }
+      if (last && last->block_num() > block_num && last->previous() == root->id() && root->block_num() >= block_num)
+         return true;
       return false;
    }
 

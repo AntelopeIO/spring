@@ -1130,7 +1130,7 @@ struct controller_impl {
       });
    }
 
-   bool fork_db_validated_block_exists( const block_id_type& id ) {
+   bool fork_db_validated_block_exists( const block_id_type& id ) const {
        return fork_db.apply<bool>([&](const auto& forkdb) {
          auto bsp = forkdb.get_block(id);
          return bsp ? bsp->is_valid() : false;
