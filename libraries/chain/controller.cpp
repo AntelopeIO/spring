@@ -4283,9 +4283,6 @@ struct controller_impl {
       };
 
       fork_db.apply<void>(do_accept_block);
-
-      // consider voting again as latest_qc_claim__block_ref may have been validated since the bsp was created in create_block_state_i
-      consider_voting(bsp, use_thread_pool_t::yes); // must be after bsp is added to fork_db
    }
 
    template <class BSP>
