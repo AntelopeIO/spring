@@ -1139,7 +1139,6 @@ struct controller_impl {
 
    // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
    // and `is_valid()`
-   // precondition: `id` is already in fork_db, so is a descendent of `root`
    // ------------------------------------------------------------------------------------------------------
    bool fork_db_validated_block_exists( const block_id_type& id, const block_id_type& claimed_id ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {

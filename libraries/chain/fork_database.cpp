@@ -610,19 +610,19 @@ namespace eosio::chain {
 
    // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
    // and `is_valid()`
-   // precondition: `id` is already in fork_db, so is a descendent of `root`
    // ------------------------------------------------------------------------------------------------------
    template<class BSP>
    bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, const block_id_type& claimed_id) const {
-      assert(root && (root->id() == id || index.find(id) != index.end()));
+      bool id_present = false;
 
       for (auto i = index.find(id); i != index.end(); i = index.find((*i)->previous())) {
+         id_present = true;
          if ((*i)->is_valid())
             return true;
          if ((*i)->id() == claimed_id)
             return false;
       }
-      return true;
+      return id_present;
    }
 
 // ------------------ fork_database -------------------------
