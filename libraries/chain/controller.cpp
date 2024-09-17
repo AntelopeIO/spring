@@ -4355,10 +4355,6 @@ struct controller_impl {
                     ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
                     ("nbid", new_head->id())("nbn", new_head->block_num()));
             }
-         } else {
-            // irreversible can change even if block not applied to head, integrated qc can move LIB
-            log_irreversible();
-            transition_to_savanna_if_needed();
          }
 
          for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
@@ -4418,6 +4414,10 @@ struct controller_impl {
             ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
                  ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
          }
+
+         // irreversible can change even if block not applied to head, integrated qc can move LIB
+         log_irreversible();
+         transition_to_savanna_if_needed();
       };
 
       fork_db.apply<void>(do_apply_blocks);
