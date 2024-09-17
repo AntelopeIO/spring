@@ -608,8 +608,9 @@ namespace eosio::chain {
       return my->validated_block_exists_impl(id, claimed_id);
    }
 
+   // prerequisite: claimed_id is either id, or an ancestor of id
    // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
-   // and `is_valid()`
+   // and `is_valid()`.
    // ------------------------------------------------------------------------------------------------------
    template<class BSP>
    bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, const block_id_type& claimed_id) const {

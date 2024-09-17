@@ -1137,6 +1137,7 @@ struct controller_impl {
       });
    }
 
+   // prerequisite: claimed_id is either id, or an ancestor of id
    // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
    // and `is_valid()`
    // ------------------------------------------------------------------------------------------------------
