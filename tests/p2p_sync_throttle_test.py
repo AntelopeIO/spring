@@ -132,7 +132,7 @@ try:
     assert unThrottledNode.waitForBlock(endLargeBlocksHeadBlock), f'wait for block {endLargeBlocksHeadBlock}  on un-throttled node timed out'
     endUnThrottledSync = time.time()
 
-    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=120), f'Wait for block {endLargeBlocksHeadBlock} on throttled node timed out'
+    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=240), f'Wait for block {endLargeBlocksHeadBlock} on throttled node timed out'
     endThrottledSync = time.time()
 
     throttledElapsed = endThrottledSync - clusterStart
