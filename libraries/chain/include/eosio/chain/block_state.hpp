@@ -87,8 +87,6 @@ private:
    std::optional<digest_type> base_digest;  // For finality_data sent to SHiP, computed on demand in get_finality_data()
 
    // ------ private methods -----------------------------------------------------------
-   void                                set_valid(bool v) { validated.store(v); }
-   bool                                is_valid() const { return validated.load(); }
    bool                                is_pub_keys_recovered() const { return pub_keys_recovered; }
    deque<transaction_metadata_ptr>     extract_trxs_metas();
    void                                set_trxs_metas(deque<transaction_metadata_ptr>&& trxs_metas, bool keys_recovered);
@@ -97,9 +95,9 @@ private:
    friend struct test_block_state_accessor;
    friend struct fc::reflector<block_state>;
    friend struct controller_impl;
-   template <typename BS> friend struct fork_database_impl;
    friend struct completed_block;
    friend struct building_block;
+
 public:
    // ------ functions -----------------------------------------------------------------
    const block_id_type&   id()                const { return block_header_state::id(); }
@@ -114,6 +112,9 @@ public:
 
    uint32_t               latest_qc_block_num() const          { return core.latest_qc_claim().block_num; }
    block_timestamp_type   latest_qc_block_timestamp() const    { return core.latest_qc_block_timestamp(); }
+
+   void                   set_valid(bool v) { validated.store(v); }
+   bool                   is_valid() const  { return validated.load(); }
 
    std::optional<qc_t> get_best_qc() const { return aggregating_qc.get_best_qc(block_num()); } // thread safe
    bool received_qc_is_strong() const { return aggregating_qc.received_qc_is_strong(); } // thread safe
