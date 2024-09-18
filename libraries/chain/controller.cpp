@@ -3683,6 +3683,8 @@ struct controller_impl {
 
             const bool already_valid = bsp->is_valid();
             if (!already_valid || replaying) {
+               // Only emit accepted_block_header if we have not already emitted it. If already valid then we emitted
+               // it before it was validated. Maintain behavior that we emit accepte_block_header on replay.
                emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
             }
             if (!already_valid && !replaying) {
@@ -4173,27 +4175,26 @@ struct controller_impl {
    }
 
    // thread safe, expected to be called from thread other than the main thread
-   //         best_head, block_handle if added to fork_db
-   std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
+   controller::accepted_block_handle create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
       EOS_ASSERT( b, block_validate_exception, "null block" );
       
-      auto f = [&](auto& forkdb) -> std::tuple<bool, std::optional<block_handle>> {
+      auto f = [&](auto& forkdb) -> controller::accepted_block_handle {
          // previous not found, means it is unlinkable
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
          auto [best_head, obh] = create_block_state_i( forkdb, id, b, *prev );
-         return {best_head, std::optional<block_handle>(std::move(obh))};
+         return controller::accepted_block_handle{best_head, std::optional<block_handle>(std::move(obh))};
       };
 
-      auto unlinkable = [&](const auto&) -> std::tuple<bool, std::optional<block_handle>> {
-         return {false, {}};
+      auto unlinkable = [&](const auto&) -> controller::accepted_block_handle {
+         return {};
       };
 
       if (!b->is_proper_svnn_block()) {
-         return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(f, unlinkable);
+         return fork_db.apply<controller::accepted_block_handle>(f, unlinkable);
       }
-      return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(unlinkable, f);
+      return fork_db.apply<controller::accepted_block_handle>(unlinkable, f);
    }
 
    // thread safe, QC already verified by verify_proper_block_exts
@@ -4263,10 +4264,10 @@ struct controller_impl {
    void replay_irreversible_block( const signed_block_ptr& b ) {
       validate_db_available_size();
 
-      EOS_ASSERT(!pending, block_validate_exception, "it is not valid to push a block when there is a pending block");
+      assert(!pending); // should not be pending block
 
       try {
-         EOS_ASSERT( b, block_validate_exception, "trying to push empty block" );
+         EOS_ASSERT( b, block_validate_exception, "trying to replay an empty block" );
 
          const bool skip_validate_signee = !conf.force_all_checks;
          validator_t validator = [this](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
@@ -5198,7 +5199,7 @@ boost::asio::io_context& controller::get_thread_pool() {
    return my->thread_pool.get_executor();
 }
 
-std::tuple<bool, std::optional<block_handle>> controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
+controller::accepted_block_handle controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
 }
 
