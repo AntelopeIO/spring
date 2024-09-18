@@ -129,7 +129,7 @@ namespace savanna_cluster {
 
       size_t& vote_delay() { return _vote_delay; }
 
-      void propagate_delayed_votes_to(node_t &to);
+      void propagate_delayed_votes_to(const node_t& to);
 
       const vote_t& last_vote() const { return _last_vote; }
 

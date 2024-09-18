@@ -58,7 +58,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
 
 node_t::~node_t() {}
 
-void node_t::propagate_delayed_votes_to(node_t &to) {
+void node_t::propagate_delayed_votes_to(const node_t& to) {
    for (auto& vote : _delayed_votes)
       if (to.is_open())
          to.control->process_vote_message(++_cluster._connection_id, vote);
