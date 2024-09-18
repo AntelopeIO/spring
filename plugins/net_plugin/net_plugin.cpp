@@ -2190,29 +2190,35 @@ namespace eosio {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
          uint32_t head_num = my_impl->get_chain_head_num();
-         if (blk_num < head_num + sync_fetch_span)
+         if (blk_num < head_num) { // avoid underflow on blk_num - head_num
             return true;
+         }
+         block_num_type num_blocks_not_applied = blk_num - head_num;
+         if (num_blocks_not_applied < sync_fetch_span) {
+            fc_dlog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} chain_lib ${cl}, forkdb size ${s}",
+                    ("bn", blk_num)("sp", sync_fetch_span)("cl", head_num)("s", my_impl->chain_plug->chain().fork_db_size()));
+            return true;
+         }
 
-         // might be in irreversible mode
          controller& cc = my_impl->chain_plug->chain();
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            // chain head == lib == fork_db_root in irreversible
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
-            if (calculated_lib <= head_num) {
-               assert(calculated_lib == 0 || calculated_lib == head_num);
-               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
-                       ("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+            auto num_blocks_that_can_be_applied = calculated_lib > head_num ? calculated_lib - head_num : 0;
+            if (num_blocks_that_can_be_applied < sync_fetch_span) {
+               if (head_num )
+               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                       ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
                return true;
             }
-            fc_dlog(logger, "sync ahead not allowed. head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${s}",
-                    ("h", head_num)("fh", forkdb_head.block_num())("fl", forkdb_head.irreversible_blocknum())
-                    ("s", sync_fetch_span));
-            return false;
          }
+
+         fc_dlog(logger, "sync ahead not allowed. block ${bn}, head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${sp}, forkdb size ${s}",
+                 ("bn", blk_num)("h", head_num)("fh", cc.fork_db_head().block_num())("fl", cc.fork_db_head().irreversible_blocknum())
+                 ("sp", sync_fetch_span)("s", cc.fork_db_size()));
       }
 
-      fc_dlog(logger, "sync ahead not allowed. block ${bn}, sync_last_requested_num ${lrn}, head ${h}, sync-fetch-span ${s}",
+      fc_dlog(logger, "sync ahead not allowed. block ${bn}, sync_last_requested_num ${lrn}, sync-fetch-span ${s}",
               ("bn", blk_num)("lrn", sync_last_requested_num)("s", sync_fetch_span));
       return false;
    }
