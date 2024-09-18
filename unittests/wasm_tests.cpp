@@ -2338,8 +2338,10 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( memory_mapping_test, T, validating_testers ) try 
    auto num_mappings_before = get_num_memory_mappings();
    BOOST_CHECK_GT(num_mappings_before, 0U); // must be able to get number of memory mappings
 
-   // number of contracts to deploy
-   constexpr uint32_t num_contracts = 5000;
+   // num_contracts used to be 5000. It made CICD run over 8 minutues occasionally.
+   // It does not need to be that big, a smaller of contracts should be sufficient
+   // to make sure no memory leaks happen.
+   constexpr uint32_t num_contracts = 2000; // number of contracts to deploy
 
    for (uint32_t i = 1; i < num_contracts; ++i) {
       std::stringstream ss;
