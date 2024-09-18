@@ -4206,7 +4206,7 @@ struct controller_impl {
 
       block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed_bsp ) {
-         dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
+         dlog("block state of claimed qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }

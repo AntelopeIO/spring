@@ -6,6 +6,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
    : tester(policy)
    , _node_idx(node_idx)
    , _last_vote({}, false)
+   , _cluster(cluster)
 {
 
    // since we are creating forks, finalizers may be locked on another fork and unable to vote.
@@ -56,5 +57,11 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
 }
 
 node_t::~node_t() {}
+
+void node_t::propagate_delayed_votes_to(const node_t& to) {
+   for (auto& vote : _delayed_votes)
+      if (to.is_open())
+         to.control->process_vote_message(++_cluster._connection_id, vote);
+}
 
 }
