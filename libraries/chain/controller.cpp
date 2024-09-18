@@ -3683,6 +3683,8 @@ struct controller_impl {
 
             const bool already_valid = bsp->is_valid();
             if (!already_valid || replaying) {
+               // Only emit accepted_block_header if we have not already emitted it. If already valid then we emitted
+               // it before it was validated. Maintain behavior that we emit accepte_block_header on replay.
                emit( accepted_block_header, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
             }
             if (!already_valid && !replaying) {
@@ -4262,10 +4264,10 @@ struct controller_impl {
    void replay_irreversible_block( const signed_block_ptr& b ) {
       validate_db_available_size();
 
-      EOS_ASSERT(!pending, block_validate_exception, "it is not valid to push a block when there is a pending block");
+      assert(!pending); // should not be pending block
 
       try {
-         EOS_ASSERT( b, block_validate_exception, "trying to push empty block" );
+         EOS_ASSERT( b, block_validate_exception, "trying to replay an empty block" );
 
          const bool skip_validate_signee = !conf.force_all_checks;
          validator_t validator = [this](block_timestamp_type timestamp, const flat_set<digest_type>& cur_features,
