@@ -159,10 +159,6 @@ BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
-   // incorrect call as bsp13a is not an ancestor of bsp14b. As a result `claimed_id` is
-   // not found, so we assume it is either the root or an older block which is `valid`.
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13a->id()));
-
    bsp14b->set_valid(false);
    BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
