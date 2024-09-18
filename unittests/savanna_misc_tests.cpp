@@ -691,16 +691,16 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
             Finality advancing past block claimed on alternate branch
             =========================================================
 
-Time:        t1      t2      t3      t4      t5      t6      t7      t8
+Time:        t1      t2      t3      t4      t5      t6      t7
 Blocks:
     B0 <---  B1 <--- B2 <--- B3 <-|- B4 <--- B5
                                   |
-                                  \----------------- B6 <--- B7 <--- B8 <--- B9
+                                  \----------------- B6 <--- B7
 QC claim:
-           Strong          Strong  Strong  Strong  Strong   Weak   Strong  Strong
-             B0              B1      B3      B4      B2      B6      B7      B8
+           Strong          Strong  Strong  Strong  Strong   No QC
+             B0              B1      B3      B4      B2     achieved
 
-Vote:                      Strong  Strong   Strong  Weak   Strong  Strong  Strong
+Vote:                      Strong  Strong   Strong  Weak     -
 
                                                      ^
                                                      |
@@ -711,9 +711,11 @@ Vote:                      Strong  Strong   Strong  Weak   Strong  Strong  Stron
     - Node D is isolated and has not seen B3, B4, and B5
     - it received B3 via push_block, (so it can make it its head and produce a child of B3), but has not
       received votes on b3 (only on b2), so b6 includes a strong QC on b2.
-    - when b6 is pushed to A, B and C, qc validation would fail in Spring 1.0.0 because the fork_db
-      lookup, but succeeds in Spring 1.0.1 as only the finality core of the claiming block is needed
-      to validate the QC.
+    - when b6 is pushed to A, B and C, finalizers of A, B, and C are unable to vote on it, because they
+      are locked on B4,
+          -> liveness check fails because: `B6' s core.latest_qc_block_timestamp() <  fsi.lock.timestamp`
+             because `B2 timestamp < B4 timestamp`.
+          -> safety check fails because `B6` does not extend `B4`.
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -784,7 +786,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
    auto b7 = D.produce_block();                         // D produces a block. It still has not seen b4 and b5.
    print("b7", b7);
-   BOOST_REQUIRE(!qc(b7));                              // b7 should include a QC
+   BOOST_REQUIRE(!qc(b7));                              // b7 should not include a QC
 
 } FC_LOG_AND_RETHROW()
 
