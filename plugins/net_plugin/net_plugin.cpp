@@ -2198,14 +2198,12 @@ namespace eosio {
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
             // chain head == lib == fork_db_root in irreversible
             auto forkdb_head = cc.fork_db_head();
-            if (forkdb_head.block_num() > head_num && forkdb_head.block_num() - head_num >= sync_fetch_span) {
-               auto calculated_lib = forkdb_head.irreversible_blocknum();
-               if (calculated_lib <= head_num) {
-                  assert(calculated_lib == 0 || calculated_lib == head_num);
-                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
-                          ("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
-                  return true;
-               }
+            auto calculated_lib = forkdb_head.irreversible_blocknum();
+            if (calculated_lib <= head_num) {
+               assert(calculated_lib == 0 || calculated_lib == head_num);
+               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                       ("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+               return true;
             }
             fc_dlog(logger, "sync ahead not allowed. head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${s}",
                     ("h", head_num)("fh", forkdb_head.block_num())("fl", forkdb_head.irreversible_blocknum())
