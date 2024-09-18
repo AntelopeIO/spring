@@ -3706,6 +3706,7 @@ namespace eosio {
          std::optional<block_handle> obh;
          bool exception = false;
          bool best_head = false;
+         bool unlinkable = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
             EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
@@ -3714,6 +3715,7 @@ namespace eosio {
             controller::accepted_block_handle abh = cc.accept_block( id, ptr );
             best_head = abh.is_best_head;
             obh = std::move(abh.block);
+            unlinkable == !obh;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
             close_mode = sync_manager::closing_mode::immediately;
@@ -3728,12 +3730,10 @@ namespace eosio {
             fc_wlog( logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
-         if( exception || !obh) {
-            if (!exception && !obh) {
-               if (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block()) {
-                  fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
-                          ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
-               }
+         if( exception || unlinkable) {
+            if (unlinkable && (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block())) {
+               fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
+                       ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
             c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
