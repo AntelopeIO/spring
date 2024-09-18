@@ -4173,27 +4173,26 @@ struct controller_impl {
    }
 
    // thread safe, expected to be called from thread other than the main thread
-   //         best_head, block_handle if added to fork_db
-   std::tuple<bool, std::optional<block_handle>> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
+   controller::accepted_block_handle create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
       EOS_ASSERT( b, block_validate_exception, "null block" );
       
-      auto f = [&](auto& forkdb) -> std::tuple<bool, std::optional<block_handle>> {
+      auto f = [&](auto& forkdb) -> controller::accepted_block_handle {
          // previous not found, means it is unlinkable
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
          auto [best_head, obh] = create_block_state_i( forkdb, id, b, *prev );
-         return {best_head, std::optional<block_handle>(std::move(obh))};
+         return controller::accepted_block_handle{best_head, std::optional<block_handle>(std::move(obh))};
       };
 
-      auto unlinkable = [&](const auto&) -> std::tuple<bool, std::optional<block_handle>> {
-         return {false, {}};
+      auto unlinkable = [&](const auto&) -> controller::accepted_block_handle {
+         return {};
       };
 
       if (!b->is_proper_svnn_block()) {
-         return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(f, unlinkable);
+         return fork_db.apply<controller::accepted_block_handle>(f, unlinkable);
       }
-      return fork_db.apply<std::tuple<bool, std::optional<block_handle>>>(unlinkable, f);
+      return fork_db.apply<controller::accepted_block_handle>(unlinkable, f);
    }
 
    // thread safe, QC already verified by verify_proper_block_exts
@@ -5197,7 +5196,7 @@ boost::asio::io_context& controller::get_thread_pool() {
    return my->thread_pool.get_executor();
 }
 
-std::tuple<bool, std::optional<block_handle>> controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
+controller::accepted_block_handle controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
 }
 
