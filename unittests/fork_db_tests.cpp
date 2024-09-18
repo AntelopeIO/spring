@@ -144,10 +144,15 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
 // test `fork_database_t::validated_block_exists() const` member
 // -------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
+
+   // if a block is valid in fork_db, all its ancestors are necessarily valid.
+   root->set_valid(true);
+   bsp11b->set_valid(true);
    bsp12b->set_valid(true);
    bsp13b->set_valid(true);
    bsp14b->set_valid(true);
-   bsp11a->set_valid(true);
+
+   bsp13a->set_valid(false);
 
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
@@ -164,17 +169,17 @@ BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
    BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
-   bsp12b->set_valid(false);
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
-
    bsp13b->set_valid(false);
    BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
    BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   bsp12b->set_valid(false);
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
    BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
    bsp11b->set_valid(false);
    BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
