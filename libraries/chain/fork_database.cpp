@@ -608,7 +608,7 @@ namespace eosio::chain {
       return my->validated_block_exists_impl(id, claimed_id);
    }
 
-   // prerequisite: claimed_id is either id, or an ancestor of id
+   // precondition: claimed_id is either id, or an ancestor of id
    // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
    // and `is_valid()`.
    // ------------------------------------------------------------------------------------------------------
@@ -623,6 +623,7 @@ namespace eosio::chain {
          if ((*i)->id() == claimed_id)
             return false;
       }
+      assert(!id_present || block_header::num_from_id(claimed_id) <= block_header::num_from_id(root->id())); // precondition
       return id_present;
    }
 
