@@ -107,7 +107,7 @@ public:
       if (!que.empty()) {
          // find the associated priority
          auto i = std::lower_bound(que.ordered_begin(), que.ordered_end(), priority, [](const auto& h, int priority) {
-            return h->priority() < priority;
+            return h->priority() > priority;
          });
          if (i != que.ordered_end() && (*i)->priority() == priority && (*i)->id() == id)
             return;
