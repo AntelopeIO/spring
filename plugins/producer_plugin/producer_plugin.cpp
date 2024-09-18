@@ -888,13 +888,14 @@ public:
       _time_tracker.clear();
    }
 
+   // called on incoming blocks from net_plugin on the main thread. Will notify controller to process any
+   // blocks ready in the fork database.
    bool on_incoming_block() {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
       auto& chain = chain_plug->chain();
 
-      // start processing of block
       if (in_producing_mode()) {
          if (_log.is_enabled(fc::log_level::info)) {
             auto fhead = chain.fork_db_head();
