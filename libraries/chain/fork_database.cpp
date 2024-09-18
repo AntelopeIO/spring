@@ -623,7 +623,9 @@ namespace eosio::chain {
          if ((*i)->id() == claimed_id)
             return false;
       }
-      assert(!id_present || block_header::num_from_id(claimed_id) <= block_header::num_from_id(root->id())); // precondition
+
+      // if we return `true`, let's validate the precondition and make sure claimed_id is not in another branch
+      assert(!id_present || block_header::num_from_id(claimed_id) <= block_header::num_from_id(root->id()));
       return id_present;
    }
 
