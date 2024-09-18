@@ -3754,7 +3754,7 @@ namespace eosio {
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
-            app().executor().post(priority::medium, exec_queue::read_write,
+            app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
                                   []() {
                                      try {
                                         my_impl->producer_plug->on_incoming_block();
