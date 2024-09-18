@@ -2182,10 +2182,7 @@ namespace eosio {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
          uint32_t head_num = my_impl->get_chain_head_num();
-         if (blk_num < head_num) { // avoid underflow on blk_num - head_num
-            return true;
-         }
-         block_num_type num_blocks_not_applied = blk_num - head_num;
+         block_num_type num_blocks_not_applied = blk_num > head_num ? blk_num - head_num : 0;
          if (num_blocks_not_applied < sync_fetch_span) {
             fc_dlog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} chain_lib ${cl}, forkdb size ${s}",
                     ("bn", blk_num)("sp", sync_fetch_span)("cl", head_num)("s", my_impl->chain_plug->chain().fork_db_size()));
