@@ -17,7 +17,6 @@ using namespace eosio;
 using namespace testing;
 using namespace chain;
 
-BOOST_AUTO_TEST_SUITE(snapshot_tests)
 
 namespace {
    void variant_diff_helper(const fc::variant& lhs, const fc::variant& rhs, std::function<void(const std::string&, const fc::variant&, const fc::variant&)>&& out){
@@ -120,6 +119,10 @@ namespace {
       BOOST_REQUIRE_EQUAL(lhs_integrity_hash.str(), rhs_integrity_hash.str());
    }
 }
+
+// Split the tests into multiple parts which run approximately the same time
+// so that they can finish within CICD time limits
+BOOST_AUTO_TEST_SUITE(snapshot_part1_tests)
 
 template<typename TESTER, typename SNAPSHOT_SUITE>
 void exhaustive_snapshot_test()
@@ -324,6 +327,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapsho
    chain_id_in_snapshot_test<legacy_tester, SNAPSHOT_SUITE>();
    chain_id_in_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(snapshot_part2_tests)
 
 static auto get_extra_args() {
    bool save_snapshot = false;
