@@ -481,12 +481,6 @@ namespace eosio { namespace chain {
          };
          std::optional<signed_block_with_id> head;
 
-         enum class verify_block_num_t {
-            yes, // Verify the block number when reading a serialized block.
-            no   // Do not verify the block number when read a serialized block.
-                 // This is for the case where the block id is vefified seperately.
-         };
-
          virtual ~block_log_impl() = default;
 
          virtual uint32_t first_block_num()                                                   = 0;
@@ -498,7 +492,7 @@ namespace eosio { namespace chain {
          virtual void     flush()                                                             = 0;
 
          virtual signed_block_ptr                   read_block_by_num(uint32_t block_num)        = 0;
-         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) = 0;
+         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num) = 0;
          virtual std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) = 0;
 
          virtual uint32_t version() const = 0;
@@ -532,7 +526,7 @@ namespace eosio { namespace chain {
          void flush() final {}
 
          signed_block_ptr read_block_by_num(uint32_t block_num) final { return {}; };
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) final { return {}; };
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final { return {}; };
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) final { return {}; };
 
          uint32_t         version() const final { return 0; }
@@ -630,7 +624,7 @@ namespace eosio { namespace chain {
             FC_LOG_AND_RETHROW()
          }
 
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num, verify_block_num_t verify_block_num) final {
+         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
             try {
                uint64_t pos = get_block_pos(block_num);
 
@@ -641,15 +635,6 @@ namespace eosio { namespace chain {
                   if (ret) {
                      return fc::raw::pack(*ret);
                   } else {
-                     return {};
-                  }
-               }
-
-               if (verify_block_num == verify_block_num_t::yes) {
-                  auto bnum = get_block_num_at(block_file, pos);
-                  if (block_num != bnum) {
-                     wlog("Wrong block num was read from block log. expected block_num: ${n}, returned block num: ${bnum}",
-                           ("n", block_num)("bnum", bnum));
                      return {};
                   }
                }
@@ -1309,28 +1294,12 @@ namespace eosio { namespace chain {
 
    std::vector<char> block_log::read_serialized_block_by_num(uint32_t block_num) const {
       std::lock_guard g(my->mtx);
-      return my->read_serialized_block_by_num(block_num, detail::block_log_impl::verify_block_num_t::yes);
+      return my->read_serialized_block_by_num(block_num);
    }
 
    std::vector<char> block_log::read_serialized_block_by_id(const block_id_type& id) const {
       std::lock_guard g(my->mtx);
-
-      auto block_num = block_header::num_from_id(id);
-
-      std::optional<signed_block_header> h = my->read_block_header_by_num(block_num);
-      if (h) {
-         auto read_id = h->calculate_id();
-         if (read_id != id) {
-            wlog("wrong block id was read from block log, expected id: ${id}, read id: ${rid}",
-                  ("id", id)("rid", read_id));
-            return {};
-         }
-      } else {
-         wlog("no header found for block id: ${id}, block_num: ${n}", ("id", id)("n", block_num));
-         return {};
-      }
-
-      return my->read_serialized_block_by_num(block_num, detail::block_log_impl::verify_block_num_t::no);
+      return my->read_serialized_block_by_num(block_header::num_from_id(id));
    }
 
    std::optional<signed_block_header> block_log::read_block_header_by_num(uint32_t block_num) const {
