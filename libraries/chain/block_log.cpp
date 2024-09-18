@@ -636,31 +636,31 @@ namespace eosio { namespace chain {
                   }
                }
 
-               uint64_t block_size     = 0;
                uint32_t head_block_num = block_header::num_from_id(head->id);
+               EOS_ASSERT(block_num <= head_block_num, block_log_exception,
+                          "Current block_num ${n} was greater than head_block_num ${h}",
+                          ("n", block_num)("h", head_block_num));
+
+               uint64_t block_size     = 0;
                constexpr uint32_t block_pos_size = sizeof(uint64_t); // size of block position field in the block log file
 
                if (block_num < head_block_num) {
                   // current block is not the last block in the log file.
                   uint64_t next_block_pos = get_block_pos(block_num + 1);
-                  if (next_block_pos == block_log::npos) {
-                     wlog("no position found for block ${n}", ("n", block_num + 1));
-                     return {};
-                  }
-                  if (next_block_pos <= pos) {
-                     wlog("next block position ${nn} should be greater than current block position ${cn}", ("nn", next_block_pos)("cn", pos));
-                     return {};
-                  }
+
+                  EOS_ASSERT(next_block_pos != block_log::npos, block_log_exception,
+                             "no position found for block ${n}", ("n", block_num + 1));
+                  EOS_ASSERT(next_block_pos > pos, block_log_exception,
+                             "next block position ${nn} should be greater than current block position ${cn}",
+                             ("nn", next_block_pos)("cn", pos));
 
                   block_size = next_block_pos - pos - block_pos_size;
-               } else if (block_num == head_block_num) {
+               } else {
+                  assert (block_num == head_block_num);
+
                   // current block is the last block in the file.
                   auto log_size = std::filesystem::file_size(block_file.get_file_path());
                   block_size = log_size - pos - block_pos_size;
-               } else {
-                  EOS_ASSERT(false, block_log_exception,
-                             "Current block_num ${n} was greater than head_block_num ${h}", ("n", block_num)("h", head_block_num));
-                  return {};
                }
 
                std::vector<char> buff;
