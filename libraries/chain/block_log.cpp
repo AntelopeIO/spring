@@ -482,9 +482,9 @@ namespace eosio { namespace chain {
          std::optional<signed_block_with_id> head;
 
          enum class verify_block_num_t {
-            yes, // Verify block number when read a serialized block.
-            no   // Does not verify block number when read a serialized block.
-                 // This is for the case where block id is vefified seperately.
+            yes, // Verify the block number when reading a serialized block.
+            no   // Do not verify the block number when read a serialized block.
+                 // This is for the case where the block id is vefified seperately.
          };
 
          virtual ~block_log_impl() = default;
@@ -1319,10 +1319,10 @@ namespace eosio { namespace chain {
 
       std::optional<signed_block_header> h = my->read_block_header_by_num(block_num);
       if (h) {
-         auto returd_id = h->calculate_id();
-         if (returd_id != id) {
-            wlog("wrong block id was read from block log, expected id: ${id}, returned id: ${rid}",
-                  ("id", id)("rid", returd_id));
+         auto read_id = h->calculate_id();
+         if (read_id != id) {
+            wlog("wrong block id was read from block log, expected id: ${id}, read id: ${rid}",
+                  ("id", id)("rid", read_id));
             return {};
          }
       } else {
