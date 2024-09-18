@@ -125,6 +125,98 @@ BOOST_AUTO_TEST_CASE( default_exec_window ) {
    BOOST_CHECK_LT( rslts[6], rslts[7] );
 }
 
+BOOST_AUTO_TEST_CASE( exec_with_unique_handler_id ) {
+   scoped_app_thread app(true);
+
+   // post functions
+   std::map<int, int> rslts {};
+   int seq_num = 0;
+   app->executor().post( handler_id::unique, priority::medium, exec_queue::read_only,      [&]() { rslts[0]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::medium, exec_queue::read_write,     [&]() { rslts[1]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::high,   exec_queue::read_write,     [&]() { rslts[2]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::high,   exec_queue::read_only,      [&]() { rslts[3]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::low,    exec_queue::read_only,      [&]() { rslts[4]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::low,    exec_queue::read_write,     [&]() { rslts[5]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::highest,exec_queue::read_only,      [&]() { rslts[6]=seq_num; ++seq_num; } );
+   app->executor().post( handler_id::unique, priority::high,   exec_queue::read_write,     [&]() { rslts[7]=seq_num; ++seq_num; } );
+
+   // Stop app. Use the lowest priority to make sure this function to execute the last
+   app->executor().post( priority::lowest, exec_queue::read_only, [&]() {
+      // read_only_queue should only contain the current lambda function,
+      // and read_write_queue should have executed all its functions
+      BOOST_REQUIRE_EQUAL( app->executor().read_only_queue_size(), 0u); // pop()s before execute
+      BOOST_REQUIRE_EQUAL( app->executor().read_exclusive_queue_size(), 0u );
+      BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_size(), 0u );
+      app->quit();
+      } );
+
+   app.start_exec();
+   app.join();
+
+   // all queues are cleared when exiting application::exec()
+   BOOST_REQUIRE_EQUAL( app->executor().read_only_queue_empty(), true);
+   BOOST_REQUIRE_EQUAL( app->executor().read_exclusive_queue_empty(), true);
+   BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_empty(), true);
+
+   // exactly number of both queues' functions processed
+   BOOST_REQUIRE_EQUAL( rslts.size(), 8u );
+
+   // same priority of functions executed by the post order
+   BOOST_CHECK_LT( rslts[0], rslts[1] );  // medium
+   BOOST_CHECK_LT( rslts[2], rslts[3] );  // high
+   BOOST_CHECK_LT( rslts[3], rslts[7] );  // high
+   BOOST_CHECK_LT( rslts[4], rslts[5] );  // low
+
+   // higher priority posted earlier executed earlier
+   BOOST_CHECK_LT( rslts[3], rslts[4] );
+   BOOST_CHECK_LT( rslts[6], rslts[7] );
+}
+
+BOOST_AUTO_TEST_CASE( exec_with_handler_id ) {
+   scoped_app_thread app(true);
+
+   // post functions
+   std::map<int, int> rslts {};
+   int seq_num = 0;
+   auto id = handler_id::process_incoming_block;
+   auto un = handler_id::unique;
+   app->executor().post( id, priority::medium, exec_queue::read_write, [&]() { rslts[0]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::medium, exec_queue::read_write, [&]() { rslts[1]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::high,   exec_queue::read_write, [&]() { rslts[2]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::high,   exec_queue::read_write, [&]() { rslts[3]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::low,    exec_queue::read_write, [&]() { rslts[4]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::low,    exec_queue::read_write, [&]() { rslts[5]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::highest,exec_queue::read_write, [&]() { rslts[6]=seq_num; ++seq_num; } );
+   app->executor().post( id, priority::high,   exec_queue::read_write, [&]() { rslts[7]=seq_num; ++seq_num; } );
+   app->executor().post( un, priority::high,   exec_queue::read_write, [&]() { rslts[8]=seq_num; ++seq_num; } );
+
+   // Stop app. Use the lowest priority to make sure this function to execute the last
+   app->executor().post( priority::lowest, exec_queue::read_write, [&]() {
+      // read_only_queue should only contain the current lambda function,
+      // and read_write_queue should have executed all its functions
+      BOOST_REQUIRE_EQUAL( app->executor().read_only_queue_size(), 0u); // pop()s before execute
+      BOOST_REQUIRE_EQUAL( app->executor().read_exclusive_queue_size(), 0u );
+      BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_size(), 0u );
+      app->quit();
+      } );
+
+   app.start_exec();
+   app.join();
+
+   // all queues are cleared when exiting application::exec()
+   BOOST_REQUIRE_EQUAL( app->executor().read_only_queue_empty(), true);
+   BOOST_REQUIRE_EQUAL( app->executor().read_exclusive_queue_empty(), true);
+   BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_empty(), true);
+
+   // does not post if one already exists at the same priority
+   BOOST_REQUIRE_EQUAL( rslts.size(), 5u );
+
+   BOOST_TEST(!rslts.contains(1)); // not added to execute
+   BOOST_TEST(!rslts.contains(3)); // not added to execute
+   BOOST_TEST(!rslts.contains(5)); // not added to execute
+   BOOST_TEST(!rslts.contains(7)); // not added to execute
+}
+
 // verify functions only from read_only queue are processed during read window on the main thread
 BOOST_AUTO_TEST_CASE( execute_from_read_only_queue ) {
    scoped_app_thread app;
