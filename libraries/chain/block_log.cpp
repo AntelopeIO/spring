@@ -206,10 +206,12 @@ namespace eosio { namespace chain {
          //   of previous block
 
          file.seek_end(0);
-         EOS_ASSERT(position <= file.tellp(), block_log_exception, "Invalid block position ${position}",
-                    ("position", position));
+         int blknum_offset = 14;
 
-         int      blknum_offset  = 14;
+         EOS_ASSERT(position + blknum_offset + sizeof(uint32_t) <= file.tellp(), block_log_exception,
+                    "Read outside of file: position ${position}, blknum_offset ${o}, file size ${s}",
+                    ("position", position)("o", blknum_offset)("s", file.tellp()));
+
          uint32_t prev_block_num = read_data_at<uint32_t>(file, position + blknum_offset);
          return fc::endian_reverse_u32(prev_block_num) + 1;
       }
