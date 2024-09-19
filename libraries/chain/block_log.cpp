@@ -650,17 +650,21 @@ namespace eosio { namespace chain {
 
                   EOS_ASSERT(next_block_pos != block_log::npos, block_log_exception,
                              "no position found for block ${n}", ("n", block_num + 1));
-                  EOS_ASSERT(next_block_pos > pos, block_log_exception,
-                             "next block position ${nn} should be greater than current block position ${cn}",
-                             ("nn", next_block_pos)("cn", pos));
+                  EOS_ASSERT(next_block_pos > pos + block_pos_size, block_log_exception,
+                             "next block position ${np} should be greater than current block position ${p} plus block position field size ${bps}",
+                             ("np", next_block_pos)("p", pos)("bps", block_pos_size));
 
                   block_size = next_block_pos - pos - block_pos_size;
                } else {
+                  // current block is the last block in the file.
                   assert (block_num == head_block_num);
 
-                  // current block is the last block in the file.
-                  auto log_size = std::filesystem::file_size(block_file.get_file_path());
-                  block_size = log_size - pos - block_pos_size;
+                  auto file_size = std::filesystem::file_size(block_file.get_file_path());
+                  EOS_ASSERT(file_size > pos + block_pos_size, block_log_exception,
+                             "block log file size ${fs} should be greater than current block position ${p} plus block position field size ${bps}",
+                             ("fs", file_size)("p", pos)("bps", block_pos_size));
+
+                  block_size = file_size - pos - block_pos_size;
                }
 
                std::vector<char> buff;
