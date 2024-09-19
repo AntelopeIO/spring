@@ -831,8 +831,8 @@ using block_stage_type = std::variant<building_block, assembled_block, completed
 struct block_report {
    size_t             total_net_usage = 0;
    size_t             total_cpu_usage_us = 0;
-   fc::microseconds   total_elapsed_time{};
-   fc::time_point     start_time{};
+   fc::microseconds   total_elapsed_time;
+   fc::time_point     start_time;
 };
 
 struct pending_state {
@@ -840,7 +840,7 @@ struct pending_state {
    block_stage_type               _block_stage;
    controller::block_status       _block_status = controller::block_status::ephemeral;
    std::optional<block_id_type>   _producer_block_id;
-   block_report                   _block_report{};
+   block_report                   _block_report;
 
    // Legacy
    pending_state(maybe_session&& s,
@@ -4111,7 +4111,7 @@ struct controller_impl {
    // thread safe, expected to be called from thread other than the main thread
    // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
-   std::tuple<bool, block_handle> create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
+   controller::accepted_block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4161,7 +4161,7 @@ struct controller_impl {
       if constexpr (is_proper_savanna_block)
          vote_processor.notify_new_block(async_aggregation);
 
-      return std::tuple{best_head, block_handle{std::move(bsp)}};
+      return controller::accepted_block_handle{best_head, block_handle{std::move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -4173,8 +4173,7 @@ struct controller_impl {
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
 
-         auto [best_head, obh] = create_block_state_i( forkdb, id, b, *prev );
-         return controller::accepted_block_handle{best_head, std::optional<block_handle>(std::move(obh))};
+         return create_block_state_i( forkdb, id, b, *prev );
       };
 
       auto unlinkable = [&](const auto&) -> controller::accepted_block_handle {
