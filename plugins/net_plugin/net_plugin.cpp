@@ -3688,11 +3688,15 @@ namespace eosio {
          if( msg.req_blocks.mode == none ) {
             peer_syncing_from_us = false;
          }
-         // no break
+         if( !msg.req_trx.ids.empty() ) {
+            peer_wlog( this, "Invalid request_message, req_trx.mode=none, req_trx.ids.size ${s}", ("s", msg.req_trx.ids.size()) );
+            close();
+         }
+         break;
       case normal :
-         peer_wlog( this, "Invalid request_message, req_trx.mode = normal" );
+         peer_wlog( this, "Invalid request_message, req_trx.mode=normal" );
          close();
-         return;
+         break;
       default:;
       }
    }
