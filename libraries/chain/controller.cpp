@@ -4310,9 +4310,9 @@ struct controller_impl {
          auto new_head = forkdb.head(); // use best head
          if (!new_head)
             return; // nothing to do, forkdb at root
-         auto branches = forkdb.fetch_branch_from( new_head->id(), chain_head.id() );
+         auto [new_head_branch, old_head_branch] = forkdb.fetch_branch_from( new_head->id(), chain_head.id() );
 
-         bool switch_fork = !branches.second.empty();
+         bool switch_fork = !old_head_branch.empty();
          if( switch_fork ) {
             auto head_fork_comp_str =
                block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
@@ -4325,30 +4325,30 @@ struct controller_impl {
                dm_logger->on_switch_forks(chain_head.id(), new_head->id());
             }
 
-            for( auto itr = branches.second.begin(); itr != branches.second.end(); ++itr ) {
+            for( auto itr = old_head_branch.begin(); itr != old_head_branch.end(); ++itr ) {
                pop_block();
             }
-            EOS_ASSERT( chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+            EOS_ASSERT( chain_head.id() == old_head_branch.back()->header.previous, fork_database_exception,
                         "loss of sync between fork_db and chainbase during fork switch" ); // _should_ never fail
 
             if( forked_cb ) {
                // forked_branch is in reverse order, maintain execution order
-               for( auto ritr = branches.second.rbegin(), rend = branches.second.rend(); ritr != rend; ++ritr ) {
+               for( auto ritr = old_head_branch.rbegin(), rend = old_head_branch.rend(); ritr != rend; ++ritr ) {
                   const auto& bsptr = *ritr;
                   for( auto itr = bsptr->trxs_metas().begin(), end = bsptr->trxs_metas().end(); itr != end; ++itr ) {
                      forked_cb(*itr);
                   }
                }
             }
-         } else if (!branches.first.empty()) {
+         } else if (!new_head_branch.empty()) {
             if (fc::time_point::now() - new_head->timestamp() < fc::minutes(5)) {
                dlog("applying ${n} fork db blocks from ${cbn}:${cbid} to ${nbn}:${nbid}",
-                    ("n", branches.first.size())("cbid", (*branches.first.rbegin())->id())("cbn", (*branches.first.rbegin())->block_num())
+                    ("n", new_head_branch.size())("cbid", (*new_head_branch.rbegin())->id())("cbn", (*new_head_branch.rbegin())->block_num())
                     ("nbid", new_head->id())("nbn", new_head->block_num()));
             }
          }
 
-         for( auto ritr = branches.first.rbegin(); ritr != branches.first.rend(); ++ritr ) {
+         for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
             auto except = std::exception_ptr{};
             try {
                const auto& bsp = *ritr;
@@ -4379,14 +4379,14 @@ struct controller_impl {
                // pop all blocks from the bad fork, discarding their transactions
                // ritr base is a forward itr to the last block successfully applied
                auto applied_itr = ritr.base();
-               for( auto itr = applied_itr; itr != branches.first.end(); ++itr ) {
+               for( auto itr = applied_itr; itr != new_head_branch.end(); ++itr ) {
                   pop_block();
                }
-               EOS_ASSERT( !switch_fork || chain_head.id() == branches.second.back()->header.previous, fork_database_exception,
+               EOS_ASSERT( !switch_fork || chain_head.id() == old_head_branch.back()->header.previous, fork_database_exception,
                            "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
 
                // re-apply good blocks
-               for( auto ritr = branches.second.rbegin(); ritr != branches.second.rend(); ++ritr ) {
+               for( auto ritr = old_head_branch.rbegin(); ritr != old_head_branch.rend(); ++ritr ) {
                   apply_block( *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
                }
                std::rethrow_exception(except);
@@ -4403,7 +4403,7 @@ struct controller_impl {
                return ids;
             };
             ilog("successfully switched fork to new head ${new_head_id}, removed {${rm_ids}}, applied {${new_ids}}",
-                 ("new_head_id", new_head->id())("rm_ids", get_ids(branches.second))("new_ids", get_ids(branches.first)));
+                 ("new_head_id", new_head->id())("rm_ids", get_ids(old_head_branch))("new_ids", get_ids(new_head_branch)));
          }
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
