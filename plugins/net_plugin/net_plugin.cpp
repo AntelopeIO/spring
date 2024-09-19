@@ -1060,7 +1060,6 @@ namespace eosio {
 
       void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t head_num );
-      void blk_send(const block_id_type& blkid);
 
       void enqueue( const net_message &msg );
       size_t enqueue_block( const std::vector<char>& sb, bool to_sync_queue = false);
@@ -1557,25 +1556,6 @@ namespace eosio {
       } else {
          peer_ilog( this, "nothing to enqueue" );
          peer_requested.reset();
-      }
-   }
-
-   // called from connection strand
-   void connection::blk_send( const block_id_type& blkid ) {
-      try {
-         controller& cc = my_impl->chain_plug->chain();
-         std::vector<char> b = cc.fetch_serialized_block_by_id( blkid ); // thread-safe
-         if( !b.empty() ) {
-            peer_dlog( this, "fetch_serialized_block_by_id num ${n}", ("n", block_header::num_from_id(blkid)) );
-            enqueue_block( b );
-         } else {
-            peer_ilog( this, "fetch block by id returned null, id ${id}", ("id", blkid) );
-         }
-      } catch( const assert_exception& ex ) {
-         // possible corrupted block log
-         peer_elog( this, "caught assert on fetch_serialized_block_by_id, ${ex}, id ${id}", ("ex", ex.to_string())("id", blkid) );
-      } catch( ... ) {
-         peer_elog( this, "caught other exception fetching block id ${id}", ("id", blkid) );
       }
    }
 
@@ -3694,11 +3674,9 @@ namespace eosio {
          blk_send_branch( msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back() );
          break;
       case normal :
-         peer_dlog( this, "received request_message:normal" );
-         if( !msg.req_blocks.ids.empty() ) {
-            blk_send( msg.req_blocks.ids.back() );
-         }
-         break;
+         peer_wlog( this, "Invalid request_message, req_blocks.mode = normal" );
+         close();
+         return;
       default:;
       }
 
@@ -3712,12 +3690,9 @@ namespace eosio {
          }
          // no break
       case normal :
-         if( !msg.req_trx.ids.empty() ) {
-            peer_wlog( this, "Invalid request_message, req_trx.ids.size ${s}", ("s", msg.req_trx.ids.size()) );
-            close();
-            return;
-         }
-         break;
+         peer_wlog( this, "Invalid request_message, req_trx.mode = normal" );
+         close();
+         return;
       default:;
       }
    }
