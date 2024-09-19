@@ -124,14 +124,17 @@ struct random_access_file_context {
 
          ssize_t wrote = -1;
          do {
-            if(offs == append_t)
+            if(offs == append_t) {
 #ifdef __linux__
                wrote = pwritev2(fd, iov, i, 0, RWF_APPEND);   //linux *not* opened with O_APPEND, appending requires special flag
+               if(wrote == -1 && errno == EOPNOTSUPP)         //fallback for kernels before 4.16
+                  wrote = pwritev(fd, iov, i, size());
 #else
                wrote = writev(fd, iov, i);                    //opened with O_APPEND, just write
 #endif
-            else
+            } else {
                wrote = pwritev(fd, iov, i, offs);
+            }
          } while(wrote == -1 && errno == EINTR);
          FC_ASSERT(wrote != -1, "write failure on file ${fn}: ${e}", ("fn", display_path)("e", strerror(errno)));
 
