@@ -3467,10 +3467,11 @@ struct controller_impl {
             br.total_time += fc::time_point::now() - start;
 
             ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
+                 "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
                  ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
-                 ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("net", br.total_net_usage)
-                 ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)("confs", new_b->confirmed));
+                 ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())("net", br.total_net_usage)
+                 ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)
+                 ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed)));
          }
 
       } catch (...) {
@@ -3632,7 +3633,7 @@ struct controller_impl {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
               "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
-              ("count", bsp->block->transactions.size())("lib", fork_db_root_block_num())
+              ("count", bsp->block->transactions.size())("lib", bsp->irreversible_blocknum())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
               ("elapsed", br.total_elapsed_time)("time", br.total_time)("latency", (now - bsp->timestamp()).count() / 1000));
          const auto& hb_id = chain_head.id();
@@ -3641,7 +3642,7 @@ struct controller_impl {
             ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
                  "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
                  ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-                 ("count", hb->transactions.size())("lib", fork_db_root_block_num())
+                 ("count", hb->transactions.size())("lib", chain_head.irreversible_blocknum())
                  ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", br.total_time)
                  ("latency", (now - hb->timestamp).count() / 1000));
          }
