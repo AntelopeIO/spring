@@ -228,32 +228,31 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
 
 } FC_LOG_AND_RETHROW()
 
+namespace fs = std::filesystem;
 
-BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
-   namespace fs = std::filesystem;
+void create_fsi_reference(my_finalizers_t& fset) {
+   std::vector<bls_keys_t> keys = create_keys(3);
+   std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
 
+   bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
+   fset.set_keys(local_finalizers);
+   set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
+}
+
+void create_fsi_reference_file(const fs::path& safety_file_path) {
+   my_finalizers_t fset{safety_file_path};
+   create_fsi_reference(fset);
+   fset.save_finalizer_safety_info();
+}
+
+auto mk_versioned_fsi_file_path(uint32_t v) {
    fs::path test_data_path { UNITTEST_TEST_DATA_DIR };
    auto fsi_reference_dir = test_data_path / "fsi";
 
-   auto create_fsi_reference = [&](my_finalizers_t& fset) {
-      std::vector<bls_keys_t> keys = create_keys(3);
-      std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
+   return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+}
 
-      bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
-      fset.set_keys(local_finalizers);
-      set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
-   };
-
-   auto create_fsi_reference_file = [&](const fs::path& safety_file_path) {
-      my_finalizers_t fset{safety_file_path};
-      create_fsi_reference(fset);
-      fset.save_finalizer_safety_info();
-   };
-
-   auto mk_versioned_fsi_file_path = [&](uint32_t v) {
-      return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
-   };
-
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    auto current_version = my_finalizers_t::current_safety_file_version;
 
    // run this unittest with the option `-- --save-fsi-ref` to save ref file for the current version.
@@ -304,6 +303,27 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
       BOOST_REQUIRE(fsi_map_vi == fsi_map_vn);
    }
+
+} FC_LOG_AND_RETHROW()
+
+// Verify that we have not changed the fsi file serialiization
+// ------------------------------------------------------------
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_unchanged ) try {
+   auto current_version = my_finalizers_t::current_safety_file_version;
+   auto ref_path = mk_versioned_fsi_file_path(current_version);  // the saved file for current_version
+
+   fc::temp_directory tempdir;
+   auto tmp_path = tempdir.path() / "new_safety.dat";
+   create_fsi_reference_file(tmp_path);                          // save a new file in tmp_path
+
+   auto read_file = [](const fs::path& path) {
+      std::ifstream t("file.txt");
+      std::stringstream buffer;
+      buffer << t.rdbuf();
+      return buffer;
+   };
+
+   BOOST_REQUIRE(read_file(ref_path).view() == read_file(tmp_path).view());
 
 } FC_LOG_AND_RETHROW()
 
