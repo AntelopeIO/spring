@@ -592,7 +592,6 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
 } FC_LOG_AND_RETHROW()
 
 
-
 // ----------------------------------------------------------------------------------------------------
 // For issue #694, we need to change the finality core of the `block_header_state`, but we want to
 // ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
@@ -685,6 +684,109 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    // check that the block id of b9 match what we got with Spring 1.0.0
    auto b9_id = b9->calculate_id();
    BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
+
+} FC_LOG_AND_RETHROW()
+
+/* -----------------------------------------------------------------------------------------------------
+            Finality advancing past block claimed on alternate branch
+            =========================================================
+
+Time:        t1      t2      t3      t4      t5      t6      t7
+Blocks:
+    B0 <---  B1 <--- B2 <--- B3 <-|- B4 <--- B5
+                                  |
+                                  \----------------- B6 <--- B7
+QC claim:
+           Strong          Strong  Strong  Strong  Strong   No QC
+             B0              B1      B3      B4      B2     achieved
+
+Vote:                      Strong  Strong   Strong  Weak     -
+
+                                                     ^
+                                                     |
+                                                 validating those weak votes on b2
+                                                 would fail if nodes have received b4 and b5
+                                                 which advanced lib to b3
+
+    - Node D is isolated and has not seen B3, B4, and B5
+    - it received B3 via push_block, (so it can make it its head and produce a child of B3), but has not
+      received votes on b3 (only on b2), so b6 includes a strong QC on b2.
+    - when b6 is pushed to A, B and C, finalizers of A, B, and C are unable to vote on it, because they
+      are locked on B4,
+          -> liveness check fails because: `B6' s core.latest_qc_block_timestamp() <  fsi.lock.timestamp`
+             because `B2 timestamp < B4 timestamp`.
+          -> safety check fails because `B6` does not extend `B4`.
+--------------------------------------------------------------------------------------------------------*/
+BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
+   using namespace savanna_cluster;
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   // _debug_mode = true;
+
+   auto b0 = A.produce_block();
+   print("b0", b0);
+
+   signed_block_ptr b1, b2;
+   {
+      // delay votes from B and C (can't delay on A as A produces), so b2 will not include a QC on B1
+      fc::scoped_set_value tmp_B(B.vote_delay(), 1);
+      fc::scoped_set_value tmp_C(C.vote_delay(), 1);
+
+      b1 = A.produce_block();
+      print("b1", b1);
+      BOOST_REQUIRE_EQUAL(qc_s(qc(b1)), strong_qc(b0)); // b1 claims a strong QC on b0
+
+      b2 = A.produce_block();
+      print("b2", b2);
+      BOOST_REQUIRE(!qc(b2));                           // b2 should not include a QC (votes on b1 delayed)
+   }
+
+   B.propagate_delayed_votes_to(D);                     // propagate votes on b2 to D, so it can form a QC on b2
+   C.propagate_delayed_votes_to(D);                     // which will be included in b6
+
+   const std::vector<size_t> partition {3};             // partition D so that it doesn't see b3, b4 and b5
+   set_partition(partition);                            // and don't vote on it
+
+   auto b3 = A.produce_block();
+   print("b3", b3);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b1));    // b3 claims a strong QC on b1 (votes on b2 delayed)
+
+   D.push_block(b3);                                    // we want D to see b3, but not receive the votes on
+                                                        // b3, so that when it produces b6, b6 will have a
+                                                        // qc claim on b2
+
+   auto b4 = A.produce_block();
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));    // b4 claims a strong QC on b3
+
+   auto b5 = A.produce_block();
+   print("b5", b5);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));    // b5 claims a strong QC on b4
+
+
+   set_partition({});                                   // remove partition so all nodes can vote on b6 and above
+
+   auto b6 = D.produce_block(_block_interval_us * 3);   // D (who has not seen b4 and b5) produces b6
+                                                        // b6 has a higher timestamp than b5
+   print("b6", b6);
+   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());
+   BOOST_REQUIRE(!!qc(b6));                             // b6 should include a QC
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b6)), strong_qc(b2));    // b6 claims a strong QC on b2
+
+   // ---------------------------------------------------------------------------------------------------
+   // After voting on `b5` (which makes `b3` final), the finalizers who voted on `b5` are locked on `b4`,
+   // and therefore cannot vote on `b6`:
+   //
+   // - liveness check fails because: `b6' s core.latest_qc_block_timestamp() <  fsi.lock.timestamp`
+   //   because `b2 timestamp < b4 timestamp`.
+   // - safety check fails because `b6` does not extend `b4`.
+   //
+   // As a result, we don't expect the next block (b7) to include a QC
+   // ---------------------------------------------------------------------------------------------------
+
+   auto b7 = D.produce_block();                         // D produces a block. It still has not seen b4 and b5.
+   print("b7", b7);
+   BOOST_REQUIRE(!qc(b7));                              // b7 should not include a QC
 
 } FC_LOG_AND_RETHROW()
 

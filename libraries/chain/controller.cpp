@@ -960,7 +960,7 @@ struct controller_impl {
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
-   db_read_mode                    read_mode = db_read_mode::HEAD;
+   const db_read_mode              read_mode;
    bool                            in_trx_requiring_checks = false; ///< if true, checks that are normally skipped on replay (e.g. auth checks) cannot be skipped
    std::optional<fc::microseconds> subjective_cpu_leeway;
    bool                            trusted_producer_light_validation = false;
@@ -3478,7 +3478,8 @@ struct controller_impl {
          ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
               "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
-              ("count", new_b->transactions.size())("lib", fork_db_root_block_num())("confs", new_b->confirmed)
+              ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())
+              ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed))
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
               ("tt", now - br.start_time));
 
@@ -3501,20 +3502,9 @@ struct controller_impl {
       ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
            "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
            ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
-           ("count", chain_head.block()->transactions.size())("lib", fork_db_root_block_num())
+           ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
            ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
            ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
-      const auto& hb_id = chain_head.id();
-      const auto& hb = chain_head.block();
-      if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != chain_head.id() && hb != nullptr) { // not applied to head
-         ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
-              ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-              ("count", hb->transactions.size())("lib", fork_db_root_block_num())
-              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)
-              ("time", now - br.start_time)
-              ("latency", (now - hb->timestamp).count() / 1000));
-      }
       if (_update_incoming_block_metrics) {
          _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
                                          .cpu_usage_us          = br.total_cpu_usage_us,
@@ -4209,7 +4199,7 @@ struct controller_impl {
 
       block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed_bsp ) {
-         dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
+         dlog("block state of claimed qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
