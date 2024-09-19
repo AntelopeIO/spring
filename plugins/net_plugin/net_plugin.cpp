@@ -999,7 +999,7 @@ namespace eosio {
       bool connected() const;
       bool closed() const; // socket is not open or is closed or closing, thread safe
       bool current() const;
-      bool should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num) const;
+      bool should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num, uint32_t sync_fetch_span) const;
 
       /// @param reconnect true if we should try and reconnect immediately after close
       /// @param shutdown true only if plugin is shutting down
@@ -1421,7 +1421,7 @@ namespace eosio {
    }
 
    // thread safe
-   bool connection::should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num) const {
+   bool connection::should_sync_from(uint32_t sync_next_expected_num, uint32_t sync_known_lib_num, uint32_t sync_fetch_span) const {
       fc_dlog(logger, "id: ${id} blocks conn: ${t} current: ${c} socket_open: ${so} syncing from us: ${s} state: ${con} peer_start_block: ${sb} peer_fhead: ${h} ping: ${p}us no_retry: ${g}",
               ("id", connection_id)("t", is_blocks_connection())
               ("c", current())("so", socket_is_open())("s", peer_syncing_from_us.load())("con", state_str(state()))
@@ -1429,7 +1429,8 @@ namespace eosio {
       if (is_blocks_connection() && current()) {
          if (no_retry == go_away_reason::no_reason) {
             if (peer_start_block_num <= sync_next_expected_num) { // has blocks we want
-               if (peer_fork_head_block_num >= sync_known_lib_num) { // is in sync
+               auto needed_end = std::min(sync_next_expected_num + sync_fetch_span, sync_known_lib_num);
+               if (peer_fork_head_block_num >= needed_end) { // has lib blocks
                   return true;
                }
             }
@@ -2052,8 +2053,9 @@ namespace eosio {
       deque<connection_ptr> conns;
       my_impl->connections.for_each_block_connection([sync_next_expected_num = sync_next_expected_num,
                                                       sync_known_lib_num = sync_known_lib_num,
+                                                      sync_fetch_span = sync_fetch_span,
                                                       &conns](const auto& c) {
-         if (c->should_sync_from(sync_next_expected_num, sync_known_lib_num)) {
+         if (c->should_sync_from(sync_next_expected_num, sync_known_lib_num, sync_fetch_span)) {
             conns.push_back(c);
          }
       });
@@ -2174,14 +2176,39 @@ namespace eosio {
               sync_next_expected_num < sync_last_requested_num );
    }
 
+   // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
       if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
-         uint32_t head = my_impl->get_chain_head_num();
-         if (blk_num < head + sync_fetch_span)
+         uint32_t head_num = my_impl->get_chain_head_num();
+         block_num_type num_blocks_not_applied = blk_num > head_num ? blk_num - head_num : 0;
+         if (num_blocks_not_applied < sync_fetch_span) {
+            fc_dlog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} chain_lib ${cl}, forkdb size ${s}",
+                    ("bn", blk_num)("sp", sync_fetch_span)("cl", head_num)("s", my_impl->chain_plug->chain().fork_db_size()));
             return true;
+         }
+
+         controller& cc = my_impl->chain_plug->chain();
+         if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+            auto forkdb_head = cc.fork_db_head();
+            auto calculated_lib = forkdb_head.irreversible_blocknum();
+            auto num_blocks_that_can_be_applied = calculated_lib > head_num ? calculated_lib - head_num : 0;
+            if (num_blocks_that_can_be_applied < sync_fetch_span) {
+               if (head_num )
+               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                       ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+               return true;
+            }
+         }
+
+         fc_dlog(logger, "sync ahead not allowed. block ${bn}, head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${sp}, forkdb size ${s}",
+                 ("bn", blk_num)("h", head_num)("fh", cc.fork_db_head().block_num())("fl", cc.fork_db_head().irreversible_blocknum())
+                 ("sp", sync_fetch_span)("s", cc.fork_db_size()));
       }
+
+      fc_dlog(logger, "sync ahead not allowed. block ${bn}, sync_last_requested_num ${lrn}, sync-fetch-span ${s}",
+              ("bn", blk_num)("lrn", sync_last_requested_num)("s", sync_fetch_span));
       return false;
    }
 
@@ -2200,7 +2227,10 @@ namespace eosio {
          return;
       }
 
-      if( sync_state != lib_catchup || !sync_recently_active()) {
+      stages current_sync_state = sync_state;
+      if( current_sync_state != lib_catchup || !sync_recently_active()) {
+         peer_dlog(c, "requesting next chuck, set to lib_catchup and request_next_chunk, sync_state ${s}, sync_next_expected_num ${nen}",
+                   ("s", stage_str(current_sync_state))("nen", sync_next_expected_num));
          set_state( lib_catchup );
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
@@ -2233,14 +2263,14 @@ namespace eosio {
    // called from connection strand
    void sync_manager::sync_timeout(const connection_ptr& c, const boost::system::error_code& ec) {
       if( !ec ) {
-         peer_dlog(c, "sync timeout");
+         peer_dlog(c, "sync timed out");
          sync_reassign_fetch( c );
          close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( c, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
       }
       --sync_timers_active;
-      peer_dlog(c, "sync timeout, active_timers ${t}", ("t", sync_timers_active.load()));
+      peer_dlog(c, "sync active_timers ${t}", ("t", sync_timers_active.load()));
    }
 
    // called from connection strand
@@ -2569,14 +2599,15 @@ namespace eosio {
                }
             } else { // blk_applied
                if (blk_num >= sync_last_requested_num) {
-                  // Did not request blocks ahead, likely because too far ahead of head
-                  // Do not restrict sync_fetch_span as we want max-reversible-blocks to shut down the node for applied blocks
-                  fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                  "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                          ("bn", blk_num)("nen", sync_next_expected_num)
-                          ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                  request_next_chunk();
+                  if (is_sync_request_ahead_allowed(blk_num)) {
+                     // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
+                     fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                             ("bn", blk_num)("nen", sync_next_expected_num)
+                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                     request_next_chunk();
+                  }
                }
             }
          }
