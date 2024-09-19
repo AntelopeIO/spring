@@ -324,8 +324,6 @@ namespace eosio::chain {
          // to avoid deserialization and serialization
          vector<char> fetch_serialized_block_by_number( uint32_t block_num )const;
          // thread-safe
-         vector<char> fetch_serialized_block_by_id( const block_id_type& id )const;
-         // thread-safe
          bool block_exists(const block_id_type& id) const;
          bool validated_block_exists(const block_id_type& id) const;
          // thread-safe, retrieves block according to fork db best branch which can change at any moment

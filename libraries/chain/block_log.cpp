@@ -1313,11 +1313,6 @@ namespace eosio { namespace chain {
       return my->read_serialized_block_by_num(block_num);
    }
 
-   std::vector<char> block_log::read_serialized_block_by_id(const block_id_type& id) const {
-      std::lock_guard g(my->mtx);
-      return my->read_serialized_block_by_num(block_header::num_from_id(id));
-   }
-
    std::optional<signed_block_header> block_log::read_block_header_by_num(uint32_t block_num) const {
       std::lock_guard g(my->mtx);
       return my->read_block_header_by_num(block_num);
