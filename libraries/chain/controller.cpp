@@ -3505,17 +3505,6 @@ struct controller_impl {
            ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
            ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
            ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
-      const auto& hb_id = chain_head.id();
-      const auto& hb = chain_head.block();
-      if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != chain_head.id() && hb != nullptr) { // not applied to head
-         ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
-              ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
-              ("count", hb->transactions.size())("lib", fork_db_root_block_num())
-              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)
-              ("time", now - br.start_time)
-              ("latency", (now - hb->timestamp).count() / 1000));
-      }
       if (_update_incoming_block_metrics) {
          _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
                                          .cpu_usage_us          = br.total_cpu_usage_us,
