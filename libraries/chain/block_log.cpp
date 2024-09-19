@@ -186,6 +186,16 @@ namespace eosio { namespace chain {
       }
 
       template <typename Stream>
+      std::vector<char> read_serialized_block(Stream&& ds, uint64_t block_size) {
+         std::vector<char> buff;
+         buff.resize(block_size);
+
+         ds.read(buff.data(), block_size);
+
+         return buff;
+      }
+
+      template <typename Stream>
       signed_block_header read_block_header(Stream&& ds, uint32_t expect_block_num) {
          signed_block_header bh;
          fc::raw::unpack(ds, bh);
@@ -568,6 +578,7 @@ namespace eosio { namespace chain {
          virtual uint32_t         working_block_file_first_block_num() { return preamble.first_block_num; }
          virtual void             post_append(uint64_t pos) {}
          virtual signed_block_ptr retry_read_block_by_num(uint32_t block_num) { return {}; }
+         virtual std::vector<char> retry_read_serialized_block_by_num(uint32_t block_num) { return {}; }
          virtual std::optional<signed_block_header> retry_read_block_header_by_num(uint32_t block_num) { return {}; }
 
          void append(const signed_block_ptr& b, const block_id_type& id,
@@ -609,6 +620,45 @@ namespace eosio { namespace chain {
             return pos;
          }
 
+         block_pos_size_t get_block_position_and_size(uint32_t block_num) {
+            uint64_t pos = get_block_pos(block_num);
+
+            if (pos == block_log::npos) {
+               return block_pos_size_t {.position = block_log::npos, .size = 0};
+            }
+
+            assert(head);
+            uint32_t last_block_num = block_header::num_from_id(head->id);
+            assert(block_num <= last_block_num);
+
+            uint64_t block_size = 0;
+            constexpr uint32_t block_pos_size = sizeof(uint64_t); // size of block position field in the block log file
+
+            if (block_num < last_block_num) {
+               // current block is not the last block in the log file.
+               uint64_t next_block_pos = get_block_pos(block_num + 1);
+
+               EOS_ASSERT(next_block_pos != block_log::npos, block_log_exception,
+                          "no position found for block ${n}", ("n", block_num + 1));
+               EOS_ASSERT(next_block_pos > pos + block_pos_size, block_log_exception,
+                          "next block position ${np} should be greater than current block position ${p} plus block position field size ${bps}",
+                          ("np", next_block_pos)("p", pos)("bps", block_pos_size));
+
+               block_size = next_block_pos - pos - block_pos_size;
+            } else {
+               // current block is the last block in the file.
+
+               auto file_size = std::filesystem::file_size(block_file.get_file_path());
+               EOS_ASSERT(file_size > pos + block_pos_size, block_log_exception,
+                          "block log file size ${fs} should be greater than current block position ${p} plus block position field size ${bps}",
+                          ("fs", file_size)("p", pos)("bps", block_pos_size));
+
+               block_size = file_size - pos - block_pos_size;
+            }
+
+            return block_pos_size_t {.position = pos, .size = block_size};
+         }
+
          signed_block_ptr read_block_by_num(uint32_t block_num) final {
             try {
                uint64_t pos = get_block_pos(block_num);
@@ -623,57 +673,12 @@ namespace eosio { namespace chain {
 
          std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
             try {
-               uint64_t pos = get_block_pos(block_num);
-
-               if (pos == block_log::npos || !head) {
-                  // Rare case. No need a special code for it.
-                  // Just fall back to the regular `retry_read_block_by_num` and then serialize.
-                  auto ret = retry_read_block_by_num(block_num);
-                  if (ret) {
-                     return fc::raw::pack(*ret);
-                  } else {
-                     return {};
-                  }
+               block_pos_size_t pos_size = get_block_position_and_size(block_num);
+               if (pos_size.position != block_log::npos) {
+                  block_file.seek(pos_size.position);
+                  return read_serialized_block(block_file, pos_size.size);
                }
-
-               uint32_t head_block_num = block_header::num_from_id(head->id);
-               EOS_ASSERT(block_num <= head_block_num, block_log_exception,
-                          "Current block_num ${n} was greater than head_block_num ${h}",
-                          ("n", block_num)("h", head_block_num));
-
-               uint64_t block_size     = 0;
-               constexpr uint32_t block_pos_size = sizeof(uint64_t); // size of block position field in the block log file
-
-               if (block_num < head_block_num) {
-                  // current block is not the last block in the log file.
-                  uint64_t next_block_pos = get_block_pos(block_num + 1);
-
-                  EOS_ASSERT(next_block_pos != block_log::npos, block_log_exception,
-                             "no position found for block ${n}", ("n", block_num + 1));
-                  EOS_ASSERT(next_block_pos > pos + block_pos_size, block_log_exception,
-                             "next block position ${np} should be greater than current block position ${p} plus block position field size ${bps}",
-                             ("np", next_block_pos)("p", pos)("bps", block_pos_size));
-
-                  block_size = next_block_pos - pos - block_pos_size;
-               } else {
-                  // current block is the last block in the file.
-                  assert (block_num == head_block_num);
-
-                  auto file_size = std::filesystem::file_size(block_file.get_file_path());
-                  EOS_ASSERT(file_size > pos + block_pos_size, block_log_exception,
-                             "block log file size ${fs} should be greater than current block position ${p} plus block position field size ${bps}",
-                             ("fs", file_size)("p", pos)("bps", block_pos_size));
-
-                  block_size = file_size - pos - block_pos_size;
-               }
-
-               std::vector<char> buff;
-               buff.resize(block_size);
-
-               block_file.seek(pos);
-               block_file.read(buff.data(), block_size);
-
-               return buff;
+               return retry_read_serialized_block_by_num(block_num);
             }
             FC_LOG_AND_RETHROW()
          }
@@ -1092,6 +1097,16 @@ namespace eosio { namespace chain {
             auto ds = catalog.ro_stream_for_block(block_num);
             if (ds)
                return read_block(*ds, block_num);
+            return {};
+         }
+
+         std::vector<char> retry_read_serialized_block_by_num(uint32_t block_num) final {
+            uint64_t block_size = 0;
+
+            auto ds = catalog.ro_stream_and_size_for_block(block_num, block_size);
+            if (ds) {
+               return read_serialized_block(*ds, block_size);
+            }
             return {};
          }
 
