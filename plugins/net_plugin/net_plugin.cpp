@@ -2524,10 +2524,9 @@ namespace eosio {
                   if (is_sync_request_ahead_allowed(blk_num)) {
                      // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
                      fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
+                                     "sync_last_requested_num: ${lrn}",
                              ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                             ("bn", blk_num)("nen", sync_next_expected_num)
-                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
+                             ("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
                      request_next_chunk();
                   }
                }
