@@ -96,6 +96,16 @@ void set_fsi(my_finalizers_t& fset, const std::vector<bls_keys_t>& keys, const F
    ((fset.set_fsi(keys[I].pubkey, fsi[I])), ...);
 }
 
+// sleep for n periods of the file clock
+// --------------------------------------
+void sleep_for_n_file_clock_periods(uint32_t n) {
+   using file_clock = std::chrono::file_clock;
+   auto n_periods = file_clock::duration(n);
+   auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(n_periods);
+
+   std::this_thread::sleep_for(sleep_duration);
+}
+
 BOOST_AUTO_TEST_SUITE(finalizer_tests)
 
 BOOST_AUTO_TEST_CASE( basic_finalizer_safety_file_io ) try {
@@ -294,7 +304,8 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
       auto ref_path = mk_versioned_fsi_file_path(i);
       auto copy_path = tempdir.path() / ref_path.filename();
       fs::copy_file(ref_path, copy_path, fs::copy_options::none);
-      std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+      sleep_for_n_file_clock_periods(2);
 
       // first load the reference file in the old format, and then save it in the new version format
       // -------------------------------------------------------------------------------------------
@@ -346,13 +357,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_io ) try {
    fs::copy_file(ref_path, tmp_path, fs::copy_options::none);
    auto initial_time = fs::last_write_time(tmp_path);
 
-   // sleep for one period of the file clock
-   // --------------------------------------
-   using file_clock = std::chrono::file_clock;
-   auto one_period = file_clock::duration(1);
-   auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(one_period);
-
-   std::this_thread::sleep_for(sleep_duration);
+   sleep_for_n_file_clock_periods(2);
 
    // set finalizer, so that the file is overwritten. set the last one so that order is unchanged.
    std::vector<bls_keys_t> keys = create_keys(3);
