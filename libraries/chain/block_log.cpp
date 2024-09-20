@@ -637,8 +637,6 @@ namespace eosio { namespace chain {
                // current block is not the last block in the log file.
                uint64_t next_block_pos = get_block_pos(block_num + 1);
 
-               EOS_ASSERT(next_block_pos != block_log::npos, block_log_exception,
-                          "no position found for block ${n}", ("n", block_num + 1));
                EOS_ASSERT(next_block_pos > pos + block_pos_size, block_log_exception,
                           "next block position ${np} should be greater than current block position ${p} plus block position field size ${bps}",
                           ("np", next_block_pos)("p", pos)("bps", block_pos_size));
