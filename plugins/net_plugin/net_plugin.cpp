@@ -1729,7 +1729,7 @@ namespace eosio {
       controller& cc = my_impl->chain_plug->chain();
       std::vector<char> sb;
       try {
-         cc.fetch_serialized_block_by_number( num, sb ); // thread-safe
+         sb = cc.fetch_serialized_block_by_number( num ); // thread-safe
       } FC_LOG_AND_DROP();
       if( !sb.empty() ) {
          // Skip transmitting block this loop if threshold exceeded

@@ -5543,20 +5543,12 @@ signed_block_ptr controller::fetch_block_by_number( uint32_t block_num )const  {
    return my->blog.read_block_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
-void controller::fetch_serialized_block_by_number( uint32_t block_num, std::vector<char>& buff )const  { try {
+std::vector<char> controller::fetch_serialized_block_by_number( uint32_t block_num)const  { try {
    if (signed_block_ptr b = my->fork_db_fetch_block_on_best_branch_by_num(block_num)) {
-      try {
-         assert(buff.empty());
-         const auto sz  = fc::raw::pack_size(*b);
-         buff.resize(sz);
-         fc::datastream<char*> ds(buff.data(), sz); // append to buff
-         fc::raw::pack(ds, *b);
-      } catch (...) { buff.clear(); } // restore buff to its original state
-
-      return;
+      return fc::raw::pack(*b);
    }
 
-   my->blog.read_serialized_block_by_num(block_num, buff);
+   return my->blog.read_serialized_block_by_num(block_num);
 } FC_CAPTURE_AND_RETHROW( (block_num) ) }
 
 std::optional<signed_block_header> controller::fetch_block_header_by_number( uint32_t block_num )const  { try {
