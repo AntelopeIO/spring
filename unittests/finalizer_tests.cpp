@@ -245,11 +245,18 @@ void create_fsi_reference_file(const fs::path& safety_file_path) {
    fset.save_finalizer_safety_info();
 }
 
-auto mk_versioned_fsi_file_path(uint32_t v) {
+fs::path mk_versioned_fsi_file_path(uint32_t v) {
    fs::path test_data_path { UNITTEST_TEST_DATA_DIR };
    auto fsi_reference_dir = test_data_path / "fsi";
 
    return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+}
+
+std::stringstream read_file(const fs::path& path) {
+   std::ifstream t("file.txt");
+   std::stringstream buffer;
+   buffer << t.rdbuf();
+   return buffer;
 }
 
 BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
@@ -316,14 +323,40 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_unchanged ) try {
    auto tmp_path = tempdir.path() / "new_safety.dat";
    create_fsi_reference_file(tmp_path);                          // save a new file in tmp_path
 
-   auto read_file = [](const fs::path& path) {
-      std::ifstream t("file.txt");
-      std::stringstream buffer;
-      buffer << t.rdbuf();
-      return buffer;
-   };
-
    BOOST_REQUIRE(read_file(ref_path).view() == read_file(tmp_path).view());
+
+} FC_LOG_AND_RETHROW()
+
+
+// Verify that the current version of safety.dat file committed to the repo can be loaded on
+// nodeos startup (it is not saved until we actually vote, and voting would change the fsi).
+// -----------------------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_io ) try {
+   fc::temp_directory tempdir;
+   auto [cfg, genesis_state] = tester::default_config(tempdir);
+
+   fs::path tmp_path = cfg.finalizers_dir / config::safety_filename;
+
+   auto current_version = my_finalizers_t::current_safety_file_version;
+   fs::path ref_path = mk_versioned_fsi_file_path(current_version);  // the saved file for current_version
+
+   tester t( tempdir, true );
+
+   fs::create_directory(cfg.finalizers_dir);
+   fs::copy_file(ref_path, tmp_path, fs::copy_options::none);
+   auto initial_time = fs::last_write_time(tmp_path);
+
+   std::this_thread::sleep_for(std::chrono::milliseconds{100});
+
+   // set finalizer, so that the file is overwritten. set the last one so that order is unchanged.
+   std::vector<bls_keys_t> keys = create_keys(3);
+   bls_pub_priv_key_map_t local_finalizer_keys;
+   local_finalizer_keys[keys.back().pubkey_str] = keys.back().privkey_str;
+   t.control->set_node_finalizer_keys(local_finalizer_keys);
+
+   // Since we didn't vote, the file time should not have changed.
+   auto last_time = fs::last_write_time(tmp_path);
+   BOOST_REQUIRE(last_time == initial_time);
 
 } FC_LOG_AND_RETHROW()
 
