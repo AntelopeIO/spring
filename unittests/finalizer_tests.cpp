@@ -346,7 +346,13 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_io ) try {
    fs::copy_file(ref_path, tmp_path, fs::copy_options::none);
    auto initial_time = fs::last_write_time(tmp_path);
 
-   std::this_thread::sleep_for(std::chrono::milliseconds{100});
+   // sleep for one period of the file clock
+   // --------------------------------------
+   using file_clock = std::chrono::file_clock;
+   auto one_period = file_clock::duration(1);
+   auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(one_period);
+
+   std::this_thread::sleep_for(sleep_duration);
 
    // set finalizer, so that the file is overwritten. set the last one so that order is unchanged.
    std::vector<bls_keys_t> keys = create_keys(3);
