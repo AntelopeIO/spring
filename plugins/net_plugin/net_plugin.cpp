@@ -2093,7 +2093,7 @@ namespace eosio {
          // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
          blk_num = sync_next_expected_num-1;
       }
-      if (blk_num >= sync_last_requested_num) {
+      if (blk_num >= sync_last_requested_num && sync_last_requested_num < sync_known_lib_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
          uint32_t head_num = my_impl->get_chain_head_num();
@@ -2684,7 +2684,7 @@ namespace eosio {
    }
 
    void dispatch_manager::rejected_block(const block_id_type& id) {
-      fc_dlog( logger, "rejected block ${id}", ("id", id) );
+      fc_dlog( logger, "rejected block ${bn} ${id}", ("bn", block_header::num_from_id(id))("id", id) );
    }
 
    // called from any thread
