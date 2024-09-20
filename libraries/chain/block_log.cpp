@@ -647,7 +647,8 @@ namespace eosio { namespace chain {
             } else {
                // current block is the last block in the file.
 
-               auto file_size = std::filesystem::file_size(block_file.get_file_path());
+               block_file.seek_end(0);
+               auto file_size = block_file.tellp();
                EOS_ASSERT(file_size > pos + block_pos_size, block_log_exception,
                           "block log file size ${fs} should be greater than current block position ${p} plus block position field size ${bps}",
                           ("fs", file_size)("p", pos)("bps", block_pos_size));
