@@ -186,13 +186,13 @@ namespace eosio { namespace chain {
       }
 
       template <typename Stream>
-      std::vector<char> read_serialized_block(Stream&& ds, uint64_t block_size) {
-         std::vector<char> buff;
-         buff.resize(block_size);
+      void read_serialized_block(Stream&& ds, uint64_t block_size, std::vector<char>& buff) {
+         assert(buff.empty());
 
-         ds.read(buff.data(), block_size);
-
-         return buff;
+         try {
+            buff.resize(block_size);
+            ds.read(buff.data(), block_size); // append to buff
+         } catch (...) { buff.clear(); } // restore buff to its original state
       }
 
       template <typename Stream>
@@ -499,7 +499,7 @@ namespace eosio { namespace chain {
          virtual void     flush()                                                             = 0;
 
          virtual signed_block_ptr                   read_block_by_num(uint32_t block_num)        = 0;
-         virtual std::vector<char>                  read_serialized_block_by_num(uint32_t block_num) = 0;
+         virtual void                               read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) = 0;
          virtual std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) = 0;
 
          virtual uint32_t version() const = 0;
@@ -533,7 +533,7 @@ namespace eosio { namespace chain {
          void flush() final {}
 
          signed_block_ptr read_block_by_num(uint32_t block_num) final { return {}; };
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final { return {}; };
+         void             read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) final {};
          std::optional<signed_block_header> read_block_header_by_num(uint32_t block_num) final { return {}; };
 
          uint32_t         version() const final { return 0; }
@@ -578,7 +578,7 @@ namespace eosio { namespace chain {
          virtual uint32_t         working_block_file_first_block_num() { return preamble.first_block_num; }
          virtual void             post_append(uint64_t pos) {}
          virtual signed_block_ptr retry_read_block_by_num(uint32_t block_num) { return {}; }
-         virtual std::vector<char> retry_read_serialized_block_by_num(uint32_t block_num) { return {}; }
+         virtual void             retry_read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) {}
          virtual std::optional<signed_block_header> retry_read_block_header_by_num(uint32_t block_num) { return {}; }
 
          void append(const signed_block_ptr& b, const block_id_type& id,
@@ -671,14 +671,16 @@ namespace eosio { namespace chain {
             FC_LOG_AND_RETHROW()
          }
 
-         std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
+         void read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) final {
             try {
                block_pos_size_t pos_size = get_block_position_and_size(block_num);
                if (pos_size.position != block_log::npos) {
                   block_file.seek(pos_size.position);
-                  return read_serialized_block(block_file, pos_size.size);
+                  read_serialized_block(block_file, pos_size.size, buff);
+
+                  return;
                }
-               return retry_read_serialized_block_by_num(block_num);
+               retry_read_serialized_block_by_num(block_num, buff);
             }
             FC_LOG_AND_RETHROW()
          }
@@ -1100,14 +1102,14 @@ namespace eosio { namespace chain {
             return {};
          }
 
-         std::vector<char> retry_read_serialized_block_by_num(uint32_t block_num) final {
+         void retry_read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) final {
             uint64_t block_size = 0;
 
             auto ds = catalog.ro_stream_and_size_for_block(block_num, block_size);
             if (ds) {
-               return read_serialized_block(*ds, block_size);
+               read_serialized_block(*ds, block_size, buff);
+               return;
             }
-            return {};
          }
 
          std::optional<signed_block_header> retry_read_block_header_by_num(uint32_t block_num) final {
@@ -1308,9 +1310,9 @@ namespace eosio { namespace chain {
       return my->read_block_by_num(block_num);
    }
 
-   std::vector<char> block_log::read_serialized_block_by_num(uint32_t block_num) const {
+   void block_log::read_serialized_block_by_num(uint32_t block_num, std::vector<char>& buff) const {
       std::lock_guard g(my->mtx);
-      return my->read_serialized_block_by_num(block_num);
+      my->read_serialized_block_by_num(block_num, buff);
    }
 
    std::optional<signed_block_header> block_log::read_block_header_by_num(uint32_t block_num) const {
