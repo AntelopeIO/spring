@@ -628,7 +628,9 @@ namespace eosio { namespace chain {
 
             assert(head);
             uint32_t last_block_num = block_header::num_from_id(head->id);
-            assert(block_num <= last_block_num);
+            EOS_ASSERT(block_num <= last_block_num, block_log_exception,
+                       "block_num ${bn} should not be greater than last_block_num ${lbn}",
+                       ("bn", block_num)("lbn", last_block_num));
 
             uint64_t block_size = 0;
             constexpr uint32_t block_pos_size = sizeof(uint64_t); // size of block position field in the block log file
