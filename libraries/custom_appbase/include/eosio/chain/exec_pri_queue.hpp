@@ -106,11 +106,20 @@ public:
       }
       if (!que.empty()) {
          // find the associated priority
-         auto i = std::lower_bound(que.ordered_begin(), que.ordered_end(), priority, [](const auto& h, int priority) {
+         auto end = que.ordered_end();
+         auto i = std::lower_bound(que.ordered_begin(), end, priority, [](const auto& h, int priority) {
             return h->priority() > priority;
          });
-         if (i != que.ordered_end() && (*i)->priority() == priority && (*i)->id() == id)
-            return;
+         if (i != end) {
+            // ordered iterator appears to only be a forward iterator
+            auto p = i;
+            for (; i != end; p = i, ++i) {
+               if ((*i)->priority() != priority)
+                  break;
+            }
+            if ((*p)->priority() == priority && (*p)->id() == id)
+               return;
+         }
       }
       que.push( new queued_handler<Function>(id, priority, order, std::forward<Function>(function)) );
       if (g.owns_lock() && num_waiting_)
