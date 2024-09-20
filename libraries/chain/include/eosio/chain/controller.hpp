@@ -397,8 +397,10 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
+         // thread safe
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
+
          /// @return true if terminate-at-block reached
          /// not-thread-safe
          bool should_terminate() const;

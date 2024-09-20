@@ -953,7 +953,7 @@ struct controller_impl {
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
-   db_read_mode                    read_mode = db_read_mode::HEAD;
+   const db_read_mode              read_mode;
    bool                            in_trx_requiring_checks = false; ///< if true, checks that are normally skipped on replay (e.g. auth checks) cannot be skipped
    std::optional<fc::microseconds> subjective_cpu_leeway;
    bool                            trusted_producer_light_validation = false;
@@ -4216,7 +4216,7 @@ struct controller_impl {
 
       block_state_ptr claimed_bsp = fork_db_fetch_bsp_on_branch_by_num( bsp_in->previous(), qc_ext.qc.block_num );
       if( !claimed_bsp ) {
-         dlog("qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
+         dlog("block state of claimed qc not found in forkdb, qc: ${qc} for block ${bn} ${id}, previous ${p}",
               ("qc", qc_ext.qc.to_qc_claim())("bn", bsp_in->block_num())("id", bsp_in->id())("p", bsp_in->previous()));
          return;
       }
