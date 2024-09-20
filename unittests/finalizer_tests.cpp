@@ -4,6 +4,7 @@
 #include <eosio/testing/tester.hpp>
 #include <eosio/testing/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <fc/io/fstream.hpp>
 #include <test-data.hpp>
 
 using namespace eosio;
@@ -252,11 +253,10 @@ fs::path mk_versioned_fsi_file_path(uint32_t v) {
    return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
 }
 
-std::stringstream read_file(const fs::path& path) {
-   std::ifstream t("file.txt");
-   std::stringstream buffer;
-   buffer << t.rdbuf();
-   return buffer;
+std::string read_file(const fs::path& path) {
+   std::string res;
+   fc::read_file_contents(path, res);
+   return res;
 }
 
 BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
@@ -323,7 +323,7 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_unchanged ) try {
    auto tmp_path = tempdir.path() / "new_safety.dat";
    create_fsi_reference_file(tmp_path);                          // save a new file in tmp_path
 
-   BOOST_REQUIRE(read_file(ref_path).view() == read_file(tmp_path).view());
+   BOOST_REQUIRE(read_file(ref_path) == read_file(tmp_path));
 
 } FC_LOG_AND_RETHROW()
 
