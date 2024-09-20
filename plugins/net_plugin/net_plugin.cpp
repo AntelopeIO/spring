@@ -2078,7 +2078,7 @@ namespace eosio {
 
    bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx) {
       fc_dlog( logger, "last req = ${req}, last recv = ${recv} known = ${known} our fhead = ${h}",
-               ("req", sync_last_requested_num)( "recv", sync_next_expected_num )( "known", sync_known_lib_num )
+               ("req", sync_last_requested_num)( "recv", sync_next_expected_num-1 )( "known", sync_known_lib_num )
                ("h", fork_head_block_num ) );
 
       return( sync_last_requested_num < sync_known_lib_num ||
@@ -2087,6 +2087,12 @@ namespace eosio {
 
    // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
+      controller& cc = my_impl->chain_plug->chain();
+      if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+         // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
+         // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
+         blk_num = sync_next_expected_num-1;
+      }
       if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
@@ -2098,7 +2104,6 @@ namespace eosio {
             return true;
          }
 
-         controller& cc = my_impl->chain_plug->chain();
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
@@ -2144,7 +2149,7 @@ namespace eosio {
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
          request_next_chunk( c );
-      } else if (sync_last_requested_num > 0 && is_sync_request_ahead_allowed(sync_next_expected_num)) {
+      } else if (sync_last_requested_num > 0 && is_sync_request_ahead_allowed(sync_next_expected_num-1)) {
          request_next_chunk();
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2520,15 +2525,13 @@ namespace eosio {
                   }
                }
             } else { // blk_applied
-               if (blk_num >= sync_last_requested_num) {
-                  if (is_sync_request_ahead_allowed(blk_num)) {
-                     // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
-                     fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                     "sync_last_requested_num: ${lrn}",
-                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                             ("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
-                     request_next_chunk();
-                  }
+               if (is_sync_request_ahead_allowed(blk_num)) {
+                  // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
+                  fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                  "sync_last_requested_num: ${lrn}",
+                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                          ("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
+                  request_next_chunk();
                }
             }
          }
@@ -3843,12 +3846,8 @@ namespace eosio {
 
    // called from application thread
    void net_plugin_impl::on_accepted_block_header(const signed_block_ptr& block, const block_id_type& id) {
+      fc_dlog(logger, "on_accpeted_block_header ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
-
-      my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
-         const fc::microseconds age(fc::time_point::now() - block->timestamp);
-         sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
-      });
 
       dispatcher.strand.post([block, id]() {
          fc_dlog(logger, "signaled accepted_block_header, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id));
@@ -3856,8 +3855,14 @@ namespace eosio {
       });
    }
 
-   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
+   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type& id) {
+      fc_dlog(logger, "on_accpeted_block ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
+
+      my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+         const fc::microseconds age(fc::time_point::now() - block->timestamp);
+         sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
+      });
 
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
