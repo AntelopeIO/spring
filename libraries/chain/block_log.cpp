@@ -673,10 +673,10 @@ namespace eosio { namespace chain {
 
          std::vector<char> read_serialized_block_by_num(uint32_t block_num) final {
             try {
-               block_pos_size_t pos_size = get_block_position_and_size(block_num);
-               if (pos_size.position != block_log::npos) {
-                  block_file.seek(pos_size.position);
-                  return read_serialized_block(block_file, pos_size.size);
+               auto [ position, size ] = get_block_position_and_size(block_num);
+               if (position != block_log::npos) {
+                  block_file.seek(position);
+                  return read_serialized_block(block_file, size);
                }
                return retry_read_serialized_block_by_num(block_num);
             }
