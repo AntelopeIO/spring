@@ -309,7 +309,7 @@ private:
       {
       }
 
-      void execute() override
+      void execute() final
       {
          function_();
       }

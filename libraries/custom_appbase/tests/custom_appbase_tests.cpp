@@ -172,6 +172,37 @@ BOOST_AUTO_TEST_CASE( exec_with_unique_handler_id ) {
    BOOST_CHECK_LT( rslts[6], rslts[7] );
 }
 
+#if 0 // benchmarking, of all the boost::heap implementations, binomial_heap was the clear winner for this test case
+BOOST_AUTO_TEST_CASE( exec_perf ) {
+   scoped_app_thread app;
+
+   // post functions
+   constexpr size_t num = 4000;
+   auto start = fc::time_point::now();
+   auto id = handler_id::process_incoming_block;
+   auto un = handler_id::unique;
+   for (size_t i = 0; i < num; i++) {
+      app->executor().post( un, priority::low, exec_queue::read_write, [&]() { std::this_thread::sleep_for( std::chrono::microseconds(100) ); } );
+      app->executor().post( id, priority::high, exec_queue::read_write, [&]() { std::this_thread::sleep_for( std::chrono::milliseconds(50) ); } );
+   }
+
+   // Stop app. Use the lowest priority to make sure this function to execute the last
+   app->executor().post( priority::lowest, exec_queue::read_only, [&]() {
+      // read_only_queue should only contain the current lambda function,
+      // and read_write_queue should have executed all its functions
+      BOOST_REQUIRE_EQUAL( app->executor().read_only_queue_size(), 0u); // pop()s before execute
+      BOOST_REQUIRE_EQUAL( app->executor().read_exclusive_queue_size(), 0u );
+      BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_size(), 0u );
+      app->quit();
+      } );
+
+   app.join();
+
+   fc::microseconds elapsed = fc::time_point::now() - start;
+   std::cout << "time: " << elapsed.count() << " us" << std::endl;
+}
+#endif
+
 BOOST_AUTO_TEST_CASE( exec_with_handler_id ) {
    scoped_app_thread app(true);
 
