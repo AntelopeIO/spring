@@ -22,13 +22,18 @@ namespace savanna {
       return std::string(res.begin(), res.end());
    }
 
-   struct quorum_certificate_input {
-       //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
-       std::vector<uint8_t>   strong_votes;
+   inline std::string create_strong_digest(const checksum256& digest){
+      std::array<uint8_t, 32> fd_data = digest.extract_as_byte_array();
+      return std::string(fd_data.begin(), fd_data.end());
+   }
 
-       //string representation of a BLS signature
-       std::string            signature;
-       std::optional<bool>    is_weak;
+   struct quorum_certificate_input {
+      //representation of optional strong and weak bitsets, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
+      std::optional<std::vector<uint8_t>>   strong_votes;
+      std::optional<std::vector<uint8_t>>   weak_votes;
+
+      //string representation of a BLS signature
+      std::string            signature;
    };
    
    struct finalizer_authority_internal {
@@ -140,13 +145,118 @@ namespace savanna {
    bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
       return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
    }
-   
-   //verify that the quorum certificate over the finality digest is valid
-   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy, const bool enforce_threshold_check){
+
+   void check_duplicate_votes(const savanna::bitset& strong_votes, const savanna::bitset& weak_votes, const finalizer_policy_input& finalizer_policy){
+
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
+
+      size_t index = 0;
+
+      while (fa_itr != fa_end_itr){
+         bool voted_strong = strong_votes.test(index);
+         bool voted_weak = weak_votes.test(index);
+         check (!(voted_strong && voted_weak), "conflicting finalizer votes detected in QC");
+         index++;
+         fa_itr++;
+      }
+
+   }
+
+   uint64_t aggregate_keys(const savanna::bitset& votes, const finalizer_policy_input& finalizer_policy, bls_g1& agg_pub_key){
+      
+      auto fa_itr = finalizer_policy.finalizers.begin();
+      auto fa_end_itr = finalizer_policy.finalizers.end();
+
+      bool first = true;
+
+      size_t index = 0;
+      uint64_t weight = 0;
+
+      while (fa_itr != fa_end_itr){
+         if (votes.test(index)){
+            bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
+            if (first){
+               first=false;
+               agg_pub_key = pub_key;
+            }
+            else agg_pub_key = _g1add(agg_pub_key, pub_key);
+            weight+=fa_itr->weight;
+         }
+         index++;
+         fa_itr++;
+      }
+
+      return weight;
+
+   }
+
+   void check_message(const std::string& message, const bls_g1& agg_pub_key, const std::string& agg_sig){
+
+      std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
+
+      //verify signature validity
+      check(_verify(s_agg_pub_key, agg_sig, message), "signature verification failed");
+ 
+   }
+
+   //verify that the quorum certificate over the finality digest is valid
+   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy, const bool count_strong_only, const bool enforce_threshold_check){
+
+      check(qc.strong_votes.has_value() || qc.weak_votes.has_value(), "quorum certificate must have at least one bitset");
+
       size_t finalizer_count = finalizer_policy.finalizers.size();
-      savanna::bitset b(finalizer_count, qc.strong_votes);
+      
+      uint64_t weight = 0;
+
+      if (count_strong_only){
+         bls_g1 agg_pub_key;
+         check(qc.strong_votes.has_value(), "required strong votes are missing");
+         savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+         weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
+         check_message(create_strong_digest(finality_digest), agg_pub_key, qc.signature);
+      }
+      else {
+
+         if (qc.strong_votes.has_value() && qc.weak_votes.has_value()){
+            bls_g1 strong_agg_pub_key;
+            bls_g1 weak_agg_pub_key;
+            savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+            savanna::bitset weak_b(finalizer_count, qc.weak_votes.value());
+            check_duplicate_votes(strong_b, weak_b, finalizer_policy);
+            uint64_t strong_weight = aggregate_keys(strong_b, finalizer_policy, strong_agg_pub_key);
+            uint64_t weak_weight = aggregate_keys(strong_b, finalizer_policy, weak_agg_pub_key);
+            check_message(create_strong_digest(finality_digest), strong_agg_pub_key, qc.signature);
+            check_message(create_weak_digest(finality_digest), weak_agg_pub_key, qc.signature);
+            weight=strong_weight+weak_weight;
+         }
+         else if (qc.weak_votes.has_value()){
+            bls_g1 agg_pub_key;
+            savanna::bitset weak_b(finalizer_count, qc.weak_votes.value());
+            weight = aggregate_keys(weak_b, finalizer_policy, agg_pub_key);
+            check_message(create_weak_digest(finality_digest), agg_pub_key, qc.signature);
+         }
+         else {
+            bls_g1 agg_pub_key;
+            savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+            weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
+            check_message(create_strong_digest(finality_digest), agg_pub_key, qc.signature);
+         }
+
+      }
+
+      if (enforce_threshold_check) check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
+
+/*
+      size_t finalizer_count = finalizer_policy.finalizers.size();
+      check(qc.strong_votes.has_value() || qc.weak_votes.has_value(), "quorum certificate must have at least one bitset");
+
+      auto fa_itr = finalizer_policy.finalizers.begin();
+      auto fa_end_itr = finalizer_policy.finalizers.end();
+
+      //todo : check weak_votes as well
+      
+      savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
 
       bool first = true;
 
@@ -156,7 +266,7 @@ namespace savanna {
       bls_g1 agg_pub_key;
 
       while (fa_itr != fa_end_itr){
-          if (b.test(index)){
+          if (strong_b.test(index)){
               bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
               if (first){
                   first=false;
@@ -183,6 +293,7 @@ namespace savanna {
       std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
       //verify signature validity
       check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
+      */
    }
 
    checksum256 get_merkle_root(const std::vector<checksum256>& leaves) {

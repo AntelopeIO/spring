@@ -330,15 +330,15 @@
             "fields": [
                 {
                     "name": "strong_votes",
-                    "type": "bytes"
+                    "type": "bytes?"
+                },
+                {
+                    "name": "weak_votes",
+                    "type": "bytes?"
                 },
                 {
                     "name": "signature",
                     "type": "string"
-                },
-                {
-                    "name": "is_weak",
-                    "type": "bool?"
                 }
             ]
         },

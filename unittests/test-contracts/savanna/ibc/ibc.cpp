@@ -95,7 +95,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
     finalizer_policy_input finalizer_policy = _get_stored_finalizer_policy(finality_proof.qc_block.active_finalizer_policy_generation);
 
     //verify QC. If QC is valid, it means that we have reached finality on the block referenced by the finality_mroot
-    _check_qc(finality_proof.active_policy_qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy, true);
+    _check_qc(finality_proof.active_policy_qc, block_finality_data_internal(finality_proof.qc_block).finality_digest(), finalizer_policy, true, true);
 
     if (finality_proof.qc_block.pending_finalizer_policy_generation.has_value()){
 
@@ -105,7 +105,7 @@ void ibc::_check_finality_proof(const finality_proof& finality_proof, const bloc
 
         check(target.finality_data.last_pending_finalizer_policy.has_value(), "must provide pending finalizer policy for transition blocks");
 
-        _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.last_pending_finalizer_policy.value(), true);
+        _check_qc(finality_proof.pending_policy_qc.value(), block_finality_data_internal(finality_proof.qc_block).finality_digest(), target.finality_data.last_pending_finalizer_policy.value(), true, true);
 
         _maybe_set_finalizer_policy(target.finality_data.last_pending_finalizer_policy.value(), target.dynamic_data.block_num);
 
