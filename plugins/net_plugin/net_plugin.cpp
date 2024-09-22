@@ -1062,7 +1062,7 @@ namespace eosio {
       void blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t head_num );
 
       void enqueue( const net_message &msg );
-      size_t enqueue_block( const std::vector<char>& sb, bool to_sync_queue = false);
+      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, bool to_sync_queue = false);
       void enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
                            go_away_reason close_after_send,
                            bool to_sync_queue = false);
@@ -1750,7 +1750,7 @@ namespace eosio {
             }
          }
          block_sync_throttling = false;
-         auto sent = enqueue_block( sb, true );
+         auto sent = enqueue_block( sb, num, true );
          block_sync_total_bytes_sent += sent;
          block_sync_frame_bytes_sent += sent;
          ++peer_requested->last;
@@ -1910,7 +1910,8 @@ namespace eosio {
    }
 
    // called from connection strand
-   size_t connection::enqueue_block( const std::vector<char>& b, bool to_sync_queue) {
+   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num, bool to_sync_queue ) {
+      peer_dlog( this, "enqueue block ${num}", ("num", block_num) );
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       block_buffer_factory buff_factory;
