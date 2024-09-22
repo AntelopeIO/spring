@@ -164,48 +164,24 @@ struct log_catalog {
       }
    }
 
-   block_pos_size_t block_position_size(uint32_t block_num) {
-      assert(block_num >= log_data.first_block_num());
-      uint64_t pos = log_index.nth_block_position(block_num - log_data.first_block_num());
+   std::optional<block_pos_size_t> get_block_position_and_size(uint32_t block_num) {
+      std::optional<uint64_t> pos = get_block_position(block_num);
+
+      if (!pos) {
+         return {};
+      }
 
       constexpr uint32_t block_pos_size = sizeof(uint64_t);
       uint64_t block_size = 0;
       assert(block_num <= log_data.last_block_num());
       if (block_num < log_data.last_block_num()) {
          uint64_t next_block_pos = log_index.nth_block_position(block_num + 1 - log_data.first_block_num());
-         block_size = next_block_pos - pos - block_pos_size;
+         block_size = next_block_pos - *pos - block_pos_size;
       } else {
-         block_size = log_data.size() - pos - block_pos_size;
+         block_size = log_data.size() - *pos - block_pos_size;
       }
 
-      return block_pos_size_t { .position = pos, .size = block_size };
-   }
-
-   std::optional<block_pos_size_t> get_block_position_and_size(uint32_t block_num) {
-      try {
-         if (active_index != npos) {
-            auto active_item = std::next(collection.begin(), active_index);
-            if (active_item->first <= block_num && block_num <= active_item->second.last_block_num) {
-               return block_position_size(block_num);
-            }
-         }
-         if (block_num < first_block_num())
-            return {};
-
-         auto it = --collection.upper_bound(block_num);
-
-         if (block_num <= it->second.last_block_num) {
-            auto name = it->second.filename_base;
-            log_data.open(name.replace_extension("log"));
-            log_index.open(name.replace_extension("index"));
-            active_index = std::distance(collection.begin(), it);
-            return block_position_size(block_num);
-         }
-         return {};
-      } catch (...) {
-         active_index = npos;
-         return {};
-      }
+      return block_pos_size_t { .position = *pos, .size = block_size };
    }
 
    fc::datastream<fc::cfile>* ro_stream_for_block(uint32_t block_num) {
