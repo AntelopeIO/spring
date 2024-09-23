@@ -233,14 +233,14 @@ namespace eosio::chain {
          /// Apply any blocks that are ready from the forkdb
          void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
-         struct accepted_block_handle {
+         struct accepted_block_result {
             // ture if new best head
             const bool is_best_head = false;
             // empty optional if block is unlinkable
             std::optional<block_handle> block;
          };
          // thread-safe
-         accepted_block_handle accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
+         accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          boost::asio::io_context& get_thread_pool();
 
