@@ -3753,7 +3753,8 @@ namespace eosio {
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
          if( exception || unlinkable) {
-            if (unlinkable && (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block())) {
+            const bool first_proper_svnn_block = !prev_is_proper_svnn_block && ptr->is_proper_svnn_block();
+            if (unlinkable && !first_proper_svnn_block) {
                fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
