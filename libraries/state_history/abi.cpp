@@ -589,6 +589,13 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
+            "name": "finalizer_authority", "fields": [
+                { "name": "description", "type": "string" },
+                { "name": "weight", "type": "uint64" },
+                { "name": "public_key", "type": "bytes" }
+            ]
+        },
+        {
             "name": "finalizer_authority_with_string_key", "fields": [
                 { "name": "description", "type": "string" },
                 { "name": "weight", "type": "uint64" },
@@ -615,6 +622,55 @@ extern const char* const state_history_plugin_abi = R"({
                 { "name": "base_digest", "type": "checksum256" },
                 { "name": "pending_finalizer_policy", "type": "finalizer_policy_with_string_key?" },
                 { "name": "last_pending_finalizer_policy_generation", "type": "uint32" }
+            ]
+        },
+        {
+            "name": "protocol_feature_activation_extension", "fields": [
+                { "name": "protocol_features", "type": "checksum256[]" }
+            ]
+        },
+        {
+            "name": "producer_schedule_change_extension", "base": "producer_authority_schedule", "fields": []
+        },
+        {
+            "name": "qc_claim", "fields": [
+                { "name": "block_num", "type": "uint32" },
+                { "name": "is_strong_qc", "type": "bool" }
+            ]
+        },
+        {
+            "name": "insert_finalizer_policy_index_pair", "fields": [
+                { "name": "index", "type": "uint16" },
+                { "name": "value", "type": "finalizer_authority" }
+            ]
+        },
+        {
+            "name": "finalizer_policy_diff", "fields": [
+                { "name": "generation", "type": "uint32" },
+                { "name": "threshold", "type": "uint64" },
+                { "name": "remove_indexes", "type": "uint16[]" },
+                { "name": "insert_indexes", "type": "insert_finalizer_policy_index_pair[]" }
+            ]
+        },
+        {
+            "name": "insert_proposer_policy_index_pair", "fields": [
+                { "name": "index", "type": "uint16" },
+                { "name": "value", "type": "producer_authority" }
+            ]
+        },
+        {
+            "name": "proposer_policy_diff", "fields": [
+                { "name": "version", "type": "uint32" },
+                { "name": "proposal_time", "type": "block_timestamp_type" },
+                { "name": "remove_indexes", "type": "uint16[]" },
+                { "name": "insert_indexes", "type": "insert_proposer_policy_index_pair[]" }
+            ]
+        },
+        {
+            "name": "finality_extension", "fields": [
+                { "name": "qc_claim", "type": "qc_claim" },
+                { "name": "new_finalizer_policy_diff", "type": "finalizer_policy_diff?" },
+                { "name": "new_proposer_policy_diff", "type": "proposer_policy_diff?" }
             ]
         }
     ],
@@ -657,7 +713,8 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "resource_limits_ratio", "types": ["resource_limits_ratio_v0"] },
         { "name": "elastic_limit_parameters", "types": ["elastic_limit_parameters_v0"] },
         { "name": "resource_limits_config", "types": ["resource_limits_config_v0"] },
-        { "name": "block_signing_authority", "types": ["block_signing_authority_v0"] }
+        { "name": "block_signing_authority", "types": ["block_signing_authority_v0"] },
+        { "name": "block_header_extension", "types": ["protocol_feature_activation_extension", "producer_schedule_change_extension", "finality_extension"] }
     ],
     "tables": [
         { "name": "account", "type": "account", "key_names": ["name"] },
