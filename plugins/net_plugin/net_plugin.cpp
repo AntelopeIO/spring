@@ -3735,7 +3735,7 @@ namespace eosio {
                        "received a block from the future, ignoring it: ${id}", ("id", id));
             // this will return empty optional<block_handle> if block is not linkable
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
-            best_head = abh.is_best_head;
+            best_head = abh.is_new_best_head;
             obh = std::move(abh.block);
             unlinkable = !obh;
          } catch( const invalid_qc_claim& ex) {

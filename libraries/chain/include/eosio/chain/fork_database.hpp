@@ -67,7 +67,7 @@ namespace eosio::chain {
       /**
        *  Add block state to fork database.
        *  Must link to existing block in fork database or the root.
-       *  @return true if n becomes the new best head.
+       *  @return true if n becomes the new best head (and was not the best head before)
        */
       bool add( const bsp_t& n, ignore_duplicate_t ignore_duplicate );
 

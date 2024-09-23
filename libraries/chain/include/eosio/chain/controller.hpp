@@ -234,10 +234,8 @@ namespace eosio::chain {
          void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          struct accepted_block_result {
-            // ture if new best head
-            const bool is_best_head = false;
-            // empty optional if block is unlinkable
-            std::optional<block_handle> block;
+            const bool is_new_best_head = false; // true if new best head
+            std::optional<block_handle> block;   // empty optional if block is unlinkable
          };
          // thread-safe
          accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
