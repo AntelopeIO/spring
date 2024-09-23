@@ -2087,12 +2087,6 @@ namespace eosio {
 
    // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
-      controller& cc = my_impl->chain_plug->chain();
-      if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
-         // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
-         // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
-         blk_num = sync_next_expected_num-1;
-      }
       if (blk_num >= sync_last_requested_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
@@ -2104,6 +2098,7 @@ namespace eosio {
             return true;
          }
 
+         controller& cc = my_impl->chain_plug->chain();
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
@@ -2420,7 +2415,7 @@ namespace eosio {
    void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
                                       const fc::microseconds& blk_latency) {
       // no connection means called when block is applied
-      bool blk_applied = !c;
+      const bool blk_applied = !c;
 
       if (c) {
          peer_dlog(c, "got block ${bn}:${id}.. latency ${l}ms",
@@ -2443,7 +2438,8 @@ namespace eosio {
             c->peer_syncing_from_us = false;
          }
       } else {
-         sync_active_time = std::chrono::steady_clock::now(); // reset when we apply a block as well
+         // reset when we apply a block as well so we don't time out just because applying blocks takes too long
+         sync_active_time = std::chrono::steady_clock::now();
       }
       stages state = sync_state;
       fc_dlog(logger, "sync_state ${s}", ("s", stage_str(state)));
@@ -2525,8 +2521,13 @@ namespace eosio {
                   }
                }
             } else { // blk_applied
+               controller& cc = my_impl->chain_plug->chain();
+               if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+                  // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
+                  // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
+                  blk_num = sync_next_expected_num-1;
+               }
                if (is_sync_request_ahead_allowed(blk_num)) {
-                  // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                   "sync_last_requested_num: ${lrn}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
