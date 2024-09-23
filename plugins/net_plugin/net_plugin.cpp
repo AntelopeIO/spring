@@ -3718,12 +3718,12 @@ namespace eosio {
             return;
          }
 
-         // prev_is_proper_svnn_block is for integration tests that verify low number of `unlinkable_blocks` logs.
+         // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
          // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
          // the main thread will have finished transitioning and will be linkable. This is a bit of a hack but seems
          // like an okay compromise for a condition, outside of testing, will rarely happen.
-         static bool prev_is_proper_svnn_block = false;
+         static bool proper_svnn_block_seen = false;
 
          std::optional<block_handle> obh;
          bool exception = false;
@@ -3753,7 +3753,7 @@ namespace eosio {
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
          if( exception || unlinkable) {
-            const bool first_proper_svnn_block = !prev_is_proper_svnn_block && ptr->is_proper_svnn_block();
+            const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
             if (unlinkable && !first_proper_svnn_block) {
                fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
@@ -3767,7 +3767,7 @@ namespace eosio {
 
          assert(obh);
          uint32_t block_num = obh->block_num();
-         prev_is_proper_svnn_block = obh->header().is_proper_svnn_block();
+         proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
          fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
                   ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
