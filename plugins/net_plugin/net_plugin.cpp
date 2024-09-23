@@ -710,11 +710,11 @@ namespace eosio {
    /// time windows (rbws).
    class block_status_monitor {
    private:
-      bool in_accepted_state_ {true};              ///< indicates of accepted(true) or rejected(false) state
-      fc::microseconds window_size_{2*1000};       ///< rbw time interval (2ms)
-      fc::time_point   window_start_;              ///< The start of the recent rbw (0 implies not started)
-      uint32_t         events_{0};                 ///< The number of consecutive rbws
-      const uint32_t   max_consecutive_rejected_windows_{13};
+      std::atomic<bool>             in_accepted_state_ {true};  ///< indicates of accepted(true) or rejected(false) state
+      fc::microseconds              window_size_{2*1000};       ///< rbw time interval (2ms)
+      fc::time_point                window_start_;              ///< The start of the recent rbw (0 implies not started)
+      std::atomic<uint32_t>         events_{0};                 ///< The number of consecutive rbws
+      const uint32_t max_consecutive_rejected_windows_{13};
 
    public:
       /// ctor
@@ -728,14 +728,14 @@ namespace eosio {
       block_status_monitor( const block_status_monitor& ) = delete;
       block_status_monitor( block_status_monitor&& ) = delete;
       ~block_status_monitor() = default;
-      /// reset to initial state
+      /// thread safe, reset to initial state
       void reset();
-      /// called when a block is accepted (sync_recv_block)
+      /// thread safe, called when a block is accepted
       void accepted() { reset(); }
       /// called when a block is rejected
       void rejected();
       /// returns number of consecutive rbws
-      auto events() const { return events_; }
+      auto events() const { return events_.load(); }
       /// indicates if the max number of consecutive rbws has been reached or exceeded
       bool max_events_violated() const { return events_ >= max_consecutive_rejected_windows_; }
       /// assignment not allowed
@@ -2431,8 +2431,6 @@ namespace eosio {
       }
       if (c) {
          c->latest_blk_time = sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
-         if (blk_applied)
-            c->block_status_monitor_.accepted();
          if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
             // a peer will not send us a recent block unless it is synced
             c->peer_syncing_from_us = false;
@@ -3774,6 +3772,7 @@ namespace eosio {
                   ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
+         c->block_status_monitor_.accepted();
 
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
