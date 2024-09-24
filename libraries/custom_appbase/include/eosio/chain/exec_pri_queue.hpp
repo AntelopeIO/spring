@@ -112,11 +112,13 @@ public:
          });
          if (i != end) {
             // ordered iterator appears to only be a forward iterator
+            // find last posted handler with same priority
             auto p = i;
             for (; i != end; p = i, ++i) {
                if ((*i)->priority() != priority)
                   break;
             }
+            // if last posted handler with the same priority is same id then do not post it
             if ((*p)->priority() == priority && (*p)->id() == id)
                return;
          }
