@@ -30,6 +30,7 @@ cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs
 dumpErrorDetails=args.dump_error_details
 walletPort=TestHelper.DEFAULT_WALLET_PORT
 
+# simpler to have two producer nodes then setup different accounts for trx generator
 totalProducerNodes=2
 totalNonProducerNodes=1
 totalNodes=totalProducerNodes+totalNonProducerNodes
@@ -61,7 +62,7 @@ try:
     Print("Cluster in Sync")
 
     prodNode0 = cluster.getNode(0)
-    nonprodNode = cluster.getNode(1)
+    prodNode1 = cluster.getNode(1)
     shipNode = cluster.getNode(shipNodeNum)
 
     # cluster.waitOnClusterSync(blockAdvancing=3)
@@ -77,14 +78,14 @@ try:
     testTrxGenDurationSec=60*60
     numTrxGenerators=2
     cluster.launchTrxGenerators(contractOwnerAcctName=cluster.eosioAccount.name, acctNamesList=[cluster.defproduceraAccount.name, cluster.defproducerbAccount.name],
-                                acctPrivKeysList=[cluster.defproduceraAccount.activePrivateKey,cluster.defproducerbAccount.activePrivateKey], nodeId=nonprodNode.nodeId,
+                                acctPrivKeysList=[cluster.defproduceraAccount.activePrivateKey,cluster.defproducerbAccount.activePrivateKey], nodeId=prodNode1.nodeId,
                                 tpsPerGenerator=targetTpsPerGenerator, numGenerators=numTrxGenerators, durationSec=testTrxGenDurationSec,
                                 waitToComplete=False)
 
-    status = cluster.waitForTrxGeneratorsSpinup(nodeId=nonprodNode.nodeId, numGenerators=numTrxGenerators)
+    status = cluster.waitForTrxGeneratorsSpinup(nodeId=prodNode1.nodeId, numGenerators=numTrxGenerators)
     assert status is not None and status is not False, "ERROR: Failed to spinup Transaction Generators"
 
-    nonprodNode.waitForProducer("defproducera")
+    prodNode1.waitForProducer("defproducera")
 
     block_range = 100000 # we are going to kill the client, so just make this a huge number
     end_block_num = start_block_num + block_range
@@ -99,7 +100,6 @@ try:
     shipClientFilePrefix = os.path.join(shipTempDir, "client")
 
     for i in range(0, args.num_clients):
-        start = time.perf_counter()
         outFile = open(f"{shipClientFilePrefix}{i}.out", "w")
         errFile = open(f"{shipClientFilePrefix}{i}.err", "w")
         Print(f"Start client {i}")
