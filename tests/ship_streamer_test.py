@@ -161,7 +161,7 @@ try:
     time.sleep(5.0)
 
     Print(f"Stopping all {args.num_clients} clients")
-    for index, (popen, _), (out, err), start in zip(range(len(clients) // 2), clients, files, starts):
+    for index, (popen, _), (out, err), start in zip(range(len(clients)), clients, files, starts):
         popen.kill()
 
     testSuccessful = True
