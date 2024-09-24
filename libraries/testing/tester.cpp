@@ -1217,7 +1217,7 @@ namespace eosio::testing {
                auto [best_head, obh] = b.control->accept_block( id, block );
                b.control->abort_block();
                EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
-               b.control->apply_blocks({}, trx_meta_cache_lookup{}); //, eosio::chain::validation_steps::created_block);
+               b.control->apply_blocks({}, trx_meta_cache_lookup{});
             }
          }
       };

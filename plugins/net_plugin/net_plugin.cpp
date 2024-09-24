@@ -710,11 +710,11 @@ namespace eosio {
    /// time windows (rbws).
    class block_status_monitor {
    private:
-      bool in_accepted_state_ {true};              ///< indicates of accepted(true) or rejected(false) state
-      fc::microseconds window_size_{2*1000};       ///< rbw time interval (2ms)
-      fc::time_point   window_start_;              ///< The start of the recent rbw (0 implies not started)
-      uint32_t         events_{0};                 ///< The number of consecutive rbws
-      const uint32_t   max_consecutive_rejected_windows_{13};
+      std::atomic<bool>             in_accepted_state_ {true};  ///< indicates of accepted(true) or rejected(false) state
+      fc::microseconds              window_size_{2*1000};       ///< rbw time interval (2ms)
+      fc::time_point                window_start_;              ///< The start of the recent rbw (0 implies not started)
+      std::atomic<uint32_t>         events_{0};                 ///< The number of consecutive rbws
+      const uint32_t max_consecutive_rejected_windows_{13};
 
    public:
       /// ctor
@@ -728,14 +728,14 @@ namespace eosio {
       block_status_monitor( const block_status_monitor& ) = delete;
       block_status_monitor( block_status_monitor&& ) = delete;
       ~block_status_monitor() = default;
-      /// reset to initial state
+      /// thread safe, reset to initial state
       void reset();
-      /// called when a block is accepted (sync_recv_block)
+      /// thread safe, called when a block is accepted
       void accepted() { reset(); }
       /// called when a block is rejected
       void rejected();
       /// returns number of consecutive rbws
-      auto events() const { return events_; }
+      auto events() const { return events_.load(); }
       /// indicates if the max number of consecutive rbws has been reached or exceeded
       bool max_events_violated() const { return events_ >= max_consecutive_rejected_windows_; }
       /// assignment not allowed
@@ -2087,12 +2087,6 @@ namespace eosio {
 
    // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
-      controller& cc = my_impl->chain_plug->chain();
-      if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
-         // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
-         // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
-         blk_num = sync_next_expected_num-1;
-      }
       if (blk_num >= sync_last_requested_num && sync_last_requested_num < sync_known_lib_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
@@ -2104,6 +2098,7 @@ namespace eosio {
             return true;
          }
 
+         controller& cc = my_impl->chain_plug->chain();
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
@@ -2420,7 +2415,7 @@ namespace eosio {
    void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
                                       const fc::microseconds& blk_latency) {
       // no connection means called when block is applied
-      bool blk_applied = !c;
+      const bool blk_applied = !c;
 
       if (c) {
          peer_dlog(c, "got block ${bn}:${id}.. latency ${l}ms",
@@ -2436,14 +2431,13 @@ namespace eosio {
       }
       if (c) {
          c->latest_blk_time = sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
-         if (blk_applied)
-            c->block_status_monitor_.accepted();
          if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
             // a peer will not send us a recent block unless it is synced
             c->peer_syncing_from_us = false;
          }
       } else {
-         sync_active_time = std::chrono::steady_clock::now(); // reset when we apply a block as well
+         // reset when we apply a block as well so we don't time out just because applying blocks takes too long
+         sync_active_time = std::chrono::steady_clock::now();
       }
       stages state = sync_state;
       fc_dlog(logger, "sync_state ${s}", ("s", stage_str(state)));
@@ -2525,8 +2519,13 @@ namespace eosio {
                   }
                }
             } else { // blk_applied
+               controller& cc = my_impl->chain_plug->chain();
+               if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+                  // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
+                  // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
+                  blk_num = sync_next_expected_num-1;
+               }
                if (is_sync_request_ahead_allowed(blk_num)) {
-                  // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
                   fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
                                   "sync_last_requested_num: ${lrn}",
                           ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
@@ -3719,12 +3718,12 @@ namespace eosio {
             return;
          }
 
-         // prev_is_proper_svnn_block is for integration tests that verify low number of `unlinkable_blocks` logs.
+         // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
          // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
          // the main thread will have finished transitioning and will be linkable. This is a bit of a hack but seems
          // like an okay compromise for a condition, outside of testing, will rarely happen.
-         static bool prev_is_proper_svnn_block = false;
+         static bool proper_svnn_block_seen = false;
 
          std::optional<block_handle> obh;
          bool exception = false;
@@ -3735,8 +3734,8 @@ namespace eosio {
             EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
                        "received a block from the future, ignoring it: ${id}", ("id", id));
             // this will return empty optional<block_handle> if block is not linkable
-            controller::accepted_block_handle abh = cc.accept_block( id, ptr );
-            best_head = abh.is_best_head;
+            controller::accepted_block_result abh = cc.accept_block( id, ptr );
+            best_head = abh.is_new_best_head;
             obh = std::move(abh.block);
             unlinkable = !obh;
          } catch( const invalid_qc_claim& ex) {
@@ -3754,7 +3753,8 @@ namespace eosio {
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
          if( exception || unlinkable) {
-            if (unlinkable && (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block())) {
+            const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
+            if (unlinkable && !first_proper_svnn_block) {
                fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
@@ -3767,12 +3767,13 @@ namespace eosio {
 
          assert(obh);
          uint32_t block_num = obh->block_num();
-         prev_is_proper_svnn_block = obh->header().is_proper_svnn_block();
+         proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
          fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
                   ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
+         c->block_status_monitor_.accepted();
 
          if (best_head) {
             ++c->unique_blocks_rcvd_count;

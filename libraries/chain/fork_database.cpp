@@ -277,13 +277,11 @@ namespace eosio::chain {
          EOS_RETHROW_EXCEPTIONS( fork_database_exception, "serialized fork database is incompatible with configured protocol features" )
       }
 
-      auto prev_head = head_impl(include_root_t::no);
-
       auto inserted = index.insert(n);
       EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
                  "duplicate block added: ${id}", ("id", n->id()));
 
-      return inserted.second && prev_head != head_impl(include_root_t::no);
+      return inserted.second && n == head_impl(include_root_t::no);
    }
 
    template<class BSP>
