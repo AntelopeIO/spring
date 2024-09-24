@@ -101,7 +101,7 @@ public:
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
       // connections set must only be modified by main thread; run listener on main thread to avoid needing another post()
-      fc::create_listener<Protocol>(app().get_io_service(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
+      fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
          catch_and_log([this, &socket]() {
             connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
                                             trace_log, chain_state_log, finality_data_log,
