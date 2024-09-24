@@ -100,12 +100,11 @@ public:
    template <typename Protocol>
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
-      // connections set must only be modified by main thread; run listener on main thread to avoid needing another post()
-      auto strand = boost::asio::make_strand(thread_pool.get_executor());
-      fc::create_listener<Protocol>(strand, _log, accept_timeout, address, "", [this, strand](Protocol::socket&& socket) {
-         boost::asio::post(app().get_io_service(), [this, strand, socket{std::move(socket)}]() mutable {
-            catch_and_log([this, &socket, &strand]() {
-               connections.emplace(new session(std::move(socket), std::move(strand), chain_plug->chain(),
+      // connections set must only be modified by main thread; run listener on ship thread so sockets use default executor of the ship thread
+      fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
+         boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
+            catch_and_log([this, &socket]() {
+               connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
                                                trace_log, chain_state_log, finality_data_log,
                                                [this](const chain::block_num_type block_num) {
                                                   return get_block_id(block_num);
