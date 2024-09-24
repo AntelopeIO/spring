@@ -81,7 +81,8 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
    const auto& acceptor() const { return acceptor_; }
 
    void do_accept() {
-      acceptor_.async_accept([self = this->shared_from_this()](boost::system::error_code ec, auto&& peer_socket) {
+      acceptor_.async_accept(boost::asio::make_strand(acceptor_.get_executor()),
+                             [self = this->shared_from_this()](boost::system::error_code ec, auto&& peer_socket) {
          self->on_accept(ec, std::forward<decltype(peer_socket)>(peer_socket));
       });
    }
@@ -150,7 +151,8 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 /// directory before return. This is the workaround for the socket file paths limitation which is around 100 characters.
 ///
 /// The lifetime of the created listener objects is controlled by \c executor, the created objects will be destroyed
-/// when \c executor.stop() is called.
+/// when \c executor.stop() is called. Each socket is put into its own strand to ensure that all completion handlers
+/// associated with the connection do not run concurrently.
 ///
 /// @note
 /// This function is not thread safe for Unix socket because it will temporarily change working directory without any
