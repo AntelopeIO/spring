@@ -101,21 +101,24 @@ public:
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
       // connections set must only be modified by main thread; run listener on main thread to avoid needing another post()
-      fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
-         catch_and_log([this, &socket]() {
-            connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
-                                            trace_log, chain_state_log, finality_data_log,
-                                            [this](const chain::block_num_type block_num) {
-                                               return get_block_id(block_num);
-                                            },
-                                            [this](const chain::block_id_type& block_id) {
-                                               return chain_plug->chain().fetch_block_by_id(block_id);
-                                            },
-                                            [this](session_base* conn) {
-                                               boost::asio::post(app().get_io_service(), [conn, this]() {
-                                                  connections.erase(connections.find(conn));
-                                               });
-                                            }, _log));
+      auto strand = boost::asio::make_strand(thread_pool.get_executor());
+      fc::create_listener<Protocol>(strand, _log, accept_timeout, address, "", [this, strand](Protocol::socket&& socket) {
+         boost::asio::post(app().get_io_service(), [this, strand, socket{std::move(socket)}]() mutable {
+            catch_and_log([this, &socket, &strand]() {
+               connections.emplace(new session(std::move(socket), std::move(strand), chain_plug->chain(),
+                                               trace_log, chain_state_log, finality_data_log,
+                                               [this](const chain::block_num_type block_num) {
+                                                  return get_block_id(block_num);
+                                               },
+                                               [this](const chain::block_id_type& block_id) {
+                                                  return chain_plug->chain().fetch_block_by_id(block_id);
+                                               },
+                                               [this](session_base* conn) {
+                                                  boost::asio::post(app().get_io_service(), [conn, this]() {
+                                                     connections.erase(connections.find(conn));
+                                                  });
+                                               }, _log));
+            });
          });
       });
    }
