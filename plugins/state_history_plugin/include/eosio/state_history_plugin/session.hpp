@@ -327,7 +327,7 @@ private:
    std::optional<log_catalog>&       chain_state_log;
    std::optional<log_catalog>&       finality_data_log;
 
-   GetBlockID                        get_block_id;
+   GetBlockID                        get_block_id; // call from main app thread
    GetBlock                          get_block;
 
    ///these items might be used on either the strand or main thread
