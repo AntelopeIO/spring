@@ -99,14 +99,12 @@ try:
     os.makedirs(shipTempDir, exist_ok = True)
     shipClientFilePrefix = os.path.join(shipTempDir, "client")
 
-    starts = []
     for i in range(0, args.num_clients):
         start = time.perf_counter()
         outFile = open(f"{shipClientFilePrefix}{i}.out", "w")
         errFile = open(f"{shipClientFilePrefix}{i}.err", "w")
         Print(f"Start client {i}")
         popen=Utils.delayedCheckOutput(cmd, stdout=outFile, stderr=errFile)
-        starts.append(time.perf_counter())
         clients.append((popen, cmd))
         files.append((outFile, errFile))
         Print(f"Client {i} started, Ship node head is: {shipNode.getBlockNum()}")
@@ -116,12 +114,12 @@ try:
     shipNode.waitForHeadToAdvance(5)
     shipNode.waitForLibToAdvance()
 
-    Print(f"Kill all {args.num_clients} clients")
-    for index, (popen, _), (out, err), start in zip(range(len(clients)), clients, files, starts):
+    Print(f"Kill all {args.num_clients} clients and ship node")
+    for index, (popen, _) in zip(range(len(clients)), clients):
         popen.kill()
-
-    shipNode.kill(signal.SIGTERM)
-    assert not shipNode.verifyAlive(), "ship node did not shutdown"
+        if index == len(clients)/2:
+            shipNode.kill(signal.SIGTERM)
+            assert not shipNode.verifyAlive(), "ship node did not shutdown"
 
     testSuccessful = True
 finally:
