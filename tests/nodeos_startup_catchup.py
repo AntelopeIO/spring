@@ -135,9 +135,9 @@ try:
     transactionsPerBlock=targetTpsPerGenerator*trxGeneratorCnt*timePerBlock/1000
     steadyStateWait=20
     startBlockNum=blockNum+steadyStateWait
-    numBlocks=20
+    numBlocks=400
     endBlockNum=startBlockNum+numBlocks
-    waitForBlock(node0, endBlockNum)
+    waitForBlock(node0, endBlockNum, timeout=numBlocks)
     steadyStateWindowTrxs=0
     steadyStateAvg=0
     steadyStateWindowBlks=0
@@ -182,23 +182,18 @@ try:
         Print("Shutdown catchup node and validate exit code")
         catchupNode.interruptAndVerifyExitStatus(60)
 
-        # every other catchup make a lib catchup
-        if catchup_num % 2 == 0:
-            Print(f"Wait for producer to advance lib past head of catchup {catchupHead}")
-            # catchupHead+5 to allow for advancement of head during shutdown of catchupNode
-            waitForBlock(node0, catchupHead+5, timeout=twoRoundsTimeout*2, blockType=BlockType.lib)
+        Print(f"Wait for producer to advance lib past head of catchup {catchupHead}")
+        # catchupHead+5 to allow for advancement of head during shutdown of catchupNode
+        waitForBlock(node0, catchupHead+5, timeout=twoRoundsTimeout*2, blockType=BlockType.lib)
 
         Print("Restart catchup node")
-        addSwapFlags = None
-        if catchup_num % 3 == 0:
-            addSwapFlags = {"--block-log-retain-blocks": "0", "--delete-all": ""}
-        catchupNode.relaunch(skipGenesis=False, addSwapFlags=addSwapFlags)
+        catchupNode.relaunch(skipGenesis=False)
         waitForNodeStarted(catchupNode)
         lastCatchupLibNum=lib(catchupNode)
 
         Print("Verify catchup node is advancing")
         # verify catchup node is advancing to producer
-        waitForBlock(catchupNode, lastCatchupLibNum+1, timeout=twoRoundsTimeout, blockType=BlockType.lib)
+        waitForBlock(catchupNode, lastLibNum, timeout=twoRoundsTimeout, blockType=BlockType.lib)
 
         Print("Verify producer is still advancing LIB")
         lastLibNum=lib(node0)
@@ -209,20 +204,56 @@ try:
         # verify catchup node is advancing to producer
         waitForBlock(catchupNode, lastLibNum, timeout=(numBlocksToCatchup/2 + 60), blockType=BlockType.lib)
         catchupNode.interruptAndVerifyExitStatus(60)
+
+        Print("Verify catchup without a block log")
+        addSwapFlags = {"--block-log-retain-blocks": "0", "--delete-all": ""}
+        catchupNode.relaunch(skipGenesis=False, addSwapFlags=addSwapFlags)
+        waitForNodeStarted(catchupNode)
+        lastCatchupLibNum=lib(catchupNode)
+
+        Print("Verify catchup node is advancing without block log")
+        # verify catchup node is advancing to producer
+        waitForBlock(catchupNode, lastLibNum+1, timeout=twoRoundsTimeout, blockType=BlockType.lib)
+        catchupNode.interruptAndVerifyExitStatus(60)
         catchupNode.popenProc=None
 
-        logFile = Utils.getNodeDataDir(catchupNodeNum) + "/stderr.txt"
-        f = open(logFile)
-        contents = f.read()
+        # Verify not syncing ahead of sync-fetch-span
+        sync_fetch_span = 1000 # default
+        irreversible = False
+        if catchupNode.nodeId in specificExtraNodeosArgs:
+            m = re.search(r"sync-fetch-span (\d+)", specificExtraNodeosArgs[catchupNode.nodeId])
+            if m is not None:
+                sync_fetch_span = int(m.group(1))
+            irreversible = re.search(r"irreversible", specificExtraNodeosArgs[catchupNode.nodeId]) is not None
+        Print(f"Verify request span for sync-fetch-span {sync_fetch_span} of {catchupNode.data_dir}")
+        lines = catchupNode.linesInLog("requesting range")
+        for line in lines:
+            m = re.search(r"requesting range (\d+) to (\d+), fhead (\d+), lib (\d+)", line)
+            if m is not None:
+                startBlockNum=int(m.group(1))
+                endBlockNum=int(m.group(2))
+                fhead=int(m.group(3))
+                libNum=int(m.group(4))
+                if endBlockNum-startBlockNum > sync_fetch_span:
+                    errorExit(f"Requested range exceeds sync-fetch-span {sync_fetch_span}: {line}")
+                if irreversible:
+                    # for now just use a larger tolerance, later when the logs include calculated lib this can be more precise
+                    # See https://github.com/AntelopeIO/spring/issues/806
+                    if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*10):
+                        errorExit(f"Requested range too far head of fork head {fhead} in irreversible mode, sync-fetch-span {sync_fetch_span}: {line}")
+                else:
+                    if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*2-1):
+                        errorExit(f"Requested range too far head of fork head {fhead} sync-fetch-span {sync_fetch_span}: {line}")
+
         # See https://github.com/AntelopeIO/spring/issues/81 for fix to reduce the number of expected unlinkable blocks
         # Test verifies LIB is advancing, check to see that not too many unlinkable block exceptions are generated
         # while syncing up to head.
-        numUnlinkable = contents.count("3030001 unlinkable_block_exception: Unlinkable block")
+        numUnlinkable = catchupNode.countInLog("unlinkable_block")
         numUnlinkableAllowed = 500
-        Print(f"Node{catchupNodeNum} has {numUnlinkable} unlinkable_block_exception in {logFile}")
+        Print(f"Node{catchupNodeNum} has {numUnlinkable} unlinkable_block in {catchupNode.data_dir}")
         if numUnlinkable > numUnlinkableAllowed:
             errorExit(f"Node{catchupNodeNum} has {numUnlinkable} which is more than the configured "
-                      f"allowed {numUnlinkableAllowed} unlinkable blocks: {logFile}.")
+                      f"allowed {numUnlinkableAllowed} unlinkable blocks: {catchupNode.data_dir}.")
 
     testSuccessful=True
 
