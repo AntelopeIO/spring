@@ -23,11 +23,10 @@ Print=Utils.Print
 
 appArgs = AppArgs()
 extraArgs = appArgs.add(flag="--num-clients", type=int, help="How many ship_streamers should be started", default=1)
-args = TestHelper.parse_args({"--activate-if","--dump-error-details","--keep-logs","-v","--leave-running","--unshared"}, applicationSpecificArgs=appArgs)
+args = TestHelper.parse_args({"--dump-error-details","--keep-logs","-v","--leave-running","--unshared"}, applicationSpecificArgs=appArgs)
 
 Utils.Debug=args.v
 cluster=Cluster(unshared=args.unshared, keepRunning=args.leave_running, keepLogs=args.keep_logs)
-activateIF=args.activate_if
 dumpErrorDetails=args.dump_error_details
 walletPort=TestHelper.DEFAULT_WALLET_PORT
 
@@ -52,7 +51,7 @@ try:
     specificExtraNodeosArgs[shipNodeNum]="--plugin eosio::state_history_plugin --trace-history --chain-state-history --finality-data-history --state-history-stride 200 --plugin eosio::net_api_plugin --plugin eosio::producer_api_plugin "
 
     if cluster.launch(pnodes=totalProducerNodes, loadSystemContract=False,
-                      totalNodes=totalNodes, totalProducers=totalProducerNodes, activateIF=activateIF, biosFinalizer=False,
+                      totalNodes=totalNodes, totalProducers=totalProducerNodes, activateIF=True, biosFinalizer=False,
                       specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         Utils.cmdError("launcher")
         Utils.errorExit("Failed to stand up cluster.")

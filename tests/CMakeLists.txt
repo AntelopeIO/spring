@@ -188,7 +188,7 @@ add_test(NAME ship_streamer_if_test COMMAND tests/ship_streamer_test.py -v --num
 set_property(TEST ship_streamer_if_test PROPERTY LABELS long_running_tests)
 add_test(NAME ship_streamer_if_fetch_finality_data_test COMMAND tests/ship_streamer_test.py -v --num-clients 10 --activate-if --finality-data-history ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST ship_streamer_if_fetch_finality_data_test PROPERTY LABELS long_running_tests)
-add_test(NAME ship_kill_client_test COMMAND tests/ship_kill_client_test.py -v --activate-if --num-clients 20 ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+add_test(NAME ship_kill_client_test COMMAND tests/ship_kill_client_test.py -v --num-clients 20 ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST ship_kill_client_test PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME p2p_dawn515_test COMMAND tests/p2p_tests/dawn_515/test.sh WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
