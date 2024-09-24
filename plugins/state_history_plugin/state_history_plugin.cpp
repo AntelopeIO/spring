@@ -377,6 +377,7 @@ void state_history_plugin_impl::plugin_shutdown() {
    applied_transaction_connection.reset();
    accepted_block_connection.reset();
    block_start_connection.reset();
+   connections.clear();
    thread_pool.stop();
 }
 
