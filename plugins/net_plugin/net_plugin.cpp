@@ -2194,10 +2194,12 @@ namespace eosio {
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
             auto num_blocks_that_can_be_applied = calculated_lib > head_num ? calculated_lib - head_num : 0;
+            // add blocks that can potentially be applied as they are not in the forkdb yet
+            num_blocks_that_can_be_applied += blk_num > forkdb_head.block_num() ? blk_num - forkdb_head.block_num() : 0;
             if (num_blocks_that_can_be_applied < sync_fetch_span) {
                if (head_num )
-               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
-                       ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                          ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
                return true;
             }
          }
