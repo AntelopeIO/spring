@@ -243,15 +243,19 @@ BOOST_AUTO_TEST_CASE( exec_with_handler_id ) {
    BOOST_REQUIRE_EQUAL( app->executor().read_write_queue_empty(), true);
 
    // does not post if one already exists at the same priority
-   BOOST_TEST( rslts.size() == 8u );
+   BOOST_TEST( rslts.size() == 6u );
 
-   BOOST_TEST(!rslts.contains(1)); // not added to execute
-   BOOST_TEST(!rslts.contains(3)); // not added to execute
-   BOOST_TEST(!rslts.contains(5)); // not added to execute
-   BOOST_TEST(!rslts.contains(7)); // not added to execute
-   BOOST_TEST(rslts.contains(9));
+   BOOST_TEST(!rslts.contains(1));
+   BOOST_TEST(rslts.contains(2));
+   BOOST_TEST(!rslts.contains(3));
+   BOOST_TEST(rslts.contains(4));
+   BOOST_TEST(!rslts.contains(5));
+   BOOST_TEST(rslts.contains(6));
+   BOOST_TEST(!rslts.contains(7));
+   BOOST_TEST(rslts.contains(8));
+   BOOST_TEST(!rslts.contains(9));
    BOOST_TEST(rslts.contains(10));
-   BOOST_TEST(rslts.contains(11));
+   BOOST_TEST(!rslts.contains(11));
 }
 
 // verify functions only from read_only queue are processed during read window on the main thread
