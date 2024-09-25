@@ -3465,8 +3465,6 @@ struct controller_impl {
    }
 
    void log_applied(controller::block_status s) const {
-      if (replaying) // fork_db_root_block_num not available during replay
-         return;
       fc::time_point now = fc::time_point::now();
       // if syncing and not current block, then only report every 1000 blocks
       if (now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0)
