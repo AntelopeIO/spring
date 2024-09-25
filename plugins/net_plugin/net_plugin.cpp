@@ -3709,8 +3709,10 @@ namespace eosio {
       my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          controller& cc = my_impl->chain_plug->chain();
 
+         auto lib_num = my_impl->get_chain_lib_num();
+
          // may have come in on a different connection and posted into dispatcher strand before this one
-         if( my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
+         if( block_header::num_from_id(id) <= lib_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
             my_impl->dispatcher.add_peer_block( id, c->connection_id );
             c->strand.post( [c, id, ptr{std::move(ptr)}]() {
                const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
@@ -3917,7 +3919,7 @@ namespace eosio {
    void net_plugin_impl::on_accepted_block_header(const signed_block_ptr& block, const block_id_type& id) {
       update_chain_info();
 
-      dispatcher.strand.post([block, id]() {
+      boost::asio::post( my_impl->thread_pool.get_executor(), [block, id]() {
          fc_dlog(logger, "signaled accepted_block_header, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id));
          my_impl->dispatcher.bcast_block(block, id);
       });
@@ -3987,8 +3989,8 @@ namespace eosio {
                 ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
-      dispatcher.strand.post( [this, exclude_peer, msg{std::move(send_buffer)}]() mutable {
-         dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
+      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg{std::move(send_buffer)}]() mutable {
+         my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
       });
    }
 
