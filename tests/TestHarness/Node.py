@@ -550,7 +550,7 @@ class Node(Transactions):
             self.cmd = cmd
             self.isProducer = '--producer-name' in self.cmd
             # first configured producer or None
-            self.producerName = re.search('--producer-name (\w+)', " ".join(cmd))[1] if re.search('--producer-name (\w+)', " ".join(cmd)) is not None else None
+            self.producerName = re.search(r'--producer-name (\w+)', " ".join(cmd))[1] if re.search(r'--producer-name (\w+)', " ".join(cmd)) is not None else None
         with pidf.open('w') as pidout:
             pidout.write(str(popen.pid))
         try:
@@ -671,7 +671,7 @@ class Node(Transactions):
         it=os.scandir(path)
         for entry in it:
             if entry.is_file(follow_symlinks=False):
-                match=re.match("stderr\..+\.txt", entry.name)
+                match=re.match(r"stderr\..+\.txt", entry.name)
                 if match:
                     files.append(os.path.join(path, entry.name))
         files.sort()
@@ -750,7 +750,7 @@ class Node(Transactions):
         producedBlockPostStr=r')\s@\s([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3})'
         anyBlockPtrn=re.compile(initialTimestamp + producedBlockPreStr + anyBlockStr + producedBlockPostStr)
         producedBlockPtrn=re.compile(initialTimestamp + producedBlockPreStr + str(specificBlockNum) + producedBlockPostStr) if specificBlockNum is not None else anyBlockPtrn
-        producedBlockDonePtrn=re.compile(initialTimestamp + r'.+Producing\sBlock\s+#' + anyBlockStr + '\sreturned:\strue')
+        producedBlockDonePtrn=re.compile(initialTimestamp + r'.+Producing\sBlock\s+#' + anyBlockStr + r'\sreturned:\strue')
         for file in files:
             with open(file, 'r') as f:
                 line = f.readline()
