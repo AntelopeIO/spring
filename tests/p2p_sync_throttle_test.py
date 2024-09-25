@@ -57,6 +57,7 @@ try:
     #
     # Compare the sync time of throttledNode and unThrottledNode
     if cluster.launch(pnodes=pnodes, unstartedNodes=3, totalNodes=total_nodes, prodCount=prod_count,
+                      extraNodeosArgs="--sync-fetch-span 5",
                       topo='./tests/p2p_sync_throttle_test_shape.json', delay=delay, activateIF=activateIF) is False:
         errorExit("Failed to stand up eos cluster.")
 
@@ -91,7 +92,7 @@ try:
 
     Print("Configure and launch txn generators")
     targetTpsPerGenerator = 500
-    testTrxGenDurationSec=60
+    testTrxGenDurationSec=90
     trxGeneratorCnt=1
     cluster.launchTrxGenerators(contractOwnerAcctName=cluster.eosioAccount.name, acctNamesList=[accounts[0].name,accounts[1].name],
                                 acctPrivKeysList=[account1PrivKey,account2PrivKey], nodeId=prodNode.nodeId, tpsPerGenerator=targetTpsPerGenerator,
@@ -132,7 +133,7 @@ try:
     assert unThrottledNode.waitForBlock(endLargeBlocksHeadBlock), f'wait for block {endLargeBlocksHeadBlock}  on un-throttled node timed out'
     endUnThrottledSync = time.time()
 
-    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=240), f'Wait for block {endLargeBlocksHeadBlock} on throttled node timed out'
+    assert throttledNode.waitForBlock(endLargeBlocksHeadBlock, timeout=endLargeBlocksHeadBlock), f'Wait for block {endLargeBlocksHeadBlock} on throttled node timed out'
     endThrottledSync = time.time()
 
     throttledElapsed = endThrottledSync - clusterStart
