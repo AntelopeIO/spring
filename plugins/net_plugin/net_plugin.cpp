@@ -971,10 +971,9 @@ namespace eosio {
 
       void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch( uint32_t msg_head_num, uint32_t lib_num, uint32_t head_num );
-      void blk_send(const block_id_type& blkid);
 
       void enqueue( const net_message &msg );
-      size_t enqueue_block( const signed_block_ptr& sb, bool to_sync_queue = false);
+      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, bool to_sync_queue = false);
       void enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
                            go_away_reason close_after_send,
                            bool to_sync_queue = false);
@@ -1472,25 +1471,6 @@ namespace eosio {
       }
    }
 
-   // called from connection strand
-   void connection::blk_send( const block_id_type& blkid ) {
-      try {
-         controller& cc = my_impl->chain_plug->chain();
-         signed_block_ptr b = cc.fetch_block_by_id( blkid ); // thread-safe
-         if( b ) {
-            peer_dlog( this, "fetch_block_by_id num ${n}", ("n", b->block_num()) );
-            enqueue_block( b );
-         } else {
-            peer_ilog( this, "fetch block by id returned null, id ${id}", ("id", blkid) );
-         }
-      } catch( const assert_exception& ex ) {
-         // possible corrupted block log
-         peer_elog( this, "caught assert on fetch_block_by_id, ${ex}, id ${id}", ("ex", ex.to_string())("id", blkid) );
-      } catch( ... ) {
-         peer_elog( this, "caught other exception fetching block id ${id}", ("id", blkid) );
-      }
-   }
-
    void connection::send_handshake() {
       if (closed())
          return;
@@ -1658,11 +1638,11 @@ namespace eosio {
       uint32_t num = peer_requested->last + 1;
 
       controller& cc = my_impl->chain_plug->chain();
-      signed_block_ptr sb;
+      std::vector<char> sb;
       try {
-         sb = cc.fetch_block_by_number( num ); // thread-safe
+         sb = cc.fetch_serialized_block_by_number( num ); // thread-safe
       } FC_LOG_AND_DROP();
-      if( sb ) {
+      if( !sb.empty() ) {
          // Skip transmitting block this loop if threshold exceeded
          if (block_sync_send_start == 0ns) { // start of enqueue blocks
             block_sync_send_start = get_time();
@@ -1681,7 +1661,7 @@ namespace eosio {
             }
          }
          block_sync_throttling = false;
-         auto sent = enqueue_block( sb, true );
+         auto sent = enqueue_block( sb, num, true );
          block_sync_total_bytes_sent += sent;
          block_sync_frame_bytes_sent += sent;
          ++peer_requested->last;
@@ -1750,12 +1730,38 @@ namespace eosio {
          return send_buffer;
       }
 
+      static send_buffer_type create_send_buffer_from_serialized_block( const std::vector<char>& v ) {
+         static_assert( signed_block_which == fc::get_index<net_message, signed_block>() );
+
+         // match net_message static_variant pack
+         const uint32_t which_size = fc::raw::pack_size( unsigned_int( signed_block_which ) );
+         const uint32_t payload_size = which_size + v.size();
+
+         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
+         const size_t buffer_size = message_header_size + payload_size;
+
+         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
+         fc::datastream<char*> ds( send_buffer->data(), buffer_size );
+         ds.write( header, message_header_size );
+         fc::raw::pack( ds, unsigned_int( signed_block_which ) );
+         ds.write( v.data(), v.size() );
+
+         return send_buffer;
+      }
+
    };
 
    struct block_buffer_factory : public buffer_factory {
 
       /// caches result for subsequent calls, only provide same signed_block_ptr instance for each invocation.
       const send_buffer_type& get_send_buffer( const signed_block_ptr& sb ) {
+         if( !send_buffer ) {
+            send_buffer = create_send_buffer( sb );
+         }
+         return send_buffer;
+      }
+
+      const send_buffer_type& get_send_buffer( const std::vector<char>& sb ) {
          if( !send_buffer ) {
             send_buffer = create_send_buffer( sb );
          }
@@ -1770,6 +1776,12 @@ namespace eosio {
          // matches which of net_message for signed_block
          fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
+      }
+
+      static std::shared_ptr<std::vector<char>> create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
+         // this implementation is to avoid copy of signed_block to net_message
+         // matches which of net_message for signed_block
+         return buffer_factory::create_send_buffer_from_serialized_block( ssb );
       }
    };
 
@@ -1809,8 +1821,8 @@ namespace eosio {
    }
 
    // called from connection strand
-   size_t connection::enqueue_block( const signed_block_ptr& b, bool to_sync_queue) {
-      peer_dlog( this, "enqueue block ${num}", ("num", b->block_num()) );
+   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num, bool to_sync_queue ) {
+      peer_dlog( this, "enqueue block ${num}", ("num", block_num) );
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       block_buffer_factory buff_factory;
@@ -2105,10 +2117,12 @@ namespace eosio {
             auto forkdb_head = cc.fork_db_head();
             auto calculated_lib = forkdb_head.irreversible_blocknum();
             auto num_blocks_that_can_be_applied = calculated_lib > head_num ? calculated_lib - head_num : 0;
+            // add blocks that can potentially be applied as they are not in the forkdb yet
+            num_blocks_that_can_be_applied += blk_num > forkdb_head.block_num() ? blk_num - forkdb_head.block_num() : 0;
             if (num_blocks_that_can_be_applied < sync_fetch_span) {
                if (head_num )
-               fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
-                       ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
+                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused LIB ${l}, chain_lib ${cl}, forkdb size ${s}",
+                          ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("cl", head_num)("s", cc.fork_db_size()));
                return true;
             }
          }
@@ -3599,11 +3613,9 @@ namespace eosio {
          blk_send_branch( msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back() );
          break;
       case normal :
-         peer_dlog( this, "received request_message:normal" );
-         if( !msg.req_blocks.ids.empty() ) {
-            blk_send( msg.req_blocks.ids.back() );
-         }
-         break;
+         peer_wlog( this, "Invalid request_message, req_blocks.mode = normal" );
+         close();
+         return;
       default:;
       }
 
@@ -3615,13 +3627,14 @@ namespace eosio {
          if( msg.req_blocks.mode == none ) {
             peer_syncing_from_us = false;
          }
-         // no break
-      case normal :
          if( !msg.req_trx.ids.empty() ) {
-            peer_wlog( this, "Invalid request_message, req_trx.ids.size ${s}", ("s", msg.req_trx.ids.size()) );
+            peer_wlog( this, "Invalid request_message, req_trx.mode=none, req_trx.ids.size ${s}", ("s", msg.req_trx.ids.size()) );
             close();
-            return;
          }
+         break;
+      case normal :
+         peer_wlog( this, "Invalid request_message, req_trx.mode=normal" );
+         close();
          break;
       default:;
       }

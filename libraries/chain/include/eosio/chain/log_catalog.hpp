@@ -31,6 +31,11 @@ struct null_verifier {
    void verify(const LogData&, const std::filesystem::path&) {}
 };
 
+struct block_pos_size_t {
+   uint64_t position = 0;  // start position of the block in block log
+   uint64_t size     = 0;  // size of the block
+};
+
 template <typename LogData, typename LogIndex, typename LogVerifier = null_verifier>
 struct log_catalog {
    using block_num_t = uint32_t;
@@ -159,6 +164,26 @@ struct log_catalog {
       }
    }
 
+   std::optional<block_pos_size_t> get_block_position_and_size(uint32_t block_num) {
+      std::optional<uint64_t> pos = get_block_position(block_num);
+
+      if (!pos) {
+         return {};
+      }
+
+      constexpr uint32_t block_pos_size = sizeof(uint64_t);
+      uint64_t block_size = 0;
+      assert(block_num <= log_data.last_block_num());
+      if (block_num < log_data.last_block_num()) {
+         uint64_t next_block_pos = log_index.nth_block_position(block_num + 1 - log_data.first_block_num());
+         block_size = next_block_pos - *pos - block_pos_size;
+      } else {
+         block_size = log_data.size() - *pos - block_pos_size;
+      }
+
+      return block_pos_size_t { .position = *pos, .size = block_size };
+   }
+
    fc::datastream<fc::cfile>* ro_stream_for_block(uint32_t block_num) {
       auto pos = get_block_position(block_num);
       if (pos) {
@@ -174,6 +199,15 @@ struct log_catalog {
          return log_data.ro_stream_at(*pos, std::forward<Rest&&>(rest)...);
       }
       return {};
+   }
+
+   fc::datastream<fc::cfile>* ro_stream_and_size_for_block(uint32_t block_num, uint64_t& block_size) {
+      auto pos_size = get_block_position_and_size(block_num);
+      if (pos_size) {
+         block_size = pos_size->size;
+         return &log_data.ro_stream_at(pos_size->position);
+      }
+      return nullptr;
    }
 
    std::optional<block_id_type> id_for_block(uint32_t block_num) {

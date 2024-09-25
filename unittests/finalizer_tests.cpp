@@ -4,6 +4,7 @@
 #include <eosio/testing/tester.hpp>
 #include <eosio/testing/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
+#include <fc/io/fstream.hpp>
 #include <test-data.hpp>
 
 using namespace eosio;
@@ -93,6 +94,16 @@ bls_pub_priv_key_map_t create_local_finalizers(const std::vector<bls_keys_t>& ke
 template <class FSI_VEC, size_t... I>
 void set_fsi(my_finalizers_t& fset, const std::vector<bls_keys_t>& keys, const FSI_VEC& fsi) {
    ((fset.set_fsi(keys[I].pubkey, fsi[I])), ...);
+}
+
+// sleep for n periods of the file clock
+// --------------------------------------
+void sleep_for_n_file_clock_periods(uint32_t n) {
+   using file_clock = std::chrono::file_clock;
+   auto n_periods = file_clock::duration(n);
+   auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(n_periods);
+
+   std::this_thread::sleep_for(sleep_duration);
 }
 
 BOOST_AUTO_TEST_SUITE(finalizer_tests)
@@ -228,32 +239,37 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_io ) try {
 
 } FC_LOG_AND_RETHROW()
 
+namespace fs = std::filesystem;
 
-BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
-   namespace fs = std::filesystem;
+void create_fsi_reference(my_finalizers_t& fset) {
+   std::vector<bls_keys_t> keys = create_keys(3);
+   std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
 
+   bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
+   fset.set_keys(local_finalizers);
+   set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
+}
+
+void create_fsi_reference_file(const fs::path& safety_file_path) {
+   my_finalizers_t fset{safety_file_path};
+   create_fsi_reference(fset);
+   fset.save_finalizer_safety_info();
+}
+
+fs::path mk_versioned_fsi_file_path(uint32_t v) {
    fs::path test_data_path { UNITTEST_TEST_DATA_DIR };
    auto fsi_reference_dir = test_data_path / "fsi";
 
-   auto create_fsi_reference = [&](my_finalizers_t& fset) {
-      std::vector<bls_keys_t> keys = create_keys(3);
-      std::vector<fsi_t> fsi = create_random_fsi<fsi_t>(3);
+   return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
+}
 
-      bls_pub_priv_key_map_t local_finalizers = create_local_finalizers<0, 1, 2>(keys);
-      fset.set_keys(local_finalizers);
-      set_fsi<decltype(fsi), 0, 1, 2>(fset, keys, fsi);
-   };
+std::string read_file(const fs::path& path) {
+   std::string res;
+   fc::read_file_contents(path, res);
+   return res;
+}
 
-   auto create_fsi_reference_file = [&](const fs::path& safety_file_path) {
-      my_finalizers_t fset{safety_file_path};
-      create_fsi_reference(fset);
-      fset.save_finalizer_safety_info();
-   };
-
-   auto mk_versioned_fsi_file_path = [&](uint32_t v) {
-      return fsi_reference_dir / ("safety_v"s + std::to_string(v) + ".dat");
-   };
-
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
    auto current_version = my_finalizers_t::current_safety_file_version;
 
    // run this unittest with the option `-- --save-fsi-ref` to save ref file for the current version.
@@ -288,7 +304,8 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
       auto ref_path = mk_versioned_fsi_file_path(i);
       auto copy_path = tempdir.path() / ref_path.filename();
       fs::copy_file(ref_path, copy_path, fs::copy_options::none);
-      std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+      sleep_for_n_file_clock_periods(2);
 
       // first load the reference file in the old format, and then save it in the new version format
       // -------------------------------------------------------------------------------------------
@@ -304,6 +321,53 @@ BOOST_AUTO_TEST_CASE( finalizer_safety_file_versioning ) try {
 
       BOOST_REQUIRE(fsi_map_vi == fsi_map_vn);
    }
+
+} FC_LOG_AND_RETHROW()
+
+// Verify that we have not changed the fsi file serialiization
+// ------------------------------------------------------------
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_unchanged ) try {
+   auto current_version = my_finalizers_t::current_safety_file_version;
+   auto ref_path = mk_versioned_fsi_file_path(current_version);  // the saved file for current_version
+
+   fc::temp_directory tempdir;
+   auto tmp_path = tempdir.path() / "new_safety.dat";
+   create_fsi_reference_file(tmp_path);                          // save a new file in tmp_path
+
+   BOOST_REQUIRE(read_file(ref_path) == read_file(tmp_path));
+
+} FC_LOG_AND_RETHROW()
+
+
+// Verify that the current version of safety.dat file committed to the repo can be loaded on
+// nodeos startup (it is not saved until we actually vote, and voting would change the fsi).
+// -----------------------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE( finalizer_safety_file_serialization_io ) try {
+   fc::temp_directory tempdir;
+   auto [cfg, genesis_state] = tester::default_config(tempdir);
+
+   fs::path tmp_path = cfg.finalizers_dir / config::safety_filename;
+
+   auto current_version = my_finalizers_t::current_safety_file_version;
+   fs::path ref_path = mk_versioned_fsi_file_path(current_version);  // the saved file for current_version
+
+   tester t( tempdir, true );
+
+   fs::create_directory(cfg.finalizers_dir);
+   fs::copy_file(ref_path, tmp_path, fs::copy_options::none);
+   auto initial_time = fs::last_write_time(tmp_path);
+
+   sleep_for_n_file_clock_periods(2);
+
+   // set finalizer, so that the file is overwritten. set the last one so that order is unchanged.
+   std::vector<bls_keys_t> keys = create_keys(3);
+   bls_pub_priv_key_map_t local_finalizer_keys;
+   local_finalizer_keys[keys.back().pubkey_str] = keys.back().privkey_str;
+   t.control->set_node_finalizer_keys(local_finalizer_keys);
+
+   // Since we didn't vote, the file time should not have changed.
+   auto last_time = fs::last_write_time(tmp_path);
+   BOOST_REQUIRE(last_time == initial_time);
 
 } FC_LOG_AND_RETHROW()
 
