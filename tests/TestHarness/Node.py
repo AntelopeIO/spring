@@ -687,6 +687,27 @@ class Node(Transactions):
                         return True
         return False
 
+    def linesInLog(self, searchStr):
+        dataDir=Utils.getNodeDataDir(self.nodeId)
+        files=Node.findStderrFiles(dataDir)
+        lines=[]
+        for file in files:
+            with open(file, 'r') as f:
+                for line in f:
+                    if searchStr in line:
+                        lines.append(line)
+        return lines
+
+    def countInLog(self, searchStr) -> int:
+        dataDir=Utils.getNodeDataDir(self.nodeId)
+        files=Node.findStderrFiles(dataDir)
+        count = 0
+        for file in files:
+            with open(file, 'r') as f:
+                contents = f.read()
+                count += contents.count(searchStr)
+        return count
+
     # verify only one or two 'Starting block' per block number unless block is restarted
     def verifyStartingBlockMessages(self):
         dataDir=Utils.getNodeDataDir(self.nodeId)
