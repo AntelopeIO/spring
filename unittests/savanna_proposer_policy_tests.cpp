@@ -5,7 +5,7 @@ using namespace eosio::testing;
 
 static const uint32_t prod_rep = static_cast<uint32_t>(config::producer_repetitions);
 
-BOOST_AUTO_TEST_SUITE(savanna_proposer_policy)
+BOOST_AUTO_TEST_SUITE(savanna_proposer_policy_tests)
 
 // ---------------------------------------------------------------------------------------------------
 //     Proposer Policy change - check expected delay when policy change initiated on
@@ -128,14 +128,13 @@ BOOST_FIXTURE_TEST_CASE(policy_change_last_block_delay_check, savanna_cluster::c
 //     Verify that a proposer policy does not become active when finality has stalled
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_cluster::cluster_t) try {
-   auto& A=_nodes[0];
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
    // split network { A, B } and { C, D }
    // Regardless of how many blocks A produces, finality will not advance
    // by more than one (1 QC in flight)
    // -------------------------------------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    auto sb = A.produce_block();                        // take care of the in-flight QC
 
    const vector<account_name> producers { "pa"_n, "pb"_n };
@@ -183,14 +182,13 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality, savanna_clus
 //     finality stalled long enough)
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cluster::cluster_t) try {
-   auto& A=_nodes[0];
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
    // split network { A, B } and { C, D }
    // Regardless of how many blocks A produces, finality will not advance
    // by more than one (1 QC in flight)
    // -------------------------------------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    auto sb = A.produce_block();                        // take care of the in-flight QC
 
    const vector<account_name> producers { "pa"_n, "pb"_n };
@@ -233,7 +231,7 @@ BOOST_FIXTURE_TEST_CASE(no_proposer_policy_change_without_finality_2, savanna_cl
 //     Verify that a proposer policy becomes active when finality has advanced enough to make it pending
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality, savanna_cluster::cluster_t) try {
-   auto& A=_nodes[0];
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
    static_assert(prod_rep >= 4);
 
    auto sb = A.produce_block();
@@ -254,8 +252,7 @@ BOOST_FIXTURE_TEST_CASE(pending_proposer_policy_becomes_active_without_finality,
    // Regardless of how many blocks A produces, finality will not advance
    // by more than one (1 QC in flight)
    // -------------------------------------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
 
    sb = A.produce_block();                // produce one more block for lib final advance (in-flight QC)
 

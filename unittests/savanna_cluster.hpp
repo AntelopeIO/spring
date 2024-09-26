@@ -400,6 +400,23 @@ namespace savanna_cluster {
          _shutting_down = true;
       }
 
+      peers_t partitions(const std::initializer_list<std::vector<node_t*>>& l) {
+         std::vector<std::vector<size_t>> indice_vec;
+         for (const auto& v : l) {
+             auto view = v | std::views::transform([](const node_t* n) { return n->node_idx(); });
+             indice_vec.emplace_back(view.begin(), view.end());
+         }
+         return compute_peers(indice_vec);
+      }
+
+      peers_t partition(const std::vector<node_t*>& nodes) {
+         return partitions({nodes});
+      }
+
+      void set_partition(const std::vector<node_t*>& nodes) {
+         _peers = partition(nodes);
+      }
+
       // `set_partitions` allows to configure logical network connections between nodes.
       // - an empty list will connect each node of the cluster to every other nodes.
       // - a non-empty list partitions the network into two or more partitions.
@@ -407,23 +424,8 @@ namespace savanna_cluster {
       //   for nodes (`complement`) form another partition
       //   (within each partition, nodes are fully connected)
       // -----------------------------------------------------------------------------------------
-      void set_partitions(const std::initializer_list<std::vector<size_t>>& l) {
-         _peers = compute_peers(l);
-      }
-
-      // this is a convenience function for the most common case where we want to partition
-      // the nodes into two separate disconnected partitions.
-      // Simply provide a set of indices for nodes that need to be logically disconnected
-      // from the rest of the network.
-      // ----------------------------------------------------------------------------------
-      void set_partition(const std::vector<size_t>& indices) {
-         set_partitions({indices});
-      }
-
-      peers_t partition(const std::vector<node_t*>& nodes) {
-         auto view = nodes | std::views::transform([](const node_t* n) { return n->node_idx(); });
-         std::vector<size_t> indices(view.begin(), view.end());
-         return compute_peers({indices});
+      void set_partitions(const std::initializer_list<std::vector<node_t*>>& part_vec) {
+         _peers = partitions(part_vec);
       }
 
       // After creating forks on different nodes on a partitioned network, make sure that,
@@ -567,7 +569,7 @@ namespace savanna_cluster {
 
       friend node_t;
 
-      peers_t compute_peers(const std::initializer_list<std::vector<size_t>>& l) const {
+      peers_t compute_peers(const std::vector<std::vector<size_t>>& l) const {
          auto inside = [&](size_t node_idx) {
             return ranges::any_of(l, [node_idx](const auto& v) {
                return ranges::any_of(v, [node_idx](auto i) { return i == node_idx; }); });
