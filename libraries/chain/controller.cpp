@@ -4109,7 +4109,7 @@ struct controller_impl {
    // thread safe, expected to be called from thread other than the main thread
    // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
-   controller::accepted_block_handle create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
+   controller::accepted_block_result create_block_state_i( ForkDB& forkdb, const block_id_type& id, const signed_block_ptr& b, const BS& prev ) {
       constexpr bool is_proper_savanna_block = std::is_same_v<typename std::decay_t<BS>, block_state>;
       assert(is_proper_savanna_block == b->is_proper_svnn_block());
 
@@ -4159,14 +4159,14 @@ struct controller_impl {
       if constexpr (is_proper_savanna_block)
          vote_processor.notify_new_block(async_aggregation);
 
-      return controller::accepted_block_handle{best_head, block_handle{std::move(bsp)}};
+      return controller::accepted_block_result{best_head, block_handle{std::move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
-   controller::accepted_block_handle create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
+   controller::accepted_block_result create_block_handle( const block_id_type& id, const signed_block_ptr& b ) {
       EOS_ASSERT( b, block_validate_exception, "null block" );
       
-      auto f = [&](auto& forkdb) -> controller::accepted_block_handle {
+      auto f = [&](auto& forkdb) -> controller::accepted_block_result {
          // previous not found, means it is unlinkable
          auto prev = forkdb.get_block( b->previous, include_root_t::yes );
          if( !prev ) return {};
@@ -4174,14 +4174,14 @@ struct controller_impl {
          return create_block_state_i( forkdb, id, b, *prev );
       };
 
-      auto unlinkable = [&](const auto&) -> controller::accepted_block_handle {
+      auto unlinkable = [&](const auto&) -> controller::accepted_block_result {
          return {};
       };
 
       if (!b->is_proper_svnn_block()) {
-         return fork_db.apply<controller::accepted_block_handle>(f, unlinkable);
+         return fork_db.apply<controller::accepted_block_result>(f, unlinkable);
       }
-      return fork_db.apply<controller::accepted_block_handle>(unlinkable, f);
+      return fork_db.apply<controller::accepted_block_result>(unlinkable, f);
    }
 
    // thread safe, QC already verified by verify_proper_block_exts
@@ -4347,9 +4347,8 @@ struct controller_impl {
 
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
             auto except = std::exception_ptr{};
+            const auto& bsp = *ritr;
             try {
-               const auto& bsp = *ritr;
-
                bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
                                                                 : controller::block_status::complete, trx_lookup );
                if (!switch_fork && (!applied || check_shutdown())) {
@@ -4361,10 +4360,12 @@ struct controller_impl {
             } catch ( const boost::interprocess::bad_alloc& ) {
                throw;
             } catch (const fc::exception& e) {
-               elog("exception thrown while switching forks ${e}", ("e", e.to_detail_string()));
+               elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
+                    ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
                except = std::current_exception();
             } catch (const std::exception& e) {
-               elog("exception thrown while switching forks ${e}", ("e", e.what()));
+               elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
+                    ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.what()));
                except = std::current_exception();
             }
 
@@ -5185,7 +5186,7 @@ boost::asio::io_context& controller::get_thread_pool() {
    return my->thread_pool.get_executor();
 }
 
-controller::accepted_block_handle controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
+controller::accepted_block_result controller::accept_block( const block_id_type& id, const signed_block_ptr& b ) const {
    return my->create_block_handle( id, b );
 }
 

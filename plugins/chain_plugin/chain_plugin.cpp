@@ -151,7 +151,6 @@ public:
    ,accepted_block_channel(app().get_channel<channels::accepted_block>())
    ,irreversible_block_channel(app().get_channel<channels::irreversible_block>())
    ,applied_transaction_channel(app().get_channel<channels::applied_transaction>())
-   ,incoming_block_sync_method(app().get_method<incoming::methods::block_sync>())
    ,incoming_transaction_async_method(app().get_method<incoming::methods::transaction_async>())
    {}
 
@@ -180,7 +179,6 @@ public:
    channels::applied_transaction::channel_type&    applied_transaction_channel;
 
    // retained references to methods for easy calling
-   incoming::methods::block_sync::method_type&        incoming_block_sync_method;
    incoming::methods::transaction_async::method_type& incoming_transaction_async_method;
 
    // method provider handles
@@ -1207,10 +1205,6 @@ chain_apis::read_only chain_plugin::get_read_only_api(const fc::microseconds& ht
    return chain_apis::read_only(chain(), my->_account_query_db, my->_last_tracked_votes, get_abi_serializer_max_time(), http_max_response_time, my->_trx_finality_status_processing.get());
 }
 
-
-bool chain_plugin::accept_block(const signed_block_ptr& block, const block_id_type& id, const block_handle& bh ) {
-   return my->incoming_block_sync_method(block, id, bh);
-}
 
 void chain_plugin::accept_transaction(const chain::packed_transaction_ptr& trx, next_function<chain::transaction_trace_ptr> next) {
    my->incoming_transaction_async_method(trx, false, transaction_metadata::trx_type::input, false, std::move(next));

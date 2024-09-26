@@ -192,7 +192,7 @@ namespace eosio {
       void sync_wait(const connection_ptr& c);
       void sync_reassign_fetch( const connection_ptr& c );
       void rejected_block( const connection_ptr& c, uint32_t blk_num, closing_mode mode );
-      void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num, bool blk_applied,
+      void sync_recv_block( const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
                             const fc::microseconds& blk_latency );
       void recv_handshake( const connection_ptr& c, const handshake_message& msg, uint32_t nblk_combined_latency );
       void sync_recv_notice( const connection_ptr& c, const notice_message& msg );
@@ -450,13 +450,13 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
+      void on_irreversible_block( const signed_block_ptr& block, const block_id_type& id );
       void broadcast_vote_message( uint32_t connection_id, vote_result_t status,
                                    const vote_message_ptr& vote,
                                    const finalizer_authority_ptr& active_auth,
                                    const finalizer_authority_ptr& pending_auth);
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
-      void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
       void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
 
@@ -710,11 +710,11 @@ namespace eosio {
    /// time windows (rbws).
    class block_status_monitor {
    private:
-      bool in_accepted_state_ {true};              ///< indicates of accepted(true) or rejected(false) state
-      fc::microseconds window_size_{2*1000};       ///< rbw time interval (2ms)
-      fc::time_point   window_start_;              ///< The start of the recent rbw (0 implies not started)
-      uint32_t         events_{0};                 ///< The number of consecutive rbws
-      const uint32_t   max_consecutive_rejected_windows_{13};
+      std::atomic<bool>             in_accepted_state_ {true};  ///< indicates of accepted(true) or rejected(false) state
+      fc::microseconds              window_size_{2*1000};       ///< rbw time interval (2ms)
+      fc::time_point                window_start_;              ///< The start of the recent rbw (0 implies not started)
+      std::atomic<uint32_t>         events_{0};                 ///< The number of consecutive rbws
+      const uint32_t max_consecutive_rejected_windows_{13};
 
    public:
       /// ctor
@@ -728,14 +728,14 @@ namespace eosio {
       block_status_monitor( const block_status_monitor& ) = delete;
       block_status_monitor( block_status_monitor&& ) = delete;
       ~block_status_monitor() = default;
-      /// reset to initial state
+      /// thread safe, reset to initial state
       void reset();
-      /// called when a block is accepted (sync_recv_block)
+      /// thread safe, called when a block is accepted
       void accepted() { reset(); }
       /// called when a block is rejected
       void rejected();
       /// returns number of consecutive rbws
-      auto events() const { return events_; }
+      auto events() const { return events_.load(); }
       /// indicates if the max number of consecutive rbws has been reached or exceeded
       bool max_events_violated() const { return events_ >= max_consecutive_rejected_windows_; }
       /// assignment not allowed
@@ -1022,8 +1022,6 @@ namespace eosio {
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
-
-      void process_signed_block( const block_id_type& id, signed_block_ptr block, const block_handle& bh );
 
       fc::variant_object get_logger_variant() const {
          fc::mutable_variant_object mvo;
@@ -2092,7 +2090,7 @@ namespace eosio {
 
    bool sync_manager::is_sync_required( uint32_t fork_head_block_num ) const REQUIRES(sync_mtx) {
       fc_dlog( logger, "last req = ${req}, last recv = ${recv} known = ${known} our fhead = ${h}",
-               ("req", sync_last_requested_num)( "recv", sync_next_expected_num )( "known", sync_known_lib_num )
+               ("req", sync_last_requested_num)( "recv", sync_next_expected_num-1 )( "known", sync_known_lib_num )
                ("h", fork_head_block_num ) );
 
       return( sync_last_requested_num < sync_known_lib_num ||
@@ -2160,7 +2158,7 @@ namespace eosio {
          sync_last_requested_num = 0;
          sync_next_expected_num = chain_info.lib_num + 1;
          request_next_chunk( c );
-      } else if (sync_last_requested_num > 0 && is_sync_request_ahead_allowed(sync_next_expected_num)) {
+      } else if (sync_last_requested_num > 0 && is_sync_request_ahead_allowed(sync_next_expected_num-1)) {
          request_next_chunk();
       } else {
          peer_dlog(c, "already syncing, start sync ignored");
@@ -2426,28 +2424,40 @@ namespace eosio {
       }
    }
 
-   // called from c's connection strand
+   // called from c's connection strand if c != nullptr,
+   // otherwise c == nullptr which implies blk_applied == false and called from dispatcher strand
    void sync_manager::sync_recv_block(const connection_ptr& c, const block_id_type& blk_id, uint32_t blk_num,
-                                      bool blk_applied, const fc::microseconds& blk_latency) {
-      peer_dlog(c, "${d} block ${bn}:${id}.. latency ${l}ms",
-                ("d", blk_applied ? "applied" : "got")("bn", blk_num)("id", blk_id.str().substr(8,16))
-                ("l", blk_latency.count()/1000) );
+                                      const fc::microseconds& blk_latency) {
+      // no connection means called when block is applied
+      const bool blk_applied = !c;
+
+      if (c) {
+         peer_dlog(c, "got block ${bn}:${id}.. latency ${l}ms",
+                   ("bn", blk_num)("id", blk_id.str().substr(8,16))("l", blk_latency.count()/1000) );
+      } else {
+         fc_dlog(logger, "applied block ${bn}:${id}.. latency ${l}ms",
+                 ("bn", blk_num)("id", blk_id.str().substr(8,16))("l", blk_latency.count()/1000) );
+      }
       if( app().is_quiting() ) {
-         c->close( false, true );
+         if (c)
+            c->close( false, true );
          return;
       }
-      c->latest_blk_time = sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
-      if (blk_applied)
-         c->block_status_monitor_.accepted();
-      if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
-         // a peer will not send us a recent block unless it is synced
-         c->peer_syncing_from_us = false;
+      if (c) {
+         c->latest_blk_time = sync_active_time = std::chrono::steady_clock::now(); // reset when we receive a block
+         if (blk_latency.count() < config::block_interval_us && c->peer_syncing_from_us) {
+            // a peer will not send us a recent block unless it is synced
+            c->peer_syncing_from_us = false;
+         }
+      } else {
+         // reset when we apply a block as well so we don't time out just because applying blocks takes too long
+         sync_active_time = std::chrono::steady_clock::now();
       }
       stages state = sync_state;
-      peer_dlog( c, "state ${s}", ("s", stage_str( state )) );
+      fc_dlog(logger, "sync_state ${s}", ("s", stage_str(state)));
       if( state == head_catchup ) {
+         fc_dlog(logger, "sync_manager in head_catchup state");
          fc::unique_lock g_sync( sync_mtx );
-         peer_dlog( c, "sync_manager in head_catchup state" );
          sync_source.reset();
          g_sync.unlock();
 
@@ -2460,7 +2470,7 @@ namespace eosio {
             g_cp_conn.unlock();
             if( fork_head_id == null_id ) {
                // continue
-            } else if( fork_head_num < blk_num || fork_head_id == blk_id ) {
+            } else if( c && (fork_head_num < blk_num || fork_head_id == blk_id) ) {
                fc::lock_guard g_conn( c->conn_mtx );
                c->conn_fork_head = null_id;
                c->conn_fork_head_num = 0;
@@ -2471,19 +2481,19 @@ namespace eosio {
 
          if( set_state_to_head_catchup ) {
             if( set_state( head_catchup ) ) {
-               peer_dlog( c, "Switching to head_catchup, sending handshakes" );
+               fc_dlog(logger, "Switching to head_catchup, sending handshakes");
                send_handshakes();
             }
          } else {
             set_state( in_sync );
-            peer_dlog( c, "Switching to in_sync, will send handshakes when caught up" );
+            fc_dlog(logger, "Switching to in_sync, will send handshakes when caught up");
             send_handshakes_when_synced = true;
          }
       } else if( state == lib_catchup ) {
          fc::unique_lock g_sync( sync_mtx );
          if( blk_applied && blk_num >= sync_known_lib_num ) {
-            peer_dlog(c, "All caught up ${b} with last known lib ${l} resending handshake",
-                      ("b", blk_num)("l", sync_known_lib_num));
+            fc_dlog(logger, "All caught up ${b} with last known lib ${l} resending handshake",
+                    ("b", blk_num)("l", sync_known_lib_num));
             set_state( head_catchup );
             g_sync.unlock();
             send_handshakes();
@@ -2523,16 +2533,18 @@ namespace eosio {
                   }
                }
             } else { // blk_applied
-               if (blk_num >= sync_last_requested_num) {
-                  if (is_sync_request_ahead_allowed(blk_num)) {
-                     // Did not request blocks ahead, likely because too far ahead of head, or in irreversible mode
-                     fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
-                                     "sync_last_requested_num: ${lrn}, sync_last_requested_block: ${lrb}",
-                             ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
-                             ("bn", blk_num)("nen", sync_next_expected_num)
-                             ("lrn", sync_last_requested_num)("lrb", c->sync_last_requested_block));
-                     request_next_chunk();
-                  }
+               controller& cc = my_impl->chain_plug->chain();
+               if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+                  // When in irreversible mode, we do not get an accepted_block signal until the block is irreversible.
+                  // Use last received number instead so when end of range is reached we check the IRREVERSIBLE conditions below.
+                  blk_num = sync_next_expected_num-1;
+               }
+               if (is_sync_request_ahead_allowed(blk_num)) {
+                  fc_dlog(logger, "Requesting blocks, head: ${h} fhead ${fh} blk_num: ${bn} sync_next_expected_num ${nen} "
+                                  "sync_last_requested_num: ${lrn}",
+                          ("h", my_impl->get_chain_head_num())("fh", my_impl->get_fork_head_num())
+                          ("bn", blk_num)("nen", sync_next_expected_num)("lrn", sync_last_requested_num));
+                  request_next_chunk();
                }
             }
          }
@@ -3035,7 +3047,7 @@ namespace eosio {
       if( my_impl->dispatcher.have_block( blk_id ) ) {
          peer_dlog( this, "already received block ${num}, id ${id}..., latency ${l}ms",
                     ("num", blk_num)("id", blk_id.str().substr(8,16))("l", age.count()/1000) );
-         my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, false, age );
+         my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, age );
 
          pending_message_buffer.advance_read_ptr( message_length );
          return true;
@@ -3062,7 +3074,7 @@ namespace eosio {
       } else {
          block_sync_bytes_received += message_length;
          uint32_t lib_num = my_impl->get_chain_lib_num();
-         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, false, age);
+         my_impl->sync_master->sync_recv_block(shared_from_this(), blk_id, blk_num, age);
          if( blk_num <= lib_num ) {
             peer_dlog( this, "received block ${n} less than lib ${lib} while syncing", ("n", blk_num)("lib", lib_num) );
             pending_message_buffer.advance_read_ptr( message_length );
@@ -3716,27 +3728,31 @@ namespace eosio {
             my_impl->dispatcher.add_peer_block( id, c->connection_id );
             c->strand.post( [c, id, ptr{std::move(ptr)}]() {
                const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), false, age );
+               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
             });
             return;
          }
 
-         // prev_is_proper_svnn_block is for integration tests that verify low number of `unlinkable_blocks` logs.
+         // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
          // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
          // the main thread will have finished transitioning and will be linkable. This is a bit of a hack but seems
          // like an okay compromise for a condition, outside of testing, will rarely happen.
-         static bool prev_is_proper_svnn_block = false;
+         static bool proper_svnn_block_seen = false;
 
          std::optional<block_handle> obh;
          bool exception = false;
          bool best_head = false;
+         bool unlinkable = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
          try {
+            EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+                       "received a block from the future, ignoring it: ${id}", ("id", id));
             // this will return empty optional<block_handle> if block is not linkable
-            controller::accepted_block_handle abh = cc.accept_block( id, ptr );
+            controller::accepted_block_result abh = cc.accept_block( id, ptr );
             best_head = abh.is_new_best_head;
             obh = std::move(abh.block);
+            unlinkable = !obh;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
             close_mode = sync_manager::closing_mode::immediately;
@@ -3751,12 +3767,11 @@ namespace eosio {
             fc_wlog( logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
          }
-         if( exception || !obh) {
-            if (!obh) {
-               if (prev_is_proper_svnn_block || !ptr->is_proper_svnn_block()) {
-                  fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
-                          ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
-               }
+         if( exception || unlinkable) {
+            const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
+            if (unlinkable && !first_proper_svnn_block) {
+               fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
+                       ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
             c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
@@ -3767,98 +3782,36 @@ namespace eosio {
 
          assert(obh);
          uint32_t block_num = obh->block_num();
-         prev_is_proper_svnn_block = obh->header().is_proper_svnn_block();
+         proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
          fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
                   ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
+         c->block_status_monitor_.accepted();
+
+         if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+            // non-irreversible notifies sync_manager when block is applied
+            my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
+               const fc::microseconds age(fc::time_point::now() - bh.timestamp());
+               sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
+            });
+         }
 
          if (best_head) {
-            fc_dlog(logger, "posting block ${n} to app thread", ("n", ptr->block_num()));
+            ++c->unique_blocks_rcvd_count;
+            fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
             app().executor().post(priority::medium, exec_queue::read_write,
-                                  [ptr{std::move(ptr)}, bh{std::move(*obh)}, id, c{std::move(c)}]() mutable {
-                                     c->process_signed_block(id, std::move(ptr), bh);
+                                  []() {
+                                     try {
+                                        my_impl->producer_plug->on_incoming_block();
+                                     } catch (...) {} // errors on applied blocks logged in controller
                                   });
 
             // ready to process immediately, so signal producer to interrupt start_block
             my_impl->producer_plug->received_block(block_num);
-         } else {
-            c->strand.post([sync_master = my_impl->sync_master.get(), c, id, block_num, timestamp=obh->timestamp()]() {
-               const fc::microseconds age(fc::time_point::now() - timestamp);
-               bool blk_applied = true; // not really applied, but accepted by controller into forkdb
-               sync_master->sync_recv_block(c, id, block_num, blk_applied, age);
-            });
          }
       });
-   }
-
-   // called from application thread
-   void connection::process_signed_block( const block_id_type& blk_id, signed_block_ptr block, const block_handle& bh ) {
-      controller& cc = my_impl->chain_plug->chain();
-      uint32_t blk_num = block_header::num_from_id(blk_id);
-      // use c in this method instead of this to highlight that all methods called on c-> must be thread safe
-      connection_ptr c = shared_from_this();
-
-      uint32_t lib = cc.last_irreversible_block_num();
-      fc::microseconds age(fc::time_point::now() - block->timestamp);
-      try {
-         if( blk_num <= lib || cc.validated_block_exists(blk_id) ) {
-            c->strand.post( [sync_master = my_impl->sync_master.get(),
-                             &dispatcher = my_impl->dispatcher, c, blk_id, blk_num, latency = age]() {
-               dispatcher.add_peer_block( blk_id, c->connection_id );
-               sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
-            });
-            return;
-         }
-      } catch( const assert_exception& ex ) {
-         // possible corrupted block log
-         fc_elog( logger, "caught assert on fetch_block_by_id, ${ex}, id ${id}, conn ${c}", ("ex", ex.to_string())("id", blk_id)("c", connection_id) );
-      } catch( ... ) {
-         fc_elog( logger, "caught an unknown exception trying to fetch block ${id}, conn ${c}", ("id", blk_id)("c", connection_id) );
-      }
-
-      fc_dlog( logger, "received signed_block: #${n} block age in secs = ${age}, connection - ${cid}, header validated, lib #${lib}",
-               ("n", blk_num)("age", age.to_seconds())("cid", c->connection_id)("lib", lib) );
-
-      bool accepted = false;
-      try {
-         accepted = my_impl->chain_plug->accept_block(block, blk_id, bh);
-         my_impl->update_chain_info();
-      } catch( const unlinkable_block_exception &ex) {
-         fc_ilog(logger, "unlinkable_block_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const block_validate_exception &ex ) {
-         fc_ilog(logger, "block_validate_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const assert_exception &ex ) {
-         fc_wlog(logger, "block assert_exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( const fc::exception &ex ) {
-         fc_ilog(logger, "bad block exception connection - ${cid}: #${n} ${id}...: ${m}",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16))("m",ex.to_string()));
-      } catch( ... ) {
-         fc_wlog(logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
-                 ("cid", c->connection_id)("n", blk_num)("id", blk_id.str().substr(8,16)));
-      }
-
-      if( accepted ) {
-         ++unique_blocks_rcvd_count;
-         boost::asio::post( my_impl->thread_pool.get_executor(), [&dispatcher = my_impl->dispatcher, c, blk_id, blk_num]() {
-            fc_dlog( logger, "accepted signed_block : #${n} ${id}...", ("n", blk_num)("id", blk_id.str().substr(8,16)) );
-            dispatcher.add_peer_block( blk_id, c->connection_id );
-         });
-         c->strand.post( [sync_master = my_impl->sync_master.get(),
-                          c, blk_id, blk_num, latency = age]() {
-            sync_master->sync_recv_block( c, blk_id, blk_num, true, latency );
-         });
-      } else {
-         c->strand.post( [sync_master = my_impl->sync_master.get(), &dispatcher = my_impl->dispatcher, c,
-                          block{std::move(block)}, blk_id, blk_num]() mutable {
-             sync_master->rejected_block( c, blk_num, sync_manager::closing_mode::handshake );
-             dispatcher.rejected_block( blk_id );
-         });
-      }
    }
 
    // thread safe
@@ -3917,6 +3870,7 @@ namespace eosio {
 
    // called from application thread
    void net_plugin_impl::on_accepted_block_header(const signed_block_ptr& block, const block_id_type& id) {
+      fc_dlog(logger, "on_accepted_block_header ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
 
       boost::asio::post( my_impl->thread_pool.get_executor(), [block, id]() {
@@ -3925,12 +3879,37 @@ namespace eosio {
       });
    }
 
-   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
+   void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type& id) {
+      fc_dlog(logger, "on_accepted_block ${bn} ${id}", ("bn", block->block_num())("id", id));
+      update_chain_info();
+
+      if (my_impl->chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
+         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+            const fc::microseconds age(fc::time_point::now() - block->timestamp);
+            sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
+         });
+      }
+
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
          on_pending_schedule(*pending_producers);
       }
       on_active_schedule(chain_plug->chain().active_producers());
+   }
+
+   // called from application thread
+   void net_plugin_impl::on_irreversible_block( const signed_block_ptr& block, const block_id_type& id ) {
+      fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id) );
+      update_chain_info(id);
+
+      if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+            const fc::microseconds age(fc::time_point::now() - block->timestamp);
+            sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
+         });
+      }
    }
 
    // called from other threads including net threads
@@ -3992,12 +3971,6 @@ namespace eosio {
       boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg{std::move(send_buffer)}]() mutable {
          my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
       });
-   }
-
-   // called from application thread
-   void net_plugin_impl::on_irreversible_block( const block_id_type& id, uint32_t block_num) {
-      fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block_num)("id", id) );
-      update_chain_info(id);
    }
 
    // called from application thread
@@ -4395,7 +4368,7 @@ namespace eosio {
          } );
          cc.irreversible_block().connect( [my = shared_from_this()]( const block_signal_params& t ) {
             const auto& [ block, id ] = t;
-            my->on_irreversible_block( id, block->block_num() );
+            my->on_irreversible_block( block, id );
          } );
 
          auto broadcast_vote =  [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
