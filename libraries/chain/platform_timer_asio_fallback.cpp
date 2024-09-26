@@ -47,6 +47,7 @@ platform_timer::platform_timer() {
 
 platform_timer::~platform_timer() {
    stop();
+   my->timer.reset();
    if(std::lock_guard guard(timer_ref_mutex); --refcount == 0) {
       checktime_ios->stop();
       checktime_thread.join();
