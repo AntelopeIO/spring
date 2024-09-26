@@ -521,6 +521,13 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         static bool arguments_contains(std::string arg) {
+            auto argc = boost::unit_test::framework::master_test_suite().argc;
+            auto argv = boost::unit_test::framework::master_test_suite().argv;
+
+            return std::find(argv, argv + argc, arg) != (argv + argc);
+         }
+
          // ideally, users of `tester` should not access the controller directly,
          // so we provide APIs to access the chain head and fork_db head, and some
          // other commonly used APIs.
@@ -529,6 +536,7 @@ namespace eosio::testing {
          block_handle     fork_db_head() const { return control->fork_db_head(); }
 
          chain_id_type    get_chain_id() const { return control->get_chain_id(); }
+         block_id_type    last_irreversible_block_id() const { return control->last_irreversible_block_id(); }
          uint32_t         last_irreversible_block_num() const { return control->last_irreversible_block_num(); }
          bool             block_exists(const block_id_type& id) const { return  control->block_exists(id); }
 
