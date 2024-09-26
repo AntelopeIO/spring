@@ -239,8 +239,13 @@ try:
                 if irreversible:
                     # for now just use a larger tolerance, later when the logs include calculated lib this can be more precise
                     # See https://github.com/AntelopeIO/spring/issues/806
-                    if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*10):
-                        errorExit(f"Requested range too far head of fork head {fhead} in irreversible mode, sync-fetch-span {sync_fetch_span}: {line}")
+                    if activateIF:
+                        if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*10):
+                            errorExit(f"Requested range too far head of fork head {fhead} in irreversible mode, sync-fetch-span {sync_fetch_span}: {line}")
+                    else:
+                        if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*2+360):
+                            errorExit(f"Requested range too far head of fork head {fhead} in irreversible mode, sync-fetch-span {sync_fetch_span}: {line}")
+
                 else:
                     if endBlockNum > fhead and fhead > libNum and endBlockNum - fhead > (sync_fetch_span*2-1):
                         errorExit(f"Requested range too far head of fork head {fhead} sync-fetch-span {sync_fetch_span}: {line}")
