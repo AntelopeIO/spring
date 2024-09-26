@@ -104,6 +104,8 @@ namespace savanna_cluster {
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
+      using votes_map_t = boost::unordered_flat_map<block_id_type, vote_message_ptr>;
+
       size_t                                          _node_idx;
       bool                                            _pushing_a_block{false};
       bool                                            _propagate_votes{true}; // if false, votes are dropped
@@ -112,6 +114,8 @@ namespace savanna_cluster {
 
       size_t                                          _vote_delay{0};         // delay vote propagation by this much
       std::vector<vote_message_ptr>                   _delayed_votes;
+
+      votes_map_t                                     _votes;                 // all votes from this node
 
       std::function<void(const block_signal_params&)> _accepted_block_cb;
       std::function<void(const vote_signal_params&)>  _voted_block_cb;
@@ -134,6 +138,8 @@ namespace savanna_cluster {
       void propagate_delayed_votes_to(const node_t& to);
 
       const vote_t& last_vote() const { return _last_vote; }
+
+      vote_message_ptr get_vote(const block_id_type& block_id) const { return _votes.at(block_id); }
 
       void set_node_finalizers(std::span<const account_name> names) {
          _node_finalizers = std::vector<account_name>{ names.begin(), names.end() };

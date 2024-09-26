@@ -21,6 +21,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       if (status == vote_result_t::success) {
          vote_message_ptr vote_msg = std::get<2>(v);
          _last_vote = vote_t(vote_msg->block_id, vote_msg->strong);
+         _votes[vote_msg->block_id] = vote_msg;
 
          if (_propagate_votes) {
             if (_vote_delay)
