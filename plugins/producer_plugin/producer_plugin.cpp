@@ -280,7 +280,7 @@ struct block_time_tracker {
       last_time_point = now;
    }
 
-   void report(uint32_t block_num, account_name producer, producer_plugin::speculative_block_metrics& metrics) {
+   void report(uint32_t block_num, account_name producer, speculative_block_metrics& metrics) {
       auto now = fc::time_point::now();
       report(block_num, producer, now);
       metrics.block_producer = producer;
@@ -747,9 +747,7 @@ public:
    // async snapshot scheduler
    snapshot_scheduler _snapshot_scheduler;
 
-   std::function<void(producer_plugin::produced_block_metrics)> _update_produced_block_metrics;
-   std::function<void(producer_plugin::speculative_block_metrics)> _update_speculative_block_metrics;
-   std::function<void(producer_plugin::incoming_block_metrics)> _update_incoming_block_metrics;
+   std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
 
    // ro for read-only
    struct ro_trx_t {
@@ -882,7 +880,7 @@ public:
 
       if (block_info) {
          auto[block_num, block_producer] = *block_info;
-         producer_plugin::speculative_block_metrics metrics;
+         speculative_block_metrics metrics;
          _time_tracker.report(block_num, block_producer, metrics);
          if (_update_speculative_block_metrics)
             _update_speculative_block_metrics(metrics);
@@ -890,7 +888,7 @@ public:
       _time_tracker.clear();
    }
 
-   bool on_incoming_block(const signed_block_ptr& block, const block_id_type& id, const std::optional<block_handle>& obt) {
+   bool on_incoming_block(const signed_block_ptr& block, const block_id_type& id, const block_handle& bh) {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
@@ -902,7 +900,7 @@ public:
 
       auto& chain = chain_plug->chain();
 
-      // de-dupe here... no point in aborting block if we already know the block; avoid exception in create_block_handle_future
+      // de-dupe here... no point in aborting block if we already know the block
       if (chain.validated_block_exists(id)) {
          fc_dlog(_log, "already have validated block ${n} ${id}", ("n", blk_num)("id", id));
          _time_tracker.add_other_time();
@@ -912,15 +910,8 @@ public:
       EOS_ASSERT(block->timestamp < (now + fc::seconds(7)), block_from_the_future, "received a block from the future, ignoring it: ${id}", ("id", id));
 
       // start processing of block
-      std::future<block_handle> btf;
-      if (!obt) {
-         btf = chain.create_block_handle_future(id, block);
-      }
-
       if (in_producing_mode()) {
          fc_ilog(_log, "producing, incoming block #${num} id: ${id}", ("num", blk_num)("id", id));
-         const block_handle& bh = obt ? *obt : btf.get();
-         chain.accept_block(bh);
          _time_tracker.add_other_time();
          return true; // return true because block was accepted
       }
@@ -938,12 +929,8 @@ public:
          throw;
       };
 
-      controller::block_report br;
       try {
-         const block_handle& bh = obt ? *obt : btf.get();
-         chain.push_block(
-            br,
-            bh,
+         chain.apply_blocks(
             [this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
@@ -966,17 +953,6 @@ public:
       now             = fc::time_point::now();
       if (chain.head().timestamp().next().to_time_point() >= now) {
          _production_enabled = true;
-      }
-
-      if (_update_incoming_block_metrics) { // only includes those blocks pushed, not those that are accepted and processed internally
-         _update_incoming_block_metrics({.trxs_incoming_total   = block->transactions.size(),
-                                         .cpu_usage_us          = br.total_cpu_usage_us,
-                                         .total_elapsed_time_us = br.total_elapsed_time.count(),
-                                         .total_time_us         = br.total_time.count(),
-                                         .net_usage_us          = br.total_net_usage,
-                                         .block_latency_us      = (now - block->timestamp).count(),
-                                         .last_irreversible     = chain.last_irreversible_block_num(),
-                                         .head_block_num        = blk_num});
       }
 
       return true;
@@ -1506,8 +1482,8 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
    ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
    _incoming_block_sync_provider = app().get_method<incoming::methods::block_sync>().register_provider(
-      [this](const signed_block_ptr& block, const block_id_type& block_id, const std::optional<block_handle>& obt) {
-         return on_incoming_block(block, block_id, obt);
+      [this](const signed_block_ptr& block, const block_id_type& block_id, const block_handle& bh) {
+         return on_incoming_block(block, block_id, bh);
       });
 
    _incoming_transaction_async_provider =
@@ -2022,8 +1998,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                            [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+   chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                      [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
 
    if (chain.should_terminate()) {
@@ -2938,9 +2914,8 @@ void producer_plugin_impl::produce_block() {
    }
 
    // idump( (fc::time_point::now() - chain.pending_block_time()) );
-   controller::block_report br;
-   chain.assemble_and_complete_block(br, [&](const digest_type& d) {
-      auto                   debug_logger = maybe_make_debug_time_logger();
+   chain.assemble_and_complete_block([&](const digest_type& d) {
+      auto debug_logger = maybe_make_debug_time_logger();
       vector<signature_type> sigs;
       sigs.reserve(relevant_providers.size());
 
@@ -2951,30 +2926,11 @@ void producer_plugin_impl::produce_block() {
       return sigs;
    });
 
-   br.total_time += fc::time_point::now() - start;
-   chain.commit_block(br);
+   chain.commit_block();
 
    const signed_block_ptr new_b = chain.head().block();
-   if (_update_produced_block_metrics) {
-      producer_plugin::produced_block_metrics metrics;
-      metrics.unapplied_transactions_total = _unapplied_transactions.size();
-      metrics.subjective_bill_account_size_total = chain.get_subjective_billing().get_account_cache_size();
-      metrics.scheduled_trxs_total = chain.db().get_index<generated_transaction_multi_index, by_delay>().size();
-      metrics.trxs_produced_total = new_b->transactions.size();
-      metrics.cpu_usage_us = br.total_cpu_usage_us;
-      metrics.total_elapsed_time_us = br.total_elapsed_time.count();
-      metrics.total_time_us = br.total_time.count();
-      metrics.net_usage_us = br.total_net_usage;
-      metrics.last_irreversible = chain.last_irreversible_block_num();
-      metrics.head_block_num = chain.head().block_num();
-      _update_produced_block_metrics(metrics);
-
-      _time_tracker.add_other_time();
-      _time_tracker.report(new_b->block_num(), new_b->producer, metrics);
-   } else {
-      _time_tracker.add_other_time();
-      _time_tracker.report(new_b->block_num(), new_b->producer);
-   }
+   _time_tracker.add_other_time();
+   _time_tracker.report(new_b->block_num(), new_b->producer);
    _time_tracker.clear();
 }
 
@@ -3190,16 +3146,8 @@ const std::set<account_name>& producer_plugin::producer_accounts() const {
    return my->_producers;
 }
 
-void producer_plugin::register_update_produced_block_metrics(std::function<void(producer_plugin::produced_block_metrics)>&& fun) {
-   my->_update_produced_block_metrics = std::move(fun);
-}
-
 void producer_plugin::register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)> && fun) {
    my->_update_speculative_block_metrics = std::move(fun);
-}
-
-void producer_plugin::register_update_incoming_block_metrics(std::function<void(producer_plugin::incoming_block_metrics)>&& fun) {
-   my->_update_incoming_block_metrics = std::move(fun);
 }
 
 } // namespace eosio

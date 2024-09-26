@@ -1208,8 +1208,8 @@ chain_apis::read_only chain_plugin::get_read_only_api(const fc::microseconds& ht
 }
 
 
-bool chain_plugin::accept_block(const signed_block_ptr& block, const block_id_type& id, const std::optional<block_handle>& obt ) {
-   return my->incoming_block_sync_method(block, id, obt);
+bool chain_plugin::accept_block(const signed_block_ptr& block, const block_id_type& id, const block_handle& bh ) {
+   return my->incoming_block_sync_method(block, id, bh);
 }
 
 void chain_plugin::accept_transaction(const chain::packed_transaction_ptr& trx, next_function<chain::transaction_trace_ptr> next) {
@@ -2116,7 +2116,10 @@ fc::variant read_only::get_block_header_state(const get_block_header_state_param
 void read_write::push_block(read_write::push_block_params&& params, next_function<read_write::push_block_results> next) {
    try {
       auto b = std::make_shared<signed_block>( std::move(params) );
-      app().get_method<incoming::methods::block_sync>()(b, b->calculate_id(), std::optional<block_handle>{});
+      block_id_type id = b->calculate_id();
+      auto [best_head, obh] = db.accept_block( id, b );
+      EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
+      app().get_method<incoming::methods::block_sync>()(b, id, *obh);
    } catch ( boost::interprocess::bad_alloc& ) {
       handle_db_exhaustion();
    } catch ( const std::bad_alloc& ) {
