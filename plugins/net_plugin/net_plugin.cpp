@@ -450,13 +450,13 @@ namespace eosio {
 
       void on_accepted_block_header( const signed_block_ptr& block, const block_id_type& id );
       void on_accepted_block( const signed_block_ptr& block, const block_id_type& id );
+      void on_irreversible_block( const signed_block_ptr& block, const block_id_type& id );
       void broadcast_vote_message( uint32_t connection_id, vote_result_t status,
                                    const vote_message_ptr& vote,
                                    const finalizer_authority_ptr& active_auth,
                                    const finalizer_authority_ptr& pending_auth);
 
       void transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>&);
-      void on_irreversible_block( const block_id_type& id, uint32_t block_num );
 
       void bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg );
 
@@ -3790,6 +3790,14 @@ namespace eosio {
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
          c->block_status_monitor_.accepted();
 
+         if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+            // non-irreversible notifies sync_manager when block is applied
+            my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
+               const fc::microseconds age(fc::time_point::now() - bh.timestamp());
+               sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
+            });
+         }
+
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
@@ -3862,7 +3870,7 @@ namespace eosio {
 
    // called from application thread
    void net_plugin_impl::on_accepted_block_header(const signed_block_ptr& block, const block_id_type& id) {
-      fc_dlog(logger, "on_accpeted_block_header ${bn} ${id}", ("bn", block->block_num())("id", id));
+      fc_dlog(logger, "on_accepted_block_header ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
 
       boost::asio::post( my_impl->thread_pool.get_executor(), [block, id]() {
@@ -3872,19 +3880,36 @@ namespace eosio {
    }
 
    void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type& id) {
-      fc_dlog(logger, "on_accpeted_block ${bn} ${id}", ("bn", block->block_num())("id", id));
+      fc_dlog(logger, "on_accepted_block ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
 
-      my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
-         const fc::microseconds age(fc::time_point::now() - block->timestamp);
-         sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
-      });
+      if (my_impl->chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
+         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+            const fc::microseconds age(fc::time_point::now() - block->timestamp);
+            sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
+         });
+      }
 
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
          on_pending_schedule(*pending_producers);
       }
       on_active_schedule(chain_plug->chain().active_producers());
+   }
+
+   // called from application thread
+   void net_plugin_impl::on_irreversible_block( const signed_block_ptr& block, const block_id_type& id ) {
+      fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id) );
+      update_chain_info(id);
+
+      if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+            const fc::microseconds age(fc::time_point::now() - block->timestamp);
+            sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
+         });
+      }
    }
 
    // called from other threads including net threads
@@ -3946,12 +3971,6 @@ namespace eosio {
       boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg{std::move(send_buffer)}]() mutable {
          my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
       });
-   }
-
-   // called from application thread
-   void net_plugin_impl::on_irreversible_block( const block_id_type& id, uint32_t block_num) {
-      fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block_num)("id", id) );
-      update_chain_info(id);
    }
 
    // called from application thread
@@ -4349,7 +4368,7 @@ namespace eosio {
          } );
          cc.irreversible_block().connect( [my = shared_from_this()]( const block_signal_params& t ) {
             const auto& [ block, id ] = t;
-            my->on_irreversible_block( id, block->block_num() );
+            my->on_irreversible_block( block, id );
          } );
 
          auto broadcast_vote =  [my = shared_from_this()]( const vote_signal_params& vote_signal ) {
