@@ -46,6 +46,18 @@ public:
    }
 
    template <typename Func>
+   void post( handler_id id, int priority, exec_queue q, Func&& func ) {
+      if (q == exec_queue::read_exclusive) {
+         // no reason to post to io_service which then places this in the read_exclusive_handlers queue.
+         // read_exclusive tasks are run exclusively by read threads by pulling off the read_exclusive handlers queue.
+         pri_queue_.add(id, priority, q, --order_, std::forward<Func>(func));
+      } else {
+         // post to io_service as the main thread may be blocked on io_service.run_one() in application::exec()
+         boost::asio::post(io_serv_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
+      }
+   }
+
+   template <typename Func>
    void post( int priority, exec_queue q, Func&& func ) {
       if (q == exec_queue::read_exclusive) {
          // no reason to post to io_service which then places this in the read_exclusive_handlers queue.

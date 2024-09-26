@@ -811,11 +811,10 @@ namespace eosio::testing {
       }
 
       void validate_push_block(const signed_block_ptr& sb) {
-         auto btf = validating_node->create_block_handle_future( sb->calculate_id(), sb );
-         controller::block_report br;
-         block_handle bh = btf.get();
-         validating_node->push_block( br, bh, {}, trx_meta_cache_lookup{} );
-         _check_for_vote_if_needed(*validating_node, bh);
+         auto [best_head, obh] = validating_node->accept_block( sb->calculate_id(), sb );
+         EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", sb->calculate_id()));
+         validating_node->apply_blocks( {}, trx_meta_cache_lookup{} );
+         _check_for_vote_if_needed(*validating_node, *obh);
       }
 
       signed_block_ptr produce_empty_block( fc::microseconds skip_time = default_skip_time )override {
