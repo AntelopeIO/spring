@@ -2099,7 +2099,7 @@ namespace eosio {
 
    // called from c's connection strand
    bool sync_manager::is_sync_request_ahead_allowed(block_num_type blk_num) const REQUIRES(sync_mtx) {
-      if (blk_num >= sync_last_requested_num) {
+      if (blk_num >= sync_last_requested_num && sync_last_requested_num < sync_known_lib_num) {
          // do not allow to get too far ahead (sync_fetch_span) of chain head
          // use chain head instead of fork head so we do not get too far ahead of applied blocks
          uint32_t head_num = my_impl->get_chain_head_num();
@@ -2697,7 +2697,7 @@ namespace eosio {
    }
 
    void dispatch_manager::rejected_block(const block_id_type& id) {
-      fc_dlog( logger, "rejected block ${id}", ("id", id) );
+      fc_dlog( logger, "rejected block ${bn} ${id}", ("bn", block_header::num_from_id(id))("id", id) );
    }
 
    // called from any thread
@@ -3801,7 +3801,7 @@ namespace eosio {
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
-            app().executor().post(priority::medium, exec_queue::read_write,
+            app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
                                   []() {
                                      try {
                                         my_impl->producer_plug->on_incoming_block();
