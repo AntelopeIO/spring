@@ -657,11 +657,11 @@ static std::string read_reference_snapshot() {
    return std::string(buf.data(), buf.size());
 }
 
-static std::shared_ptr<tester> replay_reference_blockchain(const block_log& blog) {
+// need to pass in temp_dir. otherwise it will be destroyed after replay_reference_blockchain returns
+static std::unique_ptr<tester> replay_reference_blockchain(const fc::temp_directory& temp_dir, const block_log& blog) {
    // replay the reference blockchain and make sure LIB id in the replayed
    // chain matches reference LIB id
    // --------------------------------------------
-   fc::temp_directory temp_dir;
    auto config = tester::default_config(temp_dir).first;
 
    std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
@@ -679,7 +679,7 @@ static std::shared_ptr<tester> replay_reference_blockchain(const block_log& blog
    config.force_all_checks = true;
 
    // replay the reference blockchain
-   std::shared_ptr<tester> replay_chain = std::make_shared<tester>(config, *genesis);
+   std::unique_ptr<tester> replay_chain = std::make_unique<tester>(config, *genesis);
 
    auto ref_lib_id = blog.head_id();
    BOOST_REQUIRE_EQUAL(*ref_lib_id, replay_chain->last_irreversible_block_id());
@@ -687,16 +687,18 @@ static std::shared_ptr<tester> replay_reference_blockchain(const block_log& blog
    return replay_chain;
 }
 
-static void sync_replayed_blockchain(const std::shared_ptr<tester>& replay_chain, const block_log& blog) {
+static void sync_replayed_blockchain(std::unique_ptr<tester>&& replay_chain, const block_log& blog) {
    tester sync_chain;
+   sync_chain.close();  // stop the chain
+
+   // remove state and blocks log so we can restart from snapshot
    std::filesystem::remove_all(sync_chain.get_config().state_dir);
    std::filesystem::remove_all(sync_chain.get_config().blocks_dir);
-   sync_chain.close();
 
-   // start from reference snapshot
+   // restart from reference snapshot
    sync_chain.open(buffered_snapshot_suite::get_reader(read_reference_snapshot()));
 
-   // Sync with the replayed blockchain
+   // sync with the replayed blockchain
    while( sync_chain.fork_db_head().block_num() < replay_chain->fork_db_head().block_num() ) {
       auto fb = replay_chain->fetch_block_by_number( sync_chain.fork_db_head().block_num()+1 );
       sync_chain.push_block( fb );
@@ -821,12 +823,13 @@ BOOST_FIXTURE_TEST_CASE(verify_block_compatibitity, savanna_cluster::cluster_t) 
    // replay the reference blockchain and make sure LIB id in the replayed
    // chain matches reference LIB id
    // --------------------------------------------
-   std::shared_ptr<tester> replay_chain = replay_reference_blockchain(blog);
+   fc::temp_directory temp_dir; // need to pass in temp_dir. otherwise it would be destroyed after replay_reference_blockchain returns
+   std::unique_ptr<tester> replay_chain = replay_reference_blockchain(temp_dir, blog);
 
    // start another blockchain using snapshot, and sync with the blocks
    // in the replayed blockchain as source
    // -----------------------------------------------
-   sync_replayed_blockchain(replay_chain, blog);
+   sync_replayed_blockchain(std::move(replay_chain), blog);
 } FC_LOG_AND_RETHROW()
 
 /* -----------------------------------------------------------------------------------------------------
