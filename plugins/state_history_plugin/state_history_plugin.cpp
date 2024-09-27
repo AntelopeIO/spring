@@ -103,6 +103,7 @@ public:
       // connections set must only be modified by main thread; run listener on ship thread so sockets use default executor of the ship thread
       fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
          boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
+            std::this_thread::sleep_for(std::chrono::milliseconds(25));
             catch_and_log([this, &socket]() {
                connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
                                                trace_log, chain_state_log, finality_data_log,
@@ -114,6 +115,7 @@ public:
                                                },
                                                [this](session_base* conn) {
                                                   boost::asio::post(app().get_io_service(), [conn, this]() {
+                                                     std::this_thread::sleep_for(std::chrono::milliseconds(25));
                                                      connections.erase(connections.find(conn));
                                                   });
                                                }, _log));
