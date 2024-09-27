@@ -1,5 +1,7 @@
-#include "savanna_cluster.hpp"
+#include <savanna_cluster.hpp>
 #include <test-data.hpp>
+
+#include <fc/io/fstream.hpp> // for read_file_contents
 
 using namespace eosio::chain;
 using namespace eosio::testing;
@@ -624,37 +626,22 @@ static void save_blockchain_data(const std::filesystem::path& blocks_dir,
    snapshot_file.close();
 }
 
-static std::vector<char> read_reference_file(std::string filename, const char* mode) {
-   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
-   auto consensus_blockchain_dir = test_data_path / "consensus_blockchain";
-   auto ref_file_name = consensus_blockchain_dir / filename;
-
-   fc::cfile ref_file;
-   ref_file.set_file_path(ref_file_name);
-   ref_file.open(mode);
-
-   ref_file.seek_end(0);
-   auto size = ref_file.tellp();
-
-   std::vector<char> buf;
-   buf.resize(size);
-
-   ref_file.seek(0);
-   ref_file.read(buf.data(), size);
-
-   ref_file.close();
-
-   return buf;
-}
-
 static block_id_type read_reference_id() {
-   std::vector<char> buf = read_reference_file("id", "rb");
-   return block_id_type(buf.data(), buf.size());
+   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto ref_id_file_path = test_data_path / "consensus_blockchain/id";
+   std::string content;
+   fc::read_file_contents(ref_id_file_path, content);
+
+   return block_id_type(content.data(), content.size());
 }
 
 static std::string read_reference_snapshot() {
-   std::vector<char> buf = read_reference_file("snapshot", "r");
-   return std::string(buf.data(), buf.size());
+   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto ref_id_file_path = test_data_path / "consensus_blockchain/snapshot";
+   std::string content;
+   fc::read_file_contents(ref_id_file_path, content);
+
+   return content;
 }
 
 // need to pass in temp_dir. otherwise it will be destroyed after replay_reference_blockchain returns
