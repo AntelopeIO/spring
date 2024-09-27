@@ -647,7 +647,7 @@ static std::unique_ptr<tester> replay_reference_blockchain(const std::filesystem
                                                            const block_log& blog) {
    // replay the reference blockchain and make sure LIB id in the replayed
    // chain matches reference LIB id
-   // --------------------------------------------
+   // --------------------------------------------------------------------
    auto config = tester::default_config(temp_dir).first;
 
    auto genesis = eosio::chain::block_log::extract_genesis_state(ref_blockchain_path);
@@ -699,7 +699,14 @@ static void sync_replayed_blockchain(const std::filesystem::path& ref_blockchain
 // ----------------------------------------------------------------------------------------------------
 // For issue #694, we need to change the finality core of the `block_header_state`, but we want to
 // ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
-// with newer versions remain compatible (and linkable) by Spring 1.0.0.
+// with newer versions remain compatible (and linkable) with blocks by Spring 1.0.0.
+//
+// This test adds a utility that saves reference blockchain data and checks for
+// regression in compatibility of syncing and replaying the reference blockchain data.
+//
+// To save reference blockchain data in `unittests/test-data/consensus_blockchain`,
+// run
+// `unittests/unit_test -t savanna_misc_tests/verify_block_compatibitity -- --save-blockchain`
 // ----------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(verify_block_compatibitity, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -808,13 +815,13 @@ BOOST_FIXTURE_TEST_CASE(verify_block_compatibitity, savanna_cluster::cluster_t) 
 
    // replay the reference blockchain and make sure LIB id in the replayed
    // chain matches reference LIB id
-   // --------------------------------------------
+   // --------------------------------------------------------------------
    fc::temp_directory temp_dir; // need to pass in temp_dir. otherwise it would be destroyed after replay_reference_blockchain returns
    std::unique_ptr<tester> replay_chain = replay_reference_blockchain(ref_blockchain_path, temp_dir, blog);
 
-   // start another blockchain using snapshot, and sync with the blocks
-   // in the replayed blockchain as source
-   // -----------------------------------------------
+   // start another blockchain using reference snapshot, and sync with the blocks
+   // from the replayed blockchain
+   // ---------------------------------------------------------------------------
    sync_replayed_blockchain(ref_blockchain_path, std::move(replay_chain), blog);
 } FC_LOG_AND_RETHROW()
 
