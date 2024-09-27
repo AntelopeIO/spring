@@ -900,16 +900,31 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    B.push_block(b5);                                         // B receives b5
    BOOST_REQUIRE_EQUAL(B.lib_number, b3->block_num());       // which advances lib to b3
 
-   // critical: Nodes A and B have received b5, which has advanced finality to b3.
+   // Following requires issue #694 fix:
+   // Nodes A and B have received b5, which has advanced finality to b3.
    // when we push b6 and b7 (produced by D) to these nodes, they will want to verify the QC included in b7 (strong QC on b2).
    // If, in order to verify this QC, they attempt to lookup b2 in fork_db, this will fail because lib (and hence fork_db's root)
    // has advanced to b3.
    // ---------------------------------------------------------------------------------------------------------------------------
    A.push_block(b6);                                         // don't use `push_blocks_to` because of fork
-   A.push_block(b7);
+   A.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
 
    B.push_block(b6);
-   B.push_block(b7);
+   B.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
+
+   // with issue #694 fixed, A and B were able to successfully validate the received block b7
+   // However, unless the separate issue #778 is fixed, A and B would still not vote on b7 (which is added to the fork database
+   // but does not become the new best head since B5 has a later `latest_qc_block_timestamp`).
+   // ---------------------------------------------------------------------------------------------------------------------------
+   b8 = D.produce_block();                                   // Node D produces b8
+   print("b8", b8);
+   BOOST_REQUIRE_EQUAL(b8->previous, b7->calculate_id());    // b8 has B7 as its parent block
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), weak_qc(b7));           // b8 claims a weak QC on b7 (A, B and C voted weak since locked on b4)
+                                                             // prior to PR #788 (fixing issue #778), we'd have an test failure here
+
+   b9 = D.produce_block();                                   // Node D produces b9
+   print("b9", b9);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));         // b9 claims a strong QC on b8 (all nodes were able to vote strong)
 
 } FC_LOG_AND_RETHROW()
 

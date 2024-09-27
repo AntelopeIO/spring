@@ -76,10 +76,13 @@ namespace savanna_cluster {
 
    struct qc_s {
       explicit qc_s(uint32_t block_num, bool strong) : block_num(block_num), strong(strong) {}
-      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc ? qc->block_num : uint32_t(-1)), strong(qc->is_strong()) {}
 
       friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
-         s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+         if (v.block_num == uint32_t(-1))
+            s << "no_qc";
+         else
+            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
          return s;
       }
       bool operator==(const qc_s&) const = default;
