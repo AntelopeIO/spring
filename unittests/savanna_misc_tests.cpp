@@ -823,7 +823,6 @@ produce a block that utilizes the delayed vote is the time slot (t + d) where ..
 ‡ ... d is infinite meaning the vote may never be received by producer p.
 
 --------------------------------------------------------------------------------------------------------*/
-#if 0
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
@@ -833,9 +832,9 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    auto b0 = A.produce_block();
    print("b0", b0);
 
-   signed_block_ptr b1, b2, b3, b4, b5;
+   signed_block_ptr b1, b2, b3, b4, b5, b6;
 
-   peers() = partition({ &A });
+   set_partition({ &A });
 
    {
       fc::scoped_set_value tmp_B(B.vote_delay(), 1);         // delay votes from B for 1 slot
@@ -853,25 +852,37 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
       // D doesn't receive B's vote on b2 yet because it is delayed, or A's vote because it is partitioned out
    }
 
-   peers() = partition({ &A, &D });
+   set_partitions({{ &A }, { &D }});                         // both A and D are isolated by themselves
 
    b3 = C.produce_block();
    print("b3", b3);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b1));         // b3 claims a strong QC on b1 (B and D votes delayed by 1)
 
-
+   C.push_blocks_to(D);                                      // we want D to receive b3 (so it can build b6 on it), but no votes
+   D.push_vote_to(C, b3->calculate_id());                    // and we want C to get D's vote on b3 so it can form a QC
+                                                             // this simulates D being isolated just after receiving b3 and voting
+                                                             // on it, but before receiving B and C votes on b3.
 
    b4 = C.produce_block();
    print("b4", b4);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));         // b4 claims a strong QC on b3 (B and D votes not delayed anymore)
 
+   b6 = D.produce_block(_block_interval_us * 2);             // Node D produces and broadcasts B6 one second early (due
+   print("b6", b6);                                          // to clock differences).
+   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());    // b6 has B3 as its parent block
+   BOOST_REQUIRE(!qc(b6));                                   // b6 does not include a new qc (lacking votes on b2 and b3)
+   BOOST_REQUIRE_EQUAL(qc_claim(b6), qc_claim(b3));          // and repeats b3's strong QC claim on B1.
 
+   set_partition({ &D });                                    // B and C re-establish connection with A
+
+   C.push_blocks_to(A);                                      // we want A to receive b3 and b4, so it can vote on them
+   A.push_vote_to(C, b4->calculate_id());
 
    b5 = C.produce_block();
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));         // b5 claims a strong QC on b4
 
 } FC_LOG_AND_RETHROW()
-#endif
+
 
 BOOST_AUTO_TEST_SUITE_END()

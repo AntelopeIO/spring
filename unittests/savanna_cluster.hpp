@@ -135,7 +135,7 @@ namespace savanna_cluster {
 
       size_t& vote_delay() { return _vote_delay; }
 
-      void propagate_delayed_votes_to(const node_t& to);
+      void propagate_delayed_votes_to(const node_t& n);
 
       const vote_t& last_vote() const { return _last_vote; }
 
@@ -231,13 +231,15 @@ namespace savanna_cluster {
       }
 
       template <class Node>
-      void push_blocks_to(Node& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+      void push_blocks_to(Node& n, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          auto limit = std::min(fork_db_head().block_num(), block_num_limit);
-         while (to.fork_db_head().block_num() < limit) {
-            auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
-            to.push_block(sb);
+         while (n.fork_db_head().block_num() < limit) {
+            auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
+            n.push_block(sb);
          }
       }
+
+      void push_vote_to(const node_t& n, const block_id_type& block_id);
 
       bool is_head_missing_finalizer_votes() {
          if (!control->get_testing_allow_voting_flag())
@@ -596,10 +598,14 @@ namespace savanna_cluster {
          return peers;
       }
 
+      void dispatch_vote_to(const node_t& n, const vote_message_ptr& msg) {
+         if (n.is_open())
+               n.control->process_vote_message(++_connection_id, msg);
+      }
+
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            if (n.is_open())
-               n.control->process_vote_message(++_connection_id, msg);
+            dispatch_vote_to(n, msg);
          });
       }
 
