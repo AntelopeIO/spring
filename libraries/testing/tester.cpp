@@ -375,7 +375,7 @@ namespace eosio::testing {
          // only block number is signaled, in forking tests will get the same block number more than once.
       });
       [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([this](const block_signal_params& t) {
-            const auto& [block, id] = t;
+            [[maybe_unused]] const auto& [block, id] = t;
             assert(block);
             assert(_check_signal(id, block_signal::accepted_block_header));
          });
