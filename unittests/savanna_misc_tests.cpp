@@ -822,6 +822,7 @@ produce a block that utilizes the delayed vote is the time slot (t + d) where ..
 ¹ ... d = 1.
 ‡ ... d is infinite meaning the vote may never be received by producer p.
 
+see https://github.com/AntelopeIO/spring/issues/751
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -832,7 +833,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    auto b0 = A.produce_block();
    print("b0", b0);
 
-   signed_block_ptr b1, b2, b3, b4, b5, b6;
+   signed_block_ptr b1, b2, b3, b4, b5, b6, b7, b8, b9;
 
    set_partition({ &A });
 
@@ -852,7 +853,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
       // D doesn't receive B's vote on b2 yet because it is delayed, or A's vote because it is partitioned out
    }
 
-   set_partitions({{ &A }, { &D }});                         // both A and D are isolated by themselves
+   set_partitions({{ &A }, { &D }});                         // both A and D are isolated by themselves (step 15)
 
    b3 = C.produce_block();
    print("b3", b3);
@@ -873,14 +874,42 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    BOOST_REQUIRE(!qc(b6));                                   // b6 does not include a new qc (lacking votes on b2 and b3)
    BOOST_REQUIRE_EQUAL(qc_claim(b6), qc_claim(b3));          // and repeats b3's strong QC claim on B1.
 
-   set_partition({ &D });                                    // B and C re-establish connection with A
+   C.push_blocks_to(A);                                      // simulates A and D temporarily reconnecting, D sending the blocks
+   A.push_vote_to(D, b2->calculate_id());                    // produced by C, A voting on them and D receiving these votes
 
-   C.push_blocks_to(A);                                      // we want A to receive b3 and b4, so it can vote on them
-   A.push_vote_to(C, b4->calculate_id());
+   set_partition({ &D });                                    // B and C re-establish connection with A (step 26,27)
 
+   C.push_blocks_to(A);                                      // Now that A is reconnected to B and C, it can receive blocks and
+   A.push_vote_to(C, b4->calculate_id());                    // vote on them
+
+   set_partitions({ { &C }, { &D } });                       // Node C is isolated from the other nodes (step 30)
    b5 = C.produce_block();
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));         // b5 claims a strong QC on b4
+
+   b7 = D.produce_block();                                   // Node D produces b7
+   print("b7", b7);
+   BOOST_REQUIRE_EQUAL(b7->previous, b6->calculate_id());    // b7 has B6 as its parent block
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b2));         // b7 claims a strong QC on b2
+
+   set_partition({});
+
+   A.push_block(b5);                                         // A receives b5
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());       // which advances lib to b3
+
+   B.push_block(b5);                                         // B receives b5
+   BOOST_REQUIRE_EQUAL(B.lib_number, b3->block_num());       // which advances lib to b3
+
+   // critical: Nodes A and B have received b5, which has advanced finality to b3.
+   // when we push b6 and b7 (produced by D) to these nodes, they will want to verify the QC included in b7 (strong QC on b2).
+   // If, in order to verify this QC, they attempt to lookup b2 in fork_db, this will fail because lib (and hence fork_db's root)
+   // has advanced to b3.
+   // ---------------------------------------------------------------------------------------------------------------------------
+   A.push_block(b6);                                         // don't use `push_blocks_to` because of fork
+   A.push_block(b7);
+
+   B.push_block(b6);
+   B.push_block(b7);
 
 } FC_LOG_AND_RETHROW()
 
