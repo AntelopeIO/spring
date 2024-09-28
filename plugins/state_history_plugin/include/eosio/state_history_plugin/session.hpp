@@ -139,7 +139,7 @@ private:
             const state_request req = fc::raw::unpack<std::remove_const_t<decltype(req)>>(static_cast<const char*>(b.cdata().data()), b.size());
 
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
-            co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+            co_await boost::asio::co_spawn(app().executor().make_pri_executor(appbase::priority::medium_low, appbase::exec_queue::read_only), [&]() -> boost::asio::awaitable<void, appbase::exec_pri_queue::executor> {
                /**
                 * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
                 */
@@ -229,7 +229,7 @@ private:
             std::optional<block_package> block_to_send;
 
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
-            co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+            co_await boost::asio::co_spawn(app().executor().make_pri_executor(appbase::priority::medium_low, appbase::exec_queue::read_only), [&]() -> boost::asio::awaitable<void, appbase::exec_pri_queue::executor> {
                /**
                 * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
                 */

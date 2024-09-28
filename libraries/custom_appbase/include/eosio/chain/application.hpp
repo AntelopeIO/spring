@@ -140,6 +140,10 @@ public:
    bool read_write_queue_empty() { return pri_queue_.empty(exec_queue::read_write); }
    bool read_exclusive_queue_empty() { return pri_queue_.empty(exec_queue::read_exclusive); }
 
+   appbase::exec_pri_queue::executor make_pri_executor(int priority, exec_queue q) {
+      return appbase::exec_pri_queue::executor(pri_queue_, priority, --order_, q);
+   }
+
    // members are ordered taking into account that the last one is destructed first
 private:
    std::thread::id                    main_thread_id_{ std::this_thread::get_id() };
