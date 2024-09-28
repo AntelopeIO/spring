@@ -4692,27 +4692,25 @@ namespace eosio {
 
       auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
 
-      resolver->async_resolve(host, port, 
+      resolver->async_resolve(host, port,
          [this, resolver, c_org{c}, host, port, peer_address, listen_address]( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
             connection_ptr c = c_org ? c_org : std::make_shared<connection>( peer_address, listen_address );
-            c->strand.post([this, resolver, c, err, results, host, port, peer_address]() {
-               c->set_heartbeat_timeout( heartbeat_timeout );
-               {
-                  std::lock_guard g( connections_mtx );
-                  connections.emplace( connection_detail{
-                     .host = peer_address,
-                     .c = c,
-                  });
-               }
-               if( !err ) {
-                  c->connect( results );
-               } else {
-                  fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
-                           ("host", host)("port", port)( "error", err.message() ) );
-                  c->set_state(connection::connection_state::closed);
-                  ++(c->consecutive_immediate_connection_close);
-               }
-            });
+            c->set_heartbeat_timeout( heartbeat_timeout );
+            {
+               std::lock_guard g( connections_mtx );
+               connections.emplace( connection_detail{
+                  .host = peer_address,
+                  .c = c,
+               });
+            }
+            if( !err ) {
+               c->connect( results );
+            } else {
+               fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
+                        ("host", host)("port", port)( "error", err.message() ) );
+               c->set_state(connection::connection_state::closed);
+               ++(c->consecutive_immediate_connection_close);
+            }
       } );
 
       return "added connection";
