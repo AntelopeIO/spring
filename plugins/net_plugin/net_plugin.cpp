@@ -4693,7 +4693,8 @@ namespace eosio {
       auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
 
       resolver->async_resolve(host, port,
-         [this, resolver, c_org{c}, host, port, peer_address, listen_address]( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
+         [resolver, c_org = c, host = host, port = port, peer_address = peer_address, listen_address = listen_address, this]
+         ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
             connection_ptr c = c_org ? c_org : std::make_shared<connection>( peer_address, listen_address );
             c->set_heartbeat_timeout( heartbeat_timeout );
             {
