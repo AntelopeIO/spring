@@ -2840,6 +2840,7 @@ namespace eosio {
 
       connection_ptr c = shared_from_this();
       strand.post([c]() {
+         c->_close(false, false);
          my_impl->connections.reconnect(c);
       });
       return true;
