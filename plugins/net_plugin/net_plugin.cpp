@@ -351,7 +351,6 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
-         tcp::endpoint active_ip;
       };
 
       using connection_details_index = multi_index_container<
@@ -421,7 +420,6 @@ namespace eosio {
       string connect(const string& host, const string& p2p_address);
       string resolve_and_connect(const string& host, const string& p2p_address,
                                  uint16_t consecutive_immediate_connection_close = 0);
-      void update_connection_endpoint(connection_ptr c, const tcp::endpoint& endpoint);
       void reconnect(const connection_ptr& c);
       string disconnect(const string& host);
       void close_all();
@@ -2840,7 +2838,6 @@ namespace eosio {
 
       connection_ptr c = shared_from_this();
       strand.post([c]() {
-         c->_close(false, false);
          my_impl->connections.reconnect(c);
       });
       return true;
@@ -2855,7 +2852,6 @@ namespace eosio {
          boost::asio::bind_executor( strand,
                [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
             if( !err && socket->is_open() && socket == c->socket ) {
-               my_impl->connections.update_connection_endpoint(c, endpoint);
                c->update_endpoints(endpoint);
                if( c->start_session() ) {
                   c->send_handshake();
@@ -4658,12 +4654,9 @@ namespace eosio {
 
    void connections_manager::add( connection_ptr c ) {
       std::lock_guard g( connections_mtx );
-      boost::system::error_code ec;
-      auto endpoint = c->socket->remote_endpoint(ec);
       connections.insert( connection_detail{
          .host = c->peer_address(), 
-         .c = std::move(c),
-         .active_ip = endpoint} );
+         .c = std::move(c)} );
    }
 
    // called by API
@@ -4691,43 +4684,33 @@ namespace eosio {
 
       auto [host, port, type] = split_host_port_type(peer_address);
 
-      auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
+      connection_ptr c = std::make_shared<connection>( peer_address, listen_address, consecutive_immediate_connection_close );
 
-      resolver->async_resolve(host, port,
-         [this, resolver, host, port, peer_address, listen_address, consecutive_immediate_connection_close]
-         ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
-            connection_ptr c = std::make_shared<connection>( peer_address, listen_address, consecutive_immediate_connection_close );
-            c->set_heartbeat_timeout( heartbeat_timeout );
-            {
-               std::lock_guard g( connections_mtx );
-               connections.emplace( connection_detail{
-                  .host = peer_address,
-                  .c = c,
-               });
-            }
-            if( !err ) {
-               c->connect( results );
-            } else {
-               fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
-                        ("host", host)("port", port)( "error", err.message() ) );
-               c->set_state(connection::connection_state::closed);
-               ++c->consecutive_immediate_connection_close;
-            }
-      } );
+      c->strand.post([this, c, host, port]() {
+         auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
+         resolver->async_resolve(host, port, boost::asio::bind_executor(c->strand,
+            [this, resolver, c, host, port]
+            ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
+               c->set_heartbeat_timeout( heartbeat_timeout );
+               {
+                  std::lock_guard g( connections_mtx );
+                  connections.emplace( connection_detail{
+                     .host = c->peer_address(),
+                     .c = c,
+                  });
+               }
+               if( !err ) {
+                  c->connect( results );
+               } else {
+                  fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
+                           ("host", host)("port", port)( "error", err.message() ) );
+                  c->set_state(connection::connection_state::closed);
+                  ++c->consecutive_immediate_connection_close;
+               }
+         }) );
+      });
 
       return "added connection";
-   }
-
-   void connections_manager::update_connection_endpoint(connection_ptr c,
-                                                        const tcp::endpoint& endpoint) {
-      std::unique_lock g( connections_mtx );
-      auto& index = connections.get<by_connection>();
-      const auto& it = index.find(c);
-      if( it != index.end() ) {
-         index.modify(it, [endpoint](connection_detail& cd) {
-            cd.active_ip = endpoint;
-         });
-      }
    }
 
    void connections_manager::reconnect(const connection_ptr& c) {
