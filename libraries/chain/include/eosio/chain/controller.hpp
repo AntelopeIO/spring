@@ -187,6 +187,7 @@ namespace eosio::chain {
             size_t             total_cpu_usage_us = 0;
             fc::microseconds   total_elapsed_time{};
             fc::microseconds   total_time{};
+            fc::time_point     start_time;
          };
 
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
