@@ -1003,7 +1003,7 @@ namespace eosio {
 
       /// @param reconnect true if we should try and reconnect immediately after close
       /// @param shutdown true only if plugin is shutting down
-      void close( bool reconnect = true, bool shutdown = false );
+      void close( bool reconnect = false, bool shutdown = false );
    private:
       void _close( bool reconnect, bool shutdown ); // for easy capture
 
@@ -1488,7 +1488,7 @@ namespace eosio {
       block_sync_throttling = false;
       last_vote_received = time_point{};
 
-      if( reconnect && !shutdown ) {
+      if( reconnect && !shutdown && !incoming() ) {
          my_impl->connections.start_conn_timer( std::chrono::milliseconds( 100 ),
                                                 connection_wptr(),
                                                 connections_manager::timer_type::check );
@@ -2492,11 +2492,7 @@ namespace eosio {
       if( mode == closing_mode::immediately || c->block_status_monitor_.max_events_violated()) {
          peer_wlog(c, "block ${bn} not accepted, closing connection ${d}",
                    ("d", mode == closing_mode::immediately ? "immediately" : "max violations reached")("bn", blk_num));
-         if( mode == closing_mode::immediately ) {
-            c->close( false ); // do not reconnect
-         } else {
-            c->close();
-         }
+         c->close(mode != closing_mode::immediately);
       } else {
          peer_dlog(c, "rejected block ${bn}, sending handshake", ("bn", blk_num));
          c->send_handshake();
