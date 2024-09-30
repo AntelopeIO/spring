@@ -3452,7 +3452,6 @@ struct controller_impl {
          }
 
          log_applied(s);
-
       } catch (...) {
          // dont bother resetting pending, instead abort the block
          reset_pending_on_exit.cancel();
@@ -3474,7 +3473,7 @@ struct controller_impl {
       if (s == controller::block_status::incomplete) {
          const auto& new_b = chain_head.block();
          ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-              "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
+              "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et} us, time: ${tt} us]",
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
               ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())
               ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed))
@@ -3498,7 +3497,7 @@ struct controller_impl {
       }
 
       ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-           "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
+           "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed} us, time: ${time} us, latency: ${latency} ms]",
            ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
            ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
            ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
@@ -3652,7 +3651,6 @@ struct controller_impl {
       }
       return {};
    }
-
 
    template<class BSP>
    bool apply_block( const BSP& bsp, controller::block_status s,
