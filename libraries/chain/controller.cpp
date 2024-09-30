@@ -3629,7 +3629,7 @@ struct controller_impl {
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
               ("count", bsp->block->transactions.size())("lib", bsp->irreversible_blocknum())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
-              ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
+              ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - bsp->timestamp()).count() / 1000));
          const auto& hb_id = chain_head.id();
          const auto& hb = chain_head.block();
          if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != bsp->id() && hb != nullptr) { // not applied to head
