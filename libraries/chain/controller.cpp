@@ -3366,8 +3366,6 @@ struct controller_impl {
     * @post regardless of the success of commit block there is no active pending block
     */
    void commit_block( controller::block_report& br, controller::block_status s ) {
-      fc::time_point start = fc::time_point::now();
-
       auto reset_pending_on_exit = fc::make_scoped_exit([this]{
          pending.reset();
       });
