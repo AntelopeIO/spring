@@ -380,6 +380,14 @@ void state_history_plugin_impl::plugin_shutdown() {
    accepted_block_connection.reset();
    block_start_connection.reset();
    thread_pool.stop();
+
+   // This is a temporary fix until https://github.com/AntelopeIO/spring/issues/842 can be worked.
+   // Drain the io_service of anything that could be referencing state_history_plugin
+   if (app().executor().get_io_service().stopped()) {
+      app().executor().get_io_service().restart();
+      while (app().executor().get_io_service().poll())
+         ;
+   }
 }
 
 void state_history_plugin::plugin_shutdown() {
