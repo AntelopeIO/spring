@@ -2852,7 +2852,6 @@ namespace eosio {
          boost::asio::bind_executor( strand,
                [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint) {
             if( !err && socket->is_open() && socket == c->socket ) {
-               c->update_endpoints();
                if( c->start_session() ) {
                   c->send_handshake();
                   c->send_time();
