@@ -607,8 +607,8 @@ static void save_blockchain_data(const std::filesystem::path& ref_blockchain_pat
    auto ref_snapshot_file_name   = ref_blockchain_path / "snapshot";
 
    // save reference blocks log
-   std::filesystem::copy_file(source_log_file, ref_log_file, std::filesystem::        copy_options::overwrite_existing);
-   std::filesystem::copy_file(source_index_file, ref_index_file, std::filesystem::        copy_options::overwrite_existing);
+   std::filesystem::copy_file(source_log_file, ref_log_file, std::filesystem::copy_options::overwrite_existing);
+   std::filesystem::copy_file(source_index_file, ref_index_file, std::filesystem::copy_options::overwrite_existing);
 
    // save reference block_id
    fc::cfile ref_id_file;
