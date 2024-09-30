@@ -4682,34 +4682,8 @@ namespace eosio {
             return "already connected";
       }
 
-      auto [host, port, type] = split_host_port_type(peer_address);
-
       connection_ptr c = std::make_shared<connection>( peer_address, listen_address, consecutive_immediate_connection_close );
-
-      c->strand.post([this, c, host, port]() {
-         auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
-         resolver->async_resolve(host, port, boost::asio::bind_executor(c->strand,
-            [this, resolver, c, host, port]
-            ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
-               c->set_heartbeat_timeout( heartbeat_timeout );
-               {
-                  std::lock_guard g( connections_mtx );
-                  connections.emplace( connection_detail{
-                     .host = c->peer_address(),
-                     .c = c,
-                  });
-               }
-               if( !err ) {
-                  c->connect( results );
-               } else {
-                  fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
-                           ("host", host)("port", port)( "error", err.message() ) );
-                  c->set_state(connection::connection_state::closed);
-                  ++c->consecutive_immediate_connection_close;
-               }
-         }) );
-      });
-
+      reconnect(c);
       return "added connection";
    }
 
