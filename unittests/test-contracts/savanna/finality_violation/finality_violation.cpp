@@ -27,14 +27,6 @@ savanna::bitset create_bitset(const size_t finalizers_count, const std::optional
 
     else return savanna::bitset(finalizers_count, weak_votes.value());
 
-/*
-    std::optional<std::vector<uint8_t>> votes_1 = sv1.has_value() && wv1.has_value() ? merge_bitsets(sv1.value(), wv2.value()) : sv1.has_value() ? sv1.value() : wv1.value();
-    std::optional<std::vector<uint8_t>> votes_2 = sv2.has_value() && wv2.has_value() ? merge_bitsets(sv2.value(), wv2.value()) : sv2.has_value() ? sv2.value() : wv2.value();
-
-    savanna::bitset proof_1_bitset(finalizer_policy.finalizers.size(), votes_1);
-    savanna::bitset proof_2_bitset(finalizer_policy.finalizers.size(), votes_2);
-*/
-
 }
 
 

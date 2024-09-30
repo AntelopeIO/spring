@@ -20,7 +20,6 @@ using namespace finality_proof;
 
 using mvo = mutable_variant_object;
 
-
 struct finality_block_data {
 
     uint32_t block_num{0};

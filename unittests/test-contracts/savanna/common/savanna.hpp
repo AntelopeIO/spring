@@ -140,12 +140,7 @@ namespace savanna {
       bls_g1_add(op1, op2, r);
       return r;
    }
-
-   // verify signature
-/*   bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
-      return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
-   }*/
-
+   
    void check_duplicate_votes(const savanna::bitset& strong_votes, const savanna::bitset& weak_votes, const finalizer_policy_input& finalizer_policy){
 
       auto fa_itr = finalizer_policy.finalizers.begin();
@@ -196,14 +191,9 @@ namespace savanna {
       check(messages.size() == agg_pub_keys.size(), "messages vector and pub key vectors must be of the same size");
 
       for (size_t i = 0 ; i < messages.size(); i++){
-         
-         //std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_keys[i]);
-
          //verify signature validity
          check(bls_signature_verify(agg_pub_keys[i], decode_bls_signature_to_g2(agg_sig), messages[i]), "signature verification failed");
-
       }
-
 
    }
 
@@ -256,53 +246,6 @@ namespace savanna {
 
       if (enforce_threshold_check) check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
 
-/*
-      size_t finalizer_count = finalizer_policy.finalizers.size();
-      check(qc.strong_votes.has_value() || qc.weak_votes.has_value(), "quorum certificate must have at least one bitset");
-
-      auto fa_itr = finalizer_policy.finalizers.begin();
-      auto fa_end_itr = finalizer_policy.finalizers.end();
-
-      //todo : check weak_votes as well
-      
-      savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
-
-      bool first = true;
-
-      size_t index = 0;
-      uint64_t weight = 0;
-
-      bls_g1 agg_pub_key;
-
-      while (fa_itr != fa_end_itr){
-          if (strong_b.test(index)){
-              bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
-              if (first){
-                  first=false;
-                  agg_pub_key = pub_key;
-              }
-              else agg_pub_key = _g1add(agg_pub_key, pub_key);
-              weight+=fa_itr->weight;
-          }
-          index++;
-          fa_itr++;
-      }
-
-      //if enforce_threshold_check is true, verify that we have enough vote weight to meet the quorum threshold of the target policy
-      if (enforce_threshold_check) check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
-
-      std::string message;
-
-      if (qc.is_weak.has_value() && qc.is_weak.value() == true) message = create_weak_digest(finality_digest);
-      else {
-         std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
-         message = std::string(fd_data.begin(), fd_data.end());
-      }
-
-      std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
-      //verify signature validity
-      check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
-      */
    }
 
    checksum256 get_merkle_root(const std::vector<checksum256>& leaves) {
