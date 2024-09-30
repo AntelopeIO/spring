@@ -521,7 +521,7 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
-         static bool arguments_contains(std::string arg) {
+         static bool arguments_contains(const std::string& arg) {
             auto argc = boost::unit_test::framework::master_test_suite().argc;
             auto argv = boost::unit_test::framework::master_test_suite().argv;
 
