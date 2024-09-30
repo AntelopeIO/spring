@@ -1008,7 +1008,7 @@ namespace eosio {
       bool process_next_block_message(uint32_t message_length);
       bool process_next_trx_message(uint32_t message_length);
       bool process_next_vote_message(uint32_t message_length);
-      void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
+      void update_endpoints();
    public:
 
       bool populate_handshake( handshake_message& hello ) const;
@@ -1298,10 +1298,10 @@ namespace eosio {
                ("c", connection_id)("address", log_remote_endpoint_ip)("port", log_remote_endpoint_port)("addr", listen_address) );
    }
 
-   void connection::update_endpoints(const tcp::endpoint& endpoint) {
+   void connection::update_endpoints() {
       boost::system::error_code ec;
       boost::system::error_code ec2;
-      auto rep = endpoint == tcp::endpoint() ? socket->remote_endpoint(ec) : endpoint;
+      auto rep = socket->remote_endpoint(ec);
       auto lep = socket->local_endpoint(ec2);
       remote_endpoint_port = ec ? 0 : rep.port();
       log_remote_endpoint_ip = ec ? unknown : rep.address().to_string();
@@ -2850,15 +2850,16 @@ namespace eosio {
       buffer_queue.clear_out_queue();
       boost::asio::async_connect( *socket, endpoints,
          boost::asio::bind_executor( strand,
-               [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
+               [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint) {
             if( !err && socket->is_open() && socket == c->socket ) {
-               c->update_endpoints(endpoint);
+               c->update_endpoints();
                if( c->start_session() ) {
                   c->send_handshake();
                   c->send_time();
                }
             } else {
-               fc_ilog( logger, "connection failed to ${a}, ${error}", ("a", c->peer_address())( "error", err.message()));
+               fc_ilog( logger, "connection failed to ${host}:${port} ${error}",
+                        ("host", endpoint.address().to_string())("port", endpoint.port())("error", err.message()));
                c->close( false );
                if (my_impl->increment_failed_p2p_connections) {
                   my_impl->increment_failed_p2p_connections();
