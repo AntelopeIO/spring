@@ -142,9 +142,9 @@ namespace savanna {
    }
 
    // verify signature
-   bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
+/*   bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
       return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
-   }
+   }*/
 
    void check_duplicate_votes(const savanna::bitset& strong_votes, const savanna::bitset& weak_votes, const finalizer_policy_input& finalizer_policy){
 
@@ -191,13 +191,20 @@ namespace savanna {
 
    }
 
-   void check_message(const std::string& message, const bls_g1& agg_pub_key, const std::string& agg_sig){
+   void _verify(const std::vector<std::string>& messages, const std::vector<bls_g1>& agg_pub_keys, const std::string& agg_sig){
 
-      std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
+      check(messages.size() == agg_pub_keys.size(), "messages vector and pub key vectors must be of the same size");
 
-      //verify signature validity
-      check(_verify(s_agg_pub_key, agg_sig, message), "signature verification failed");
- 
+      for (size_t i = 0 ; i < messages.size(); i++){
+         
+         //std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_keys[i]);
+
+         //verify signature validity
+         check(bls_signature_verify(agg_pub_keys[i], decode_bls_signature_to_g2(agg_sig), messages[i]), "signature verification failed");
+
+      }
+
+
    }
 
    //verify that the quorum certificate over the finality digest is valid
@@ -214,11 +221,12 @@ namespace savanna {
          check(qc.strong_votes.has_value(), "required strong votes are missing");
          savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
          weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
-         check_message(create_strong_digest(finality_digest), agg_pub_key, qc.signature);
+         _verify({create_strong_digest(finality_digest)}, {agg_pub_key}, qc.signature);
       }
       else {
 
          if (qc.strong_votes.has_value() && qc.weak_votes.has_value()){
+            //weak QC (composed of strong and weak votes)
             bls_g1 strong_agg_pub_key;
             bls_g1 weak_agg_pub_key;
             savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
@@ -226,21 +234,22 @@ namespace savanna {
             check_duplicate_votes(strong_b, weak_b, finalizer_policy);
             uint64_t strong_weight = aggregate_keys(strong_b, finalizer_policy, strong_agg_pub_key);
             uint64_t weak_weight = aggregate_keys(strong_b, finalizer_policy, weak_agg_pub_key);
-            check_message(create_strong_digest(finality_digest), strong_agg_pub_key, qc.signature);
-            check_message(create_weak_digest(finality_digest), weak_agg_pub_key, qc.signature);
+            _verify({create_strong_digest(finality_digest), create_weak_digest(finality_digest)}, {strong_agg_pub_key, weak_agg_pub_key}, qc.signature);
             weight=strong_weight+weak_weight;
          }
          else if (qc.weak_votes.has_value()){
+            //weak QC (composed of weak votes)
             bls_g1 agg_pub_key;
             savanna::bitset weak_b(finalizer_count, qc.weak_votes.value());
             weight = aggregate_keys(weak_b, finalizer_policy, agg_pub_key);
-            check_message(create_weak_digest(finality_digest), agg_pub_key, qc.signature);
+            _verify({create_weak_digest(finality_digest)}, {agg_pub_key}, qc.signature);
          }
          else {
+            //strong QC
             bls_g1 agg_pub_key;
             savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
             weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
-            check_message(create_strong_digest(finality_digest), agg_pub_key, qc.signature);
+            _verify({create_strong_digest(finality_digest)}, {agg_pub_key}, qc.signature);
          }
 
       }
