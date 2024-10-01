@@ -793,12 +793,12 @@ BOOST_FIXTURE_TEST_CASE(finalizers_locked_preventing_vote_on_alternate_branch, s
 Producer:    C       C       C       C       C       D       D       D       D
 Timestamp:   t1      t2      t3      t4      t5      t6      t7      t8      t9
 Blocks:
-    B0 <---  B1 <--- B2 <--- B3 <-|- B4 <--- B5
+    b0 <---  b1 <--- b2 <--- b3 <-|- b4 <--- b5
                                   |
-                                  \----------------- B6 <--- B7 <--- B8 <--- B9
+                                  \----------------- b6 <--- b7 <--- b8 <--- b9
 QC claim:
            Strong  Strong  Strong  Strong  Strong  Strong  Strong   Weak   Strong
-             B0      B0      B1      B3      B4      B1      B2      B7      B8
+             b0      b0      b1      b3      b4      b1      b2      b7      b8
 
 Votes:
   Node A:  Strong‡ Strong‡ Strong‡ Strong           Weak¹   Weak   Strong  Strong
@@ -808,10 +808,10 @@ Votes:
 
                                                              ^
                                                              |
-                                             Validating the strong QC on B2 should
-                                             not fail for nodes which receive B4 and
-                                             B5 prior to B7 despite B5 advancing the
-                                             fork DB root to B3.
+                                             Validating the strong QC on b2 should
+                                             not fail for nodes which receive b4 and
+                                             b5 prior to b7 despite b5 advancing the
+                                             fork DB root to b3.
 
 Meaning of the superscripts and marks on the votes:
 The vote on block b was delayed in reaching the node for the producer p scheduled
@@ -823,6 +823,36 @@ produce a block that utilizes the delayed vote is the time slot (t + d) where ..
 ‡ ... d is infinite meaning the vote may never be received by producer p.
 
 steps mentioned in comments below refer to issue https://github.com/AntelopeIO/spring/issues/751
+
+Diagram below shows the timeline for nodes A, B, C and D receiving blocks b1 through b9.
+(x) marks the producer of the block.
+
+step    network partition        A        B        C        D
+---------------------------------------------------------------
+                                 b1       b1       b1(x)    b1
+(3)     A / B C D
+(4)                                       b2       b2(x)    b2
+(9)                                       b3       b3(x)    b3
+(15)    A / B C / D
+(18)                                      b4       b4(x)
+(20)                                                        b6(x)
+(22)    A D / B C
+(23)                             b2
+(25)                             b3
+(26)    A B C / D
+(28)                             b4
+(30)    A B / C / D
+(31)                                                b5(x)
+(33)                                                        b7(x)
+(35)    A B D / C
+(36)                             b6       b6
+(38)    A B C D
+(39)                             b5       b5
+(40)                                                b6
+(41,43)                          b7       b7        b7
+(44)                             b8       b8        b8      b8(x)
+(51)                             b9       b9        b9      b9(x)
+
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -868,11 +898,11 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    print("b4", b4);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));         // b4 claims a strong QC on b3 (B and D votes not delayed anymore)
 
-   b6 = D.produce_block(_block_interval_us * 2);             // Node D produces and broadcasts B6 one second early (due
+   b6 = D.produce_block(_block_interval_us * 2);             // Node D produces and broadcasts b6 one second early (due
    print("b6", b6);                                          // to clock differences).
-   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());    // b6 has B3 as its parent block
+   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());    // b6 has b3 as its parent block
    BOOST_REQUIRE(!qc(b6));                                   // b6 does not include a new qc (lacking votes on b2 and b3)
-   BOOST_REQUIRE_EQUAL(qc_claim(b6), qc_claim(b3));          // and repeats b3's strong QC claim on B1.
+   BOOST_REQUIRE_EQUAL(qc_claim(b6), qc_claim(b3));          // and repeats b3's strong QC claim on b1.
 
    C.push_blocks_to(A);                                      // simulates A and D temporarily reconnecting, D sending the blocks
    A.push_vote_to(D, b2->calculate_id());                    // produced by C, A voting on them and D receiving these votes
@@ -891,7 +921,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
    b7 = D.produce_block();                                   // Node D produces b7
    print("b7", b7);
-   BOOST_REQUIRE_EQUAL(b7->previous, b6->calculate_id());    // b7 has B6 as its parent block
+   BOOST_REQUIRE_EQUAL(b7->previous, b6->calculate_id());    // b7 has b6 as its parent block
    BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b2));         // b7 claims a strong QC on b2
 
    set_partition( { &C } );                                  // step 35
@@ -921,11 +951,11 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
    // with issue #694 fixed, A and B were able to successfully validate the received block b7
    // However, unless the separate issue #778 is fixed, A and B would still not vote on b7 (which is added to the fork database
-   // but does not become the new best head since B5 has a later `latest_qc_block_timestamp`).
+   // but does not become the new best head since b5 has a later `latest_qc_block_timestamp`).
    // ---------------------------------------------------------------------------------------------------------------------------
    b8 = D.produce_block();                                   // Node D produces b8
    print("b8", b8);
-   BOOST_REQUIRE_EQUAL(b8->previous, b7->calculate_id());    // b8 has B7 as its parent block
+   BOOST_REQUIRE_EQUAL(b8->previous, b7->calculate_id());    // b8 has b7 as its parent block
    BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), weak_qc(b7));           // b8 claims a weak QC on b7 (A, B and C voted weak since locked on b4)
                                                              // prior to PR #788 (fixing issue #778), we'd have an test failure here
 
