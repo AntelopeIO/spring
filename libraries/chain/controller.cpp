@@ -3459,7 +3459,7 @@ struct controller_impl {
             fc::time_point now = fc::time_point::now();
 
             ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et} us, time: ${tt} us]",
+                 "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et} us, producing time: ${tt} us]",
                  ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
                  ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())("net", br.total_net_usage)
                  ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", now - br.start_time)
@@ -3623,7 +3623,7 @@ struct controller_impl {
       fc::time_point now = fc::time_point::now();
       if (now - bsp->timestamp() < fc::minutes(5) || (bsp->block_num() % 1000 == 0)) {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed} us, time: ${time} us, latency: ${latency} ms]",
+              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed} us, applying time: ${time} us, latency: ${latency} ms]",
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
               ("count", bsp->block->transactions.size())("lib", bsp->irreversible_blocknum())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
