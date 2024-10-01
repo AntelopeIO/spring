@@ -822,7 +822,7 @@ produce a block that utilizes the delayed vote is the time slot (t + d) where ..
 ¹ ... d = 1.
 ‡ ... d is infinite meaning the vote may never be received by producer p.
 
-see https://github.com/AntelopeIO/spring/issues/751
+steps mentioned in comments below refer to issue https://github.com/AntelopeIO/spring/issues/751
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
@@ -883,6 +883,8 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    A.push_vote_to(C, b4->calculate_id());                    // vote on them
 
    set_partitions({ { &C }, { &D } });                       // Node C is isolated from the other nodes (step 30)
+                                                             // so A, B and C get b5 after b6
+
    b5 = C.produce_block();
    print("b5", b5);
    BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));         // b5 claims a strong QC on b4
@@ -892,7 +894,12 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    BOOST_REQUIRE_EQUAL(b7->previous, b6->calculate_id());    // b7 has B6 as its parent block
    BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b2));         // b7 claims a strong QC on b2
 
-   set_partition({});
+   set_partition( { &C } );                                  // step 35
+
+   A.push_block(b6);                                         // don't use `push_blocks_to` because of fork
+   B.push_block(b6);                                         // step 36
+
+   set_partition( {} );                                      // step 38
 
    A.push_block(b5);                                         // A receives b5
    BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());       // which advances lib to b3
@@ -906,11 +913,11 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    // If, in order to verify this QC, they attempt to lookup b2 in fork_db, this will fail because lib (and hence fork_db's root)
    // has advanced to b3.
    // ---------------------------------------------------------------------------------------------------------------------------
-   A.push_block(b6);                                         // don't use `push_blocks_to` because of fork
    A.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
-
-   B.push_block(b6);
    B.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
+
+   C.push_block(b6);
+   C.push_block(b7);
 
    // with issue #694 fixed, A and B were able to successfully validate the received block b7
    // However, unless the separate issue #778 is fixed, A and B would still not vote on b7 (which is added to the fork database
