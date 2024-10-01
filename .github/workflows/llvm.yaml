@@ -1,0 +1,41 @@
+name: Exhaustive LLVM Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doit:
+    name: 'Build & Test (${{matrix.version}})'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['10.0.1', '11.1.0']
+    runs-on: ["self-hosted", "enf-x86-beefy"]
+    container: ubuntu:jammy
+    steps:
+      - name: Install packages
+        run: |
+          apt-get update && apt-get -y upgrade
+          apt-get install -y build-essential cmake git libcurl4-openssl-dev libgmp-dev ninja-build python3 zlib1g-dev
+      - name: Clone LLVM
+        run: git clone -b llvmorg-${{matrix.version}} --single-branch --recursive https://github.com/llvm/llvm-project
+      - name: Build LLVM
+        run: |
+          cmake -S llvm-project/llvm -B llvm-build -GNinja -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_BUILD_TOOLS=Off \
+                                                           -DLLVM_INCLUDE_BENCHMARKS=Off -DLLVM_INCLUDE_EXAMPLES=Off -DLLVM_BUILD_TESTS=Off \
+                                                           -DLLVM_ENABLE_RTTI=On -DLLVM_ENABLE_TERMINFO=Off -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build llvm-build -t install
+          rm -rf llvm-*
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: src
+      - name: Build spring
+        run: |
+            cmake -S src -B build -DCMAKE_BUILD_TYPE=Release -GNinja
+            cmake --build build
+      - name: Test spring
+        run: ctest --test-dir build -j $(nproc) --output-on-failure -LE "(nonparallelizable_tests|long_running_tests)" -E eosvmoc_limits_unit_test_eos-vm-oc --timeout 480
