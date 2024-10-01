@@ -390,6 +390,8 @@ void state_history_plugin_impl::plugin_shutdown() {
       // drain anything that SHiP might have posted while stopping
       while (app().executor().get_io_service().poll())
          ;
+      // clear priority queue of anything pushed by poll(), see application_base exec()
+      app().executor().clear();
    }
 }
 
