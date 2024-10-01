@@ -833,7 +833,7 @@ struct pending_state {
    block_stage_type               _block_stage;
    controller::block_status       _block_status = controller::block_status::ephemeral;
    std::optional<block_id_type>   _producer_block_id;
-   controller::block_report       _block_report{};
+   controller::block_report       _block_report;
 
    // Legacy
    pending_state(maybe_session&& s,
@@ -2761,7 +2761,6 @@ struct controller_impl {
          trace->elapsed = fc::time_point::now() - start;
          pending->_block_report.total_cpu_usage_us += billed_cpu_time_us;
          pending->_block_report.total_elapsed_time += trace->elapsed;
-         pending->_block_report.total_time += trace->elapsed;
          dmlog_applied_transaction(trace);
          emit( applied_transaction, std::tie(trace, trx->packed_trx()), __FILE__, __LINE__ );
          undo_session.squash();
@@ -2838,7 +2837,6 @@ struct controller_impl {
          pending->_block_report.total_net_usage += trace->net_usage;
          pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
          pending->_block_report.total_elapsed_time += trace->elapsed;
-         pending->_block_report.total_time += fc::time_point::now() - start;
 
          return trace;
       } catch( const disallowed_transaction_extensions_bad_block_exception& ) {
@@ -2877,7 +2875,6 @@ struct controller_impl {
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
             pending->_block_report.total_elapsed_time += trace->elapsed;
-            pending->_block_report.total_time += trace->elapsed;
             return trace;
          }
          trace->elapsed = fc::time_point::now() - start;
@@ -2927,7 +2924,6 @@ struct controller_impl {
       pending->_block_report.total_net_usage += trace->net_usage;
       if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
       pending->_block_report.total_elapsed_time += trace->elapsed;
-      pending->_block_report.total_time += fc::time_point::now() - start;
 
       return trace;
    } FC_CAPTURE_AND_RETHROW() } /// push_scheduled_transaction
@@ -3083,7 +3079,6 @@ struct controller_impl {
                pending->_block_report.total_net_usage += trace->net_usage;
                pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
                pending->_block_report.total_elapsed_time += trace->elapsed;
-               pending->_block_report.total_time += fc::time_point::now() - start;
             }
 
             return trace;
@@ -3111,7 +3106,6 @@ struct controller_impl {
             pending->_block_report.total_net_usage += trace->net_usage;
             if( trace->receipt ) pending->_block_report.total_cpu_usage_us += trace->receipt->cpu_usage_us;
             pending->_block_report.total_elapsed_time += trace->elapsed;
-            pending->_block_report.total_time += fc::time_point::now() - start;
          }
 
          return trace;
@@ -3372,8 +3366,6 @@ struct controller_impl {
     * @post regardless of the success of commit block there is no active pending block
     */
    void commit_block( controller::block_report& br, controller::block_status s ) {
-      fc::time_point start = fc::time_point::now();
-
       auto reset_pending_on_exit = fc::make_scoped_exit([this]{
          pending.reset();
       });
@@ -3464,13 +3456,13 @@ struct controller_impl {
          if (s == controller::block_status::incomplete) {
             const auto& id = chain_head.id();
             const auto& new_b = chain_head.block();
-            br.total_time += fc::time_point::now() - start;
+            fc::time_point now = fc::time_point::now();
 
             ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et}, time: ${tt}]",
+                 "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu}, elapsed: ${et} us, time: ${tt} us]",
                  ("p", new_b->producer)("id", id.str().substr(8, 16))("n", new_b->block_num())("t", new_b->timestamp)
                  ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())("net", br.total_net_usage)
-                 ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", br.total_time)
+                 ("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)("tt", now - br.start_time)
                  ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed)));
          }
 
@@ -3631,19 +3623,19 @@ struct controller_impl {
       fc::time_point now = fc::time_point::now();
       if (now - bsp->timestamp() < fc::minutes(5) || (bsp->block_num() % 1000 == 0)) {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
+              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed} us, time: ${time} us, latency: ${latency} ms]",
               ("p", bsp->producer())("id", bsp->id().str().substr(8, 16))("n", bsp->block_num())("t", bsp->timestamp())
               ("count", bsp->block->transactions.size())("lib", bsp->irreversible_blocknum())
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
-              ("elapsed", br.total_elapsed_time)("time", br.total_time)("latency", (now - bsp->timestamp()).count() / 1000));
+              ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - bsp->timestamp()).count() / 1000));
          const auto& hb_id = chain_head.id();
          const auto& hb = chain_head.block();
          if (read_mode != db_read_mode::IRREVERSIBLE && hb && hb_id != bsp->id() && hb != nullptr) { // not applied to head
             ilog("Block not applied to head ${id}... #${n} @ ${t} signed by ${p} "
-                 "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed}, time: ${time}, latency: ${latency} ms]",
+                 "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu}, elapsed: ${elapsed} us, time: ${time} us, latency: ${latency} ms]",
                  ("p", hb->producer)("id", hb_id.str().substr(8, 16))("n", hb->block_num())("t", hb->timestamp)
                  ("count", hb->transactions.size())("lib", chain_head.irreversible_blocknum())
-                 ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", br.total_time)
+                 ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("elapsed", br.total_elapsed_time)("time", now - br.start_time)
                  ("latency", (now - hb->timestamp).count() / 1000));
          }
       }
@@ -3659,7 +3651,7 @@ struct controller_impl {
                return false;
             }
 
-            auto start = fc::time_point::now();
+            auto start = fc::time_point::now(); // want to report total time of applying a block
 
             const bool already_valid = bsp->is_valid();
             // Only need to consider voting if not already validated, if already validated then we have already voted.
@@ -3671,6 +3663,9 @@ struct controller_impl {
             const auto& producer_block_id = bsp->id();
 
             start_block( b->timestamp, b->confirmed, new_protocol_feature_activations, s, producer_block_id, fc::time_point::maximum() );
+
+            assert(pending); // created by start_block
+            pending->_block_report.start_time = start;
 
             // validated in create_block_handle()
             std::get<building_block>(pending->_block_stage).trx_mroot_or_receipt_digests() = b->transaction_mroot;
@@ -3795,7 +3790,6 @@ struct controller_impl {
             pending->_block_stage = completed_block{ block_handle{bsp} };
 
             br = pending->_block_report; // copy before commit block destroys pending
-            br.total_time += fc::time_point::now() - start;
             commit_block(br, s);
 
             if (!already_valid)
@@ -4459,7 +4453,7 @@ struct controller_impl {
                try {
                   const auto& bsp = *ritr;
 
-                  br = controller::block_report{};
+                  br = controller::block_report();
                   bool applied = apply_block( br, bsp, bsp->is_valid() ? controller::block_status::validated
                                                                        : controller::block_status::complete, trx_lookup );
                   if (!switch_fork && (!applied || check_shutdown())) {
@@ -4494,7 +4488,7 @@ struct controller_impl {
 
                   // re-apply good blocks
                   for( auto ritr = branches.second.rbegin(); ritr != branches.second.rend(); ++ritr ) {
-                     br = controller::block_report{};
+                     br = controller::block_report();
                      apply_block( br, *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
                   }
                   std::rethrow_exception(except);
