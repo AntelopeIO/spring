@@ -972,7 +972,7 @@ public:
          _update_incoming_block_metrics({.trxs_incoming_total   = block->transactions.size(),
                                          .cpu_usage_us          = br.total_cpu_usage_us,
                                          .total_elapsed_time_us = br.total_elapsed_time.count(),
-                                         .total_time_us         = br.total_time.count(),
+                                         .total_time_us         = (now - br.start_time).count(),
                                          .net_usage_us          = br.total_net_usage,
                                          .block_latency_us      = (now - block->timestamp).count(),
                                          .last_irreversible     = chain.last_irreversible_block_num(),
@@ -2951,7 +2951,6 @@ void producer_plugin_impl::produce_block() {
       return sigs;
    });
 
-   br.total_time += fc::time_point::now() - start;
    chain.commit_block(br);
 
    const signed_block_ptr new_b = chain.head().block();
@@ -2963,7 +2962,7 @@ void producer_plugin_impl::produce_block() {
       metrics.trxs_produced_total = new_b->transactions.size();
       metrics.cpu_usage_us = br.total_cpu_usage_us;
       metrics.total_elapsed_time_us = br.total_elapsed_time.count();
-      metrics.total_time_us = br.total_time.count();
+      metrics.total_time_us = (fc::time_point::now() - br.start_time).count();
       metrics.net_usage_us = br.total_net_usage;
       metrics.last_irreversible = chain.last_irreversible_block_num();
       metrics.head_block_num = chain.head().block_num();
