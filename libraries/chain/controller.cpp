@@ -5244,6 +5244,8 @@ transaction_trace_ptr controller::start_block( block_timestamp_type when,
 }
 
 void controller::assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback ) {
+   fc::time_point start_time = fc::time_point::now(); // want to report total time of producing a block
+
    validate_db_available_size();
 
    my->assemble_block(false, {}, nullptr);
@@ -5257,6 +5259,7 @@ void controller::assemble_and_complete_block( block_report& br, const signer_cal
       valid_block_signing_authority);
 
    br = my->pending->_block_report;
+   br.start_time = start_time;
 }
 
 void controller::commit_block(block_report& br) {
