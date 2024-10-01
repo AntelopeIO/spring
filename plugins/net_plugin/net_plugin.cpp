@@ -1480,7 +1480,7 @@ namespace eosio {
             c->last_handshake_sent.generation = ++c->sent_handshake_count;
             auto last_handshake = c->last_handshake_sent;
             g_conn.unlock();
-            peer_ilog( c, "Sending handshake generation ${g}, lib ${lib}, fhead ${h}, id ${id}",
+            peer_dlog( c, "Sending handshake generation ${g}, lib ${lib}, fhead ${h}, id ${id}",
                        ("g", last_handshake.generation)
                        ("lib", last_handshake.last_irreversible_block_num)
                        ("h", last_handshake.fork_head_num)("id", last_handshake.fork_head_id.str().substr(8,16)) );
@@ -2242,13 +2242,13 @@ namespace eosio {
       //-----------------------------
 
       if (chain_info.fork_head_id == msg.fork_head_id) {
-         peer_ilog( c, "handshake lib ${lib}, fhead ${h}, id ${id}.. sync 0, lib ${l}",
+         peer_dlog( c, "handshake lib ${lib}, fhead ${h}, id ${id}.. sync 0, lib ${l}",
                     ("lib", msg.last_irreversible_block_num)("h", msg.fork_head_num)("id", msg.fork_head_id.str().substr(8,16))("l", chain_info.lib_num) );
          c->peer_syncing_from_us = false;
          return;
       }
       if (chain_info.fork_head_num < msg.last_irreversible_block_num) {
-         peer_ilog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 1, fhead ${h}, lib ${l}",
+         peer_dlog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 1, fhead ${h}, lib ${l}",
                     ("lib", msg.last_irreversible_block_num)("mh", msg.fork_head_num)("id", msg.fork_head_id.str().substr(8,16))
                     ("h", chain_info.fork_head_num)("l", chain_info.lib_num) );
          c->peer_syncing_from_us = false;
@@ -2258,7 +2258,7 @@ namespace eosio {
          return;
       }
       if (chain_info.lib_num > msg.fork_head_num + nblk_combined_latency + min_blocks_distance) {
-         peer_ilog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 2, fhead ${h}, lib ${l}",
+         peer_dlog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 2, fhead ${h}, lib ${l}",
                     ("lib", msg.last_irreversible_block_num)("mh", msg.fork_head_num)("id", msg.fork_head_id.str().substr(8,16))
                     ("h", chain_info.fork_head_num)("l", chain_info.lib_num) );
          if (msg.generation > 1 || c->protocol_version > proto_base) {
@@ -2280,14 +2280,14 @@ namespace eosio {
       }
 
       if (chain_info.fork_head_num + nblk_combined_latency < msg.fork_head_num ) {
-         peer_ilog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 3, fhead ${h}, lib ${l}",
+         peer_dlog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 3, fhead ${h}, lib ${l}",
                     ("lib", msg.last_irreversible_block_num)("mh", msg.fork_head_num)("id", msg.fork_head_id.str().substr(8,16))
                     ("h", chain_info.fork_head_num)("l", chain_info.lib_num) );
          c->peer_syncing_from_us = false;
          verify_catchup(c, msg.fork_head_num, msg.fork_head_id);
          return;
       } else if(chain_info.fork_head_num >= msg.fork_head_num + nblk_combined_latency) {
-         peer_ilog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 4, fhead ${h}, lib ${l}",
+         peer_dlog( c, "handshake lib ${lib}, fhead ${mh}, id ${id}.. sync 4, fhead ${h}, lib ${l}",
                     ("lib", msg.last_irreversible_block_num)("mh", msg.fork_head_num)("id", msg.fork_head_id.str().substr(8,16))
                     ("h", chain_info.fork_head_num)("l", chain_info.lib_num) );
          if (msg.generation > 1 ||  c->protocol_version > proto_base) {
@@ -2984,7 +2984,7 @@ namespace eosio {
                }
 
                if( close_connection ) {
-                  peer_ilog( conn, "Closing connection" );
+                  peer_dlog( conn, "Closing connection" );
                   conn->close();
                }
          }));
@@ -3383,7 +3383,7 @@ namespace eosio {
             peer_ilog( this, "Local network version different: ${nv} Remote version: ${mnv}",
                        ("nv", net_version)("mnv", protocol_version.load()) );
          } else {
-            peer_ilog( this, "Local network version: ${nv}", ("nv", net_version) );
+            peer_dlog( this, "Local network version: ${nv}", ("nv", net_version) );
          }
 
          conn_node_id = msg.node_id;
