@@ -71,8 +71,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    // partition D out. D will be used to produce blocks on an alternative fork.
    // We will have 3 finalizers voting which is enough to reach QCs
    // -------------------------------------------------------------------------
-   const std::vector<size_t> partition {3};
-   set_partition(partition);
+   set_partition( {&D} );
 
    auto b1 = A.produce_block();                       // receives strong votes from 3 finalizers (D partitioned out)
    print("b1", b1);
@@ -82,8 +81,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
 
    BOOST_REQUIRE_GT(b2->timestamp.slot, b1->timestamp.slot);
 
-   const std::vector<size_t> tmp_partition {0};       // we temporarily separate A (before pushing b2)
-   set_partitions({tmp_partition, partition});        // because we don't want A to see the block produced by D (b2)
+   set_partitions({ {&A}, {&D}});                     // because we don't want A to see the block produced by D (b2)
                                                       // otherwise it will switch forks and build its next block (b3)
                                                       // on top of it
 
@@ -95,7 +93,7 @@ BOOST_FIXTURE_TEST_CASE(weak_masking_issue, savanna_cluster::cluster_t) try {
    BOOST_REQUIRE_EQUAL(qc_s(qc(b2)), strong_qc(b0));   // b2 should include a strong qc on b0
 
 
-   set_partition(partition);                           // restore our original partition {A, B, C} and {D}
+   set_partition( {&D} );                             // restore our original partition {A, B, C} and {D}
 
    signed_block_ptr b3;
    {
@@ -247,14 +245,13 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
    // partition D out. D will be used to produce blocks on an alternative fork.
    // We will have 3 finalizers voting which is enough to reach QCs
    // -------------------------------------------------------------------------
-   const std::vector<size_t> partition {3};
-   set_partition(partition);
+   set_partition( {&D} );
 
    auto b3 = D.produce_block();                          // produce a block on D
    print("b3", b3);
 
-   const std::vector<size_t> tmp_partition {0};          // we temporarily separate A (before pushing b3)
-   set_partition(tmp_partition);                         // because we don't want A to see the block produced by D (b3)
+                                                         // we temporarily separate A (before pushing b3)
+   set_partition( {&A} );                                // because we don't want A to see the block produced by D (b3)
                                                          // otherwise it will switch forks and build its next block (b4)
                                                          // on top of it
 
@@ -268,7 +265,7 @@ BOOST_FIXTURE_TEST_CASE(gh_534_liveness_issue, savanna_cluster::cluster_t) try {
                                                          // so it didn't see b3 and its enclosed QC.
    B.check_fsi({.last_vote = b3, .lock = b2, .other_branch_latest_time = {}});
 
-   set_partition(partition);                             // restore our original partition {A, B, C} and {D}
+   set_partition( {&D} );                               // restore our original partition {A, B, C} and {D}
 
    // from now on, to reproduce the scenario where votes are delayed, so the QC we receive don't
    // claim the parent block, but an ancestor, we need to artificially delay propagating the votes.
@@ -354,8 +351,7 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    auto b1 = A.produce_block();                         // receives strong votes from all finalizers
    print("b1", b1);
 
-   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b2 (yet)
-   set_partition(partition);
+   set_partition( {&A} );                               // partition A so that B, C and D don't see b2 (yet)
 
    auto b2 = A.produce_block();                         // receives just 1 strong vote fron A
    print("b2", b2);
@@ -394,7 +390,7 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_after_restart_from_snapshot, savanna_cluster
    A.remove_state();
    A.remove_reversible_data_and_blocks_log();
 
-   set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
+   set_partition( {&A} );                               // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b3_snapshot);
 
    // After starting up from the snapshot, their node receives block b4 from the P2P network.
@@ -505,8 +501,8 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    auto p2 = pending->generation;                       // and its generation is higher than the active one
    BOOST_REQUIRE_EQUAL(p2, p1 + 1);                     // b3 has new pending finalizer policy p2
 
-   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b4 (yet)
-   set_partition(partition);                            // and don't vote on it
+                                                        // partition A so that B, C and D don't see b4 (yet)
+   set_partition( {&A} );                               // and don't vote on it
 
    auto b4 = A.produce_block();
    print("b4", b4);
@@ -581,7 +577,7 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
    A.remove_state();
    A.remove_reversible_data_and_blocks_log();
 
-   set_partition({0});                                  // partition A so it doesn't receive blocks on `open()`
+   set_partition({&A});                                 // partition A so it doesn't receive blocks on `open()`
    A.open_from_snapshot(b6_snapshot);
 
    A.push_block(b7);                                    // when pushing b7, if we try to access any block state
@@ -632,8 +628,8 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    auto p2 = pending->generation;                       // and its generation is higher than the active one
    BOOST_REQUIRE_EQUAL(p2, p1 + 1);                     // b3 has new pending finalizer policy p2
 
-   const std::vector<size_t> partition {0};             // partition A so that B, C and D don't see b4 (yet)
-   set_partition(partition);                            // and don't vote on it
+                                                        // partition A so that B, C and D don't see b4 (yet)
+   set_partition({&A});                                 // and don't vote on it
 
    // push action so that the block is not empty
    A.push_action(config::system_account_name, updateauth::get_name(), tester_account,
@@ -717,7 +713,7 @@ Vote:                      Strong  Strong   Strong  Weak     -
              because `B2 timestamp < B4 timestamp`.
           -> safety check fails because `B6` does not extend `B4`.
 --------------------------------------------------------------------------------------------------------*/
-BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(finalizers_locked_preventing_vote_on_alternate_branch, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
    auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
@@ -744,8 +740,8 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    B.propagate_delayed_votes_to(D);                     // propagate votes on b2 to D, so it can form a QC on b2
    C.propagate_delayed_votes_to(D);                     // which will be included in b6
 
-   const std::vector<size_t> partition {3};             // partition D so that it doesn't see b3, b4 and b5
-   set_partition(partition);                            // and don't vote on it
+                                                        // partition D so that it doesn't see b3, b4 and b5
+   set_partition({&D});                                 // and don't vote on it
 
    auto b3 = A.produce_block();
    print("b3", b3);
@@ -787,6 +783,185 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
    auto b7 = D.produce_block();                         // D produces a block. It still has not seen b4 and b5.
    print("b7", b7);
    BOOST_REQUIRE(!qc(b7));                              // b7 should not include a QC
+
+} FC_LOG_AND_RETHROW()
+
+
+/* -----------------------------------------------------------------------------------------------------
+            Finality advancing past block claimed on alternate branch
+            =========================================================
+Producer:    C       C       C       C       C       D       D       D       D
+Timestamp:   t1      t2      t3      t4      t5      t6      t7      t8      t9
+Blocks:
+    b0 <---  b1 <--- b2 <--- b3 <-|- b4 <--- b5
+                                  |
+                                  \----------------- b6 <--- b7 <--- b8 <--- b9
+QC claim:
+           Strong  Strong  Strong  Strong  Strong  Strong  Strong   Weak   Strong
+             b0      b0      b1      b3      b4      b1      b2      b7      b8
+
+Votes:
+  Node A:  Strong‡ Strong‡ Strong‡ Strong           Weak¹   Weak   Strong  Strong
+  Node B:  Strong¹ Strong¹ Strong  Strong           Weak¹   Weak   Strong  Strong
+  Node C:  Strong  Strong  Strong  Strong  Strong‡  Weak¹   Weak¹  Strong¹ Strong
+  Node D:  Strong¹ Strong¹ Strong                  Strong  Strong  Strong  Strong
+
+                                                             ^
+                                                             |
+                                             Validating the strong QC on b2 should
+                                             not fail for nodes which receive b4 and
+                                             b5 prior to b7 despite b5 advancing the
+                                             fork DB root to b3.
+
+Meaning of the superscripts and marks on the votes:
+The vote on block b was delayed in reaching the node for the producer p scheduled
+for the block at the next time slot t after block b by enough that a block produced on time by
+producer p for time slot t could not possibly utilize the vote in any QC the block could claim.
+Furthermore, the delay is such that the earliest time slot at which producer p could
+produce a block that utilizes the delayed vote is the time slot (t + d) where ...
+¹ ... d = 1.
+‡ ... d is infinite meaning the vote may never be received by producer p.
+
+steps mentioned in comments below refer to issue https://github.com/AntelopeIO/spring/issues/751
+
+Diagram below shows the timeline for nodes A, B, C and D receiving blocks b1 through b9.
+(x) marks the producer of the block.
+
+step    network partition        A        B        C        D
+---------------------------------------------------------------
+                                 b1       b1       b1(x)    b1
+(3)     A / B C D
+(4)                                       b2       b2(x)    b2
+(9)                                       b3       b3(x)    b3
+(15)    A / B C / D
+(18)                                      b4       b4(x)
+(20)                                                        b6(x)
+(22)    A D / B C
+(23)                             b2
+(25)                             b3
+(26)    A B C / D
+(28)                             b4
+(30)    A B / C / D
+(31)                                               b5(x)
+(33)                                                        b7(x)
+(35)    A B D / C
+(36)                             b6       b6
+(38)    A B C D
+(39)                             b5       b5
+(40)                                               b6
+(41,43)                          b7       b7       b7
+(44)                             b8       b8       b8       b8(x)
+(51)                             b9       b9       b9       b9(x)
+
+--------------------------------------------------------------------------------------------------------*/
+BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
+   using namespace savanna_cluster;
+   auto& A=_nodes[0]; auto& B=_nodes[1]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   _debug_mode = true;
+
+   auto b0 = A.produce_block();
+   print("b0", b0);
+
+   signed_block_ptr b1, b2, b3, b4, b5, b6, b7, b8, b9;
+
+   set_partition({ &A });
+
+   {
+      fc::scoped_set_value tmp_B(B.vote_delay(), 1);         // delay votes from B for 1 slot
+      fc::scoped_set_value tmp_D(D.vote_delay(), 1);         // delay votes from D for 1 slot
+
+      b1 = C.produce_block();
+      print("b1", b1);
+      BOOST_REQUIRE_EQUAL(qc_s(qc(b1)), strong_qc(b0));      // b1 claims a strong QC on b0
+
+      b2 = C.produce_block();
+      print("b2", b2);
+      BOOST_REQUIRE(!qc(b2));                                // b2 should not include a QC (votes on b1 delayed)
+      BOOST_REQUIRE_EQUAL(qc_claim(b2), qc_claim(b1));       // C didn't form a QC on b1, so b2 should repeat b1's claim
+
+      // D doesn't receive B's vote on b2 yet because it is delayed, or A's vote because it is partitioned out
+   }
+
+   set_partitions({{ &A }, { &D }});                         // both A and D are isolated by themselves (step 15)
+
+   b3 = C.produce_block();
+   print("b3", b3);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b3)), strong_qc(b1));         // b3 claims a strong QC on b1 (B and D votes delayed by 1)
+
+   C.push_blocks_to(D);                                      // we want D to receive b3 (so it can build b6 on it), but no votes
+   D.push_vote_to(C, b3->calculate_id());                    // and we want C to get D's vote on b3 so it can form a QC
+                                                             // this simulates D being isolated just after receiving b3 and voting
+                                                             // on it, but before receiving B and C votes on b3.
+
+   b4 = C.produce_block();
+   print("b4", b4);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b4)), strong_qc(b3));         // b4 claims a strong QC on b3 (B and D votes not delayed anymore)
+
+   b6 = D.produce_block(_block_interval_us * 2);             // Node D produces and broadcasts b6 one second early (due
+   print("b6", b6);                                          // to clock differences).
+   BOOST_REQUIRE_EQUAL(b6->previous, b3->calculate_id());    // b6 has b3 as its parent block
+   BOOST_REQUIRE(!qc(b6));                                   // b6 does not include a new qc (lacking votes on b2 and b3)
+   BOOST_REQUIRE_EQUAL(qc_claim(b6), qc_claim(b3));          // and repeats b3's strong QC claim on b1.
+
+   C.push_blocks_to(A);                                      // simulates A and D temporarily reconnecting, D sending the blocks
+   A.push_vote_to(D, b2->calculate_id());                    // produced by C, A voting on them and D receiving these votes
+
+   set_partition({ &D });                                    // B and C re-establish connection with A (step 26,27)
+
+   C.push_blocks_to(A);                                      // Now that A is reconnected to B and C, it can receive blocks and
+   A.push_vote_to(C, b4->calculate_id());                    // vote on them
+
+   set_partitions({ { &C }, { &D } });                       // Node C is isolated from the other nodes (step 30)
+                                                             // so A, B and C get b5 after b6
+
+   b5 = C.produce_block();
+   print("b5", b5);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b5)), strong_qc(b4));         // b5 claims a strong QC on b4
+
+   b7 = D.produce_block();                                   // Node D produces b7
+   print("b7", b7);
+   BOOST_REQUIRE_EQUAL(b7->previous, b6->calculate_id());    // b7 has b6 as its parent block
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b7)), strong_qc(b2));         // b7 claims a strong QC on b2
+
+   set_partition( { &C } );                                  // step 35
+
+   A.push_block(b6);                                         // don't use `push_blocks_to` because of fork
+   B.push_block(b6);                                         // step 36
+
+   set_partition( {} );                                      // step 38
+
+   A.push_block(b5);                                         // A receives b5
+   BOOST_REQUIRE_EQUAL(A.lib_number, b3->block_num());       // which advances lib to b3
+
+   B.push_block(b5);                                         // B receives b5
+   BOOST_REQUIRE_EQUAL(B.lib_number, b3->block_num());       // which advances lib to b3
+
+   // Following requires issue #694 fix:
+   // Nodes A and B have received b5, which has advanced finality to b3.
+   // when we push b6 and b7 (produced by D) to these nodes, they will want to verify the QC included in b7 (strong QC on b2).
+   // If, in order to verify this QC, they attempt to lookup b2 in fork_db, this will fail because lib (and hence fork_db's root)
+   // has advanced to b3.
+   // ---------------------------------------------------------------------------------------------------------------------------
+   A.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
+   B.push_block(b7);                                         // prior to PR #719 (fixing issue #694), we'd have an exception here
+
+   C.push_block(b6);
+   C.push_block(b7);
+
+   // with issue #694 fixed, A and B were able to successfully validate the received block b7
+   // However, unless the separate issue #778 is fixed, A and B would still not vote on b7 (which is added to the fork database
+   // but does not become the new best head since b5 has a later `latest_qc_block_timestamp`).
+   // ---------------------------------------------------------------------------------------------------------------------------
+   b8 = D.produce_block();                                   // Node D produces b8
+   print("b8", b8);
+   BOOST_REQUIRE_EQUAL(b8->previous, b7->calculate_id());    // b8 has b7 as its parent block
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b8)), weak_qc(b7));           // b8 claims a weak QC on b7 (A, B and C voted weak since locked on b4)
+                                                             // prior to PR #788 (fixing issue #778), we'd have an test failure here
+
+   b9 = D.produce_block();                                   // Node D produces b9
+   print("b9", b9);
+   BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));         // b9 claims a strong QC on b8 (all nodes were able to vote strong)
 
 } FC_LOG_AND_RETHROW()
 
