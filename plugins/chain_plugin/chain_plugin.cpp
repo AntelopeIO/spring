@@ -1168,6 +1168,7 @@ void chain_plugin_impl::plugin_shutdown() {
    irreversible_block_connection.reset();
    applied_transaction_connection.reset();
    block_start_connection.reset();
+   chain.reset();
    dlog("exit shutdown");
 }
 
