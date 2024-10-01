@@ -1,4 +1,7 @@
-#include "savanna_cluster.hpp"
+#include <savanna_cluster.hpp>
+#include <test-data.hpp>
+
+#include <fc/io/fstream.hpp> // for read_file_contents
 
 using namespace eosio::chain;
 using namespace eosio::testing;
@@ -591,17 +594,132 @@ BOOST_FIXTURE_TEST_CASE(validate_qc_requiring_finalizer_policies, savanna_cluste
 
 } FC_LOG_AND_RETHROW()
 
+static void save_blockchain_data(const std::filesystem::path& ref_blockchain_path,
+                                 const std::filesystem::path& blocks_path,
+                                 const block_id_type&         id,
+                                 const std::string&           snapshot) {
+   auto source_log_file   = blocks_path / "blocks.log";
+   auto source_index_file = blocks_path / "blocks.index";
+
+   auto ref_log_file             = ref_blockchain_path / "blocks.log";
+   auto ref_index_file           = ref_blockchain_path / "blocks.index";
+   auto ref_id_file_name         = ref_blockchain_path / "id";
+   auto ref_snapshot_file_name   = ref_blockchain_path / "snapshot";
+
+   // save reference blocks log
+   std::filesystem::copy_file(source_log_file, ref_log_file, std::filesystem::copy_options::overwrite_existing);
+   std::filesystem::copy_file(source_index_file, ref_index_file, std::filesystem::copy_options::overwrite_existing);
+
+   // save reference block_id
+   fc::cfile ref_id_file;
+   ref_id_file.set_file_path(ref_id_file_name);
+   ref_id_file.open("wb");
+   ref_id_file.write(id.data(), id.data_size());
+   ref_id_file.close();
+
+   // save reference snapshot
+   fc::cfile snapshot_file;
+   snapshot_file.set_file_path(ref_snapshot_file_name);
+   snapshot_file.open("w");
+   snapshot_file.write(snapshot.data(), snapshot.size());
+   snapshot_file.close();
+}
+
+static block_id_type read_reference_id(const std::filesystem::path& ref_blockchain_path) {
+   auto ref_id_file_path = ref_blockchain_path / "id";
+   std::string content;
+   fc::read_file_contents(ref_id_file_path, content);
+
+   return block_id_type(content.data(), content.size());
+}
+
+static std::string read_reference_snapshot(const std::filesystem::path& ref_blockchain_path) {
+   auto ref_snapshot_file_path = ref_blockchain_path / "snapshot";
+   std::string content;
+   fc::read_file_contents(ref_snapshot_file_path, content);
+
+   return content;
+}
+
+// need to pass in temp_dir. otherwise it will be destroyed after replay_reference_blockchain returns
+static std::unique_ptr<tester> replay_reference_blockchain(const std::filesystem::path& ref_blockchain_path,
+                                                           const fc::temp_directory& temp_dir,
+                                                           const block_log& blog) {
+   // replay the reference blockchain and make sure LIB id in the replayed
+   // chain matches reference LIB id
+   // --------------------------------------------------------------------
+   auto config = tester::default_config(temp_dir).first;
+
+   auto genesis = eosio::chain::block_log::extract_genesis_state(ref_blockchain_path);
+   BOOST_REQUIRE(genesis);
+
+   std::filesystem::create_directories(config.blocks_dir);
+
+   std::filesystem::copy(ref_blockchain_path / "blocks.log", config.blocks_dir / "blocks.log");
+   std::filesystem::copy(ref_blockchain_path / "blocks.index", config.blocks_dir / "blocks.index");
+
+   // do a full block invariants check
+   config.force_all_checks = true;
+
+   // replay the reference blockchain
+   std::unique_ptr<tester> replay_chain = std::make_unique<tester>(config, *genesis);
+
+   auto ref_lib_id = blog.head_id();
+   BOOST_REQUIRE_EQUAL(*ref_lib_id, replay_chain->last_irreversible_block_id());
+
+   return replay_chain;
+}
+
+static void sync_replayed_blockchain(const std::filesystem::path& ref_blockchain_path,
+                                     std::unique_ptr<tester>&&    replay_chain,
+                                     const block_log&             blog) {
+   tester sync_chain;
+   sync_chain.close();  // stop the chain
+
+   // remove state and blocks log so we can restart from snapshot
+   std::filesystem::remove_all(sync_chain.get_config().state_dir);
+   std::filesystem::remove_all(sync_chain.get_config().blocks_dir);
+
+   // restart from reference snapshot
+   sync_chain.open(buffered_snapshot_suite::get_reader(read_reference_snapshot(ref_blockchain_path)));
+
+   // sync with the replayed blockchain
+   while( sync_chain.fork_db_head().block_num() < replay_chain->fork_db_head().block_num() ) {
+      auto fb = replay_chain->fetch_block_by_number( sync_chain.fork_db_head().block_num()+1 );
+      sync_chain.push_block( fb );
+   }
+
+   // In syncing, use the head for checking as it advances further than LIB
+   auto head_block_num = sync_chain.head().block_num();
+   signed_block_ptr ref_block = blog.read_block_by_num(head_block_num);
+
+   BOOST_REQUIRE_EQUAL(ref_block->calculate_id(), sync_chain.head().id());
+}
 
 // ----------------------------------------------------------------------------------------------------
 // For issue #694, we need to change the finality core of the `block_header_state`, but we want to
 // ensure that this doesn't create a consensus incompatibility with Spring 1.0.0, so the blocks created
-// with newer versions remain compatible (and linkable) by Spring 1.0.0.
+// with newer versions remain compatible (and linkable) with blocks by Spring 1.0.0.
+//
+// This test adds a utility that saves reference blockchain data and checks for
+// regression in compatibility of syncing and replaying the reference blockchain data.
+//
+// To save reference blockchain data in `unittests/test-data/consensus_blockchain`,
+// run
+// `unittests/unit_test -t savanna_misc_tests/verify_block_compatibitity -- --save-blockchain`
 // ----------------------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(verify_block_compatibitity, savanna_cluster::cluster_t) try {
    using namespace savanna_cluster;
    auto& A=_nodes[0];
    const auto& tester_account = "tester"_n;
    //_debug_mode = true;
+
+   bool save_blockchain = tester::arguments_contains("--save-blockchain");
+
+   std::string snapshot;
+   if (save_blockchain) { // take a snapshot at the beginning
+      snapshot = A.snapshot();
+   }
 
    // update finalizer_policy with a new key for B
    // --------------------------------------------
@@ -681,10 +799,32 @@ BOOST_FIXTURE_TEST_CASE(verify_spring_1_0_block_compatibitity, savanna_cluster::
    BOOST_REQUIRE_EQUAL(qc_s(qc(b9)), strong_qc(b8));    // b9 claims a strong QC on b8
    BOOST_REQUIRE_EQUAL(A.lib_number, b6->block_num());  // b9 makes B6 final
 
-   // check that the block id of b9 match what we got with Spring 1.0.0
-   auto b9_id = b9->calculate_id();
-   BOOST_REQUIRE_EQUAL(b9_id, block_id_type{"00000013725f3d79bd4dd4091d0853d010a320f95240981711a942673ad87918"});
+   std::filesystem::path test_data_path { UNITTEST_TEST_DATA_DIR };
+   auto ref_blockchain_path = test_data_path / "consensus_blockchain";
 
+   // check that the block id of b9 match what we got before.
+   auto b9_id = b9->calculate_id();
+
+   if (save_blockchain) {
+      save_blockchain_data(ref_blockchain_path, A.get_config().blocks_dir, b9_id, snapshot);
+      return;
+   }
+
+   // Do block id validation after we save blockchain data in case the id needs to be changed in future
+   BOOST_REQUIRE_EQUAL(b9_id, read_reference_id(ref_blockchain_path));
+
+   block_log blog(ref_blockchain_path);
+
+   // replay the reference blockchain and make sure LIB id in the replayed
+   // chain matches reference LIB id
+   // --------------------------------------------------------------------
+   fc::temp_directory temp_dir; // need to pass in temp_dir. otherwise it would be destroyed after replay_reference_blockchain returns
+   std::unique_ptr<tester> replay_chain = replay_reference_blockchain(ref_blockchain_path, temp_dir, blog);
+
+   // start another blockchain using reference snapshot, and sync with the blocks
+   // from the replayed blockchain
+   // ---------------------------------------------------------------------------
+   sync_replayed_blockchain(ref_blockchain_path, std::move(replay_chain), blog);
 } FC_LOG_AND_RETHROW()
 
 /* -----------------------------------------------------------------------------------------------------
