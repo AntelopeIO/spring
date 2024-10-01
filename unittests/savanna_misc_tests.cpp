@@ -804,12 +804,14 @@ BOOST_FIXTURE_TEST_CASE(verify_block_compatibitity, savanna_cluster::cluster_t) 
 
    // check that the block id of b9 match what we got before.
    auto b9_id = b9->calculate_id();
-   BOOST_REQUIRE_EQUAL(b9_id, read_reference_id(ref_blockchain_path));
 
    if (save_blockchain) {
       save_blockchain_data(ref_blockchain_path, A.get_config().blocks_dir, b9_id, snapshot);
       return;
    }
+
+   // Do block id validation after we save blockchain data in case the id needs to be changed in future
+   BOOST_REQUIRE_EQUAL(b9_id, read_reference_id(ref_blockchain_path));
 
    block_log blog(ref_blockchain_path);
 
