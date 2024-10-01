@@ -386,8 +386,6 @@ void state_history_plugin_impl::plugin_shutdown() {
    // This is a temporary fix until https://github.com/AntelopeIO/spring/issues/842 can be worked.
    // Drain the io_service of anything that could be referencing state_history_plugin
    if (app().executor().get_io_service().stopped()) {
-      // make sure is_quitting() returns true
-      app().quit();
       app().executor().get_io_service().restart();
       // drain anything that SHiP might have posted while stopping
       while (app().executor().get_io_service().poll())
