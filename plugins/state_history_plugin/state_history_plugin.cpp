@@ -387,6 +387,8 @@ void state_history_plugin_impl::plugin_shutdown() {
       app().executor().get_io_service().restart();
       while (app().executor().get_io_service().poll())
          ;
+      // clear priority queue of anything pushed by poll(), see application_base exec()
+      app().executor().clear();
    }
 }
 
