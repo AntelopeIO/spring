@@ -842,16 +842,16 @@ step    network partition        A        B        C        D
 (26)    A B C / D
 (28)                             b4
 (30)    A B / C / D
-(31)                                                b5(x)
+(31)                                               b5(x)
 (33)                                                        b7(x)
 (35)    A B D / C
 (36)                             b6       b6
 (38)    A B C D
 (39)                             b5       b5
-(40)                                                b6
-(41,43)                          b7       b7        b7
-(44)                             b8       b8        b8      b8(x)
-(51)                             b9       b9        b9      b9(x)
+(40)                                               b6
+(41,43)                          b7       b7       b7
+(44)                             b8       b8       b8       b8(x)
+(51)                             b9       b9       b9       b9(x)
 
 --------------------------------------------------------------------------------------------------------*/
 BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branch, savanna_cluster::cluster_t) try {
