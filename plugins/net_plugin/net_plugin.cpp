@@ -1302,6 +1302,7 @@ namespace eosio {
    }
 
    void connection::update_endpoints(const tcp::endpoint& endpoint) {
+      peer_dlog(this, "update endpoints");
       boost::system::error_code ec;
       boost::system::error_code ec2;
       auto rep = endpoint == tcp::endpoint() ? socket->remote_endpoint(ec) : endpoint;
@@ -1325,6 +1326,7 @@ namespace eosio {
          fc_dlog( logger, "unable to retrieve remote endpoint for local ${address}:${port}", ("address", local_endpoint_ip)("port", local_endpoint_port));
          remote_endpoint_ip_array = boost::asio::ip::address_v6().to_bytes();
       }
+      peer_dlog(this, "done update endpoints");
    }
 
    // called from connection strand
@@ -2822,7 +2824,6 @@ namespace eosio {
          boost::asio::bind_executor( strand,
                [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
             if( !err && socket->is_open() && socket == c->socket ) {
-               c->update_endpoints(endpoint);
                if( c->start_session() ) {
                   c->send_handshake();
                   c->send_time();
@@ -4687,11 +4688,14 @@ namespace eosio {
          }
       }
 
+      fc_dlog(logger, "connecting to ${h}:${p}", ("h", host)("p", port));
       strand.post([c, host, port]() {
          auto resolver = std::make_shared<tcp::resolver>( c->strand.context() );
+         fc_dlog(logger, "resolve ${h}:${p}", ("h", host)("p", port));
          resolver->async_resolve(host, port,
             [resolver, c, host, port]
             ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
+               fc_dlog(logger, "resolved ${h}:${p}", ("h", host)("p", port));
                c->set_heartbeat_timeout( my_impl->connections.get_heartbeat_timeout() );
                if( !err ) {
                   c->connect( results );
