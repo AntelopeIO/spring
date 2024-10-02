@@ -3,7 +3,7 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery)
+BOOST_AUTO_TEST_SUITE(savanna_disaster_recovery_tests)
 
 // ------------------------------------------------------------------------------------------
 // Check that a node can go down cleanly, restart from its existing state, and start voting
@@ -213,8 +213,7 @@ BOOST_FIXTURE_TEST_CASE(all_nodes_shutdown_with_reversible_blocks_lost, savanna_
    // split network { A, B } and { C, D }
    // A produces two more blocks, so A and B will vote strong but finality will not advance
    // -------------------------------------------------------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    BOOST_REQUIRE_EQUAL(1u, A.lib_advances_by([&]() { A.produce_blocks(2);  })); // lib stalls with network partitioned, 1 QC in flight
 
    // remove network split
@@ -306,8 +305,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_fork_db_with_only_root_block, savanna_clust
    BOOST_REQUIRE_EQUAL(2u, C.lib_advances_by([&]() { b1 = C.produce_block();  b2 = C.produce_block(); }));
 
    // Partition C by itself, so it doesn't receive b1 and b2 when opebed
-   const std::vector<size_t> tmp_partition {2};
-   set_partition(tmp_partition);
+   set_partition( {&C} );
 
    C.close();
    C.remove_state();

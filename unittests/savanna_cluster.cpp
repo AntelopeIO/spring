@@ -21,6 +21,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       if (status == vote_result_t::success) {
          vote_message_ptr vote_msg = std::get<2>(v);
          _last_vote = vote_t(vote_msg->block_id, vote_msg->strong);
+         _votes[vote_msg->block_id] = vote_msg;
 
          if (_propagate_votes) {
             if (_vote_delay)
@@ -28,10 +29,10 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
             while (_delayed_votes.size() > _vote_delay) {
                vote_message_ptr vote = _delayed_votes.front();
                _delayed_votes.erase(_delayed_votes.cbegin());
-               cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote);
+               _cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote);
             }
             if (!_vote_delay)
-               cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote_msg);
+               _cluster.dispatch_vote_to_peers(node_idx, skip_self_t::yes, vote_msg);
          }
       }
    };
@@ -41,7 +42,7 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
       if (!_pushing_a_block) {
          // we want to propagate only blocks we produce, not the ones we receive from the network
          auto& b = std::get<0>(p);
-         cluster.push_block_to_peers(node_idx, skip_self_t::yes, b);
+         _cluster.push_block_to_peers(node_idx, skip_self_t::yes, b);
       }
    };
 
@@ -58,10 +59,13 @@ node_t::node_t(size_t node_idx, cluster_t& cluster, setup_policy policy /* = set
 
 node_t::~node_t() {}
 
-void node_t::propagate_delayed_votes_to(const node_t& to) {
+void node_t::propagate_delayed_votes_to(const node_t& n) {
    for (auto& vote : _delayed_votes)
-      if (to.is_open())
-         to.control->process_vote_message(++_cluster._connection_id, vote);
+      _cluster.dispatch_vote_to(n, vote);
+}
+
+void node_t::push_vote_to(const node_t& n, const block_id_type& block_id) {
+   _cluster.dispatch_vote_to(n, get_vote(block_id));
 }
 
 }

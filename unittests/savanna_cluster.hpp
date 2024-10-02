@@ -76,10 +76,13 @@ namespace savanna_cluster {
 
    struct qc_s {
       explicit qc_s(uint32_t block_num, bool strong) : block_num(block_num), strong(strong) {}
-      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc->block_num), strong(qc->is_strong()) {}
+      explicit qc_s(const std::optional<qc_t>& qc) : block_num(qc ? qc->block_num : uint32_t(-1)), strong(qc->is_strong()) {}
 
       friend std::ostream& operator<<(std::ostream& s, const qc_s& v) {
-         s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
+         if (v.block_num == uint32_t(-1))
+            s << "no_qc";
+         else
+            s << "qc_s(" << v.block_num << ", " << (v.strong ? "strong" : "weak") << ")";
          return s;
       }
       bool operator==(const qc_s&) const = default;
@@ -104,6 +107,8 @@ namespace savanna_cluster {
    // ----------------------------------------------------------------------------
    class node_t : public tester {
    private:
+      using votes_map_t = boost::unordered_flat_map<block_id_type, vote_message_ptr>;
+
       size_t                                          _node_idx;
       bool                                            _pushing_a_block{false};
       bool                                            _propagate_votes{true}; // if false, votes are dropped
@@ -112,6 +117,8 @@ namespace savanna_cluster {
 
       size_t                                          _vote_delay{0};         // delay vote propagation by this much
       std::vector<vote_message_ptr>                   _delayed_votes;
+
+      votes_map_t                                     _votes;                 // all votes from this node
 
       std::function<void(const block_signal_params&)> _accepted_block_cb;
       std::function<void(const vote_signal_params&)>  _voted_block_cb;
@@ -125,13 +132,17 @@ namespace savanna_cluster {
 
       node_t(node_t&&) = default;
 
+      size_t node_idx() const { return _node_idx; }
+
       bool& propagate_votes() { return _propagate_votes; }
 
       size_t& vote_delay() { return _vote_delay; }
 
-      void propagate_delayed_votes_to(const node_t& to);
+      void propagate_delayed_votes_to(const node_t& n);
 
       const vote_t& last_vote() const { return _last_vote; }
+
+      vote_message_ptr get_vote(const block_id_type& block_id) const { return _votes.at(block_id); }
 
       void set_node_finalizers(std::span<const account_name> names) {
          _node_finalizers = std::vector<account_name>{ names.begin(), names.end() };
@@ -223,13 +234,15 @@ namespace savanna_cluster {
       }
 
       template <class Node>
-      void push_blocks_to(Node& to, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
+      void push_blocks_to(Node& n, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
          auto limit = std::min(fork_db_head().block_num(), block_num_limit);
-         while (to.fork_db_head().block_num() < limit) {
-            auto sb = control->fetch_block_by_number(to.fork_db_head().block_num() + 1);
-            to.push_block(sb);
+         while (n.fork_db_head().block_num() < limit) {
+            auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
+            n.push_block(sb);
          }
       }
+
+      void push_vote_to(const node_t& n, const block_id_type& block_id);
 
       bool is_head_missing_finalizer_votes() {
          if (!control->get_testing_allow_voting_flag())
@@ -356,6 +369,8 @@ namespace savanna_cluster {
    //  --------------------------------------------------------------------------------------
    class cluster_t {
    public:
+      using peers_t = boost::unordered_flat_map<size_t, std::vector<size_t>>;
+
       explicit cluster_t(cluster_config cfg = {})
          : _fin_keys(cfg.num_nodes * 2, cfg.num_nodes) // allow for some spare heys
          , _num_nodes(cfg.num_nodes)
@@ -396,6 +411,23 @@ namespace savanna_cluster {
          _shutting_down = true;
       }
 
+      peers_t partitions(const std::initializer_list<std::vector<node_t*>>& l) {
+         std::vector<std::vector<size_t>> indice_vec;
+         for (const auto& v : l) {
+             auto view = v | std::views::transform([](const node_t* n) { return n->node_idx(); });
+             indice_vec.emplace_back(view.begin(), view.end());
+         }
+         return compute_peers(indice_vec);
+      }
+
+      peers_t partition(const std::vector<node_t*>& nodes) {
+         return partitions({nodes});
+      }
+
+      void set_partition(const std::vector<node_t*>& nodes) {
+         _peers = partition(nodes);
+      }
+
       // `set_partitions` allows to configure logical network connections between nodes.
       // - an empty list will connect each node of the cluster to every other nodes.
       // - a non-empty list partitions the network into two or more partitions.
@@ -403,32 +435,8 @@ namespace savanna_cluster {
       //   for nodes (`complement`) form another partition
       //   (within each partition, nodes are fully connected)
       // -----------------------------------------------------------------------------------------
-      void set_partitions(std::initializer_list<std::vector<size_t>> l) {
-         auto inside = [&](size_t node_idx) {
-            return ranges::any_of(l, [node_idx](const auto& v) {
-               return ranges::any_of(v, [node_idx](auto i) { return i == node_idx; }); });
-         };
-
-         std::vector<size_t> complement;
-         for (size_t i = 0; i < _nodes.size(); ++i)
-            if (!inside(i))
-               complement.push_back(i);
-
-         auto set_peers = [&](const std::vector<size_t>& v) { for (auto i : v)  _peers[i] = v; };
-
-         _peers.clear();
-         for (const auto& v : l)
-            set_peers(v);
-         set_peers(complement);
-      }
-
-      // this is a convenience function for the most common case where we want to partition
-      // the nodes into two separate disconnected partitions.
-      // Simply provide a set of indices for nodes that need to be logically disconnected
-      // from the rest of the network.
-      // ----------------------------------------------------------------------------------
-      void set_partition(const std::vector<size_t>& indices) {
-         set_partitions({indices});
+      void set_partitions(const std::initializer_list<std::vector<node_t*>>& part_vec) {
+         _peers = partitions(part_vec);
       }
 
       // After creating forks on different nodes on a partitioned network, make sure that,
@@ -545,6 +553,8 @@ namespace savanna_cluster {
          return {};
       }
 
+      peers_t& peers() { return _peers; }
+
       // debugging utilities
       // -------------------
       void print(const char* name, const signed_block_ptr& b) const {
@@ -563,8 +573,6 @@ namespace savanna_cluster {
          fc::milliseconds(eosio::chain::config::block_interval_ms);
 
    private:
-      using peers_t = boost::unordered_flat_map<size_t, std::vector<size_t>>;
-
       peers_t    _peers;
       size_t     _num_nodes;
       bool       _shutting_down {false};
@@ -572,10 +580,35 @@ namespace savanna_cluster {
 
       friend node_t;
 
+      peers_t compute_peers(const std::vector<std::vector<size_t>>& l) const {
+         auto inside = [&](size_t node_idx) {
+            return ranges::any_of(l, [node_idx](const auto& v) {
+               return ranges::any_of(v, [node_idx](auto i) { return i == node_idx; }); });
+         };
+
+         std::vector<size_t> complement;
+         for (size_t i = 0; i < _nodes.size(); ++i)
+            if (!inside(i))
+               complement.push_back(i);
+
+         peers_t peers;
+
+         auto set_peers = [&](const std::vector<size_t>& v) { for (auto i : v)  peers[i] = v; };
+
+         for (const auto& v : l)
+            set_peers(v);
+         set_peers(complement);
+         return peers;
+      }
+
+      void dispatch_vote_to(const node_t& n, const vote_message_ptr& msg) {
+         if (n.is_open())
+               n.control->process_vote_message(++_connection_id, msg);
+      }
+
       void dispatch_vote_to_peers(size_t node_idx, skip_self_t skip_self, const vote_message_ptr& msg) {
          for_each_peer(node_idx, skip_self, [&](node_t& n) {
-            if (n.is_open())
-               n.control->process_vote_message(++_connection_id, msg);
+            dispatch_vote_to(n, msg);
          });
       }
 
