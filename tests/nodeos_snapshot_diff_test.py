@@ -160,12 +160,27 @@ try:
     output=cluster.getBlockLog(progNodeId, blockLogAction=BlockLogAction.trim, first=0, last=ret_head_block_num, throwException=True)
     nodeProg.removeState()
     nodeProg.rmFromCmd('--p2p-peer-address')
-    isRelaunchSuccess = nodeProg.relaunch(chainArg="--replay", addSwapFlags={}, timeout=relaunchTimeout)
+
+    # There is a race condition that at the startup of node, net thread and http
+    # thread can start to work in different order. If http thread processes schedule_snapshot
+    # request after net thread starts to sync with the irrNode, schedule_snapshot
+    # request will miss the scheduled block number. If it is before net thread
+    # starts to sync with the irrNode, schedule_snapshot request will catch the
+    # scheduled block number and the snapshot is taken.
+    #
+    # "--allowed-connection none" is for isolating the node such that net thread
+    # does not initiate sync at the startup.
+    # "--plugin eosio::net_api_plugin" is for handling net connet request.
+    addSwapFlags={"--allowed-connection": "none", "--plugin": "eosio::net_api_plugin"}
+
+    isRelaunchSuccess = nodeProg.relaunch(chainArg="--replay", addSwapFlags=addSwapFlags, timeout=relaunchTimeout)
     assert isRelaunchSuccess, "Failed to relaunch programmable node"
 
     Print("Schedule snapshot (node 2)")
     ret = nodeProg.scheduleSnapshotAt(ret_head_block_num)
     assert ret is not None, "Snapshot scheduling failed"
+
+    nodeProg.processUrllibRequest("net", "connect", "localhost:9877")
 
     Print("Wait for programmable node lib to advance")
     waitForBlock(nodeProg, ret_head_block_num, blockType=BlockType.lib)
