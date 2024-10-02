@@ -1014,7 +1014,7 @@ namespace eosio {
       bool populate_handshake( handshake_message& hello ) const;
 
       bool resolve_and_connect();
-      void connect( const tcp::resolver::results_type& endpoints );
+      void connect( const std::shared_ptr<tcp::resolver>& resolver, const tcp::resolver::results_type& endpoints );
       void start_read_message();
 
       /** \brief Process the next message from the pending message buffer
@@ -2817,13 +2817,13 @@ namespace eosio {
    //------------------------------------------------------------------------
 
    // called from connection strand
-   void connection::connect( const tcp::resolver::results_type& endpoints ) {
+   void connection::connect( const std::shared_ptr<tcp::resolver>& resolver, const tcp::resolver::results_type& endpoints ) {
       set_state(connection_state::connecting);
       pending_message_buffer.reset();
       buffer_queue.clear_out_queue();
       boost::asio::async_connect( *socket, endpoints,
          boost::asio::bind_executor( strand,
-               [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
+               [c = shared_from_this(), resolver, socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
             if( !err && socket->is_open() && socket == c->socket ) {
                if( c->start_session() ) {
                   c->send_handshake();
@@ -4699,7 +4699,7 @@ namespace eosio {
                fc_dlog(logger, "resolved ${h}:${p}", ("h", host)("p", port));
                c->set_heartbeat_timeout( my_impl->connections.get_heartbeat_timeout() );
                if( !err ) {
-                  c->connect( results );
+                  c->connect( resolver, results );
                } else {
                   fc_wlog( logger, "Unable to resolve ${host}:${port} ${error}",
                            ("host", host)("port", port)( "error", err.message() ) );
