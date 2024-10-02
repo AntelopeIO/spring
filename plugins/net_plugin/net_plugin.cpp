@@ -4688,7 +4688,7 @@ namespace eosio {
       }
 
       strand.post([c, host, port]() {
-         auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
+         auto resolver = std::make_shared<tcp::resolver>( c->strand.context() );
          resolver->async_resolve(host, port,
             [resolver, c, host, port]
             ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
