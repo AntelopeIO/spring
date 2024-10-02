@@ -4693,7 +4693,7 @@ namespace eosio {
       strand.post([c, host, port]() {
          auto resolver = std::make_shared<tcp::resolver>( c->strand.context() );
          fc_dlog(logger, "resolve ${h}:${p}", ("h", host)("p", port));
-         resolver->async_resolve(host, port,
+         resolver->async_resolve(host, port, boost::asio::bind_executor( c->strand,
             [resolver, c, host, port]
             ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
                fc_dlog(logger, "resolved ${h}:${p}", ("h", host)("p", port));
@@ -4706,7 +4706,7 @@ namespace eosio {
                   c->set_state(connection::connection_state::closed);
                   ++c->consecutive_immediate_connection_close;
                }
-         } );
+         } ) );
       } );
 
       return true;
