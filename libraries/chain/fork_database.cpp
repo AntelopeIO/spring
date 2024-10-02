@@ -99,7 +99,7 @@ namespace eosio::chain {
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool             block_exists_impl( const block_id_type& id ) const;
-      bool             validated_block_exists_impl( const block_id_type& id ) const;
+      bool             validated_block_exists_impl( const block_id_type& id, const block_id_type& claimed_id ) const;
       void             reset_root_impl( const bsp_t& root_bs );
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
@@ -603,15 +603,30 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id) const {
+   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id, const block_id_type& claimed_id) const {
       std::lock_guard g( my->mtx );
-      return my->validated_block_exists_impl(id);
+      return my->validated_block_exists_impl(id, claimed_id);
    }
 
+   // precondition: claimed_id is either id, or an ancestor of id
+   // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
+   // and `is_valid()`.
+   // ------------------------------------------------------------------------------------------------------
    template<class BSP>
-   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id) const {
-      auto itr = index.find( id );
-      return itr != index.end() && (*itr)->is_valid();
+   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, const block_id_type& claimed_id) const {
+      bool id_present = false;
+
+      for (auto i = index.find(id); i != index.end(); i = index.find((*i)->previous())) {
+         id_present = true;
+         if ((*i)->is_valid())
+            return true;
+         if ((*i)->id() == claimed_id)
+            return false;
+      }
+
+      // if we return `true`, let's validate the precondition and make sure claimed_id is not in another branch
+      assert(!id_present || block_header::num_from_id(claimed_id) <= block_header::num_from_id(root->id()));
+      return id_present || id == root->id();
    }
 
 // ------------------ fork_database -------------------------

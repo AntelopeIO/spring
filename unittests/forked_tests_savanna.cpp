@@ -70,6 +70,7 @@ BOOST_AUTO_TEST_SUITE(forked_tests_savanna)
 // - produce blocks and verify that finality still advances.
 // ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t) try {
+   auto& C=_nodes[2]; auto& D=_nodes[3];
    struct fork_tracker {
       vector<signed_block_ptr> blocks;
    };
@@ -86,8 +87,8 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 
                                               // split the network. Finality will stop advancing as
                                               // votes and blocks are not propagated.
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);                  // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
+
+   set_partition( {&C, &D} );                 // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
 
                                               // at this point, each node has a QC to include into
                                               // the next block it produces which will advance lib.
@@ -204,6 +205,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 // - unsplit the network, produce blocks on _nodes[0] and verify lib advances.
 // -----------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
+   auto& C=_nodes[2]; auto& D=_nodes[3];
    _nodes[0].produce_blocks(2); // produce two extra blocks at the beginning so that producer schedules align
    
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
@@ -213,8 +215,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
    auto sb = _nodes[0].produce_block();
    BOOST_REQUIRE_EQUAL(sb->producer, producers[prod]); // first block produced by producers[prod]
 
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);                  // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
+   set_partition( {&C, &D} );                 // simulate 2 disconnected partitions:  nodes {0, 1} and nodes {2, 3}
                                               // at this point, each node has a QC to include into
                                               // the next block it produces which will advance lib.
 
@@ -291,6 +292,7 @@ BOOST_FIXTURE_TEST_CASE( forking_savanna, savanna_cluster::cluster_t ) try {
 // - Unpartition the network, veerify lib advances.
 // ----------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0];
    const vector<account_name> producers { "dan"_n, "sam"_n, "pam"_n };
    _nodes[0].create_accounts(producers);
    auto prod = _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
@@ -300,8 +302,7 @@ BOOST_FIXTURE_TEST_CASE( verify_savanna_fork_choice, savanna_cluster::cluster_t)
    BOOST_REQUIRE_EQUAL(sb_common->producer, producers[prod]); // first block produced by producers[prod]
 
 
-   const std::vector<size_t> partition {1, 2, 3};
-   set_partition(partition);                  // simulate 2 disconnected partitions:
+   set_partition( {&A} );                     // simulate 2 disconnected partitions:
                                               // P0 (node {0}) and P1 (nodes {1, 2, 3}).
                                               // At this point, each node has a QC to include into
                                               // the next block it produces which will advance lib by one)
@@ -396,6 +397,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_1, savanna_cluster::cluster_t
 //   advances past the fork block.
 // ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t ) try {
+   auto& D=_nodes[3];
    const vector<account_name> producers {"producer1"_n, "producer2"_n};
    _nodes[0].create_accounts(producers);
    _nodes[0].set_producers(producers);   // set new producers and produce blocks until the switch is pending
@@ -408,8 +410,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 
 
    // partition node3. lib will not advance on node3 anymore, but will advance on the other 3 nodes
-   const std::vector<size_t> partition {3};
-   set_partition(partition);       // simulate 2 disconnected partitions:  nodes {0, 1, 2} and node {3}
+   set_partition( {&D} );       // simulate 2 disconnected partitions:  nodes {0, 1, 2} and node {3}
 
    // produce blocks on _nodes[3], creating account "bob"_n. Finality will not advance
    // --------------------------------------------------------------------------------
@@ -492,6 +493,7 @@ BOOST_FIXTURE_TEST_CASE( irreversible_mode_savanna_2, savanna_cluster::cluster_t
 // - and restart producing on P1, check that finality advances again
 // ---------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
+   auto& C=_nodes[2]; auto& D=_nodes[3];
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
    _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
@@ -501,8 +503,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
    dlog("lib0 = ${lib0}", ("lib0", lib0)); // 45
 
    // split the network
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);       // simulate 2 disconnected partitions:  nodes {0, 1} and node {2, 3}
+   set_partition( {&C, &D} );       // simulate 2 disconnected partitions:  nodes {0, 1} and node {2, 3}
 
    // produce 12 blocks on _nodes[0]'s partition
    _nodes[0].create_accounts( {"bob"_n} );
@@ -522,7 +523,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 
    // update the network split so that {0, 1, 2} are in one partition, enough for finality to start
    // advancing again
-   set_partition(std::vector<size_t>{3});       // simulate 2 disconnected partitions:  nodes {0, 1, 2} and node {3}
+   set_partition( {&D} );       // simulate 2 disconnected partitions:  nodes {0, 1, 2} and node {3}
 
    propagate_heads();                           // otherwise we get unlinkable_block when newly produced blocks are pushed to node2
 
@@ -539,6 +540,7 @@ BOOST_FIXTURE_TEST_CASE( split_and_rejoin, savanna_cluster::cluster_t ) try {
 // Verify that a fork switch applies the blocks, and the included transactions in order.
 // -------------------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna_cluster::cluster_t  ) try {
+   auto& C=_nodes[2]; auto& D=_nodes[3];
    const vector<account_name> producers { "p1"_n, "p2"_n, "p3"_n };
    _nodes[0].create_accounts(producers);
    _nodes[0].set_producers(producers);               // set new producers and produce blocks until the switch is pending
@@ -552,8 +554,7 @@ BOOST_FIXTURE_TEST_CASE( push_block_returns_forked_transactions_savanna, savanna
    signed_block_ptr cb;
 
    // split the network
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);       // simulate 2 disconnected partitions:  nodes {0, 1} and node {2, 3}
+   set_partition( {&C, &D} );       // simulate 2 disconnected partitions:  nodes {0, 1} and node {2, 3}
    cb = _nodes[0].produce_block();
    _nodes[2].produce_block();
 

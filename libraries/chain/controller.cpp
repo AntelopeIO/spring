@@ -1131,8 +1131,19 @@ struct controller_impl {
    }
 
    bool fork_db_validated_block_exists( const block_id_type& id ) const {
+       return fork_db.apply<bool>([&](const auto& forkdb) {
+         auto bsp = forkdb.get_block(id);
+         return bsp ? bsp->is_valid() : false;
+      });
+   }
+
+   // precondition: claimed_id is either id, or an ancestor of id
+   // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
+   // and `is_valid()`
+   // ------------------------------------------------------------------------------------------------------
+   bool fork_db_validated_block_exists( const block_id_type& id, const block_id_type& claimed_id ) const {
       return fork_db.apply<bool>([&](const auto& forkdb) {
-         return forkdb.validated_block_exists(id);
+         return forkdb.validated_block_exists(id, claimed_id);
       });
    }
 
@@ -4236,14 +4247,14 @@ struct controller_impl {
             if (use_thread_pool == use_thread_pool_t::yes && async_voting == async_t::yes) {
                boost::asio::post(thread_pool.get_executor(), [this, bsp=bsp]() {
                   const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
-                  if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
+                  if (fork_db_validated_block_exists(bsp->previous(), latest_qc_claim__block_ref.block_id)) {
                      create_and_send_vote_msg(bsp);
                   }
                });
             } else {
                // bsp can be used directly instead of copy needed for post
                const auto& latest_qc_claim__block_ref = bsp->core.get_block_reference(bsp->core.latest_qc_claim().block_num);
-               if (fork_db_validated_block_exists(latest_qc_claim__block_ref.block_id)) {
+               if (fork_db_validated_block_exists(bsp->previous(), latest_qc_claim__block_ref.block_id)) {
                   create_and_send_vote_msg(bsp);
                }
             }
