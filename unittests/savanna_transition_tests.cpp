@@ -3,7 +3,7 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
-BOOST_AUTO_TEST_SUITE(savanna_transition)
+BOOST_AUTO_TEST_SUITE(savanna_transition_tests)
 
 // ---------------------------------------------------------------------------------------------------
 // Verify a straightforward transition, with all four nodes healthy and voting
@@ -31,7 +31,7 @@ BOOST_FIXTURE_TEST_CASE(straightforward_transition,
 // ---------------------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
                         savanna_cluster::pre_transition_cluster_t) try {
-   auto& A=_nodes[0];
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
    // set two producers, so that we have at least one block between the genesis and critical block.
    // with one producer the critical block comes right after the genesis block.
@@ -62,8 +62,7 @@ BOOST_FIXTURE_TEST_CASE(transition_with_split_network_before_critical_block,
 
    // partition network and produce blocks
    // ----------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    A.produce_blocks(20);
 
    // verify that lib has stalled
@@ -131,8 +130,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_while_p
 
    // partition network and produce blocks
    // ----------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    A.produce_blocks(2);
 
    auto snapshot_C = C.snapshot();
@@ -230,8 +228,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_end_of_transition_while_preserv
 
    // partition network and produce a block, which will be the first proper savanna block
    // -----------------------------------------------------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
 
    signed_block_ptr b = A.produce_block();
    BOOST_REQUIRE(b->is_proper_svnn_block());
@@ -308,8 +305,7 @@ BOOST_FIXTURE_TEST_CASE(restart_from_snapshot_at_beginning_of_transition_with_lo
 
    // partition network and produce blocks
    // ----------------------------------------
-   const std::vector<size_t> partition {2, 3};
-   set_partition(partition);
+   set_partition( {&C, &D} );
    A.produce_blocks(2);
 
    auto snapshot_C = C.snapshot();

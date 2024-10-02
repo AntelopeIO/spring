@@ -54,33 +54,8 @@ struct test_block_state_accessor {
 
 using namespace eosio::chain;
 
-BOOST_AUTO_TEST_SUITE(fork_database_tests)
-
-BOOST_AUTO_TEST_CASE(add_remove_test) try {
-   fork_database_if_t forkdb;
-
-   // Setup fork database with blocks based on a root of block 10
-   // Add a number of forks in the fork database
-   auto root = test_block_state_accessor::make_genesis_block_state();
-   auto   bsp11a = test_block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12a = test_block_state_accessor::make_unique_block_state(12, bsp11a);
-   auto       bsp13a = test_block_state_accessor::make_unique_block_state(13, bsp12a);
-   auto   bsp11b = test_block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12b = test_block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto       bsp13b = test_block_state_accessor::make_unique_block_state(13, bsp12b);
-   auto         bsp14b = test_block_state_accessor::make_unique_block_state(14, bsp13b);
-   auto     bsp12bb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto       bsp13bb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
-   auto       bsp13bbb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
-   auto     bsp12bbb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
-   auto   bsp11c = test_block_state_accessor::make_unique_block_state(11, root);
-   auto     bsp12c = test_block_state_accessor::make_unique_block_state(12, bsp11c);
-   auto       bsp13c = test_block_state_accessor::make_unique_block_state(13, bsp12c);
-
-   // keep track of all those added for easy verification
-   std::vector<block_state_ptr> all { bsp11a, bsp12a, bsp13a, bsp11b, bsp12b, bsp12bb, bsp12bbb, bsp13b, bsp13bb, bsp13bbb, bsp14b, bsp11c, bsp12c, bsp13c };
-
-   auto reset = [&]() {
+struct generate_forkdb_state {
+   generate_forkdb_state() {
       forkdb.reset_root(root);
       forkdb.add(bsp11a, ignore_duplicate_t::no);
       forkdb.add(bsp11b, ignore_duplicate_t::no);
@@ -96,9 +71,37 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
       forkdb.add(bsp13bbb, ignore_duplicate_t::no);
       forkdb.add(bsp14b, ignore_duplicate_t::no);
       forkdb.add(bsp13c, ignore_duplicate_t::no);
-   };
-   reset();
+   }
 
+   fork_database_if_t forkdb;
+
+   // Setup fork database with blocks based on a root of block 10
+   // Add a number of forks in the fork database
+   block_state_ptr root = test_block_state_accessor::make_genesis_block_state();
+   block_state_ptr   bsp11a = test_block_state_accessor::make_unique_block_state(11, root);
+   block_state_ptr     bsp12a = test_block_state_accessor::make_unique_block_state(12, bsp11a);
+   block_state_ptr       bsp13a = test_block_state_accessor::make_unique_block_state(13, bsp12a);
+   block_state_ptr   bsp11b = test_block_state_accessor::make_unique_block_state(11, root);
+   block_state_ptr     bsp12b = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   block_state_ptr       bsp13b = test_block_state_accessor::make_unique_block_state(13, bsp12b);
+   block_state_ptr         bsp14b = test_block_state_accessor::make_unique_block_state(14, bsp13b);
+   block_state_ptr     bsp12bb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   block_state_ptr       bsp13bb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
+   block_state_ptr       bsp13bbb = test_block_state_accessor::make_unique_block_state(13, bsp12bb);
+   block_state_ptr     bsp12bbb = test_block_state_accessor::make_unique_block_state(12, bsp11b);
+   block_state_ptr   bsp11c = test_block_state_accessor::make_unique_block_state(11, root);
+   block_state_ptr     bsp12c = test_block_state_accessor::make_unique_block_state(12, bsp11c);
+   block_state_ptr       bsp13c = test_block_state_accessor::make_unique_block_state(13, bsp12c);
+
+   // keep track of all those added for easy verification
+   std::vector<block_state_ptr> all{bsp11a, bsp12a,  bsp13a,   bsp11b, bsp12b, bsp12bb, bsp12bbb,
+                                    bsp13b, bsp13bb, bsp13bbb, bsp14b, bsp11c, bsp12c,  bsp13c};
+};
+
+
+BOOST_AUTO_TEST_SUITE(fork_database_tests)
+
+BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
    // test get_block
    for (auto& i : all) {
       BOOST_TEST(forkdb.get_block(i->id()) == i);
@@ -141,6 +144,54 @@ BOOST_AUTO_TEST_CASE(add_remove_test) try {
 
    auto bsp14c = test_block_state_accessor::make_unique_block_state(14, bsp13c); // should be best branch
    BOOST_TEST(forkdb.add(bsp14c, ignore_duplicate_t::yes));
+
+} FC_LOG_AND_RETHROW();
+
+
+// test `fork_database_t::validated_block_exists() const` member
+// -------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
+
+   // if a block is valid in fork_db, all its ancestors are necessarily valid.
+   root->set_valid(true);
+   bsp11b->set_valid(true);
+   bsp12b->set_valid(true);
+   bsp13b->set_valid(true);
+   bsp14b->set_valid(true);
+
+   bsp13a->set_valid(false);
+
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   bsp14b->set_valid(false);
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   bsp13b->set_valid(false);
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   bsp12b->set_valid(false);
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   bsp11b->set_valid(false);
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), root->id()));
+   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), block_id_type{}));
 
 } FC_LOG_AND_RETHROW();
 
