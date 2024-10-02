@@ -51,7 +51,7 @@ namespace eosio::chain {
 
       bsp_t get_block( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool block_exists( const block_id_type& id ) const;
-      bool validated_block_exists( const block_id_type& id ) const;
+      bool validated_block_exists( const block_id_type& id, const block_id_type& claimed_id ) const;
 
       /**
        *  Purges any existing blocks from the fork database and resets the root block_header_state to the provided value.
