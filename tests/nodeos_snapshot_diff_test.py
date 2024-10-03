@@ -155,17 +155,33 @@ try:
     Utils.processSpringUtilCmd("snapshot to-json --input-file {}".format(snapshotFile), "snapshot to-json", silentErrors=False)
     snapshotFile = snapshotFile + ".json"
 
+    # There is a race condition that at the startup of node, net thread and http
+    # thread can start to work in different order. If http thread processes schedule_snapshot
+    # request after net thread starts to sync with the irrNode, schedule_snapshot
+    # request will miss the scheduled block number. If it is before net thread
+    # starts to sync with the irrNode, schedule_snapshot request will catch the
+    # scheduled block number and the snapshot is taken.
+
+    # Shut down irreversible node so that nodeProg won't sync up when starting up
+    Print("Kill irreversible node")
+    nodeIrr.kill(signal.SIGTERM)
+
     Print("Trim programmable blocklog to snapshot head block num and relaunch programmable node")
     nodeProg.kill(signal.SIGTERM)
     output=cluster.getBlockLog(progNodeId, blockLogAction=BlockLogAction.trim, first=0, last=ret_head_block_num, throwException=True)
     nodeProg.removeState()
     nodeProg.rmFromCmd('--p2p-peer-address')
+
     isRelaunchSuccess = nodeProg.relaunch(chainArg="--replay", addSwapFlags={}, timeout=relaunchTimeout)
     assert isRelaunchSuccess, "Failed to relaunch programmable node"
 
     Print("Schedule snapshot (node 2)")
     ret = nodeProg.scheduleSnapshotAt(ret_head_block_num)
     assert ret is not None, "Snapshot scheduling failed"
+
+    # Start irreversible node so that nodeProg can sync up with it
+    Print("Restart irreversible node")
+    nodeIrr.relaunch()
 
     Print("Wait for programmable node lib to advance")
     waitForBlock(nodeProg, ret_head_block_num, blockType=BlockType.lib)
