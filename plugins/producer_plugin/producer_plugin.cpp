@@ -2022,15 +2022,17 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    if (!chain_plug->accept_transactions())
       return start_block_result::waiting_for_block;
 
+   abort_block();
+
    chain.maybe_switch_forks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-
-   abort_block(); // does reset `_time_tracker`, so should be after `maybe_switch_forks`
 
    if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `maybe_switch_forks()`
 
    block_handle               head              = chain.head();
    block_num_type             head_block_num    = head.block_num();
