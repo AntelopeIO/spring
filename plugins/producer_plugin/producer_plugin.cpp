@@ -2924,26 +2924,6 @@ void producer_plugin_impl::produce_block() {
    chain.commit_block();
 
    const signed_block_ptr new_b = chain.head().block();
-
-   if (_update_produced_block_metrics) {
-      producer_plugin::produced_block_metrics metrics;
-      fc::time_point now = fc::time_point::now();
-
-      metrics.unapplied_transactions_total       = _unapplied_transactions.size();
-      metrics.subjective_bill_account_size_total = chain.get_subjective_billing().get_account_cache_size();
-      metrics.scheduled_trxs_total  = chain.db().get_index<generated_transaction_multi_index, by_delay>().size();
-      metrics.trxs_produced_total   = new_b->transactions.size();
-      metrics.cpu_usage_us          = br.total_cpu_usage_us;
-      metrics.total_elapsed_time_us = br.total_elapsed_time.count();
-      metrics.total_time_us         = (now - br.start_time).count();
-      metrics.net_usage_us          = br.total_net_usage;
-      metrics.last_irreversible     = chain.last_irreversible_block_num();
-      metrics.head_block_num        = chain.head().block_num();
-
-      _time_tracker.populate_speculative_block_metrics(new_b->block_num(), new_b->producer, now, metrics);
-      _update_produced_block_metrics(metrics);
-   }
-
    fc::time_point now = fc::time_point::now();
    _time_tracker.add_other_time(now);
    _time_tracker.report(new_b->block_num(), new_b->producer, now);
