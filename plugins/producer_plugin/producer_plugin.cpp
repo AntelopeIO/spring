@@ -280,23 +280,22 @@ struct block_time_tracker {
       last_time_point = now;
    }
 
-   void report(uint32_t block_num, account_name producer, speculative_block_metrics& metrics) {
-      auto now = fc::time_point::now();
-      report(block_num, producer, now);
-      metrics.block_producer = producer;
-      metrics.block_num = block_num;
-      metrics.block_total_time_us = (now - clear_time_point).count();
-      metrics.block_idle_us = block_idle_time.count();
-      metrics.num_success_trx = trx_success_num;
-      metrics.success_trx_time_us = trx_success_time.count();
-      metrics.num_fail_trx = trx_fail_num;
-      metrics.fail_trx_time_us = trx_fail_time.count();
-      metrics.num_transient_trx = transient_trx_num;
+   void populate_speculative_block_metrics(uint32_t block_num, account_name producer, const fc::time_point& now,
+                                           speculative_block_metrics& metrics) {
+      metrics.block_producer        = producer;
+      metrics.block_num             = block_num;
+      metrics.block_total_time_us   = (now - clear_time_point).count();
+      metrics.block_idle_us         = block_idle_time.count();
+      metrics.num_success_trx       = trx_success_num;
+      metrics.success_trx_time_us   = trx_success_time.count();
+      metrics.num_fail_trx          = trx_fail_num;
+      metrics.fail_trx_time_us      = trx_fail_time.count();
+      metrics.num_transient_trx     = transient_trx_num;
       metrics.transient_trx_time_us = transient_trx_time.count();
-      metrics.block_other_time_us = other_time.count();
+      metrics.block_other_time_us   = other_time.count();
    }
 
-   void report(uint32_t block_num, account_name producer, const fc::time_point& now = fc::time_point::now()) {
+   void report(uint32_t block_num, account_name producer, const fc::time_point& now) {
       using namespace std::string_literals;
       assert(!paused);
       if( _log.is_enabled( fc::log_level::debug ) ) {
@@ -880,10 +879,13 @@ public:
 
       if (block_info) {
          auto[block_num, block_producer] = *block_info;
-         speculative_block_metrics metrics;
-         _time_tracker.report(block_num, block_producer, metrics);
-         if (_update_speculative_block_metrics)
+         fc::time_point now = fc::time_point::now();
+         if (_update_speculative_block_metrics) {
+            speculative_block_metrics metrics;
+            _time_tracker.populate_speculative_block_metrics(block_num, block_producer, now, metrics);
             _update_speculative_block_metrics(metrics);
+         }
+         _time_tracker.report(block_num, block_producer, now);
       }
       _time_tracker.clear();
    }
@@ -1993,11 +1995,12 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                       [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
 
-
    if (chain.should_terminate()) {
       app().quit();
       return start_block_result::failed;
    }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `maybe_switch_forks()`
 
    block_handle               head              = chain.head();
    block_num_type             head_block_num    = head.block_num();
@@ -2921,8 +2924,29 @@ void producer_plugin_impl::produce_block() {
    chain.commit_block();
 
    const signed_block_ptr new_b = chain.head().block();
-   _time_tracker.add_other_time();
-   _time_tracker.report(new_b->block_num(), new_b->producer);
+
+   if (_update_produced_block_metrics) {
+      producer_plugin::produced_block_metrics metrics;
+      fc::time_point now = fc::time_point::now();
+
+      metrics.unapplied_transactions_total       = _unapplied_transactions.size();
+      metrics.subjective_bill_account_size_total = chain.get_subjective_billing().get_account_cache_size();
+      metrics.scheduled_trxs_total  = chain.db().get_index<generated_transaction_multi_index, by_delay>().size();
+      metrics.trxs_produced_total   = new_b->transactions.size();
+      metrics.cpu_usage_us          = br.total_cpu_usage_us;
+      metrics.total_elapsed_time_us = br.total_elapsed_time.count();
+      metrics.total_time_us         = (now - br.start_time).count();
+      metrics.net_usage_us          = br.total_net_usage;
+      metrics.last_irreversible     = chain.last_irreversible_block_num();
+      metrics.head_block_num        = chain.head().block_num();
+
+      _time_tracker.populate_speculative_block_metrics(new_b->block_num(), new_b->producer, now, metrics);
+      _update_produced_block_metrics(metrics);
+   }
+
+   fc::time_point now = fc::time_point::now();
+   _time_tracker.add_other_time(now);
+   _time_tracker.report(new_b->block_num(), new_b->producer, now);
    _time_tracker.clear();
 }
 
