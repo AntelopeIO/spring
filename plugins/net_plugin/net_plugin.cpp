@@ -1459,14 +1459,14 @@ namespace eosio {
    void connection::_close( bool reconnect, bool shutdown ) {
       if (socket_open) {
          peer_ilog(this, "closing");
-         boost::system::error_code ec;
-         socket->shutdown( tcp::socket::shutdown_both, ec );
-         socket->close( ec );
-         socket.reset( new tcp::socket( my_impl->thread_pool.get_executor() ) );
       } else {
          peer_dlog(this, "close called on already closed socket");
       }
       socket_open = false;
+      boost::system::error_code ec;
+      socket->shutdown( tcp::socket::shutdown_both, ec );
+      socket->close( ec );
+      socket.reset( new tcp::socket( strand ) );
       flush_queues();
       peer_syncing_from_us = false;
       block_status_monitor_.reset();
@@ -4693,6 +4693,7 @@ namespace eosio {
 
       fc_dlog(logger, "connecting to ${h}:${p}", ("h", host)("p", port));
       boost::asio::post(strand, [c, host, port]() {
+         c->_close(false, false);
          auto resolver = std::make_shared<tcp::resolver>( c->strand );
          fc_dlog(logger, "resolve ${h}:${p}", ("h", host)("p", port));
          resolver->async_resolve(host, port, boost::asio::bind_executor( c->strand,
