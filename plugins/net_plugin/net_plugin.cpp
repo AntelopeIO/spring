@@ -917,7 +917,7 @@ namespace eosio {
 
    public:
       boost::asio::strand<boost::asio::io_context::executor_type>           strand;
-      std::shared_ptr<tcp::socket>              socket; // only accessed through strand after construction
+      std::unique_ptr<tcp::socket>              socket; // only accessed through strand after construction
 
       fc::message_buffer<1024*1024>    pending_message_buffer;
       std::size_t                      outstanding_read_bytes{0}; // accessed only from strand threads
@@ -1684,7 +1684,7 @@ namespace eosio {
 
       boost::asio::post( strand, [c{std::move(c)}, bufs{std::move(bufs)}]() {
          boost::asio::async_write( *c->socket, bufs,
-            boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
+            boost::asio::bind_executor( c->strand, [c]( boost::system::error_code ec, std::size_t w ) {
             try {
                c->buffer_queue.clear_out_queue();
                // May have closed connection and cleared buffer_queue
@@ -1693,13 +1693,13 @@ namespace eosio {
                   c->close();
                   return;
                }
-               if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
-                  peer_ilog( c, "async write socket changed before callback");
-                  boost::system::error_code ec;
-                  socket->shutdown( tcp::socket::shutdown_both, ec );
-                  socket->close( ec );
-                  return;
-               }
+               // if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
+               //    peer_ilog( c, "async write socket changed before callback");
+               //    boost::system::error_code ec;
+               //    socket->shutdown( tcp::socket::shutdown_both, ec );
+               //    socket->close( ec );
+               //    return;
+               // }
 
                if( ec ) {
                   if( ec.value() != boost::asio::error::eof ) {
@@ -2824,9 +2824,9 @@ namespace eosio {
       fc_dlog(logger, "connect ${p}", ("p", peer_address()));
       boost::asio::async_connect( *socket, endpoints,
          boost::asio::bind_executor( strand,
-               [c = shared_from_this(), resolver, endpoints, socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
+               [c = shared_from_this(), resolver, endpoints]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
             fc_dlog(logger, "connected ${p}", ("p", c->peer_address()));
-            if( !err && socket->is_open() && socket == c->socket ) {
+            if( !err && c->socket->is_open() ) {
                if( c->start_session() ) {
                   c->send_handshake();
                   c->send_time();
@@ -2943,20 +2943,20 @@ namespace eosio {
          boost::asio::async_read( *socket,
             pending_message_buffer.get_buffer_sequence_for_boost_async_read(), completion_handler,
             boost::asio::bind_executor( strand,
-              [conn = shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t bytes_transferred ) {
+              [conn = shared_from_this()]( boost::system::error_code ec, std::size_t bytes_transferred ) {
                // may have closed connection and cleared pending_message_buffer
                if (!conn->socket->is_open() && conn->socket_is_open()) { // if socket_open then close not called
                   peer_dlog( conn, "async_read socket not open, closing");
                   conn->close();
                   return;
                }
-               if (socket != conn->socket ) { // different socket, conn must have created a new socket, make sure previous is closed
-                  peer_dlog( conn, "async_read diff socket closing");
-                  boost::system::error_code ec;
-                  socket->shutdown( tcp::socket::shutdown_both, ec );
-                  socket->close( ec );
-                  return;
-               }
+               // if (socket != conn->socket ) { // different socket, conn must have created a new socket, make sure previous is closed
+               //    peer_dlog( conn, "async_read diff socket closing");
+               //    boost::system::error_code ec;
+               //    socket->shutdown( tcp::socket::shutdown_both, ec );
+               //    socket->close( ec );
+               //    return;
+               // }
 
                bool close_connection = false;
                try {
