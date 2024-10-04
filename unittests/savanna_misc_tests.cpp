@@ -1129,8 +1129,14 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
 
    A.close();
    A.remove_state();
+
    A.open(make_protocol_feature_set(), genesis->compute_chain_id(), [genesis, &control=A.control]() {
-      control->startup( [](){}, []() { return false; }, *genesis );
+      auto check_shutdown = [](){
+         static size_t call_idx = 0;
+         return ++call_idx >= 15;                         // simulate Ctrl-C being hit on 15th call
+      };
+
+      control->startup([]() {}, check_shutdown, *genesis);
    } );
 
    BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_forkdb_blocks);
