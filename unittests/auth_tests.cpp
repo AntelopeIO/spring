@@ -210,8 +210,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( update_auths, TESTER, validating_testers ) { try 
       BOOST_TEST(trading->name == name("trading"));
       BOOST_TEST(spending->name == name("spending"));
       BOOST_TEST(spending->parent == trading->id);
-      BOOST_TEST(chain.template get(trading->parent).owner == name("alice"));
-      BOOST_TEST(chain.template get(trading->parent).name == name("active"));
+      BOOST_TEST(chain.get(trading->parent).owner == name("alice"));
+      BOOST_TEST(chain.get(trading->parent).name == name("active"));
 
    }
 
