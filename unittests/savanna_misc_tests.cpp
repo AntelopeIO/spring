@@ -1107,10 +1107,14 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
 // ------------------------------------------------------------------------------------
 // Test that replays blocks from fork_db at startup, and simulating a Ctrl-C
-// interruption of that replat
+// interruption of that replay.
+// (the cluster starts with 9 final blocks and 1 reversible block after the transition
+// to Savanna)
 // ------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   // at this point we have 9 final blocks and 1 reversible block
 
    set_partition( { &C, &D } );                              // partition so blocks aren't finalized
    const size_t num_blocks = 20;
@@ -1133,7 +1137,7 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
       auto check_shutdown = [](){
          static size_t call_idx = 0;
          return ++call_idx >= 15;                         // simulate Ctrl-C being hit on 15th call, so fewer than
-                                                          // 21 blocks from fork_db will be replayed
+                                                          // 21 blocks from fork_db will be replayed.
       };
 
       control->startup([]() {}, check_shutdown, *genesis);
