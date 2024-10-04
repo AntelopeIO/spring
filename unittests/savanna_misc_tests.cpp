@@ -1106,8 +1106,8 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 } FC_LOG_AND_RETHROW()
 
 // ------------------------------------------------------------------------------------
-// Verify that we can restart a node from a snapshot without state or blocks (reversible
-// or not)
+// Test that replays blocks from fork_db at startup, and simulating a Ctrl-C
+// interruption of that replat
 // ------------------------------------------------------------------------------------
 BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
