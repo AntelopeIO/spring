@@ -1105,5 +1105,50 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
 } FC_LOG_AND_RETHROW()
 
+// ------------------------------------------------------------------------------------
+// Test that replays blocks from fork_db at startup, and simulating a Ctrl-C
+// interruption of that replay.
+// (the cluster starts with 9 final blocks and 1 reversible block after the transition
+// to Savanna)
+// ------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   // at this point we have 9 final blocks and 1 reversible block
+
+   set_partition( { &C, &D } );                              // partition so blocks aren't finalized
+   const size_t num_blocks = 20;
+
+   std::vector<signed_block_ptr> blocks;
+   blocks.reserve(num_blocks);
+   for (size_t i=0; i<num_blocks; ++i)
+      blocks.push_back(A.produce_block());
+
+   const size_t num_forkdb_blocks = A.control->fork_db_size();;
+   BOOST_REQUIRE_GT(num_forkdb_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db (actually 21)
+
+   controller::config copied_config = A.get_config();
+   auto               genesis       = block_log::extract_genesis_state(A.get_config().blocks_dir);
+
+   A.close();
+   A.remove_state();
+
+   A.open(make_protocol_feature_set(), genesis->compute_chain_id(), [genesis, &control=A.control]() {
+      auto check_shutdown = [](){
+         static size_t call_idx = 0;
+         return ++call_idx >= 15;                         // simulate Ctrl-C being hit on 15th call, so fewer than
+                                                          // 21 blocks from fork_db will be replayed.
+      };
+
+      control->startup([]() {}, check_shutdown, *genesis);
+   } );
+
+   A.close();
+   A.open();                                              // open() the node again to make sure it restarts correctly
+                                                          // after being interrupted.
+
+   BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_forkdb_blocks);
+
+} FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()

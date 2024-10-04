@@ -2012,6 +2012,7 @@ struct controller_impl {
                      ilog( "applying branch from fork database ending with block: ${id}", ("id", pending_head->id()) );
                      controller::block_report br;
                      maybe_switch_forks( br, pending_head, controller::block_status::complete, {}, trx_meta_cache_lookup{} );
+                     if( check_shutdown() ) return;
                   }
                }
             }
