@@ -293,7 +293,7 @@ namespace savanna_cluster {
 
       void remove_state() {
          auto state_path = cfg.state_dir;
-         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("${state_path}", state_path));
+         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("state_path", state_path));
          remove_all(state_path);
          fs::create_directories(state_path);
       }
@@ -311,7 +311,7 @@ namespace savanna_cluster {
          for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
             auto path = dir_entry.path();
             if (path.filename().generic_string() != "reversible") {
-               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
+               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("path", path));
                remove_all(path);
             }
          }
@@ -338,7 +338,7 @@ namespace savanna_cluster {
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
          auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
+         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("path", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
