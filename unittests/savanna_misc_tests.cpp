@@ -1120,9 +1120,8 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
    for (size_t i=0; i<num_blocks; ++i)
       blocks.push_back(A.produce_block());
 
-
    const size_t num_forkdb_blocks = A.control->fork_db_size();;
-   BOOST_REQUIRE_GT(num_forkdb_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db
+   BOOST_REQUIRE_GT(num_forkdb_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db (actually 21)
 
    controller::config copied_config = A.get_config();
    auto               genesis       = block_log::extract_genesis_state(A.get_config().blocks_dir);
@@ -1133,7 +1132,8 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
    A.open(make_protocol_feature_set(), genesis->compute_chain_id(), [genesis, &control=A.control]() {
       auto check_shutdown = [](){
          static size_t call_idx = 0;
-         return ++call_idx >= 15;                         // simulate Ctrl-C being hit on 15th call
+         return ++call_idx >= 15;                         // simulate Ctrl-C being hit on 15th call, so fewer than
+                                                          // 21 blocks from fork_db will be replayed
       };
 
       control->startup([]() {}, check_shutdown, *genesis);
