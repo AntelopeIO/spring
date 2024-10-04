@@ -1143,6 +1143,10 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
       control->startup([]() {}, check_shutdown, *genesis);
    } );
 
+   A.close();
+   A.open();                                              // open() the node again to make sure it restarts correctly
+                                                          // after being interrupted.
+
    BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_forkdb_blocks);
 
 } FC_LOG_AND_RETHROW()
