@@ -235,10 +235,12 @@ namespace savanna_cluster {
 
       template <class Node>
       void push_blocks_to(Node& n, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         auto limit = std::min(fork_db_head().block_num(), block_num_limit);
-         while (n.fork_db_head().block_num() < limit) {
-            auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
-            n.push_block(sb);
+         if (fork_db_head().is_valid() && n.fork_db_head().is_valid()) {
+            auto limit = std::min(fork_db_head().block_num(), block_num_limit);
+            while (n.fork_db_head().block_num() < limit) {
+               auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
+               n.push_block(sb);
+            }
          }
       }
 
@@ -519,11 +521,13 @@ namespace savanna_cluster {
          auto& src = _nodes[src_idx];
          assert(src.is_open() && _nodes[dst_idx].is_open());
 
-         auto end_block_num   = src.fork_db_head().block_num();
+         if (src.fork_db_head().is_valid()) {
+            auto end_block_num   = src.fork_db_head().block_num();
 
-         for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
-            auto sb = src.control->fetch_block_by_number(i);
-            push_block(dst_idx, sb);
+            for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
+               auto sb = src.control->fetch_block_by_number(i);
+               push_block(dst_idx, sb);
+            }
          }
       }
 

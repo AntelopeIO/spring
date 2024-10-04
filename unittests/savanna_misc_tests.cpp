@@ -1105,5 +1105,36 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 
 } FC_LOG_AND_RETHROW()
 
+// ------------------------------------------------------------------------------------
+// Verify that we can restart a node from a snapshot without state or blocks (reversible
+// or not)
+// ------------------------------------------------------------------------------------
+BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) try {
+   auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
+
+   set_partition( { &C, &D } );                              // partition so blocks aren't finalized
+   const size_t num_blocks = 20;
+
+   std::vector<signed_block_ptr> blocks;
+   blocks.reserve(num_blocks);
+   for (size_t i=0; i<num_blocks; ++i)
+      blocks.push_back(A.produce_block());
+
+
+   const size_t num_forkdb_blocks = A.control->fork_db_size();;
+   BOOST_REQUIRE_GT(num_forkdb_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db
+
+   controller::config copied_config = A.get_config();
+   auto               genesis       = block_log::extract_genesis_state(A.get_config().blocks_dir);
+
+   A.close();
+   A.remove_state();
+   A.open(make_protocol_feature_set(), genesis->compute_chain_id(), [genesis, &control=A.control]() {
+      control->startup( [](){}, []() { return false; }, *genesis );
+   } );
+
+   BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_forkdb_blocks);
+
+} FC_LOG_AND_RETHROW()
 
 BOOST_AUTO_TEST_SUITE_END()
