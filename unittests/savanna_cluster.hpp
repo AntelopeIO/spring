@@ -235,10 +235,12 @@ namespace savanna_cluster {
 
       template <class Node>
       void push_blocks_to(Node& n, uint32_t block_num_limit = std::numeric_limits<uint32_t>::max()) const {
-         auto limit = std::min(fork_db_head().block_num(), block_num_limit);
-         while (n.fork_db_head().block_num() < limit) {
-            auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
-            n.push_block(sb);
+         if (fork_db_head().is_valid() && n.fork_db_head().is_valid()) {
+            auto limit = std::min(fork_db_head().block_num(), block_num_limit);
+            while (n.fork_db_head().block_num() < limit) {
+               auto sb = control->fetch_block_by_number(n.fork_db_head().block_num() + 1);
+               n.push_block(sb);
+            }
          }
       }
 
@@ -291,7 +293,7 @@ namespace savanna_cluster {
 
       void remove_state() {
          auto state_path = cfg.state_dir;
-         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("${state_path}", state_path));
+         dlog("node ${i} - removing state data from: ${state_path}", ("i", _node_idx)("state_path", state_path));
          remove_all(state_path);
          fs::create_directories(state_path);
       }
@@ -309,7 +311,7 @@ namespace savanna_cluster {
          for (auto const& dir_entry : std::filesystem::directory_iterator{path}) {
             auto path = dir_entry.path();
             if (path.filename().generic_string() != "reversible") {
-               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
+               dlog("node ${i} - removing : ${path}", ("i", _node_idx)("path", path));
                remove_all(path);
             }
          }
@@ -336,7 +338,7 @@ namespace savanna_cluster {
       void remove_blocks(bool rm_blocks_log) {
          auto reversible_path = cfg.blocks_dir / config::reversible_blocks_dir_name;
          auto& path = rm_blocks_log ? cfg.blocks_dir : reversible_path;
-         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("${path}", path));
+         dlog("node ${i} - removing : ${path}", ("i", _node_idx)("path", path));
          remove_all(path);
          fs::create_directories(reversible_path);
       }
@@ -519,11 +521,13 @@ namespace savanna_cluster {
          auto& src = _nodes[src_idx];
          assert(src.is_open() && _nodes[dst_idx].is_open());
 
-         auto end_block_num   = src.fork_db_head().block_num();
+         if (src.fork_db_head().is_valid()) {
+            auto end_block_num   = src.fork_db_head().block_num();
 
-         for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
-            auto sb = src.control->fetch_block_by_number(i);
-            push_block(dst_idx, sb);
+            for (uint32_t i=start_block_num; i<=end_block_num; ++i) {
+               auto sb = src.control->fetch_block_by_number(i);
+               push_block(dst_idx, sb);
+            }
          }
       }
 
