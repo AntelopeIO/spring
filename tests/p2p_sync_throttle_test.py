@@ -92,7 +92,7 @@ try:
 
     Print("Configure and launch txn generators")
     targetTpsPerGenerator = 500
-    testTrxGenDurationSec=90
+    testTrxGenDurationSec=45
     trxGeneratorCnt=1
     cluster.launchTrxGenerators(contractOwnerAcctName=cluster.eosioAccount.name, acctNamesList=[accounts[0].name,accounts[1].name],
                                 acctPrivKeysList=[account1PrivKey,account2PrivKey], nodeId=prodNode.nodeId, tpsPerGenerator=targetTpsPerGenerator,
