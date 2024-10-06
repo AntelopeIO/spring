@@ -375,7 +375,7 @@ BOOST_DATA_TEST_CASE(non_prune_to_prune, bdata::xrange(2) * bdata::xrange(2), en
 
    //upgrade to pruned...
    t.conf = eosio::state_history::prune_config{ .prune_blocks = 4 };
-   t.template check_n_bounce([]() {});
+   t.check_n_bounce([]() {});
 
    t.check_n_bounce([&]() {
       t.check_range_present(6, 9);
@@ -410,7 +410,7 @@ BOOST_DATA_TEST_CASE(prune_to_non_prune, bdata::xrange(2) * bdata::xrange(2), en
 
    //no more pruned
    t.conf = std::monostate{};
-   t.template check_n_bounce([]() {});
+   t.check_n_bounce([]() {});
 
    t.check_n_bounce([&]() {
       t.check_range_present(6, 9);
@@ -450,7 +450,7 @@ BOOST_DATA_TEST_CASE(prune_to_partitioned, bdata::xrange(2) * bdata::xrange(2), 
        .stride  = 5
    };
 
-   t.template check_n_bounce([]() {});
+   t.check_n_bounce([]() {});
 
    t.check_n_bounce([&]() {
       t.check_range_present(6, 9);
