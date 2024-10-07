@@ -4689,7 +4689,7 @@ namespace eosio {
 
       strand.post([c, host, port]() {
          auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
-         resolver->async_resolve(host, port,
+         resolver->async_resolve(host, port, boost::asio::bind_executor(c->strand,
             [resolver, c, host, port]
             ( const boost::system::error_code& err, const tcp::resolver::results_type& results ) {
                c->set_heartbeat_timeout( my_impl->connections.get_heartbeat_timeout() );
@@ -4701,7 +4701,7 @@ namespace eosio {
                   c->set_state(connection::connection_state::closed);
                   ++c->consecutive_immediate_connection_close;
                }
-         } );
+         } ) );
       } );
 
       return true;
