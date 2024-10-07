@@ -233,7 +233,9 @@ namespace eosio {
             };
 
             fc::create_listener<Protocol>(plugin_state->thread_pool.get_executor(), logger(), accept_timeout, address,
-                                          extra_listening_log_info, create_session);
+                                          extra_listening_log_info,
+                                          [this](const auto&) -> boost::asio::io_context& { return plugin_state->thread_pool.get_executor(); },
+                                          create_session);
          }
 
          void create_beast_server(const std::string& address, api_category_set categories) {
