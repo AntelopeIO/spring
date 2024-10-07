@@ -139,13 +139,14 @@ BOOST_AUTO_TEST_CASE( stack_limit ) { try {
 BOOST_AUTO_TEST_CASE( generated_code_size_limit ) { try {
    eosvmoc::config eosvmoc_config = make_eosvmoc_config_without_limits();
 
-   // The generated code size of the compiled WASM in the test is 36856.
-   // Set generated_code_size_limit to the actual generated code size
-   eosvmoc_config.generated_code_size_limit = 36856;
+   // Generated code size can vary based on the version of LLVM in use. Since this test
+   // isn't intended to detect minute differences or regressions, give the range a wide
+   // berth to work on. As a single data point, LLVM11 used in reproducible builds during
+   // Spring 1.0 timeframe was 36856
+   eosvmoc_config.generated_code_size_limit = 20*1024;
    limit_violated_test(eosvmoc_config);
 
-   // Set generated_code_size_limit to one above the actual generated code size
-   eosvmoc_config.generated_code_size_limit = 36857;
+   eosvmoc_config.generated_code_size_limit = 40*1024;
    limit_not_violated_test(eosvmoc_config);
 } FC_LOG_AND_RETHROW() }
 
