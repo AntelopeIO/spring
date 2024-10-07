@@ -2267,7 +2267,7 @@ namespace eosio {
       if( !ec ) {
          peer_dlog(c, "sync timed out");
          sync_reassign_fetch( c );
-         close(true);
+         c->close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( c, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
       }
