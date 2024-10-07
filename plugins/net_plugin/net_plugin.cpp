@@ -1655,6 +1655,12 @@ namespace eosio {
             if( current_rate_sec >= block_sync_rate_limit ) {
                block_sync_throttling = true;
                peer_dlog( this, "throttling block sync to peer ${host}:${port}", ("host", log_remote_endpoint_ip)("port", log_remote_endpoint_port));
+               std::shared_ptr<boost::asio::steady_timer> throttle_timer = std::make_shared<boost::asio::steady_timer>(my_impl->thread_pool.get_executor());
+               throttle_timer->expires_from_now(std::chrono::milliseconds(100));
+               throttle_timer->async_wait(boost::asio::bind_executor(strand, [c=shared_from_this(), throttle_timer](const boost::system::error_code& ec) {
+                  if (!ec)
+                    c->enqueue_sync_block();
+               }));
                return false;
             }
          }
@@ -2188,7 +2194,7 @@ namespace eosio {
       if( !ec ) {
          peer_dlog(c, "sync timed out");
          sync_reassign_fetch( c );
-         close(true);
+         c->close(true);
       } else if( ec != boost::asio::error::operation_aborted ) { // don't log on operation_aborted, called on destroy
          peer_elog( c, "setting timer for sync request got error ${ec}", ("ec", ec.message()) );
       }
