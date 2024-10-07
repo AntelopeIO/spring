@@ -305,14 +305,19 @@ namespace LLVMJIT
 
 		unsigned num_functions_stack_size_found = 0;
 		for(const auto& stacksizes : jitModule->unitmemorymanager->stack_sizes) {
-			llvm::DataExtractor ds(llvm::ArrayRef(stacksizes.data(), stacksizes.size()), true, 8);
-			llvm::DataExtractor::Cursor c(0);
+#if LLVM_VERSION_MAJOR < 10
+			using de_offset_t = uint32_t;
+#else
+			using de_offset_t = uint64_t;
+#endif
+			llvm::DataExtractor ds(llvm::StringRef(reinterpret_cast<const char*>(stacksizes.data()), stacksizes.size()), true, 8);
+			de_offset_t offset = 0;
 
-			while(!ds.eof(c)) {
-				ds.getAddress(c);
-				WAVM_ASSERT_THROW(!!c);
-				const uint64_t stack_size = ds.getULEB128(c);
-				WAVM_ASSERT_THROW(!!c);
+			while(ds.isValidOffsetForAddress(offset)) {
+				ds.getAddress(&offset);
+				const de_offset_t offset_before_read = offset;
+				const uint64_t stack_size = ds.getULEB128(&offset);
+				WAVM_ASSERT_THROW(offset_before_read != offset);
 
 				++num_functions_stack_size_found;
 				if(stack_size > stack_size_limit)
