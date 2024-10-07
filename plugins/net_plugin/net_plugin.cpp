@@ -1766,6 +1766,12 @@ namespace eosio {
             if( current_rate_sec >= block_sync_rate_limit ) {
                block_sync_throttling = true;
                peer_dlog( this, "throttling block sync to peer ${host}:${port}", ("host", log_remote_endpoint_ip)("port", log_remote_endpoint_port));
+               std::shared_ptr<boost::asio::steady_timer> throttle_timer = std::make_shared<boost::asio::steady_timer>(strand);
+               throttle_timer->expires_from_now(std::chrono::milliseconds(100));
+               throttle_timer->async_wait([this, throttle_timer](const boost::system::error_code& ec) {
+                  if (!ec)
+                    enqueue_sync_block();
+               });
                return false;
             }
          }
