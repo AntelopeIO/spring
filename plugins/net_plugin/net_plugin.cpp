@@ -827,8 +827,8 @@ namespace eosio {
       std::atomic<boost::asio::ip::port_type> remote_endpoint_port{0};
 
    public:
-      boost::asio::io_context::strand           strand;
-      std::shared_ptr<tcp::socket>              socket; // only accessed through strand after construction
+      boost::asio::strand<tcp::socket::executor_type> strand;
+      std::shared_ptr<tcp::socket>     socket; // only accessed through strand after construction
 
       fc::message_buffer<1024*1024>    pending_message_buffer;
       std::size_t                      outstanding_read_bytes{0}; // accessed only from strand threads
@@ -1179,8 +1179,8 @@ namespace eosio {
 
    connection::connection( const string& endpoint, const string& listen_address )
       : peer_addr( endpoint ),
-        strand( my_impl->thread_pool.get_executor() ),
-        socket( new tcp::socket( my_impl->thread_pool.get_executor() ) ),
+        strand( boost::asio::make_strand(my_impl->thread_pool.get_executor()) ),
+        socket( new tcp::socket( strand ) ),
         listen_address( listen_address ),
         log_p2p_address( endpoint ),
         connection_id( ++my_impl->current_connection_id ),
@@ -1197,7 +1197,7 @@ namespace eosio {
    connection::connection(tcp::socket&& s, const string& listen_address, size_t block_sync_rate_limit)
       : peer_addr(),
         block_sync_rate_limit(block_sync_rate_limit),
-        strand( my_impl->thread_pool.get_executor() ),
+        strand( s.get_executor() ),
         socket( new tcp::socket( std::move(s) ) ),
         listen_address( listen_address ),
         connection_id( ++my_impl->current_connection_id ),
@@ -1356,7 +1356,7 @@ namespace eosio {
 
    void connection::close( bool reconnect, bool shutdown ) {
       set_state(connection_state::closing);
-      strand.post( [self = shared_from_this(), reconnect, shutdown]() {
+      boost::asio::post(strand, [self = shared_from_this(), reconnect, shutdown]() {
          self->_close( reconnect, shutdown );
       });
    }
@@ -1475,7 +1475,7 @@ namespace eosio {
    void connection::send_handshake() {
       if (closed())
          return;
-      strand.post( [c = shared_from_this()]() {
+      boost::asio::post(strand, [c = shared_from_this()]() {
          fc::unique_lock g_conn( c->conn_mtx );
          if( c->populate_handshake( c->last_handshake_sent ) ) {
             static_assert( std::is_same_v<decltype( c->sent_handshake_count ), int16_t>, "INT16_MAX based on int16_t" );
@@ -1568,7 +1568,7 @@ namespace eosio {
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
-      strand.post( [c{std::move(c)}, bufs{std::move(bufs)}]() {
+      boost::asio::post(strand, [c{std::move(c)}, bufs{std::move(bufs)}]() {
          boost::asio::async_write( *c->socket, bufs,
             boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
             try {
@@ -2076,7 +2076,7 @@ namespace eosio {
             sync_source = new_sync_source;
             request_sent = true;
             sync_active_time = std::chrono::steady_clock::now();
-            new_sync_source->strand.post( [new_sync_source, start, end, fork_head_num=chain_info.fork_head_num, lib=chain_info.lib_num]() {
+            boost::asio::post(new_sync_source->strand, [new_sync_source, start, end, fork_head_num=chain_info.fork_head_num, lib=chain_info.lib_num]() {
                peer_ilog( new_sync_source, "requesting range ${s} to ${e}, fhead ${h}, lib ${lib}", ("s", start)("e", end)("h", fork_head_num)("lib", lib) );
                new_sync_source->request_sync_blocks( start, end );
             } );
@@ -2672,7 +2672,7 @@ namespace eosio {
 
          send_buffer_type sb = buff_factory.get_send_buffer( b );
 
-         cp->strand.post( [cp, bnum, sb{std::move(sb)}]() {
+         boost::asio::post(cp->strand, [cp, bnum, sb{std::move(sb)}]() {
             cp->latest_blk_time = std::chrono::steady_clock::now();
             bool has_block = cp->peer_lib_num >= bnum;
             if( !has_block ) {
@@ -2690,7 +2690,7 @@ namespace eosio {
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
-         cp->strand.post( [cp, msg]() {
+         boost::asio::post(cp->strand, [cp, msg]() {
             if (cp->protocol_version >= proto_savanna) {
                if (vote_logger.is_enabled(fc::log_level::debug))
                   peer_dlog(cp, "sending vote msg");
@@ -2719,7 +2719,7 @@ namespace eosio {
 
          send_buffer_type sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
-         cp->strand.post( [cp, sb{std::move(sb)}]() {
+         boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
             cp->enqueue_buffer( sb, no_reason );
          } );
       } );
@@ -2818,7 +2818,7 @@ namespace eosio {
             });
 
             connection_ptr new_connection = std::make_shared<connection>(std::move(socket), listen_address, limit);
-            new_connection->strand.post([new_connection, this]() {
+            boost::asio::post(new_connection->strand, [new_connection, this]() {
                if (new_connection->start_session()) {
                   connections.add(new_connection);
                }
@@ -3705,7 +3705,7 @@ namespace eosio {
          // may have come in on a different connection and posted into dispatcher strand before this one
          if( block_header::num_from_id(id) <= lib_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
             my_impl->dispatcher.add_peer_block( id, c->connection_id );
-            c->strand.post( [c, id, ptr{std::move(ptr)}]() {
+            boost::asio::post(c->strand, [c, id, ptr{std::move(ptr)}]() {
                const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
                my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
             });
@@ -3752,7 +3752,7 @@ namespace eosio {
                fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
-            c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
+            boost::asio::post(c->strand, [c, id, blk_num=ptr->block_num(), close_mode]() {
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
                my_impl->dispatcher.rejected_block( id );
             });
@@ -3824,7 +3824,7 @@ namespace eosio {
             auto current_time = std::chrono::steady_clock::now();
             my->connections.for_each_connection( [current_time]( const connection_ptr& c ) {
                if( c->socket_is_open() ) {
-                  c->strand.post([c, current_time]() {
+                  boost::asio::post(c->strand, [c, current_time]() {
                      c->check_heartbeat(current_time);
                   } );
                }
@@ -4377,7 +4377,12 @@ namespace eosio {
 
                fc::create_listener<tcp>(
                      my->thread_pool.get_executor(), logger, accept_timeout, listen_addr, extra_listening_log_info,
-                     [my = my, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) { fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}", ("addr", addr)("limit", block_sync_rate_limit)); my->create_session(std::move(socket), addr, block_sync_rate_limit); });
+                     [my = my](const auto&) { return boost::asio::make_strand(my->thread_pool.get_executor()); },
+                     [my = my, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
+                        fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
+                                 ("addr", addr)("limit", block_sync_rate_limit));
+                        my->create_session(std::move(socket), addr, block_sync_rate_limit);
+                     });
             } catch (const plugin_config_exception& e) {
                fc_elog( logger, "${msg}", ("msg", e.top_message()));
                app().quit();
@@ -4579,7 +4584,7 @@ namespace eosio {
          }
       }
 
-      strand.post([c, host, port]() {
+      boost::asio::post(strand, [c, host, port]() {
          auto resolver = std::make_shared<tcp::resolver>( my_impl->thread_pool.get_executor() );
          resolver->async_resolve(host, port, boost::asio::bind_executor(c->strand,
             [resolver, c, host, port]
