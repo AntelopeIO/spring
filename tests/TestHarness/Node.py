@@ -708,7 +708,10 @@ class Node(Transactions):
                 count += contents.count(searchStr)
         return count
 
-    # verify only one 'Starting block' per block number unless block is restarted
+    # Verify that we have only one "Starting block" in the log for any block number unless:
+    # - the block was restarted because it was exhausted,
+    # - or the second "Starting block" is for a different block time than the first.
+    # -------------------------------------------------------------------------------------
     def verifyStartingBlockMessages(self):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
