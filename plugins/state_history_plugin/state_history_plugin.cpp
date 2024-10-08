@@ -106,7 +106,7 @@ public:
          [this](Protocol::socket&& socket) {
             boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
                catch_and_log([this, &socket]() {
-                  connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
+                  connections.emplace(new session(std::move(socket), chain_plug->chain(),
                                                   trace_log, chain_state_log, finality_data_log,
                                                   [this](const chain::block_num_type block_num) {
                                                      return get_block_id(block_num);
