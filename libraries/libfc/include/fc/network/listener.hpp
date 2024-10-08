@@ -60,20 +60,23 @@ struct listener_base<boost::asio::local::stream_protocol> {
 ///
 /// @tparam Protocol either \c boost::asio::ip::tcp or \c boost::asio::local::stream_protocol
 /// @tparam Executor The executor for the acceptor and acceptor timer
-/// @tparam SocketExecutor Lambda that returns executor to be used for the newly accepted socket:
-///                        ExecutorType(const endpoint_type&)
-/// @tparam CreateSession Callback to call after each accepted connection: void(Socket&& socket)
+/// @tparam SocketExecutorFn Function that returns executor to be used for the newly accepted socket:
+///                          ExecutorType(const endpoint_type&)
+/// @tparam CreateSession Callback Function to call after each accepted connection, provides newly created socket
+///                       and the Executor of the newly accepted socket: void(Socket&& socket, ExecutorType& ex)
+///                       Note that the ExecutorType provided by SocketExecutorFn can be retrieved from the socket
+///                       via socket.get_executor().
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////
-template <typename Protocol, typename Executor, typename SocketExecutor, typename CreateSession>
-struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener<Protocol, Executor, SocketExecutor, CreateSession>> {
+template <typename Protocol, typename Executor, typename SocketExecutorFn, typename CreateSession>
+struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener<Protocol, Executor, SocketExecutorFn, CreateSession>> {
  private:
    typename Protocol::acceptor      acceptor_;
    boost::asio::deadline_timer      accept_error_timer_;
    boost::posix_time::time_duration accept_timeout_;
    logger&                          logger_;
    std::string                      extra_listening_log_info_;
-   SocketExecutor                   socket_executor_;
+   SocketExecutorFn                 socket_executor_fn_;
    CreateSession                    create_session_;
 
  public:
@@ -81,10 +84,10 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
    listener(Executor& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
             const std::string& local_address, const endpoint_type& endpoint,
             const std::string& extra_listening_log_info,
-            SocketExecutor socket_executor, CreateSession create_session)
+            SocketExecutorFn socket_executor_fn, CreateSession create_session)
        : listener_base<Protocol>(local_address), acceptor_(executor, endpoint), accept_error_timer_(executor),
          accept_timeout_(accept_timeout), logger_(logger), extra_listening_log_info_(extra_listening_log_info),
-         socket_executor_(std::move(socket_executor)), create_session_(std::move(create_session)) {}
+         socket_executor_fn_(std::move(socket_executor_fn)), create_session_(std::move(create_session)) {}
 
    const auto& acceptor() const { return acceptor_; }
 
@@ -94,7 +97,8 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
       if (ec) {
          fc_wlog(logger_, "Unable to retrieve local_endpoint of acceptor, error: ${e}", ("e", ec.message()));
       }
-      acceptor_.async_accept(socket_executor_(ep), [self = this->shared_from_this()](boost::system::error_code ec, auto&& peer_socket) {
+      acceptor_.async_accept(socket_executor_fn_(ep),
+                             [self = this->shared_from_this()](boost::system::error_code ec, auto&& peer_socket) {
          self->on_accept(ec, std::forward<decltype(peer_socket)>(peer_socket));
       });
    }
@@ -165,7 +169,7 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 /// The lifetime of the created listener objects is controlled by \c executor, the created objects will be destroyed
 /// when \c executor.stop() is called.
 ///
-/// Each socket is created with the executor returned by SocketExecutor.
+/// Each socket is created with the executor returned by SocketExecutorFn.
 ///
 /// @note
 /// This function is not thread safe for Unix socket because it will temporarily change working directory without any
@@ -174,14 +178,17 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 ///
 /// @tparam Protocol either \c boost::asio::ip::tcp or \c boost::asio::local::stream_protocol
 /// @tparam Executor The executor for the acceptor and acceptor timer
-/// @tparam SocketExecutor Lambda that returns executor to be used for the newly accepted socket:
-///                        ExecutorType(const endpoint_type&)
-/// @tparam CreateSession Callback to call after each accepted connection: void(Socket&& socket)
+/// @tparam SocketExecutorFn Function that returns executor to be used for the newly accepted socket:
+///                          ExecutorType(const endpoint_type&)
+/// @tparam CreateSession Callback Function to call after each accepted connection, provides newly created socket
+///                       and the Executor of the newly accepted socket: void(Socket&& socket, ExecutorType& ex)
+///                       Note that the ExecutorType provided by SocketExecutorFn can be retrieved from the socket
+///                       via socket.get_executor().
 /// @throws std::system_error or boost::system::system_error
-template <typename Protocol, typename Executor, typename SocketExecutor, typename CreateSession>
+template <typename Protocol, typename Executor, typename SocketExecutorFn, typename CreateSession>
 void create_listener(Executor& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
                      const std::string& address, const std::string& extra_listening_log_info,
-                     const SocketExecutor& socket_executor,
+                     const SocketExecutorFn& socket_executor_fn,
                      const CreateSession& create_session) {
    using tcp = boost::asio::ip::tcp;
    if constexpr (std::is_same_v<Protocol, tcp>) {
@@ -206,8 +213,8 @@ void create_listener(Executor& executor, logger& logger, boost::posix_time::time
       auto create_listener = [&](const auto& endpoint) {
          const auto& ip_addr = endpoint.address();
          try {
-            auto listener = std::make_shared<fc::listener<Protocol, Executor, SocketExecutor, CreateSession>>(
-                  executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, socket_executor, create_session);
+            auto listener = std::make_shared<fc::listener<Protocol, Executor, SocketExecutorFn, CreateSession>>(
+                  executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, socket_executor_fn, create_session);
             listener->log_listening(endpoint, address);
             listener->do_accept();
             ++listened;
@@ -276,8 +283,8 @@ void create_listener(Executor& executor, logger& logger, boost::posix_time::time
          fs::remove(sock_path);
       }
 
-      auto listener = std::make_shared<fc::listener<stream_protocol, Executor, SocketExecutor, CreateSession>>(
-            executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, socket_executor, create_session);
+      auto listener = std::make_shared<fc::listener<stream_protocol, Executor, SocketExecutorFn, CreateSession>>(
+            executor, logger, accept_timeout, address, endpoint, extra_listening_log_info, socket_executor_fn, create_session);
       listener->log_listening(endpoint, address);
       listener->do_accept();
    }
