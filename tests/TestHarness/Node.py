@@ -708,37 +708,36 @@ class Node(Transactions):
                 count += contents.count(searchStr)
         return count
 
-    # verify only one or two 'Starting block' per block number unless block is restarted
+    # verify only one 'Starting block' per block number unless block is restarted
     def verifyStartingBlockMessages(self):
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
+        restarting_exhausted_regexp = re.compile(r"Restarting exhausted speculative block #(\d+)")
+        starting_block_regexp       = re.compile(r"Starting block #(\d+) .*(\d\d:\d\d\.\d\d\d) producer")
+
         for f in files:
-            blockNumbers = set()
-            duplicateBlockNumbers = set()
-            threeStartsFound = False
-            lastRestartBlockNum = 0
-            blockNumber = 0
+            notRestartedBlockNumbersAndTimes = {}
+            duplicateStartFound = False
 
             with open(f, 'r') as file:
                 for line in file:
-                    match = re.match(r".*Restarting exhausted speculative block #(\d+)", line)
+                    match = restarting_exhausted_regexp.match(line)
                     if match:
-                        lastRestartBlockNum = match.group(1)
+                        # remove restarted block
+                        notRestartedBlockNumbersAndTimes.pop(match.group(1), None)
                         continue
-                    if re.match(r".*unlinkable_block_exception", line):
-                        lastRestartBlockNum = blockNumber
-                        continue
-                    match = re.match(r".*Starting block #(\d+)", line)
+                    match = starting_block_regexp.match(line)
                     if match:
-                        blockNumber = match.group(1)
-                        if blockNumber != lastRestartBlockNum and blockNumber in duplicateBlockNumbers:
-                            print(f"Duplicate Staring block found: {blockNumber} in {f}")
-                            threeStartsFound = True
-                        if blockNumber != lastRestartBlockNum and blockNumber in blockNumbers:
-                            duplicateBlockNumbers.add(blockNumber)
-                        blockNumbers.add(blockNumber)
+                        blockNumber, time = match.group(1), match.group(2)
+                        if blockNumber in notRestartedBlockNumbersAndTimes and notRestartedBlockNumbersAndTimes[blockNumber] != time:
+                            print(f"Duplicate Starting block found: {blockNumber} in {f}")
+                            duplicateStartFound = True
+                            break
+                        notRestartedBlockNumbersAndTimes[blockNumber] = time
+            if duplicateStartFound:
+                break
 
-        return not threeStartsFound
+        return not duplicateStartFound
 
     def analyzeProduction(self, specificBlockNum=None, thresholdMs=500):
         dataDir=Utils.getNodeDataDir(self.nodeId)
