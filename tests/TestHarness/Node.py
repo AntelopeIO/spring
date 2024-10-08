@@ -729,7 +729,7 @@ class Node(Transactions):
                     match = starting_block_regexp.match(line)
                     if match:
                         blockNumber, time = match.group(1), match.group(2)
-                        if blockNumber in notRestartedBlockNumbersAndTimes and notRestartedBlockNumbersAndTimes[blockNumber] != time:
+                        if blockNumber in notRestartedBlockNumbersAndTimes and notRestartedBlockNumbersAndTimes[blockNumber] == time:
                             print(f"Duplicate Starting block found: {blockNumber} in {f}")
                             duplicateStartFound = True
                             break
