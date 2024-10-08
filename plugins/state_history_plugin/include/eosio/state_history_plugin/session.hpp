@@ -28,17 +28,17 @@ public:
    virtual ~session_base() = default;
 };
 
-template<typename SocketType, typename Executor, typename GetBlockID, typename GetBlock, typename OnDone>
+template<typename SocketType, typename GetBlockID, typename GetBlock, typename OnDone>
 requires std::is_same_v<SocketType, boost::asio::ip::tcp::socket> || std::is_same_v<SocketType, boost::asio::local::stream_protocol::socket>
 class session final : public session_base {
    using coro_throwing_stream = boost::asio::use_awaitable_t<>::as_default_on_t<boost::beast::websocket::stream<SocketType>>;
    using coro_nonthrowing_steadytimer = boost::asio::as_tuple_t<boost::asio::use_awaitable_t<>>::as_default_on_t<boost::asio::steady_timer>;
 
 public:
-   session(SocketType&& s, Executor&& st, chain::controller& controller,
-              std::optional<log_catalog>& trace_log, std::optional<log_catalog>& chain_state_log, std::optional<log_catalog>& finality_data_log,
-              GetBlockID&& get_block_id, GetBlock&& get_block, OnDone&& on_done, fc::logger& logger) :
-    strand(std::move(st)), stream(std::move(s)), wake_timer(strand), controller(controller),
+   session(SocketType&& s, chain::controller& controller,
+           std::optional<log_catalog>& trace_log, std::optional<log_catalog>& chain_state_log, std::optional<log_catalog>& finality_data_log,
+           GetBlockID&& get_block_id, GetBlock&& get_block, OnDone&& on_done, fc::logger& logger) :
+    strand(s.get_executor()), stream(std::move(s)), wake_timer(strand), controller(controller),
     trace_log(trace_log), chain_state_log(chain_state_log), finality_data_log(finality_data_log),
     get_block_id(get_block_id), get_block(get_block), on_done(on_done), logger(logger), remote_endpoint_string(get_remote_endpoint_string()) {
       fc_ilog(logger, "incoming state history connection from ${a}", ("a", remote_endpoint_string));
@@ -307,7 +307,7 @@ private:
 
 private:
    ///these items must only ever be touched by the session's strand
-   Executor                          strand;
+   SocketType::executor_type         strand;
    coro_throwing_stream              stream;
    coro_nonthrowing_steadytimer      wake_timer;
    unsigned                          coros_running = 0;
