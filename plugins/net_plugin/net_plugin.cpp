@@ -217,7 +217,6 @@ namespace eosio {
       void bcast_transaction(const packed_transaction_ptr& trx);
       void rejected_transaction(const packed_transaction_ptr& trx);
       void bcast_block( const signed_block_ptr& b, const block_id_type& id );
-      void rejected_block(const block_id_type& id);
 
       void expire_blocks( uint32_t lib_num );
       void recv_notice(const connection_ptr& conn, const notice_message& msg, bool generated);
@@ -2698,10 +2697,6 @@ namespace eosio {
       } );
    }
 
-   void dispatch_manager::rejected_block(const block_id_type& id) {
-      fc_dlog( logger, "rejected block ${bn} ${id}", ("bn", block_header::num_from_id(id))("id", id) );
-   }
-
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
@@ -3746,7 +3741,7 @@ namespace eosio {
          bool exception = false;
          bool best_head = false;
          bool unlinkable = false;
-         sync_manager::closing_mode close_mode = sync_manager::closing_mode::handshake;
+         sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
             EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
                        "received a block from the future, ignoring it: ${id}", ("id", id));
@@ -3755,9 +3750,9 @@ namespace eosio {
             best_head = abh.is_new_best_head;
             obh = std::move(abh.block);
             unlinkable = !obh;
+            close_mode = sync_manager::closing_mode::handshake;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
-            close_mode = sync_manager::closing_mode::immediately;
             fc_wlog( logger, "invalid QC claim exception, connection - ${cid}: #${n} ${id}...: ${m}",
                      ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16))("m",ex.to_string()));
          } catch( const fc::exception& ex ) {
@@ -3776,8 +3771,8 @@ namespace eosio {
                        ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
             }
             c->strand.post( [c, id, blk_num=ptr->block_num(), close_mode]() {
+               peer_dlog( c, "rejected block ${bn} ${id}", ("bn", blk_num)("id", id) );
                my_impl->sync_master->rejected_block( c, blk_num, close_mode );
-               my_impl->dispatcher.rejected_block( id );
             });
             return;
          }
