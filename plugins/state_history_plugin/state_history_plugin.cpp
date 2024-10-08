@@ -100,10 +100,11 @@ public:
    template <typename Protocol>
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
-      // connections set must only be modified by main thread; run listener on ship thread so sockets use default executor of the ship thread
+      // run listener on ship thread so that thread_pool.stop() will shutdown the listener since this captures `this`
       fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "",
          [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
          [this](Protocol::socket&& socket) {
+            // connections set must only be modified by the main thread
             boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
                catch_and_log([this, &socket]() {
                   connections.emplace(new session(std::move(socket), chain_plug->chain(),
