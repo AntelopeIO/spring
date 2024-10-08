@@ -31,6 +31,46 @@ namespace eosio::vm { class wasm_allocator; }
 
 namespace eosio::chain {
 
+   struct speculative_block_metrics {
+      account_name block_producer{};
+      uint32_t     block_num             = 0;
+      int64_t      block_total_time_us   = 0;
+      int64_t      block_idle_us         = 0;
+      std::size_t  num_success_trx       = 0;
+      int64_t      success_trx_time_us   = 0;
+      std::size_t  num_fail_trx          = 0;
+      int64_t      fail_trx_time_us      = 0;
+      std::size_t  num_transient_trx     = 0;
+      int64_t      transient_trx_time_us = 0;
+      int64_t      block_other_time_us   = 0;
+   };
+
+   struct produced_block_metrics : public speculative_block_metrics {
+      std::size_t unapplied_transactions_total       = 0;
+      std::size_t subjective_bill_account_size_total = 0;
+      std::size_t scheduled_trxs_total               = 0;
+      std::size_t trxs_produced_total                = 0;
+      uint64_t    cpu_usage_us                       = 0;
+      int64_t     total_elapsed_time_us              = 0;
+      int64_t     total_time_us                      = 0;
+      uint64_t    net_usage_us                       = 0;
+
+      uint32_t last_irreversible = 0;
+      uint32_t head_block_num    = 0;
+   };
+
+   struct incoming_block_metrics {
+      std::size_t trxs_incoming_total   = 0;
+      uint64_t    cpu_usage_us          = 0;
+      int64_t     total_elapsed_time_us = 0;
+      int64_t     total_time_us         = 0;
+      uint64_t    net_usage_us          = 0;
+      int64_t     block_latency_us      = 0;
+
+      uint32_t last_irreversible = 0;
+      uint32_t head_block_num    = 0;
+   };
+
    using bls_pub_priv_key_map_t = std::map<std::string, std::string>;
    struct finalizer_policy;
 
@@ -182,41 +222,23 @@ namespace eosio::chain {
                                                            fc::time_point block_deadline, fc::microseconds max_transaction_time,
                                                            uint32_t billed_cpu_time_us, bool explicit_billed_cpu_time );
 
-         struct block_report {
-            size_t             total_net_usage = 0;
-            size_t             total_cpu_usage_us = 0;
-            fc::microseconds   total_elapsed_time{};
-            fc::time_point     start_time{fc::time_point::now()};
-         };
-
-         void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
+         void assemble_and_complete_block( const signer_callback_type& signer_callback );
          void sign_block( const signer_callback_type& signer_callback );
-         void commit_block(block_report& br);
+         void commit_block();
          void testing_allow_voting(bool val);
          bool get_testing_allow_voting_flag();
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
-         void maybe_switch_forks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
+         /// Apply any blocks that are ready from the forkdb
+         void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
+
+         struct accepted_block_result {
+            const bool is_new_best_head = false; // true if new best head
+            std::optional<block_handle> block;   // empty optional if block is unlinkable
+         };
          // thread-safe
-         std::future<block_handle> create_block_handle_future( const block_id_type& id, const signed_block_ptr& b );
-         // thread-safe
-         // returns empty optional if block b is not immediately ready to be processed
-         std::optional<block_handle> create_block_handle( const block_id_type& id, const signed_block_ptr& b ) const;
-
-         /**
-          * @param br returns statistics for block
-          * @param b block to push, created by create_block_handle
-          * @param cb calls cb with forked applied transactions for each forked block
-          * @param trx_lookup user provided lookup function for externally cached transaction_metadata
-          */
-         void push_block( block_report& br,
-                          const block_handle& b,
-                          const forked_callback_t& cb,
-                          const trx_meta_cache_lookup& trx_lookup );
-
-         /// Accept block into fork_database
-         void accept_block(const block_handle& b);
+         accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
 
          boost::asio::io_context& get_thread_pool();
 
@@ -320,6 +342,8 @@ namespace eosio::chain {
          signed_block_ptr fetch_block_by_number( uint32_t block_num )const;
          // thread-safe
          signed_block_ptr fetch_block_by_id( const block_id_type& id )const;
+         // thread-safe, retrieves serialized signed block
+         std::vector<char> fetch_serialized_block_by_number( uint32_t block_num)const;
          // thread-safe
          bool block_exists(const block_id_type& id) const;
          bool validated_block_exists(const block_id_type& id) const;
@@ -459,6 +483,9 @@ namespace eosio::chain {
       // is the bls key a registered finalizer key of this node, thread safe
       bool is_node_finalizer_key(const bls_public_key& key) const;
 
+      void register_update_produced_block_metrics(std::function<void(produced_block_metrics)>&&);
+      void register_update_speculative_block_metrics(std::function<void(speculative_block_metrics)>&&);
+      void register_update_incoming_block_metrics(std::function<void(incoming_block_metrics)>&&);
 
       private:
          const my_finalizers_t& get_node_finalizers() const;  // used for tests (purpose is inspecting fsi).

@@ -112,9 +112,12 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
    BOOST_TEST(!forkdb.get_block(bsp12b->id()));
    BOOST_TEST(!forkdb.get_block(bsp13b->id()));
    BOOST_TEST(!forkdb.get_block(bsp14b->id()));
-   forkdb.add(bsp12b, ignore_duplicate_t::no); // will throw if already exists
-   forkdb.add(bsp13b, ignore_duplicate_t::no); // will throw if already exists
-   forkdb.add(bsp14b, ignore_duplicate_t::no); // will throw if already exists
+   BOOST_TEST(!forkdb.add(bsp12b, ignore_duplicate_t::no)); // will throw if already exists
+   // 13b not the best branch because 13c has higher timestamp
+   BOOST_TEST(!forkdb.add(bsp13b, ignore_duplicate_t::no)); // will throw if already exists
+   // 14b has a higher timestamp than 13c
+   BOOST_TEST(forkdb.add(bsp14b, ignore_duplicate_t::no)); // will throw if already exists
+   BOOST_TEST(!forkdb.add(bsp14b, ignore_duplicate_t::yes));
 
    // test search
    BOOST_TEST(forkdb.search_on_branch( bsp13bb->id(), 11) == bsp11b);
@@ -138,6 +141,10 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12a);
    BOOST_TEST(branch[1] == bsp11a);
+
+   auto bsp14c = test_block_state_accessor::make_unique_block_state(14, bsp13c); // should be best branch
+   BOOST_TEST(forkdb.add(bsp14c, ignore_duplicate_t::yes));
+
 } FC_LOG_AND_RETHROW();
 
 

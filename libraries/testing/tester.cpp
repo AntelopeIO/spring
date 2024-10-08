@@ -374,7 +374,7 @@ namespace eosio::testing {
       [[maybe_unused]] auto block_start_connection = control->block_start().connect([](block_num_type num) {
          // only block number is signaled, in forking tests will get the same block number more than once.
       });
-      [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([this](const block_signal_params& t) {
+      [[maybe_unused]] auto accepted_block_header_connection = control->accepted_block_header().connect([&](const block_signal_params& t) {
             [[maybe_unused]] const auto& [block, id] = t;
             assert(block);
             assert(_check_signal(id, block_signal::accepted_block_header));
@@ -443,11 +443,11 @@ namespace eosio::testing {
 
    void base_tester::push_block(const signed_block_ptr& b) {
       auto block_id = b->calculate_id();
-      auto bhf = control->create_block_handle_future(block_id, b);
+      auto [best_fork, obh] = control->accept_block(block_id, b);
       unapplied_transactions.add_aborted( control->abort_block() );
-      controller::block_report br;
-      block_handle bh = bhf.get();
-      control->push_block( br, bh, [this]( const transaction_metadata_ptr& trx ) {
+      EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", b->calculate_id()));
+      const block_handle& bh = *obh;
+      control->apply_blocks( [this]( const transaction_metadata_ptr& trx ) {
          unapplied_transactions.add_forked( trx );
       }, [this]( const transaction_id_type& id ) {
          return unapplied_transactions.get_trx( id );
@@ -564,8 +564,7 @@ namespace eosio::testing {
          }
       });
 
-      controller::block_report br;
-      control->assemble_and_complete_block( br, [&]( digest_type d ) {
+      control->assemble_and_complete_block( [&]( digest_type d ) {
          std::vector<signature_type> result;
          result.reserve(signing_keys.size());
          for (const auto& k: signing_keys)
@@ -574,7 +573,7 @@ namespace eosio::testing {
          return result;
       } );
 
-      control->commit_block(br);
+      control->commit_block();
 
       block_handle head = control->head();
 
@@ -1214,10 +1213,11 @@ namespace eosio::testing {
 
             auto block = a.control->fetch_block_by_number(i);
             if( block ) { //&& !b.control->is_known_block(block->id()) ) {
-               auto btf = b.control->create_block_handle_future( block->calculate_id(), block );
+               auto id = block->calculate_id();
+               auto [best_head, obh] = b.control->accept_block( id, block );
                b.control->abort_block();
-               controller::block_report br;
-               b.control->push_block(br, btf.get(), {}, trx_meta_cache_lookup{}); //, eosio::chain::validation_steps::created_block);
+               EOS_ASSERT(obh, unlinkable_block_exception, "block did not link ${b}", ("b", id));
+               b.control->apply_blocks({}, trx_meta_cache_lookup{});
             }
          }
       };

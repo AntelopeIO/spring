@@ -94,7 +94,7 @@ namespace eosio::chain {
 
       void             open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void             close_impl( std::ofstream& out );
-      void             add_impl( const bsp_t& n, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
+      bool             add_impl( const bsp_t& n, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
       bool             is_valid() const;
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
@@ -240,7 +240,7 @@ namespace eosio::chain {
    }
 
    template <class BSP>
-   void fork_database_impl<BSP>::add_impl(const bsp_t& n, ignore_duplicate_t ignore_duplicate,
+   bool fork_database_impl<BSP>::add_impl(const bsp_t& n, ignore_duplicate_t ignore_duplicate,
                                           bool validate, validator_t& validator) {
       EOS_ASSERT( root, fork_database_exception, "root not yet set" );
       EOS_ASSERT( n, fork_database_exception, "attempt to add null block state" );
@@ -280,17 +280,17 @@ namespace eosio::chain {
       auto inserted = index.insert(n);
       EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
                  "duplicate block added: ${id}", ("id", n->id()));
+
+      return inserted.second && n == head_impl(include_root_t::no);
    }
 
    template<class BSP>
-   void fork_database_t<BSP>::add( const bsp_t& n, ignore_duplicate_t ignore_duplicate ) {
+   bool fork_database_t<BSP>::add( const bsp_t& n, ignore_duplicate_t ignore_duplicate ) {
       std::lock_guard g( my->mtx );
-      my->add_impl( n, ignore_duplicate, false,
-                    []( block_timestamp_type timestamp,
-                        const flat_set<digest_type>& cur_features,
-                        const vector<digest_type>& new_features )
-                    {}
-      );
+      return my->add_impl(n, ignore_duplicate, false,
+                          [](block_timestamp_type         timestamp,
+                             const flat_set<digest_type>& cur_features,
+                             const vector<digest_type>&   new_features) {});
    }
 
    template<class BSP>

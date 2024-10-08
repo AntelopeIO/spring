@@ -146,7 +146,7 @@ try:
     logFile = Utils.getNodeDataDir(prodNode3.nodeId) + "/stderr.txt"
     f = open(logFile)
     contents = f.read()
-    if contents.count("3030001 unlinkable_block_exception: Unlinkable block") > (allowedUnlinkableBlocks):
+    if contents.count("unlinkable_block") > (allowedUnlinkableBlocks):
         errorExit(f"Node{prodNode3.nodeId} has more than {allowedUnlinkableBlocks} unlinkable blocks: {logFile}.")
 
     testSuccessful=True
