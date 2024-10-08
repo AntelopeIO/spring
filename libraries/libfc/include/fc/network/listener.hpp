@@ -69,6 +69,8 @@ struct listener_base<boost::asio::local::stream_protocol> {
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////
 template <typename Protocol, typename Executor, typename SocketExecutorFn, typename CreateSession>
+requires (std::is_same_v<Protocol, boost::asio::ip::tcp> || std::is_same_v<Protocol, boost::asio::local::stream_protocol>) &&
+          std::invocable<SocketExecutorFn&, typename Protocol::endpoint>
 struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener<Protocol, Executor, SocketExecutorFn, CreateSession>> {
  private:
    typename Protocol::acceptor      acceptor_;
@@ -186,6 +188,8 @@ struct listener : listener_base<Protocol>, std::enable_shared_from_this<listener
 ///                       via socket.get_executor().
 /// @throws std::system_error or boost::system::system_error
 template <typename Protocol, typename Executor, typename SocketExecutorFn, typename CreateSession>
+requires (std::is_same_v<Protocol, boost::asio::ip::tcp> || std::is_same_v<Protocol, boost::asio::local::stream_protocol>) &&
+          std::invocable<SocketExecutorFn&, typename Protocol::endpoint>
 void create_listener(Executor& executor, logger& logger, boost::posix_time::time_duration accept_timeout,
                      const std::string& address, const std::string& extra_listening_log_info,
                      const SocketExecutorFn& socket_executor_fn,
