@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: ['10.0.1', '11.1.0']
+        version: ['7.1.0', '8.0.1', '9.0.1', '10.0.1', '11.1.0']
     runs-on: ["self-hosted", "enf-x86-beefy"]
     container: ubuntu:jammy
     steps:
@@ -22,6 +22,12 @@ jobs:
           apt-get install -y build-essential cmake git libcurl4-openssl-dev libgmp-dev ninja-build python3 zlib1g-dev
       - name: Clone LLVM
         run: git clone -b llvmorg-${{matrix.version}} --single-branch --recursive https://github.com/llvm/llvm-project
+      - name: Patch LLVM8
+        if: startsWith(matrix.version, '8.0')
+        run: |
+          cd llvm-project
+          git fetch origin b288d90b39f4b905c02092a9bfcfd6d78f99b191
+          git cherry-pick -n b288d90b39f4b905c02092a9bfcfd6d78f99b191
       - name: Build LLVM
         run: |
           cmake -S llvm-project/llvm -B llvm-build -GNinja -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=host -DLLVM_BUILD_TOOLS=Off \
