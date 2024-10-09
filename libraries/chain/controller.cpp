@@ -1689,8 +1689,6 @@ struct controller_impl {
    }
 
    void replay(startup_t startup) {
-      replaying = true;
-
       bool replay_block_log_needed = should_replay_block_log();
 
       auto blog_head = blog.head();
@@ -1837,8 +1835,6 @@ struct controller_impl {
 
       };
       fork_db.apply<void>(replay_fork_db);
-
-      replaying = false;
 
       if( except_ptr ) {
          std::rethrow_exception( except_ptr );
@@ -1988,6 +1984,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
+      replaying = true;
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -2033,6 +2030,8 @@ struct controller_impl {
       };
 
       fork_db.apply<void>(finish_init);
+
+      replaying = false;
 
       // At Leap startup, we want to provide to our local finalizers the correct safety information
       // to use if they don't already have one.
@@ -3630,8 +3629,6 @@ struct controller_impl {
 
    template<typename BSP>
    void log_applied(controller::block_report& br, const BSP& bsp) const {
-      if (replaying) // fork_db_root_block_num not available during replay
-         return;
       fc::time_point now = fc::time_point::now();
       if (now - bsp->timestamp() < fc::minutes(5) || (bsp->block_num() % 1000 == 0)) {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
