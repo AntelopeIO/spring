@@ -4024,7 +4024,7 @@ namespace eosio {
       case vote_result_t::unknown_public_key:
       case vote_result_t::invalid_signature:
       case vote_result_t::max_exceeded:  // close peer immediately
-         fc_elog(vote_logger, "Exceeded max votes per connection for ${c}", ("c", connection_id));
+         fc_elog(vote_logger, "Invalid vote(s), closing connection - ${c}", ("c", connection_id));
          my_impl->connections.any_of_connections([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                c->close( false );
