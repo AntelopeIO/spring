@@ -96,14 +96,7 @@ namespace eosio::chain {
          return { .block_num = block_num, .is_strong_qc = is_strong() };
       }
 
-      // returns true if vote indicated by active_vote_index in active_policy
-      // is the same as vote indicated by pending_vote_index in pending_policy
-      bool vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index) const;
-
       void verify(const finalizer_policies_t& policies) const;
-
-      // verify qc against active and pending policy
-      void verify_dual_finalizers_votes(const finalizer_policies_t& policies) const;
    };
 
    struct qc_data_t {
