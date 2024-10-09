@@ -260,13 +260,15 @@ namespace eosio::chain {
       aggregating_qc_t() = default;
 
       std::optional<qc_t> get_best_qc(block_num_type block_num) const;
-      // verify qc against active and pending policy
-      void verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+
       qc_vote_metrics_t vote_metrics(const qc_t& qc) const;
+
       // return qc missing vote's finalizers
       qc_vote_metrics_t::fin_auth_set_t missing_votes(const qc_t& qc) const;
+
       // return true if better qc
       bool set_received_qc(const qc_t& qc);
+
       bool received_qc_is_strong() const;
       aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote,
                                              const block_id_type& block_id, std::span<const uint8_t> finalizer_digest);
