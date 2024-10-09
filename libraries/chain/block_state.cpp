@@ -267,14 +267,8 @@ vote_status_t block_state::has_voted(const bls_public_key& key) const {
 
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
-   // Do not use `block_state::aggregating_qc` which applies only for `this` block.
-   // `verify_qc()` can be called on a descendant `block_state` of `qc.block_num`, so we need
-   // to create a new `aggregating_qc_t` with the finalizer policies of the claimed block.
-   // ---------------------------------------------------------------------------------------
-   finalizer_policies_t policies = get_finalizer_policies(qc.block_num);
-   aggregating_qc_t aggregating_qc(policies.active_finalizer_policy, policies.pending_finalizer_policy);
-
-   aggregating_qc.verify_qc(qc, policies.finality_digest, create_weak_digest(policies.finality_digest));
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num); // get policies active at claimed block number
+   qc.verify(policies);
 }
 
 qc_claim_t block_state::extract_qc_claim() const {

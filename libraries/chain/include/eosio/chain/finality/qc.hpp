@@ -35,6 +35,12 @@ namespace eosio::chain {
       return res;
    }
 
+   struct finalizer_policies_t {
+      digest_type          finality_digest;
+      finalizer_policy_ptr active_finalizer_policy;  // Never null
+      finalizer_policy_ptr pending_finalizer_policy; // Only null if the block has no pending finalizer policy
+   };
+
    enum class vote_result_t {
       success,
       duplicate,             // duplicate vote, expected as votes arrive on multiple connections
@@ -93,6 +99,11 @@ namespace eosio::chain {
       // returns true if vote indicated by active_vote_index in active_policy
       // is the same as vote indicated by pending_vote_index in pending_policy
       bool vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index) const;
+
+      void verify(const finalizer_policies_t& policies) const;
+
+      // verify qc against active and pending policy
+      void verify_dual_finalizers_votes(const finalizer_policies_t& policies) const;
    };
 
    struct qc_data_t {
@@ -268,9 +279,6 @@ namespace eosio::chain {
       finalizer_policy_ptr                pending_finalizer_policy; // not modified after construction
       aggregating_qc_sig_t                active_policy_sig;
       std::optional<aggregating_qc_sig_t> pending_policy_sig;
-
-      // verify qc against active and pending policy
-      void verify_dual_finalizers_votes(const qc_t& qc) const;
    };
 
 } //eosio::chain
