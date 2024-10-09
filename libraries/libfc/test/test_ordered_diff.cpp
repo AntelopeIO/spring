@@ -8,6 +8,30 @@
 
 using namespace fc;
 
+template <typename T, typename SizeType = size_t, template<typename Y, typename...> typename Container = std::vector>
+void Print(const typename fc::ordered_diff<T, SizeType, Container>::diff_result& dr) {
+   auto remove_out = [](const auto& v) {
+      std::cout << '{';
+      for (size_t i=0; i<v.size(); ++i)
+         std::cout << v[i] << (i == v.size() - 1 ? "}" : ", ");
+   };
+
+   auto insert_out = [](const auto& v) {
+      std::cout << '{';
+      for (size_t i=0; i<v.size(); ++i)
+         std::cout << '{' << v[i].first << ", " << v[i].second << '}' << (i == v.size() - 1 ? "}" : ", ");
+   };
+
+   remove_out(dr.remove_indexes);
+   std::cout << '\n';
+   insert_out(dr.insert_indexes);
+}
+
+template <typename T, typename SizeType = size_t, template<typename Y, typename...> typename Container = std::vector>
+Container<T> validate(const Container<T>& source, const Container<T>& target) {
+
+}
+
 BOOST_AUTO_TEST_SUITE(ordered_diff_tests)
 
 BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
@@ -17,6 +41,7 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
       vector<char>       source = {'a', 'b', 'c', 'd', 'e'};
       vector<char>       target = {'a', 'c', 'e', 'f'};
       auto               result = ordered_diff<char>::diff(source, target);
+      Print<char>(result);
       source = ordered_diff<char>::apply_diff(std::move(source), result);
       BOOST_TEST(source == target);
    }
