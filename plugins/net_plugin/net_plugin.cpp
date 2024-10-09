@@ -3911,20 +3911,26 @@ namespace eosio {
       case vote_result_t::unknown_public_key:
       case vote_result_t::invalid_signature:
       case vote_result_t::max_exceeded:  // close peer immediately
-         fc_elog(vote_logger, "Exceeded max votes per connection for ${c}", ("c", connection_id));
-         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+         fc_elog(vote_logger, "Invalid vote(s), closing connection - ${c}", ("c", connection_id));
+         my_impl->connections.any_of_connections([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                c->close( false );
+               return true;
             }
+            return false;
          });
          break;
       case vote_result_t::unknown_block: // track the failure
          fc_dlog(vote_logger, "connection - ${c} vote unknown block #${bn}:${id}..",
                  ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
-         my_impl->connections.for_each_connection([connection_id](const connection_ptr& c) {
+         my_impl->connections.any_of_connections([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
-               c->block_status_monitor_.rejected();
+               boost::asio::post(c->strand, [c]() {
+                  c->block_status_monitor_.rejected();
+               });
+               return true;
             }
+            return false;
          });
          break;
       case vote_result_t::duplicate: // do nothing
