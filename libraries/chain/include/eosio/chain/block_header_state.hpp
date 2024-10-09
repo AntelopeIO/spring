@@ -79,13 +79,6 @@ struct block_header_state_input : public building_block_input {
    digest_type                       finality_mroot_claim;
 };
 
-
-struct finalizer_policies_t {
-   digest_type          finality_digest;
-   finalizer_policy_ptr active_finalizer_policy;  // Never null
-   finalizer_policy_ptr pending_finalizer_policy; // Only null if the block has no pending finalizer policy
-};
-
 struct block_header_state : fc::reflect_init {
    // ------ data members ------------------------------------------------------------
    block_id_type                       block_id;
