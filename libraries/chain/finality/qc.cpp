@@ -412,28 +412,6 @@ std::optional<qc_t> aggregating_qc_t::get_best_qc(block_num_type block_num) cons
    return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
 }
 
-#if 0
-void aggregating_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
-   qc.active_policy_sig.verify_vote_format(active_finalizer_policy);
-
-   if (qc.pending_policy_sig) {
-      EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
-                 "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
-
-      qc.pending_policy_sig->verify_vote_format(pending_finalizer_policy);
-      verify_dual_finalizers_votes(qc);
-   } else {
-      EOS_ASSERT(!pending_finalizer_policy, invalid_qc_claim,
-                 "qc ${bn} does not contain pending policy signature for pending finalizer policy", ("bn", qc.block_num));
-   }
-
-   qc.active_policy_sig.verify(active_finalizer_policy, strong_digest, weak_digest);
-   if (pending_finalizer_policy) {
-      qc.pending_policy_sig->verify(pending_finalizer_policy, strong_digest, weak_digest);
-   }
-}
-#endif
-
 bool aggregating_qc_t::set_received_qc(const qc_t& qc) {
    // qc should have already been verified via verify_qc, this EOS_ASSERT should never fire
    EOS_ASSERT(!pending_policy_sig || qc.pending_policy_sig, invalid_qc_claim,
