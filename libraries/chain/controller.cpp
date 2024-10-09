@@ -4413,6 +4413,7 @@ struct controller_impl {
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_maybe_switch_forks = [&](auto& forkdb) {
+         auto start = fc::time_point::now();
          if( new_head->header.previous == chain_head.id() ) {
             try {
                apply_block( br, new_head, s, trx_lookup );
@@ -4472,6 +4473,11 @@ struct controller_impl {
                      shutdown();
                      break;
                   }
+                  // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
+                  // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
+                  if (!replaying && fc::time_point::now() - start > fc::microseconds(500))
+                     break;
+
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {
