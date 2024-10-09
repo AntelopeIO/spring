@@ -1573,10 +1573,10 @@ void producer_plugin_impl::plugin_startup() {
             _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
          }
 
-         const auto lib_num = chain.last_irreversible_block_num();
-         const auto lib     = chain.fetch_block_by_number(lib_num);
-         if (lib) {
-            on_irreversible_block(lib);
+         const auto froot_num = chain.fork_db_root_block_num();
+         const auto froot     = chain.fetch_block_by_number(froot_num);
+         if (froot) {
+            on_irreversible_block(froot);
          } else {
             _irreversible_block_time = fc::time_point::maximum();
          }

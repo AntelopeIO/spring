@@ -1615,7 +1615,7 @@ struct controller_impl {
 
       bool should_replay = start_block_num <= blog_head->block_num();
       if (!should_replay) {
-         ilog( "no irreversible blocks need to be replayed" );
+         ilog( "no irreversible blocks need to be replayed from block log" );
       }
       return should_replay;
    }
@@ -1687,7 +1687,7 @@ struct controller_impl {
       }
       transition_legacy_branch.clear(); // not needed after replay
       auto end = fc::time_point::now();
-      ilog( "${n} irreversible blocks replayed", ("n", 1 + chain_head.block_num() - start_block_num) );
+      ilog( "${n} irreversible blocks replayed from block log", ("n", 1 + chain_head.block_num() - start_block_num) );
       ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
             ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
             ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
@@ -1871,7 +1871,7 @@ struct controller_impl {
                         "Snapshot is invalid." );
             blog.reset( chain_id, chain_head.block_num() + 1 );
          }
-         ilog( "Snapshot loaded, lib: ${lib}", ("lib", chain_head.block_num()) );
+         ilog( "Snapshot loaded, head: ${h} : ${id}", ("h", chain_head.block_num())("id", chain_head.id()) );
 
          init(startup_t::snapshot);
          block_handle_accessor::apply_l<void>(chain_head, [&](auto& head) {
@@ -5355,15 +5355,15 @@ size_t controller::fork_db_size() const {
    return my->fork_db_size();
 }
 
-uint32_t controller::last_irreversible_block_num() const {
+uint32_t controller::fork_db_root_block_num() const {
    return my->fork_db_root_block_num();
 }
 
-block_id_type controller::last_irreversible_block_id() const {
+block_id_type controller::fork_db_root_block_id() const {
    return my->fork_db_root_block_id();
 }
 
-time_point controller::last_irreversible_block_time() const {
+time_point controller::fork_db_root_block_time() const {
    return my->fork_db_root_timestamp().to_time_point();
 }
 

@@ -350,7 +350,7 @@ namespace eosio::chain {
       block_num_type new_lib = block_header::num_from_id(id);
       block_num_type old_lib = block_header::num_from_id(pending_savanna_lib_id);
       if (new_lib > old_lib) {
-         dlog("set pending savanna lib ${bn}: ${id}", ("bn", block_header::num_from_id(id))("id", id));
+         dlog("set fork db pending savanna lib ${bn}: ${id}", ("bn", block_header::num_from_id(id))("id", id));
          pending_savanna_lib_id = id;
          return true;
       }
