@@ -4472,7 +4472,7 @@ struct controller_impl {
                   }
                   // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
                   // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
-                  if (!replaying && fc::time_point::now() - start > fc::microseconds(500))
+                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
                      break;
 
                } catch ( const std::bad_alloc& ) {
