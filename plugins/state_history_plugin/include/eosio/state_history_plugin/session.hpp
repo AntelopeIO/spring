@@ -177,7 +177,7 @@ private:
       get_status_result_v1 ret;
 
       ret.head              = {controller.head().block_num(), controller.head().id()};
-      ret.last_irreversible = {controller.fork_db_root_block_num(), controller.fork_db_root_block_id()};
+      ret.last_irreversible = {controller.fork_db_root().block_num(), controller.fork_db_root().id()};
       ret.chain_id          = controller.get_chain_id();
       if(trace_log)
          std::tie(ret.trace_begin_block, ret.trace_end_block) = trace_log->block_range();
@@ -237,12 +237,12 @@ private:
 
                //decide what block -- if any -- to send out
                const chain::block_num_type latest_to_consider = self.current_blocks_request.irreversible_only ?
-                                                                self.controller.fork_db_root_block_num() : self.controller.head().block_num();
+                                                                self.controller.fork_db_root().block_num() : self.controller.head().block_num();
                if(self.send_credits && self.next_block_cursor <= latest_to_consider && self.next_block_cursor < self.current_blocks_request.end_block_num) {
                   block_to_send.emplace( block_package{
                      .blocks_result_base = {
                         .head = {self.controller.head().block_num(), self.controller.head().id()},
-                        .last_irreversible = {self.controller.fork_db_root_block_num(), self.controller.fork_db_root_block_id()}
+                        .last_irreversible = {self.controller.fork_db_root().block_num(), self.controller.fork_db_root().id()}
                      },
                      .is_v1_request = self.current_blocks_request_v1_finality.has_value()
                   });

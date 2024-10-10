@@ -144,11 +144,11 @@ namespace eosio::chain_apis {
          auto start = fc::time_point::now();
          const auto& index = controller.db().get_index<chain::permission_index>().indices().get<by_id>();
 
-         // build a initial time to block number map
-         const auto froot_num = controller.fork_db_root_block_num();
-         const auto head_num  = controller.head().block_num();
+         // build an initial time to block number map
+         const auto fork_root_num = controller.fork_db_root().block_num();
+         const auto head_num      = controller.head().block_num();
 
-         for (uint32_t block_num = froot_num + 1; block_num <= head_num; block_num++) {
+         for (uint32_t block_num = fork_root_num + 1; block_num <= head_num; block_num++) {
             const auto block_p = controller.fetch_block_by_number(block_num);
             EOS_ASSERT(block_p, chain::plugin_exception, "cannot fetch reversible block ${block_num}, required for account_db initialization", ("block_num", block_num));
             time_to_block_num.emplace(block_p->timestamp.to_time_point(), block_num);
@@ -212,11 +212,12 @@ namespace eosio::chain_apis {
       }
 
       uint32_t last_updated_time_to_height( const fc::time_point& last_updated) {
-         const auto froot_num  = controller.fork_db_root_block_num();
-         const auto froot_time = controller.fork_db_root_block_time();
+         const auto fork_root = controller.fork_db_root();
+         const auto fork_root_num  = fork_root.block_num();
+         const auto fork_root_time = fork_root.block_time();
 
-         uint32_t last_updated_height = froot_num;
-         if (last_updated > froot_time) {
+         uint32_t last_updated_height = fork_root_num;
+         if (last_updated > fork_root_time) {
             const auto iter = time_to_block_num.find(last_updated);
             EOS_ASSERT(iter != time_to_block_num.end(), chain::plugin_exception, "invalid block time encountered in on-chain accounts ${time}", ("time", last_updated));
             last_updated_height = iter->second;

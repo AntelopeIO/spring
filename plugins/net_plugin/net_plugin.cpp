@@ -3162,7 +3162,7 @@ namespace eosio {
       uint32_t froot_num = 0, head_num = 0, fork_head_num = 0;
       {
          fc::lock_guard g( chain_info_mtx );
-         chain_info.fork_root_id = cc.fork_db_root_block_id();
+         chain_info.fork_root_id = cc.fork_db_root().id();
          chain_info.fork_root_num = froot_num = block_header::num_from_id(chain_info.fork_root_id);
          chain_info.head_id = cc.head().id();
          chain_info.head_num = head_num = block_header::num_from_id(chain_info.head_id);

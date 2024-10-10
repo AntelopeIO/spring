@@ -536,8 +536,8 @@ namespace eosio::testing {
          block_handle     fork_db_head() const { return control->fork_db_head(); }
 
          chain_id_type    get_chain_id() const { return control->get_chain_id(); }
-         block_id_type    last_irreversible_block_id() const { return control->fork_db_root_block_id(); }
-         uint32_t         last_irreversible_block_num() const { return control->fork_db_root_block_num(); }
+         block_id_type    last_irreversible_block_id() const { return control->fork_db_root().id(); }
+         uint32_t         last_irreversible_block_num() const { return control->fork_db_root().block_num(); }
          bool             block_exists(const block_id_type& id) const { return  control->block_exists(id); }
 
          signed_block_ptr fetch_block_by_id(const block_id_type& id) const {

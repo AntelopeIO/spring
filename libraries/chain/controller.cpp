@@ -1101,6 +1101,13 @@ struct controller_impl {
       return fork_db.size();
    }
 
+   block_handle fork_db_root()const {
+      return fork_db.apply<block_handle>(
+         [&](const auto& forkdb) {
+            return block_handle{forkdb.root()};
+         });
+   }
+
    block_id_type fork_db_root_block_id() const {
       assert(fork_db_has_root());
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
@@ -1109,11 +1116,6 @@ struct controller_impl {
    uint32_t fork_db_root_block_num() const {
       assert(fork_db_has_root());
       return fork_db.apply<uint32_t>([&](const auto& forkdb) { return forkdb.root()->block_num(); });
-   }
-
-   block_timestamp_type  fork_db_root_timestamp() const {
-      assert(fork_db_has_root());
-      return fork_db.apply<block_timestamp_type>([&](const auto& forkdb) { return forkdb.root()->timestamp(); });
    }
 
    // ---------------  fork_db APIs ----------------------------------------------------------------------
@@ -5351,20 +5353,12 @@ bool controller::fork_db_has_root() const {
    return my->fork_db_has_root();
 }
 
+block_handle controller::fork_db_root()const {
+   return my->fork_db_root();
+}
+
 size_t controller::fork_db_size() const {
    return my->fork_db_size();
-}
-
-uint32_t controller::fork_db_root_block_num() const {
-   return my->fork_db_root_block_num();
-}
-
-block_id_type controller::fork_db_root_block_id() const {
-   return my->fork_db_root_block_id();
-}
-
-time_point controller::fork_db_root_block_time() const {
-   return my->fork_db_root_timestamp().to_time_point();
 }
 
 const dynamic_global_property_object& controller::get_dynamic_global_properties()const {
