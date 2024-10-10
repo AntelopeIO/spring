@@ -2236,13 +2236,13 @@ namespace eosio {
       sync_reset_froot_num(c, false);
 
       //--------------------------------
-      // sync need checks; (lib == fork database root)
+      // sync need checks; (froot == fork database root)
       //
       // 0. my head block id == peer head id means we are all caught up block wise
-      // 1. my head block num < peer lib - start sync locally
-      // 2. my lib > peer head num + nblk_combined_latency - send last_irr_catch_up notice if not the first generation
+      // 1. my head block num < peer froot then start sync locally by sending handshake
+      // 2. my froot > peer head num + nblk_combined_latency then send last_irr_catch_up notice if not the first generation
       //
-      // 3  my head block num + nblk_combined_latency < peer head block num - update sync state and send a catchup request
+      // 3  my head block num + nblk_combined_latency < peer head block num then update sync state and send a catchup request
       // 4  my head block num >= peer block num + nblk_combined_latency send a notice catchup if this is not the first generation
       //    4.1 if peer appears to be on a different fork ( our_id_for( msg.head_num ) != msg.head_id )
       //        then request peer's blocks
