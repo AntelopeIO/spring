@@ -4,6 +4,7 @@
 #include <eosio/net_plugin/net_plugin.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
 #include <eosio/chain_plugin/tracked_votes.hpp>
+#include <eosio/chain_plugin/get_info_db.hpp>  // for itoh
 
 #include <prometheus/counter.h>
 #include <prometheus/info.h>
