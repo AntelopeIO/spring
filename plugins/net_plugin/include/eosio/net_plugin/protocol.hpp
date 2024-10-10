@@ -32,10 +32,10 @@ namespace eosio {
       fc::sha256                 token; ///< digest of time to prove we own the private key of the key above
       chain::signature_type      sig; ///< signature for the digest
       string                     p2p_address;
-      uint32_t                   fork_root_num = 0;
-      block_id_type              fork_root_id;
-      uint32_t                   fork_head_num = 0;
-      block_id_type              fork_head_id;
+      uint32_t                   fork_db_root_num = 0;
+      block_id_type              fork_db_root_id;
+      uint32_t                   fork_db_head_num = 0;
+      block_id_type              fork_db_head_id;
       string                     os;
       string                     agent;
       int16_t                    generation = 0;
@@ -154,8 +154,8 @@ FC_REFLECT( eosio::chain_size_message,
 FC_REFLECT( eosio::handshake_message,
             (network_version)(chain_id)(node_id)(key)
             (time)(token)(sig)(p2p_address)
-            (fork_root_num)(fork_root_id)
-            (fork_head_num)(fork_head_id)
+            (fork_db_root_num)(fork_db_root_id)
+            (fork_db_head_num)(fork_db_head_id)
             (os)(agent)(generation) )
 FC_REFLECT( eosio::go_away_message, (reason)(node_id) )
 FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )

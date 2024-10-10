@@ -1573,10 +1573,10 @@ void producer_plugin_impl::plugin_startup() {
             _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
          }
 
-         const auto fork_root_num = chain.fork_db_root().block_num();
-         const auto fork_root     = chain.fetch_block_by_number(fork_root_num);
-         if (fork_root) {
-            on_irreversible_block(fork_root);
+         const auto fork_db_root_num = chain.fork_db_root().block_num();
+         const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
+         if (fork_db_root) {
+            on_irreversible_block(fork_db_root);
          } else {
             _irreversible_block_time = fc::time_point::maximum();
          }

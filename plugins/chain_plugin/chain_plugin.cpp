@@ -1286,17 +1286,17 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
 
    auto head = db.head();
    auto head_id = head.id();
-   auto fork_root = db.fork_db_root();
-   auto fork_head = db.fork_db_head();
-   auto fork_root_id = fork_root.id();
-   auto fork_head_id = fork_head.id();
+   auto fork_db_root = db.fork_db_root();
+   auto fork_db_head = db.fork_db_head();
+   auto fork_db_root_id = fork_db_root.id();
+   auto fork_db_head_id = fork_db_head.id();
 
    return {
       itoh(static_cast<uint32_t>(app().version())),
       db.get_chain_id(),
       block_header::num_from_id(head_id),
-      block_header::num_from_id(fork_root_id),
-      fork_root_id,
+      block_header::num_from_id(fork_db_root_id),
+      fork_db_root_id,
       head_id,
       db.head().block_time(),
       db.head().producer(),
@@ -1307,13 +1307,13 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       //std::bitset<64>(db.get_dynamic_global_properties().recent_slots_filled).to_string(),
       //__builtin_popcountll(db.get_dynamic_global_properties().recent_slots_filled) / 64.0,
       app().version_string(),
-      block_header::num_from_id(fork_head_id),
-      fork_head_id,
+      block_header::num_from_id(fork_db_head_id),
+      fork_db_head_id,
       app().full_version_string(),
       rm.get_total_cpu_weight(),
       rm.get_total_net_weight(),
       db.earliest_available_block_num(),
-      fork_root.block_time()
+      fork_db_root.block_time()
    };
 }
 
