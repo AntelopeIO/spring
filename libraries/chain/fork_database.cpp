@@ -263,7 +263,7 @@ namespace eosio::chain {
 
       auto prev_bh = get_block_impl( n->previous(), include_root_t::yes );
       EOS_ASSERT( prev_bh, unlinkable_block_exception,
-                  "forkdb unlinkable block ${id} previous ${p}", ("id", n->id())("p", n->previous()) );
+                  "fork_db unlinkable block ${id} previous ${p}", ("id", n->id())("p", n->previous()) );
 
       if (validate) {
          try {
@@ -641,7 +641,7 @@ namespace eosio::chain {
    }
 
    void fork_database::close() {
-      auto fork_db_file {data_dir / config::forkdb_filename};
+      auto fork_db_file {data_dir / config::fork_db_filename};
       bool legacy_valid  = fork_db_l.is_valid();
       bool savanna_valid = fork_db_s.is_valid();
 
@@ -684,7 +684,7 @@ namespace eosio::chain {
    }
 
    bool fork_database::file_exists() const {
-      auto fork_db_file = data_dir / config::forkdb_filename;
+      auto fork_db_file = data_dir / config::fork_db_filename;
       return std::filesystem::exists( fork_db_file );
    };
 
@@ -694,7 +694,7 @@ namespace eosio::chain {
 
       assert(!fork_db_l.is_valid() && !fork_db_s.is_valid());
 
-      auto fork_db_file = data_dir / config::forkdb_filename;
+      auto fork_db_file = data_dir / config::fork_db_filename;
       if( std::filesystem::exists( fork_db_file ) ) {
          try {
             fc::cfile f;
@@ -760,26 +760,26 @@ namespace eosio::chain {
    }
 
    size_t fork_database::size() const {
-      return apply<size_t>([](const auto& forkdb) {
-         return forkdb.size();
+      return apply<size_t>([](const auto& fork_db) {
+         return fork_db.size();
       });
    }
 
    // only called from the main thread
    void fork_database::switch_from_legacy(const block_state_ptr& root) {
       // no need to close fork_db because we don't want to write anything out, file is removed on open
-      // threads may be accessing (or locked on mutex about to access legacy forkdb) so don't delete it until program exit
+      // threads may be accessing (or locked on mutex about to access legacy fork_db) so don't delete it until program exit
       if (in_use == in_use_t::legacy) {
          fork_db_s.reset_root(root);
          if (fork_db_l.has_root()) {
-            dlog("Switching forkdb from legacy to both");
+            dlog("Switching fork_db from legacy to both");
             in_use = in_use_t::both;
          } else {
-            dlog("Switching forkdb from legacy to savanna");
+            dlog("Switching fork_db from legacy to savanna");
             in_use = in_use_t::savanna;
          }
       } else if (in_use == in_use_t::both) {
-         dlog("Switching forkdb from legacy, already both root ${rid}, forkdb root ${fid}", ("rid", root->id())("fid", fork_db_s.root()->id()));
+         dlog("Switching fork_db from legacy, already both root ${rid}, fork_db root ${fid}", ("rid", root->id())("fid", fork_db_s.root()->id()));
          assert(fork_db_s.root()->id() == root->id()); // should always set the same root
       } else {
          assert(false);
@@ -787,10 +787,10 @@ namespace eosio::chain {
    }
 
    block_branch_t fork_database::fetch_branch_from_head() const {
-      return apply<block_branch_t>([&](auto& forkdb) {
-         auto head = forkdb.head();
+      return apply<block_branch_t>([&](auto& fork_db) {
+         auto head = fork_db.head();
          if (head)
-            return forkdb.fetch_block_branch(head->id());
+            return fork_db.fetch_block_branch(head->id());
          return block_branch_t{};
       });
    }

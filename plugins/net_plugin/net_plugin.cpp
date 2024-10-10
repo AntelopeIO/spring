@@ -145,7 +145,7 @@ namespace eosio {
 
       alignas(hardware_destructive_interference_sz)
       fc::mutex      sync_mtx;
-      uint32_t       sync_known_fork_root_num GUARDED_BY(sync_mtx) {0};  // highest known forkdb root num from currently connected peers
+      uint32_t       sync_known_fork_root_num GUARDED_BY(sync_mtx) {0};  // highest known fork_db root num from currently connected peers
       uint32_t       sync_last_requested_num  GUARDED_BY(sync_mtx) {0};  // end block number of the last requested range, inclusive
       uint32_t       sync_next_expected_num   GUARDED_BY(sync_mtx) {0};  // the next block number we need from peer
       connection_ptr sync_source              GUARDED_BY(sync_mtx);      // connection we are currently syncing from
@@ -2113,27 +2113,27 @@ namespace eosio {
          uint32_t head_num = my_impl->get_chain_head_num();
          block_num_type num_blocks_not_applied = blk_num > head_num ? blk_num - head_num : 0;
          if (num_blocks_not_applied < sync_fetch_span) {
-            fc_dlog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} head ${h}, forkdb size ${s}",
+            fc_dlog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} head ${h}, fork_db size ${s}",
                     ("bn", blk_num)("sp", sync_fetch_span)("h", head_num)("s", my_impl->chain_plug->chain().fork_db_size()));
             return true;
          }
 
          controller& cc = my_impl->chain_plug->chain();
          if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            auto forkdb_head = cc.fork_db_head();
-            auto calculated_lib = forkdb_head.irreversible_blocknum();
+            auto fork_db_head = cc.fork_db_head();
+            auto calculated_lib = fork_db_head.irreversible_blocknum();
             auto num_blocks_that_can_be_applied = calculated_lib > head_num ? calculated_lib - head_num : 0;
-            // add blocks that can potentially be applied as they are not in the forkdb yet
-            num_blocks_that_can_be_applied += blk_num > forkdb_head.block_num() ? blk_num - forkdb_head.block_num() : 0;
+            // add blocks that can potentially be applied as they are not in the fork_db yet
+            num_blocks_that_can_be_applied += blk_num > fork_db_head.block_num() ? blk_num - fork_db_head.block_num() : 0;
             if (num_blocks_that_can_be_applied < sync_fetch_span) {
                if (head_num )
-                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused lib ${l}, head ${h}, forkdb size ${s}",
+                  fc_ilog(logger, "sync ahead allowed past sync-fetch-span ${sp}, block ${bn} for paused lib ${l}, head ${h}, fork_db size ${s}",
                           ("bn", blk_num)("sp", sync_fetch_span)("l", calculated_lib)("h", head_num)("s", cc.fork_db_size()));
                return true;
             }
          }
 
-         fc_dlog(logger, "sync ahead not allowed. block ${bn}, head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${sp}, forkdb size ${s}",
+         fc_dlog(logger, "sync ahead not allowed. block ${bn}, head ${h}, fhead ${fh}, fhead->lib ${fl}, sync-fetch-span ${sp}, fork_db size ${s}",
                  ("bn", blk_num)("h", head_num)("fh", cc.fork_db_head().block_num())("fl", cc.fork_db_head().irreversible_blocknum())
                  ("sp", sync_fetch_span)("s", cc.fork_db_size()));
       }
@@ -3859,7 +3859,7 @@ namespace eosio {
       update_chain_info();
 
       if (my_impl->chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
-         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
          my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
@@ -3879,7 +3879,7 @@ namespace eosio {
       update_chain_info(id);
 
       if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
-         // irreversible notifies sync_manager when added to forkdb, non-irreversible notifies when applied
+         // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
          my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);

@@ -85,7 +85,7 @@ namespace eosio::chain {
       bsp_t  root() const;
 
       /**
-       * The best branch head of blocks in the fork database, can be null if include_root_t::no and forkdb is empty
+       * The best branch head of blocks in the fork database, can be null if include_root_t::no and fork_db is empty
        * @param include_root yes if root should be returned if no blocks in fork database
        */
       bsp_t  head(include_root_t include_root = include_root_t::no) const;
@@ -181,7 +181,7 @@ namespace eosio::chain {
 
       in_use_t version_in_use() const { return in_use.load(); }
 
-      // see fork_database_t::fetch_branch(forkdb->head()->id())
+      // see fork_database_t::fetch_branch(fork_db->head()->id())
       block_branch_t fetch_branch_from_head() const;
 
       template <class R, class F>

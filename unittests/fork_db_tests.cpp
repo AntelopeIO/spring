@@ -54,26 +54,26 @@ struct test_block_state_accessor {
 
 using namespace eosio::chain;
 
-struct generate_forkdb_state {
-   generate_forkdb_state() {
-      forkdb.reset_root(root);
-      forkdb.add(bsp11a, ignore_duplicate_t::no);
-      forkdb.add(bsp11b, ignore_duplicate_t::no);
-      forkdb.add(bsp11c, ignore_duplicate_t::no);
-      forkdb.add(bsp12a, ignore_duplicate_t::no);
-      forkdb.add(bsp13a, ignore_duplicate_t::no);
-      forkdb.add(bsp12b, ignore_duplicate_t::no);
-      forkdb.add(bsp12bb, ignore_duplicate_t::no);
-      forkdb.add(bsp12bbb, ignore_duplicate_t::no);
-      forkdb.add(bsp12c, ignore_duplicate_t::no);
-      forkdb.add(bsp13b, ignore_duplicate_t::no);
-      forkdb.add(bsp13bb, ignore_duplicate_t::no);
-      forkdb.add(bsp13bbb, ignore_duplicate_t::no);
-      forkdb.add(bsp14b, ignore_duplicate_t::no);
-      forkdb.add(bsp13c, ignore_duplicate_t::no);
+struct generate_fork_db_state {
+   generate_fork_db_state() {
+      fork_db.reset_root(root);
+      fork_db.add(bsp11a, ignore_duplicate_t::no);
+      fork_db.add(bsp11b, ignore_duplicate_t::no);
+      fork_db.add(bsp11c, ignore_duplicate_t::no);
+      fork_db.add(bsp12a, ignore_duplicate_t::no);
+      fork_db.add(bsp13a, ignore_duplicate_t::no);
+      fork_db.add(bsp12b, ignore_duplicate_t::no);
+      fork_db.add(bsp12bb, ignore_duplicate_t::no);
+      fork_db.add(bsp12bbb, ignore_duplicate_t::no);
+      fork_db.add(bsp12c, ignore_duplicate_t::no);
+      fork_db.add(bsp13b, ignore_duplicate_t::no);
+      fork_db.add(bsp13bb, ignore_duplicate_t::no);
+      fork_db.add(bsp13bbb, ignore_duplicate_t::no);
+      fork_db.add(bsp14b, ignore_duplicate_t::no);
+      fork_db.add(bsp13c, ignore_duplicate_t::no);
    }
 
-   fork_database_if_t forkdb;
+   fork_database_if_t fork_db;
 
    // Setup fork database with blocks based on a root of block 10
    // Add a number of forks in the fork database
@@ -101,56 +101,56 @@ struct generate_forkdb_state {
 
 BOOST_AUTO_TEST_SUITE(fork_database_tests)
 
-BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
+BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    // test get_block
    for (auto& i : all) {
-      BOOST_TEST(forkdb.get_block(i->id()) == i);
+      BOOST_TEST(fork_db.get_block(i->id()) == i);
    }
 
    // test remove, should remove descendants
-   forkdb.remove(bsp12b->id());
-   BOOST_TEST(!forkdb.get_block(bsp12b->id()));
-   BOOST_TEST(!forkdb.get_block(bsp13b->id()));
-   BOOST_TEST(!forkdb.get_block(bsp14b->id()));
-   BOOST_TEST(!forkdb.add(bsp12b, ignore_duplicate_t::no)); // will throw if already exists
+   fork_db.remove(bsp12b->id());
+   BOOST_TEST(!fork_db.get_block(bsp12b->id()));
+   BOOST_TEST(!fork_db.get_block(bsp13b->id()));
+   BOOST_TEST(!fork_db.get_block(bsp14b->id()));
+   BOOST_TEST(!fork_db.add(bsp12b, ignore_duplicate_t::no)); // will throw if already exists
    // 13b not the best branch because 13c has higher timestamp
-   BOOST_TEST(!forkdb.add(bsp13b, ignore_duplicate_t::no)); // will throw if already exists
+   BOOST_TEST(!fork_db.add(bsp13b, ignore_duplicate_t::no)); // will throw if already exists
    // 14b has a higher timestamp than 13c
-   BOOST_TEST(forkdb.add(bsp14b, ignore_duplicate_t::no)); // will throw if already exists
-   BOOST_TEST(!forkdb.add(bsp14b, ignore_duplicate_t::yes));
+   BOOST_TEST(fork_db.add(bsp14b, ignore_duplicate_t::no)); // will throw if already exists
+   BOOST_TEST(!fork_db.add(bsp14b, ignore_duplicate_t::yes));
 
    // test search
-   BOOST_TEST(forkdb.search_on_branch( bsp13bb->id(), 11) == bsp11b);
-   BOOST_TEST(forkdb.search_on_branch( bsp13bb->id(), 9) == block_state_ptr{});
+   BOOST_TEST(fork_db.search_on_branch( bsp13bb->id(), 11) == bsp11b);
+   BOOST_TEST(fork_db.search_on_branch( bsp13bb->id(), 9) == block_state_ptr{});
 
    // test fetch branch
-   auto branch = forkdb.fetch_branch( bsp13b->id(), 12);
+   auto branch = fork_db.fetch_branch( bsp13b->id(), 12);
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12b);
    BOOST_TEST(branch[1] == bsp11b);
-   branch = forkdb.fetch_branch( bsp13bbb->id(), 13);
+   branch = fork_db.fetch_branch( bsp13bbb->id(), 13);
    BOOST_REQUIRE(branch.size() == 3);
    BOOST_TEST(branch[0] == bsp13bbb);
    BOOST_TEST(branch[1] == bsp12bb);
    BOOST_TEST(branch[2] == bsp11b);
 
    // test fetch branch providing head and lib
-   branch = forkdb.fetch_branch(bsp13a->id(), bsp11c->id());
+   branch = fork_db.fetch_branch(bsp13a->id(), bsp11c->id());
    BOOST_TEST(branch.empty()); // bsp11c not on bsp13a branch
-   branch = forkdb.fetch_branch(bsp13a->id(), bsp12a->id());
+   branch = fork_db.fetch_branch(bsp13a->id(), bsp12a->id());
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12a);
    BOOST_TEST(branch[1] == bsp11a);
 
    auto bsp14c = test_block_state_accessor::make_unique_block_state(14, bsp13c); // should be best branch
-   BOOST_TEST(forkdb.add(bsp14c, ignore_duplicate_t::yes));
+   BOOST_TEST(fork_db.add(bsp14c, ignore_duplicate_t::yes));
 
 } FC_LOG_AND_RETHROW();
 
 
 // test `fork_database_t::validated_block_exists() const` member
 // -------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
+BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_fork_db_state) try {
 
    // if a block is valid in fork_db, all its ancestors are necessarily valid.
    root->set_valid(true);
@@ -161,37 +161,37 @@ BOOST_FIXTURE_TEST_CASE(validated_block_exists, generate_forkdb_state) try {
 
    bsp13a->set_valid(false);
 
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
    bsp14b->set_valid(false);
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
    bsp13b->set_valid(false);
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
    bsp12b->set_valid(false);
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
    bsp11b->set_valid(false);
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp14b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp13b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp12b->id()));
-   BOOST_REQUIRE_EQUAL(false, forkdb.validated_block_exists(bsp14b->id(), bsp11b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp14b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp13b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp12b->id()));
+   BOOST_REQUIRE_EQUAL(false, fork_db.validated_block_exists(bsp14b->id(), bsp11b->id()));
 
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), root->id()));
-   BOOST_REQUIRE_EQUAL(true,  forkdb.validated_block_exists(bsp14b->id(), block_id_type{}));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), root->id()));
+   BOOST_REQUIRE_EQUAL(true,  fork_db.validated_block_exists(bsp14b->id(), block_id_type{}));
 
 } FC_LOG_AND_RETHROW();
 

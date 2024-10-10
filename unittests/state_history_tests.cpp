@@ -814,7 +814,7 @@ bool test_fork(uint32_t stride, uint32_t max_retained_files) {
       // Produce one more block; do not vote it such that it won't become final when
       // the first block from chain2 is pushed to chain1. This is to ensure LIBs
       // on chain1 and chain2 are the same, and further blocks from chain2 can be
-      // pushed into chain1's forkdb.
+      // pushed into chain1's fork_db.
       chain1.control->testing_allow_voting(false);
       chain1.produce_block();
    }

@@ -12,7 +12,7 @@ const static auto default_blocks_dir_name     = "blocks";
 const static auto reversible_blocks_dir_name  = "reversible";
 
 const static auto default_state_dir_name      = "state";
-const static auto forkdb_filename             = "fork_db.dat";
+const static auto fork_db_filename            = "fork_db.dat";
 const static auto safety_filename             = "safety.dat";
 const static auto chain_head_filename         = "chain_head.dat";
 const static auto default_state_size          = 1*1024*1024*1024ll;

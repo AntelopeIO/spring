@@ -137,8 +137,8 @@ BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle, blog_replay_fixture) try {
    stop_and_resume_replay(last_irreversible_block_num - 1);
 } FC_LOG_AND_RETHROW()
 
-// Test replay stopping in the middle of blocks log and resuming without forkdb
-BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle_rm_forkdb, blog_replay_fixture) try {
+// Test replay stopping in the middle of blocks log and resuming without fork_db
+BOOST_FIXTURE_TEST_CASE(replay_stop_in_middle_rm_fork_db, blog_replay_fixture) try {
    // block `last_irreversible_block_num - 1` is within blocks log
    stop_and_resume_replay(last_irreversible_block_num - 1, true);
 } FC_LOG_AND_RETHROW()
