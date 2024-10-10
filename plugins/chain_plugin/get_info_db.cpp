@@ -21,7 +21,7 @@ namespace eosio::chain_apis {
       const chain::controller& controller;
 
       // Indication whether get_info RPC is enabled.
-      bool get_info_enabled = false;
+      const bool get_info_enabled = false;
 
       // Cache to store the current get_info results in respect to latest accepted block.
       get_info_db::get_info_results  cached_results;
