@@ -24,8 +24,8 @@ namespace eosio::chain_apis {
       const bool get_info_enabled = false;
 
       // Cache to store the current get_info results in respect to latest accepted block.
-      get_info_db::get_info_results  cached_results;
       mutable std::shared_mutex      rw_mutex;
+      get_info_db::get_info_results  cached_results;
 
       // Called on accepted_block signal.
       void on_accepted_block() {
