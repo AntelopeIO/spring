@@ -15,7 +15,11 @@ namespace eosio::chain_apis {
    struct get_info_db_impl {
       get_info_db_impl(const chain::controller& controller, bool get_info_enabled)
          : controller(controller)
-         , get_info_enabled(get_info_enabled) {}
+         , get_info_enabled(get_info_enabled)
+         , chain_id(controller.get_chain_id())
+         , version_hex(itoh(static_cast<uint32_t>(app().version())))
+         , version_string(app().version_string())
+         , full_version_string(app().full_version_string()) {}
 
       // A handle to the controller.
       const chain::controller& controller;
@@ -26,6 +30,12 @@ namespace eosio::chain_apis {
       // Cache to store the current get_info results in respect to latest accepted block.
       mutable std::shared_mutex      rw_mutex;
       get_info_db::get_info_results  cached_results;
+
+      // Values are never changed
+      const chain_id_type chain_id;
+      const std::string   version_hex;
+      const std::string   version_string;
+      const std::string   full_version_string;
 
       // Called on accepted_block signal.
       void on_accepted_block() {
@@ -52,8 +62,8 @@ namespace eosio::chain_apis {
 
             // cache get_info results
             cached_results = get_info_db::get_info_results {
-               itoh(static_cast<uint32_t>(app().version())),
-               controller.get_chain_id(),
+               version_hex,
+               chain_id,
                chain::block_header::num_from_id(head_id),
                chain::block_header::num_from_id(lib_id),
                lib_id,
@@ -64,10 +74,10 @@ namespace eosio::chain_apis {
                rm.get_virtual_block_net_limit(),
                rm.get_block_cpu_limit(),
                rm.get_block_net_limit(),
-               app().version_string(),
+               version_string,
                chain::block_header::num_from_id(fhead_id),
                fhead_id,
-               app().full_version_string(),
+               full_version_string,
                rm.get_total_cpu_weight(),
                rm.get_total_net_weight(),
                controller.earliest_available_block_num(),
