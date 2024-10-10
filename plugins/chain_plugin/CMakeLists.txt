@@ -5,6 +5,7 @@ add_library( chain_plugin
              chain_plugin.cpp
              trx_retry_db.cpp
              tracked_votes.cpp
+             get_info_db.cpp
              ${HEADERS} )
 
 if(EOSIO_ENABLE_DEVELOPER_OPTIONS)

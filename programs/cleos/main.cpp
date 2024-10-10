@@ -342,8 +342,8 @@ eosio::chain_apis::read_only::get_consensus_parameters_results get_consensus_par
    return call(::default_url, get_consensus_parameters_func).as<eosio::chain_apis::read_only::get_consensus_parameters_results>();
 }
 
-eosio::chain_apis::read_only::get_info_results get_info() {
-   return call(::default_url, get_info_func).as<eosio::chain_apis::read_only::get_info_results>();
+eosio::chain_apis::get_info_db::get_info_results get_info() {
+   return call(::default_url, get_info_func).as<eosio::chain_apis::get_info_db::get_info_results>();
 }
 
 string generate_nonce_string() {

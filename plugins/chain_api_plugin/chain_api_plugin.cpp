@@ -125,9 +125,11 @@ void chain_api_plugin::plugin_startup() {
 
    ro_api.set_shorten_abi_errors( !http_plugin::verbose_errors() );
 
-   _http_plugin.add_api( {
-      CALL_WITH_400(chain, node, ro_api, chain_apis::read_only, get_info, 200, http_params_types::no_params)
-      }, appbase::exec_queue::read_only, appbase::priority::medium_high);
+   // Run get_info on http thread only
+   _http_plugin.add_async_api({
+      CHAIN_RO_CALL_WITH_400(get_info, 200, http_params_types::no_params)
+   });
+
    _http_plugin.add_api({
       CHAIN_RO_CALL(get_activated_protocol_features, 200, http_params_types::possible_no_params),
       CHAIN_RO_CALL_POST(get_block, fc::variant, 200, http_params_types::params_required), // _POST because get_block() returns a lambda to be executed on the http thread pool
