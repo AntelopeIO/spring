@@ -17,7 +17,7 @@ namespace eosio::chain_apis {
          : controller(controller)
          , get_info_enabled(get_info_enabled)
          , chain_id(controller.get_chain_id())
-         , version_hex(itoh(static_cast<uint32_t>(app().version())))
+         , version_hex(fc::itoh(static_cast<uint32_t>(app().version())))
          , version_string(app().version_string())
          , full_version_string(app().full_version_string()) {}
 
