@@ -328,15 +328,12 @@ namespace eosio::chain {
 
          void set_savanna_lib_id(const block_id_type& id);
 
-         bool   fork_db_has_root() const;
-         size_t fork_db_size() const;
-
-         // thread-safe, applied LIB, fork db root
-         uint32_t last_irreversible_block_num() const;
-         // thread-safe, applied LIB, fork db root
-         block_id_type last_irreversible_block_id() const;
-         // thread-safe, applied LIB, fork db root
-         time_point last_irreversible_block_time() const;
+         // thread-safe
+         bool         fork_db_has_root() const;
+         // thread-safe
+         block_handle fork_db_root()const;
+         // thread-safe
+         size_t       fork_db_size() const;
 
          // thread-safe, retrieves block according to fork db best branch which can change at any moment
          signed_block_ptr fetch_block_by_number( uint32_t block_num )const;

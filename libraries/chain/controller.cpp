@@ -1101,6 +1101,13 @@ struct controller_impl {
       return fork_db.size();
    }
 
+   block_handle fork_db_root()const {
+      return fork_db.apply<block_handle>(
+         [&](const auto& forkdb) {
+            return block_handle{forkdb.root()};
+         });
+   }
+
    block_id_type fork_db_root_block_id() const {
       assert(fork_db_has_root());
       return fork_db.apply<block_id_type>([&](const auto& forkdb) { return forkdb.root()->id(); });
@@ -1109,11 +1116,6 @@ struct controller_impl {
    uint32_t fork_db_root_block_num() const {
       assert(fork_db_has_root());
       return fork_db.apply<uint32_t>([&](const auto& forkdb) { return forkdb.root()->block_num(); });
-   }
-
-   block_timestamp_type  fork_db_root_timestamp() const {
-      assert(fork_db_has_root());
-      return fork_db.apply<block_timestamp_type>([&](const auto& forkdb) { return forkdb.root()->timestamp(); });
    }
 
    // ---------------  fork_db APIs ----------------------------------------------------------------------
@@ -1615,7 +1617,7 @@ struct controller_impl {
 
       bool should_replay = start_block_num <= blog_head->block_num();
       if (!should_replay) {
-         ilog( "no irreversible blocks need to be replayed" );
+         ilog( "no irreversible blocks need to be replayed from block log" );
       }
       return should_replay;
    }
@@ -1687,7 +1689,7 @@ struct controller_impl {
       }
       transition_legacy_branch.clear(); // not needed after replay
       auto end = fc::time_point::now();
-      ilog( "${n} irreversible blocks replayed", ("n", 1 + chain_head.block_num() - start_block_num) );
+      ilog( "${n} irreversible blocks replayed from block log", ("n", 1 + chain_head.block_num() - start_block_num) );
       ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
             ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
             ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
@@ -1871,7 +1873,7 @@ struct controller_impl {
                         "Snapshot is invalid." );
             blog.reset( chain_id, chain_head.block_num() + 1 );
          }
-         ilog( "Snapshot loaded, lib: ${lib}", ("lib", chain_head.block_num()) );
+         ilog( "Snapshot loaded, head: ${h} : ${id}", ("h", chain_head.block_num())("id", chain_head.id()) );
 
          init(startup_t::snapshot);
          block_handle_accessor::apply_l<void>(chain_head, [&](auto& head) {
@@ -5351,20 +5353,12 @@ bool controller::fork_db_has_root() const {
    return my->fork_db_has_root();
 }
 
+block_handle controller::fork_db_root()const {
+   return my->fork_db_root();
+}
+
 size_t controller::fork_db_size() const {
    return my->fork_db_size();
-}
-
-uint32_t controller::last_irreversible_block_num() const {
-   return my->fork_db_root_block_num();
-}
-
-block_id_type controller::last_irreversible_block_id() const {
-   return my->fork_db_root_block_id();
-}
-
-time_point controller::last_irreversible_block_time() const {
-   return my->fork_db_root_timestamp().to_time_point();
 }
 
 const dynamic_global_property_object& controller::get_dynamic_global_properties()const {

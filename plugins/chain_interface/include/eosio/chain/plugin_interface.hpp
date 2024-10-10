@@ -23,8 +23,6 @@ namespace eosio::chain::plugin_interface {
    namespace methods {
       using get_block_by_id        = method_decl<chain_plugin_interface, signed_block_ptr(const block_id_type& block_id)>;
       using get_head_block_id      = method_decl<chain_plugin_interface, block_id_type ()>;
-
-      using get_last_irreversible_block_number = method_decl<chain_plugin_interface, uint32_t ()>;
    }
 
    namespace incoming {

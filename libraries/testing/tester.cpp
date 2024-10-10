@@ -400,7 +400,7 @@ namespace eosio::testing {
       control->set_async_voting(async_t::no);      // vote synchronously so we don't have to wait for votes
       control->set_async_aggregation(async_t::no); // aggregate votes synchronously for `_check_for_vote_if_needed`
 
-      lib_id = control->fork_db_has_root() ? control->last_irreversible_block_id() : block_id_type{};
+      lib_id = control->fork_db_has_root() ? control->fork_db_root().id() : block_id_type{};
       lib_number = block_header::num_from_id(lib_id);
       lib_block = control->fetch_block_by_id(lib_id);
       [[maybe_unused]] auto lib_connection = control->irreversible_block().connect([&](const block_signal_params& t) {
@@ -515,10 +515,10 @@ namespace eosio::testing {
       auto head_block_number = control->head().block_num();
       auto producer = control->head_active_producers().get_scheduled_producer(block_time);
 
-      auto last_produced_block_num = control->last_irreversible_block_num();
+      auto last_produced_block_num = control->fork_db_root().block_num();
       auto itr = last_produced_block.find(producer.producer_name);
       if (itr != last_produced_block.end()) {
-         last_produced_block_num = std::max(control->last_irreversible_block_num(), block_header::num_from_id(itr->second));
+         last_produced_block_num = std::max(control->fork_db_root().block_num(), block_header::num_from_id(itr->second));
       }
 
       unapplied_transactions.add_aborted( control->abort_block() );
