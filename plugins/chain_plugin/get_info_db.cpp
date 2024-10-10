@@ -5,6 +5,7 @@
 #include <shared_mutex>
 
 using namespace eosio;
+using namespace eosio::chain;
 using namespace appbase;
 
 namespace eosio::chain_apis {
@@ -35,10 +36,19 @@ namespace eosio::chain_apis {
 
             std::unique_lock write_lock(rw_mutex);
 
-            const auto& rm       = controller.get_resource_limits_manager();
-            auto        head_id  = controller.head().id();
-            auto        lib_id   = controller.last_irreversible_block_id();
-            auto        fhead_id = controller.fork_db_head().id();
+            const auto& rm        = controller.get_resource_limits_manager();
+
+            // chain head and forkdb root do not have values during replay
+            const auto& head      = controller.head();
+            auto head_is_valid    = head.is_valid();
+            auto head_id          = head_is_valid ? head.id() : block_id_type{};
+            auto block_time       = head_is_valid ? head.block_time() : time_point{};
+            auto producer         = head_is_valid ? head.producer() : account_name{};
+
+            auto fork_db_has_root = controller.fork_db_has_root();
+            auto lib_id           = fork_db_has_root ? controller.last_irreversible_block_id() : block_id_type{};
+            auto lib_time         = fork_db_has_root ? controller.last_irreversible_block_time() : time_point{};
+            auto fhead_id         = fork_db_has_root ? controller.fork_db_head().id() : block_id_type{};
 
             // cache get_info results
             cached_results = get_info_db::get_info_results {
@@ -48,8 +58,8 @@ namespace eosio::chain_apis {
                chain::block_header::num_from_id(lib_id),
                lib_id,
                head_id,
-               controller.head().block_time(),
-               controller.head().producer(),
+               block_time,
+               producer,
                rm.get_virtual_block_cpu_limit(),
                rm.get_virtual_block_net_limit(),
                rm.get_block_cpu_limit(),
@@ -61,7 +71,7 @@ namespace eosio::chain_apis {
                rm.get_total_cpu_weight(),
                rm.get_total_net_weight(),
                controller.earliest_available_block_num(),
-               controller.last_irreversible_block_time()
+               lib_time
             };
          } FC_LOG_AND_DROP(("get_info_db_impl on_accepted_block ERROR"));
       }
