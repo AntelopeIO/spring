@@ -892,7 +892,7 @@ public:
 
    // called on incoming blocks from net_plugin on the main thread. Will notify controller to process any
    // blocks ready in the fork database.
-   bool on_incoming_block() {
+   controller::apply_blocks_result on_incoming_block() {
       auto now = fc::time_point::now();
       _time_tracker.add_idle_time(now);
 
@@ -905,12 +905,14 @@ public:
                     ("num", fhead.block_num())("id", fhead.id()));
          }
          _time_tracker.add_other_time();
-         return true; // return true because block was accepted
+         // return complete as we are producing and don't want to be interrupted right now. Next start_block will
+         // give an opportunity for this incoming block to be processed.
+         return controller::apply_blocks_result::complete;
       }
 
       // no reason to abort_block if we have nothing ready to process
       if (chain.head().id() == chain.fork_db_head().id()) {
-         return true; // return true as nothing failed
+         return controller::apply_blocks_result::complete; // nothing to do
       }
 
       // start a new speculative block, adds to time tracker which includes this method's time
@@ -919,13 +921,14 @@ public:
       // abort the pending block
       abort_block();
 
+      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
       try {
-         chain.apply_blocks(
+         result = chain.apply_blocks(
             [this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
             [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
       } catch (const guard_exception& e) {
          chain_plugin::handle_guard_exception(e);
-         return false;
+         return controller::apply_blocks_result::complete; // shutting down
       } catch (const std::bad_alloc&) {
          chain_apis::api_base::handle_bad_alloc();
       } catch (boost::interprocess::bad_alloc&) {
@@ -933,7 +936,7 @@ public:
       } catch (const fork_database_exception& e) {
          fc_elog(_log, "Cannot recover from ${e}. Shutting down.", ("e", e.to_detail_string()));
          appbase::app().quit();
-         return false;
+         return controller::apply_blocks_result::complete; // shutting down
       } catch (const fc::exception& e) {
          throw;
       } catch (const std::exception& e) {
@@ -945,7 +948,7 @@ public:
          _production_enabled = true;
       }
 
-      return true;
+      return result;
    }
 
    void restart_speculative_block() {
@@ -1650,7 +1653,7 @@ void producer_plugin::handle_sighup() {
    fc::logger::update(transient_trx_failed_trace_logger_name, _transient_trx_failed_trace_log);
 }
 
-bool producer_plugin::on_incoming_block() {
+controller::apply_blocks_result producer_plugin::on_incoming_block() {
    return my->on_incoming_block();
 }
 
@@ -1992,8 +1995,10 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                      [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+   auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                               [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+   if (r != controller::apply_blocks_result::complete)
+      return start_block_result::failed;
 
    if (chain.should_terminate()) {
       app().quit();

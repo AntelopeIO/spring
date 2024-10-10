@@ -3775,11 +3775,21 @@ namespace eosio {
          if (best_head) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+
+            auto process_incoming_blocks = [](auto self) -> void {
+               try {
+                  auto r = my_impl->producer_plug->on_incoming_block();
+                  if (r == controller::apply_blocks_result::incomplete) {
+                     app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
+                        self(self);
+                     });
+                  }
+               } catch (...) {} // errors on applied blocks logged in controller
+             };
+
             app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
-                                  []() {
-                                     try {
-                                        my_impl->producer_plug->on_incoming_block();
-                                     } catch (...) {} // errors on applied blocks logged in controller
+                                  [process_incoming_blocks]() {
+                                     process_incoming_blocks(process_incoming_blocks);
                                   });
 
             // ready to process immediately, so signal producer to interrupt start_block
