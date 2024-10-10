@@ -1984,7 +1984,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
-      replaying = true;
+      fc::scoped_set_value r(replaying, true);
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -2030,8 +2030,6 @@ struct controller_impl {
       };
 
       fork_db.apply<void>(finish_init);
-
-      replaying = false;
 
       // At Leap startup, we want to provide to our local finalizers the correct safety information
       // to use if they don't already have one.
