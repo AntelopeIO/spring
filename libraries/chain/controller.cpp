@@ -1701,8 +1701,6 @@ struct controller_impl {
    }
 
    void replay(startup_t startup) {
-      replaying = true;
-
       bool replay_block_log_needed = should_replay_block_log();
 
       auto blog_head = blog.head();
@@ -1839,8 +1837,6 @@ struct controller_impl {
          }
       };
       fork_db.apply<void>(replay_fork_db);
-
-      replaying = false;
 
       if( except_ptr ) {
          std::rethrow_exception( except_ptr );
@@ -1990,6 +1986,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
+      fc::scoped_set_value r(replaying, true);
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -4354,6 +4351,7 @@ struct controller_impl {
             }
          }
 
+         auto start = fc::time_point::now();
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
