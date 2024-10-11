@@ -15,24 +15,7 @@ namespace eosio::chain_apis {
    struct get_info_db_impl {
       get_info_db_impl(const chain::controller& controller, bool get_info_enabled)
          : controller(controller)
-         , get_info_enabled(get_info_enabled)
-      {
-         if (!get_info_enabled) {
-            return;
-         }
-
-         // fixed part
-         cached_results.server_version             = fc::itoh(static_cast<uint32_t>(app().version()));
-         cached_results.chain_id                   = controller.get_chain_id();
-         cached_results.server_version_string      = app().version_string();
-         cached_results.server_full_version_string = app().full_version_string();
-
-         store_chain_head_part();
-         store_lib_part();
-         store_fork_db_part();
-
-         // resource limits part is not applicable at initializtion
-      }
+         , get_info_enabled(get_info_enabled) {}
 
       // Called on accepted_block signal.
       void on_accepted_block() {
@@ -41,8 +24,7 @@ namespace eosio::chain_apis {
                return;
             }
 
-            std::unique_lock write_lock(rw_mutex);
-            store_all_parts();
+            store_info();
          } FC_LOG_AND_DROP(("get_info_db_impl on_accepted_block ERROR"));
       }
 
@@ -53,32 +35,26 @@ namespace eosio::chain_apis {
                return;
             }
 
-            std::unique_lock write_lock(rw_mutex);
-            store_lib_part(block, id);
-            store_chain_head_part();
-            store_fork_db_part();
-            store_resource_limits_part();
+            store_info(block, id);
          } FC_LOG_AND_DROP(("get_info_db_impl on_irreversible_block ERROR"));
       }
 
       // Returns cached get_info results
       get_info_db::get_info_results get_info() {
-         {
-            // Most common case
-            std::shared_lock read_lock(rw_mutex);
-            if (cached_results.head_block_num > 0
-                && cached_results.last_irreversible_block_num > 0
-                && cached_results.fork_db_head_block_num > 0) {
-               return cached_results;
-            }
+         // safely load the info_cache pointer
+         std::shared_ptr<get_info_db::get_info_results> info = std::atomic_load(&info_cache);
+
+         if (info && info->head_block_num > 0 && info->last_irreversible_block_num > 0 && info->fork_db_head_block_num > 0) {
+            return *info;
          }
 
          // This only happens right after initialization when starts from
          // snapshot as no signals are emitted. We need to cache the current states.
-         std::unique_lock write_lock(rw_mutex);
-         store_all_parts();
+         store_info();
 
-         return cached_results;
+         info = std::atomic_load(&info_cache);
+         assert(info);
+         return *info;
       }
 
    private:
@@ -88,65 +64,69 @@ namespace eosio::chain_apis {
       // Indication whether get_info RPC is enabled.
       const bool get_info_enabled = false;
 
-      // Cache to store the current get_info results in respect to latest accepted block.
-      mutable std::shared_mutex      rw_mutex;
-      get_info_db::get_info_results  cached_results;
+      // Cache to store the current get_info results.
+      // Lock free by using std::atomic_load and std::atomic_store.
+      std::shared_ptr<get_info_db::get_info_results> info_cache = nullptr;
 
-      // caller holds a mutex
-      void store_chain_head_part() {
+      void store_info_common(const std::shared_ptr<get_info_db::get_info_results>& info) {
+         assert(info);
+
+         // fixed part
+         info->server_version             = fc::itoh(static_cast<uint32_t>(app().version()));
+         info->chain_id                   = controller.get_chain_id();
+         info->server_version_string      = app().version_string();
+         info->server_full_version_string = app().full_version_string();
+
          // chain head part
          const auto& head = controller.head();
          if (head.is_valid()) {
-            cached_results.head_block_id       = head.id();
-            cached_results.head_block_num      = block_header::num_from_id(cached_results.head_block_id);
-            cached_results.head_block_time     = head.block_time();
-            cached_results.head_block_producer = head.producer();
+            info->head_block_id       = head.id();
+            info->head_block_num      = block_header::num_from_id(info->head_block_id);
+            info->head_block_time     = head.block_time();
+            info->head_block_producer = head.producer();
          }
-      }
 
-      // caller holds a mutex
-      void store_lib_part(const chain::signed_block_ptr& block, const block_id_type& id) {
-         cached_results.last_irreversible_block_id   = id;
-         cached_results.last_irreversible_block_num  = block_header::num_from_id(cached_results.last_irreversible_block_id);
-         cached_results.last_irreversible_block_time = block->timestamp;
-      }
-
-      // caller holds a mutex
-      void store_lib_part() {
+         // fork_db part
          if (controller.fork_db_has_root()) {
-            cached_results.last_irreversible_block_id   = controller.fork_db_root().id();
-            cached_results.last_irreversible_block_num  = block_header::num_from_id(cached_results.last_irreversible_block_id);
-            cached_results.last_irreversible_block_time = controller.fork_db_root().block_time();
+            info->fork_db_head_block_id        = controller.fork_db_head().id();
+            info->fork_db_head_block_num       = block_header::num_from_id(*info->fork_db_head_block_id);
+            info->earliest_available_block_num = controller.earliest_available_block_num();
          }
-      }
 
-      // caller holds a mutex
-      void store_fork_db_part() {
-         if (controller.fork_db_has_root()) {
-            cached_results.fork_db_head_block_id        = controller.fork_db_head().id();
-            cached_results.fork_db_head_block_num       = block_header::num_from_id(*cached_results.fork_db_head_block_id);
-            cached_results.earliest_available_block_num = controller.earliest_available_block_num();
-         }
-      }
-
-      // caller holds a mutex
-      void store_resource_limits_part() {
+         // resource_limits
          const auto& rm = controller.get_resource_limits_manager();
-
-         cached_results.virtual_block_cpu_limit = rm.get_virtual_block_cpu_limit();
-         cached_results.virtual_block_net_limit = rm.get_virtual_block_net_limit();
-         cached_results.block_cpu_limit         = rm.get_block_cpu_limit();
-         cached_results.block_net_limit         = rm.get_block_net_limit();
-         cached_results.total_cpu_weight        = rm.get_total_cpu_weight();
-         cached_results.total_net_weight        = rm.get_total_net_weight();
+         info->virtual_block_cpu_limit = rm.get_virtual_block_cpu_limit();
+         info->virtual_block_net_limit = rm.get_virtual_block_net_limit();
+         info->block_cpu_limit         = rm.get_block_cpu_limit();
+         info->block_net_limit         = rm.get_block_net_limit();
+         info->total_cpu_weight        = rm.get_total_cpu_weight();
+         info->total_net_weight        = rm.get_total_net_weight();
       }
 
-      // caller holds a mutex
-      void store_all_parts() {
-         store_chain_head_part();
-         store_lib_part();
-         store_fork_db_part();
-         store_resource_limits_part();
+      void store_info() {
+         std::shared_ptr<get_info_db::get_info_results> info = std::make_shared<get_info_db::get_info_results>();
+
+         store_info_common(info);
+
+         if (controller.fork_db_has_root()) {
+            info->last_irreversible_block_id   = controller.fork_db_root().id();
+            info->last_irreversible_block_num  = block_header::num_from_id(info->last_irreversible_block_id);
+            info->last_irreversible_block_time = controller.fork_db_root().block_time();
+         }
+
+         std::atomic_store(&info_cache, info);  // replace current cache safely
+      }
+
+      void store_info(const chain::signed_block_ptr& block, const block_id_type& id) {
+         std::shared_ptr<get_info_db::get_info_results> info = std::make_shared<get_info_db::get_info_results>();
+
+         store_info_common(info);
+
+         info->last_irreversible_block_id   = id;
+         info->last_irreversible_block_num  = block_header::num_from_id(info->last_irreversible_block_id);
+         info->last_irreversible_block_time = block->timestamp;
+
+         std::atomic_store(&info_cache, info);  // replace current cache safely
       }
    }; // get_info_db_impl
 
