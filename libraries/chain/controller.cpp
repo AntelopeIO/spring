@@ -4112,11 +4112,6 @@ struct controller_impl {
       return {};
    }
 
-   // This verifies BLS signatures and is expensive.
-   void verify_qc( const block_state& prev, const qc_t& qc ) {
-      prev.verify_qc(qc);
-   }
-
    // thread safe, expected to be called from thread other than the main thread
    // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
@@ -4129,7 +4124,7 @@ struct controller_impl {
       if constexpr (is_proper_savanna_block) {
          if (qc) {
             verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &prev] {
-               verify_qc(prev, *qc);
+               prev.verify_qc(*qc);
             });
          }
       }
@@ -4279,7 +4274,7 @@ struct controller_impl {
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   if (conf.force_all_checks && qc) {
-                     verify_qc(*head, *qc);
+                     head->verify_qc(*qc);
                   }
                }
 
