@@ -132,11 +132,11 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    vote_message_ptr received_vote_message{};
 
    std::atomic<size_t> signaled = 0;
-   std::mutex                               forkdb_mtx;
-   std::map<block_id_type, block_state_ptr> forkdb;
-   auto add_to_forkdb = [&](const block_state_ptr& bsp) {
-      std::lock_guard g(forkdb_mtx);
-      forkdb[bsp->id()] = bsp;
+   std::mutex                               fork_db_mtx;
+   std::map<block_id_type, block_state_ptr> fork_db;
+   auto add_to_fork_db = [&](const block_state_ptr& bsp) {
+      std::lock_guard g(fork_db_mtx);
+      fork_db[bsp->id()] = bsp;
    };
 
    voted_block.connect( [&]( const vote_signal_params& vote_signal ) {
@@ -147,8 +147,8 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
    } );
 
    vote_processor_t vp{voted_block, [&](const block_id_type& id) -> block_state_ptr {
-      std::lock_guard g(forkdb_mtx);
-      return forkdb[id];
+      std::lock_guard g(fork_db_mtx);
+      return fork_db[id];
    }};
    vp.start(2, [](const fc::exception& e) {
       edump((e));
@@ -177,7 +177,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       auto bsp = create_test_block_state(gensis);
       BOOST_CHECK_EQUAL(bsp->block_num(), 3u);
       vote_message_ptr m1 = make_vote_message(bsp);
-      add_to_forkdb(bsp);
+      add_to_fork_db(bsp);
       vp.process_vote_message(1, m1, async_t::yes);
       // duplicate ignored
       vp.process_vote_message(1, m1, async_t::yes);
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_CHECK_EQUAL(bsp->block_num(), 3u);
       vote_message_ptr m1 = make_vote_message(bsp);
       m1->strong = false; // signed with strong_digest
-      add_to_forkdb(bsp);
+      add_to_fork_db(bsp);
       vp.process_vote_message(1, m1, async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 1; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_TEST(vp.index_size() == 2u);
       std::this_thread::sleep_for(std::chrono::milliseconds{5}); // no votes for awhile
       BOOST_TEST(signaled.load() == 0u);
-      add_to_forkdb(bsp);
+      add_to_fork_db(bsp);
       vp.notify_new_block(async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});
@@ -232,7 +232,7 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       BOOST_TEST(vote_result_t::success == received_vote_status);
       BOOST_CHECK(m1 == received_vote_message);
 
-      add_to_forkdb(bsp2);
+      add_to_fork_db(bsp2);
       vp.notify_new_block(async_t::yes);
       for (size_t i = 0; i < 50 && signaled.load() < 2; ++i) {
          std::this_thread::sleep_for(std::chrono::milliseconds{5});

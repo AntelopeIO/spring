@@ -28,17 +28,17 @@ public:
    virtual ~session_base() = default;
 };
 
-template<typename SocketType, typename Executor, typename GetBlockID, typename GetBlock, typename OnDone>
+template<typename SocketType, typename GetBlockID, typename GetBlock, typename OnDone>
 requires std::is_same_v<SocketType, boost::asio::ip::tcp::socket> || std::is_same_v<SocketType, boost::asio::local::stream_protocol::socket>
 class session final : public session_base {
    using coro_throwing_stream = boost::asio::use_awaitable_t<>::as_default_on_t<boost::beast::websocket::stream<SocketType>>;
    using coro_nonthrowing_steadytimer = boost::asio::as_tuple_t<boost::asio::use_awaitable_t<>>::as_default_on_t<boost::asio::steady_timer>;
 
 public:
-   session(SocketType&& s, Executor&& st, chain::controller& controller,
-              std::optional<log_catalog>& trace_log, std::optional<log_catalog>& chain_state_log, std::optional<log_catalog>& finality_data_log,
-              GetBlockID&& get_block_id, GetBlock&& get_block, OnDone&& on_done, fc::logger& logger) :
-    strand(std::move(st)), stream(std::move(s)), wake_timer(strand), controller(controller),
+   session(SocketType&& s, chain::controller& controller,
+           std::optional<log_catalog>& trace_log, std::optional<log_catalog>& chain_state_log, std::optional<log_catalog>& finality_data_log,
+           GetBlockID&& get_block_id, GetBlock&& get_block, OnDone&& on_done, fc::logger& logger) :
+    strand(s.get_executor()), stream(std::move(s)), wake_timer(strand), controller(controller),
     trace_log(trace_log), chain_state_log(chain_state_log), finality_data_log(finality_data_log),
     get_block_id(get_block_id), get_block(get_block), on_done(on_done), logger(logger), remote_endpoint_string(get_remote_endpoint_string()) {
       fc_ilog(logger, "incoming state history connection from ${a}", ("a", remote_endpoint_string));
@@ -177,7 +177,7 @@ private:
       get_status_result_v1 ret;
 
       ret.head              = {controller.head().block_num(), controller.head().id()};
-      ret.last_irreversible = {controller.last_irreversible_block_num(), controller.last_irreversible_block_id()};
+      ret.last_irreversible = {controller.fork_db_root().block_num(), controller.fork_db_root().id()};
       ret.chain_id          = controller.get_chain_id();
       if(trace_log)
          std::tie(ret.trace_begin_block, ret.trace_end_block) = trace_log->block_range();
@@ -237,12 +237,12 @@ private:
 
                //decide what block -- if any -- to send out
                const chain::block_num_type latest_to_consider = self.current_blocks_request.irreversible_only ?
-                                                                self.controller.last_irreversible_block_num() : self.controller.head().block_num();
+                                                                self.controller.fork_db_root().block_num() : self.controller.head().block_num();
                if(self.send_credits && self.next_block_cursor <= latest_to_consider && self.next_block_cursor < self.current_blocks_request.end_block_num) {
                   block_to_send.emplace( block_package{
                      .blocks_result_base = {
                         .head = {self.controller.head().block_num(), self.controller.head().id()},
-                        .last_irreversible = {self.controller.last_irreversible_block_num(), self.controller.last_irreversible_block_id()}
+                        .last_irreversible = {self.controller.fork_db_root().block_num(), self.controller.fork_db_root().id()}
                      },
                      .is_v1_request = self.current_blocks_request_v1_finality.has_value()
                   });
@@ -307,7 +307,7 @@ private:
 
 private:
    ///these items must only ever be touched by the session's strand
-   Executor                          strand;
+   SocketType::executor_type         strand;
    coro_throwing_stream              stream;
    coro_nonthrowing_steadytimer      wake_timer;
    unsigned                          coros_running = 0;
