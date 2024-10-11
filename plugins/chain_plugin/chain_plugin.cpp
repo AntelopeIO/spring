@@ -1079,7 +1079,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
 
          if (_get_info_db) {
-            _get_info_db->on_irreversible_block();
+            _get_info_db->on_irreversible_block(block, id);
          }
 
          irreversible_block_channel.publish( priority::low, t );

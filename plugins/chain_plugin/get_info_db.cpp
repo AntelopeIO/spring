@@ -27,10 +27,8 @@ namespace eosio::chain_apis {
          cached_results.server_version_string      = app().version_string();
          cached_results.server_full_version_string = app().full_version_string();
 
-         // chain head part
          store_chain_head_part();
-
-         // fork_db part
+         store_lib_part();
          store_fork_db_part();
 
          // resource limits part is not applicable at initializtion
@@ -49,24 +47,28 @@ namespace eosio::chain_apis {
       }
 
       // Called on irreversible_block signal.
-      void on_irreversible_block() {
+      void on_irreversible_block(const chain::signed_block_ptr& block, const block_id_type& id) {
          try {
             if (!get_info_enabled) {
                return;
             }
 
             std::unique_lock write_lock(rw_mutex);
-            store_all_parts();
+            store_lib_part(block, id);
+            store_chain_head_part();
+            store_fork_db_part();
+            store_resource_limits_part();
          } FC_LOG_AND_DROP(("get_info_db_impl on_irreversible_block ERROR"));
       }
 
       // Returns cached get_info results
       get_info_db::get_info_results get_info() {
          {
+            // Most common case
             std::shared_lock read_lock(rw_mutex);
-            if (cached_results.head_block_num != 0 &&
-                cached_results.last_irreversible_block_num != 0) {
-               // Most common cases
+            if (cached_results.head_block_num > 0
+                && cached_results.last_irreversible_block_num > 0
+                && cached_results.fork_db_head_block_num > 0) {
                return cached_results;
             }
          }
@@ -103,12 +105,24 @@ namespace eosio::chain_apis {
       }
 
       // caller holds a mutex
-      void store_fork_db_part() {
-         // fork_db part
+      void store_lib_part(const chain::signed_block_ptr& block, const block_id_type& id) {
+         cached_results.last_irreversible_block_id   = id;
+         cached_results.last_irreversible_block_num  = block_header::num_from_id(cached_results.last_irreversible_block_id);
+         cached_results.last_irreversible_block_time = block->timestamp;
+      }
+
+      // caller holds a mutex
+      void store_lib_part() {
          if (controller.fork_db_has_root()) {
             cached_results.last_irreversible_block_id   = controller.last_irreversible_block_id();
             cached_results.last_irreversible_block_num  = block_header::num_from_id(cached_results.last_irreversible_block_id);
             cached_results.last_irreversible_block_time = controller.last_irreversible_block_time();
+         }
+      }
+
+      // caller holds a mutex
+      void store_fork_db_part() {
+         if (controller.fork_db_has_root()) {
             cached_results.fork_db_head_block_id        = controller.fork_db_head().id();
             cached_results.fork_db_head_block_num       = block_header::num_from_id(*cached_results.fork_db_head_block_id);
             cached_results.earliest_available_block_num = controller.earliest_available_block_num();
@@ -130,6 +144,7 @@ namespace eosio::chain_apis {
       // caller holds a mutex
       void store_all_parts() {
          store_chain_head_part();
+         store_lib_part();
          store_fork_db_part();
          store_resource_limits_part();
       }
@@ -144,8 +159,8 @@ namespace eosio::chain_apis {
       _impl->on_accepted_block();
    }
 
-   void get_info_db::on_irreversible_block() {
-      _impl->on_irreversible_block();
+   void get_info_db::on_irreversible_block(const chain::signed_block_ptr& block, const block_id_type& id) {
+      _impl->on_irreversible_block(block, id);
    }
 
    get_info_db::get_info_results get_info_db::get_info() const {
