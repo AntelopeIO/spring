@@ -4278,7 +4278,8 @@ struct controller_impl {
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
                   // do basic checks always (excluding signature verification)
-                  head->verify_qc_basic(*qc);
+                  if (qc)
+                     head->verify_qc_basic(*qc);
 
                   if (conf.force_all_checks && qc) {
                      // verify signatures only if `conf.force_all_checks`
