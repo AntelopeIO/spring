@@ -2784,7 +2784,7 @@ int main( int argc, char** argv ) {
    CLI::App app{"Command Line Interface to EOSIO Client"};
 
    // custom leap formatter
-   auto fmt = std::make_shared<CLI::LeapFormatter>();
+   auto fmt = std::make_shared<CLI::SpringFormatter>();
    app.formatter(fmt);
 
    // enable help-all, display help on error
