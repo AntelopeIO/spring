@@ -15,7 +15,11 @@ namespace eosio::chain_apis {
    struct get_info_db_impl {
       get_info_db_impl(const chain::controller& controller, bool get_info_enabled)
          : controller(controller)
-         , get_info_enabled(get_info_enabled) {}
+         , get_info_enabled(get_info_enabled)
+         , server_version(fc::itoh(static_cast<uint32_t>(app().version())))
+         , chain_id(controller.get_chain_id())
+         , server_version_string(app().version_string())
+         , server_full_version_string(app().full_version_string()) {}
 
       // Called on accepted_block signal.
       void on_accepted_block() {
@@ -68,14 +72,20 @@ namespace eosio::chain_apis {
       // Lock free by using std::atomic_load and std::atomic_store.
       std::shared_ptr<get_info_db::get_info_results> info_cache = nullptr;
 
+      // Fixed data
+      std::string           server_version;
+      chain::chain_id_type  chain_id;
+      std::string           server_version_string;
+      std::string           server_full_version_string;
+
       void store_info_common(const std::shared_ptr<get_info_db::get_info_results>& info) {
          assert(info);
 
          // fixed part
-         info->server_version             = fc::itoh(static_cast<uint32_t>(app().version()));
-         info->chain_id                   = controller.get_chain_id();
-         info->server_version_string      = app().version_string();
-         info->server_full_version_string = app().full_version_string();
+         info->server_version             = server_version;
+         info->chain_id                   = chain_id;
+         info->server_version_string      = server_version_string;
+         info->server_full_version_string = server_full_version_string;
 
          // chain head part
          const auto& head = controller.head();
