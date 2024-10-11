@@ -114,9 +114,9 @@ namespace eosio::chain_apis {
       // caller holds a mutex
       void store_lib_part() {
          if (controller.fork_db_has_root()) {
-            cached_results.last_irreversible_block_id   = controller.last_irreversible_block_id();
+            cached_results.last_irreversible_block_id   = controller.fork_db_root().id();
             cached_results.last_irreversible_block_num  = block_header::num_from_id(cached_results.last_irreversible_block_id);
-            cached_results.last_irreversible_block_time = controller.last_irreversible_block_time();
+            cached_results.last_irreversible_block_time = controller.fork_db_root().block_time();
          }
       }
 
