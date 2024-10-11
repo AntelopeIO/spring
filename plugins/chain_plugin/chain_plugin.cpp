@@ -184,7 +184,6 @@ public:
    // method provider handles
    methods::get_block_by_id::method_type::handle                     get_block_by_id_provider;
    methods::get_head_block_id::method_type::handle                   get_head_block_id_provider;
-   methods::get_last_irreversible_block_number::method_type::handle  get_last_irreversible_block_number_provider;
 
    // scoped connections for chain controller
    std::optional<scoped_connection>                                   accepted_block_header_connection;
@@ -452,8 +451,8 @@ void clear_directory_contents( const std::filesystem::path& p ) {
 namespace {
   // This can be removed when versions of eosio that support reversible chainbase state file no longer supported.
   void upgrade_from_reversible_to_fork_db(chain_plugin_impl* my) {
-          std::filesystem::path old_fork_db = my->chain_config->state_dir / config::forkdb_filename;
-     std::filesystem::path new_fork_db = my->blocks_dir / config::reversible_blocks_dir_name / config::forkdb_filename;
+          std::filesystem::path old_fork_db = my->chain_config->state_dir / config::fork_db_filename;
+     std::filesystem::path new_fork_db = my->blocks_dir / config::reversible_blocks_dir_name / config::fork_db_filename;
      if( std::filesystem::exists( old_fork_db ) && std::filesystem::is_regular_file( old_fork_db ) ) {
         bool copy_file = false;
         if( std::filesystem::exists( new_fork_db ) && std::filesystem::is_regular_file( new_fork_db ) ) {
@@ -1028,11 +1027,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          return chain->head().id();
       } );
 
-      get_last_irreversible_block_number_provider = app().get_method<methods::get_last_irreversible_block_number>().register_provider(
-            [this]() {
-               return chain->last_irreversible_block_num();
-            } );
-
       // relay signals to channels
       accepted_block_header_connection = chain->accepted_block_header().connect(
             [this]( const block_signal_params& t ) {
@@ -1290,16 +1284,19 @@ const string read_only::KEYi64 = "i64";
 read_only::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
    const auto& rm = db.get_resource_limits_manager();
 
-   auto head_id = db.head().id();
-   auto lib_id = db.last_irreversible_block_id();
-   auto fhead_id = db.fork_db_head().id();
+   auto head = db.head();
+   auto head_id = head.id();
+   auto fork_db_root = db.fork_db_root();
+   auto fork_db_head = db.fork_db_head();
+   auto fork_db_root_id = fork_db_root.id();
+   auto fork_db_head_id = fork_db_head.id();
 
    return {
       itoh(static_cast<uint32_t>(app().version())),
       db.get_chain_id(),
       block_header::num_from_id(head_id),
-      block_header::num_from_id(lib_id),
-      lib_id,
+      block_header::num_from_id(fork_db_root_id),
+      fork_db_root_id,
       head_id,
       db.head().block_time(),
       db.head().producer(),
@@ -1310,13 +1307,13 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       //std::bitset<64>(db.get_dynamic_global_properties().recent_slots_filled).to_string(),
       //__builtin_popcountll(db.get_dynamic_global_properties().recent_slots_filled) / 64.0,
       app().version_string(),
-      block_header::num_from_id(fhead_id),
-      fhead_id,
+      block_header::num_from_id(fork_db_head_id),
+      fork_db_head_id,
       app().full_version_string(),
       rm.get_total_cpu_weight(),
       rm.get_total_net_weight(),
       db.earliest_available_block_num(),
-      db.last_irreversible_block_time()
+      fork_db_root.block_time()
    };
 }
 

@@ -515,7 +515,7 @@ namespace savanna_cluster {
 
       // Push new blocks from src_idx node to all nodes in partition of dst_idx.
       // This is used when pushing one fork from a node to another node which has
-      // another fork, so we can't use `dst.forkdb_head_num() + 1` for start_block_num
+      // another fork, so we can't use `dst.fork_db_head_num() + 1` for start_block_num
       // -----------------------------------------------------------------------------
       void push_blocks(size_t src_idx, size_t dst_idx, uint32_t start_block_num) {
          auto& src = _nodes[src_idx];

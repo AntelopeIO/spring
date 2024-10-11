@@ -12,7 +12,7 @@ BOOST_AUTO_TEST_SUITE(savanna_misc_tests)
 // Verify that we can restart a node from a snapshot without state or blocks (reversible
 // or not)
 // ------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(snapshot_startup_without_forkdb, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(snapshot_startup_without_fork_db, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1];
 
    auto snapshot = B.snapshot();
@@ -29,7 +29,7 @@ BOOST_FIXTURE_TEST_CASE(snapshot_startup_without_forkdb, savanna_cluster::cluste
 // Verify that we cannot restart a node from a snapshot without state and blocks log,
 // but with a fork database
 // ------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_forkdb, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(snapshot_startup_with_fork_db, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& B=_nodes[1];
 
    auto snapshot = B.snapshot();
@@ -1111,7 +1111,7 @@ BOOST_FIXTURE_TEST_CASE(finality_advancing_past_block_claimed_on_alternate_branc
 // (the cluster starts with 9 final blocks and 1 reversible block after the transition
 // to Savanna)
 // ------------------------------------------------------------------------------------
-BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) try {
+BOOST_FIXTURE_TEST_CASE(replay_fork_db_at_startup, savanna_cluster::cluster_t) try {
    auto& A=_nodes[0]; auto& C=_nodes[2]; auto& D=_nodes[3];
 
    // at this point we have 9 final blocks and 1 reversible block
@@ -1124,8 +1124,8 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
    for (size_t i=0; i<num_blocks; ++i)
       blocks.push_back(A.produce_block());
 
-   const size_t num_forkdb_blocks = A.control->fork_db_size();;
-   BOOST_REQUIRE_GT(num_forkdb_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db (actually 21)
+   const size_t num_fork_db_blocks = A.control->fork_db_size();;
+   BOOST_REQUIRE_GT(num_fork_db_blocks, num_blocks);        // A should have 20+ unfinalized blocks in its fork_db (actually 21)
 
    controller::config copied_config = A.get_config();
    auto               genesis       = block_log::extract_genesis_state(A.get_config().blocks_dir);
@@ -1147,7 +1147,7 @@ BOOST_FIXTURE_TEST_CASE(replay_forkdb_at_startup, savanna_cluster::cluster_t) tr
    A.open();                                              // open() the node again to make sure it restarts correctly
                                                           // after being interrupted.
 
-   BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_forkdb_blocks);
+   BOOST_REQUIRE_EQUAL(A.control->fork_db_size(), num_fork_db_blocks);
 
 } FC_LOG_AND_RETHROW()
 

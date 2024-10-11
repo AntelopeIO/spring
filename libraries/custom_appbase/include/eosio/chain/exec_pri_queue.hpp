@@ -15,7 +15,7 @@ namespace appbase {
 // Add entries for each new non-unique handler type.
 enum class handler_id {
    unique,                                // identifies handler is unique, will not de-dup
-   process_incoming_block                 // process blocks already added to forkdb
+   process_incoming_block                 // process blocks already added to fork_db
 };
 
 enum class exec_queue {

@@ -114,7 +114,7 @@ struct simulator_t {
 
    bls_keys_t           keys;
    finalizer            my_finalizer;
-   fork_database_if_t   forkdb;
+   fork_database_if_t   fork_db;
    finalizer_policy_ptr finpol;
    std::vector<bsp>     bsp_vec;
 
@@ -141,7 +141,7 @@ struct simulator_t {
 
       auto genesis = make_bsp(proposal_t{0, "n0"}, bsp(), finpol);
       bsp_vec.push_back(genesis);
-      forkdb.reset_root(genesis);
+      fork_db.reset_root(genesis);
 
       block_ref genesis_ref(genesis->id(), genesis->timestamp(), genesis->id(), 1, 0);
       my_finalizer.fsi = fsi_t{genesis_ref, genesis_ref, {}};
@@ -153,7 +153,7 @@ struct simulator_t {
    }
 
    vote_result propose(const proposal_t& p, std::optional<qc_claim_t> _claim = {}) {
-      bsp h = forkdb.head(include_root_t::yes);
+      bsp h = fork_db.head(include_root_t::yes);
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
@@ -162,12 +162,12 @@ struct simulator_t {
    }
 
    result add(const proposal_t& p, std::optional<qc_claim_t> _claim = {}, const bsp& parent = {}) {
-      bsp h = parent ? parent : forkdb.head(include_root_t::yes);
+      bsp h = parent ? parent : fork_db.head(include_root_t::yes);
       qc_claim_t old_claim = _claim ? *_claim : h->core.latest_qc_claim();
       bsp new_bsp = make_bsp(p, h, finpol, old_claim);
       bsp_vec.push_back(new_bsp);
       test_block_state_accessor::set_valid(new_bsp, true);
-      forkdb.add(new_bsp, ignore_duplicate_t::no);
+      fork_db.add(new_bsp, ignore_duplicate_t::no);
 
       auto v = vote(new_bsp);
       return { new_bsp, v };
