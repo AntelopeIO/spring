@@ -1689,8 +1689,6 @@ struct controller_impl {
    }
 
    void replay(startup_t startup) {
-      replaying = true;
-
       bool replay_block_log_needed = should_replay_block_log();
 
       auto blog_head = blog.head();
@@ -1837,8 +1835,6 @@ struct controller_impl {
 
       };
       fork_db.apply<void>(replay_fork_db);
-
-      replaying = false;
 
       if( except_ptr ) {
          std::rethrow_exception( except_ptr );
@@ -1988,6 +1984,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
+      fc::scoped_set_value r(replaying, true);
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -3630,8 +3627,6 @@ struct controller_impl {
 
    template<typename BSP>
    void log_applied(controller::block_report& br, const BSP& bsp) const {
-      if (replaying) // fork_db_root_block_num not available during replay
-         return;
       fc::time_point now = fc::time_point::now();
       if (now - bsp->timestamp() < fc::minutes(5) || (bsp->block_num() % 1000 == 0)) {
          ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
@@ -4413,6 +4408,7 @@ struct controller_impl {
                             const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
       auto do_maybe_switch_forks = [&](auto& forkdb) {
+         auto start = fc::time_point::now();
          if( new_head->header.previous == chain_head.id() ) {
             try {
                apply_block( br, new_head, s, trx_lookup );
@@ -4468,10 +4464,17 @@ struct controller_impl {
                   br = controller::block_report();
                   bool applied = apply_block( br, bsp, bsp->is_valid() ? controller::block_status::validated
                                                                        : controller::block_status::complete, trx_lookup );
-                  if (!switch_fork && (!applied || check_shutdown())) {
-                     shutdown();
-                     break;
+                  if (!switch_fork) { // always complete a switch fork
+                     if (!applied || check_shutdown()) {
+                        shutdown();
+                        break;
+                     }
+                     // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
+                     // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
+                     if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
+                        break;
                   }
+
                } catch ( const std::bad_alloc& ) {
                   throw;
                } catch ( const boost::interprocess::bad_alloc& ) {
