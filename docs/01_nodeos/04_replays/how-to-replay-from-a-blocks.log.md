@@ -2,15 +2,15 @@
 content_title: How to replay from a blocks.log file
 ---
 
-Once you have obtained a copy of the `blocks.log` file which you wish to replay the blockchain from, copy it to your `data/blocks` directory, backing up any existing contents if you wish to keep them, and remove the `blocks.index`, `forkdb.dat`, `shared_memory.bin`, and `shared_memory.meta`.
+Once you have obtained a copy of the `blocks.log` file which you wish to replay the blockchain from, copy it to your `data/blocks` directory, backing up any existing contents if you wish to keep them, and remove the `blocks.index`, `fork_db.dat`, `shared_memory.bin`, and `shared_memory.meta`.
 
 The table below sumarizes the actions you should take for each of the files enumerated above:
 
 Folder name             | File name          | Action
------------------------ | ------------------ | ------
+----------------------- |--------------------| ------
 data/blocks             | blocks.index       | Remove
 data/blocks             | blocks.log         | Replace this file with the `block.log` you want to replay
-data/blocks/reversible  | forkdb.dat         | Remove
+data/blocks/reversible  | fork_db.dat        | Remove
 data/blocks/reversible  | shared_memory.bin  | Remove
 data/blocks/reversible  | shared_memory.meta | Remove
 

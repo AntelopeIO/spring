@@ -22,13 +22,55 @@ inline std::vector<uint32_t> bitset_to_vector(const vote_bitset_t& bs) {
    return r;
 }
 
-// returns true if vote indicated by active_vote_index in active_policy
-// is the same as vote indicated by pending_vote_index in pending_policy
-bool qc_t::vote_same_at(uint32_t active_vote_index, uint32_t pending_vote_index) const {
-   assert(pending_policy_sig);
-   return active_policy_sig.vote_same_at(*pending_policy_sig,
-                                         active_vote_index,
-                                         pending_vote_index);
+// A dual finalizer votes on both active and pending finalizer policies.
+inline void verify_dual_finalizers_votes(const finalizer_policies_t& policies,
+                                         const qc_sig_t& active_policy_sig,
+                                         const qc_sig_t& pending_policy_sig,
+                                         uint32_t block_num) {
+   // Find dual finalizers (which vote on both active and pending policies)
+   // and verify each dual finalizer votes in the same way.
+   // As the number of finalizers is small, to avoid copying bls_public_keys
+   // all over the places,
+   // we choose to use nested loops instead of sorting public keys and doing
+   // a binary search.
+   uint32_t active_vote_index = 0;
+   for (const auto& active_fin: policies.active_finalizer_policy->finalizers) {
+      uint32_t pending_vote_index = 0;
+      for (const auto& pending_fin: policies.pending_finalizer_policy->finalizers) {
+         if (active_fin.public_key == pending_fin.public_key) {
+            EOS_ASSERT(active_policy_sig.vote_same_at(pending_policy_sig, active_vote_index, pending_vote_index),
+                       invalid_qc_claim,
+                       "qc ${bn} contains a dual finalizer ${k} which does not vote the same on active and pending policies",
+                       ("bn", block_num)("k", active_fin.public_key));
+            break;
+         }
+         ++pending_vote_index;
+      }
+      ++active_vote_index;
+   }
+}
+
+void qc_t::verify(const finalizer_policies_t& policies) const {
+   const auto& strong_digest = policies.finality_digest;
+   auto weak_digest = create_weak_digest(strong_digest);
+
+   active_policy_sig.verify_vote_format(policies.active_finalizer_policy);
+   active_policy_sig.verify(policies.active_finalizer_policy, strong_digest, weak_digest);
+
+   if (pending_policy_sig) {
+      EOS_ASSERT(policies.pending_finalizer_policy, invalid_qc_claim,
+                 "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", block_num));
+
+      // verify that every finalizer included in both policies voted the same
+      verify_dual_finalizers_votes(policies, active_policy_sig, *pending_policy_sig, block_num);
+
+      pending_policy_sig->verify_vote_format(policies.pending_finalizer_policy);
+      pending_policy_sig->verify(policies.pending_finalizer_policy, strong_digest, weak_digest);
+   } else {
+      EOS_ASSERT(!policies.pending_finalizer_policy, invalid_qc_claim,
+                 "qc ${bn} does not contain pending policy signature for pending finalizer policy", ("bn", block_num));
+   }
+
 }
 
 // returns true iff the other and I voted iin the same way.
@@ -363,51 +405,6 @@ std::optional<qc_t> aggregating_qc_t::get_best_qc(block_num_type block_num) cons
 
    // no pending_policy_sig so only need active
    return std::optional<qc_t>{qc_t{block_num, std::move(*active_best_qc), {}}};
-}
-
-// A dual finalizer votes on both active and pending finalizer policies.
-void aggregating_qc_t::verify_dual_finalizers_votes(const qc_t& qc) const {
-   // Find dual finalizers (which vote on both active and pending policies)
-   // and verify each dual finalizer votes in the same way.
-   // As the number of finalizers is small, to avoid copying bls_public_keys
-   // all over the places,
-   // we choose to use nested loops instead of sorting public keys and doing
-   // a binary search.
-   uint32_t active_vote_index = 0;
-   for (const auto& active_fin: active_finalizer_policy->finalizers) {
-      uint32_t pending_vote_index = 0;
-      for (const auto& pending_fin: pending_finalizer_policy->finalizers) {
-         if (active_fin.public_key == pending_fin.public_key) {
-            EOS_ASSERT(qc.vote_same_at(active_vote_index, pending_vote_index),
-                       invalid_qc_claim,
-                       "qc ${bn} contains a dual finalizer ${k} which does not vote the same on active and pending policies",
-                       ("bn", qc.block_num)("k", active_fin.public_key));
-            break;
-         }
-         ++pending_vote_index;
-      }
-      ++active_vote_index;
-   }
-}
-
-void aggregating_qc_t::verify_qc(const qc_t& qc, const digest_type& strong_digest, const weak_digest_t& weak_digest) const {
-   qc.active_policy_sig.verify_vote_format(active_finalizer_policy);
-
-   if (qc.pending_policy_sig) {
-      EOS_ASSERT(pending_finalizer_policy, invalid_qc_claim,
-                 "qc ${bn} contains pending policy signature for nonexistent pending finalizer policy", ("bn", qc.block_num));
-
-      qc.pending_policy_sig->verify_vote_format(pending_finalizer_policy);
-      verify_dual_finalizers_votes(qc);
-   } else {
-      EOS_ASSERT(!pending_finalizer_policy, invalid_qc_claim,
-                 "qc ${bn} does not contain pending policy signature for pending finalizer policy", ("bn", qc.block_num));
-   }
-
-   qc.active_policy_sig.verify(active_finalizer_policy, strong_digest, weak_digest);
-   if (pending_finalizer_policy) {
-      qc.pending_policy_sig->verify(pending_finalizer_policy, strong_digest, weak_digest);
-   }
 }
 
 bool aggregating_qc_t::set_received_qc(const qc_t& qc) {

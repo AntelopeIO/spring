@@ -268,7 +268,7 @@ int blocklog_actions::read_log() {
 
    block_branch_t fork_db_branch;
 
-   if(std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name / config::forkdb_filename)) {
+   if(std::filesystem::exists(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name / config::fork_db_filename)) {
       ilog("opening fork_db");
       fork_database fork_db(std::filesystem::path(opt->blocks_dir) / config::reversible_blocks_dir_name);
 

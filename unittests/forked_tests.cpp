@@ -92,7 +92,7 @@ BOOST_AUTO_TEST_CASE( fork_with_bad_block ) try {
       offset = fc::milliseconds(config::block_interval_ms);
    }
 
-   // forkdb is sorted on block id which can cause fork switch on the second to last block or last block depending
+   // fork_db is sorted on block id which can cause fork switch on the second to last block or last block depending
    // on block id. Allow exception on either one so that test is not sensitive to block id hash.
    auto push_last_two = [&](const fork_tracker& fork) {
       if (fork.blocks.size() > 1) {
@@ -507,9 +507,9 @@ BOOST_AUTO_TEST_CASE( irreversible_mode ) try {
 
 } FC_LOG_AND_RETHROW()
 
-// ---------------------------- reopen_forkdb ---------------------------------
+// ---------------------------- reopen_fork_db ---------------------------------
 template <class TESTER>
-void test_reopen_forkdb() try {
+void test_reopen_fork_db() try {
    TESTER c1;
 
    c1.create_accounts( {"alice"_n,"bob"_n,"carol"_n} );
@@ -566,9 +566,9 @@ void test_reopen_forkdb() try {
 
 } FC_LOG_AND_RETHROW()
 
-BOOST_AUTO_TEST_CASE( reopen_forkdb ) {
-   test_reopen_forkdb<legacy_tester>();
-   test_reopen_forkdb<tester>();
+BOOST_AUTO_TEST_CASE( reopen_fork_db ) {
+   test_reopen_fork_db<legacy_tester>();
+   test_reopen_fork_db<tester>();
 }
 
 // ---------------------------- push_block_returns_forked_transactions ---------------------------------

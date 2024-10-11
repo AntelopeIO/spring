@@ -184,7 +184,6 @@ public:
    // method provider handles
    methods::get_block_by_id::method_type::handle                     get_block_by_id_provider;
    methods::get_head_block_id::method_type::handle                   get_head_block_id_provider;
-   methods::get_last_irreversible_block_number::method_type::handle  get_last_irreversible_block_number_provider;
 
    // scoped connections for chain controller
    std::optional<scoped_connection>                                   accepted_block_header_connection;
@@ -453,8 +452,8 @@ void clear_directory_contents( const std::filesystem::path& p ) {
 namespace {
   // This can be removed when versions of eosio that support reversible chainbase state file no longer supported.
   void upgrade_from_reversible_to_fork_db(chain_plugin_impl* my) {
-          std::filesystem::path old_fork_db = my->chain_config->state_dir / config::forkdb_filename;
-     std::filesystem::path new_fork_db = my->blocks_dir / config::reversible_blocks_dir_name / config::forkdb_filename;
+          std::filesystem::path old_fork_db = my->chain_config->state_dir / config::fork_db_filename;
+     std::filesystem::path new_fork_db = my->blocks_dir / config::reversible_blocks_dir_name / config::fork_db_filename;
      if( std::filesystem::exists( old_fork_db ) && std::filesystem::is_regular_file( old_fork_db ) ) {
         bool copy_file = false;
         if( std::filesystem::exists( new_fork_db ) && std::filesystem::is_regular_file( new_fork_db ) ) {
@@ -1030,11 +1029,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       get_head_block_id_provider = app().get_method<methods::get_head_block_id>().register_provider( [this]() {
          return chain->head().id();
       } );
-
-      get_last_irreversible_block_number_provider = app().get_method<methods::get_last_irreversible_block_number>().register_provider(
-            [this]() {
-               return chain->last_irreversible_block_num();
-            } );
 
       // relay signals to channels
       accepted_block_header_connection = chain->accepted_block_header().connect(
