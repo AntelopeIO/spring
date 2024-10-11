@@ -39,6 +39,8 @@ public:
    struct diff_result {
       Container<SizeType>                remove_indexes;
       Container<std::pair<SizeType, T>>  insert_indexes;
+
+      bool operator==(const diff_result&) const = default;
    };
 
    /// Generate diff_result that when `apply_diff(source, diff_result)` will modify source to be equal to target.
@@ -110,7 +112,7 @@ public:
    template <typename X>
    requires std::same_as<std::decay_t<X>, diff_result>
    static Container<T> apply_diff(Container<T>&& container, X&& diff_in) {
-      X diff = std::forward<X>(diff_in);
+      diff_result diff = std::forward<X>(diff_in); // do not use `X` as diff's type, we want either a copy or a move.
 
       // Remove from the source based on diff.remove_indexes
       for (container_size_type i = 0; i < diff.remove_indexes.size(); ++i) {
