@@ -56,8 +56,7 @@ namespace eosio::chain_apis {
             }
 
             std::unique_lock write_lock(rw_mutex);
-            store_fork_db_part();
-            store_resource_limits_part();
+            store_all_parts();
          } FC_LOG_AND_DROP(("get_info_db_impl on_irreversible_block ERROR"));
       }
 
