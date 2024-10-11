@@ -1078,6 +1078,10 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             _trx_finality_status_processing->signal_irreversible_block(block, id);
          }
 
+         if (_get_info_db) {
+            _get_info_db->on_irreversible_block();
+         }
+
          irreversible_block_channel.publish( priority::low, t );
       } );
       

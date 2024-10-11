@@ -55,6 +55,9 @@ namespace eosio::chain_apis {
       // Called on accepted_block signal
       void on_accepted_block();
 
+      // Called on irreversible_block signal
+      void on_irreversible_block();
+
       // Returns the cached get_info results
       get_info_results get_info() const;
 
