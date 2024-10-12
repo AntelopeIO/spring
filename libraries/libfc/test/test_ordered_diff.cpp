@@ -8,151 +8,298 @@
 
 using namespace fc;
 
+template <typename T, typename SizeType = size_t, template <typename Y, typename...> typename Container = std::vector>
+struct checker {
+   using container    = Container<T>;
+   using ordered_diff = fc::ordered_diff<T, SizeType, Container>;
+   using diff_result  = ordered_diff::diff_result;
+
+   struct validate_result {
+      container    restored_target;
+      diff_result  diff;
+   };
+
+   // this prints out the `diff_result` in a form that can be used as an initializer for a `diff_result`
+   static void Print(diff_result& dr) {
+      auto print_ = []<typename V>(const V& v) {
+          if constexpr (std::is_same_v<V, char>)
+             std::cout << '\'' << v << '\'';
+          else if constexpr (std::is_same_v<V, uint8_t>)
+             std::cout << (int)v;
+          else if constexpr (std::is_same_v<V, std::string>)
+             std::cout << '\"' << v << '\"';
+          else
+             std::cout << v;
+      };
+
+      auto remove_out = [&](const auto& v) {
+         std::cout << '{';
+         for (size_t i = 0; i < v.size(); ++i) {
+            print_(v[i]);
+            std::cout << (i == v.size() - 1 ? "" : ", ");
+         }
+         std::cout << '}';
+      };
+
+      auto insert_out = [&](const auto& v) {
+         std::cout << '{';
+         for (size_t i = 0; i < v.size(); ++i) {
+            std::cout << '{';
+            print_(v[i].first);
+            std::cout << ", ";
+            print_(v[i].second);
+            std::cout << '}' << (i == v.size() - 1 ? "" : ", ");
+         }
+         std::cout << '}';
+      };
+
+      std::cout << '{';
+      remove_out(dr.remove_indexes);
+      std::cout << ", ";
+      insert_out(dr.insert_indexes);
+      std::cout << '}' << '\n';
+   }
+
+   static validate_result validate(container source, const container& target) {
+      auto diff = ordered_diff::diff(source, target);
+      auto restored_target = ordered_diff::apply_diff(std::move(source), diff);
+      return { std::move(restored_target), std::move(diff) };
+   }
+};
+
 BOOST_AUTO_TEST_SUITE(ordered_diff_tests)
 
 BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
    using namespace std;
 
    { // Basic case
-      vector<char>       source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char>       target = {'a', 'c', 'e', 'f'};
-      auto               result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'a', 'c', 'e', 'f'};
+      checker::diff_result expected_diff = {{1, 3}, {{3, 'f'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Basic case, deque
-      using ordered_deque_char_diff = ordered_diff<char, uint16_t, std::deque>;
-      deque<char>       source = {'a', 'x', 'c', 'd', 'e'};
-      deque<char>       target = {'z', 'c', 'y', 'f'};
-      auto               result = ordered_deque_char_diff::diff(source, target);
-      source = ordered_deque_char_diff::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char, uint16_t, std::deque>;
+      checker::container   source        = {'a', 'x', 'c', 'd', 'e'};
+      checker::container   target        = {'z', 'c', 'y', 'f'};
+      checker::diff_result expected_diff = {{0, 1, 3, 4}, {{0, 'z'}, {2, 'y'}, {3, 'f'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Empty vectors
-      vector<char> source;
-      vector<char> target;
-      ordered_diff<char, uint8_t>::diff_result result = ordered_diff<char, uint8_t>::diff(source, target);
-      source = ordered_diff<char, uint8_t>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char, uint8_t>;
+      checker::container   source;
+      checker::container   target;
+      checker::diff_result expected_diff = {{}, {}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // All elements removed
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target;
-      auto result = ordered_diff<char, unsigned int>::diff(source, target);
-      source = ordered_diff<char, unsigned int>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char, unsigned int>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target;
+      checker::diff_result expected_diff = {{0, 1, 2, 3, 4}, {}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // All elements removed, size 1
-      vector<char> source = {'a'};
-      vector<char> target;
-      auto result = ordered_diff<char, unsigned int>::diff(source, target);
-      source = ordered_diff<char, unsigned int>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char, unsigned int>;
+      checker::container   source        = {'a'};
+      checker::container   target;
+      checker::diff_result expected_diff = {{0}, {}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // All elements inserted
-      vector<char> source;
-      vector<char> target = {'a', 'b', 'c', 'd', 'e'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source;
+      checker::container   target        = {'a', 'b', 'c', 'd', 'e'};
+      checker::diff_result expected_diff = {{}, {{0, 'a'}, {1, 'b'}, {2, 'c'}, {3, 'd'}, {4, 'e'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // All elements inserted, size 1
-      vector<char> source;
-      vector<char> target = {'a'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source;
+      checker::container   target        = {'a'};
+      checker::diff_result expected_diff = {{}, {{0, 'a'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // No change
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = source;
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = source;
+      checker::diff_result expected_diff = {{}, {}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // No change, size 1
-      vector<char> source = {'a'};
-      vector<char> target = source;
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a'};
+      checker::container   target        = source;
+      checker::diff_result expected_diff = {{}, {}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Mix of removals and inserts
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = {'a', 'c', 'e', 'f', 'g', 'h'};
-      ordered_diff<char>::diff_result result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'a', 'c', 'e', 'f', 'g', 'h'};
+      checker::diff_result expected_diff = {{1, 3}, {{3, 'f'}, {4, 'g'}, {5, 'h'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Mix of removals and inserts
-      vector<int> source = {1, 2, 3, 4, 5};
-      vector<int> target = {3, 4, 6, 2, 0};
-      auto result = ordered_diff<int>::diff(source, target);
-      source = ordered_diff<int>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<int>;
+      checker::container   source        = {1, 2, 3, 4, 5};
+      checker::container   target        = {3, 4, 6, 2, 0};
+      checker::diff_result expected_diff = {{0, 1, 4}, {{2, 6}, {3, 2}, {4, 0}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Complete change
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = {'f', 'g', 'h', 'i'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'f', 'g', 'h', 'i'};
+      checker::diff_result expected_diff = {{0, 1, 2, 3, 4}, {{0, 'f'}, {1, 'g'}, {2, 'h'}, {3, 'i'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Complete change, size 1
-      vector<char> source = {'a'};
-      vector<char> target = {'f'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a'};
+      checker::container   target        = {'f'};
+      checker::diff_result expected_diff = {{0}, {{0, 'f'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Complete change equal sizes
-      vector<char> source = {'a', 'b', 'c', 'd'};
-      vector<char> target = {'f', 'g', 'h', 'i'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd'};
+      checker::container   target        = {'f', 'g', 'h', 'i'};
+      checker::diff_result expected_diff = {{0, 1, 2, 3}, {{0, 'f'}, {1, 'g'}, {2, 'h'}, {3, 'i'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Diff order
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = {'e', 'd', 'c', 'b', 'a'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'e', 'd', 'c', 'b', 'a'};
+      checker::diff_result expected_diff = {{0, 1, 2, 4}, {{0, 'e'}, {2, 'c'}, {3, 'b'}, {4, 'a'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // Diff order, size 2
-      vector<char> source = {'a', 'b'};
-      vector<char> target = {'b', 'a'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
-   }
-   { // Diff order, size 2
-      vector<char> source = {'b', 'a'};
-      vector<char> target = {'a', 'b'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b'};
+      checker::container   target        = {'b', 'a'};
+      checker::diff_result expected_diff = {{1}, {{0, 'b'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // shift left
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = {'b', 'c', 'd', 'e', 'f'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'b', 'c', 'd', 'e', 'f'};
+      checker::diff_result expected_diff = {{0}, {{4, 'f'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // shift right
-      vector<char> source = {'a', 'b', 'c', 'd', 'e'};
-      vector<char> target = {'z', 'a', 'b', 'c', 'd'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e'};
+      checker::container   target        = {'z', 'a', 'b', 'c', 'd'};
+      checker::diff_result expected_diff = {{4}, {{0, 'z'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // non-unique
-      vector<char> source = {'a', 'b', 'c', 'd', 'e', 'c', 'a', 'q'};
-      vector<char> target = {'z', 'a', 'b', 'c', 'd', 'a'};
-      auto result = ordered_diff<char>::diff(source, target);
-      source = ordered_diff<char>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<char>;
+      checker::container   source        = {'a', 'b', 'c', 'd', 'e', 'c', 'a', 'q'};
+      checker::container   target        = {'z', 'a', 'b', 'c', 'd', 'a'};
+      checker::diff_result expected_diff = {{4, 5, 7}, {{0, 'z'}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    { // full
       vector<uint8_t> source(std::numeric_limits<uint8_t>::max()+1);
@@ -215,32 +362,52 @@ BOOST_AUTO_TEST_CASE(ordered_diff_test) try {
 BOOST_AUTO_TEST_CASE(ordered_diff_string_test) try {
    using namespace std;
    {
-      vector<string> source = {"hello", "how", "are", "you", "today"};
-      vector<string> target = {"hi", "are", "you", "here"};
-      auto result = ordered_diff<string>::diff(source, target);
-      source = ordered_diff<string>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<string>;
+      checker::container   source        = {"hello", "how", "are", "you", "today"};
+      checker::container   target        = {"hi", "are", "you", "here"};
+      checker::diff_result expected_diff = {{0, 1, 4}, {{0, "hi"}, {3, "here"}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    {
-      vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
-      vector<string> target = {"prod2", "prod1", "prod3", "prod4", "prod5"};
-      auto result = ordered_diff<string>::diff(source, target);
-      source = ordered_diff<string>::apply_diff(std::move(source), result);
-      BOOST_TEST(source == target);
+      using checker = checker<string>;
+      checker::container   source        = {"prod1", "prod2", "prod3", "prod4", "prod5"};
+      checker::container   target        = {"prod2", "prod1", "prod3", "prod4", "prod5"};
+      checker::diff_result expected_diff = {{1}, {{0, "prod2"}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    {
-      vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
-      vector<string> target = {"prod5", "prod1", "prod2", "prod3", "prod4"};
-      auto result = ordered_diff<string>::diff(source, target);
-      source = ordered_diff<string>::apply_diff(std::move(source), std::move(result));
-      BOOST_TEST(source == target);
+      using checker = checker<string>;
+      checker::container   source        = {"prod1", "prod2", "prod3", "prod4", "prod5"};
+      checker::container   target        = {"prod5", "prod1", "prod2", "prod3", "prod4"};
+      checker::diff_result expected_diff = {{4}, {{0, "prod5"}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
    {
-      vector<string> source = {"prod1", "prod2", "prod3", "prod4", "prod5"};
-      vector<string> target = {"prod2", "prod3", "prod4", "prod5", "prod6"};
-      auto result = ordered_diff<string>::diff(source, target);
-      source = ordered_diff<string>::apply_diff(std::move(source), std::move(result));
-      BOOST_TEST(source == target);
+      using checker = checker<string>;
+      checker::container   source        = {"prod1", "prod2", "prod3", "prod4", "prod5"};
+      checker::container   target        = {"prod5", "prod1", "prod2", "prod3", "prod4"};
+      checker::diff_result expected_diff = {{4}, {{0, "prod5"}}};
+      auto vr = checker::validate(source, target);
+
+      BOOST_TEST(vr.restored_target == target);
+
+      bool diffs_match = vr.diff == expected_diff;
+      BOOST_TEST(diffs_match);
    }
 
 } FC_LOG_AND_RETHROW();
