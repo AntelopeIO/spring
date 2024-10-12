@@ -48,7 +48,7 @@ namespace eosio::chain_apis {
          // safely load the info_cache pointer
          std::shared_ptr<get_info_db::get_info_results> info = std::atomic_load(&info_cache);
 
-         if (info && is_valid(info)) {
+         if (info && info->contains_full_data()) {
             return *info;
          }
 
@@ -137,12 +137,6 @@ namespace eosio::chain_apis {
          info->last_irreversible_block_time = block->timestamp;
 
          std::atomic_store(&info_cache, info);  // replace current cache safely
-      }
-
-      // Returns true if data held by info is valid
-      bool is_valid(const std::shared_ptr<get_info_db::get_info_results>& info) {
-         return (info->head_block_num > 0) && (info->last_irreversible_block_num > 0)
-                 && (info->fork_db_head_block_num > 0);
       }
    }; // get_info_db_impl
 
