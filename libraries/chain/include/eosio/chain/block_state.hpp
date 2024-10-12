@@ -151,7 +151,10 @@ public:
    // connection_id only for logging
    aggregate_vote_result_t aggregate_vote(uint32_t connection_id, const vote_message& vote); // aggregate vote into aggregating_qc
    vote_status_t has_voted(const bls_public_key& key) const;
-   void verify_qc(const qc_t& qc) const; // verify given qc_t is valid with respect block_state
+
+   void verify_qc_signatures(const qc_t& qc) const; // validate qc signatures (slow)
+   void verify_qc_basic(const qc_t& qc) const;      // do basic checks on provided qc, excluding signature verification
+   void verify_qc(const qc_t& qc) const;            // full qc verification incl. signatures
 
    using bhs_t  = block_header_state;
    using bhsp_t = block_header_state_ptr;
