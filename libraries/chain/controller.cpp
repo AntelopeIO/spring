@@ -4124,11 +4124,9 @@ struct controller_impl {
       log_and_drop_future<void> verify_qc_future;
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            // do basic checks on provided qc immediately (excluding signature verification)
-            prev.verify_qc_basic(*qc);
-
             verify_qc_future = post_async_task(thread_pool.get_executor(), [&qc, &prev] {
-               prev.verify_qc_signatures(*qc);
+               // do both signature verification and basic checks in the async task
+               prev.verify_qc(*qc);
             });
          }
       }
