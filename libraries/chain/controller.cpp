@@ -1703,8 +1703,6 @@ struct controller_impl {
    }
 
    void replay(startup_t startup) {
-      replaying = true;
-
       bool replay_block_log_needed = should_replay_block_log();
 
       auto blog_head = blog.head();
@@ -1830,8 +1828,9 @@ struct controller_impl {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && fork_db.head()) {
-            // applies all blocks up to fork_db head from fork_db
-            maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
+            // applies all blocks up to fork_db head from fork_db, shouldn't return incomplete, but if it does loop until complete
+            while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
+               ;
             auto head = fork_db.head();
             ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", head->block_num())("id", head->id()) );
          }
@@ -1841,8 +1840,6 @@ struct controller_impl {
          }
       };
       fork_db_.apply<void>(replay_fork_db);
-
-      replaying = false;
 
       if( except_ptr ) {
          std::rethrow_exception( except_ptr );
@@ -1992,6 +1989,7 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
+      fc::scoped_set_value r(replaying, true);
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -2013,7 +2011,9 @@ struct controller_impl {
                // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
                if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
                   ilog("applying branch from fork database ending with block: ${id}", ("id", pending_head->id()));
-                  maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{});
+                  // applies all blocks up to forkdb head from forkdb, shouldn't return incomplete, but if it does loop until complete
+                  while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
+                     ;
                }
             }
          } else {
@@ -4304,23 +4304,25 @@ struct controller_impl {
       } FC_LOG_AND_RETHROW( )
    }
 
-   void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+   controller::apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
       try {
          if( !irreversible_mode() ) {
-            maybe_apply_blocks( cb, trx_lookup );
-         } else {
-            log_irreversible();
-            transition_to_savanna_if_needed();
+            return maybe_apply_blocks( cb, trx_lookup );
          }
+
+         log_irreversible();
+         transition_to_savanna_if_needed();
+         return controller::apply_blocks_result::complete;
       } FC_LOG_AND_RETHROW( )
    }
 
-   void maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
+   controller::apply_blocks_result maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
    {
+      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
       auto do_apply_blocks = [&](auto& fork_db) {
          auto new_head = fork_db.head(); // use best head
          if (!new_head)
-            return; // nothing to do, fork_db at root
+            return;// nothing to do, fork_db at root
          auto [new_head_branch, old_head_branch] = fork_db.fetch_branch_from( new_head->id(), chain_head.id() );
 
          bool switch_fork = !old_head_branch.empty();
@@ -4359,15 +4361,24 @@ struct controller_impl {
             }
          }
 
+         auto start = fc::time_point::now();
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
                bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
                                                                 : controller::block_status::complete, trx_lookup );
-               if (!switch_fork && (!applied || check_shutdown())) {
-                  shutdown();
-                  break;
+               if (!switch_fork) { // always complete a switch fork
+                  if (!applied || check_shutdown()) {
+                     shutdown();
+                     break; // result should be complete since we are shutting down
+                  }
+                  // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
+                  // to call apply_blocks again if this returns incomplete.
+                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500)) {
+                     result = controller::apply_blocks_result::incomplete;
+                     break;
+                  }
                }
             } catch ( const std::bad_alloc& ) {
                throw;
@@ -4424,6 +4435,8 @@ struct controller_impl {
       };
 
       fork_db_.apply<void>(do_apply_blocks);
+
+      return result;
    }
 
    deque<transaction_metadata_ptr> abort_block() {
@@ -5186,9 +5199,9 @@ void controller::set_async_aggregation(async_t val) {
    my->async_aggregation = val;
 }
 
-void controller::apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
+controller::apply_blocks_result controller::apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup) {
    validate_db_available_size();
-   my->apply_blocks(cb, trx_lookup);
+   return my->apply_blocks(cb, trx_lookup);
 }
 
 

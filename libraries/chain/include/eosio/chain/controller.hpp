@@ -230,15 +230,19 @@ namespace eosio::chain {
          void set_async_voting(async_t val);
          void set_async_aggregation(async_t val);
 
-         /// Apply any blocks that are ready from the fork_db
-         void apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
-
          struct accepted_block_result {
             const bool is_new_best_head = false; // true if new best head
             std::optional<block_handle> block;   // empty optional if block is unlinkable
          };
          // thread-safe
          accepted_block_result accept_block( const block_id_type& id, const signed_block_ptr& b ) const;
+
+         /// Apply any blocks that are ready from the fork_db
+         enum class apply_blocks_result {
+            complete,  // all ready blocks in forkdb have been applied
+            incomplete // time limit reached, additional blocks may be available in forkdb to process
+         };
+         apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
          boost::asio::io_context& get_thread_pool();
 

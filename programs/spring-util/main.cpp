@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
    CLI::App app{"Spring Command Line Utility"};
 
    // custom leap formatter
-   auto fmt = std::make_shared<CLI::LeapFormatter>();
+   auto fmt = std::make_shared<CLI::SpringFormatter>();
    app.formatter(fmt);
 
    app.set_help_all_flag("--help-all", "Show all help");
