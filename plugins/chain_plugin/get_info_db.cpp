@@ -117,9 +117,10 @@ namespace eosio::chain_apis {
          store_info_common(info);
 
          if (controller.fork_db_has_root()) {
-            info->last_irreversible_block_id   = controller.fork_db_root().id();
+            const auto& root = controller.fork_db_root(); // avoid multiple mutexes in fork db
+            info->last_irreversible_block_id   = root.id();
             info->last_irreversible_block_num  = block_header::num_from_id(info->last_irreversible_block_id);
-            info->last_irreversible_block_time = controller.fork_db_root().block_time();
+            info->last_irreversible_block_time = root.block_time();
          }
 
          std::atomic_store(&info_cache, info);  // replace current cache safely
