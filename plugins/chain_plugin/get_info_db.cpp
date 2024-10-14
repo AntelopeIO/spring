@@ -67,7 +67,7 @@ namespace eosio::chain_apis {
       const bool get_info_enabled = false;
 
       // Cache to store the current get_info results.
-      // Lock free by using std::atomic_load and std::atomic_store.
+      // Using std::atomic_load and std::atomic_store to switch pointers.
       std::shared_ptr<get_info_db::get_info_results> info_cache = nullptr;
 
       // Fixed data
@@ -76,7 +76,9 @@ namespace eosio::chain_apis {
       std::string           server_version_string;
       std::string           server_full_version_string;
 
-      void store_info_common(const std::shared_ptr<get_info_db::get_info_results>& info) {
+      // Stores common data, and returns fork_db_has_root for future uses to avoid
+      // multiple mutexes in fork db.
+      bool store_info_common(const std::shared_ptr<get_info_db::get_info_results>& info) {
          assert(info);
 
          // fixed part
@@ -95,7 +97,8 @@ namespace eosio::chain_apis {
          }
 
          // fork_db part
-         if (controller.fork_db_has_root()) {
+         bool fork_db_has_root = controller.fork_db_has_root();
+         if (fork_db_has_root) {
             info->fork_db_head_block_id        = controller.fork_db_head().id();
             info->fork_db_head_block_num       = block_header::num_from_id(*info->fork_db_head_block_id);
             info->earliest_available_block_num = controller.earliest_available_block_num();
@@ -109,14 +112,16 @@ namespace eosio::chain_apis {
          info->block_net_limit         = rm.get_block_net_limit();
          info->total_cpu_weight        = rm.get_total_cpu_weight();
          info->total_net_weight        = rm.get_total_net_weight();
+
+         return fork_db_has_root;
       }
 
       void store_info() {
          std::shared_ptr<get_info_db::get_info_results> info = std::make_shared<get_info_db::get_info_results>();
 
-         store_info_common(info);
+         bool fork_db_has_root = store_info_common(info); // store_info_common returns fork_db_has_root to avoid mutex in fork db in call to controller.fork_db_has_root()
 
-         if (controller.fork_db_has_root()) {
+         if (fork_db_has_root) {
             const auto& root = controller.fork_db_root(); // avoid multiple mutexes in fork db
             info->last_irreversible_block_id   = root.id();
             info->last_irreversible_block_num  = block_header::num_from_id(info->last_irreversible_block_id);
