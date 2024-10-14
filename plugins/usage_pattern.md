@@ -90,6 +90,9 @@ If a plugin calls `app().quit()` during plugin_startup (not recommended), the ap
 
 ## Rules and considerations for writing plugins
 
+### io_context
+
+- Use of app().get_io_service() is highly discouraged. Its direct use by-passes the priority execution queue. Anything posted to the io_context runs at the highest priority. Instead, app().executor().post() should be used for all coordination with the main thread.
 
 ### Initialize
 
@@ -136,7 +139,7 @@ If the plugin was to start a thread, which allocates resources upon startup, thi
 Example of actions in `plugin_startup`:
 
 - an `io_context`, task queue and a main thread is provided by appbase, and plugins can schedule tasks to be executed on it using `app().executor().post()`. However, if necessary, plugins can create their own `io_context` and thread pools, and `plugin_startup()` is an appropriate time to activate these.
-- if the plugin starts its own thread pool, and these threads allocate resources upon startup, it is recommented for the plugin to wait till all the threads are ready to accept work (using a synchronization primitive such as a `condition_variable`) before returning from `plugin_startup`.
+- if the plugin starts its own thread pool, and these threads allocate resources upon startup, it is recommended for the plugin to wait till all the threads are ready to accept work (using a synchronization primitive such as a `condition_variable`) before returning from `plugin_startup`.
 - a plugin which communicates with other nodes may want to open network connections, or start listening for incoming connections.
 
 
@@ -149,9 +152,9 @@ Example of actions in `plugin_startup`:
 
 - `plugin_startup()` is called in a depth-first fashion, according to the stated dependency graph specified by `APPBASE_PLUGIN_REQUIRES`.
 - `plugin_startup()` is called within a try/catch block. 
-- If an exception is thrown while `plugin_startup()` is executed on any plugin, `plugin_shutdown()` is  called on it immediately, and an application shutdown is triggerred.
+- If an exception is thrown while `plugin_startup()` is executed on any plugin, `plugin_shutdown()` is  called on it immediately, and an application shutdown is triggered.
 - but if the plugin does call `app().quit()` during `plugin_startup()`, the framework will throw, ensuring no other plugin is started and application terminates cleanly.
-- Before `plugin_startup()` is called, the plugin is added to the list of running plugins, which ensures that `plugin_shutdown()` will be called on it (either at application shutdown, or in case of an exception occuring before that)
+- Before `plugin_startup()` is called, the plugin is added to the list of running plugins, which ensures that `plugin_shutdown()` will be called on it (either at application shutdown, or in case of an exception occurring before that)
 - because  `plugin_shutdown()` will be executed regardless of whether `plugin_startup()` fully (or at all) executed, it is critical that `plugin_shutdown()`'s actions do not require or expect anything from `plugin_startup()`. For example, calling `cancel()` on a timer that has not been `async_wait`'ed on is fine.
 
 
@@ -162,9 +165,9 @@ Example of actions in `plugin_startup`:
 
 `plugin_shutdown()` is intended to allow the plugins to terminate its processing, for example:
 
-- cancel timers (typically `boost::asio::steady_timer` or `boost::asio::deadline_timer`
 - stop thread pools (stop the `io_context`, join all threads)
-- disconnect from other plugins if needed (this is probably not needed).
+- cancel timers, e.g. `boost::asio::steady_timer` or `boost::asio::deadline_timer`
+  - Normally this should not be needed. If the timers are running on the thread pool then stopping the thread pool is sufficient 
 
 #### Rules to follow in `plugin_shutdown`
 
@@ -177,20 +180,3 @@ Example of actions in `plugin_startup`:
   This means that `plugin_shutdown()` is called on the inverse order of `plugin_startup()`, 
 - If an exception is thrown during `plugin_shutdown()`, it is logged on `std::cerr`, but doesn't prevent `plugin_shutdown()` from being called on the remaining running plugins.
 - The appbase framework will destruct the running plugins in a second phase of shutdown (last one added to the running list is destructed first).
-
-
-## Action items
-
-1. If a plugin (or one of its dependents) throws during `startup()`, `plugin_shutdown()` should be called on it.
-    => update producer_plugin and other plugins which may (needlessly) call `plugin_shutdown()` when there is an exception in  `plugin_startup()`
-    **done** [appbase 65bb056] ensure plugin_shutdown called when plugin_shutdown throws.
-             [leap/gh-672 3210dfe48] net_plugin:  no need to catch exceptions to make sure `plugin_shutdown()` is executed.
-             [leap/gh-672 dc72da4e5] producer_plugin: remove unnecessary try/catch block calling `plugin_shutdown()`
-    
-2. many appbase apps do not check the return value of `app->initialize()` or catch exceptions.
-
-3. have `app->initialize()` return `enum class result { all_done, success, failure }`
-
-
-
-
