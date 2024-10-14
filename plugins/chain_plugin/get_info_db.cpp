@@ -2,8 +2,6 @@
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/application.hpp>
 
-#include <shared_mutex>
-
 using namespace eosio;
 using namespace eosio::chain;
 using namespace appbase;
