@@ -105,7 +105,7 @@ public:
          [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
          [this](Protocol::socket&& socket) {
             // connections set must only be modified by the main thread
-            boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
+            app().executor().post(priority::high, exec_queue::read_write, [this, socket{std::move(socket)}]() mutable {
                catch_and_log([this, &socket]() {
                   connections.emplace(new session(std::move(socket), chain_plug->chain(),
                                                   trace_log, chain_state_log, finality_data_log,
@@ -116,7 +116,7 @@ public:
                                                      return chain_plug->chain().fetch_block_by_id(block_id);
                                                   },
                                                   [this](session_base* conn) {
-                                                     boost::asio::post(app().get_io_service(), [conn, this]() {
+                                                     app().executor().post(priority::high, exec_queue::read_write, [conn, this]() {
                                                         connections.erase(connections.find(conn));
                                                      });
                                                   }, _log));
