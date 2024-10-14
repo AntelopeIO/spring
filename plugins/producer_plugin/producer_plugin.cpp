@@ -1629,11 +1629,9 @@ void producer_plugin_impl::plugin_shutdown() {
    boost::system::error_code ec;
    _timer.cancel(ec);
    _ro_timer.cancel(ec);
-   app().executor().stop();
    _ro_thread_pool.stop();
+   // unapplied transaction queue holds lambdas that reference plugins
    _unapplied_transactions.clear();
-
-   app().executor().post(0, [me = shared_from_this()]() {}); // keep my pointer alive until queue is drained
 
    fc_ilog(_log, "exit shutdown");
 }
