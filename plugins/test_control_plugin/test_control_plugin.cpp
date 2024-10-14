@@ -123,7 +123,6 @@ void test_control_plugin::plugin_startup() {
 }
 
 void test_control_plugin::plugin_shutdown() {
-   my->disconnect();
    ilog("test_control_plugin shutting down");
 }
 
