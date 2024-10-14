@@ -52,7 +52,7 @@ namespace eosio::chain_apis {
          std::optional<fc::time_point>        last_irreversible_block_time;
 
          // Returns true if the struct contains full data for using.
-         bool contains_full_data() {
+         bool contains_full_data() const {
             return (head_block_num > 0) && (last_irreversible_block_num > 0) && (fork_db_head_block_num > 0);
          }
       };
