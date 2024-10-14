@@ -3915,7 +3915,8 @@ struct controller_impl {
    // Verify basic proper_block invariants.
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
-   std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b, const block_header_state& prev ) {
+   std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b,
+                                                             const block_header_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -4112,11 +4113,6 @@ struct controller_impl {
       return {};
    }
 
-   // This verifies BLS signatures and is expensive.
-   void verify_qc( const block_state& prev, const qc_t& qc ) {
-      prev.verify_qc(qc);
-   }
-
    // thread safe, expected to be called from thread other than the main thread
    // tuple<bool best_head, block_handle new_block_handle>
    template<typename ForkDB, typename BS>
@@ -4128,8 +4124,9 @@ struct controller_impl {
       log_and_drop_future<void> verify_qc_future;
       if constexpr (is_proper_savanna_block) {
          if (qc) {
-            verify_qc_future = post_async_task(thread_pool.get_executor(), [this, &qc, &prev] {
-               verify_qc(prev, *qc);
+            verify_qc_future = post_async_task(thread_pool.get_executor(), [&qc, &prev] {
+               // do both signature verification and basic checks in the async task
+               prev.verify_qc(*qc);
             });
          }
       }
@@ -4278,8 +4275,14 @@ struct controller_impl {
                std::optional<qc_t> qc = verify_basic_block_invariants({}, b, *head);
 
                if constexpr (std::is_same_v<typename std::decay_t<BSP>, block_state_ptr>) {
-                  if (conf.force_all_checks && qc) {
-                     verify_qc(*head, *qc);
+                  // do basic checks always (excluding signature verification)
+                  if (qc) {
+                     head->verify_qc_basic(*qc);
+
+                     if (conf.force_all_checks) {
+                        // verify signatures only if `conf.force_all_checks`
+                        head->verify_qc_signatures(*qc);
+                     }
                   }
                }
 

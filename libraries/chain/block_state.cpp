@@ -266,9 +266,21 @@ vote_status_t block_state::has_voted(const bls_public_key& key) const {
 }
 
 // Called from net threads
+void block_state::verify_qc_signatures(const qc_t& qc) const {
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num); // get policies active at claimed block number
+   qc.verify_signatures(policies);
+}
+
+// Called from net threads
+void block_state::verify_qc_basic(const qc_t& qc) const {
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num); // get policies active at claimed block number
+   qc.verify_basic(policies);
+}
+
 void block_state::verify_qc(const qc_t& qc) const {
    finalizer_policies_t policies = get_finalizer_policies(qc.block_num); // get policies active at claimed block number
-   qc.verify(policies);
+   qc.verify_basic(policies);
+   qc.verify_signatures(policies);
 }
 
 qc_claim_t block_state::extract_qc_claim() const {
