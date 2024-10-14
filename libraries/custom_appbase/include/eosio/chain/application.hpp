@@ -53,7 +53,7 @@ public:
          pri_queue_.add(id, priority, q, --order_, std::forward<Func>(func));
       } else {
          // post to io_service as the main thread may be blocked on io_service.run_one() in application::exec()
-         boost::asio::post(*io_serv_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
+         boost::asio::post(io_serv_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
       }
    }
 
@@ -65,7 +65,7 @@ public:
          pri_queue_.add(priority, q, --order_, std::forward<Func>(func));
       } else {
          // post to io_service as the main thread may be blocked on io_service.run_one() in application::exec()
-         boost::asio::post(*io_serv_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
+         boost::asio::post(io_serv_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
       }
    }
 
@@ -74,10 +74,10 @@ public:
    auto post( int priority, Func&& func ) {
       // safer to use read_write queue for unknown type of operation since operations
       // from read_write queue are not executed in parallel with read-only operations
-      return boost::asio::post(*io_serv_, pri_queue_.wrap(priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
+      return boost::asio::post(io_serv_, pri_queue_.wrap(priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
    }
 
-   boost::asio::io_service& get_io_service() { return *io_serv_; }
+   boost::asio::io_service& get_io_service() { return io_serv_; }
 
    // called from main thread, highest read_only and read_write
    bool execute_highest() {
@@ -127,10 +127,6 @@ public:
       pri_queue_.clear();
    }
 
-   void reset() {
-      io_serv_.emplace();
-   }
-
    void set_to_read_window(std::function<bool()> should_exit) {
       exec_window_ = exec_window::read;
       pri_queue_.enable_locking(std::move(should_exit));
@@ -159,7 +155,7 @@ public:
    // members are ordered taking into account that the last one is destructed first
 private:
    std::thread::id                    main_thread_id_{ std::this_thread::get_id() };
-   std::optional<boost::asio::io_service> io_serv_{std::in_place};
+   boost::asio::io_context            io_serv_;
    appbase::exec_pri_queue            pri_queue_;
    std::atomic<std::size_t>           order_{ std::numeric_limits<size_t>::max() }; // to maintain FIFO ordering in all queues within priority
    exec_window                        exec_window_{ exec_window::write };
