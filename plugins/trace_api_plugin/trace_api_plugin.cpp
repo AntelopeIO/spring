@@ -241,13 +241,8 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
 
       http.add_async_handler({"/v1/trace_api/get_block",
             api_category::trace_api,
-            [wthis=weak_from_this()](std::string, std::string body, url_response_callback cb)
+            [this](std::string, std::string body, url_response_callback cb)
       {
-         auto that = wthis.lock();
-         if (!that) {
-            return;
-         }
-
          auto block_number = ([&body]() -> std::optional<uint32_t> {
             if (body.empty()) {
                return {};
@@ -273,7 +268,7 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
 
          try {
 
-            auto resp = that->req_handler->get_block_trace(*block_number);
+            auto resp = req_handler->get_block_trace(*block_number);
             if (resp.is_null()) {
                error_results results{404, "Trace API: block trace missing"};
                cb( 404, fc::variant( results ));
@@ -288,13 +283,8 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
 
       http.add_async_handler({"/v1/trace_api/get_transaction_trace",
             api_category::trace_api,
-            [wthis=weak_from_this(), this](std::string, std::string body, url_response_callback cb)
+            [this](std::string, std::string body, url_response_callback cb)
       {
-         auto that = wthis.lock();
-         if (!that) {
-            return;
-         }
-
          auto trx_id = ([&body]() -> std::optional<transaction_id_type> {
             if (body.empty()) {
                return {};
@@ -324,7 +314,7 @@ struct trace_api_rpc_plugin_impl : public std::enable_shared_from_this<trace_api
                error_results results{404, "Trace API: transaction id missing in the transaction id log files"};
                cb( 404, fc::variant( results ));
             } else {
-               auto resp = that->req_handler->get_transaction_trace(*trx_id, *blk_num);
+               auto resp = req_handler->get_transaction_trace(*trx_id, *blk_num);
                if (resp.is_null()) {
                   error_results results{404, "Trace API: transaction trace missing"};
                   cb( 404, fc::variant( results ));
