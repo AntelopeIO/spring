@@ -63,15 +63,19 @@ namespace eosio::chain {
    };
 
    struct qc_sig_t {
-      bool is_weak()   const { return !!weak_votes; }
-      bool is_strong() const { return !weak_votes; }
-
       std::optional<vote_bitset_t> strong_votes;
       std::optional<vote_bitset_t> weak_votes;
       bls_aggregate_signature      sig;
 
+      bool is_weak()   const { return !!weak_votes; }
+      bool is_strong() const { return !weak_votes; }
+
       // called from net threads
-      void verify(const finalizer_policy_ptr& fin_policy, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+      void verify_signatures(const finalizer_policy_ptr& fin_policy, const digest_type& strong_digest, const weak_digest_t& weak_digest) const;
+
+      // called from net threads
+      void verify_weights(const finalizer_policy_ptr& fin_policy) const;
+
       void verify_vote_format(const finalizer_policy_ptr& fin_policy) const;
 
       // returns true if vote indicated by my_vote_index in strong_votes or
@@ -81,11 +85,9 @@ namespace eosio::chain {
    };
 
    struct qc_t {
-      uint32_t                  block_num{0};
-      // signatures corresponding to the active finalizer policy
-      qc_sig_t                  active_policy_sig;
-      // signatures corresponding to the pending finalizer policy if there is one
-      std::optional<qc_sig_t>   pending_policy_sig;
+      uint32_t                 block_num{0};
+      qc_sig_t                 active_policy_sig;  // signatures for the active finalizer policy
+      std::optional<qc_sig_t>  pending_policy_sig; // signatures for the pending finalizer policy (if any)
 
       bool is_strong() const {
          return active_policy_sig.is_strong() && (!pending_policy_sig || pending_policy_sig->is_strong());
@@ -96,7 +98,8 @@ namespace eosio::chain {
          return { .block_num = block_num, .is_strong_qc = is_strong() };
       }
 
-      void verify(const finalizer_policies_t& policies) const;
+      void verify_signatures(const finalizer_policies_t& policies) const; // validate qc signatures
+      void verify_basic(const finalizer_policies_t& policies) const;      // do basic checks on provided qc, excluding signature verification
    };
 
    struct qc_data_t {
