@@ -3150,10 +3150,8 @@ namespace eosio {
    }
 
    void net_plugin_impl::plugin_shutdown() {
-         in_shutdown = true;
-
-         connections.close_all();
-         thread_pool.stop();
+      in_shutdown = true;
+      thread_pool.stop();
    }
 
    // call only from main application thread
@@ -4421,29 +4419,17 @@ namespace eosio {
    }
 
    void net_plugin::plugin_startup() {
-      try {
-         my->plugin_startup();
-      } catch( ... ) {
-         // always want plugin_shutdown even on exception
-         plugin_shutdown();
-         throw;
-      }
+      my->plugin_startup();
    }
-      
 
    void net_plugin::handle_sighup() {
       fc::logger::update( logger_name, logger );
    }
 
    void net_plugin::plugin_shutdown() {
-      try {
-         fc_ilog( logger, "shutdown.." );
-
-         my->plugin_shutdown();
-         app().executor().post( 0, [me = my](){} ); // keep my pointer alive until queue is drained
-         fc_ilog( logger, "exit shutdown" );
-      }
-      FC_CAPTURE_AND_RETHROW()
+      fc_ilog( logger, "shutdown.." );
+      my->plugin_shutdown();
+      fc_ilog( logger, "exit shutdown" );
    }
 
    /// RPC API
