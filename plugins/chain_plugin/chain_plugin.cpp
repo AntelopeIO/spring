@@ -192,6 +192,7 @@ public:
    std::optional<scoped_connection>                                   applied_transaction_connection;
    std::optional<scoped_connection>                                   block_start_connection;
 
+   std::optional<chain_apis::get_info_db>                             _get_info_db;
    std::optional<chain_apis::account_query_db>                        _account_query_db;
    std::optional<chain_apis::trx_retry_db>                            _trx_retry_db;
    chain_apis::trx_finality_status_processing_ptr                     _trx_finality_status_processing;
@@ -974,12 +975,14 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
 
       // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
-      bool last_tracked_votes_enabled = false;
+      bool chain_api_plugin_configured = false;
       if (options.count("plugin")) {
          const auto& v = options.at("plugin").as<std::vector<std::string>>();
-         last_tracked_votes_enabled = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
+         chain_api_plugin_configured = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
       }
-      _last_tracked_votes.emplace(*chain, last_tracked_votes_enabled);
+      _last_tracked_votes.emplace(*chain, chain_api_plugin_configured);
+
+      _get_info_db.emplace(*chain, chain_api_plugin_configured);
 
       // initialize deep mind logging
       if ( options.at( "deep-mind" ).as<bool>() ) {
@@ -1050,6 +1053,10 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
             _last_tracked_votes->on_accepted_block(block, id);
          }
 
+         if (_get_info_db) {
+            _get_info_db->on_accepted_block();
+         }
+
          accepted_block_channel.publish( priority::high, t );
       } );
 
@@ -1062,6 +1069,10 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
          if (_trx_finality_status_processing) {
             _trx_finality_status_processing->signal_irreversible_block(block, id);
+         }
+
+         if (_get_info_db) {
+            _get_info_db->on_irreversible_block(block, id);
          }
 
          irreversible_block_channel.publish( priority::low, t );
@@ -1185,9 +1196,8 @@ chain_apis::read_write chain_plugin::get_read_write_api(const fc::microseconds& 
 }
 
 chain_apis::read_only chain_plugin::get_read_only_api(const fc::microseconds& http_max_response_time) const {
-   return chain_apis::read_only(chain(), my->_account_query_db, my->_last_tracked_votes, get_abi_serializer_max_time(), http_max_response_time, my->_trx_finality_status_processing.get());
+   return chain_apis::read_only(chain(), my->_get_info_db, my->_account_query_db, my->_last_tracked_votes, get_abi_serializer_max_time(), http_max_response_time, my->_trx_finality_status_processing.get());
 }
-
 
 void chain_plugin::accept_transaction(const chain::packed_transaction_ptr& trx, next_function<chain::transaction_trace_ptr> next) {
    my->incoming_transaction_async_method(trx, false, transaction_metadata::trx_type::input, false, std::move(next));
@@ -1270,40 +1280,12 @@ namespace chain_apis {
 
 const string read_only::KEYi64 = "i64";
 
-read_only::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
-   const auto& rm = db.get_resource_limits_manager();
+get_info_db::get_info_results read_only::get_info(const read_only::get_info_params&, const fc::time_point&) const {
+   EOS_ASSERT(gidb, plugin_config_exception, "get_info being accessed when not enabled");
 
-   auto head = db.head();
-   auto head_id = head.id();
-   auto fork_db_root = db.fork_db_root();
-   auto fork_db_head = db.fork_db_head();
-   auto fork_db_root_id = fork_db_root.id();
-   auto fork_db_head_id = fork_db_head.id();
-
-   return {
-      itoh(static_cast<uint32_t>(app().version())),
-      db.get_chain_id(),
-      block_header::num_from_id(head_id),
-      block_header::num_from_id(fork_db_root_id),
-      fork_db_root_id,
-      head_id,
-      db.head().block_time(),
-      db.head().producer(),
-      rm.get_virtual_block_cpu_limit(),
-      rm.get_virtual_block_net_limit(),
-      rm.get_block_cpu_limit(),
-      rm.get_block_net_limit(),
-      //std::bitset<64>(db.get_dynamic_global_properties().recent_slots_filled).to_string(),
-      //__builtin_popcountll(db.get_dynamic_global_properties().recent_slots_filled) / 64.0,
-      app().version_string(),
-      block_header::num_from_id(fork_db_head_id),
-      fork_db_head_id,
-      app().full_version_string(),
-      rm.get_total_cpu_weight(),
-      rm.get_total_net_weight(),
-      db.earliest_available_block_num(),
-      fork_db_root.block_time()
-   };
+   // To be able to run get_info on an http thread, get_info results are stored
+   // in get_info_db and updated whenever accepted_block signal is received.
+   return gidb->get_info();
 }
 
 read_only::get_transaction_status_results
