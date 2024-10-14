@@ -97,9 +97,10 @@ namespace eosio::chain_apis {
          }
 
          // fork_db part
-         bool fork_db_has_root = controller.fork_db_has_root();
+         const auto& fork_db_head = controller.fork_db_head();
+         bool fork_db_has_root = fork_db_head.is_valid(); // a valid head implies fork_db has root
          if (fork_db_has_root) {
-            info->fork_db_head_block_id        = controller.fork_db_head().id();
+            info->fork_db_head_block_id        = fork_db_head.id();
             info->fork_db_head_block_num       = block_header::num_from_id(*info->fork_db_head_block_id);
             info->earliest_available_block_num = controller.earliest_available_block_num();
          }
