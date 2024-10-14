@@ -556,10 +556,10 @@ private:
 
 class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin_impl> {
 public:
-   producer_plugin_impl(boost::asio::io_service& io)
-      : _timer(io)
+   producer_plugin_impl()
+      : _timer(_prod_thread_pool.get_executor())
       , _transaction_ack_channel(app().get_channel<compat::channels::transaction_ack>())
-      , _ro_timer(io) {}
+      , _ro_timer(_prod_thread_pool.get_executor()) {}
 
    void     schedule_production_loop();
    void     schedule_maybe_produce_block(bool exhausted);
@@ -687,6 +687,7 @@ public:
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
    std::set<chain::account_name>                     _producers;
+   named_thread_pool<struct prod>                    _prod_thread_pool; // for timers
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
    pending_block_mode                                _pending_block_mode = pending_block_mode::speculating;
@@ -1206,7 +1207,7 @@ void new_chain_banner(const eosio::chain::controller& db)
 }
 
 producer_plugin::producer_plugin()
-   : my(new producer_plugin_impl(app().get_io_service()))
+   : my(new producer_plugin_impl())
    {
    }
 
@@ -1609,6 +1610,11 @@ void producer_plugin_impl::plugin_startup() {
             start_write_window();
          }
 
+         _prod_thread_pool.start(1, [](const fc::exception& e) {
+            fc_elog(_log, "Exception in producer_plugin timer thread pool, exiting: ${e}", ("e", e.to_detail_string()));
+            app().quit();
+         });
+
          schedule_production_loop();
 
          ilog("producer plugin:  plugin_startup() end");
@@ -1626,9 +1632,7 @@ void producer_plugin::plugin_startup() {
 }
 
 void producer_plugin_impl::plugin_shutdown() {
-   boost::system::error_code ec;
-   _timer.cancel(ec);
-   _ro_timer.cancel(ec);
+   _prod_thread_pool.stop();
    _ro_thread_pool.stop();
    // unapplied transaction queue holds lambdas that reference plugins
    _unapplied_transactions.clear();
@@ -2745,15 +2749,15 @@ void producer_plugin_impl::schedule_production_loop() {
       _timer.expires_from_now(boost::posix_time::microseconds(config::block_interval_us / 10));
 
       // we failed to start a block, so try again later?
-      _timer.async_wait(
-         app().executor().wrap(priority::high,
-                               exec_queue::read_write,
-                               [weak_this = weak_from_this(), cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-                                  auto self = weak_this.lock();
-                                  if (self && ec != boost::asio::error::operation_aborted && cid == self->_timer_corelation_id) {
-                                     self->schedule_production_loop();
-                                  }
-                               }));
+      _timer.async_wait([self=this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+         if (!ec) {
+            app().executor().post(priority::high, exec_queue::read_write, [self, cid]() {
+               if (cid == self->_timer_corelation_id) {
+                  self->schedule_production_loop();
+               }
+            });
+         }
+      });
    } else if (result == start_block_result::waiting_for_block) {
       if (!_producers.empty() && !production_disabled_by_policy()) {
          chain::controller& chain = chain_plug->chain();
@@ -2813,19 +2817,19 @@ void producer_plugin_impl::schedule_maybe_produce_block(bool exhausted) {
               ("num", chain.head().block_num() + 1)("desc", block_is_exhausted() ? "Exhausted" : "Deadline exceeded"));
    }
 
-   _timer.async_wait(app().executor().wrap(
-      priority::high,
-      exec_queue::read_write,
-      [&chain, weak_this = weak_from_this(), cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-         auto self = weak_this.lock();
-         if (self && ec != boost::asio::error::operation_aborted && cid == self->_timer_corelation_id) {
-            // pending_block_state expected, but can't assert inside async_wait
-            auto block_num = chain.is_building_block() ? chain.head().block_num() + 1 : 0;
-            fc_dlog(_log, "Produce block timer for ${num} running at ${time}", ("num", block_num)("time", fc::time_point::now()));
-            auto res = self->maybe_produce_block();
-            fc_dlog(_log, "Producing Block #${num} returned: ${res}", ("num", block_num)("res", res));
-         }
-      }));
+   _timer.async_wait([&chain, self=this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+      if (!ec) {
+         app().executor().post(priority::high, exec_queue::read_write, [self, &chain, cid]() {
+            if (cid == self->_timer_corelation_id) {
+               // pending_block_state expected, but can't assert inside async_wait
+               auto block_num = chain.is_building_block() ? chain.head().block_num() + 1 : 0;
+               fc_dlog(_log, "Produce block timer for ${num} running at ${time}", ("num", block_num)("time", fc::time_point::now()));
+               auto res = self->maybe_produce_block();
+               fc_dlog(_log, "Producing Block #${num} returned: ${res}", ("num", block_num)("res", res));
+            }
+         });
+      }
+   });
 }
 
 void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<producer_plugin_impl>& weak_this,
@@ -2834,13 +2838,15 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       fc_dlog(_log, "Scheduling Speculative/Production Change at ${time}", ("time", wake_up_time));
       static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
-      _timer.async_wait(app().executor().wrap(
-         priority::high, exec_queue::read_write, [weak_this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-            auto self = weak_this.lock();
-            if (self && ec != boost::asio::error::operation_aborted && cid == self->_timer_corelation_id) {
-               self->schedule_production_loop();
-            }
-         }));
+      _timer.async_wait([self=this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+         if (!ec) {
+            app().executor().post(priority::high, exec_queue::read_write, [self, cid]() {
+               if (cid == self->_timer_corelation_id) {
+                  self->schedule_production_loop();
+               }
+            });
+         }
+      });
    } else {
       fc_dlog(_log, "Not Scheduling Speculative/Production, no local producers had valid wake up times");
    }
@@ -2980,15 +2986,14 @@ void producer_plugin_impl::start_write_window() {
    _ro_window_deadline = now + _ro_write_window_time_us; // not allowed on block producers, so no need to limit to block deadline
    auto expire_time = boost::posix_time::microseconds(_ro_write_window_time_us.count());
    _ro_timer.expires_from_now(expire_time);
-   _ro_timer.async_wait(app().executor().wrap( // stay on app thread
-      priority::high,
-      exec_queue::read_write, // placed in read_write so only called from main thread
-      [weak_this = weak_from_this()](const boost::system::error_code& ec) {
-         auto self = weak_this.lock();
-         if (self && ec != boost::asio::error::operation_aborted) {
-            self->switch_to_read_window();
-         }
-      }));
+   _ro_timer.async_wait([self=this](const boost::system::error_code& ec) {
+      if (!ec) {
+         app().executor().post(priority::high, exec_queue::read_write, // placed in read_write so only called from main thread
+            [self]() {
+               self->switch_to_read_window();
+            });
+      }
+   });
 }
 
 // Called only from app thread
@@ -3000,7 +3005,6 @@ void producer_plugin_impl::switch_to_read_window() {
    _time_tracker.pause();
 
    // we are in write window, so no read-only trx threads are processing transactions.
-   app().get_io_service().poll(); // make sure we schedule any ready
    if (app().executor().read_only_queue_empty() && app().executor().read_exclusive_queue_empty()) { // no read-only tasks to process. stay in write window
       start_write_window();                          // restart write window timer for next round
       return;
@@ -3029,10 +3033,9 @@ void producer_plugin_impl::switch_to_read_window() {
    auto expire_time = boost::posix_time::microseconds(_ro_read_window_time_us.count());
    _ro_timer.expires_from_now(expire_time);
    // Needs to be on read_only because that is what is being processed until switch_to_write_window().
-   _ro_timer.async_wait(
-      app().executor().wrap(priority::high, exec_queue::read_only, [weak_this = weak_from_this()](const boost::system::error_code& ec) {
-         auto self = weak_this.lock();
-         if (self && ec != boost::asio::error::operation_aborted) {
+   _ro_timer.async_wait([self=this](const boost::system::error_code& ec) {
+      app().executor().post(priority::high, exec_queue::read_only, [self, ec]() {
+         if (ec != boost::asio::error::operation_aborted) {
             // use future to make sure all read-only tasks finished before switching to write window
             for (auto& task : self->_ro_exec_tasks_fut) {
                task.get();
@@ -3040,10 +3043,11 @@ void producer_plugin_impl::switch_to_read_window() {
             self->_ro_exec_tasks_fut.clear();
             // will be executed from the main app thread because all read-only threads are idle now
             self->switch_to_write_window();
-         } else if (self) {
+         } else {
             self->_ro_exec_tasks_fut.clear();
          }
-      }));
+      });
+   });
 }
 
 // Called from a read only thread. Run in parallel with app and other read only threads
