@@ -140,6 +140,8 @@ private:
 
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
             co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+               std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
                /**
                 * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
                 */
@@ -230,6 +232,8 @@ private:
 
             auto& self = *this; //gcc10 ICE workaround wrt capturing 'this' in a coro
             co_await boost::asio::co_spawn(app().get_io_service(), [&]() -> boost::asio::awaitable<void> {
+               std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
                /**
                 * This lambda executes on the main thread; upon returning, the enclosing coroutine continues execution on the connection's strand
                 */
