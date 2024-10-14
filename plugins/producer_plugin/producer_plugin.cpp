@@ -1526,103 +1526,97 @@ void producer_plugin::plugin_initialize(const boost::program_options::variables_
 using namespace std::chrono_literals;
 void producer_plugin_impl::plugin_startup() {
    try {
-      try {
-         ilog("producer plugin:  plugin_startup() begin");
+      ilog("producer plugin:  plugin_startup() begin");
 
-         chain::controller& chain = chain_plug->chain();
-         EOS_ASSERT(_producers.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
-                    "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
+      chain::controller& chain = chain_plug->chain();
+      EOS_ASSERT(_producers.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+                 "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
 
-         EOS_ASSERT(_finalizer_keys.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
-                    "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
+      EOS_ASSERT(_finalizer_keys.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+                 "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
 
-         EOS_ASSERT(_producers.empty() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
-                    "node cannot have any producer-name configured because block production is not safe when validation_mode is not \"full\"");
+      EOS_ASSERT(_producers.empty() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
+                 "node cannot have any producer-name configured because block production is not safe when validation_mode is not \"full\"");
 
-         EOS_ASSERT(_producers.empty() || chain_plug->accept_transactions(), plugin_config_exception,
-                    "node cannot have any producer-name configured because no block production is possible with no [api|p2p]-accepted-transactions");
+      EOS_ASSERT(_producers.empty() || chain_plug->accept_transactions(), plugin_config_exception,
+                 "node cannot have any producer-name configured because no block production is possible with no [api|p2p]-accepted-transactions");
 
-         chain.set_node_finalizer_keys(_finalizer_keys);
+      chain.set_node_finalizer_keys(_finalizer_keys);
 
-         _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, id ] = t;
-            on_accepted_block(block, id);
-          }));
-         _accepted_block_header_connection.emplace(chain.accepted_block_header().connect([this](const block_signal_params& t) {
-            const auto& [ block, _ ] = t;
-            on_accepted_block_header(block);
-         }));
-         _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
-            const auto& [ block, _ ] = t;
-            on_irreversible_block(block);
-         }));
+      _accepted_block_connection.emplace(chain.accepted_block().connect([this](const block_signal_params& t) {
+         const auto& [ block, id ] = t;
+         on_accepted_block(block, id);
+       }));
+      _accepted_block_header_connection.emplace(chain.accepted_block_header().connect([this](const block_signal_params& t) {
+         const auto& [ block, _ ] = t;
+         on_accepted_block_header(block);
+      }));
+      _irreversible_block_connection.emplace(chain.irreversible_block().connect([this](const block_signal_params& t) {
+         const auto& [ block, _ ] = t;
+         on_irreversible_block(block);
+      }));
 
-         _block_start_connection.emplace(chain.block_start().connect([this, &chain](uint32_t bs) {
-            try {
-               _snapshot_scheduler.on_start_block(bs, chain);
-            } catch (const snapshot_execution_exception& e) {
-               fc_elog(_log, "Exception during snapshot execution: ${e}", ("e", e.to_detail_string()));
-               app().quit();
-            }
-         }));
-
-         if (!_producers.empty()) { // track votes if producer to verify votes are being processed
-            auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
-               const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
-               try {
-                  on_vote(connection_id, status, msg, active_auth, pending_auth);
-               } LOG_AND_DROP()
-            };
-            _aggregate_vote_connection.emplace(chain.aggregated_vote().connect(on_vote_signal));
-            _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
-         }
-
-         const auto fork_db_root_num = chain.fork_db_root().block_num();
-         const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
-         if (fork_db_root) {
-            on_irreversible_block(fork_db_root);
-         } else {
-            _irreversible_block_time = fc::time_point::maximum();
-         }
-
-         if (!_producers.empty()) {
-            ilog("Launching block production for ${n} producers at ${time}.", ("n", _producers.size())("time", fc::time_point::now()));
-
-            if (_production_enabled) {
-               if (chain.head().block_num() == 0) {
-                  new_chain_banner(chain);
-               }
-            }
-         }
-
-         if (_ro_thread_pool_size > 0) {
-            _ro_thread_pool.start(
-               _ro_thread_pool_size,
-               [](const fc::exception& e) {
-                  fc_elog(_log, "Exception in read-only thread pool, exiting: ${e}", ("e", e.to_detail_string()));
-                  app().quit();
-               },
-               [&]() {
-                  chain.init_thread_local_data();
-               });
-
-            _time_tracker.pause(); // start_write_window assumes time_tracker is paused
-            start_write_window();
-         }
-
-         _prod_thread_pool.start(1, [](const fc::exception& e) {
-            fc_elog(_log, "Exception in producer_plugin timer thread pool, exiting: ${e}", ("e", e.to_detail_string()));
+      _block_start_connection.emplace(chain.block_start().connect([this, &chain](uint32_t bs) {
+         try {
+            _snapshot_scheduler.on_start_block(bs, chain);
+         } catch (const snapshot_execution_exception& e) {
+            fc_elog(_log, "Exception during snapshot execution: ${e}", ("e", e.to_detail_string()));
             app().quit();
-         });
+         }
+      }));
 
-         schedule_production_loop();
-
-         ilog("producer plugin:  plugin_startup() end");
-      } catch (...) {
-         // always call plugin_shutdown, even on exception
-         plugin_shutdown();
-         throw;
+      if (!_producers.empty()) { // track votes if producer to verify votes are being processed
+         auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
+            const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
+            try {
+               on_vote(connection_id, status, msg, active_auth, pending_auth);
+            } LOG_AND_DROP()
+         };
+         _aggregate_vote_connection.emplace(chain.aggregated_vote().connect(on_vote_signal));
+         _vote_block_connection.emplace(chain.voted_block().connect(on_vote_signal));
       }
+
+      const auto fork_db_root_num = chain.fork_db_root().block_num();
+      const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
+      if (fork_db_root) {
+         on_irreversible_block(fork_db_root);
+      } else {
+         _irreversible_block_time = fc::time_point::maximum();
+      }
+
+      if (!_producers.empty()) {
+         ilog("Launching block production for ${n} producers at ${time}.", ("n", _producers.size())("time", fc::time_point::now()));
+
+         if (_production_enabled) {
+            if (chain.head().block_num() == 0) {
+               new_chain_banner(chain);
+            }
+         }
+      }
+
+      if (_ro_thread_pool_size > 0) {
+         _ro_thread_pool.start(
+            _ro_thread_pool_size,
+            [](const fc::exception& e) {
+               fc_elog(_log, "Exception in read-only thread pool, exiting: ${e}", ("e", e.to_detail_string()));
+               app().quit();
+            },
+            [&]() {
+               chain.init_thread_local_data();
+            });
+
+         _time_tracker.pause(); // start_write_window assumes time_tracker is paused
+         start_write_window();
+      }
+
+      _prod_thread_pool.start(1, [](const fc::exception& e) {
+         fc_elog(_log, "Exception in producer_plugin timer thread pool, exiting: ${e}", ("e", e.to_detail_string()));
+         app().quit();
+      });
+
+      schedule_production_loop();
+
+      ilog("producer plugin:  plugin_startup() end");
    }
    FC_CAPTURE_AND_RETHROW()
 }
