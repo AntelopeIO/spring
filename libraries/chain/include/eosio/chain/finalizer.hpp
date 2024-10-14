@@ -1,6 +1,6 @@
 #pragma once
 #include <eosio/chain/block_state.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
 #include <fc/io/datastream_crc.hpp>

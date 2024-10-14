@@ -3,7 +3,7 @@
 #include <iostream>
 
 #include <eosio/chain/exceptions.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/vote_message.hpp>
 
 #include <fc/log/logger.hpp>
 

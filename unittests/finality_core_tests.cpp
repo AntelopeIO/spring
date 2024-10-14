@@ -1,4 +1,4 @@
-#include <eosio/chain/finality/finality_core.hpp>
+#include <eosio/chain/finality_core.hpp>
 #include <fc/crypto/sha256.hpp>
 #include <fc/bitutil.hpp>
 #include <boost/test/unit_test.hpp>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <eosio/chain/finality/finalizer_authority.hpp>
+#include <eosio/chain/finalizer_authority.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
 #pragma GCC diagnostic push
