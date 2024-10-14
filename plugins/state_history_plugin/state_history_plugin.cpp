@@ -338,40 +338,36 @@ void state_history_plugin::plugin_initialize(const variables_map& options) {
 }
    
 void state_history_plugin_impl::plugin_startup() {
-   try {
-      const auto& chain = chain_plug->chain();
+   const auto& chain = chain_plug->chain();
 
-      uint32_t block_num = chain.head().block_num();
-      if( block_num > 0 && chain_state_log && chain_state_log->empty() ) {
-         fc_ilog( _log, "Storing initial state on startup, this can take a considerable amount of time" );
-         store_chain_state( chain.head().id(), chain.head().header().previous, block_num );
-         fc_ilog( _log, "Done storing initial state on startup" );
-      }
-      first_available_block = chain.earliest_available_block_num();
-      if(trace_log) {
-         auto first_trace_block = trace_log->block_range().first;
-         if( first_trace_block > 0 )
-            first_available_block = std::min( first_available_block, first_trace_block );
-      }
-      if(chain_state_log) {
-         auto first_state_block = chain_state_log->block_range().first;
-         if( first_state_block > 0 )
-            first_available_block = std::min( first_available_block, first_state_block );
-      }
-      if(finality_data_log) {
-         auto first_state_block = finality_data_log->block_range().first;
-         if( first_state_block > 0 )
-            first_available_block = std::min( first_available_block, first_state_block );
-      }
-      fc_ilog(_log, "First available block for SHiP ${b}", ("b", first_available_block));
-      listen();
-      thread_pool.start(1, [](const fc::exception& e) {
-         fc_elog( _log, "Exception in SHiP thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-         app().quit();
-      });
-   } catch(std::exception& ex) {
-      appbase::app().quit();
+   uint32_t block_num = chain.head().block_num();
+   if( block_num > 0 && chain_state_log && chain_state_log->empty() ) {
+      fc_ilog( _log, "Storing initial state on startup, this can take a considerable amount of time" );
+      store_chain_state( chain.head().id(), chain.head().header().previous, block_num );
+      fc_ilog( _log, "Done storing initial state on startup" );
    }
+   first_available_block = chain.earliest_available_block_num();
+   if(trace_log) {
+      auto first_trace_block = trace_log->block_range().first;
+      if( first_trace_block > 0 )
+         first_available_block = std::min( first_available_block, first_trace_block );
+   }
+   if(chain_state_log) {
+      auto first_state_block = chain_state_log->block_range().first;
+      if( first_state_block > 0 )
+         first_available_block = std::min( first_available_block, first_state_block );
+   }
+   if(finality_data_log) {
+      auto first_state_block = finality_data_log->block_range().first;
+      if( first_state_block > 0 )
+         first_available_block = std::min( first_available_block, first_state_block );
+   }
+   fc_ilog(_log, "First available block for SHiP ${b}", ("b", first_available_block));
+   listen();
+   thread_pool.start(1, [](const fc::exception& e) {
+      fc_elog( _log, "Exception in SHiP thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+      app().quit();
+   });
 }
 
 void state_history_plugin::plugin_startup() {
@@ -379,7 +375,9 @@ void state_history_plugin::plugin_startup() {
 }
 
 void state_history_plugin_impl::plugin_shutdown() {
+   fc_dlog(_log, "stopping");
    thread_pool.stop();
+   fc_dlog(_log, "exit shutdown");
 }
 
 void state_history_plugin::plugin_shutdown() {

@@ -4427,7 +4427,7 @@ namespace eosio {
    }
 
    void net_plugin::plugin_shutdown() {
-      fc_ilog( logger, "shutdown.." );
+      fc_dlog( logger, "shutdown.." );
       my->plugin_shutdown();
       fc_ilog( logger, "exit shutdown" );
    }
