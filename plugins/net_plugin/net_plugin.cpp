@@ -411,9 +411,6 @@ namespace eosio {
       boost::asio::steady_timer             keepalive_timer GUARDED_BY(keepalive_timer_mtx) {thread_pool.get_executor()};
 
       alignas(hardware_destructive_interference_sz)
-      std::atomic<bool>                     in_shutdown{false};
-
-      alignas(hardware_destructive_interference_sz)
       compat::channels::transaction_ack::channel_type::handle  incoming_transaction_ack_subscription;
 
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
@@ -3150,7 +3147,6 @@ namespace eosio {
    }
 
    void net_plugin_impl::plugin_shutdown() {
-      in_shutdown = true;
       thread_pool.stop();
    }
 
@@ -3799,30 +3795,23 @@ namespace eosio {
 
    // thread safe
    void net_plugin_impl::start_expire_timer() {
-      if( in_shutdown ) return;
       fc::lock_guard g( expire_timer_mtx );
       expire_timer.expires_from_now( txn_exp_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
-         } else {
-            if( my->in_shutdown ) return;
-            fc_elog( logger, "Error from transaction check monitor: ${m}", ("m", ec.message()) );
-            my->start_expire_timer();
          }
       } );
    }
 
    // thread safe
    void net_plugin_impl::ticker() {
-      if( in_shutdown ) return;
       fc::lock_guard g( keepalive_timer_mtx );
       keepalive_timer.expires_from_now(keepalive_interval);
       keepalive_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
             if( ec ) {
-               if( my->in_shutdown ) return;
-               fc_wlog( logger, "Peer keepalive ticked sooner than expected: ${m}", ("m", ec.message()) );
+               return;
             }
 
             auto current_time = std::chrono::steady_clock::now();
