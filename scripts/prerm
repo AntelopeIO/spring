@@ -1,4 +1,4 @@
-:#!/bin/sh
+#!/bin/sh
 
 # Cleanup symbolic links created during postinst
 Python_SITELIB=$(python3 <<EOF
