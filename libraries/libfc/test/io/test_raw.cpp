@@ -6,6 +6,15 @@
 
 using namespace fc;
 
+struct A {
+   int                        x;
+   const float                y;
+   const std::optional<std::string> z;
+
+   bool operator==(const A&) const = default;
+};
+FC_REFLECT(A, (x)(y)(z))
+
 BOOST_AUTO_TEST_SUITE(raw_test_suite)
 
 
@@ -72,6 +81,21 @@ BOOST_AUTO_TEST_CASE(dynamic_bitset_small_test)
    unpacked.flip(2);
    unpacked.flip(7);
    BOOST_TEST(unpacked.none());
+}
+
+BOOST_AUTO_TEST_CASE(struct_serialization) {
+   char buff[512];
+   datastream<char*> ds(buff, sizeof(buff));
+
+   A a{2, 2.2, "abc"};
+   fc::raw::pack(ds, a);
+
+   A a2{0, 0};
+   ds.seekp(0);
+   fc::raw::unpack(ds, a2);
+   bool same = a == a2;
+   BOOST_TEST(same);
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()
