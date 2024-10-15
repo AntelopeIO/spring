@@ -556,10 +556,10 @@ private:
 
 class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin_impl> {
 public:
-   producer_plugin_impl(boost::asio::io_service& io)
-      : _timer(io)
+   producer_plugin_impl()
+      : _timer(app().make_timer<boost::asio::deadline_timer>())
       , _transaction_ack_channel(app().get_channel<compat::channels::transaction_ack>())
-      , _ro_timer(io) {}
+      , _ro_timer(app().make_timer<boost::asio::deadline_timer>()) {}
 
    void     schedule_production_loop();
    void     schedule_maybe_produce_block(bool exhausted);
@@ -1206,7 +1206,7 @@ void new_chain_banner(const eosio::chain::controller& db)
 }
 
 producer_plugin::producer_plugin()
-   : my(new producer_plugin_impl(app().get_io_service()))
+   : my(new producer_plugin_impl())
    {
    }
 
@@ -2994,7 +2994,6 @@ void producer_plugin_impl::switch_to_read_window() {
    _time_tracker.pause();
 
    // we are in write window, so no read-only trx threads are processing transactions.
-   app().get_io_service().poll(); // make sure we schedule any ready
    if (app().executor().read_only_queue_empty() && app().executor().read_exclusive_queue_empty()) { // no read-only tasks to process. stay in write window
       start_write_window();                          // restart write window timer for next round
       return;
