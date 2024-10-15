@@ -4377,23 +4377,23 @@ namespace eosio {
       for(auto listen_itr = listen_addresses.begin(), p2p_iter = p2p_addresses.begin();
           listen_itr != listen_addresses.end();
           ++listen_itr, ++p2p_iter) {
-         app().executor().post(priority::highest, [my=shared_from_this(), address = std::move(*listen_itr), p2p_addr = *p2p_iter](){
+         boost::asio::post(thread_pool.get_executor(), [this, address = std::move(*listen_itr), p2p_addr = *p2p_iter]() {
             try {
                const boost::posix_time::milliseconds accept_timeout(100);
 
                std::string extra_listening_log_info =
-                     ", max clients is " + std::to_string(my->connections.get_max_client_count());
+                     ", max clients is " + std::to_string(connections.get_max_client_count());
 
                auto [listen_addr, block_sync_rate_limit] = net_utils::parse_listen_address(address);
                fc_ilog( logger, "setting block_sync_rate_limit to ${limit} megabytes per second", ("limit", double(block_sync_rate_limit)/1000000));
 
                fc::create_listener<tcp>(
-                     my->thread_pool.get_executor(), logger, accept_timeout, listen_addr, extra_listening_log_info,
-                     [my = my](const auto&) { return boost::asio::make_strand(my->thread_pool.get_executor()); },
-                     [my = my, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
+                     thread_pool.get_executor(), logger, accept_timeout, listen_addr, extra_listening_log_info,
+                     [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
+                     [this, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
                         fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
                                  ("addr", addr)("limit", block_sync_rate_limit));
-                        my->create_session(std::move(socket), addr, block_sync_rate_limit);
+                        create_session(std::move(socket), addr, block_sync_rate_limit);
                      });
             } catch (const plugin_config_exception& e) {
                fc_elog( logger, "${msg}", ("msg", e.top_message()));
@@ -4407,12 +4407,13 @@ namespace eosio {
             }
          });
       }
-      app().executor().post(priority::highest, [my=shared_from_this()](){
-         my->ticker();
-         my->start_monitors();
-         my->update_chain_info();
-         my->connections.connect_supplied_peers(my->get_first_p2p_address()); // attribute every outbound connection to the first listen port when one exists
+      boost::asio::post(thread_pool.get_executor(), [this] {
+         ticker();
+         start_monitors();
+         connections.connect_supplied_peers(get_first_p2p_address()); // attribute every outbound connection to the first listen port when one exists
       });
+
+      update_chain_info();
    }
 
    void net_plugin::plugin_initialize( const variables_map& options ) {
