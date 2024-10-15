@@ -975,14 +975,39 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
       }
 
-      // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
+      // Find if chain_api_plugin is configured
       bool chain_api_plugin_configured = false;
       if (options.count("plugin")) {
          const auto& v = options.at("plugin").as<std::vector<std::string>>();
          chain_api_plugin_configured = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
       }
-      _last_tracked_votes.emplace(*chain, chain_api_plugin_configured);
 
+      // Find if chain_ro category is configured.
+      // Only required validation is performed here; http_plugin does a full
+      // validation of http-category-address configurations.
+      bool chain_ro_category_configured = true;  // default is true if no `http-category-address` is configured
+      if (options.count("http-category-address")) {
+         chain_ro_category_configured = false; // if `http-category-address` is configured, a category must be explicitly configured.
+
+         auto addresses = options["http-category-address"].as<vector<string>>();
+         for (const auto& addr : addresses) {
+            auto comma_pos = addr.find(',');
+            EOS_ASSERT(comma_pos > 0 && comma_pos != std::string_view::npos, chain::plugin_config_exception,
+                       "http-category-address '${addr}' does not contain a required comma to separate the category and address",
+                       ("addr", addr));
+            auto category_name = addr.substr(0, comma_pos);
+            if (category_name == "chain_ro") {
+               chain_ro_category_configured = true;
+               break;
+            }
+         }
+      }
+
+      // only enable last tracked votes if chain_api_plugin and chain_ro are enabled.
+      bool tracking_enabled = chain_api_plugin_configured && chain_ro_category_configured;
+      _last_tracked_votes.emplace(*chain, tracking_enabled);
+
+      // only enable last tracked votes if chain_api_plugin enabled.
       _get_info_db.emplace(*chain, chain_api_plugin_configured);
 
       // initialize deep mind logging
