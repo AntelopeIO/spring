@@ -1,7 +1,16 @@
 #!/bin/sh
 
 set -e
-Python_SITELIB=$(python3 -c "from sysconfig import get_path; print(get_path('platlib', 'deb_system'))")
+Python_SITELIB=$(python3 <<EOF
+import sys
+if sys.version_info < (3, 10, 0):
+    from distutils import sysconfig
+    print(sysconfig.get_python_lib(plat_specific=False,standard_lib=False))
+else:
+    from sysconfig import get_path; print(get_path('platlib', 'deb_system'))
+EOF
+)
+
 mkdir -p $Python_SITELIB
 ln -sf @CMAKE_INSTALL_FULL_DATAROOTDIR@/spring_testing/tests/TestHarness $Python_SITELIB/TestHarness
 
