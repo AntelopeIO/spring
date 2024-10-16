@@ -19,7 +19,7 @@ namespace eosio::chain_apis {
        * @param tracking_enabled true if get_last_vote_info() vote tracking enabled
        * @param chain - controller to read data from
        */
-      explicit tracked_votes( const class eosio::chain::controller& chain, bool tracking_enabled );
+      explicit tracked_votes(const class eosio::chain::controller& chain);
       ~tracked_votes();
 
       /**

@@ -10,9 +10,8 @@ namespace eosio::chain_apis {
     * Implementation details of the last tracked cache
     */
    struct tracked_votes_impl {
-      explicit tracked_votes_impl(const chain::controller& controller, bool tracking_enabled)
-      : tracking_enabled(tracking_enabled)
-      , controller(controller)
+      explicit tracked_votes_impl(const chain::controller& controller)
+      : controller(controller)
       {}
 
       bool tracking_enabled = false;
@@ -124,8 +123,8 @@ namespace eosio::chain_apis {
 
    }; // tracked_votes_impl
 
-   tracked_votes::tracked_votes( const chain::controller& controller, bool tracking_enabled )
-   :_impl(std::make_unique<tracked_votes_impl>(controller, tracking_enabled))
+   tracked_votes::tracked_votes( const chain::controller& controller )
+   :_impl(std::make_unique<tracked_votes_impl>(controller))
    {
    }
 
