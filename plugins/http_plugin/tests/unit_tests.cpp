@@ -650,7 +650,7 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    send_4mb_requests(8u);
    r = drain_http_replies();
    for (const auto& e : r) {
-      ilog( "response: ${r}, count: ${c}", ("r", std::string(obsolete_reason(e.first)))("c", e.second));
+      ilog( "response: ${f}, count: ${c}", ("f", std::string(obsolete_reason(e.first)))("c", e.second));
    }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
 }
@@ -718,7 +718,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    send_requests(8u);
    r = scan_http_replies();
    for (const auto& e : r) {
-      ilog( "response: ${r}, count: ${c}", ("r", std::string(obsolete_reason(e.first)))("c", e.second));
+      ilog( "response: ${f}, count: ${c}", ("f", std::string(obsolete_reason(e.first)))("c", e.second));
    }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
