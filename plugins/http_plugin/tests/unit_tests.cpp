@@ -606,6 +606,8 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
          req.set(http::field::host, "127.0.0.1:8891");
          boost::beast::http::write(s, req);
       }
+      //make sure got to the point http threads had responses queued
+      std::this_thread::sleep_for(std::chrono::seconds(5));
    };
 
    auto drain_http_replies = [&](unsigned max = std::numeric_limits<unsigned>::max()) {
@@ -642,13 +644,14 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
 
    //load up some more requests that exceed max
    send_4mb_requests(32u);
-   //make sure got to the point http threads had responses queued
-   std::this_thread::sleep_for(std::chrono::seconds(1));
    //now rip these connections out before the responses are completely sent
    connections.clear();
    //send some requests that should work still
    send_4mb_requests(8u);
    r = drain_http_replies();
+   for (const auto& e : r) {
+      ilog( "response: ${r}, count: ${c}", ("r", std::string(obsolete_reason(e.first)))("c", e.second));
+   }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
 }
 
@@ -677,6 +680,8 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
          req.set(http::field::host, "127.0.0.1:8892");
          boost::beast::http::write(s, req);
       }
+      //make sure got to the point http threads had responses queued
+      std::this_thread::sleep_for(std::chrono::seconds(1));
    };
 
    auto scan_http_replies = [&]() {
@@ -712,6 +717,9 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    //requests should still work
    send_requests(8u);
    r = scan_http_replies();
+   for (const auto& e : r) {
+      ilog( "response: ${r}, count: ${c}", ("r", std::string(obsolete_reason(e.first)))("c", e.second));
+   }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
 }
