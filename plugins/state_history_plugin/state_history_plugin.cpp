@@ -100,30 +100,41 @@ public:
    template <typename Protocol>
    void create_listener(const std::string& address) {
       boost::asio::post(thread_pool.get_executor(), [this, address]() {
-         const boost::posix_time::milliseconds accept_timeout(200);
-         // run listener on ship thread so that thread_pool.stop() will shutdown the listener since this captures `this`
-         fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "",
-            [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
-            [this](Protocol::socket&& socket) {
-               // connections set must only be modified by the main thread
-               app().executor().post(priority::high, exec_queue::read_write, [this, socket{std::move(socket)}]() mutable {
-                  catch_and_log([this, &socket]() {
-                     connections.emplace(new session(std::move(socket), chain_plug->chain(),
-                                                     trace_log, chain_state_log, finality_data_log,
-                                                     [this](const chain::block_num_type block_num) {
-                                                        return get_block_id(block_num);
-                                                     },
-                                                     [this](const chain::block_id_type& block_id) {
-                                                        return chain_plug->chain().fetch_block_by_id(block_id);
-                                                     },
-                                                     [this](session_base* conn) {
-                                                        app().executor().post(priority::high, exec_queue::read_write, [conn, this]() {
-                                                           connections.erase(connections.find(conn));
-                                                        });
-                                                     }, _log));
+         try {
+            const boost::posix_time::milliseconds accept_timeout(200);
+            // run listener on ship thread so that thread_pool.stop() will shutdown the listener since this captures `this`
+            fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "",
+               [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
+               [this](Protocol::socket&& socket) {
+                  // connections set must only be modified by the main thread
+                  app().executor().post(priority::high, exec_queue::read_write, [this, socket{std::move(socket)}]() mutable {
+                     catch_and_log([this, &socket]() {
+                        connections.emplace(new session(std::move(socket), chain_plug->chain(),
+                                                        trace_log, chain_state_log, finality_data_log,
+                                                        [this](const chain::block_num_type block_num) {
+                                                           return get_block_id(block_num);
+                                                        },
+                                                        [this](const chain::block_id_type& block_id) {
+                                                           return chain_plug->chain().fetch_block_by_id(block_id);
+                                                        },
+                                                        [this](session_base* conn) {
+                                                           app().executor().post(priority::high, exec_queue::read_write, [conn, this]() {
+                                                              connections.erase(connections.find(conn));
+                                                           });
+                                                        }, _log));
+                     });
                   });
                });
-            });
+         } catch(fc::exception& e) {
+            fc_elog(logger(), "SHiP startup fails for ${e}", ("e", e.to_detail_string()));
+            app().quit();
+         } catch(std::exception& e) {
+            fc_elog(logger(), "SHiP startup fails for ${e}", ("e", e.what()));
+            app().quit();
+         } catch (...) {
+            fc_elog(logger(), "SHiP startup fails, shutting down");
+            app().quit();
+         }
       });
    }
 
