@@ -604,7 +604,6 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
          boost::beast::http::request<boost::beast::http::empty_body> req(boost::beast::http::verb::get, "/4megabyte", 11);
          req.keep_alive(true);
          req.set(http::field::host, "127.0.0.1:8891");
-         s.wait(boost::asio::ip::tcp::socket::wait_write);
          boost::beast::http::write(s, req);
       }
    };
@@ -693,7 +692,6 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
       for(boost::asio::ip::tcp::socket& c : connections) {
          boost::beast::http::response<boost::beast::http::string_body> resp;
          boost::beast::flat_buffer buffer;
-         c.wait(boost::asio::ip::tcp::socket::wait_read);
          boost::beast::http::read(c, buffer, resp);
 
          count_of_status_replies[resp.result()]++;
