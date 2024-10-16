@@ -215,27 +215,29 @@ namespace eosio {
 
          template <typename Protocol>
          void create_listener(const std::string& address, api_category_set categories) {
-            const boost::posix_time::milliseconds accept_timeout(500);
-            auto extra_listening_log_info = " for API categories: " + category_names(categories);
-            using socket_type = typename Protocol::socket; 
-            auto create_session = [this, categories, address](socket_type&& socket) {
-               std::string               remote_endpoint;
-               if constexpr (std::is_same_v<socket_type, tcp>) {
-                  boost::system::error_code re_ec;
-                  auto                      re = socket.remote_endpoint(re_ec);
-                  remote_endpoint              = re_ec ? "unknown" : fc::to_string(re);
-               } else {
-                  remote_endpoint = address;
-               }
-               std::make_shared<beast_http_session<socket_type>>(
-                     std::move(socket), plugin_state, std::move(remote_endpoint), categories, address)
-                     ->run_session();
-            };
+            boost::asio::post(plugin_state->thread_pool.get_executor(), [this, categories, address]() {
+               const boost::posix_time::milliseconds accept_timeout(500);
+               auto extra_listening_log_info = " for API categories: " + category_names(categories);
+               using socket_type = typename Protocol::socket;
+               auto create_session = [this, categories, address](socket_type&& socket) {
+                  std::string               remote_endpoint;
+                  if constexpr (std::is_same_v<socket_type, tcp>) {
+                     boost::system::error_code re_ec;
+                     auto                      re = socket.remote_endpoint(re_ec);
+                     remote_endpoint              = re_ec ? "unknown" : fc::to_string(re);
+                  } else {
+                     remote_endpoint = address;
+                  }
+                  std::make_shared<beast_http_session<socket_type>>(
+                        std::move(socket), plugin_state, std::move(remote_endpoint), categories, address)
+                        ->run_session();
+               };
 
-            fc::create_listener<Protocol>(plugin_state->thread_pool.get_executor(), logger(), accept_timeout, address,
-                                          extra_listening_log_info,
-                                          [this](const auto&) -> boost::asio::io_context& { return plugin_state->thread_pool.get_executor(); },
-                                          create_session);
+               fc::create_listener<Protocol>(plugin_state->thread_pool.get_executor(), logger(), accept_timeout, address,
+                                             extra_listening_log_info,
+                                             [this](const auto&) -> boost::asio::io_context& { return plugin_state->thread_pool.get_executor(); },
+                                             create_session);
+            });
          }
 
          void create_beast_server(const std::string& address, api_category_set categories) {
