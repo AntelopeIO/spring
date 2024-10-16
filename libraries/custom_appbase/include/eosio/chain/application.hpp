@@ -155,7 +155,7 @@ public:
    // members are ordered taking into account that the last one is destructed first
 private:
    std::thread::id                    main_thread_id_{ std::this_thread::get_id() };
-   boost::asio::io_service            io_serv_;
+   boost::asio::io_context            io_serv_;
    appbase::exec_pri_queue            pri_queue_;
    std::atomic<std::size_t>           order_{ std::numeric_limits<size_t>::max() }; // to maintain FIFO ordering in all queues within priority
    exec_window                        exec_window_{ exec_window::write };

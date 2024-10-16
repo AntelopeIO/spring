@@ -411,9 +411,6 @@ namespace eosio {
       boost::asio::steady_timer             keepalive_timer GUARDED_BY(keepalive_timer_mtx) {thread_pool.get_executor()};
 
       alignas(hardware_destructive_interference_sz)
-      std::atomic<bool>                     in_shutdown{false};
-
-      alignas(hardware_destructive_interference_sz)
       compat::channels::transaction_ack::channel_type::handle  incoming_transaction_ack_subscription;
 
       boost::asio::deadline_timer           accept_error_timer{thread_pool.get_executor()};
@@ -3150,10 +3147,7 @@ namespace eosio {
    }
 
    void net_plugin_impl::plugin_shutdown() {
-         in_shutdown = true;
-
-         connections.close_all();
-         thread_pool.stop();
+      thread_pool.stop();
    }
 
    // call only from main application thread
@@ -3801,30 +3795,23 @@ namespace eosio {
 
    // thread safe
    void net_plugin_impl::start_expire_timer() {
-      if( in_shutdown ) return;
       fc::lock_guard g( expire_timer_mtx );
       expire_timer.expires_from_now( txn_exp_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
-         } else {
-            if( my->in_shutdown ) return;
-            fc_elog( logger, "Error from transaction check monitor: ${m}", ("m", ec.message()) );
-            my->start_expire_timer();
          }
       } );
    }
 
    // thread safe
    void net_plugin_impl::ticker() {
-      if( in_shutdown ) return;
       fc::lock_guard g( keepalive_timer_mtx );
       keepalive_timer.expires_from_now(keepalive_interval);
       keepalive_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
             if( ec ) {
-               if( my->in_shutdown ) return;
-               fc_wlog( logger, "Peer keepalive ticked sooner than expected: ${m}", ("m", ec.message()) );
+               return;
             }
 
             auto current_time = std::chrono::steady_clock::now();
@@ -4422,29 +4409,17 @@ namespace eosio {
    }
 
    void net_plugin::plugin_startup() {
-      try {
-         my->plugin_startup();
-      } catch( ... ) {
-         // always want plugin_shutdown even on exception
-         plugin_shutdown();
-         throw;
-      }
+      my->plugin_startup();
    }
-      
 
    void net_plugin::handle_sighup() {
       fc::logger::update( logger_name, logger );
    }
 
    void net_plugin::plugin_shutdown() {
-      try {
-         fc_ilog( logger, "shutdown.." );
-
-         my->plugin_shutdown();
-         app().executor().post( 0, [me = my](){} ); // keep my pointer alive until queue is drained
-         fc_ilog( logger, "exit shutdown" );
-      }
-      FC_CAPTURE_AND_RETHROW()
+      fc_dlog( logger, "shutdown.." );
+      my->plugin_shutdown();
+      fc_ilog( logger, "exit shutdown" );
    }
 
    /// RPC API
