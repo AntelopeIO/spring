@@ -111,7 +111,7 @@ try:
 
     for node in [node1, node2, node3, node4]:
         lib = node.getIrreversibleBlockNum()
-        assert lib < libN, "Node LIB {lib} >= LIB N {libN}"
+        assert lib < libN, f"Node LIB {lib} >= LIB N {libN}"
 
     Print("Shutdown all nodes")
     for node in [node0, node1, node2, node3, node4]:
@@ -135,7 +135,7 @@ try:
     for node in [node4, node3, node2, node1, node0]:
         assert node.waitForLibToAdvance(timeout=60), f"Node {node.nodeId} did not advance LIB after relaunch"
         lib = node.getIrreversibleBlockNum()
-        assert lib > libN, "Node LIB {lib} <= LIB N {libN}"
+        assert lib > libN, f"Node LIB {lib} <= LIB N {libN}"
 
     testSuccessful=True
 finally:
