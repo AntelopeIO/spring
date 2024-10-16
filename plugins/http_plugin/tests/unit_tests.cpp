@@ -604,10 +604,9 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
          boost::beast::http::request<boost::beast::http::empty_body> req(boost::beast::http::verb::get, "/4megabyte", 11);
          req.keep_alive(true);
          req.set(http::field::host, "127.0.0.1:8891");
+         s.wait(boost::asio::ip::tcp::socket::wait_write);
          boost::beast::http::write(s, req);
       }
-      //make sure got to the point http threads had responses queued
-      std::this_thread::sleep_for(std::chrono::seconds(5));
    };
 
    auto drain_http_replies = [&](unsigned max = std::numeric_limits<unsigned>::max()) {
@@ -622,6 +621,12 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
          connections.erase(connections.begin());
       }
       return count_of_status_replies;
+   };
+
+   auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
+      while (http_plugin->bytes_in_flight() > 0 && --max)
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      BOOST_CHECK(max > 0);
    };
 
 
@@ -646,6 +651,7 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    send_4mb_requests(32u);
    //now rip these connections out before the responses are completely sent
    connections.clear();
+   wait_for_no_bytes_in_flight();
    //send some requests that should work still
    send_4mb_requests(8u);
    r = drain_http_replies();
@@ -680,8 +686,6 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
          req.set(http::field::host, "127.0.0.1:8892");
          boost::beast::http::write(s, req);
       }
-      //make sure got to the point http threads had responses queued
-      std::this_thread::sleep_for(std::chrono::seconds(1));
    };
 
    auto scan_http_replies = [&]() {
@@ -689,6 +693,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
       for(boost::asio::ip::tcp::socket& c : connections) {
          boost::beast::http::response<boost::beast::http::string_body> resp;
          boost::beast::flat_buffer buffer;
+         c.wait(boost::asio::ip::tcp::socket::wait_read);
          boost::beast::http::read(c, buffer, resp);
 
          count_of_status_replies[resp.result()]++;
@@ -699,12 +704,19 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
       return count_of_status_replies;
    };
 
+   auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
+      while (http_plugin->bytes_in_flight() > 0 && --max)
+         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      BOOST_CHECK(max > 0);
+   };
+
 
    //8 requests to start with
    send_requests(8u);
    std::unordered_map<boost::beast::http::status, size_t> r = scan_http_replies();
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
+   wait_for_no_bytes_in_flight();
 
    //24 requests will exceed threshold
    send_requests(24u);
@@ -713,6 +725,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    BOOST_REQUIRE_GT(r[boost::beast::http::status::service_unavailable], 0u);
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::service_unavailable] + r[boost::beast::http::status::ok], 24u);
    connections.clear();
+   wait_for_no_bytes_in_flight();
 
    //requests should still work
    send_requests(8u);
@@ -722,6 +735,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
+   wait_for_no_bytes_in_flight();
 }
 
 //A warning for future tests: destruction of http_plugin_test_fixture sometimes does not destroy http_plugin's listeners. Tests

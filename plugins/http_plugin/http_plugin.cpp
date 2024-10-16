@@ -635,6 +635,10 @@ namespace eosio {
       my->plugin_state->update_metrics = std::move(fun);
    }
 
+   size_t http_plugin::bytes_in_flight() const {
+      return my->plugin_state->bytes_in_flight;
+   }
+
    std::atomic<bool>& http_plugin::listening() {
       return my->listening;
    }

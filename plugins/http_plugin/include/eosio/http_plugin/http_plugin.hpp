@@ -133,6 +133,8 @@ namespace eosio {
 
         void register_update_metrics(std::function<void(metrics)>&& fun);
 
+        size_t bytes_in_flight() const;
+
         std::atomic<bool>& listening();
    private:
         std::shared_ptr<class http_plugin_impl> my;
