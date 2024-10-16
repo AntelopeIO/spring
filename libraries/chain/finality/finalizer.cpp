@@ -393,7 +393,7 @@ void my_finalizers_t::set_keys(const std::map<std::string, std::string>& finaliz
       auto public_key {bls_public_key{pub_key_str}};
       auto it  = safety_info.find(public_key);
       const auto& fsi = it != safety_info.end() ? it->second : default_fsi;
-      finalizers[public_key] = finalizer{bls_private_key{priv_key_str}, fsi};
+      finalizers.emplace(public_key, finalizer{bls_private_key{priv_key_str}, fsi});
    }
 
    // Now that we have updated the  finalizer_safety_info of our local finalizers,

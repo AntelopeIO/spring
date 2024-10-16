@@ -934,7 +934,7 @@ namespace impl {
          {
             auto itr = _vo.find(name);
             if( itr != _vo.end() )
-               abi_from_variant::extract( itr->value(), this->obj.*member, _resolver, _ctx );
+               abi_from_variant::extract( itr->value(), const_cast<std::remove_const_t<Member>&>(this->obj.*member), _resolver, _ctx );
          }
 
       private:
