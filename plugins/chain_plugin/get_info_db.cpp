@@ -2,6 +2,11 @@
 #include <eosio/chain/resource_limits.hpp>
 #include <eosio/chain/application.hpp>
 
+//libstdc++ flags atomic_*<shared_ptr> as deprecated in c++20. while libstdc++ 12 adds atomic<shared_ptr>, it is
+// still missing in libc++ 19
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 using namespace eosio;
 using namespace eosio::chain;
 using namespace appbase;
@@ -162,3 +167,5 @@ namespace eosio::chain_apis {
       return _impl->get_info();
    }
 } // namespace eosio::chain_apis
+
+#pragma GCC diagnostic pop
