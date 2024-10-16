@@ -183,6 +183,11 @@ void chain_api_plugin::plugin_startup() {
          CHAIN_RO_CALL_WITH_400(get_transaction_status, 200, http_params_types::params_required),
       }, appbase::exec_queue::read_only);
    }
+
+   // Let ro_api's tracked_votes know whether chain_ro category is enabled
+   // to avoid extra processing.
+   bool chain_ro_enabled = _http_plugin.is_enabled(api_category::chain_ro);
+   ro_api.set_tracked_votes_tracking_enabled(chain_ro_enabled);
 }
 
 void chain_api_plugin::plugin_shutdown() {}

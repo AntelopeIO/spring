@@ -975,14 +975,15 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          }
       }
 
-      // only enable last tracked votes if chain_api_plugin enabled, if no http endpoint, no reason to track
+      _last_tracked_votes.emplace(*chain);
+
       bool chain_api_plugin_configured = false;
       if (options.count("plugin")) {
          const auto& v = options.at("plugin").as<std::vector<std::string>>();
          chain_api_plugin_configured = std::ranges::any_of(v, [](const std::string& p) { return p.find("eosio::chain_api_plugin") != std::string::npos; });
       }
-      _last_tracked_votes.emplace(*chain, chain_api_plugin_configured);
 
+      // only enable _get_info_db if chain_api_plugin enabled.
       _get_info_db.emplace(*chain, chain_api_plugin_configured);
 
       // initialize deep mind logging

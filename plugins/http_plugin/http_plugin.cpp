@@ -610,6 +610,15 @@ namespace eosio {
                          });
    }
 
+   // returns true if `category` is enabled in http_plugin
+   bool http_plugin::is_enabled(api_category category) const {
+      return std::any_of(my->categories_by_address.begin(), my->categories_by_address.end(),
+                         [&category, this](const auto& entry) {
+                            const auto& [address, categories] = entry;
+                            return categories.contains(category);
+                         });
+   }
+
    bool http_plugin::verbose_errors() {
       return verbose_http_errors;
    }

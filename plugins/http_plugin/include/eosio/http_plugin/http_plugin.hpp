@@ -113,6 +113,9 @@ namespace eosio {
 
         bool is_on_loopback(api_category category) const;
 
+        // returns true if `category` is enabled in http_plugin
+        bool is_enabled(api_category category) const;
+
         static bool verbose_errors();
 
         struct get_supported_apis_result {
