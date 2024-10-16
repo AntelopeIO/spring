@@ -96,6 +96,10 @@ namespace eosio::chain_apis {
          return {};
       }
 
+      void set_tracking_enabled(bool enabled) {
+         tracking_enabled = enabled;
+      }
+
       void log_missing_votes(const chain::signed_block_ptr& block, const chain::block_id_type& id,
                              const chain::qc_vote_metrics_t::fin_auth_set_t& missing_votes,
                              uint32_t missed_block_num) const {
@@ -133,6 +137,10 @@ namespace eosio::chain_apis {
 
    std::optional<tracked_votes::vote_info> tracked_votes::get_last_vote_info(const fc::crypto::blslib::bls_public_key& finalizer_pub_key) const {
       return _impl->get_last_vote_info(finalizer_pub_key);
+   }
+
+   void tracked_votes::set_tracking_enabled(bool enabled) {
+      _impl->set_tracking_enabled(enabled);
    }
 
 } // namespace eosio::chain_apis

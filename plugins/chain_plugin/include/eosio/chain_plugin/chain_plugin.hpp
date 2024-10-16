@@ -142,7 +142,7 @@ class read_only : public api_base {
    const controller& db;
    const std::optional<get_info_db>& gidb;
    const std::optional<account_query_db>& aqdb;
-   const std::optional<tracked_votes>& last_tracked_votes;
+   std::optional<tracked_votes>& last_tracked_votes;
    const fc::microseconds abi_serializer_max_time;
    const fc::microseconds http_max_response_time;
    bool  shorten_abi_errors = true;
@@ -155,7 +155,7 @@ public:
    read_only(const controller&                      db,
              const std::optional<get_info_db>&      gidb,
              const std::optional<account_query_db>& aqdb,
-             const std::optional<tracked_votes>&    last_tracked_votes,
+             std::optional<tracked_votes>&          last_tracked_votes, // tracking_enabled of last_tracked_votes is set after it is constructed. const cannot be used here.
              const fc::microseconds&                abi_serializer_max_time,
              const fc::microseconds&                http_max_response_time,
              const trx_finality_status_processing*  trx_finality_status_proc)
@@ -177,6 +177,12 @@ public:
    }
 
    void set_shorten_abi_errors( bool f ) { shorten_abi_errors = f; }
+
+   void set_tracked_votes_tracking_enabled( bool flag ) {
+      if (last_tracked_votes) {
+         last_tracked_votes->set_tracking_enabled(flag);
+      }
+   }
 
    using get_info_params = empty;
 
