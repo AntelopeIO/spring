@@ -841,12 +841,9 @@ namespace eosio::testing {
       string action_type_name = abis.get_action_type(acttype);
       FC_ASSERT( action_type_name != string(), "unknown action type ${a}", ("a",acttype) );
 
-
-      action act;
-      act.account = code;
-      act.name = acttype;
-      act.authorization = auths;
-      act.data = abis.variant_to_binary(action_type_name, data, abi_serializer::create_yield_function( abi_serializer_max_time ));
+      action act(std::move(auths), code, acttype,
+                 abis.variant_to_binary(action_type_name, data,
+                                        abi_serializer::create_yield_function(abi_serializer_max_time)));
       return act;
    } FC_CAPTURE_AND_RETHROW() }
 

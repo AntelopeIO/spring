@@ -223,13 +223,12 @@ public:
    T::action_result push_action( const account_name& signer, const action_name &name, const variant_object &data, bool auth = true ) {
          string action_type_name = abi_ser.get_action_type(name);
 
-         action act;
-         act.account = config::system_account_name;
-         act.name = name;
-         act.data = abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function( T::abi_serializer_max_time ) );
+         action act({}, config::system_account_name, name,
+                    abi_ser.variant_to_binary(action_type_name, data,
+                                              abi_serializer::create_yield_function(T::abi_serializer_max_time)));
 
          return base_tester::push_action( std::move(act), auth ? signer.to_uint64_t() :
-                                                signer == "bob111111111"_n ? "alice1111111"_n.to_uint64_t() : "bob111111111"_n.to_uint64_t() );
+                                          signer == "bob111111111"_n ? "alice1111111"_n.to_uint64_t() : "bob111111111"_n.to_uint64_t() );
    }
 
    T::action_result stake( const account_name& from, const account_name& to, const asset& net, const asset& cpu ) {
