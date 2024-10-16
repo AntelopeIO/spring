@@ -623,7 +623,7 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    };
 
    auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
-      while (http_plugin->bytes_in_flight() > 0 && --max)
+      while (http_plugin->bytes_in_flight() > 0 && http_plugin->requests_in_flight() > 0 && --max)
          std::this_thread::sleep_for(std::chrono::milliseconds(5));
       BOOST_CHECK(max > 0);
    };
@@ -702,8 +702,8 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
       return count_of_status_replies;
    };
 
-   auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
-      while (http_plugin->bytes_in_flight() > 0 && --max)
+   auto wait_for_no_requests_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
+      while (http_plugin->requests_in_flight() > 0 && --max)
          std::this_thread::sleep_for(std::chrono::milliseconds(5));
       BOOST_CHECK(max > 0);
    };
@@ -714,7 +714,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    std::unordered_map<boost::beast::http::status, size_t> r = scan_http_replies();
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
-   wait_for_no_bytes_in_flight();
+   wait_for_no_requests_in_flight();
 
    //24 requests will exceed threshold
    send_requests(24u);
@@ -723,7 +723,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    BOOST_REQUIRE_GT(r[boost::beast::http::status::service_unavailable], 0u);
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::service_unavailable] + r[boost::beast::http::status::ok], 24u);
    connections.clear();
-   wait_for_no_bytes_in_flight();
+   wait_for_no_requests_in_flight();
 
    //requests should still work
    send_requests(8u);
@@ -733,7 +733,7 @@ BOOST_FIXTURE_TEST_CASE(requests_in_flight, http_plugin_test_fixture) {
    }
    BOOST_REQUIRE_EQUAL(r[boost::beast::http::status::ok], 8u);
    connections.clear();
-   wait_for_no_bytes_in_flight();
+   wait_for_no_requests_in_flight();
 }
 
 //A warning for future tests: destruction of http_plugin_test_fixture sometimes does not destroy http_plugin's listeners. Tests

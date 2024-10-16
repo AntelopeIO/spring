@@ -130,6 +130,8 @@ namespace eosio {
 
         void register_update_metrics(std::function<void(metrics)>&& fun);
 
+        size_t requests_in_flight() const;
+
         size_t bytes_in_flight() const;
 
         std::atomic<bool>& listening();
