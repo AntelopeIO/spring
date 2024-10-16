@@ -26,6 +26,16 @@ namespace eosio::chain_apis {
                return;
             }
 
+            // In IRREVERSIBLE mode, it is expected get_info to return the same
+            // head_block_num and last_irreversible_block_num.
+            // But a get_info request can come between accepted_block signal and
+            // irreversible_block signal, which results in inconsistencies.
+            // Do not store get_info results accepted_block signal; do it only
+            // on irreversible_block signal.
+            if (controller.get_read_mode() == db_read_mode::IRREVERSIBLE) {
+               return;
+            }
+
             store_info();
          } FC_LOG_AND_DROP(("get_info_db_impl on_accepted_block ERROR"));
       }
