@@ -189,7 +189,6 @@ namespace eosio::chain {
 
       // for testing purposes only, not thread safe
       const fsi_t& get_fsi(const bls_public_key& k) const { return finalizers.at(k).fsi; }
-
       void set_fsi(const bls_public_key& k, const fsi_t& fsi) {
          if (auto it = finalizers.find(k); it != finalizers.end())
             it->second.fsi = fsi;
