@@ -51,7 +51,7 @@ namespace fc
          {
             auto itr = vo.find(name);
             if( itr != vo.end() )
-               from_variant( itr->value(), this->obj.*member );
+               from_variant( itr->value(), const_cast<std::remove_const_t<Member>&>(this->obj.*member) );
          }
 
          const variant_object& vo;

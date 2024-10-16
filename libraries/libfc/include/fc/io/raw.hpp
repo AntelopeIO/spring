@@ -349,7 +349,11 @@ namespace fc {
         template<typename T, typename C, T(C::*p)>
         inline void operator()( const char* name )const
         { try {
-          fc::raw::unpack( s, this->obj.*p );
+          // `const_cast` because we want to be able to populate `const` members of a class, which
+          // are typically set only in the constructor, but because of the `reflect` and `raw`
+          // interfaces, we have to create the object first and then populate the members.
+          // -------------------------------------------------------------------------------------
+          fc::raw::unpack( s, const_cast<std::remove_const_t<T>&>(this->obj.*p) );
         } FC_RETHROW_EXCEPTIONS( warn, "Error unpacking field ${field}", ("field",name) ) }
 
         private:

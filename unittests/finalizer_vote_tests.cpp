@@ -131,7 +131,7 @@ struct simulator_t {
 
    simulator_t() :
       keys("alice"_n),
-      my_finalizer(keys.privkey) {
+      my_finalizer(keys.privkey, finalizer_safety_information{}) {
 
       finalizer_policy fin_policy;
       fin_policy.threshold = 1;

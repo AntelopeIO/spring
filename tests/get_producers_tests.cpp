@@ -16,7 +16,8 @@ using namespace eosio::testing;
 BOOST_AUTO_TEST_CASE_TEMPLATE( get_producers, T, testers ) { try {
       T chain;
 
-      eosio::chain_apis::read_only plugin(*(chain.control), {}, {}, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
+      std::optional<eosio::chain_apis::tracked_votes> _tracked_votes;
+      eosio::chain_apis::read_only plugin(*(chain.control), {}, {}, _tracked_votes, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
       eosio::chain_apis::read_only::get_producers_params params = { .json = true, .lower_bound = "", .limit = 21 };
 
       auto results = plugin.get_producers(params, fc::time_point::maximum());
@@ -58,7 +59,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( get_producers_from_table, T, eosio_system::eosio_
       // ensure that enough voting is occurring so that producer1111 is elected as the producer
       chain.cross_15_percent_threshold();
 
-      eosio::chain_apis::read_only plugin(*(chain.control), {}, {}, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
+      std::optional<eosio::chain_apis::tracked_votes> _tracked_votes;
+      eosio::chain_apis::read_only plugin(*(chain.control), {}, {}, _tracked_votes, fc::microseconds::maximum(), fc::microseconds::maximum(), {});
       eosio::chain_apis::read_only::get_producers_params params = { .json = true, .lower_bound = "", .limit = 21 };
 
       auto results = plugin.get_producers(params, fc::time_point::maximum());

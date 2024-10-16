@@ -8,7 +8,7 @@ namespace eosio {
    struct handshake_message;
 
    namespace chain_apis {
-      class read_only;
+      class get_info_db;
    }
 
    class chain_plugin;
@@ -49,7 +49,7 @@ namespace chain {
          template<typename T>
          friend T fc::variant::as()const;
 
-         friend class eosio::chain_apis::read_only;
+         friend class eosio::chain_apis::get_info_db;
 
          friend class eosio::net_plugin_impl;
          friend struct eosio::handshake_message;

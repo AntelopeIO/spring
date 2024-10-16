@@ -4,6 +4,7 @@
 #include <eosio/chain_plugin/trx_retry_db.hpp>
 #include <eosio/chain_plugin/trx_finality_status_processing.hpp>
 #include <eosio/chain_plugin/tracked_votes.hpp>
+#include <eosio/chain_plugin/get_info_db.hpp>
 
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/asset.hpp>
@@ -139,8 +140,9 @@ protected:
    
 class read_only : public api_base {
    const controller& db;
+   const std::optional<get_info_db>& gidb;
    const std::optional<account_query_db>& aqdb;
-   const std::optional<tracked_votes>& last_tracked_votes;
+   std::optional<tracked_votes>& last_tracked_votes;
    const fc::microseconds abi_serializer_max_time;
    const fc::microseconds http_max_response_time;
    bool  shorten_abi_errors = true;
@@ -150,11 +152,15 @@ class read_only : public api_base {
 public:
    static const string KEYi64;
 
-   read_only(const controller& db, const std::optional<account_query_db>& aqdb,
-             const std::optional<tracked_votes>& last_tracked_votes,
-             const fc::microseconds& abi_serializer_max_time, const fc::microseconds& http_max_response_time,
-             const trx_finality_status_processing* trx_finality_status_proc)
+   read_only(const controller&                      db,
+             const std::optional<get_info_db>&      gidb,
+             const std::optional<account_query_db>& aqdb,
+             std::optional<tracked_votes>&          last_tracked_votes, // tracking_enabled of last_tracked_votes is set after it is constructed. const cannot be used here.
+             const fc::microseconds&                abi_serializer_max_time,
+             const fc::microseconds&                http_max_response_time,
+             const trx_finality_status_processing*  trx_finality_status_proc)
       : db(db)
+      , gidb(gidb)
       , aqdb(aqdb)
       , last_tracked_votes(last_tracked_votes)
       , abi_serializer_max_time(abi_serializer_max_time)
@@ -172,35 +178,15 @@ public:
 
    void set_shorten_abi_errors( bool f ) { shorten_abi_errors = f; }
 
+   void set_tracked_votes_tracking_enabled( bool flag ) {
+      if (last_tracked_votes) {
+         last_tracked_votes->set_tracking_enabled(flag);
+      }
+   }
+
    using get_info_params = empty;
 
-   struct get_info_results {
-      string                               server_version;
-      chain::chain_id_type                 chain_id;
-      uint32_t                             head_block_num = 0;
-      uint32_t                             last_irreversible_block_num = 0;
-      chain::block_id_type                 last_irreversible_block_id;
-      chain::block_id_type                 head_block_id;
-      fc::time_point                       head_block_time;
-      account_name                         head_block_producer;
-
-      uint64_t                             virtual_block_cpu_limit = 0;
-      uint64_t                             virtual_block_net_limit = 0;
-
-      uint64_t                             block_cpu_limit = 0;
-      uint64_t                             block_net_limit = 0;
-      //string                               recent_slots;
-      //double                               participation_rate = 0;
-      std::optional<string>                server_version_string;
-      std::optional<uint32_t>              fork_db_head_block_num;
-      std::optional<chain::block_id_type>  fork_db_head_block_id;
-      std::optional<string>                server_full_version_string;
-      std::optional<uint64_t>              total_cpu_weight;
-      std::optional<uint64_t>              total_net_weight;
-      std::optional<uint32_t>              earliest_available_block_num;
-      std::optional<fc::time_point>        last_irreversible_block_time;
-   };
-   get_info_results get_info(const get_info_params&, const fc::time_point& deadline) const;
+   get_info_db::get_info_results get_info(const get_info_params&, const fc::time_point& deadline) const;
 
    struct get_transaction_status_params {
       chain::transaction_id_type           id;
@@ -970,15 +956,6 @@ public:
      }
  };
 
- template<typename I>
- std::string itoh(I n, size_t hlen = sizeof(I)<<1) {
-     static const char* digits = "0123456789abcdef";
-     std::string r(hlen, '0');
-     for(size_t i = 0, j = (hlen - 1) * 4 ; i < hlen; ++i, j -= 4)
-         r[i] = digits[(n>>j) & 0x0f];
-     return r;
- }
-
 } // namespace chain_apis
 
 class chain_plugin : public plugin<chain_plugin> {
@@ -1036,12 +1013,6 @@ private:
 FC_REFLECT( eosio::chain_apis::linked_action, (account)(action) )
 FC_REFLECT( eosio::chain_apis::permission, (perm_name)(parent)(required_auth)(linked_actions) )
 FC_REFLECT(eosio::chain_apis::empty, )
-FC_REFLECT(eosio::chain_apis::read_only::get_info_results,
-           (server_version)(chain_id)(head_block_num)(last_irreversible_block_num)(last_irreversible_block_id)
-           (head_block_id)(head_block_time)(head_block_producer)
-           (virtual_block_cpu_limit)(virtual_block_net_limit)(block_cpu_limit)(block_net_limit)
-           (server_version_string)(fork_db_head_block_num)(fork_db_head_block_id)(server_full_version_string)
-           (total_cpu_weight)(total_net_weight)(earliest_available_block_num)(last_irreversible_block_time))
 FC_REFLECT(eosio::chain_apis::read_only::get_transaction_status_params, (id) )
 FC_REFLECT(eosio::chain_apis::read_only::get_transaction_status_results, (state)(block_number)(block_id)(block_timestamp)(expiration)(head_number)(head_id)
            (head_timestamp)(irreversible_number)(irreversible_id)(irreversible_timestamp)(earliest_tracked_block_id)(earliest_tracked_block_number) )

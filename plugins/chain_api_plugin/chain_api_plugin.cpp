@@ -125,9 +125,11 @@ void chain_api_plugin::plugin_startup() {
 
    ro_api.set_shorten_abi_errors( !http_plugin::verbose_errors() );
 
-   _http_plugin.add_api( {
-      CALL_WITH_400(chain, node, ro_api, chain_apis::read_only, get_info, 200, http_params_types::no_params)
-      }, appbase::exec_queue::read_only, appbase::priority::medium_high);
+   // Run get_info on http thread only
+   _http_plugin.add_async_api({
+      CHAIN_RO_CALL_WITH_400(get_info, 200, http_params_types::no_params)
+   });
+
    _http_plugin.add_api({
       CHAIN_RO_CALL(get_activated_protocol_features, 200, http_params_types::possible_no_params),
       CHAIN_RO_CALL_POST(get_block, fc::variant, 200, http_params_types::params_required), // _POST because get_block() returns a lambda to be executed on the http thread pool
@@ -181,6 +183,11 @@ void chain_api_plugin::plugin_startup() {
          CHAIN_RO_CALL_WITH_400(get_transaction_status, 200, http_params_types::params_required),
       }, appbase::exec_queue::read_only);
    }
+
+   // Let ro_api's tracked_votes know whether chain_ro category is enabled
+   // to avoid extra processing.
+   bool chain_ro_enabled = _http_plugin.is_enabled(api_category::chain_ro);
+   ro_api.set_tracked_votes_tracking_enabled(chain_ro_enabled);
 }
 
 void chain_api_plugin::plugin_shutdown() {}
