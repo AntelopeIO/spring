@@ -6,7 +6,6 @@
 #include <fc/exception/exception.hpp>
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/json.hpp>
-
 namespace eosio {
    using namespace appbase;
 
@@ -87,7 +86,7 @@ namespace eosio {
         static void set_defaults(const http_plugin_defaults& config);
         static std::string get_server_header();
 
-        APPBASE_PLUGIN_REQUIRES();
+        APPBASE_PLUGIN_REQUIRES()
 
         void set_program_options(options_description&, options_description& cfg) override;
 
