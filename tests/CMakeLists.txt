@@ -10,7 +10,6 @@ target_link_libraries( plugin_test eosio_testing eosio_chain_wrap chainbase chai
 target_include_directories( plugin_test PUBLIC
                             ${CMAKE_SOURCE_DIR}/plugins/net_plugin/include
                             ${CMAKE_SOURCE_DIR}/plugins/chain_plugin/include
-                            ${CMAKE_SOURCE_DIR}/plugins/http_plugin/include
                             ${CMAKE_SOURCE_DIR}/unittests
                             ${CMAKE_BINARY_DIR}/unittests/include/ )
 
