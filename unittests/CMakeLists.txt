@@ -83,9 +83,7 @@ target_include_directories( unit_test PUBLIC
                             ${CMAKE_BINARY_DIR}/contracts
                             ${CMAKE_CURRENT_SOURCE_DIR}/contracts
                             ${CMAKE_CURRENT_BINARY_DIR}/contracts
-                            ${CMAKE_CURRENT_BINARY_DIR}/include
-                            ${CMAKE_SOURCE_DIR}/plugins/http_plugin/include
-                            ${CMAKE_SOURCE_DIR}/plugins/chain_interface/include)
+                            ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 ### MARK TEST SUITES FOR EXECUTION ###
 add_test(NAME protocol_feature_digest_unit_test COMMAND unit_test --run_test=protocol_feature_digest_tests --report_level=detailed --color_output)

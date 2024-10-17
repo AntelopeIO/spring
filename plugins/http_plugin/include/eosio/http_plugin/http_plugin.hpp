@@ -87,6 +87,7 @@ namespace eosio {
         static std::string get_server_header();
 
         APPBASE_PLUGIN_REQUIRES()
+
         void set_program_options(options_description&, options_description& cfg) override;
 
         void plugin_initialize(const variables_map& options);
