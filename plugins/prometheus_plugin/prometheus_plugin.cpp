@@ -67,11 +67,11 @@ namespace eosio {
 
       my->_catalog.update_prometheus_info();
 
-      ilog("Prometheus plugin started.");
+      dlog("Prometheus plugin started.");
    }
 
    void prometheus_plugin::plugin_shutdown() {
       my->_prometheus_thread_pool.stop();
-      ilog("Prometheus plugin shutdown.");
+      dlog("Prometheus plugin shutdown.");
    }
 }

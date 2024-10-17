@@ -170,7 +170,7 @@ int main(int argc, char** argv)
 
       app->set_stop_executor_cb([&app]() {
          ilog("appbase quit called");
-         app->get_io_service().stop();
+         app->get_io_context().stop();
       });
       app->set_version(htonl(short_hash));
       app->set_version_string(eosio::version::version_client());
