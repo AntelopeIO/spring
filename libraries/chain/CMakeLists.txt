@@ -3,7 +3,6 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/genesis_state_root_key.cpp.in ${CMAKE
 
 file(GLOB HEADERS "include/eosio/chain/*.hpp"
                   "include/eosio/chain/webassembly/*.hpp"
-                  "include/eosio/chain/finality/*.hpp"
                   "${CMAKE_CURRENT_BINARY_DIR}/include/eosio/chain/core_symbol.hpp" )
 
 if((APPLE AND UNIX) OR (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD"))
@@ -70,12 +69,6 @@ set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/transaction.cpp
 )
 
-set(CHAIN_FINALITY_SOURCES
-        finality/finalizer.cpp
-        finality/qc.cpp
-        finality/finality_core.cpp
-)
-
 add_library(eosio_rapidjson INTERFACE)
 target_include_directories(eosio_rapidjson INTERFACE ../rapidjson/include)
 
@@ -90,7 +83,10 @@ add_library( eosio_chain
              block_state.cpp
              block_header_state_legacy.cpp
              block_state_legacy.cpp
+             finalizer.cpp
              fork_database.cpp
+             qc.cpp
+             finality_core.cpp
              controller.cpp
              authorization_manager.cpp
              resource_limits.cpp
@@ -119,7 +115,6 @@ add_library( eosio_chain
              ${CHAIN_EOSVMOC_SOURCES}
              ${CHAIN_EOSVM_SOURCES}
              ${CHAIN_WEBASSEMBLY_SOURCES}
-             ${CHAIN_FINALITY_SOURCES}
 
              authority.cpp
              trace.cpp

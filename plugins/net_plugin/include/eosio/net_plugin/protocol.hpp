@@ -1,6 +1,6 @@
 #pragma once
 #include <eosio/chain/block.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/types.hpp>
 
 namespace eosio {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <eosio/chain/finality/finalizer_authority.hpp>
-#include <eosio/chain/finality/finalizer.hpp>
+#include <eosio/chain/finalizer_authority.hpp>
+#include <eosio/chain/finalizer.hpp>
 #include <fc/crypto/bls_private_key.hpp>
 
 #include <eosio/testing/tester.hpp>

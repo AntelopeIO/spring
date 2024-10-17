@@ -1,7 +1,7 @@
 #pragma once
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/transaction.hpp>
-#include <eosio/chain/finality/qc.hpp>
+#include <eosio/chain/qc.hpp>
 
 namespace eosio { namespace chain {
 

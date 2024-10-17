@@ -1,4 +1,4 @@
-#include <eosio/chain/finality/finalizer.hpp>
+#include <eosio/chain/finalizer.hpp>
 
 #include <boost/test/unit_test.hpp>
 #include <eosio/testing/tester.hpp>

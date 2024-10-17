@@ -9,7 +9,7 @@
 #include <eosio/chain/kv_config.hpp>
 #include <eosio/chain/wasm_config.hpp>
 #include <eosio/chain/producer_schedule.hpp>
-#include <eosio/chain/finality/finalizer_policy.hpp>
+#include <eosio/chain/finalizer_policy.hpp>
 #include <eosio/chain/snapshot.hpp>
 #include <eosio/chain/genesis_state.hpp>
 #include <chainbase/chainbase.hpp>
