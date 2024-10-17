@@ -4364,7 +4364,7 @@ namespace eosio {
       const boost::posix_time::milliseconds accept_timeout(100);
       std::string extra_listening_log_info = ", max clients is " + std::to_string(connections.get_max_client_count());
       for(auto listen_itr = listen_addresses.begin(), p2p_iter = p2p_addresses.begin();
-         listen_itr != listen_addresses.end();
+          listen_itr != listen_addresses.end();
           ++listen_itr, ++p2p_iter) {
          auto address = std::move(*listen_itr);
          const auto& p2p_addr = *p2p_iter;
