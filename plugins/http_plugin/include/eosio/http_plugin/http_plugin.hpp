@@ -2,10 +2,12 @@
 
 #include <eosio/chain/application.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain_plugin/chain_plugin.hpp>
 #include <eosio/http_plugin/api_category.hpp>
 #include <fc/exception/exception.hpp>
 #include <fc/reflect/reflect.hpp>
 #include <fc/io/json.hpp>
+
 namespace eosio {
    using namespace appbase;
 
@@ -86,7 +88,9 @@ namespace eosio {
         static void set_defaults(const http_plugin_defaults& config);
         static std::string get_server_header();
 
-        APPBASE_PLUGIN_REQUIRES()
+        // require chain_plugin because we want replay to finish before plugin_startup is called
+        APPBASE_PLUGIN_REQUIRES((chain_plugin));
+
         void set_program_options(options_description&, options_description& cfg) override;
 
         void plugin_initialize(const variables_map& options);

@@ -477,31 +477,27 @@ namespace eosio {
    }
 
    void http_plugin::plugin_startup() {
-      app().executor().post(appbase::priority::high, [this] ()
-      {
-         // The reason we post here is because we want blockchain replay to happen before we start listening.
-         try {
-            my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
-               fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-               app().quit();
-            } );
+      try {
+         my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
+            fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+            app().quit();
+         } );
 
-            for (const auto& [address, categories]: my->categories_by_address) {
-               my->create_beast_server(address, categories);
-            }
-
-            my->listening.store(true);
-         } catch(fc::exception& e) {
-            fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
-            app().quit();
-         } catch(std::exception& e) {
-            fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
-            app().quit();
-         } catch (...) {
-            fc_elog(logger(), "http_plugin startup fails, shutting down");
-            app().quit();
+         for (const auto& [address, categories]: my->categories_by_address) {
+            my->create_beast_server(address, categories);
          }
-      });
+
+         my->listening.store(true);
+      } catch(fc::exception& e) {
+         fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
+         throw;
+      } catch(std::exception& e) {
+         fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
+         throw;
+      } catch (...) {
+         fc_elog(logger(), "http_plugin startup fails, shutting down");
+         throw;
+      }
    }
 
    void http_plugin::handle_sighup() {
