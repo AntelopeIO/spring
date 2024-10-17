@@ -1,4 +1,4 @@
-add_subdirectory(boringssl EXCLUDE_FROM_ALL)
+add_subdirectory(bssl EXCLUDE_FROM_ALL)
 target_compile_options(fipsmodule PRIVATE -Wno-error)
 target_compile_options(crypto PRIVATE -Wno-error)
 target_compile_options(decrepit PRIVATE -Wno-error)
@@ -25,4 +25,4 @@ install( TARGETS decrepit
    ARCHIVE DESTINATION ${CMAKE_INSTALL_FULL_LIBDIR} COMPONENT dev EXCLUDE_FROM_ALL
 )
 
-install( DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/boringssl/src/include/" DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/springboringssl" COMPONENT dev EXCLUDE_FROM_ALL )
+install( DIRECTORY bssl/include/ DESTINATION "${CMAKE_INSTALL_FULL_INCLUDEDIR}/springboringssl" COMPONENT dev EXCLUDE_FROM_ALL )
