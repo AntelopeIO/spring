@@ -377,7 +377,7 @@ void state_history_plugin::plugin_startup() {
 void state_history_plugin_impl::plugin_shutdown() {
    fc_dlog(_log, "stopping");
    thread_pool.stop();
-   fc_ilog(_log, "exit shutdown");
+   fc_dlog(_log, "exit shutdown");
 }
 
 void state_history_plugin::plugin_shutdown() {

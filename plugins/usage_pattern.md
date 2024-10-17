@@ -92,7 +92,7 @@ If a plugin calls `app().quit()` during plugin_startup (not recommended), the ap
 
 ### io_context
 
-- Use of app().get_io_service() is highly discouraged. Its direct use by-passes the priority execution queue. Anything posted to the io_context runs at the highest priority. Instead, app().executor().post() should be used for all coordination with the main thread.
+- Use of app().get_io_context() is highly discouraged. Its direct use by-passes the priority execution queue. Anything posted to the io_context runs at the highest priority. Instead, app().executor().post() should be used for all coordination with the main thread.
 
 ### Initialize
 

@@ -51,7 +51,7 @@ using namespace eosio;
 
 
 void net_api_plugin::plugin_startup() {
-   ilog("starting net_api_plugin");
+   dlog("starting net_api_plugin");
    // lifetime of plugin is lifetime of application
    auto& net_mgr = app().get_plugin<net_plugin>();
    app().get_plugin<http_plugin>().add_async_api({
