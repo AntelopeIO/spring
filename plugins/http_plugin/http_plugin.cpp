@@ -511,7 +511,7 @@ namespace eosio {
    void http_plugin::plugin_shutdown() {
       my->plugin_state->thread_pool.stop();
 
-      fc_ilog( logger(), "exit shutdown");
+      fc_dlog( logger(), "exit shutdown");
    }
 
    void log_add_handler(http_plugin_impl* my, api_entry& entry) {

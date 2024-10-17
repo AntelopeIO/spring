@@ -4418,7 +4418,7 @@ namespace eosio {
    void net_plugin::plugin_shutdown() {
       fc_dlog( logger, "shutdown.." );
       my->plugin_shutdown();
-      fc_ilog( logger, "exit shutdown" );
+      fc_dlog( logger, "exit shutdown" );
    }
 
    /// RPC API

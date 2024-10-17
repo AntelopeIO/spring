@@ -117,13 +117,13 @@ void test_control_plugin::plugin_initialize(const variables_map& options) {
 }
 
 void test_control_plugin::plugin_startup() {
-   ilog("test_control_plugin starting up");
+   dlog("test_control_plugin starting up");
    my.reset(new test_control_plugin_impl(app().get_plugin<chain_plugin>().chain()));
    my->connect();
 }
 
 void test_control_plugin::plugin_shutdown() {
-   ilog("test_control_plugin shutting down");
+   dlog("test_control_plugin shutting down");
 }
 
 namespace test_control_apis {

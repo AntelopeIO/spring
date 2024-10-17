@@ -1525,7 +1525,7 @@ void producer_plugin::plugin_initialize(const boost::program_options::variables_
 using namespace std::chrono_literals;
 void producer_plugin_impl::plugin_startup() {
    try {
-      ilog("producer plugin:  plugin_startup() begin");
+      dlog("producer plugin:  plugin_startup() begin");
 
       chain::controller& chain = chain_plug->chain();
       EOS_ASSERT(_producers.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
@@ -1610,7 +1610,7 @@ void producer_plugin_impl::plugin_startup() {
 
       schedule_production_loop();
 
-      ilog("producer plugin:  plugin_startup() end");
+      dlog("producer plugin:  plugin_startup() end");
    }
    FC_CAPTURE_AND_RETHROW()
 }
@@ -1624,7 +1624,7 @@ void producer_plugin_impl::plugin_shutdown() {
    // unapplied transaction queue holds lambdas that reference plugins
    _unapplied_transactions.clear();
 
-   fc_ilog(_log, "exit shutdown");
+   fc_dlog(_log, "exit shutdown");
 }
 
 void producer_plugin::plugin_shutdown() {

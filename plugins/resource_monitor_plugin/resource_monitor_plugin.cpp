@@ -116,7 +116,7 @@ public:
    void plugin_shutdown() {
       dlog("entered shutdown...");
       space_handler.stop();
-      ilog("exiting shutdown");
+      dlog("exiting shutdown");
    }
 
    void monitor_directory(const std::filesystem::path& path) {
