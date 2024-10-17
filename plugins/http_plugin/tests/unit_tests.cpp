@@ -648,6 +648,8 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
 
    //load up some more requests that exceed max
    send_4mb_requests(32u);
+   //make sure got to the point http threads had responses queued
+   std::this_thread::sleep_for(std::chrono::seconds(1));
    //now rip these connections out before the responses are completely sent
    connections.clear();
    wait_for_no_bytes_in_flight();
