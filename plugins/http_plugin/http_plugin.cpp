@@ -477,27 +477,33 @@ namespace eosio {
    }
 
    void http_plugin::plugin_startup() {
-      try {
-         my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
-            fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
-            app().quit();
-         } );
+      // post here because *_api_plugins that register api handlers depend on http_plugin. Since they depend on the
+      // http_plugin, this plugin_startup is called before any *_api_plugin::plugin_startup. The post avoid situation
+      // where the application is running and accepting http requests, but it doesn't have the request api handler
+      // registered yet.
+      app().executor().post(appbase::priority::high, exec_queue::read_write, [this]() {
+         try {
+            my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
+               fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
+               app().quit();
+            } );
 
-         for (const auto& [address, categories]: my->categories_by_address) {
-            my->create_beast_server(address, categories);
+            for (const auto& [address, categories]: my->categories_by_address) {
+               my->create_beast_server(address, categories);
+            }
+
+            my->listening.store(true);
+         } catch(fc::exception& e) {
+            fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
+            throw; // allow application exec() to exit with error
+         } catch(std::exception& e) {
+            fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
+            throw; // allow application exec() to exit with error
+         } catch (...) {
+            fc_elog(logger(), "http_plugin startup fails, shutting down");
+            throw; // allow application exec() to exit with error
          }
-
-         my->listening.store(true);
-      } catch(fc::exception& e) {
-         fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
-         throw;
-      } catch(std::exception& e) {
-         fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
-         throw;
-      } catch (...) {
-         fc_elog(logger(), "http_plugin startup fails, shutting down");
-         throw;
-      }
+      });
    }
 
    void http_plugin::handle_sighup() {
