@@ -1,7 +1,7 @@
 #pragma once
 #include <memory>
 
-namespace boost { namespace asio { class io_context; typedef io_context io_service; } }
+namespace boost { namespace asio { class io_context; } }
 
 namespace fc {
    class appender;

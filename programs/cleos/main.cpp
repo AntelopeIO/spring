@@ -1084,9 +1084,9 @@ struct set_action_permission_subcommand {
 bool local_port_used() {
     using namespace boost::asio;
 
-    io_service ios;
+    io_context io_ctx;
     local::stream_protocol::endpoint endpoint(wallet_url.substr(strlen("unix://")));
-    local::stream_protocol::socket socket(ios);
+    local::stream_protocol::socket socket(io_ctx);
     boost::system::error_code ec;
     socket.connect(endpoint, ec);
 
