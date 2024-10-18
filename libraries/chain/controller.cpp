@@ -1827,12 +1827,16 @@ struct controller_impl {
          if (snapshot_head_block != 0 && !blog.head()) {
             // loading from snapshot without a block log so fork_db can't be considered valid
             fork_db_reset_root_to_chain_head();
-         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() && fork_db.head()) {
-            // applies all blocks up to fork_db head from fork_db, shouldn't return incomplete, but if it does loop until complete
-            while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
-               ;
-            auto head = fork_db.head();
-            ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", head->block_num())("id", head->id()) );
+         } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
+            if (auto fork_db_head = fork_db.head()) {
+               // applies all blocks up to fork_db head from fork_db, shouldn't return incomplete, but if it does loop until complete
+               ilog("applying ${n} fork database blocks from ${ch} to ${fh}",
+                    ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
+               while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
+                  ;
+               fork_db_head = fork_db.head();
+               ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", fork_db_head->block_num())("id", fork_db_head->id()) );
+            }
          }
 
          if( !fork_db.head() ) {
