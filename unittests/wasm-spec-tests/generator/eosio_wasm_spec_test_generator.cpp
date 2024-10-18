@@ -25,6 +25,10 @@ string convert_to_valid_cpp_identifier(string val) {
    return ret_val;
 }
 
+void create_action(stringstream& func) {
+   func << "   action test({{\"wasmtest\"_n, config::active_name}}, \"wasmtest\"_n, account_name((uint64_t)index), {});\n\n";
+}
+
 string create_module_test_case(string test_name, int start_index, int end_index) {
    stringstream func;
 
@@ -36,10 +40,7 @@ string create_module_test_case(string test_name, int start_index, int end_index)
    func << "   tester.produce_block();\n";
    func << "   tester.set_code(\"wasmtest\"_n, wasm_" << test_name << ");\n";
    func << "   tester.produce_block();\n\n";
-   func << "   action test;\n";
-   func << "   test.account = \"wasmtest\"_n;\n";
-   func << "   test.name = account_name((uint64_t)index);\n";
-   func << "   test.authorization = {{\"wasmtest\"_n, config::active_name}};\n\n";
+   create_action(func);
    func << "   push_action(tester, std::move(test), \"wasmtest\"_n.to_uint64_t());\n";
    func << "   tester.produce_block();\n";
    func << "   BOOST_REQUIRE_EQUAL( tester.validate(), true );\n";
@@ -59,10 +60,7 @@ string create_passing_data_test_case(string test_name, int start_index, int end_
    func << "   tester.produce_block();\n";
    func << "   tester.set_code(\"wasmtest\"_n, wasm_" << test_name << ");\n";
    func << "   tester.produce_block();\n\n";
-   func << "   action test;\n";
-   func << "   test.account = \"wasmtest\"_n;\n";
-   func << "   test.name = account_name((uint64_t)index);\n";
-   func << "   test.authorization = {{\"wasmtest\"_n, config::active_name}};\n\n";
+   create_action(func);
    func << "   push_action(tester, std::move(test), \"wasmtest\"_n.to_uint64_t());\n";
    func << "   tester.produce_block();\n";
    func << "   BOOST_REQUIRE_EQUAL( tester.validate(), true );\n";
@@ -82,10 +80,7 @@ string create_check_throw_data_test_case(string test_name, int start_index, int 
    func << "   tester.produce_block();\n";
    func << "   tester.set_code(\"wasmtest\"_n, wasm_" << test_name << ");\n";
    func << "   tester.produce_block();\n\n";
-   func << "   action test;\n";
-   func << "   test.account = \"wasmtest\"_n;\n";
-   func << "   test.name = account_name((uint64_t)index);\n";
-   func << "   test.authorization = {{\"wasmtest\"_n, config::active_name}};\n\n";
+   create_action(func);
    func << "   BOOST_CHECK_THROW(push_action(tester, std::move(test), \"wasmtest\"_n.to_uint64_t()), "
            "wasm_execution_error);\n";
    func << "   tester.produce_block();\n";
