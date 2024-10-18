@@ -79,29 +79,6 @@ class Node(Transactions):
         # if multiple producers configured for a Node, this is the first one
         self.producerName=None
         self.keys: List[KeyStrings] = field(default_factory=list)
-        self.configureVersion()
-
-    def configureVersion(self):
-        if 'v2' in self.nodeosVers:
-            self.fetchTransactionCommand = lambda: "get transaction"
-            self.fetchTransactionFromTrace = lambda trx: trx['trx']['id']
-            self.fetchBlock = lambda blockNum: self.processUrllibRequest("chain", "get_block", {"block_num_or_id":blockNum}, silentErrors=False, exitOnError=True)
-            self.fetchKeyCommand = lambda: "[trx][trx][ref_block_num]"
-            self.fetchRefBlock = lambda trans: trans["trx"]["trx"]["ref_block_num"]
-            self.fetchHeadBlock = lambda node, headBlock: node.processUrllibRequest("chain", "get_block", {"block_num_or_id":headBlock}, silentErrors=False, exitOnError=True)
-            self.cleosLimit = ""
-
-        else:
-            self.fetchTransactionCommand = lambda: "get transaction_trace"
-            self.fetchTransactionFromTrace = lambda trx: trx['id']
-            self.fetchBlock = lambda blockNum: self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
-            self.fetchKeyCommand = lambda: "[transaction][transaction_header][ref_block_num]"
-            self.fetchRefBlock = lambda trans: trans["block_num"]
-            self.fetchHeadBlock = lambda node, headBlock: node.processUrllibRequest("chain", "get_block_info", {"block_num":headBlock}, silentErrors=False, exitOnError=True)
-            if 'v3.1' in self.nodeosVers:
-                self.cleosLimit = ""
-            else:
-                self.cleosLimit = "--time-limit 999"
 
     def __str__(self):
         return "Host: %s, Port:%d, NodeNum:%s, Pid:%s" % (self.host, self.port, self.nodeId, self.pid)
@@ -167,11 +144,11 @@ class Node(Transactions):
         return ret
 
     def checkBlockForTransactions(self, transIds, blockNum):
-        block = self.fetchBlock(blockNum)
+        block = self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
         if block['payload']['transactions']:
             for trx in block['payload']['transactions']:
-                if self.fetchTransactionFromTrace(trx) in transIds:
-                    transIds.pop(self.fetchTransactionFromTrace(trx))
+                if trx['id'] in transIds:
+                    transIds.pop(trx['id'])
         return transIds
 
     def waitForTransactionsInBlockRange(self, transIds, startBlock, endBlock):

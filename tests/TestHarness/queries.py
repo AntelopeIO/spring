@@ -242,7 +242,7 @@ class NodeosQueries:
         assert(isinstance(transId, str))
         exitOnErrorForDelayed=not delayedRetry and exitOnError
         timeout=3
-        cmdDesc=self.fetchTransactionCommand()
+        cmdDesc="get transaction_trace"
         cmd="%s %s" % (cmdDesc, transId)
         msg="(transaction id=%s)" % (transId);
         for i in range(0,(int(60/timeout) - 1)):
@@ -295,8 +295,8 @@ class NodeosQueries:
         refBlockNum=None
         key=""
         try:
-            key = self.fetchKeyCommand()
-            refBlockNum = self.fetchRefBlock(trans)
+            key = "[transaction][transaction_header][ref_block_num]"
+            refBlockNum = trans["block_num"]
             refBlockNum=int(refBlockNum)
         except (TypeError, ValueError, KeyError) as _:
             Utils.Print("transaction%s not found. Transaction: %s" % (key, trans))
@@ -347,7 +347,7 @@ class NodeosQueries:
 
     def getTable(self, contract, scope, table, exitOnError=False):
         cmdDesc = "get table"
-        cmd=f"{cmdDesc} {self.cleosLimit} {contract} {scope} {table}"
+        cmd=f"{cmdDesc} --time-limit 999 {contract} {scope} {table}"
         msg=f"contract={contract}, scope={scope}, table={table}"
         return self.processCleosCmd(cmd, cmdDesc, exitOnError=exitOnError, exitMsg=msg)
 
