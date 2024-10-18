@@ -3694,6 +3694,8 @@ namespace eosio {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
       my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+         if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
+            return;
          controller& cc = my_impl->chain_plug->chain();
 
          auto fork_db_root_num = my_impl->get_fork_db_root_num();
