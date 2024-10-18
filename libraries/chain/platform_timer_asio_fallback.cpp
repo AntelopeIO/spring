@@ -15,7 +15,7 @@ namespace eosio { namespace chain {
 static std::mutex timer_ref_mutex;
 static unsigned refcount;
 static std::thread checktime_thread;
-static std::unique_ptr<boost::asio::io_service> checktime_ios;
+static std::unique_ptr<boost::asio::io_context> checktime_ios;
 
 struct platform_timer::impl {
    std::unique_ptr<boost::asio::high_resolution_timer> timer;
@@ -31,8 +31,8 @@ platform_timer::platform_timer() {
       auto f = p.get_future();
       checktime_thread = std::thread([&p]() {
          fc::set_thread_name("checktime");
-         checktime_ios = std::make_unique<boost::asio::io_service>();
-         boost::asio::io_service::work work(*checktime_ios);
+         checktime_ios = std::make_unique<boost::asio::io_context>();
+         boost::asio::io_context::work work(*checktime_ios);
          p.set_value();
 
          checktime_ios->run();

@@ -114,7 +114,7 @@ parse_params<chain_apis::read_only::get_transaction_id_params, http_params_types
 #define CHAIN_RO_CALL_WITH_400(call_name, http_response_code, params_type) CALL_WITH_400(chain, chain_ro, ro_api, chain_apis::read_only, call_name, http_response_code, params_type)
 
 void chain_api_plugin::plugin_startup() {
-   ilog( "starting chain_api_plugin" );
+   dlog( "starting chain_api_plugin" );
    my.reset(new chain_api_plugin_impl(app().get_plugin<chain_plugin>().chain()));
    auto& chain = app().get_plugin<chain_plugin>();
    auto& _http_plugin = app().get_plugin<http_plugin>();

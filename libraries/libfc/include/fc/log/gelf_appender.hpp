@@ -28,7 +28,7 @@ namespace fc
      *
      * \warning If this method is not called, this appender will log nothing.
      *
-     * In a single-threaded world with a boost::io_service that's not owned
+     * In a single-threaded world with a boost::io_context that's not owned
      * by this library, ugly things are required.  Tough.
      */
     void initialize() override;
