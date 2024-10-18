@@ -816,8 +816,8 @@ namespace impl {
          const variant_object& vo = v.get_object();
          EOS_ASSERT(vo.contains("account"), packed_transaction_type_exception, "Missing account");
          EOS_ASSERT(vo.contains("name"), packed_transaction_type_exception, "Missing name");
-         from_variant(vo["account"], act.account);
-         from_variant(vo["name"], act.name);
+         from_variant(vo["account"], const_cast<account_name&>(act.account));
+         from_variant(vo["name"], const_cast<action_name&>(act.name));
 
          if (vo.contains("authorization")) {
             from_variant(vo["authorization"], act.authorization);

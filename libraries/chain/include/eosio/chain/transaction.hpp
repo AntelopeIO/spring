@@ -79,6 +79,12 @@ namespace eosio { namespace chain {
       vector<action>         actions;
       extensions_type        transaction_extensions;
 
+      transaction() = default;
+      transaction(transaction&&) = default;
+      transaction(const transaction&) = default;
+      transaction& operator=(transaction&&) = default;
+      transaction& operator=(const transaction&) = default;
+
       transaction_id_type        id()const;
       digest_type                sig_digest( const chain_id_type& chain_id, const vector<bytes>& cfd = vector<bytes>() )const;
       fc::microseconds           get_signature_keys( const vector<signature_type>& signatures,
