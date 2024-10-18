@@ -1276,6 +1276,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
+   //top 32 is what we assert against, bottom 32 is indirect call index
    action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(133ULL<<32 | 5ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
@@ -1306,6 +1307,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
+   //top 32 is what we assert against, bottom 32 is indirect call index
    action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(555ULL<<32 | 1022ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
