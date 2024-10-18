@@ -465,11 +465,6 @@ class Cluster(object):
             argsArr.append("--shape")
             argsArr.append(topo)
 
-        if type(specificExtraNodeosArgs) is dict:
-            for args in specificExtraNodeosArgs.values():
-                if "--plugin eosio::history_api_plugin" in args:
-                    argsArr.append("--is-nodeos-v2")
-                    break
         if signatureProviderForNonProducer:
             argsArr.append("--signature-provider")
 
