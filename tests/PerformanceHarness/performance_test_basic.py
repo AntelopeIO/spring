@@ -125,12 +125,9 @@ class PerformanceTestBasic:
             def configureValidationNodes():
                 validationNodeSpecificNodeosStr = ""
                 validationNodeSpecificNodeosStr += '--p2p-accept-transactions false '
-                if "v2" in self.nodeosVers:
-                    validationNodeSpecificNodeosStr += '--plugin eosio::history_api_plugin --filter-on "*" '
-                else:
-                    #If prodsEnableTraceApi, then Cluster configures all nodes with trace_api_plugin so no need to duplicate here
-                    if not self.prodsEnableTraceApi:
-                        validationNodeSpecificNodeosStr += "--plugin eosio::trace_api_plugin "
+                #If prodsEnableTraceApi, then Cluster configures all nodes with trace_api_plugin so no need to duplicate here
+                if not self.prodsEnableTraceApi:
+                    validationNodeSpecificNodeosStr += "--plugin eosio::trace_api_plugin "
                 if self.nonProdsEosVmOcEnable:
                     validationNodeSpecificNodeosStr += "--eos-vm-oc-enable all "
                 if validationNodeSpecificNodeosStr:
@@ -141,8 +138,7 @@ class PerformanceTestBasic:
                 apiNodeSpecificNodeosStr += "--p2p-accept-transactions false "
                 apiNodeSpecificNodeosStr += "--plugin eosio::chain_api_plugin "
                 apiNodeSpecificNodeosStr += "--plugin eosio::net_api_plugin "
-                if "v4" in self.nodeosVers:
-                    apiNodeSpecificNodeosStr += f"--read-only-threads {self.apiNodesReadOnlyThreadCount} "
+                apiNodeSpecificNodeosStr += f"--read-only-threads {self.apiNodesReadOnlyThreadCount} "
                 if apiNodeSpecificNodeosStr:
                     self.specificExtraNodeosArgs.update({f"{nodeId}" : apiNodeSpecificNodeosStr for nodeId in self._apiNodeIds})
 
@@ -151,14 +147,9 @@ class PerformanceTestBasic:
             if self.apiNodeCount > 0:
                 configureApiNodes()
 
-            if "v2" in self.nodeosVers:
-                self.writeTrx = lambda trxDataFile, blockNum, trx: [trxDataFile.write(f"{trx['trx']['id']},{blockNum},{trx['cpu_usage_us']},{trx['net_usage_words']}\n")]
-                self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['block_num'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["confirmed"], _timestamp=block["payload"]["timestamp"])
-                self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction['trx']['id'], trxData(blockNum, transaction['cpu_usage_us'], transaction['net_usage_words']))]))
-            else:
-                self.writeTrx = lambda trxDataFile, blockNum, trx:[ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
-                self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["status"], _timestamp=block["payload"]["timestamp"])
-                self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction["id"], trxData(blockNum=transaction["block_num"], cpuUsageUs=transaction["cpu_usage_us"], netUsageUs=transaction["net_usage_words"], blockTime=transaction["block_time"]))]))
+            self.writeTrx = lambda trxDataFile, blockNum, trx:[ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
+            self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["status"], _timestamp=block["payload"]["timestamp"])
+            self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction["id"], trxData(blockNum=transaction["block_num"], cpuUsageUs=transaction["cpu_usage_us"], netUsageUs=transaction["net_usage_words"], blockTime=transaction["block_time"]))]))
     @dataclass
     class PtbConfig:
         targetTps: int=8000
@@ -306,12 +297,8 @@ class PerformanceTestBasic:
         return append_write
 
     def isOnBlockTransaction(self, transaction):
-        # v2 history does not include onblock
-        if "v2" in self.clusterConfig.nodeosVers:
+        if transaction['actions'][0]['account'] != 'eosio' or transaction['actions'][0]['action'] != 'onblock':
             return False
-        else:
-            if transaction['actions'][0]['account'] != 'eosio' or transaction['actions'][0]['action'] != 'onblock':
-                return False
         return True
 
     def queryBlockTrxData(self, node, blockDataPath, blockTrxDataPath, startBlockNum, endBlockNum):
@@ -670,7 +657,7 @@ class PerformanceTestBasic:
                                         httpMaxResponseTimeMs=args.http_max_response_time_ms, httpThreads=args.http_threads)
         netPluginArgs = NetPluginArgs(netThreads=args.net_threads, maxClients=0)
         nodeosVers=Utils.getNodeosVersion()
-        resourceMonitorPluginArgs = ResourceMonitorPluginArgs(resourceMonitorNotShutdownOnThresholdExceeded=not "v2" in nodeosVers)
+        resourceMonitorPluginArgs = ResourceMonitorPluginArgs(resourceMonitorNotShutdownOnThresholdExceeded=True)
         ENA = PerformanceTestBasic.ClusterConfig.ExtraNodeosArgs
         extraNodeosArgs = ENA(chainPluginArgs=chainPluginArgs, httpPluginArgs=httpPluginArgs, producerPluginArgs=producerPluginArgs, netPluginArgs=netPluginArgs,
                             resourceMonitorPluginArgs=resourceMonitorPluginArgs)
