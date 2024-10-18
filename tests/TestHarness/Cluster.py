@@ -473,10 +473,6 @@ class Cluster(object):
         if signatureProviderForNonProducer:
             argsArr.append("--signature-provider")
 
-        # Handle common case of specifying no block offset for older versions
-        if "v2" in self.nodeosVers or "v3" in self.nodeosVers or "v4" in self.nodeosVers:
-            argsArr = list(map(lambda st: str.replace(st, "--produce-block-offset-ms 0", "--last-block-time-offset-us 0 --last-block-cpu-effort-percent 100"), argsArr))
-
         Cluster.__LauncherCmdArr = argsArr.copy()
 
         launcher = cluster_generator(argsArr)
