@@ -879,13 +879,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
    chain.produce_block();
 
    {
-      action act;
-      act.account = tester_account;
-      act.name = "null"_n;
-      act.authorization = vector<permission_level>{
-         {tester_account, config::active_name},
-         {tester_account2, config::active_name}
-      };
+      action act(vector<permission_level>{{tester_account, config::active_name},
+                                          {tester_account2, config::active_name}}, tester_account, "null"_n, {});
 
       signed_transaction trx;
       trx.actions.emplace_back(std::move(act));
@@ -924,13 +919,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(only_bill_to_first_authorizer, T, testers) { try {
    chain.produce_block();
 
    {
-      action act;
-      act.account = tester_account;
-      act.name = "null2"_n;
-      act.authorization = vector<permission_level>{
-         {tester_account, config::active_name},
-         {tester_account2, config::active_name}
-      };
+      action act(vector<permission_level>{{tester_account, config::active_name},
+                                          {tester_account2, config::active_name}}, tester_account, "null2"_n, {});
 
       signed_transaction trx;
       trx.actions.emplace_back(std::move(act));
@@ -1452,10 +1442,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_recover_key, T, testers) { try {
    c.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "bob"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"bob"_n,config::active_name}};
+   action act(vector<permission_level>{{"bob"_n,config::active_name}}, "bob"_n, ""_n, {});
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);
@@ -1500,10 +1487,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(webauthn_assert_recover_key, T, testers) { try {
    c.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "bob"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"bob"_n,config::active_name}};
+   action act(vector<permission_level>{{"bob"_n,config::active_name}}, "bob"_n, ""_n, {});
    trx.actions.push_back(act);
 
    c.set_transaction_headers(trx);

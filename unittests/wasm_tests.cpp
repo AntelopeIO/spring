@@ -223,10 +223,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f32_tests, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f32.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f32.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f32.tests"_n,config::active_name}}, "f32.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -248,10 +245,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f32_test_bitwise, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f32.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f32.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f32.tests"_n,config::active_name}}, "f32.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -273,10 +267,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f32_test_cmp, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f32.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f32.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f32.tests"_n,config::active_name}}, "f32.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -300,10 +291,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f64_tests, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f.tests"_n,config::active_name}}, "f.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -325,10 +313,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f64_test_bitwise, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f.tests"_n,config::active_name}}, "f.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -350,10 +335,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f64_test_cmp, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "f.tests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"f.tests"_n,config::active_name}};
+      action act(vector<permission_level>{{"f.tests"_n,config::active_name}}, "f.tests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -378,10 +360,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f32_f64_conversion_tests, T, validating_testers )
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "ftests"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"ftests"_n,config::active_name}};
+      action act(vector<permission_level>{{"ftests"_n,config::active_name}}, "ftests"_n, ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -409,10 +388,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( f32_f64_overflow_tests, T, validating_testers ) t
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = name("ftests"_n.to_uint64_t()+count);
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{name("ftests"_n.to_uint64_t()+count),config::active_name}};
+      action act(vector<permission_level>{{name("ftests"_n.to_uint64_t()+count),config::active_name}},
+                 name("ftests"_n.to_uint64_t()+count), ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -509,10 +486,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( misaligned_tests, T, validating_testers ) try {
       chain.produce_block();
 
       signed_transaction trx;
-      action act;
-      act.account = "aligncheck"_n;
-      act.name = ""_n;
-      act.authorization = vector<permission_level>{{"aligncheck"_n,config::active_name}};
+      action act(vector<permission_level>{{"aligncheck"_n,config::active_name}}, "aligncheck"_n,
+                 ""_n, {});
       trx.actions.push_back(act);
 
       chain.set_transaction_headers(trx);
@@ -543,10 +518,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_entry_behavior, T, validating_testers ) try
    chain.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "entrycheck"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"entrycheck"_n,config::active_name}};
+   action act(vector<permission_level>{{"entrycheck"_n,config::active_name}}, "entrycheck"_n,
+              ""_n, {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
@@ -569,10 +542,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_entry_behavior_2, T, validating_testers ) t
    chain.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "entrycheck"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"entrycheck"_n,config::active_name}};
+   action act(vector<permission_level>{{"entrycheck"_n,config::active_name}}, "entrycheck"_n, ""_n, {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
@@ -593,10 +563,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( entry_import, T, validating_testers ) try {
    chain.set_code("enterimport"_n, entry_import_wast);
 
    signed_transaction trx;
-   action act;
-   act.account = "enterimport"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"enterimport"_n,config::active_name}};
+   action act(vector<permission_level>{{"enterimport"_n,config::active_name}}, "enterimport"_n, ""_n, {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
@@ -613,10 +580,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( entry_db, T, validating_testers ) try {
    chain.set_code("entrydb"_n, entry_db_wast);
 
    signed_transaction trx;
-   action act;
-   act.account = "entrydb"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"entrydb"_n,config::active_name}};
+   action act(vector<permission_level>{{"entrydb"_n,config::active_name}}, "entrydb"_n, ""_n, {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
@@ -640,10 +604,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( simple_no_memory_check, T, validating_testers ) t
 
    //the apply func of simple_no_memory_wast tries to call a native func with linear memory pointer
    signed_transaction trx;
-   action act;
-   act.account = "nomem"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"nomem"_n,config::active_name}};
+   action act(vector<permission_level>{{"nomem"_n,config::active_name}}, "nomem"_n, ""_n, {});
    trx.actions.push_back(act);
    trx.expiration = fc::time_point_sec{chain.head().block_time()};
    chain.set_transaction_headers(trx);
@@ -665,18 +626,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_global_reset, T, validating_testers ) try {
 
    signed_transaction trx;
    {
-   action act;
-   act.account = "globalreset"_n;
-   act.name = name(0ULL);
-   act.authorization = vector<permission_level>{{"globalreset"_n,config::active_name}};
-   trx.actions.push_back(act);
+      action act(vector<permission_level>{{"globalreset"_n,config::active_name}}, "globalreset"_n, name(0ULL), {});
+      trx.actions.push_back(act);
    }
    {
-   action act;
-   act.account = "globalreset"_n;
-   act.name = name(1ULL);
-   act.authorization = vector<permission_level>{{"globalreset"_n,config::active_name}};
-   trx.actions.push_back(act);
+      action act(vector<permission_level>{{"globalreset"_n,config::active_name}}, "globalreset"_n, name(1ULL), {});
+      trx.actions.push_back(act);
    }
 
    chain.set_transaction_headers(trx);
@@ -708,10 +663,7 @@ void test_big_memory(setup_policy policy) {
    t.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "bigmem"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"bigmem"_n,config::active_name}};
+   action act(vector<permission_level>{{"bigmem"_n,config::active_name}}, "bigmem"_n, ""_n, {});
    trx.actions.push_back(act);
 
    t.set_transaction_headers(trx);
@@ -1108,17 +1060,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( noop, T, validating_testers ) try {
    {
       chain.produce_block();
       signed_transaction trx;
-      action act;
-      act.account = "noop"_n;
-      act.name = "anyaction"_n;
-      act.authorization = vector<permission_level>{{"noop"_n, config::active_name}};
-
-      act.data = abi_ser.variant_to_binary("anyaction", mutable_variant_object()
+      action act(vector<permission_level>{{"noop"_n, config::active_name}}, "noop"_n, "anyaction"_n,
+                 abi_ser.variant_to_binary("anyaction", mutable_variant_object()
                                            ("from", "noop")
                                            ("type", "some type")
                                            ("data", "some data goes here"),
-                                           abi_serializer::create_yield_function( chain.abi_serializer_max_time )
-                                           );
+                                           abi_serializer::create_yield_function( chain.abi_serializer_max_time )));
 
       trx.actions.emplace_back(std::move(act));
 
@@ -1133,17 +1080,12 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( noop, T, validating_testers ) try {
    {
       chain.produce_block();
       signed_transaction trx;
-      action act;
-      act.account = "noop"_n;
-      act.name = "anyaction"_n;
-      act.authorization = vector<permission_level>{{"alice"_n, config::active_name}};
-
-      act.data = abi_ser.variant_to_binary("anyaction", mutable_variant_object()
+      action act(vector<permission_level>{{"alice"_n, config::active_name}}, "noop"_n, "anyaction"_n,
+                 abi_ser.variant_to_binary("anyaction", mutable_variant_object()
                                            ("from", "alice")
                                            ("type", "some type")
                                            ("data", "some data goes here"),
-                                           abi_serializer::create_yield_function( chain.abi_serializer_max_time )
-                                           );
+                                           abi_serializer::create_yield_function( chain.abi_serializer_max_time )));
 
       trx.actions.emplace_back(std::move(act));
 
@@ -1284,10 +1226,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
    chain.produce_block();
    {
    signed_transaction trx;
-   action act;
-   act.name = name(555ULL<<32 | 0ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(555ULL<<32 | 0ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1298,10 +1238,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(555ULL<<32 | 1022ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(555ULL<<32 | 1022ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1312,10 +1250,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(7777ULL<<32 | 1023ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(7777ULL<<32 | 1023ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1326,10 +1262,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(7778ULL<<32 | 1023ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(7778ULL<<32 | 1023ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1342,10 +1276,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(133ULL<<32 | 5ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(133ULL<<32 | 5ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1358,10 +1290,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(eosio::chain::wasm_constraints::maximum_table_elements+54334);
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(eosio::chain::wasm_constraints::maximum_table_elements+54334), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1378,10 +1307,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(555ULL<<32 | 1022ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   //top 32 is what we assert against, bottom 32 is indirect call index
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(555ULL<<32 | 1022ULL), {});
    trx.actions.push_back(act);
       chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1391,10 +1318,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
    chain.produce_block();
    {
    signed_transaction trx;
-   action act;
-   act.name = name(7777ULL<<32 | 1023ULL);       //top 32 is what we assert against, bottom 32 is indirect call index
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(7777ULL<<32 | 1023ULL), {});
    trx.actions.push_back(act);
    chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1405,10 +1329,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( check_table_maximum, T, validating_testers ) try 
 
    {
    signed_transaction trx;
-   action act;
-   act.name = name(888ULL);
-   act.account = "tbl"_n;
-   act.authorization = vector<permission_level>{{"tbl"_n,config::active_name}};
+   action act(vector<permission_level>{{"tbl"_n,config::active_name}}, "tbl"_n, name(888ULL), {});
    trx.actions.push_back(act);
    chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "tbl"_n, "active" ), chain.get_chain_id());
@@ -1533,10 +1454,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( mem_growth_memset, T, validating_testers ) try {
    chain.create_accounts( {"grower"_n} );
    chain.produce_block();
 
-   action act;
-   act.account = "grower"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"grower"_n,config::active_name}};
+   action act(vector<permission_level>{{"grower"_n,config::active_name}},  "grower"_n, ""_n, {});
 
    chain.set_code("grower"_n, memory_growth_memset_store);
    {
@@ -1773,10 +1691,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( big_maligned_host_ptr, T, validating_testers ) tr
    chain.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "bigmaligned"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"bigmaligned"_n,config::active_name}};
+   action act(vector<permission_level>{{"bigmaligned"_n,config::active_name}}, "bigmaligned"_n, ""_n, {});
    trx.actions.push_back(act);
    chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "bigmaligned"_n, "active" ), chain.get_chain_id());
@@ -1858,10 +1773,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers
 
    {
    signed_transaction trx;
-   action act;
-   act.account = "memflags"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"memflags"_n,config::active_name}};
+   action act(vector<permission_level>{{"memflags"_n,config::active_name}}, "memflags"_n, ""_n, {});
    trx.actions.push_back(act);
    t.set_transaction_headers(trx);
    trx.sign(validating_tester::get_private_key( "memflags"_n, "active" ), t.get_chain_id());
@@ -1876,10 +1788,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( varuint_memory_flags_tests, T, validating_testers
    // We should still be able to execute the old code
    {
    signed_transaction trx;
-   action act;
-   act.account = "memflags"_n;
-   act.name = ""_n;
-   act.authorization = vector<permission_level>{{"memflags"_n,config::active_name}};
+   action act(vector<permission_level>{{"memflags"_n,config::active_name}}, "memflags"_n, ""_n, {});
    trx.actions.push_back(act);
    t.set_transaction_headers(trx);
    trx.sign(validating_tester::get_private_key( "memflags"_n, "active" ), t.get_chain_id());
@@ -2236,10 +2145,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( eosio_exit_in_start, T, validating_testers ) try 
    chain.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "startexit"_n;
-   act.name = name();
-   act.authorization = vector<permission_level>{{"startexit"_n,config::active_name}};
+   action act(vector<permission_level>{{"startexit"_n,config::active_name}}, "startexit"_n, name(), {});
    trx.actions.push_back(act);
    chain.set_transaction_headers(trx);
    trx.sign(chain.get_private_key( "startexit"_n, "active" ), chain.get_chain_id());
@@ -2261,10 +2167,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( negative_memory_grow, T, validating_testers ) try
 
    {
    signed_transaction trx;
-   action act;
-   act.account = "negmemgrow"_n;
-   act.name = name();
-   act.authorization = vector<permission_level>{{"negmemgrow"_n,config::active_name}};
+   action act(vector<permission_level>{{"negmemgrow"_n,config::active_name}}, "negmemgrow"_n, name(), {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
@@ -2277,10 +2180,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( negative_memory_grow, T, validating_testers ) try
    chain.produce_block();
    {
    signed_transaction trx;
-   action act;
-   act.account = "negmemgrow"_n;
-   act.name = name();
-   act.authorization = vector<permission_level>{{"negmemgrow"_n,config::active_name}};
+   action act(vector<permission_level>{{"negmemgrow"_n,config::active_name}}, "negmemgrow"_n, name(), {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);

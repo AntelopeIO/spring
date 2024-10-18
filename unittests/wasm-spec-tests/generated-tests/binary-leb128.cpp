@@ -11,10 +11,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_0_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_0);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -32,10 +29,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_1_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_1);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -53,10 +47,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_10_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_10);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -74,10 +65,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_11_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_11);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -95,10 +83,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_12_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_12);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -116,10 +101,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_13_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_13);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -137,10 +119,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_14_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_14);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -158,10 +137,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_15_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_15);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -179,10 +155,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_16_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_16);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -200,10 +173,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_17_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_17);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -221,10 +191,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_18_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_18);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -242,10 +209,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_19_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_19);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -263,10 +227,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_2_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_2);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -284,10 +245,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_20_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_20);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -305,10 +263,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_21_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_21);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -326,10 +281,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_22_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_22);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -347,10 +299,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_23_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_23);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -368,10 +317,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_24_module, boost::unit_test::data::xrange(0,1
    tester.set_code("wasmtest"_n, wasm_binary_leb128_24);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -389,10 +335,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_3_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_3);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -410,10 +353,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_4_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_4);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -431,10 +371,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_5_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_5);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -452,10 +389,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_6_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_6);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -473,10 +407,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_7_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_7);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -494,10 +425,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_8_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_8);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -515,10 +443,7 @@ BOOST_DATA_TEST_CASE(binary_leb128_9_module, boost::unit_test::data::xrange(0,1)
    tester.set_code("wasmtest"_n, wasm_binary_leb128_9);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
