@@ -44,13 +44,8 @@ struct dry_run_trx_tester : T {
 
    auto send_db_api_transaction(action_name name, bytes data, const vector<permission_level>& auth={{"alice"_n, config::active_name}},
                                 transaction_metadata::trx_type type=transaction_metadata::trx_type::input, uint32_t delay_sec=0) {
-      action act;
+      action act(auth, "noauthtable"_n, name, data);
       signed_transaction trx;
-
-      act.account = "noauthtable"_n;
-      act.name = name;
-      act.authorization = auth;
-      act.data = data;
 
       trx.actions.push_back( act );
       T::set_transaction_headers( trx );

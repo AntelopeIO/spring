@@ -11,10 +11,7 @@ BOOST_DATA_TEST_CASE(start_3_pass, boost::unit_test::data::xrange(0,1), index) {
    tester.set_code("wasmtest"_n, wasm_start_3);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -32,10 +29,7 @@ BOOST_DATA_TEST_CASE(start_4_pass, boost::unit_test::data::xrange(0,1), index) {
    tester.set_code("wasmtest"_n, wasm_start_4);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -53,10 +47,7 @@ BOOST_DATA_TEST_CASE(start_5_module, boost::unit_test::data::xrange(0,1), index)
    tester.set_code("wasmtest"_n, wasm_start_5);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -74,10 +65,7 @@ BOOST_DATA_TEST_CASE(start_6_module, boost::unit_test::data::xrange(0,1), index)
    tester.set_code("wasmtest"_n, wasm_start_6);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
