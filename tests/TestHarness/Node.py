@@ -79,15 +79,6 @@ class Node(Transactions):
         # if multiple producers configured for a Node, this is the first one
         self.producerName=None
         self.keys: List[KeyStrings] = field(default_factory=list)
-        self.configureVersion()
-
-    def configureVersion(self):
-        self.fetchTransactionCommand = lambda: "get transaction_trace"
-        self.fetchTransactionFromTrace = lambda trx: trx['id']
-        self.fetchBlock = lambda blockNum: self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
-        self.fetchKeyCommand = lambda: "[transaction][transaction_header][ref_block_num]"
-        self.fetchRefBlock = lambda trans: trans["block_num"]
-        self.cleosLimit = "--time-limit 999"
 
     def __str__(self):
         return "Host: %s, Port:%d, NodeNum:%s, Pid:%s" % (self.host, self.port, self.nodeId, self.pid)
@@ -153,11 +144,11 @@ class Node(Transactions):
         return ret
 
     def checkBlockForTransactions(self, transIds, blockNum):
-        block = self.fetchBlock(blockNum)
+        block = self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
         if block['payload']['transactions']:
             for trx in block['payload']['transactions']:
-                if self.fetchTransactionFromTrace(trx) in transIds:
-                    transIds.pop(self.fetchTransactionFromTrace(trx))
+                if trx['id'] in transIds:
+                    transIds.pop(trx['id'])
         return transIds
 
     def waitForTransactionsInBlockRange(self, transIds, startBlock, endBlock):
