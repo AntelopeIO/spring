@@ -623,17 +623,17 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    };
 
    auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
-      while (true) {
+      do {
          auto b = http_plugin->bytes_in_flight();
          auto r = http_plugin->requests_in_flight();
+         ilog("waiting ${b} bytes, ${r}", ("b", b)("r", r));
          --max;
          if (b > 0 && max) {
-            ilog("waiting ${b} bytes, ${r}", ("b", b)("r", r));
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
          } else {
             break;
          }
-      }
+      } while (true);
       BOOST_CHECK(max > 0);
    };
 
