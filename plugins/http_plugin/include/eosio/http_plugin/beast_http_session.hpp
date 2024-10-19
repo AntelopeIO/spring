@@ -222,9 +222,11 @@ public:
       ei.code = static_cast<int64_t>(http::status::service_unavailable);
       ei.name = "Busy";
       ei.what = std::move(what);
+      elog("sending service_unavailable");
       error_results results{static_cast<uint16_t>(http::status::service_unavailable), "Busy", ei};
       send_response(fc::json::to_string(results, fc::time_point::maximum()),
                     static_cast<unsigned int>(http::status::service_unavailable) );
+      ilog("done sending service_unavailable");
    }
    
    virtual std::string verify_max_bytes_in_flight(size_t extra_bytes) final {

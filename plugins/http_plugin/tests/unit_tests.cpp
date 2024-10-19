@@ -660,7 +660,9 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    connections.clear();
    wait_for_no_bytes_in_flight();
    //send some requests that should work still
+   ilog("sending 4mb requests");
    send_4mb_requests(8u);
+   ilog("done sending 4mb requests");
    r = drain_http_replies();
    for (const auto& e : r) {
       ilog( "response: ${f}, count: ${c}", ("f", std::string(obsolete_reason(e.first)))("c", e.second));
