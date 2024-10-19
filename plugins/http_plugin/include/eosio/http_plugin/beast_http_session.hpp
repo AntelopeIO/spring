@@ -222,7 +222,8 @@ public:
       ei.code = static_cast<int64_t>(http::status::service_unavailable);
       ei.name = "Busy";
       ei.what = std::move(what);
-      elog("sending service_unavailable");
+      elog("sending service_unavailable: ${ep}, bytes_in_flight: ${b}, requests_in_flight: ${r}",
+         ("ep", remote_endpoint_)("b", plugin_state_->bytes_in_flight.load())("r", plugin_state_->requests_in_flight.load()));
       error_results results{static_cast<uint16_t>(http::status::service_unavailable), "Busy", ei};
       send_response(fc::json::to_string(results, fc::time_point::maximum()),
                     static_cast<unsigned int>(http::status::service_unavailable) );
