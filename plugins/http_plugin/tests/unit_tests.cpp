@@ -626,9 +626,9 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
       do {
          auto b = http_plugin->bytes_in_flight();
          auto r = http_plugin->requests_in_flight();
-         ilog("waiting ${b} bytes, ${r}", ("b", b)("r", r));
+         ilog("waiting ${b} bytes, ${r} requests", ("b", b)("r", r));
          --max;
-         if (b > 0 && max) {
+         if ((b > 0 || r > 0) && max) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
          } else {
             break;
