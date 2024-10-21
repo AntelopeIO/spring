@@ -294,7 +294,6 @@ class PerformanceTestBasic:
         return append_write
 
     def isOnBlockTransaction(self, transaction):
-        # v2 history does not include onblock
         if transaction['actions'][0]['account'] != 'eosio' or transaction['actions'][0]['action'] != 'onblock':
             return False
         return True
@@ -659,7 +658,7 @@ class PerformanceTestBasic:
                                         httpMaxResponseTimeMs=args.http_max_response_time_ms, httpThreads=args.http_threads)
         netPluginArgs = NetPluginArgs(netThreads=args.net_threads, maxClients=0)
         nodeosVers=Utils.getNodeosVersion()
-        resourceMonitorPluginArgs = ResourceMonitorPluginArgs(resourceMonitorNotShutdownOnThresholdExceeded=not "v2" in nodeosVers)
+        resourceMonitorPluginArgs = ResourceMonitorPluginArgs(resourceMonitorNotShutdownOnThresholdExceeded=True)
         ENA = PerformanceTestBasic.ClusterConfig.ExtraNodeosArgs
         extraNodeosArgs = ENA(chainPluginArgs=chainPluginArgs, httpPluginArgs=httpPluginArgs, producerPluginArgs=producerPluginArgs, netPluginArgs=netPluginArgs,
                             resourceMonitorPluginArgs=resourceMonitorPluginArgs)
