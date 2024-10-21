@@ -259,6 +259,13 @@ class Node(Transactions):
             return self.getIrreversibleBlockNum() > currentLib
         return Utils.waitForBool(isLibAdvancing, timeout)
 
+    def waitForLibNotToAdvance(self, timeout=30):
+        endTime=time.time()+timeout
+        while self.waitForLibToAdvance(timeout=timeout):
+            if time.time() > endTime:
+                return False
+        return True
+
     def waitForProducer(self, producer, timeout=None, exitOnError=False):
         if timeout is None:
             # default to the typical configuration of 21 producers, each producing 12 blocks in a row (every 1/2 second)
