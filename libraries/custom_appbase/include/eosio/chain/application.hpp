@@ -48,24 +48,24 @@ public:
    template <typename Func>
    void post( handler_id id, int priority, exec_queue q, Func&& func ) {
       if (q == exec_queue::read_exclusive) {
-         // no reason to post to io_service which then places this in the read_exclusive_handlers queue.
+         // no reason to post to io_context which then places this in the read_exclusive_handlers queue.
          // read_exclusive tasks are run exclusively by read threads by pulling off the read_exclusive handlers queue.
          pri_queue_.add(id, priority, q, --order_, std::forward<Func>(func));
       } else {
-         // post to io_service as the main thread may be blocked on io_service.run_one() in application::exec()
-         boost::asio::post(io_serv_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
+         // post to io_context as the main thread may be blocked on io_context.run_one() in application::exec()
+         boost::asio::post(io_ctx_, pri_queue_.wrap(id, priority, q, --order_, std::forward<Func>(func)));
       }
    }
 
    template <typename Func>
    void post( int priority, exec_queue q, Func&& func ) {
       if (q == exec_queue::read_exclusive) {
-         // no reason to post to io_service which then places this in the read_exclusive_handlers queue.
+         // no reason to post to io_context which then places this in the read_exclusive_handlers queue.
          // read_exclusive tasks are run exclusively by read threads by pulling off the read_exclusive handlers queue.
          pri_queue_.add(priority, q, --order_, std::forward<Func>(func));
       } else {
-         // post to io_service as the main thread may be blocked on io_service.run_one() in application::exec()
-         boost::asio::post(io_serv_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
+         // post to io_context as the main thread may be blocked on io_context.run_one() in application::exec()
+         boost::asio::post(io_ctx_, pri_queue_.wrap(priority, q, --order_, std::forward<Func>(func)));
       }
    }
 
@@ -74,10 +74,10 @@ public:
    auto post( int priority, Func&& func ) {
       // safer to use read_write queue for unknown type of operation since operations
       // from read_write queue are not executed in parallel with read-only operations
-      return boost::asio::post(io_serv_, pri_queue_.wrap(priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
+      return boost::asio::post(io_ctx_, pri_queue_.wrap(priority, exec_queue::read_write, --order_, std::forward<Func>(func)));
    }
 
-   boost::asio::io_service& get_io_service() { return io_serv_; }
+   boost::asio::io_context& get_io_context() { return io_ctx_; }
 
    // called from main thread, highest read_only and read_write
    bool execute_highest() {
@@ -105,7 +105,7 @@ public:
 
       bool more = false;
       while (true) {
-         get_io_service().poll(); // schedule any queued
+         get_io_context().poll(); // schedule any queued
          more = pri_queue_.execute_highest_blocking_locked(exec_queue::read_only, exec_queue::read_exclusive);
          if (!more || std::chrono::high_resolution_clock::now() > end)
             break;
@@ -155,7 +155,7 @@ public:
    // members are ordered taking into account that the last one is destructed first
 private:
    std::thread::id                    main_thread_id_{ std::this_thread::get_id() };
-   boost::asio::io_service            io_serv_;
+   boost::asio::io_context            io_ctx_;
    appbase::exec_pri_queue            pri_queue_;
    std::atomic<std::size_t>           order_{ std::numeric_limits<size_t>::max() }; // to maintain FIFO ordering in all queues within priority
    exec_window                        exec_window_{ exec_window::write };

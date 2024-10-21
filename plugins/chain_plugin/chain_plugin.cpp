@@ -203,7 +203,6 @@ public:
    void enable_accept_transactions();
    void plugin_initialize(const variables_map& options);
    void plugin_startup();
-   void plugin_shutdown();
 
 private:
    static void log_guard_exception(const chain::guard_exception& e);
@@ -1166,18 +1165,8 @@ void chain_plugin::plugin_startup() {
    my->plugin_startup();
 }
 
-void chain_plugin_impl::plugin_shutdown() {
-   accepted_block_header_connection.reset();
-   accepted_block_connection.reset();
-   irreversible_block_connection.reset();
-   applied_transaction_connection.reset();
-   block_start_connection.reset();
-   chain.reset();
-   dlog("exit shutdown");
-}
-
 void chain_plugin::plugin_shutdown() {
-   my->plugin_shutdown();
+   dlog("shutdown");
 }
 
 void chain_plugin::handle_sighup() {

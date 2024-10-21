@@ -1,8 +1,6 @@
 #pragma once
 #include <memory>
 
-namespace boost { namespace asio { class io_context; typedef io_context io_service; } }
-
 namespace fc {
    class appender;
    class log_message;
@@ -30,6 +28,7 @@ namespace fc {
       public:
          typedef std::shared_ptr<appender> ptr;
 
+         virtual ~appender() = default;
          virtual void initialize() = 0;
          virtual void log( const log_message& m ) = 0;
    };

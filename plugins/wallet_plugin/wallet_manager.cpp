@@ -301,7 +301,7 @@ void wallet_manager::initialize_lock() {
       wallet_dir_lock.reset();
       EOS_THROW(wallet_exception, "Failed to lock access to wallet directory; is another keosd running?");
    }
-   auto timer = std::make_shared<boost::asio::deadline_timer>(appbase::app().get_io_service(), boost::posix_time::seconds(1));
+   auto timer = std::make_shared<boost::asio::deadline_timer>(appbase::app().get_io_context(), boost::posix_time::seconds(1));
    start_lock_watch(timer);
 }
 

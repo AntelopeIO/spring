@@ -20,7 +20,7 @@ void mock_time_traits::set_now( const fc::time_point& now ) {
    now_ = now.time_since_epoch().count();
    if( !mock_enabled_ ) mock_enabled_ = true;
 
-   // After modifying the clock, we need to sleep the thread to give the io_service
+   // After modifying the clock, we need to sleep the thread to give the io_context
    // the opportunity to poll and notice the change in clock time.
    // See to_posix_duration()
    std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
