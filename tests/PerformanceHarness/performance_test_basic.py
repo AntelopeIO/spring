@@ -125,12 +125,9 @@ class PerformanceTestBasic:
             def configureValidationNodes():
                 validationNodeSpecificNodeosStr = ""
                 validationNodeSpecificNodeosStr += '--p2p-accept-transactions false '
-                if "v2" in self.nodeosVers:
-                    validationNodeSpecificNodeosStr += '--plugin eosio::history_api_plugin --filter-on "*" '
-                else:
-                    #If prodsEnableTraceApi, then Cluster configures all nodes with trace_api_plugin so no need to duplicate here
-                    if not self.prodsEnableTraceApi:
-                        validationNodeSpecificNodeosStr += "--plugin eosio::trace_api_plugin "
+                #If prodsEnableTraceApi, then Cluster configures all nodes with trace_api_plugin so no need to duplicate here
+                if not self.prodsEnableTraceApi:
+                    validationNodeSpecificNodeosStr += "--plugin eosio::trace_api_plugin "
                 if self.nonProdsEosVmOcEnable:
                     validationNodeSpecificNodeosStr += "--eos-vm-oc-enable all "
                 if validationNodeSpecificNodeosStr:
