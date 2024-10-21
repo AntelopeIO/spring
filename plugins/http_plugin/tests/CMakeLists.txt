@@ -4,7 +4,7 @@ add_executable( http_plugin_unit_tests ${UNIT_TESTS})
 
 target_link_libraries( http_plugin_unit_tests
                        PRIVATE appbase
-                       PRIVATE http_plugin        
+                       PRIVATE http_plugin
                        Boost::included_unit_test_framework ${CMAKE_DL_LIBS} ${PLATFORM_SPECIFIC_LIBS} )
 
 target_include_directories( http_plugin_unit_tests PUBLIC

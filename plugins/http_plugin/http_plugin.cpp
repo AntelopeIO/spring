@@ -477,9 +477,11 @@ namespace eosio {
    }
 
    void http_plugin::plugin_startup() {
-      app().executor().post(appbase::priority::high, [this] ()
-      {
-         // The reason we post here is because we want blockchain replay to happen before we start listening.
+      // post here because *_api_plugins that register api handlers depend on http_plugin. Since they depend on the
+      // http_plugin, this plugin_startup is called before any *_api_plugin::plugin_startup. The post avoid situation
+      // where the application is running and accepting http requests, but it doesn't have the request api handler
+      // registered yet.
+      app().executor().post(appbase::priority::high, exec_queue::read_write, [this]() {
          try {
             my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
                fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
@@ -493,13 +495,13 @@ namespace eosio {
             my->listening.store(true);
          } catch(fc::exception& e) {
             fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
-            app().quit();
+            throw; // allow application exec() to exit with error
          } catch(std::exception& e) {
             fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
-            app().quit();
+            throw; // allow application exec() to exit with error
          } catch (...) {
             fc_elog(logger(), "http_plugin startup fails, shutting down");
-            app().quit();
+            throw; // allow application exec() to exit with error
          }
       });
    }
