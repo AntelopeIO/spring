@@ -138,8 +138,7 @@ class PerformanceTestBasic:
                 apiNodeSpecificNodeosStr += "--p2p-accept-transactions false "
                 apiNodeSpecificNodeosStr += "--plugin eosio::chain_api_plugin "
                 apiNodeSpecificNodeosStr += "--plugin eosio::net_api_plugin "
-                if "v4" in self.nodeosVers:
-                    apiNodeSpecificNodeosStr += f"--read-only-threads {self.apiNodesReadOnlyThreadCount} "
+                apiNodeSpecificNodeosStr += f"--read-only-threads {self.apiNodesReadOnlyThreadCount} "
                 if apiNodeSpecificNodeosStr:
                     self.specificExtraNodeosArgs.update({f"{nodeId}" : apiNodeSpecificNodeosStr for nodeId in self._apiNodeIds})
 
@@ -304,11 +303,8 @@ class PerformanceTestBasic:
 
     def isOnBlockTransaction(self, transaction):
         # v2 history does not include onblock
-        if "v2" in self.clusterConfig.nodeosVers:
+        if transaction['actions'][0]['account'] != 'eosio' or transaction['actions'][0]['action'] != 'onblock':
             return False
-        else:
-            if transaction['actions'][0]['account'] != 'eosio' or transaction['actions'][0]['action'] != 'onblock':
-                return False
         return True
 
     def queryBlockTrxData(self, node, blockDataPath, blockTrxDataPath, startBlockNum, endBlockNum):
