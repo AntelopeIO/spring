@@ -207,7 +207,6 @@ class cluster_generator:
         cfg.add_argument('--max-transaction-cpu-usage', type=int, help='the "max-transaction-cpu-usage" value to use in the genesis.json file', default=None)
         cfg.add_argument('--logging-level', type=fc_log_level, help='Provide the "level" value to use in the logging.json file')
         cfg.add_argument('--logging-level-map', type=json.loads, help='JSON string of a logging level dictionary to use in the logging.json file for specific nodes, matching based on node number. Ex: {"bios":"off","00":"info"}')
-        cfg.add_argument('--is-nodeos-v2', action='store_true', help='Toggles old nodeos compatibility', default=False)
         cfg.add_argument('--signature-provider', action='store_true', help='add signature provider (BLS key pair) for non-producers', default=False)
         r = parser.parse_args(args)
         if r.launch != 'none' and r.topology_filename:
@@ -581,19 +580,7 @@ class cluster_generator:
 
         # Always enable a history query plugin on the bios node
         if is_bios:
-            if self.args.is_nodeos_v2:
-                a(a(eosdcmd, '--plugin'), 'eosio::history_api_plugin')
-                a(a(eosdcmd, '--filter-on'), '"*"')
-            else:
-                a(a(eosdcmd, '--plugin'), 'eosio::trace_api_plugin')
-
-        if 'eosio::history_api_plugin' in eosdcmd and 'eosio::trace_api_plugin' in eosdcmd:
-            eosdcmd.remove('--trace-no-abis')
-            eosdcmd.remove('--trace-rpc-abi')
-            i = eosdcmd.index('eosio::trace_api_plugin')
-            eosdcmd.pop(i)
-            i -= 1
-            eosdcmd.pop(i)
+            a(a(eosdcmd, '--plugin'), 'eosio::trace_api_plugin')
 
         return eosdcmd
 
