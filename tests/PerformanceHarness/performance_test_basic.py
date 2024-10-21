@@ -313,15 +313,15 @@ class PerformanceTestBasic:
                         blockCpuTotal += trx["cpu_usage_us"]
                         blockNetTotal += trx["net_usage_words"]
                         blockTransactionTotal += 1
-            blockData = blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'],
-                                  transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal,
-                                  producer=block["payload"]["producer"], status=block["payload"]["status"],
-                                  _timestamp=block["payload"]["timestamp"])
-            self.data.blockList.append(blockData)
-            self.data.blockDict[str(blockNum)] = blockData
+            block_data = blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'],
+                                   transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal,
+                                   producer=block["payload"]["producer"], status=block["payload"]["status"],
+                                   _timestamp=block["payload"]["timestamp"])
+            self.data.blockList.append(block_data)
+            self.data.blockDict[str(blockNum)] = block_data
             bdf_append_write = self.fileOpenMode(blockDataPath)
             with open(blockDataPath, bdf_append_write) as blockDataFile:
-                blockDataFile.write(f"{blockData.blockNum},{blockData.blockId},{blockData.producer},{blockData.status},{blockData._timestamp}\n")
+                blockDataFile.write(f"{block_data.blockNum},{block_data.blockId},{block_data.producer},{block_data.status},{block_data._timestamp}\n")
 
     def waitForEmptyBlocks(self, node, numEmptyToWaitOn):
         emptyBlocks = 0
