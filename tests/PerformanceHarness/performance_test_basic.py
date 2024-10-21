@@ -147,14 +147,6 @@ class PerformanceTestBasic:
             if self.apiNodeCount > 0:
                 configureApiNodes()
 
-            if "v2" in self.nodeosVers:
-                self.writeTrx = lambda trxDataFile, blockNum, trx: [trxDataFile.write(f"{trx['trx']['id']},{blockNum},{trx['cpu_usage_us']},{trx['net_usage_words']}\n")]
-                self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['block_num'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["confirmed"], _timestamp=block["payload"]["timestamp"])
-                self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction['trx']['id'], trxData(blockNum, transaction['cpu_usage_us'], transaction['net_usage_words']))]))
-            else:
-                self.writeTrx = lambda trxDataFile, blockNum, trx:[ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
-                self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["status"], _timestamp=block["payload"]["timestamp"])
-                self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction["id"], trxData(blockNum=transaction["block_num"], cpuUsageUs=transaction["cpu_usage_us"], netUsageUs=transaction["net_usage_words"], blockTime=transaction["block_time"]))]))
     @dataclass
     class PtbConfig:
         targetTps: int=8000
@@ -313,15 +305,19 @@ class PerformanceTestBasic:
             block = node.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
             btdf_append_write = self.fileOpenMode(blockTrxDataPath)
             with open(blockTrxDataPath, btdf_append_write) as trxDataFile:
-                for transaction in block['payload']['transactions']:
-                    if not self.isOnBlockTransaction(transaction):
-                        self.clusterConfig.updateTrxDict(blockNum, transaction, self.data.trxDict)
-                        self.clusterConfig.writeTrx(trxDataFile, blockNum, transaction)
-                        blockCpuTotal += transaction["cpu_usage_us"]
-                        blockNetTotal += transaction["net_usage_words"]
+                for trx in block['payload']['transactions']:
+                    if not self.isOnBlockTransaction(trx):
+                        trx_data = trxData(blockNum=trx["block_num"], cpuUsageUs=trx["cpu_usage_us"],
+                                           netUsageUs=trx["net_usage_words"], blockTime=trx["block_time"])
+                        self.data.trxDict.update(dict([(trx["id"], trx_data)]))
+                        [ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
+                        blockCpuTotal += trx["cpu_usage_us"]
+                        blockNetTotal += trx["net_usage_words"]
                         blockTransactionTotal += 1
-            blockData = self.clusterConfig.createBlockData(block=block, blockTransactionTotal=blockTransactionTotal,
-                                                           blockNetTotal=blockNetTotal, blockCpuTotal=blockCpuTotal)
+            blockData = blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'],
+                                  transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal,
+                                  producer=block["payload"]["producer"], status=block["payload"]["status"],
+                                  _timestamp=block["payload"]["timestamp"])
             self.data.blockList.append(blockData)
             self.data.blockDict[str(blockNum)] = blockData
             bdf_append_write = self.fileOpenMode(blockDataPath)
