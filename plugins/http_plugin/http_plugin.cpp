@@ -612,7 +612,7 @@ namespace eosio {
    // returns true if `category` is enabled in http_plugin
    bool http_plugin::is_enabled(api_category category) const {
       return std::any_of(my->categories_by_address.begin(), my->categories_by_address.end(),
-                         [&category, this](const auto& entry) {
+                         [&category](const auto& entry) {
                             const auto& [address, categories] = entry;
                             return categories.contains(category);
                          });
@@ -632,6 +632,14 @@ namespace eosio {
 
    void  http_plugin::register_update_metrics(std::function<void(metrics)>&& fun) {
       my->plugin_state->update_metrics = std::move(fun);
+   }
+
+   size_t http_plugin::requests_in_flight() const {
+      return my->plugin_state->requests_in_flight;
+   }
+
+   size_t http_plugin::bytes_in_flight() const {
+      return my->plugin_state->bytes_in_flight;
    }
 
    std::atomic<bool>& http_plugin::listening() {
