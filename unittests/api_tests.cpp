@@ -1532,8 +1532,14 @@ void transaction_tests(T& chain) {
    // test send_action_large (512k)
    CALL_TEST_FUNCTION( chain, "test_transaction", "send_action_512k", {});
 
+#if !defined(__has_feature) || (!__has_feature(address_sanitizer) && !__has_feature(undefined_behavior_sanitizer))
+#if !defined(__SANITIZE_ADDRESS__) // gcc
+   // this one test is very slow with `--eos-vm`. Disable it when running a sanitizer build.
+
    // test send_many_actions_512k (512k)
    CALL_TEST_FUNCTION( chain, "test_transaction", "send_many_actions_512k", {});
+#endif
+#endif
 
    // test send_action_large (512k + 1)
    BOOST_CHECK_EXCEPTION(CALL_TEST_FUNCTION(chain, "test_transaction", "send_action_large", {}), inline_action_too_big,
