@@ -1,10 +1,8 @@
 #include <boost/test/unit_test.hpp>
-#include <eosio/testing/tester.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
 
 using namespace eosio;
 using namespace eosio::chain;
-using namespace eosio::testing;
 
 template<typename T>
 auto call_parse_no_params(const string& body)
@@ -24,7 +22,7 @@ auto call_parse_possible_no_params(const string& body)
    return parse_params<T, http_params_types::possible_no_params>(body);
 }
 
-BOOST_AUTO_TEST_SUITE(plugin_tests)
+BOOST_AUTO_TEST_SUITE(http_plugin_tests)
 
 BOOST_AUTO_TEST_CASE( make_trimmed_string_view ) try {
    {  // empty string

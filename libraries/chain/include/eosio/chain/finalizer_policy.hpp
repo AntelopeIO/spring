@@ -1,7 +1,7 @@
 #pragma once
 
 #include <eosio/chain/types.hpp>
-#include <eosio/chain/finality/finalizer_authority.hpp>
+#include <eosio/chain/finalizer_authority.hpp>
 #include <fc/container/ordered_diff.hpp>
 
 namespace eosio::chain {

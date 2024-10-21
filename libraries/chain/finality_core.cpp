@@ -1,4 +1,4 @@
-#include <eosio/chain/finality/finality_core.hpp>
+#include <eosio/chain/finality_core.hpp>
 #include <eosio/chain/block_header.hpp>
 #include <eosio/chain/merkle.hpp>
 

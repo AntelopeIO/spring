@@ -1,4 +1,4 @@
-#include <eosio/chain/finality/qc.hpp>
+#include <eosio/chain/qc.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/block_header.hpp>
 

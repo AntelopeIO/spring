@@ -1163,8 +1163,8 @@ BOOST_AUTO_TEST_CASE(stable_priority_queue_test) {
      using namespace std::chrono_literals;
 
      appbase::execution_priority_queue pri_queue;
-     auto io_serv = std::make_shared<boost::asio::io_service>();
-     auto work_ptr = std::make_unique<boost::asio::io_service::work>(*io_serv);
+     auto io_serv = std::make_shared<boost::asio::io_context>();
+     auto work_ptr = std::make_unique<boost::asio::io_context::work>(*io_serv);
      std::atomic<int> posted{0};
 
      std::thread t( [io_serv, &pri_queue, &posted]() {

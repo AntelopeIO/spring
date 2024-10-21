@@ -1,7 +1,7 @@
 #include <eosio/chain/block_state.hpp>
 #include <eosio/chain/block_header_state_utils.hpp>
 #include <eosio/chain/block_state_legacy.hpp>
-#include <eosio/chain/finality/finalizer.hpp>
+#include <eosio/chain/finalizer.hpp>
 #include <eosio/chain/snapshot_detail.hpp>
 #include <eosio/chain/exceptions.hpp>
 

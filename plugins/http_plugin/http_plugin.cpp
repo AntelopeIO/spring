@@ -139,12 +139,12 @@ namespace eosio {
           * @param content_type - json or plain txt
           * @return the constructed internal_url_handler
           */
-         static detail::internal_url_handler make_app_thread_url_handler(api_entry&& entry, appbase::exec_queue to_queue, int priority, http_plugin_impl_ptr my, http_content_type content_type ) {
+         static detail::internal_url_handler make_app_thread_url_handler(api_entry&& entry, appbase::exec_queue to_queue, int priority, http_content_type content_type ) {
             detail::internal_url_handler handler;
             handler.content_type = content_type;
             handler.category = entry.category;
             auto next_ptr = std::make_shared<url_handler>(std::move(entry.handler));
-            handler.fn = [my=std::move(my), priority, to_queue, next_ptr=std::move(next_ptr)]
+            handler.fn = [priority, to_queue, next_ptr=std::move(next_ptr)]
                        ( detail::abstract_conn_ptr conn, string&& r, string&& b, url_response_callback&& then ) {
                if (auto error_str = conn->verify_max_bytes_in_flight(b.size()); !error_str.empty()) {
                   conn->send_busy_response(std::move(error_str));
@@ -477,9 +477,11 @@ namespace eosio {
    }
 
    void http_plugin::plugin_startup() {
-      app().executor().post(appbase::priority::high, [this] ()
-      {
-         // The reason we post here is because we want blockchain replay to happen before we start listening.
+      // post here because *_api_plugins that register api handlers depend on http_plugin. Since they depend on the
+      // http_plugin, this plugin_startup is called before any *_api_plugin::plugin_startup. The post avoid situation
+      // where the application is running and accepting http requests, but it doesn't have the request api handler
+      // registered yet.
+      app().executor().post(appbase::priority::high, exec_queue::read_write, [this]() {
          try {
             my->plugin_state->thread_pool.start( my->plugin_state->thread_pool_size, [](const fc::exception& e) {
                fc_elog( logger(), "Exception in http thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
@@ -493,13 +495,13 @@ namespace eosio {
             my->listening.store(true);
          } catch(fc::exception& e) {
             fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.to_detail_string()));
-            app().quit();
+            throw; // allow application exec() to exit with error
          } catch(std::exception& e) {
             fc_elog(logger(), "http_plugin startup fails for ${e}", ("e", e.what()));
-            app().quit();
+            throw; // allow application exec() to exit with error
          } catch (...) {
             fc_elog(logger(), "http_plugin startup fails, shutting down");
-            app().quit();
+            throw; // allow application exec() to exit with error
          }
       });
    }
@@ -511,10 +513,7 @@ namespace eosio {
    void http_plugin::plugin_shutdown() {
       my->plugin_state->thread_pool.stop();
 
-      // release http_plugin_impl_ptr shared_ptrs captured in url handlers
-      my->plugin_state->url_handlers.clear();
-
-      fc_ilog( logger(), "exit shutdown");
+      fc_dlog( logger(), "exit shutdown");
    }
 
    void log_add_handler(http_plugin_impl* my, api_entry& entry) {
@@ -530,7 +529,7 @@ namespace eosio {
    void http_plugin::add_handler(api_entry&& entry, appbase::exec_queue q, int priority, http_content_type content_type) {
       log_add_handler(my.get(), entry);
       std::string path  = entry.path;
-      auto p = my->plugin_state->url_handlers.emplace(path, my->make_app_thread_url_handler(std::move(entry), q, priority, my, content_type));
+      auto p = my->plugin_state->url_handlers.emplace(path, my->make_app_thread_url_handler(std::move(entry), q, priority, content_type));
       EOS_ASSERT( p.second, chain::plugin_config_exception, "http url ${u} is not unique", ("u", path) );
    }
 

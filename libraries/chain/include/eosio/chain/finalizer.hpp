@@ -1,6 +1,6 @@
 #pragma once
 #include <eosio/chain/block_state.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/vote_message.hpp>
 #include <fc/crypto/bls_utils.hpp>
 #include <fc/io/cfile.hpp>
 #include <fc/io/datastream_crc.hpp>
@@ -59,13 +59,18 @@ namespace eosio::chain {
          bool          monotony_check {false};
       };
 
-      bls_private_key               priv_key;
+      const bls_private_key         priv_key;
       finalizer_safety_information  fsi;
 
       vote_result  decide_vote(const block_state_ptr& bsp);
       vote_message_ptr maybe_vote(const bls_public_key& pub_key, const block_state_ptr& bsp, const digest_type& digest);
+
       // finalizer has voted strong, update fsi if it does not already contain vote or better
       bool maybe_update_fsi(const block_state_ptr& bsp);
+
+      finalizer(const bls_private_key& priv_key, const finalizer_safety_information& fsi)
+         : priv_key(priv_key)
+         , fsi(fsi) {}
    };
 
    // ----------------------------------------------------------------------------------------
@@ -84,7 +89,7 @@ namespace eosio::chain {
       static constexpr uint64_t current_safety_file_version = safety_file_version_1;
 
       using fsi_t   = finalizer_safety_information;
-      using fsi_map = std::map<bls_public_key, fsi_t>;
+      using fsi_map = std::map<const bls_public_key, fsi_t>;
       using vote_t  = std::tuple<vote_message_ptr, finalizer_authority_ptr, finalizer_authority_ptr>;
 
    private:
@@ -184,7 +189,12 @@ namespace eosio::chain {
 
       // for testing purposes only, not thread safe
       const fsi_t& get_fsi(const bls_public_key& k) const { return finalizers.at(k).fsi; }
-      void         set_fsi(const bls_public_key& k, const fsi_t& fsi) { finalizers[k].fsi = fsi; }
+      void set_fsi(const bls_public_key& k, const fsi_t& fsi) {
+         if (auto it = finalizers.find(k); it != finalizers.end())
+            it->second.fsi = fsi;
+         else
+            assert(0);
+      }
 
    private:
       void load_finalizer_safety_info_v0(fsi_map& res);

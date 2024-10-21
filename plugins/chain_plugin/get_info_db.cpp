@@ -27,22 +27,24 @@ namespace eosio::chain_apis {
       // Called on accepted_block signal.
       void on_accepted_block() {
          try {
-            if (!get_info_enabled) {
-               return;
+            // In IRREVERSIBLE mode, it is expected get_info to return the same
+            // head_block_num and last_irreversible_block_num.
+            // But a get_info request can come between accepted_block signal and
+            // irreversible_block signal, which results in inconsistencies.
+            // On accepted_block, only store get_info results if the mode is not IRREVERSIBLE.
+            // (for IRREVERSIBLE mode, get_info results are stored on rreversible_block signal)
+            if (get_info_enabled && controller.get_read_mode() != db_read_mode::IRREVERSIBLE) {
+               store_info();
             }
-
-            store_info();
          } FC_LOG_AND_DROP(("get_info_db_impl on_accepted_block ERROR"));
       }
 
       // Called on irreversible_block signal.
       void on_irreversible_block(const chain::signed_block_ptr& block, const block_id_type& id) {
          try {
-            if (!get_info_enabled) {
-               return;
+            if (get_info_enabled) {
+               store_info(block, id);
             }
-
-            store_info(block, id);
          } FC_LOG_AND_DROP(("get_info_db_impl on_irreversible_block ERROR"));
       }
 

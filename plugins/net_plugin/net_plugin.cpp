@@ -326,7 +326,6 @@ namespace eosio {
       void start_conn_timer(boost::asio::steady_timer::duration du,
                             std::weak_ptr<connection> from_connection,
                             timer_type which);
-      void stop_conn_timers();
 
       void add(connection_ptr c);
       string connect(const string& host, const string& p2p_address);
@@ -409,9 +408,6 @@ namespace eosio {
       alignas(hardware_destructive_interference_sz)
       fc::mutex                             keepalive_timer_mtx;
       boost::asio::steady_timer             keepalive_timer GUARDED_BY(keepalive_timer_mtx) {thread_pool.get_executor()};
-
-      alignas(hardware_destructive_interference_sz)
-      std::atomic<bool>                     in_shutdown{false};
 
       alignas(hardware_destructive_interference_sz)
       compat::channels::transaction_ack::channel_type::handle  incoming_transaction_ack_subscription;
@@ -3150,10 +3146,7 @@ namespace eosio {
    }
 
    void net_plugin_impl::plugin_shutdown() {
-         in_shutdown = true;
-
-         connections.close_all();
-         thread_pool.stop();
+      thread_pool.stop();
    }
 
    // call only from main application thread
@@ -3694,6 +3687,8 @@ namespace eosio {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
       my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+         if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
+            return;
          controller& cc = my_impl->chain_plug->chain();
 
          auto fork_db_root_num = my_impl->get_fork_db_root_num();
@@ -3801,30 +3796,23 @@ namespace eosio {
 
    // thread safe
    void net_plugin_impl::start_expire_timer() {
-      if( in_shutdown ) return;
       fc::lock_guard g( expire_timer_mtx );
       expire_timer.expires_from_now( txn_exp_period);
       expire_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
          if( !ec ) {
             my->expire();
-         } else {
-            if( my->in_shutdown ) return;
-            fc_elog( logger, "Error from transaction check monitor: ${m}", ("m", ec.message()) );
-            my->start_expire_timer();
          }
       } );
    }
 
    // thread safe
    void net_plugin_impl::ticker() {
-      if( in_shutdown ) return;
       fc::lock_guard g( keepalive_timer_mtx );
       keepalive_timer.expires_from_now(keepalive_interval);
       keepalive_timer.async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
             if( ec ) {
-               if( my->in_shutdown ) return;
-               fc_wlog( logger, "Peer keepalive ticked sooner than expected: ${m}", ("m", ec.message()) );
+               return;
             }
 
             auto current_time = std::chrono::steady_clock::now();
@@ -4374,45 +4362,42 @@ namespace eosio {
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(
             [this](auto&& t) { transaction_ack(std::forward<decltype(t)>(t)); });
 
+      const boost::posix_time::milliseconds accept_timeout(100);
+      std::string extra_listening_log_info = ", max clients is " + std::to_string(connections.get_max_client_count());
       for(auto listen_itr = listen_addresses.begin(), p2p_iter = p2p_addresses.begin();
           listen_itr != listen_addresses.end();
           ++listen_itr, ++p2p_iter) {
-         app().executor().post(priority::highest, [my=shared_from_this(), address = std::move(*listen_itr), p2p_addr = *p2p_iter](){
-            try {
-               const boost::posix_time::milliseconds accept_timeout(100);
+         auto address = std::move(*listen_itr);
+         const auto& p2p_addr = *p2p_iter;
+         try {
+            auto [listen_addr, block_sync_rate_limit] = net_utils::parse_listen_address(address);
+            fc_ilog( logger, "setting block_sync_rate_limit to ${limit} megabytes per second", ("limit", double(block_sync_rate_limit)/1000000));
 
-               std::string extra_listening_log_info =
-                     ", max clients is " + std::to_string(my->connections.get_max_client_count());
-
-               auto [listen_addr, block_sync_rate_limit] = net_utils::parse_listen_address(address);
-               fc_ilog( logger, "setting block_sync_rate_limit to ${limit} megabytes per second", ("limit", double(block_sync_rate_limit)/1000000));
-
-               fc::create_listener<tcp>(
-                     my->thread_pool.get_executor(), logger, accept_timeout, listen_addr, extra_listening_log_info,
-                     [my = my](const auto&) { return boost::asio::make_strand(my->thread_pool.get_executor()); },
-                     [my = my, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
-                        fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
-                                 ("addr", addr)("limit", block_sync_rate_limit));
-                        my->create_session(std::move(socket), addr, block_sync_rate_limit);
-                     });
-            } catch (const plugin_config_exception& e) {
-               fc_elog( logger, "${msg}", ("msg", e.top_message()));
-               app().quit();
-               return;
-            } catch (const std::exception& e) {
-               fc_elog( logger, "net_plugin::plugin_startup failed to listen on ${addr}, ${what}",
-                     ("addr", address)("what", e.what()) );
-               app().quit();
-               return;
-            }
-         });
+            fc::create_listener<tcp>(
+                  thread_pool.get_executor(), logger, accept_timeout, listen_addr, extra_listening_log_info,
+                  [this](const auto&) { return boost::asio::make_strand(thread_pool.get_executor()); },
+                  [this, addr = p2p_addr, block_sync_rate_limit = block_sync_rate_limit](tcp::socket&& socket) {
+                     fc_dlog( logger, "start listening on ${addr} with peer sync throttle ${limit}",
+                              ("addr", addr)("limit", block_sync_rate_limit));
+                     create_session(std::move(socket), addr, block_sync_rate_limit);
+                  });
+         } catch (const fc::exception& e) {
+            fc_elog(logger, "net_plugin::plugin_startup failed to listen on ${a}, ${w}",
+                    ("a", address)("w", e.to_detail_string()));
+            throw;
+         } catch (const std::exception& e) {
+            fc_elog(logger, "net_plugin::plugin_startup failed to listen on ${a}, ${w}",
+                    ("a", address)("w", e.what()));
+            throw;
+         }
       }
-      app().executor().post(priority::highest, [my=shared_from_this()](){
-         my->ticker();
-         my->start_monitors();
-         my->update_chain_info();
-         my->connections.connect_supplied_peers(my->get_first_p2p_address()); // attribute every outbound connection to the first listen port when one exists
+      boost::asio::post(thread_pool.get_executor(), [this] {
+         ticker();
+         start_monitors();
+         connections.connect_supplied_peers(get_first_p2p_address()); // attribute every outbound connection to the first listen port when one exists
       });
+
+      update_chain_info();
    }
 
    void net_plugin::plugin_initialize( const variables_map& options ) {
@@ -4421,29 +4406,17 @@ namespace eosio {
    }
 
    void net_plugin::plugin_startup() {
-      try {
-         my->plugin_startup();
-      } catch( ... ) {
-         // always want plugin_shutdown even on exception
-         plugin_shutdown();
-         throw;
-      }
+      my->plugin_startup();
    }
-      
 
    void net_plugin::handle_sighup() {
       fc::logger::update( logger_name, logger );
    }
 
    void net_plugin::plugin_shutdown() {
-      try {
-         fc_ilog( logger, "shutdown.." );
-
-         my->plugin_shutdown();
-         app().executor().post( 0, [me = my](){} ); // keep my pointer alive until queue is drained
-         fc_ilog( logger, "exit shutdown" );
-      }
-      FC_CAPTURE_AND_RETHROW()
+      fc_dlog( logger, "shutdown.." );
+      my->plugin_shutdown();
+      fc_dlog( logger, "exit shutdown" );
    }
 
    /// RPC API
@@ -4705,21 +4678,6 @@ namespace eosio {
             (this->*f)(from_connection);
          }
       });
-   }
-
-   void connections_manager::stop_conn_timers() {
-      {
-         fc::lock_guard g( connector_check_timer_mtx );
-         if (connector_check_timer) {
-            connector_check_timer->cancel();
-         }
-      }
-      {
-         fc::lock_guard g( connection_stats_timer_mtx );
-         if (connection_stats_timer) {
-            connection_stats_timer->cancel();
-         }
-      }
    }
 
    // called from any thread

@@ -1,5 +1,5 @@
-#include <eosio/chain/finality/qc.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/qc.hpp>
+#include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/block_header_state.hpp>
 #include <fc/crypto/bls_utils.hpp>
 

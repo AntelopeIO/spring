@@ -1,8 +1,8 @@
 #pragma once
 
-#include <eosio/chain/finality/finality_core.hpp>
-#include <eosio/chain/finality/finalizer_policy.hpp>
-#include <eosio/chain/finality/vote_message.hpp>
+#include <eosio/chain/finality_core.hpp>
+#include <eosio/chain/finalizer_policy.hpp>
+#include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/block_timestamp.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <fc/crypto/bls_private_key.hpp>

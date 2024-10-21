@@ -1,7 +1,7 @@
 #include <eosio/chain/abi_serializer.hpp>
 #include <eosio/chain/asset.hpp>
 #include <eosio/chain/exceptions.hpp>
-#include <eosio/chain/finality/finality_extension.hpp>
+#include <eosio/chain/finality_extension.hpp>
 #include <fc/io/raw.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <fc/io/varint.hpp>

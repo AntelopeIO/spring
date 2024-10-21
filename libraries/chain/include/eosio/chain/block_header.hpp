@@ -2,7 +2,7 @@
 #include <eosio/chain/block_timestamp.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 #include <eosio/chain/protocol_feature_activation.hpp>
-#include <eosio/chain/finality/finality_extension.hpp>
+#include <eosio/chain/finality_extension.hpp>
 
 #include <optional>
 #include <type_traits>

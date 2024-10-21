@@ -1,5 +1,5 @@
 #include <eosio/chain/fork_database.hpp>
-#include <eosio/chain/finality/finalizer.hpp>
+#include <eosio/chain/finalizer.hpp>
 
 #include <boost/test/unit_test.hpp>
 #include <eosio/testing/tester.hpp>
@@ -131,7 +131,7 @@ struct simulator_t {
 
    simulator_t() :
       keys("alice"_n),
-      my_finalizer(keys.privkey) {
+      my_finalizer(keys.privkey, finalizer_safety_information{}) {
 
       finalizer_policy fin_policy;
       fin_policy.threshold = 1;
