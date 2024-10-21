@@ -326,7 +326,6 @@ namespace eosio {
       void start_conn_timer(boost::asio::steady_timer::duration du,
                             std::weak_ptr<connection> from_connection,
                             timer_type which);
-      void stop_conn_timers();
 
       void add(connection_ptr c);
       string connect(const string& host, const string& p2p_address);
@@ -4680,21 +4679,6 @@ namespace eosio {
             (this->*f)(from_connection);
          }
       });
-   }
-
-   void connections_manager::stop_conn_timers() {
-      {
-         fc::lock_guard g( connector_check_timer_mtx );
-         if (connector_check_timer) {
-            connector_check_timer->cancel();
-         }
-      }
-      {
-         fc::lock_guard g( connection_stats_timer_mtx );
-         if (connection_stats_timer) {
-            connection_stats_timer->cancel();
-         }
-      }
    }
 
    // called from any thread
