@@ -11,10 +11,7 @@ BOOST_DATA_TEST_CASE(left_to_right_0_pass, boost::unit_test::data::xrange(0,1), 
    tester.set_code("wasmtest"_n, wasm_left_to_right_0);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();

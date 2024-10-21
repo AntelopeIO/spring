@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    auto signed_tx = packed_trx.get_signed_transaction();
 
    // Change the transaction that will be run
-   signed_tx.actions[0].name = "something"_n;
+   const_cast<action_name&>(signed_tx.actions[0].name) = "something"_n;
    // Re-sign the transaction
    signed_tx.signatures.clear();
    signed_tx.sign(main.get_private_key(config::system_account_name, "active"), main.get_chain_id());

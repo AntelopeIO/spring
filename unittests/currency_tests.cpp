@@ -25,11 +25,8 @@ class currency_tester : public T {
       auto push_action(const account_name& signer, const action_name &name, const variant_object &data ) {
          string action_type_name = abi_ser.get_action_type(name);
 
-         action act;
-         act.account = "eosio.token"_n;
-         act.name = name;
-         act.authorization = vector<permission_level>{{signer, config::active_name}};
-         act.data = abi_ser.variant_to_binary(action_type_name, data, abi_serializer::create_yield_function( T::abi_serializer_max_time ));
+         action act(vector<permission_level>{{signer, config::active_name}}, "eosio.token"_n, name,
+                    abi_ser.variant_to_binary(action_type_name, data, abi_serializer::create_yield_function( T::abi_serializer_max_time )));
 
          signed_transaction trx;
          trx.actions.emplace_back(std::move(act));
@@ -422,15 +419,9 @@ BOOST_FIXTURE_TEST_CASE( test_proxy_deferred, pre_disable_deferred_trx_currency_
    // set up proxy owner
    {
       signed_transaction trx;
-      action setowner_act;
-      setowner_act.account = "proxy"_n;
-      setowner_act.name = "setowner"_n;
-      setowner_act.authorization = vector<permission_level>{{"proxy"_n, config::active_name}};
-      setowner_act.data = proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()
-         ("owner", "alice")
-         ("delay", 10),
-         abi_serializer::create_yield_function( abi_serializer_max_time )
-      );
+      action setowner_act(vector<permission_level>{{"proxy"_n, config::active_name}}, "proxy"_n, "setowner"_n,
+                          proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()("owner", "alice")("delay", 10),
+                                                          abi_serializer::create_yield_function( abi_serializer_max_time )));
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
@@ -478,15 +469,9 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
    // set up proxy owner
    {
       signed_transaction trx;
-      action setowner_act;
-      setowner_act.account = "proxy"_n;
-      setowner_act.name = "setowner"_n;
-      setowner_act.authorization = vector<permission_level>{{"proxy"_n, config::active_name}};
-      setowner_act.data = proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()
-         ("owner", "bob")
-         ("delay", 10),
-         abi_serializer::create_yield_function( abi_serializer_max_time )
-      );
+      action setowner_act(vector<permission_level>{{"proxy"_n, config::active_name}}, "proxy"_n, "setowner"_n,
+                          proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()("owner", "bob")("delay", 10),
+                                                          abi_serializer::create_yield_function( abi_serializer_max_time )));
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);
@@ -529,15 +514,11 @@ BOOST_FIXTURE_TEST_CASE( test_deferred_failure, pre_disable_deferred_trx_currenc
    // set up alice owner
    {
       signed_transaction trx;
-      action setowner_act;
-      setowner_act.account = "bob"_n;
-      setowner_act.name = "setowner"_n;
-      setowner_act.authorization = vector<permission_level>{{"bob"_n, config::active_name}};
-      setowner_act.data = proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()
-         ("owner", "alice")
-         ("delay", 0),
-         abi_serializer::create_yield_function( abi_serializer_max_time )
-      );
+
+      action setowner_act(vector<permission_level>{{"bob"_n, config::active_name}},
+                          "bob"_n, "setowner"_n,
+                          proxy_abi_ser.variant_to_binary("setowner", mutable_variant_object()("owner", "alice")("delay", 0),
+                                                          abi_serializer::create_yield_function(abi_serializer_max_time)));
       trx.actions.emplace_back(std::move(setowner_act));
 
       set_transaction_headers(trx);

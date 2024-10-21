@@ -963,14 +963,11 @@ void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu
               bool explicit_bill, std::vector<char> payload = {}, name account = "testapi"_n, transaction_metadata::trx_type trx_type = transaction_metadata::trx_type::input ) {
    signed_transaction trx;
 
-   action act;
-   act.account = ac.get_account();
-   act.name = ac.get_name();
-   if ( trx_type != transaction_metadata::trx_type::read_only ) {
-      auto pl = vector<permission_level>{{account, config::active_name}};
-      act.authorization = pl;
-   }
-   act.data = payload;
+   auto pl = vector<permission_level>{};
+   if ( trx_type != transaction_metadata::trx_type::read_only )
+      pl = vector<permission_level>{{account, config::active_name}};
+
+   action act(std::move(pl), ac.get_account(), ac.get_name(), payload);
 
    trx.actions.push_back(act);
    test.set_transaction_headers(trx);

@@ -270,10 +270,8 @@ void test_max_func_local_bytes(T& chain, int32_t n_params, int32_t n_locals, int
    }
 
    auto pushit = [&]() {
-      action act;
-      act.account = "stackz"_n;
-      act.name = name();
-      act.authorization = vector<permission_level>{{"stackz"_n,config::active_name}};
+      action act(vector<permission_level>{{"stackz"_n,config::active_name}}, "stackz"_n,
+                 name(), {});
       signed_transaction trx;
       trx.actions.push_back(act);
 
@@ -463,10 +461,8 @@ BOOST_DATA_TEST_CASE_F(old_wasm_tester, max_func_local_bytes_old, data::make({0,
    produce_block();
 
    auto pushit = [&]() {
-      action act;
-      act.account = "stackz"_n;
-      act.name = name();
-      act.authorization = vector<permission_level>{{"stackz"_n,config::active_name}};
+      action act(vector<permission_level>{{"stackz"_n,config::active_name}}, "stackz"_n,
+                 name(), {});
       signed_transaction trx;
       trx.actions.push_back(act);
 
@@ -913,10 +909,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
       chain.produce_block();
 
       auto pushit = [&](uint64_t extra_pages) {
-         action act;
-         act.account = "bigmem"_n;
-         act.name = name(extra_pages);
-         act.authorization = vector<permission_level>{{"bigmem"_n,config::active_name}};
+         action act(vector<permission_level>{{"bigmem"_n,config::active_name}}, "bigmem"_n,
+                    name(extra_pages), {});
          signed_transaction trx;
          trx.actions.push_back(act);
 
@@ -928,10 +922,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
 
       // verify that page accessibility cannot leak across wasm executions
       auto checkaccess = [&](uint64_t pagenum) {
-         action act;
-         act.account = "accessmem"_n;
-         act.name = name(pagenum);
-         act.authorization = vector<permission_level>{{"accessmem"_n,config::active_name}};
+         action act(vector<permission_level>{{"accessmem"_n,config::active_name}}, "accessmem"_n,
+                    name(pagenum), {});
          signed_transaction trx;
          trx.actions.push_back(act);
 
@@ -943,10 +935,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( max_pages, T, wasm_config_testers ) try {
 
       // verify checking of intrinsic arguments
       auto pushintrinsic = [&](uint64_t pages) {
-         action act;
-         act.account = "intrinsicmem"_n;
-         act.name = name(pages);
-         act.authorization = vector<permission_level>{{"intrinsicmem"_n,config::active_name}};
+         action act(vector<permission_level>{{"intrinsicmem"_n,config::active_name}}, "intrinsicmem"_n,
+                    name(pages), {});
          signed_transaction trx;
          trx.actions.push_back(act);
 

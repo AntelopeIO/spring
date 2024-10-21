@@ -672,10 +672,7 @@ void jumbo_row_test()
    chain.produce_block();
 
    signed_transaction trx;
-   action act;
-   act.account = "jumbo"_n;
-   act.name = "jumbo"_n;
-   act.authorization = vector<permission_level>{{"jumbo"_n,config::active_name}};
+   action act(vector<permission_level>{{"jumbo"_n,config::active_name}}, "jumbo"_n, "jumbo"_n, {});
    trx.actions.push_back(act);
 
    chain.set_transaction_headers(trx);
