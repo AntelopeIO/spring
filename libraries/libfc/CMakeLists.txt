@@ -1,5 +1,6 @@
 add_subdirectory( secp256k1 )
-add_subdirectory( libraries/bn256/src )
+set(BN256_ENABLE_TEST ON CACHE BOOL "enable BN256 tests")
+add_subdirectory( libraries/bn256 )
 add_subdirectory( libraries/bls12-381 )
 add_subdirectory( libraries/boringssl )
 
