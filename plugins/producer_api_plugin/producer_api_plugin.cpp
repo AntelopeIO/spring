@@ -89,7 +89,7 @@ using namespace eosio;
 
 
 void producer_api_plugin::plugin_startup() {
-   ilog("starting producer_api_plugin");
+   dlog("starting producer_api_plugin");
    // lifetime of plugin is lifetime of application
    auto& producer = app().get_plugin<producer_plugin>();
 
