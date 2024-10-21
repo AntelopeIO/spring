@@ -147,9 +147,6 @@ class PerformanceTestBasic:
             if self.apiNodeCount > 0:
                 configureApiNodes()
 
-            self.writeTrx = lambda trxDataFile, blockNum, trx:[ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
-            self.createBlockData = lambda block, blockTransactionTotal, blockNetTotal, blockCpuTotal: blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'], transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal, producer=block["payload"]["producer"], status=block["payload"]["status"], _timestamp=block["payload"]["timestamp"])
-            self.updateTrxDict = lambda blockNum, transaction, trxDict: trxDict.update(dict([(transaction["id"], trxData(blockNum=transaction["block_num"], cpuUsageUs=transaction["cpu_usage_us"], netUsageUs=transaction["net_usage_words"], blockTime=transaction["block_time"]))]))
     @dataclass
     class PtbConfig:
         targetTps: int=8000
@@ -304,29 +301,33 @@ class PerformanceTestBasic:
     def queryBlockTrxData(self, node, blockDataPath, blockTrxDataPath, startBlockNum, endBlockNum):
         for blockNum in range(startBlockNum, endBlockNum + 1):
             blockCpuTotal, blockNetTotal, blockTransactionTotal = 0, 0, 0
-            block = node.fetchBlock(blockNum)
+            block = node.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
             btdf_append_write = self.fileOpenMode(blockTrxDataPath)
             with open(blockTrxDataPath, btdf_append_write) as trxDataFile:
-                for transaction in block['payload']['transactions']:
-                    if not self.isOnBlockTransaction(transaction):
-                        self.clusterConfig.updateTrxDict(blockNum, transaction, self.data.trxDict)
-                        self.clusterConfig.writeTrx(trxDataFile, blockNum, transaction)
-                        blockCpuTotal += transaction["cpu_usage_us"]
-                        blockNetTotal += transaction["net_usage_words"]
+                for trx in block['payload']['transactions']:
+                    if not self.isOnBlockTransaction(trx):
+                        trx_data = trxData(blockNum=trx["block_num"], cpuUsageUs=trx["cpu_usage_us"],
+                                           netUsageUs=trx["net_usage_words"], blockTime=trx["block_time"])
+                        self.data.trxDict.update(dict([(trx["id"], trx_data)]))
+                        [ trxDataFile.write(f"{trx['id']},{trx['block_num']},{trx['block_time']},{trx['cpu_usage_us']},{trx['net_usage_words']},{trx['actions']}\n") ]
+                        blockCpuTotal += trx["cpu_usage_us"]
+                        blockNetTotal += trx["net_usage_words"]
                         blockTransactionTotal += 1
-            blockData = self.clusterConfig.createBlockData(block=block, blockTransactionTotal=blockTransactionTotal,
-                                                           blockNetTotal=blockNetTotal, blockCpuTotal=blockCpuTotal)
-            self.data.blockList.append(blockData)
-            self.data.blockDict[str(blockNum)] = blockData
+            block_data = blockData(blockId=block["payload"]["id"], blockNum=block['payload']['number'],
+                                   transactions=blockTransactionTotal, net=blockNetTotal, cpu=blockCpuTotal,
+                                   producer=block["payload"]["producer"], status=block["payload"]["status"],
+                                   _timestamp=block["payload"]["timestamp"])
+            self.data.blockList.append(block_data)
+            self.data.blockDict[str(blockNum)] = block_data
             bdf_append_write = self.fileOpenMode(blockDataPath)
             with open(blockDataPath, bdf_append_write) as blockDataFile:
-                blockDataFile.write(f"{blockData.blockNum},{blockData.blockId},{blockData.producer},{blockData.status},{blockData._timestamp}\n")
+                blockDataFile.write(f"{block_data.blockNum},{block_data.blockId},{block_data.producer},{block_data.status},{block_data._timestamp}\n")
 
     def waitForEmptyBlocks(self, node, numEmptyToWaitOn):
         emptyBlocks = 0
         while emptyBlocks < numEmptyToWaitOn:
             headBlock = node.getHeadBlockNum()
-            block = node.fetchHeadBlock(node, headBlock)
+            block = node.processUrllibRequest("chain", "get_block_info", {"block_num":headBlock}, silentErrors=False, exitOnError=True)
             node.waitForHeadToAdvance()
             if block['payload']['transaction_mroot'] == "0000000000000000000000000000000000000000000000000000000000000000":
                 emptyBlocks += 1
