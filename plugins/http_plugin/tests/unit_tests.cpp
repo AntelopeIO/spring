@@ -623,9 +623,14 @@ BOOST_FIXTURE_TEST_CASE(bytes_in_flight, http_plugin_test_fixture) {
    };
 
    auto wait_for_no_bytes_in_flight = [&](uint16_t max = std::numeric_limits<uint16_t>::max()) {
-      while ((http_plugin->bytes_in_flight() > 0 || http_plugin->requests_in_flight() > 0) && --max)
+      // bytes_in_flight is only increased when sending a response, need to make sure all requests are done
+      // so that we can then verify no bytes in flight. If we checked bytes_in_flight in the while loop then it is
+      // possible we can catch it with 0 bytes in flight even though there are requests still being processed that
+      // will shortly increase the bytes in flight when they respond to the request.
+      while (http_plugin->requests_in_flight() > 0 && --max)
          std::this_thread::sleep_for(std::chrono::milliseconds(5));
       BOOST_CHECK(max > 0);
+      BOOST_CHECK(http_plugin->bytes_in_flight() == 0);
    };
 
    auto wait_for_requests = [&](uint16_t num_requests, uint16_t max = std::numeric_limits<uint16_t>::max()) {
