@@ -98,6 +98,43 @@ namespace eosio::trace_api {
       return std::make_tuple( entry.value(), irreversible );
    }
 
+   // Returns true if `block` includes the transaction identified by `trx_id`
+   static bool block_has_trx(const get_block_t& block, const chain::transaction_id_type& trx_id) {
+      bool           has_trx     = false;
+      data_log_entry block_trace = std::get<0>(*block);
+
+      if (std::holds_alternative<block_trace_v0> (block_trace)) {
+         auto& trace_v0 = std::get<block_trace_v0>(block_trace);
+         auto  itr      = std::find_if(trace_v0.transactions.begin(), trace_v0.transactions.end(),
+                                       [&](const auto& trx) { return trx.id == trx_id; });
+         has_trx = (itr != trace_v0.transactions.end());
+      } else if (std::holds_alternative<block_trace_v1>(block_trace)) {
+         auto& trace_v1 = std::get<block_trace_v1>(block_trace);
+         auto  itr      = std::find_if(trace_v1.transactions_v1.begin(), trace_v1.transactions_v1.end(),
+                                       [&](const auto& trx) { return trx.id == trx_id; });
+         has_trx        = (itr != trace_v1.transactions_v1.end());
+      } else if (std::holds_alternative<block_trace_v2>(block_trace)) {
+         auto& trace_v2 = std::get<block_trace_v2>(block_trace);
+         if (std::holds_alternative<std::vector<transaction_trace_v2>>(trace_v2.transactions)) {
+            auto& trxs = std::get<std::vector<transaction_trace_v2>>(trace_v2.transactions);
+            auto  itr  = std::find_if(trxs.begin(), trxs.end(),
+                                      [&](const auto& trx) { return trx.id == trx_id; });
+            has_trx    = (itr != trxs.end());
+         } else if (std::holds_alternative<std::vector<transaction_trace_v3>>(trace_v2.transactions)) {
+            auto& trxs = std::get<std::vector<transaction_trace_v3>>(trace_v2.transactions);
+            auto  itr  = std::find_if(trxs.begin(), trxs.end(),
+                                      [&](const auto& trx) { return trx.id == trx_id; });
+            has_trx    = (itr != trxs.end());
+         } else {
+            FC_ASSERT( false, "block_trace_v2 should contain transaction_trace_v2 or transaction_trace_v3 transactions" );;
+         }
+      } else {
+         FC_ASSERT( false, "block_trace should be a block_trace_v0, block_trace_v1, or a block_trace_v3" );
+      }
+
+      return has_trx;
+   }
+
    get_block_n store_provider::get_trx_block_number(const chain::transaction_id_type& trx_id, std::optional<uint32_t> minimum_irreversible_history_blocks, const yield_function& yield) {
       fc::cfile trx_id_file;
       int32_t slice_number;
@@ -125,8 +162,16 @@ namespace eosio::trace_api {
                const auto& trxs_entry = std::get<block_trxs_entry>(entry);
                for (auto i = 0U; i < trxs_entry.ids.size(); ++i) {
                   if (trxs_entry.ids[i] == trx_id) {
-                     trx_entries++;
-                     trx_block_num = trxs_entry.block_num;
+                     // Update trx_block_num only if the block contains the transaction.
+                     // This is to prevent the problem where the initial block containing
+                     // the transaction forks out and the transaction is not in the latest
+                     // block which has the same block number as the initial block.
+
+                     get_block_t block = get_block(trxs_entry.block_num);
+                     if (block && block_has_trx(block, trx_id)) {
+                        trx_entries++;
+                        trx_block_num = trxs_entry.block_num;
+                     }
                   }
                }
             } else if (std::holds_alternative<lib_entry_v0>(entry)) {
