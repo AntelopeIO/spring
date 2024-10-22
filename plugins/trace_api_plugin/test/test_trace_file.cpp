@@ -1154,12 +1154,23 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       sp.append(initial_block_trace);                  // block 1
       sp.append_trx_ids(initial_block_trxs_entry);     // block 1
 
+      // target trx is in the first block (is still reversible)
+      get_block_n block_num = sp.get_trx_block_number(target_trx_id, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, initial_block_num);
+
       // initial block forks out
       sp.append(forked_block_trace);                   // block 1
       sp.append_trx_ids(forked_block_trxs_entry);      // block 1
 
       // forked block becomes final
       sp.append_lib(initial_block_num);                // block 1
+
+      // target trx is forked out. block 1 does not include
+      // target_trx (trx_trace1) but trx_trace2;
+      // therefore no block is found for target_trx_id.
+      block_num = sp.get_trx_block_number(target_trx_id, {});
+      BOOST_REQUIRE(!block_num);
 
       // on_accepted_block of the final block
       sp.append(final_block_trace);                    // block 3
@@ -1168,8 +1179,7 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       // final block becomes final
       sp.append_lib(final_block_num);                  // block 3
 
-      get_block_n block_num = sp.get_trx_block_number(target_trx_id, {});
-
+      block_num = sp.get_trx_block_number(target_trx_id, {});
       BOOST_REQUIRE(block_num);
       BOOST_REQUIRE_EQUAL(*block_num, final_block_num); // target trx is in final block
    }
