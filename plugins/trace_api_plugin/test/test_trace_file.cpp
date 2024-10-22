@@ -1137,6 +1137,11 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
          .block_num = initial_block_num
       };
 
+      block_trxs_entry forked_block_trxs_entry {
+         .ids       = {trx_trace2.id},
+         .block_num = initial_block_num
+      };
+
       block_trxs_entry final_block_trxs_entry {
          .ids       = {target_trx_id},
          .block_num = final_block_num
@@ -1146,21 +1151,22 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       store_provider sp(tempdir.path(), 100, std::optional<uint32_t>(), std::optional<uint32_t>(), 0);
 
       // on_accepted_block of the initial block
-      sp.append(initial_block_trace);
-      sp.append_trx_ids(initial_block_trxs_entry);
+      sp.append(initial_block_trace);                  // block 1
+      sp.append_trx_ids(initial_block_trxs_entry);     // block 1
 
       // initial block forks out
-      sp.append(forked_block_trace);
+      sp.append(forked_block_trace);                   // block 1
+      sp.append_trx_ids(forked_block_trxs_entry);      // block 1
 
       // forked block becomes final
-      sp.append_lib(initial_block_num);
+      sp.append_lib(initial_block_num);                // block 1
 
       // on_accepted_block of the final block
-      sp.append(final_block_trace);
-      sp.append_trx_ids(final_block_trxs_entry);
+      sp.append(final_block_trace);                    // block 3
+      sp.append_trx_ids(final_block_trxs_entry);       // block 3
 
       // final block becomes final
-      sp.append_lib(final_block_num);
+      sp.append_lib(final_block_num);                  // block 3
 
       get_block_n block_num = sp.get_trx_block_number(target_trx_id, {});
 

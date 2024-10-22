@@ -144,8 +144,7 @@ namespace eosio::trace_api {
          slice_number = 0;
       }
 
-      uint32_t trx_block_num = 0; // number of the block that contains the target trx
-      uint32_t trx_entries = 0;   // number of entries that contain the target trx
+      std::set<uint32_t> trx_block_nums;
       while (true){
          const bool found = _slice_directory.find_trx_id_slice(slice_number, open_state::read, trx_id_file);
          if( !found )
@@ -160,24 +159,21 @@ namespace eosio::trace_api {
             fc::raw::unpack(ds, entry);
             if (std::holds_alternative<block_trxs_entry>(entry)) {
                const auto& trxs_entry = std::get<block_trxs_entry>(entry);
+               bool found_in_block = false;
                for (auto i = 0U; i < trxs_entry.ids.size(); ++i) {
                   if (trxs_entry.ids[i] == trx_id) {
-                     // Update trx_block_num only if the block contains the transaction.
-                     // This is to prevent the problem where the initial block containing
-                     // the transaction forks out and the transaction is not in the latest
-                     // block which has the same block number as the initial block.
-
-                     get_block_t block = get_block(trxs_entry.block_num);
-                     if (block && block_has_trx(block, trx_id)) {
-                        trx_entries++;
-                        trx_block_num = trxs_entry.block_num;
-                     }
+                     trx_block_nums.insert(trxs_entry.block_num);
+                     found_in_block = true;
+                     break;
                   }
                }
+               // block can be seen again when a fork happens, if not in the new block remove it from blocks that have the trx
+               if (!found_in_block)
+                  trx_block_nums.erase(trxs_entry.block_num);
             } else if (std::holds_alternative<lib_entry_v0>(entry)) {
                auto lib = std::get<lib_entry_v0>(entry).lib;
-               if (trx_entries > 0 && lib >= trx_block_num) {
-                  return trx_block_num;
+               if (!trx_block_nums.empty() && lib >= *(--trx_block_nums.end())) {
+                  return *(--trx_block_nums.end());
                }
             } else {
                FC_ASSERT( false, "unpacked data should be a block_trxs_entry or a lib_entry_v0" );;
@@ -188,8 +184,8 @@ namespace eosio::trace_api {
       }
 
       // transaction's block is not irreversible
-      if (trx_entries > 0)
-         return trx_block_num;
+      if (!trx_block_nums.empty())
+         return *(--trx_block_nums.end());
 
       return get_block_n{};
    }
