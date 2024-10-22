@@ -136,7 +136,7 @@ namespace eosio::trace_api {
             } else if (std::holds_alternative<lib_entry_v0>(entry)) {
                auto lib = std::get<lib_entry_v0>(entry).lib;
                if (!trx_block_nums.empty() && lib >= *(--trx_block_nums.end())) {
-                  return *(--trx_block_nums.end());
+                  return *(--trx_block_nums.end()); // *(--trx_block_nums.end()) is the block with highest block number which is final
                }
             } else {
                FC_ASSERT( false, "unpacked data should be a block_trxs_entry or a lib_entry_v0" );;
