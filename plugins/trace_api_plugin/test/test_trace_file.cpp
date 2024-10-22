@@ -1066,6 +1066,118 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       BOOST_REQUIRE(!block2);
    }
 
+// Verify basics of get_trx_block_number()
+   BOOST_FIXTURE_TEST_CASE(test_get_trx_block_number_basic, test_fixture)
+   {
+      chain::transaction_id_type trx_id1 = "0000000000000000000000000000000000000000000000000000000000000001"_h;
+      chain::transaction_id_type trx_id2 = "0000000000000000000000000000000000000000000000000000000000000002"_h;
+      uint32_t block_num1 = 1;
+      uint32_t block_num2 = 2;
+
+      transaction_trace_v2 trx_trace1 {
+         trx_id1,
+         actions,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{chain::transaction_receipt_header::status_enum::executed},
+         10,
+         5,
+         { chain::signature_type() },
+         { chain::time_point_sec(), 1, 0, 100, 50, 0 }
+      };
+
+      transaction_trace_v2 trx_trace2 {
+         trx_id2,
+         actions,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{chain::transaction_receipt_header::status_enum::executed},
+         10,
+         5,
+         { chain::signature_type() },
+         { chain::time_point_sec(), 1, 0, 100, 50, 0 }
+      };
+
+      // block 1 includes trx_trace1
+      block_trace_v2 block_trace1 {
+         "b000000000000000000000000000000000000000000000000000000000000001"_h,
+         block_num1,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         chain::block_timestamp_type(0),
+         "test"_n,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         0,
+         std::vector<transaction_trace_v2> {
+            trx_trace1
+         }
+      };
+
+      // block 2 includes trx_trace2
+      block_trace_v2 block_trace2 {
+         "b000000000000000000000000000000000000000000000000000000000000003"_h,
+         block_num2,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         chain::block_timestamp_type(0),
+         "test"_n,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         0,
+         std::vector<transaction_trace_v2> {
+            trx_trace2
+         }
+      };
+
+      block_trxs_entry block_trxs_entry1 {
+         .ids       = {trx_id1},
+         .block_num = block_num1
+      };
+
+      block_trxs_entry block_trxs_entry2 {
+         .ids       = {trx_id2},
+         .block_num = block_num2
+      };
+
+      fc::temp_directory tempdir;
+      store_provider sp(tempdir.path(), 100, std::optional<uint32_t>(), std::optional<uint32_t>(), 0);
+
+      // on_accepted_block of block 1
+      sp.append(block_trace1);
+      sp.append_trx_ids(block_trxs_entry1);
+
+      // block 1 is reversible and get_trx_block_number should find trx_id1 in block 1
+      get_block_n block_num = sp.get_trx_block_number(trx_id1, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num1);
+
+      // block 1 becomes final
+      sp.append_lib(block_num1);
+
+      // get_trx_block_number should find trx_id1 in block 1
+      block_num = sp.get_trx_block_number(trx_id1, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num1);
+
+      // on_accepted_block of block 2
+      sp.append(block_trace2);
+      sp.append_trx_ids(block_trxs_entry2);
+
+      // get_trx_block_number should find both trx_id1 and trx_id2
+      block_num = sp.get_trx_block_number(trx_id1, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num1);
+      block_num = sp.get_trx_block_number(trx_id2, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num2);
+
+      // block 2 becomes final
+      sp.append_lib(block_num2);
+
+      // get_trx_block_number should still find both trx_id1 and trx_id2
+      block_num = sp.get_trx_block_number(trx_id1, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num1);
+      block_num = sp.get_trx_block_number(trx_id2, {});
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, block_num2);
+   }
+
 // This test verifies the bug reported by https://github.com/AntelopeIO/spring/issues/942
 // is fixed. The bug was if the block containing a transaction forked out,
 // get_trx_block_number() always returned the latest block whose block number was
