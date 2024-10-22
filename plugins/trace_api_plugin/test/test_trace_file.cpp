@@ -1066,5 +1066,106 @@ BOOST_AUTO_TEST_SUITE(slice_tests)
       BOOST_REQUIRE(!block2);
    }
 
+// This test verifies the bug reported by https://github.com/AntelopeIO/spring/issues/942
+// is fixed. The bug was if the block containing a transaction forked out,
+// get_trx_block_number() always returned the latest block whose block number was
+// the same as the initial block's, but this latest block might not include the
+// transaction anymore.
+   BOOST_FIXTURE_TEST_CASE(test_get_trx_block_number_forked, test_fixture)
+   {
+      chain::transaction_id_type target_trx_id = "0000000000000000000000000000000000000000000000000000000000000001"_h;
+      uint32_t initial_block_num = 1;
+      uint32_t final_block_num   = 3;
+
+      transaction_trace_v2 trx_trace1 {
+         target_trx_id,
+         actions,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{chain::transaction_receipt_header::status_enum::executed},
+         10,
+         5,
+         { chain::signature_type() },
+         { chain::time_point_sec(), 1, 0, 100, 50, 0 }
+      };
+
+      transaction_trace_v2 trx_trace2 {
+         "0000000000000000000000000000000000000000000000000000000000000002"_h,
+         actions,
+         fc::enum_type<uint8_t, chain::transaction_receipt_header::status_enum>{chain::transaction_receipt_header::status_enum::executed},
+         10,
+         5,
+         { chain::signature_type() },
+         { chain::time_point_sec(), 1, 0, 100, 50, 0 }
+      };
+
+      // Initial block including trx_trace1
+      block_trace_v2 initial_block_trace {
+         "b000000000000000000000000000000000000000000000000000000000000001"_h,
+         initial_block_num,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         chain::block_timestamp_type(0),
+         "test"_n,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         0,
+         std::vector<transaction_trace_v2> {
+            trx_trace1
+         }
+      };
+
+      // Initial block is forked. The original trx_trace1 is forked out and
+      // replaced by trx_trace2.
+      block_trace_v2 forked_block_trace = initial_block_trace;
+      forked_block_trace.transactions = std::vector<transaction_trace_v2> { trx_trace2 };
+
+      // Final block including original trx_trace1
+      block_trace_v2 final_block_trace {
+         "b000000000000000000000000000000000000000000000000000000000000003"_h,
+         final_block_num,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         chain::block_timestamp_type(0),
+         "test"_n,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         "0000000000000000000000000000000000000000000000000000000000000000"_h,
+         0,
+         std::vector<transaction_trace_v2> {
+            trx_trace1
+         }
+      };
+
+      block_trxs_entry initial_block_trxs_entry {
+         .ids       = {target_trx_id},
+         .block_num = initial_block_num
+      };
+
+      block_trxs_entry final_block_trxs_entry {
+         .ids       = {target_trx_id},
+         .block_num = final_block_num
+      };
+
+      fc::temp_directory tempdir;
+      store_provider sp(tempdir.path(), 100, std::optional<uint32_t>(), std::optional<uint32_t>(), 0);
+
+      // on_accepted_block of the initial block
+      sp.append(initial_block_trace);
+      sp.append_trx_ids(initial_block_trxs_entry);
+
+      // initial block forks out
+      sp.append(forked_block_trace);
+
+      // forked block becomes final
+      sp.append_lib(initial_block_num);
+
+      // on_accepted_block of the final block
+      sp.append(final_block_trace);
+      sp.append_trx_ids(final_block_trxs_entry);
+
+      // final block becomes final
+      sp.append_lib(final_block_num);
+
+      get_block_n block_num = sp.get_trx_block_number(target_trx_id, {});
+
+      BOOST_REQUIRE(block_num);
+      BOOST_REQUIRE_EQUAL(*block_num, final_block_num); // target trx is in final block
+   }
 
 BOOST_AUTO_TEST_SUITE_END()
