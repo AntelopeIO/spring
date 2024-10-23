@@ -30,7 +30,7 @@
 
 extern "C" int arch_prctl(int code, unsigned long* addr);
 
-namespace eosio { namespace chain { namespace eosvmoc {
+namespace eosio::chain::eosvmoc {
 
 static constexpr auto signal_sentinel = 0x4D56534F45534559ul;
 
@@ -265,4 +265,4 @@ executor::~executor() {
    munmap(code_mapping, code_mapping_size);
 }
 
-}}}
+}
