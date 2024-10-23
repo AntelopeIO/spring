@@ -118,10 +118,9 @@ try:
 
     # Verify LIB stalled on node0 and producerbNode due to finalizerNode was shutdown
     Print("Verify LIB stalled after shutdown of finalizerbNode")
-    if producerbNode.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
-        assert not producerbNode.waitForLibToAdvance(timeout=5), "LIB should not advance on producerbNode after finalizerbNode was shutdown"
-    if node0.waitForLibToAdvance(timeout=5): # LIB can advance for a few blocks first
-        assert not node0.waitForLibToAdvance(timeout=5), "LIB should not advance on node0 after finalizerbNode was shutdown"
+    # LIB can advance for a few blocks first
+    assert producerbNode.waitForLibNotToAdvance(timeout=10), "LIB should not advance on producerbNode after finalizerbNode was shutdown"
+    assert node0.waitForLibNotToAdvance(timeout=10), "LIB should not advance on node0 after finalizerbNode was shutdown"
 
     # Wait until enough reversible blocks are produced
     node0.getInfo()
