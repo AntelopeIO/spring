@@ -41,10 +41,9 @@ public:
    T::action_result push_action( const account_name& signer, const action_name &name, const variant_object &data ) {
       string action_type_name = abi_ser.get_action_type(name);
 
-      action act;
-      act.account = "eosio.token"_n;
-      act.name    = name;
-      act.data    = abi_ser.variant_to_binary( action_type_name, data, abi_serializer::create_yield_function( T::abi_serializer_max_time ) );
+      action act({}, "eosio.token"_n, name,
+                 abi_ser.variant_to_binary( action_type_name, data,
+                                            abi_serializer::create_yield_function( T::abi_serializer_max_time )));
 
       return base_tester::push_action( std::move(act), signer.to_uint64_t() );
    }
