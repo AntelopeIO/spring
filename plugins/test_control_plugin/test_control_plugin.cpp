@@ -22,6 +22,7 @@ private:
    void aggregated_vote();
 
    void throw_exception();
+   void reset_throw();
    void process_next_block_state(const chain::block_id_type& id);
 
    chain::controller&  _chain;
@@ -80,10 +81,19 @@ void test_control_plugin_impl::connect() {
 }
 
 void test_control_plugin_impl::throw_exception() {
-   if (_throw_options.exception == "controller_emit_signal_exception")
+   if (_throw_options.exception == "controller_emit_signal_exception") {
+      ilog("throwing controller_emit_signal_exception for signal ${s}", ("s", _throw_options.signal));
+      reset_throw(); // throw only once
       EOS_ASSERT(false, chain::controller_emit_signal_exception, "");
+   }
 
+   ilog("throwing misc_exception for signal ${s}", ("s", _throw_options.signal));
+   reset_throw(); // throw only once
    EOS_ASSERT(false, chain::misc_exception, "");
+}
+
+void test_control_plugin_impl::reset_throw() {
+   _throw_options = test_control_apis::read_write::throw_on_params{};
 }
 
 void test_control_plugin_impl::block_start(chain::block_num_type block_num) {
