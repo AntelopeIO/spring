@@ -928,6 +928,39 @@ struct controller_impl {
              // Read-write tasks are not being executed.
    };
 
+   /**
+    *  Plugins / observers listening to signals emitted might trigger
+    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+    *  cause a node to fork.
+    *
+    *  If it is ever desirable to let a signal handler bubble an exception out of this method
+    *  a full audit of its uses needs to be undertaken.
+    *
+    */
+   template<typename Signal, typename Arg>
+   void emit( const Signal& s, Arg&& a, const char* file, uint32_t line ) {
+      try {
+         s( std::forward<Arg>( a ));
+      } catch (std::bad_alloc& e) {
+         wlog( "${f}:${l} std::bad_alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch (boost::interprocess::bad_alloc& e) {
+         wlog( "${f}:${l} boost::interprocess::bad alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch ( controller_emit_signal_exception& e ) {
+         wlog( "${f}:${l} controller_emit_signal_exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+         wlog( "Shutting down due to controller_emit_signal_exception" );
+         shutdown();
+         throw e;
+      } catch ( fc::exception& e ) {
+         wlog( "${f}:${l} fc::exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+      } catch ( std::exception& e ) {
+         wlog( "std::exception: ${details}", ("f", file)("l", line)("details", e.what()) );
+      } catch ( ... ) {
+         wlog( "${f}:${l} signal handler threw exception", ("f", file)("l", line) );
+      }
+   }
+
 #if LLVM_VERSION_MAJOR < 9
    // LLVM versions prior to 9 do a set_new_handler() in a static global initializer. Reset LLVM's custom handler
    // back to the default behavior of throwing bad_alloc so we can possibly exit cleanly and not just abort as LLVM's
@@ -998,7 +1031,9 @@ struct controller_impl {
    std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
 
-   vote_processor_t vote_processor{aggregated_vote,
+   vote_processor_t vote_processor{[this](const vote_signal_params& p) {
+                                      emit(aggregated_vote, p, __FILE__, __LINE__);
+                                   },
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db_.apply_s<block_state_ptr>([&](const auto& fork_db) {
                                          return fork_db.get_block(id);

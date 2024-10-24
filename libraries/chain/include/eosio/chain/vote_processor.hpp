@@ -45,9 +45,10 @@ class vote_processor_t {
       >
    >;
 
+   using emit_vote_signal_func_t = std::function<void(const vote_signal_params&)>;
    using fetch_block_func_t = std::function<block_state_ptr(const block_id_type&)>;
 
-   vote_signal_t&               vote_signal;
+   emit_vote_signal_func_t      emit_vote_signal_func;
    fetch_block_func_t           fetch_block_func;
 
    std::mutex                   mtx;
@@ -68,10 +69,8 @@ private:
              const finalizer_authority_ptr& active_auth, const finalizer_authority_ptr& pending_auth) {
       if (connection_id != 0) { // this nodes vote was already signaled
          if (status != vote_result_t::duplicate) { // don't bother emitting duplicates
-            chain::emit( vote_signal,
-                         vote_signal_params{connection_id, status,
-                                            std::cref(msg), std::cref(active_auth), std::cref(pending_auth)},
-                         __FILE__, __LINE__ );
+            emit_vote_signal_func(vote_signal_params{connection_id, status,
+                                                     std::cref(msg), std::cref(active_auth), std::cref(pending_auth)});
          }
       }
    }
@@ -159,10 +158,11 @@ private:
    }
 
 public:
-   explicit vote_processor_t(vote_signal_t& vote_signal, fetch_block_func_t&& get_block)
-      : vote_signal(vote_signal)
+   explicit vote_processor_t(emit_vote_signal_func_t&& emit_vote_signal, fetch_block_func_t&& get_block)
+      : emit_vote_signal_func(emit_vote_signal)
       , fetch_block_func(get_block)
    {
+      assert(emit_vote_signal_func);
       assert(get_block);
    }
 
