@@ -3445,7 +3445,8 @@ struct controller_impl {
             fork_db_.apply<void>(add_completed_block);
          }
 
-         chain_head = block_handle{cb.bsp};
+         // if an exception is thrown, reset chain_head to prior value
+         fc::scoped_set_value ch(chain_head, cb.bsp);
 
          if (s == controller::block_status::irreversible && replaying) {
             block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
@@ -3503,6 +3504,8 @@ struct controller_impl {
          }
 
          log_applied(s);
+
+         ch.dismiss(); // don't reset chain_head if no exception
       } catch (...) {
          // dont bother resetting pending, instead abort the block
          reset_pending_on_exit.cancel();
