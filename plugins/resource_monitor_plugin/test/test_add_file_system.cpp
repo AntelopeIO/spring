@@ -106,6 +106,9 @@ BOOST_AUTO_TEST_SUITE(space_handler_tests)
       std::vector<int> available {500000,  1500000, 2500000, 3500000};
       std::vector<int> devs      {0,       1,       2,       3};
 
+   while(true)
+      sleep(1);
+
       // As long as no exceptions, it is considered success.
       BOOST_REQUIRE_NO_THROW(test_add_file_systems_common(capacity, available, devs));
    }
