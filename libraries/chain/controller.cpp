@@ -933,9 +933,8 @@ struct controller_impl {
     *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
     *  cause a node to fork.
     *
-    *  If it is ever desirable to let a signal handler bubble an exception out of this method
-    *  a full audit of its uses needs to be undertaken.
-    *
+    *  Initiate shutdown and rethrow controller_emit_signal_exception transactions as these exeception are
+    *  critical errors where a node should abort the current block and shutdown.
     */
    template<typename Signal, typename Arg>
    void emit( const Signal& s, Arg&& a, const char* file, uint32_t line ) {
