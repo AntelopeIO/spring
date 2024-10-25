@@ -225,7 +225,7 @@ read_write::kill_node_on_producer_results read_write::kill_node_on_producer(cons
 }
 
 empty read_write::throw_on(const read_write::throw_on_params& params) const {
-   ilog("throw on: ${p}", ("p", params));
+   ilog("received throw on: ${p}", ("p", params));
    my->set_throw_on_options(params);
    return {};
 }
