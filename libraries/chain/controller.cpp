@@ -3137,14 +3137,17 @@ struct controller_impl {
          } catch( const protocol_feature_bad_block_exception& ) {
             throw;
          } catch ( const std::bad_alloc& ) {
-           throw;
+            throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
-           throw;
+            throw;
+         } catch ( const controller_emit_signal_exception& e ) {
+            wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
+            throw;
          } catch (const fc::exception& e) {
-           handle_exception(e);
+            handle_exception(e);
          } catch (const std::exception& e) {
-           auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
-           handle_exception(wrapper);
+            auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
+            handle_exception(wrapper);
          }
 
          // this code is hit if an exception was thrown, and handled by `handle_exception`
@@ -3324,6 +3327,9 @@ struct controller_impl {
             throw;
          } catch( const boost::interprocess::bad_alloc& e ) {
             elog( "on block transaction failed due to a bad allocation" );
+            throw;
+         } catch ( const controller_emit_signal_exception& e ) {
+            wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
             throw;
          } catch( const fc::exception& e ) {
             wlog( "on block transaction failed, but shouldn't impact block generation, system contract needs update" );
