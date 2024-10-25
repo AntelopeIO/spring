@@ -7,6 +7,10 @@ function(setup_test_common)
    if(arg_TIMEOUT)
       set_tests_properties("${arg_NAME}" PROPERTIES TIMEOUT ${arg_TIMEOUT})
    endif()
+
+   if(NOT WIN32 AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
+      set_tests_properties("${arg_NAME}" PROPERTIES TIMEOUT_SIGNAL_NAME "SIGQUIT" TIMEOUT_SIGNAL_GRACE_PERIOD 60.0)
+   endif()
 endfunction()
 
 function(add_p_test)
