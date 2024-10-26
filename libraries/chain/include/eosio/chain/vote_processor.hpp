@@ -163,7 +163,7 @@ public:
       , fetch_block_func(std::move(get_block))
    {
       assert(emit_vote_signal_func);
-      assert(get_block);
+      assert(fetch_block_func);
    }
 
    ~vote_processor_t() {
