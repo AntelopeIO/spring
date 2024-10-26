@@ -159,8 +159,8 @@ private:
 
 public:
    explicit vote_processor_t(emit_vote_signal_func_t&& emit_vote_signal, fetch_block_func_t&& get_block)
-      : emit_vote_signal_func(emit_vote_signal)
-      , fetch_block_func(get_block)
+      : emit_vote_signal_func(std::move(emit_vote_signal))
+      , fetch_block_func(std::move(get_block))
    {
       assert(emit_vote_signal_func);
       assert(get_block);
