@@ -16,6 +16,7 @@
 #include <eosio/chain/application.hpp>
 
 #include <contracts.hpp>
+#include "chain_test_utils.hpp"
 
 #include <fc/scoped_exit.hpp>
 #include <chrono>
