@@ -50,7 +50,7 @@ struct reqactivated {
 };
 
 // Create a read-only trx that works with bios reqactivated action
-auto make_bios_ro_trx(eosio::chain::controller& control) {
+inline auto make_bios_ro_trx(eosio::chain::controller& control) {
    const auto& pfm = control.get_protocol_feature_manager();
    static auto feature_digest = pfm.get_builtin_digest(builtin_protocol_feature_t::replace_deferred);
 
@@ -63,7 +63,7 @@ auto make_bios_ro_trx(eosio::chain::controller& control) {
 
 // Push an input transaction to controller and return trx trace
 // If account is eosio then signs with the default private key
-auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, signed_transaction& trx) {
+inline auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, signed_transaction& trx) {
    trx.expiration = fc::time_point_sec{fc::time_point::now() + fc::seconds(30)};
    trx.set_reference_block( control.head().id() );
    if (account == config::system_account_name) {
@@ -108,7 +108,7 @@ auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control,
 }
 
 // Push setcode trx to controller and return trx trace
-auto set_code(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, const vector<uint8_t>& wasm) {
+inline auto set_code(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, const vector<uint8_t>& wasm) {
    signed_transaction trx;
    trx.actions.emplace_back(std::vector<permission_level>{{account, config::active_name}},
                             chain::setcode{
@@ -120,7 +120,7 @@ auto set_code(appbase::scoped_app& app, eosio::chain::controller& control, accou
    return push_input_trx(app, control, account, trx);
 }
 
-void activate_protocol_features_set_bios_contract(appbase::scoped_app& app, chain_plugin* chain_plug) {
+inline void activate_protocol_features_set_bios_contract(appbase::scoped_app& app, chain_plugin* chain_plug) {
    using namespace appbase;
 
    auto feature_set = std::make_shared<std::atomic<bool>>(false);
