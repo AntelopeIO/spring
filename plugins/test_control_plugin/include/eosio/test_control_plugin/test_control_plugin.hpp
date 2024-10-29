@@ -27,6 +27,12 @@ class read_write {
       using kill_node_on_producer_results = empty;
       kill_node_on_producer_results kill_node_on_producer(const kill_node_on_producer_params& params) const;
 
+      struct throw_on_params {
+         std::string  signal;    // which signal handler to throw exception from
+         std::string  exception; // exception to throw
+      };
+      empty throw_on(const throw_on_params& params) const;
+
    private:
       test_control_ptr my;
 };
@@ -61,3 +67,4 @@ private:
 
 FC_REFLECT(eosio::test_control_apis::empty, )
 FC_REFLECT(eosio::test_control_apis::read_write::kill_node_on_producer_params, (producer)(where_in_sequence)(based_on_lib) )
+FC_REFLECT(eosio::test_control_apis::read_write::throw_on_params, (signal)(exception) )
