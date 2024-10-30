@@ -49,6 +49,17 @@ struct reqactivated {
    }
 };
 
+inline private_key_type get_private_key( name keyname, string role ) {
+   if (keyname == config::system_account_name)
+      return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
+
+   return private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(keyname.to_string()+role));
+}
+
+inline public_key_type  get_public_key( name keyname, string role ){
+   return get_private_key( keyname, role ).get_public_key();
+}
+
 // Create a read-only trx that works with bios reqactivated action
 inline auto make_bios_ro_trx(eosio::chain::controller& control) {
    const auto& pfm = control.get_protocol_feature_manager();
@@ -66,12 +77,7 @@ inline auto make_bios_ro_trx(eosio::chain::controller& control) {
 inline auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& control, account_name account, signed_transaction& trx) {
    trx.expiration = fc::time_point_sec{fc::time_point::now() + fc::seconds(30)};
    trx.set_reference_block( control.head().id() );
-   if (account == config::system_account_name) {
-      auto default_priv_key = private_key_type::regenerate<fc::ecc::private_key_shim>(fc::sha256::hash(std::string("nathan")));
-      trx.sign(default_priv_key, control.get_chain_id());
-   } else {
-      trx.sign(testing::tester::get_private_key(account, "active"), control.get_chain_id());
-   }
+   trx.sign(get_private_key(account, "active"), control.get_chain_id());
    auto ptrx = std::make_shared<packed_transaction>( trx, packed_transaction::compression_type::zlib );
 
    auto trx_promise = std::make_shared<std::promise<transaction_trace_ptr>>();
@@ -118,6 +124,23 @@ inline auto set_code(appbase::scoped_app& app, eosio::chain::controller& control
                                .code = bytes(wasm.begin(), wasm.end())
                             });
    return push_input_trx(app, control, account, trx);
+}
+
+inline transaction_trace_ptr create_account(appbase::scoped_app& app, eosio::chain::controller& control, account_name a, account_name creator) {
+   signed_transaction trx;
+
+   authority owner_auth{ get_public_key( a, "owner" ) };
+   authority active_auth{ get_public_key( a, "active" ) };
+
+   trx.actions.emplace_back( vector<permission_level>{{creator,config::active_name}},
+                             chain::newaccount{
+                                .creator  = creator,
+                                .name     = a,
+                                .owner    = owner_auth,
+                                .active   = active_auth,
+                             });
+
+   return push_input_trx(app, control, creator, trx);
 }
 
 inline void activate_protocol_features_set_bios_contract(appbase::scoped_app& app, chain_plugin* chain_plug) {
