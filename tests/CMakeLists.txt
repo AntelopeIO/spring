@@ -25,6 +25,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/restart-scenarios-test.py ${CMAKE_CUR
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/terminate-scenarios-test.py ${CMAKE_CURRENT_BINARY_DIR}/terminate-scenarios-test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/terminate_scenarios_test_shape.json ${CMAKE_CURRENT_BINARY_DIR}/terminate_scenarios_test_shape.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/liveness_test.py ${CMAKE_CURRENT_BINARY_DIR}/liveness_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_signal_throw_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_signal_throw_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_startup_catchup.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_startup_catchup.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_snapshot_diff_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_snapshot_diff_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_snapshot_forked_test.py ${CMAKE_CURRENT_BINARY_DIR}/nodeos_snapshot_forked_test.py COPYONLY)
@@ -346,6 +347,9 @@ add_test(NAME nodeos_chainbase_allocation_test COMMAND tests/nodeos_chainbase_al
 set_property(TEST nodeos_chainbase_allocation_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME nodeos_chainbase_allocation_if_test COMMAND tests/nodeos_chainbase_allocation_test.py --activate-if -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST nodeos_chainbase_allocation_if_test PROPERTY LABELS nonparallelizable_tests)
+
+add_test(NAME nodeos_signal_throw_test COMMAND tests/nodeos_signal_throw_test.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST nodeos_signal_throw_test PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME nodeos_startup_catchup_lr_test COMMAND tests/nodeos_startup_catchup.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST nodeos_startup_catchup_lr_test PROPERTY LABELS long_running_tests)

@@ -146,10 +146,11 @@ BOOST_AUTO_TEST_CASE( vote_processor_test ) {
       ++signaled;
    } );
 
-   vote_processor_t vp{voted_block, [&](const block_id_type& id) -> block_state_ptr {
-      std::lock_guard g(fork_db_mtx);
-      return fork_db[id];
-   }};
+   vote_processor_t vp{[&](const vote_signal_params& p) { voted_block(p); },
+                       [&](const block_id_type& id) -> block_state_ptr {
+                          std::lock_guard g(fork_db_mtx);
+                          return fork_db[id];
+                       }};
    vp.start(2, [](const fc::exception& e) {
       edump((e));
       BOOST_REQUIRE(false);

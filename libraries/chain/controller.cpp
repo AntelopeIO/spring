@@ -928,6 +928,38 @@ struct controller_impl {
              // Read-write tasks are not being executed.
    };
 
+   /**
+    *  Plugins / observers listening to signals emitted might trigger
+    *  errors and throw exceptions. Unless those exceptions are caught it could impact consensus and/or
+    *  cause a node to fork.
+    *
+    *  Initiate shutdown and rethrow controller_emit_signal_exception transactions as these exeception are
+    *  critical errors where a node should abort the current block and shutdown.
+    */
+   template<typename Signal, typename Arg>
+   void emit( const Signal& s, Arg&& a, const char* file, uint32_t line ) {
+      try {
+         s( std::forward<Arg>( a ));
+      } catch (std::bad_alloc& e) {
+         wlog( "${f}:${l} std::bad_alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch (boost::interprocess::bad_alloc& e) {
+         wlog( "${f}:${l} boost::interprocess::bad alloc: ${w}", ("f", file)("l", line)("w", e.what()) );
+         throw e;
+      } catch ( controller_emit_signal_exception& e ) {
+         wlog( "${f}:${l} controller_emit_signal_exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+         wlog( "Shutting down due to controller_emit_signal_exception" );
+         shutdown();
+         throw e;
+      } catch ( fc::exception& e ) {
+         wlog( "${f}:${l} fc::exception: ${details}", ("f", file)("l", line)("details", e.to_detail_string()) );
+      } catch ( std::exception& e ) {
+         wlog( "std::exception: ${details}", ("f", file)("l", line)("details", e.what()) );
+      } catch ( ... ) {
+         wlog( "${f}:${l} signal handler threw exception", ("f", file)("l", line) );
+      }
+   }
+
 #if LLVM_VERSION_MAJOR < 9
    // LLVM versions prior to 9 do a set_new_handler() in a static global initializer. Reset LLVM's custom handler
    // back to the default behavior of throwing bad_alloc so we can possibly exit cleanly and not just abort as LLVM's
@@ -998,7 +1030,9 @@ struct controller_impl {
    std::function<void(speculative_block_metrics)> _update_speculative_block_metrics;
    std::function<void(incoming_block_metrics)> _update_incoming_block_metrics;
 
-   vote_processor_t vote_processor{aggregated_vote,
+   vote_processor_t vote_processor{[this](const vote_signal_params& p) {
+                                      emit(aggregated_vote, p, __FILE__, __LINE__);
+                                   },
                                    [this](const block_id_type& id) -> block_state_ptr {
                                       return fork_db_.apply_s<block_state_ptr>([&](const auto& fork_db) {
                                          return fork_db.get_block(id);
@@ -3102,14 +3136,17 @@ struct controller_impl {
          } catch( const protocol_feature_bad_block_exception& ) {
             throw;
          } catch ( const std::bad_alloc& ) {
-           throw;
+            throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
-           throw;
+            throw;
+         } catch ( const controller_emit_signal_exception& e ) {
+            wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
+            throw;
          } catch (const fc::exception& e) {
-           handle_exception(e);
+            handle_exception(e);
          } catch (const std::exception& e) {
-           auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
-           handle_exception(wrapper);
+            auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
+            handle_exception(wrapper);
          }
 
          // this code is hit if an exception was thrown, and handled by `handle_exception`
@@ -3290,6 +3327,9 @@ struct controller_impl {
          } catch( const boost::interprocess::bad_alloc& e ) {
             elog( "on block transaction failed due to a bad allocation" );
             throw;
+         } catch ( const controller_emit_signal_exception& e ) {
+            wlog( "on block transaction failed due to controller_emit_signal_exception: ${e}", ("e", e.to_detail_string()) );
+            throw;
          } catch( const fc::exception& e ) {
             wlog( "on block transaction failed, but shouldn't impact block generation, system contract needs update" );
             edump((e.to_detail_string()));
@@ -3410,7 +3450,8 @@ struct controller_impl {
             fork_db_.apply<void>(add_completed_block);
          }
 
-         chain_head = block_handle{cb.bsp};
+         // if an exception is thrown, reset chain_head to prior value
+         fc::scoped_set_value ch(chain_head, cb.bsp);
 
          if (s == controller::block_status::irreversible && replaying) {
             block_handle_accessor::apply_l<void>(chain_head, [&](const auto& head) {
@@ -3468,6 +3509,8 @@ struct controller_impl {
          }
 
          log_applied(s);
+
+         ch.dismiss(); // don't reset chain_head if no exception
       } catch (...) {
          // dont bother resetting pending, instead abort the block
          reset_pending_on_exit.cancel();

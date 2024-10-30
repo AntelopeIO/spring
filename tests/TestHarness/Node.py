@@ -401,6 +401,20 @@ class Node(Transactions):
 
         return ' '.join(removed_items)  # Return the removed strings as a space-delimited string
 
+    def waitForNodeToExit(self, timeout):
+        def didNodeExitGracefully(popen, timeout):
+            try:
+                popen.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return False
+            with open(popen.errfile.name, 'r') as f:
+                if "successfully exiting" in f.read():
+                    return True
+                else:
+                    return False
+
+        return Utils.waitForBoolWithArg(didNodeExitGracefully, self.popenProc, timeout, sleepTime=1)
+
     # pylint: disable=too-many-locals
     # If nodeosPath is equal to None, it will use the existing nodeos path
     def relaunch(self, chainArg=None, newChain=False, skipGenesis=True, timeout=Utils.systemWaitTimeout,
@@ -451,19 +465,8 @@ class Node(Transactions):
                 pass
             return False
 
-        def didNodeExitGracefully(popen, timeout):
-            try:
-                popen.communicate(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                return False
-            with open(popen.errfile.name, 'r') as f:
-                if "successfully exiting" in f.read():
-                    return True
-                else:
-                    return False
-
         if waitForTerm:
-            isAlive=Utils.waitForBoolWithArg(didNodeExitGracefully, self.popenProc, timeout, sleepTime=1)
+            isAlive=self.waitForNodeToExit(timeout)
         else:
             isAlive=Utils.waitForBool(isNodeAlive, timeout, sleepTime=1)
 
