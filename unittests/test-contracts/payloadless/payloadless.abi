@@ -9,6 +9,11 @@
             "fields": []
         },
         {
+            "name": "doitforever",
+            "base": "",
+            "fields": []
+        },
+        {
             "name": "doitslow",
             "base": "",
             "fields": []
@@ -18,6 +23,11 @@
         {
             "name": "doit",
             "type": "doit",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "doitforever",
+            "type": "doitforever",
             "ricardian_contract": ""
         },
         {

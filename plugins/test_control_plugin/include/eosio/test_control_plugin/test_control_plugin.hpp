@@ -33,7 +33,17 @@ class read_write {
       };
       empty throw_on(const throw_on_params& params) const;
 
-   private:
+      // produce a next block with `from` action replaced with `to` action
+      // requires Savanna to be active, this assumes blocks are is_proper_svnn_block
+      struct swap_action_params {
+         chain::name from;  // replace from action in block to `to` action
+         chain::name to;
+         fc::crypto::private_key trx_priv_key;
+         fc::crypto::private_key blk_priv_key;
+      };
+      empty swap_action(const swap_action_params& params) const;
+
+private:
       test_control_ptr my;
 };
 
@@ -68,3 +78,4 @@ private:
 FC_REFLECT(eosio::test_control_apis::empty, )
 FC_REFLECT(eosio::test_control_apis::read_write::kill_node_on_producer_params, (producer)(where_in_sequence)(based_on_lib) )
 FC_REFLECT(eosio::test_control_apis::read_write::throw_on_params, (signal)(exception) )
+FC_REFLECT(eosio::test_control_apis::read_write::swap_action_params, (from)(to)(trx_priv_key)(blk_priv_key) )
