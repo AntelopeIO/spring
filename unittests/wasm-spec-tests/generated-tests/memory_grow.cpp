@@ -11,10 +11,7 @@ BOOST_DATA_TEST_CASE(memory_grow_0_check_throw, boost::unit_test::data::xrange(0
    tester.set_code("wasmtest"_n, wasm_memory_grow_0);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    BOOST_CHECK_THROW(push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t()), wasm_execution_error);
    tester.produce_block();
@@ -28,10 +25,7 @@ BOOST_DATA_TEST_CASE(memory_grow_0_pass, boost::unit_test::data::xrange(6,7), in
    tester.set_code("wasmtest"_n, wasm_memory_grow_0);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -49,10 +43,7 @@ BOOST_DATA_TEST_CASE(memory_grow_1_pass, boost::unit_test::data::xrange(0,1), in
    tester.set_code("wasmtest"_n, wasm_memory_grow_1);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -70,10 +61,7 @@ BOOST_DATA_TEST_CASE(memory_grow_2_pass, boost::unit_test::data::xrange(0,1), in
    tester.set_code("wasmtest"_n, wasm_memory_grow_2);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
@@ -91,10 +79,7 @@ BOOST_DATA_TEST_CASE(memory_grow_4_check_throw, boost::unit_test::data::xrange(0
    tester.set_code("wasmtest"_n, wasm_memory_grow_4);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    BOOST_CHECK_THROW(push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t()), wasm_execution_error);
    tester.produce_block();
@@ -108,10 +93,7 @@ BOOST_DATA_TEST_CASE(memory_grow_4_pass, boost::unit_test::data::xrange(1,2), in
    tester.set_code("wasmtest"_n, wasm_memory_grow_4);
    tester.produce_block();
 
-   action test;
-   test.account = "wasmtest"_n;
-   test.name = account_name((uint64_t)index);
-   test.authorization = {{"wasmtest"_n, config::active_name}};
+   action test({{"wasmtest"_n, config::active_name}}, "wasmtest"_n, account_name((uint64_t)index), {});
 
    push_action(tester, std::move(test), "wasmtest"_n.to_uint64_t());
    tester.produce_block();
