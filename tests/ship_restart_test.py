@@ -112,7 +112,7 @@ try:
     shutil.copyfile(stateHistoryLog, origStateHistoryLog)
     shutil.copyfile(stateHistoryIndex, origStateHistoryIndex)
 
-    ############## Part 1: restart tests while producer node is down  #################
+    ############## Part 1: tests while producer node is down  #################
     
     #-------- Index file is removed. It should be regenerated at restart.
     Print("index file removed test")
@@ -127,7 +127,7 @@ try:
     shipNode.kill(signal.SIGTERM) # shut down ship node for next test
 
     '''
-    Test failure 1: index file was not regenerated. Reenable this after issue is fixed.
+    Test failure 1: index file was not regenerated. Reenable this after https://github.com/AntelopeIO/spring/issues/990 is fixed.
 
     #-------- Index file last entry is corrupted. It should be regenerated at restart.
     with open(stateHistoryIndex, 'rb+') as stateHistoryIndexFile: # opened as binary file
@@ -153,7 +153,7 @@ try:
 
     with open(stateHistoryIndex, 'rb+') as f:
         indexFileSize = os.path.getsize(stateHistoryIndex)
-        newSize       = indexFileSize - 8
+        newSize       = indexFileSize - 8 # truncate 8 bytes
         f.truncate(newSize)
 
     isRelaunchSuccess = shipNode.relaunch()
@@ -165,18 +165,15 @@ try:
 
     #-------- Add an extra entry to index file. It should be regenerated
     #         because index size is not the same as expected size
-    Print("Extra entry index file test")
+    Print("Extra entry in index file test")
 
     # restore log and index
     shutil.copyfile(origStateHistoryLog, stateHistoryLog)
     shutil.copyfile(origStateHistoryIndex, stateHistoryIndex)
 
     with open(stateHistoryIndex, 'rb+') as stateHistoryIndexFile: # opened as binary file
-        # seek to last index, 8 bytes before the end of file
-        stateHistoryIndexFile.seek(0, 2) # -8 for backward, 2 for starting at end
-
-        # write a small value
-        stateHistoryIndexFile.write(b'\x00\x00\x00\x00\x00\x00\x01\x0F')
+        stateHistoryIndexFile.seek(0, 2) # seek to end of file
+        stateHistoryIndexFile.write(b'\x00\x00\x00\x00\x00\x00\x01\x0F') # write a small value
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
@@ -186,9 +183,9 @@ try:
     shipNode.kill(signal.SIGTERM) # shut down it for next test
 
     #-------- Remove log file. The log file should be reconstructed from state
+    #         and restart succeeds
     Print("Removed log file test")
 
-    # restore index
     shutil.copyfile(origStateHistoryIndex, stateHistoryIndex)
 
     os.remove(stateHistoryLog)
@@ -200,24 +197,14 @@ try:
 
     #-------- Corrupt first entry's magic. Relaunch should fail
     Print("first entry magic corruption test")
-
     corruptedHeaderTest(0, b'\x00\x01\x02\x03\x04\x05\x06\x07', shipNode) # 0 is magic's position
 
     #-------- Corrupt first entry's block_id. Relaunch should fail
     Print("first entry block_id corruption test")
-
     corruptedHeaderTest(8, b'\x00\x01\x02\x03\x04\x05\x06\x07', shipNode) # 8 is block_id's position
 
     '''
-    # Test failure 1: Reenable this after issue is fixed.
-    #-------- Corrupt first entry's payload_size. Relaunch should fail
-    Print("first entry payload_size corruption test")
-
-    corruptedHeaderTest(40, b'\x00\x00\x00\x00\x00\x00\x00\x01', shipNode) # 40 is payload_size position
-    '''
-
-    '''
-    # Test failure 2: Reenable this after issue is fixed.
+    # Test failure 2: Reenable this after https://github.com/AntelopeIO/spring/issues/989 is fixed.
     #-------- Corrupt last entry's position . It should be repaired.
     # After producer node restarts, head on SHiP node should advance.
     Print("last entry postion corruption test")
@@ -243,7 +230,7 @@ try:
     '''
 
     '''
-    # Test failure 3: Reenable this after issue is fixed.
+    # Test failure 3: Reenable this after https://github.com/AntelopeIO/spring/issues/989 is fixed.
     #-------- Corrupt last entry's header. It should be repaired.
     # After producer node restarts, head on SHiP node should advance.
     Print("last entry header corruption test")
@@ -272,7 +259,7 @@ try:
     shipNode.kill(signal.SIGTERM)
     '''
 
-    ############## Part 2: restart tests while producer node is up  #################
+    ############## Part 2: tests while producer node is up  #################
 
     isRelaunchSuccess = prodNode.relaunch(chainArg="--enable-stale-production")
     assert isRelaunchSuccess, "Failed to relaunch prodNode"
@@ -281,6 +268,8 @@ try:
     shutil.copyfile(origStateHistoryIndex, stateHistoryIndex)
 
     #-------- Index file is removed. It should be regenerated at restart
+    Print("Index file removed while producer node is up test")
+
     os.remove(stateHistoryIndex)
 
     isRelaunchSuccess = shipNode.relaunch()
@@ -290,8 +279,9 @@ try:
     shipNode.kill(signal.SIGTERM) # shut down it for next test
 
     '''
+    # Test failure 4: Reenable this after issue https://github.com/AntelopeIO/spring/issues/989 fixed.
     #-------- Corrupt last entry of log file. It should be repaired
-    # and LIB should advance
+    # and head should advance
     with open(stateHistoryLog, 'rb+') as stateHistoryLogFile: # opened as binary file
         # seek to last index, 8 bytes before the end of file
         stateHistoryLogFile.seek(-8, 2) # -8 for backward, 2 for starting at end
@@ -301,7 +291,7 @@ try:
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
-    assert shipNode.waitForLibToAdvance(), "LIB did not advance on shipNode"
+    assert shipNode.waitForHeadToAdvance(), "Head did not advance on shipNode"
     '''
 
     testSuccessful = True
