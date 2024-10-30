@@ -259,6 +259,7 @@ struct catalog_type {
       net_usage_us_produced_block.Increment(metrics.net_usage_us);
 
       update(produced_metrics, metrics);
+      update(speculative_metrics, metrics);
 
       last_irreversible.Set(metrics.last_irreversible);
       head_block_num.Set(metrics.head_block_num);

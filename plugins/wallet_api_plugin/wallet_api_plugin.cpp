@@ -82,7 +82,7 @@ using namespace eosio;
      eosio::detail::wallet_api_plugin_empty result;
 
 void wallet_api_plugin::plugin_startup() {
-   ilog("starting wallet_api_plugin");
+   dlog("starting wallet_api_plugin");
    // lifetime of plugin is lifetime of application
    auto& wallet_mgr = app().get_plugin<wallet_plugin>().get_wallet_manager();
 

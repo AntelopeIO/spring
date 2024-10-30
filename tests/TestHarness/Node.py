@@ -79,29 +79,6 @@ class Node(Transactions):
         # if multiple producers configured for a Node, this is the first one
         self.producerName=None
         self.keys: List[KeyStrings] = field(default_factory=list)
-        self.configureVersion()
-
-    def configureVersion(self):
-        if 'v2' in self.nodeosVers:
-            self.fetchTransactionCommand = lambda: "get transaction"
-            self.fetchTransactionFromTrace = lambda trx: trx['trx']['id']
-            self.fetchBlock = lambda blockNum: self.processUrllibRequest("chain", "get_block", {"block_num_or_id":blockNum}, silentErrors=False, exitOnError=True)
-            self.fetchKeyCommand = lambda: "[trx][trx][ref_block_num]"
-            self.fetchRefBlock = lambda trans: trans["trx"]["trx"]["ref_block_num"]
-            self.fetchHeadBlock = lambda node, headBlock: node.processUrllibRequest("chain", "get_block", {"block_num_or_id":headBlock}, silentErrors=False, exitOnError=True)
-            self.cleosLimit = ""
-
-        else:
-            self.fetchTransactionCommand = lambda: "get transaction_trace"
-            self.fetchTransactionFromTrace = lambda trx: trx['id']
-            self.fetchBlock = lambda blockNum: self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
-            self.fetchKeyCommand = lambda: "[transaction][transaction_header][ref_block_num]"
-            self.fetchRefBlock = lambda trans: trans["block_num"]
-            self.fetchHeadBlock = lambda node, headBlock: node.processUrllibRequest("chain", "get_block_info", {"block_num":headBlock}, silentErrors=False, exitOnError=True)
-            if 'v3.1' in self.nodeosVers:
-                self.cleosLimit = ""
-            else:
-                self.cleosLimit = "--time-limit 999"
 
     def __str__(self):
         return "Host: %s, Port:%d, NodeNum:%s, Pid:%s" % (self.host, self.port, self.nodeId, self.pid)
@@ -167,11 +144,11 @@ class Node(Transactions):
         return ret
 
     def checkBlockForTransactions(self, transIds, blockNum):
-        block = self.fetchBlock(blockNum)
+        block = self.processUrllibRequest("trace_api", "get_block", {"block_num":blockNum}, silentErrors=False, exitOnError=True)
         if block['payload']['transactions']:
             for trx in block['payload']['transactions']:
-                if self.fetchTransactionFromTrace(trx) in transIds:
-                    transIds.pop(self.fetchTransactionFromTrace(trx))
+                if trx['id'] in transIds:
+                    transIds.pop(trx['id'])
         return transIds
 
     def waitForTransactionsInBlockRange(self, transIds, startBlock, endBlock):
@@ -258,6 +235,13 @@ class Node(Transactions):
         def isLibAdvancing():
             return self.getIrreversibleBlockNum() > currentLib
         return Utils.waitForBool(isLibAdvancing, timeout)
+
+    def waitForLibNotToAdvance(self, timeout=30):
+        endTime=time.time()+timeout
+        while self.waitForLibToAdvance(timeout=timeout):
+            if time.time() > endTime:
+                return False
+        return True
 
     def waitForProducer(self, producer, timeout=None, exitOnError=False):
         if timeout is None:
@@ -417,6 +401,20 @@ class Node(Transactions):
 
         return ' '.join(removed_items)  # Return the removed strings as a space-delimited string
 
+    def waitForNodeToExit(self, timeout):
+        def didNodeExitGracefully(popen, timeout):
+            try:
+                popen.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return False
+            with open(popen.errfile.name, 'r') as f:
+                if "successfully exiting" in f.read():
+                    return True
+                else:
+                    return False
+
+        return Utils.waitForBoolWithArg(didNodeExitGracefully, self.popenProc, timeout, sleepTime=1)
+
     # pylint: disable=too-many-locals
     # If nodeosPath is equal to None, it will use the existing nodeos path
     def relaunch(self, chainArg=None, newChain=False, skipGenesis=True, timeout=Utils.systemWaitTimeout,
@@ -467,19 +465,8 @@ class Node(Transactions):
                 pass
             return False
 
-        def didNodeExitGracefully(popen, timeout):
-            try:
-                popen.communicate(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                return False
-            with open(popen.errfile.name, 'r') as f:
-                if "successfully exiting" in f.read():
-                    return True
-                else:
-                    return False
-
         if waitForTerm:
-            isAlive=Utils.waitForBoolWithArg(didNodeExitGracefully, self.popenProc, timeout, sleepTime=1)
+            isAlive=self.waitForNodeToExit(timeout)
         else:
             isAlive=Utils.waitForBool(isNodeAlive, timeout, sleepTime=1)
 

@@ -27,7 +27,7 @@ namespace {
      template<typename F>
      struct guard {
         guard(transaction_checktime_timer& timer, F&& func)
-           : _timer(timer), _func(static_cast<F&&>(func)) {
+           : _timer(timer), _func(std::forward<F>(func)) {
            _timer.set_expiration_callback(&callback, this);
            if(_timer.expired) {
               _func(); // it's harmless if _func is invoked twice
@@ -45,7 +45,7 @@ namespace {
      };
      template<typename F>
      guard<F> scoped_run(F&& func) {
-        return guard{_timer, static_cast<F&&>(func)};
+        return guard{_timer, std::forward<F>(func)};
      }
      transaction_checktime_timer& _timer;
   };
@@ -158,7 +158,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
          try {
             checktime_watchdog wd(context.trx_context.transaction_timer);
-            _runtime->_bkend.timed_run(wd, fn);
+            _runtime->_bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
          } catch(eosio::vm::wasm_memory_exception& e) {
@@ -202,7 +202,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          try {
             scoped_profile profile_runner(prof);
             checktime_watchdog wd(context.trx_context.transaction_timer);
-            _instantiated_module->timed_run(wd, fn);
+            _instantiated_module->timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
          } catch(eosio::vm::wasm_memory_exception& e) {
