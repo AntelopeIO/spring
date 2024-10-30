@@ -171,6 +171,8 @@ int main(int argc, char** argv)
       app->set_stop_executor_cb([&app]() {
          ilog("appbase quit called");
          app->get_io_context().stop();
+         auto& chain = app->get_plugin<chain_plugin>().chain();
+         chain.interrupt_transaction();
       });
       app->set_version(htonl(short_hash));
       app->set_version_string(eosio::version::version_client());
@@ -220,6 +222,9 @@ int main(int argc, char** argv)
             elog( "database dirty flag set (likely due to unclean shutdown): replay required" );
             return DATABASE_DIRTY;
          }
+      } else if (e.code() == interrupt_exception::code_value) {
+         ilog("Interrupted, successfully exiting");
+         return SUCCESS;
       }
       elog( "${e}", ("e", e.to_detail_string()));
       return OTHER_FAIL;

@@ -84,6 +84,11 @@ void platform_timer::start(fc::time_point tp) {
    }
 }
 
+void platform_timer::expire_now() {
+   expired = 1;
+   call_expiration_callback();
+}
+
 void platform_timer::stop() {
    if(expired)
       return;
