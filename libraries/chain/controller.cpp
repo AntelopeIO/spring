@@ -3813,7 +3813,7 @@ struct controller_impl {
 
                if( transaction_failed && !transaction_can_fail) {
                   if (trace->except->code() == interrupt_exception::code_value) {
-                     ilog("Interrupt of trx: ${t}", ("t", *trace));
+                     ilog("Interrupt of trx id: ${id}", ("id", trace->id));
                   } else {
                      edump((*trace));
                   }
@@ -4370,7 +4370,15 @@ struct controller_impl {
          log_irreversible();
          transition_to_savanna_if_needed();
          return controller::apply_blocks_result::complete;
-      } FC_LOG_AND_RETHROW( )
+      } catch (fc::exception& e) {
+         if (e.code() != interrupt_exception::code_value) {
+            wlog("${d}", ("d",e.to_detail_string()));
+            FC_RETHROW_EXCEPTION(e, warn, "rethrow");
+         }
+         throw;
+      } catch (...) {
+         try { throw; } FC_LOG_AND_RETHROW()
+      }
    }
 
    controller::apply_blocks_result maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
