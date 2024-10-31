@@ -189,8 +189,8 @@ BOOST_FIXTURE_TEST_CASE(irrelevant_qc, test_fixture) try {
       eosio::testing::tester replay_chain(config, *genesis); // start replay
       // An exception should have thrown
       BOOST_FAIL("replay should have failed with block_validate_exception exception");
-   } catch (block_validate_exception& e) {
-      BOOST_REQUIRE(e.to_detail_string().find("Mismatch between qc.block_num") != std::string::npos);
+   } catch (invalid_qc_claim& e) {
+      BOOST_REQUIRE(e.to_detail_string().find("that is greater than the previous block number") != std::string::npos);
    } catch (...) {
       BOOST_FAIL("replay failed with non block_validate_exception exception");
    }
