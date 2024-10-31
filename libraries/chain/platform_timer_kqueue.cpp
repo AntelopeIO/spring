@@ -58,8 +58,10 @@ platform_timer::platform_timer() {
 
             if(c == 1 && anEvent.filter == EVFILT_TIMER) {
                platform_timer* self = (platform_timer*)anEvent.udata;
-               self->expired = 1;
-               self->call_expiration_callback();
+               bool expected = false;
+               if (self->expired.compare_exchange_strong(expected, true)) {
+                  self->call_expiration_callback();
+               }
             }
             else if(c == 1 && anEvent.filter == EVFILT_USER)
                return;
@@ -90,25 +92,27 @@ platform_timer::~platform_timer() {
 
 void platform_timer::start(fc::time_point tp) {
    if(tp == fc::time_point::maximum()) {
-      expired = 0;
+      expired = false;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
    if(x.count() <= 0)
-      expired = 1;
+      expired = true;
    else {
       struct kevent64_s aTimerEvent;
       EV_SET64(&aTimerEvent, my->timerid, EVFILT_TIMER, EV_ADD|EV_ENABLE|EV_ONESHOT, NOTE_USECONDS|NOTE_CRITICAL, x.count(), (uint64_t)this, 0, 0);
 
-      expired = 0;
+      expired = false;
       if(kevent64(kqueue_fd, &aTimerEvent, 1, NULL, 0, KEVENT_FLAG_IMMEDIATE, NULL) != 0)
-         expired = 1;
+         expired = true;
    }
 }
 
 void platform_timer::expire_now() {
-   expired = 1;
-   call_expiration_callback();
+   bool expected = false;
+   if (expired.compare_exchange_strong(expected, true)) {
+      call_expiration_callback();
+   }
 }
 
 void platform_timer::stop() {
@@ -118,7 +122,7 @@ void platform_timer::stop() {
    struct kevent64_s stop_timer_event;
    EV_SET64(&stop_timer_event, my->timerid, EVFILT_TIMER, EV_DELETE, 0, 0, 0, 0, 0);
    kevent64(kqueue_fd, &stop_timer_event, 1, NULL, 0, KEVENT_FLAG_IMMEDIATE, NULL);
-   expired = 1;
+   expired = true;
 }
 
 }}
