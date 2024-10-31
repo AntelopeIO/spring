@@ -325,11 +325,13 @@ digest_type block_state::get_validation_mroot(block_num_type target_block_num) c
    }
 
    assert(valid->validation_mroots.size() > 0);
-   assert(core.last_final_block_num() <= target_block_num &&
-          target_block_num < core.last_final_block_num() + valid->validation_mroots.size());
-   assert(target_block_num - core.last_final_block_num() < valid->validation_mroots.size());
+   auto low  = core.last_final_block_num();
+   auto high = low + valid->validation_mroots.size();
+   EOS_ASSERT(low <= target_block_num && target_block_num < high, block_validate_exception,
+              "target_block_num ${b} is outside of range of ${low} and ${high}",
+              ("b", target_block_num)("low", low)("high", high));
 
-   return valid->validation_mroots[target_block_num - core.last_final_block_num()];
+   return valid->validation_mroots[target_block_num - low];
 }
 
 digest_type block_state::get_finality_mroot_claim(const qc_claim_t& qc_claim) const {
