@@ -107,7 +107,6 @@ const producer_authority& block_header_state::get_scheduled_producer(block_times
 
 // returns producer using the proposer policy calculated by time `t`
 const producer_authority& block_header_state::get_producer_for_block_at(block_timestamp_type next_block_timestamp) const {
-   assert(next_block_timestamp > timestamp()); // next block timestamp must be greater than current timestamp
    return detail::get_scheduled_producer(get_active_proposer_policy_for_block_at(next_block_timestamp)->proposer_schedule.producers, next_block_timestamp);
 }
 
