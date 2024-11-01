@@ -168,12 +168,6 @@ int main(int argc, char** argv)
       uint32_t short_hash = 0;
       fc::from_hex(eosio::version::version_hash(), (char*)&short_hash, sizeof(short_hash));
 
-      app->set_stop_executor_cb([&app]() {
-         ilog("appbase quit called");
-         app->get_io_context().stop();
-         auto& chain = app->get_plugin<chain_plugin>().chain();
-         chain.interrupt_transaction();
-      });
       app->set_version(htonl(short_hash));
       app->set_version_string(eosio::version::version_client());
       app->set_full_version_string(eosio::version::version_full());
@@ -194,6 +188,12 @@ int main(int argc, char** argv)
          }
          return INITIALIZE_FAIL;
       }
+      controller& chain = app->get_plugin<chain_plugin>().chain();
+      app->set_stop_executor_cb([&app, &chain]() {
+         ilog("appbase quit called");
+         chain.interrupt_transaction();
+         app->get_io_context().stop();
+      });
       if (auto resmon_plugin = app->find_plugin<resource_monitor_plugin>()) {
          resmon_plugin->monitor_directory(app->data_dir());
       } else {
