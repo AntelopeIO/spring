@@ -59,14 +59,14 @@ def equalFiles(file1, file2):
                 return True
 
 # Verifies that SHiP should fail to restart with a corrupted first entry header
-def corruptedHeaderTest(pos, curruptedValue, shipNode):
+def corruptedHeaderTest(pos, corruptedValue, shipNode):
     # restore log and index
     shutil.copyfile(origStateHistoryLog, stateHistoryLog)
     shutil.copyfile(origStateHistoryIndex, stateHistoryIndex)
 
     with open(stateHistoryLog, 'rb+') as f: # opened as binary file
         f.seek(pos) # seek to the position to corrupt
-        f.write(curruptedValue) # corrupt it
+        f.write(corruptedValue) # corrupt it
 
     isRelaunchSuccess = shipNode.relaunch()
     assert not isRelaunchSuccess, "SHiP node should have failed to relaunch"
