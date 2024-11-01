@@ -269,7 +269,7 @@ namespace eosio::testing {
       ilog("Initial actions (${count}):", ("count", _unpacked_actions.size()));
       for (size_t i = 0; i < _unpacked_actions.size(); ++i) {
          ilog("Initial action ${index}: ${act}", ("index", i)("act", fc::json::to_pretty_string(_unpacked_actions.at(i))));
-         ilog("Initial action packed data ${index}: ${packed_data}", ("packed_data", fc::to_hex(actions.at(i).data.data(), actions.at(i).data.size())));
+         ilog("Initial action packed data ${index}: ${packed_data}", ("index", i)("packed_data", fc::to_hex(actions.at(i).data.data(), actions.at(i).data.size())));
       }
 
       ilog("Populate initial transaction.");
