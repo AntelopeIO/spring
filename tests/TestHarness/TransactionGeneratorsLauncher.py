@@ -58,6 +58,7 @@ class TransactionGeneratorsLauncher:
         self.subprocess_ret_codes = []
         connectionPairIter = 0
         for id, targetTps in enumerate(self.tpsTrxGensConfig.targetTpsPerGenList):
+            outputFile = open(f"{self.logDir}/trx_generator_{id}.txt", "w")
             connectionPair = self.tpsTrxGensConfig.connectionPairList[connectionPairIter].rsplit(":")
             popenStringList = [
                                 # './tests/trx_generator/trx_generator',
@@ -83,7 +84,7 @@ class TransactionGeneratorsLauncher:
 
             if Utils.Debug:
                 Print(f"Running transaction generator {self.trxGenerator} : {' '.join(popenStringList)}")
-            self.subprocess_ret_codes.append(subprocess.Popen(popenStringList))
+            self.subprocess_ret_codes.append(subprocess.Popen(popenStringList, stdout=outputFile, stderr=subprocess.STDOUT))
             connectionPairIter = (connectionPairIter + 1) % len(self.tpsTrxGensConfig.connectionPairList)
         exitCodes=None
         if waitToComplete:
