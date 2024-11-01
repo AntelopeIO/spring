@@ -39,25 +39,6 @@ stateHistoryLog       = ""
 origStateHistoryIndex = ""
 stateHistoryIndex     = ""
 
-# Returns True if file1 and file2 contain the same content
-def equalFiles(file1, file2):
-    # not the same if sizes are different
-    if os.path.getsize(file1) != os.path.getsize(file2):
-        return False
-
-    readSize=1024
-    with open(file1, 'rb') as f1, open(file2, 'rb') as f2:
-        while True:
-            bytes1 = f1.read(readSize)
-            bytes2 = f2.read(readSize)
-
-            if bytes1 != bytes2:
-                return False
-
-            # end of both files
-            if not bytes1:
-                return True
-
 # Verifies that SHiP should fail to restart with a corrupted first entry header
 def corruptedHeaderTest(pos, corruptedValue, shipNode):
     # restore log and index
@@ -121,8 +102,8 @@ try:
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
-    assert equalFiles(stateHistoryLog, origStateHistoryLog) # log unchanged
-    assert equalFiles(stateHistoryIndex, origStateHistoryIndex) # index regenerated
+    assert Utils.compareFiles(stateHistoryLog, origStateHistoryLog, mode="rb") # log unchanged
+    assert Utils.compareFiles(stateHistoryIndex, origStateHistoryIndex, mode="rb") # index regenerated
 
     shipNode.kill(signal.SIGTERM) # shut down ship node for next test
 
@@ -139,8 +120,8 @@ try:
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
-    assert equalFiles(stateHistoryLog, origStateHistoryLog)
-    assert equalFiles(stateHistoryIndex, origStateHistoryIndex)
+    assert Utils.compareFiles(stateHistoryLog, origStateHistoryLog, mode="rb")
+    assert Utils.compareFiles(stateHistoryIndex, origStateHistoryIndex, mode="rb")
     '''
 
     #-------- Truncate index file. It should be regenerated
@@ -158,8 +139,8 @@ try:
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
-    assert equalFiles(stateHistoryLog, origStateHistoryLog) # log file unchanged
-    assert equalFiles(stateHistoryIndex, origStateHistoryIndex) # index file regenerated
+    assert Utils.compareFiles(stateHistoryLog, origStateHistoryLog, mode="rb") # log file unchanged
+    assert Utils.compareFiles(stateHistoryIndex, origStateHistoryIndex, mode="rb") # index file regenerated
 
     shipNode.kill(signal.SIGTERM) # shut down it for next test
 
@@ -177,8 +158,8 @@ try:
 
     isRelaunchSuccess = shipNode.relaunch()
     assert isRelaunchSuccess, "Failed to relaunch shipNode"
-    assert equalFiles(stateHistoryLog, origStateHistoryLog) # log file not changed
-    assert equalFiles(stateHistoryIndex, origStateHistoryIndex) # index file regenerated
+    assert Utils.compareFiles(stateHistoryLog, origStateHistoryLog, mode="rb") # log file not changed
+    assert Utils.compareFiles(stateHistoryIndex, origStateHistoryIndex, mode="rb") # index file regenerated
 
     shipNode.kill(signal.SIGTERM) # shut down it for next test
 
