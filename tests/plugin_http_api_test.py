@@ -886,7 +886,7 @@ class PluginHttpTest(unittest.TestCase):
     # test all producer api
     def test_ProducerApi(self) :
         resource = "producer"
-        endpoint=self.endpoint("producer_rw")
+        endpoint=self.endpoint("producer_ro")
 
         # get_runtime_options with empty parameter
         command = "get_runtime_options"
@@ -1151,6 +1151,7 @@ class PluginHttpTest(unittest.TestCase):
         # place pause and resume tests at the end such that they are not impacted
         # by update_runtime_options
 
+        endpoint=self.endpoint("producer_rw") # pause and resume are in producer_rw category
         # pause with empty parameter
         command = "pause"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
