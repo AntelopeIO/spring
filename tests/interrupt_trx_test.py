@@ -79,17 +79,16 @@ try:
 
     prodNode.waitForProducer("defproducera")
 
-    # Needs https://github.com/AntelopeIO/spring/issues/876
-    # prodNode.processUrllibRequest("test_control", "swap_action",
-    #                               {"from":"doitslow", "to":"doitforever",
-    #                                "trx_priv_key":EOSIO_ACCT_PRIVATE_DEFAULT_KEY,
-    #                                "blk_priv_key":cluster.defproduceraAccount.activePrivateKey})
-    #
-    # assert not prodNode.waitForHeadToAdvance(3), f"prodNode did advance head after doitforever action"
-    #
-    # prodNode.popenProc.send_signal(signal.SIGTERM)
-    #
-    # assert not prodNode.verifyAlive(), "prodNode did not exit from SIGTERM"
+    prodNode.processUrllibRequest("test_control", "swap_action",
+                                  {"from":"doitslow", "to":"doitforever",
+                                   "trx_priv_key":EOSIO_ACCT_PRIVATE_DEFAULT_KEY,
+                                   "blk_priv_key":cluster.defproduceraAccount.activePrivateKey})
+
+    assert not prodNode.waitForHeadToAdvance(3), f"prodNode did advance head after doitforever action"
+
+    prodNode.interruptAndVerifyExitStatus()
+
+    assert not prodNode.verifyAlive(), "prodNode did not exit from SIGINT"
 
     testSuccessful = True
 finally:
