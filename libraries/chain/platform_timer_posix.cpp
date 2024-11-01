@@ -21,10 +21,7 @@ struct platform_timer::impl {
 
    static void sig_handler(int, siginfo_t* si, void*) {
       platform_timer* self = (platform_timer*)si->si_value.sival_ptr;
-      bool expected = false;
-      if (self->expired.compare_exchange_strong(expected, true)) {
-         self->call_expiration_callback();
-      }
+      self->expire_now();
    }
 };
 

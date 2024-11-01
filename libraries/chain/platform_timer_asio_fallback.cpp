@@ -64,24 +64,12 @@ void platform_timer::start(fc::time_point tp) {
    if(x.count() <= 0)
       expired = true;
    else {
-#if 0
-      std::promise<void> p;
-      auto f = p.get_future();
-      checktime_ios->post([&p,this]() {
-         expired = false;
-         p.set_value();
-      });
-      f.get();
-#endif
       expired = false;
       my->timer->expires_after(std::chrono::microseconds(x.count()));
       my->timer->async_wait([this](const boost::system::error_code& ec) {
          if(ec)
             return;
-         bool expected = false;
-         if (expired.compare_exchange_strong(expected, true)) {
-            call_expiration_callback();
-         }
+         expire_now();
       });
    }
 }

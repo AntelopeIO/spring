@@ -58,10 +58,7 @@ platform_timer::platform_timer() {
 
             if(c == 1 && anEvent.filter == EVFILT_TIMER) {
                platform_timer* self = (platform_timer*)anEvent.udata;
-               bool expected = false;
-               if (self->expired.compare_exchange_strong(expected, true)) {
-                  self->call_expiration_callback();
-               }
+               self->expire_now();
             }
             else if(c == 1 && anEvent.filter == EVFILT_USER)
                return;
