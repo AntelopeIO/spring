@@ -170,24 +170,24 @@ void run_compile_trampoline(int fd) {
 
          // enforce cpu limit only when it is set
          // (libtester may disable it)
-         if(conf.cpu_limit) {
-            struct rlimit cpu_limit = {*conf.cpu_limit, *conf.cpu_limit};
-            setrlimit(RLIMIT_CPU, &cpu_limit);
+         auto cpu_limit = conf.get_cpu_limit();
+         if(cpu_limit) {
+            struct rlimit rcpu_limit = {*cpu_limit, *cpu_limit};
+            setrlimit(RLIMIT_CPU, &rcpu_limit);
          }
 
          // enforce vm limit only when it is set
          // (libtester may disable it)
-         if(conf.vm_limit) {
-            struct rlimit vm_limit = {*conf.vm_limit, *conf.vm_limit};
-            setrlimit(RLIMIT_AS, &vm_limit);
+         auto vm_limit = conf.get_vm_limit();
+         if(vm_limit) {
+            struct rlimit rvm_limit = {*vm_limit, *vm_limit};
+            setrlimit(RLIMIT_AS, &rvm_limit);
          }
 
          struct rlimit core_limits = {0u, 0u};
          setrlimit(RLIMIT_CORE, &core_limits);
 
-         uint64_t stack_size_limit = conf.stack_size_limit ? *conf.stack_size_limit : std::numeric_limits<uint64_t>::max();
-         size_t generated_code_size_limit = conf.generated_code_size_limit ? * conf.generated_code_size_limit : std::numeric_limits<size_t>::max();
-         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size_limit, generated_code_size_limit);
+         run_compile(std::move(fds[0]), std::move(fds[1]), conf.get_stack_size_limit(), conf.get_generated_code_size_limit());
          _exit(0);
       }
       else if(pid == -1)

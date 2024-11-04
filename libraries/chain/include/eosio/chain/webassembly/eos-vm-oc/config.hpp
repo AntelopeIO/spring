@@ -16,11 +16,34 @@
 namespace eosio { namespace chain { namespace eosvmoc {
 
 struct config {
+   uint64_t get_cache_size() const { return cache_size; }
+   uint64_t get_threads() const { return threads; }
+
+   std::optional<rlim_t> get_cpu_limit() const { return !whitelisted ? cpu_limit : std::optional<rlim_t>{}; }
+   std::optional<rlim_t> get_vm_limit() const { return !whitelisted ? vm_limit : std::optional<rlim_t>{}; }
+
+   uint64_t get_stack_size_limit() const {
+      return !whitelisted
+                ? stack_size_limit
+                     ? *stack_size_limit
+                     : std::numeric_limits<uint64_t>::max()
+                : std::numeric_limits<uint64_t>::max();
+   }
+
+   size_t get_generated_code_size_limit() const {
+      return !whitelisted
+                ? generated_code_size_limit
+                     ? *generated_code_size_limit
+                     : std::numeric_limits<uint64_t>::max()
+                : std::numeric_limits<uint64_t>::max();
+   }
+
+   bool whitelisted = false;
    uint64_t cache_size = 1024u*1024u*1024u;
    uint64_t threads    = 1u;
 
    // subjective limits for OC compilation.
-   // nodeos enforces the limits by the default values.
+   // nodeos enforces the limits by the default values unless account is whitelisted.
    // libtester disables the limits in all tests, except enforces the limits
    // in the tests in unittests/eosvmoc_limits_tests.cpp.
    std::optional<rlim_t>   cpu_limit {20u};
@@ -36,8 +59,9 @@ struct config {
 //work around unexpected std::optional behavior
 template <typename DS>
 inline DS& operator>>(DS& ds, eosio::chain::eosvmoc::config& cfg) {
-   fc::raw::pack(ds, cfg.cache_size);
-   fc::raw::pack(ds, cfg.threads);
+   fc::raw::unpack(ds, cfg.whitelisted);
+   fc::raw::unpack(ds, cfg.cache_size);
+   fc::raw::unpack(ds, cfg.threads);
 
    auto better_optional_unpack = [&]<typename T>(std::optional<T>& t) {
       bool b; fc::raw::unpack( ds, b );
@@ -54,6 +78,7 @@ inline DS& operator>>(DS& ds, eosio::chain::eosvmoc::config& cfg) {
 
 template <typename DS>
 inline DS& operator<<(DS& ds, const eosio::chain::eosvmoc::config& cfg) {
+   fc::raw::pack(ds, cfg.whitelisted);
    fc::raw::pack(ds, cfg.cache_size);
    fc::raw::pack(ds, cfg.threads);
    fc::raw::pack(ds, cfg.cpu_limit);

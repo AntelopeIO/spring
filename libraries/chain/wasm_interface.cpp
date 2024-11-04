@@ -92,7 +92,9 @@ namespace eosio { namespace chain {
          const chain::eosvmoc::code_descriptor* cd = nullptr;
          chain::eosvmoc::code_cache_base::get_cd_failure failure = chain::eosvmoc::code_cache_base::get_cd_failure::temporary;
          try {
-            const bool high_priority = context.get_receiver().prefix() == chain::config::system_account_name;
+            // Not high priority with producing a block since we want validators to have a higher probability of having
+            // already switched to oc by the time the producer has switched to oc.
+            const bool high_priority = context.is_eos_vm_oc_whitelisted() && context.is_applying_block();
             cd = my->eosvmoc->cc.get_descriptor_for_code(high_priority, code_hash, vm_version, context.control.is_write_window(), failure);
             if (test_disable_tierup)
                cd = nullptr;
