@@ -74,10 +74,10 @@ void limit_not_violated_test(const eosvmoc::config& eosvmoc_config) {
 
 static eosvmoc::config make_eosvmoc_config_without_limits() {
    eosvmoc::config cfg;
-   cfg.cpu_limit.reset();
-   cfg.vm_limit.reset();
-   cfg.stack_size_limit.reset();
-   cfg.generated_code_size_limit.reset();
+   cfg.non_whitelisted_limits.cpu_limit.reset();
+   cfg.non_whitelisted_limits.vm_limit.reset();
+   cfg.non_whitelisted_limits.stack_size_limit.reset();
+   cfg.non_whitelisted_limits.generated_code_size_limit.reset();
    return cfg;
 }
 
@@ -86,10 +86,10 @@ BOOST_AUTO_TEST_CASE( limits_not_set ) { try {
    validating_tester chain;
    auto& cfg = chain.get_config();
 
-   BOOST_REQUIRE(cfg.eosvmoc_config.cpu_limit == std::nullopt);
-   BOOST_REQUIRE(cfg.eosvmoc_config.vm_limit == std::nullopt);
-   BOOST_REQUIRE(cfg.eosvmoc_config.stack_size_limit == std::nullopt);
-   BOOST_REQUIRE(cfg.eosvmoc_config.generated_code_size_limit == std::nullopt);
+   BOOST_REQUIRE(cfg.eosvmoc_config.non_whitelisted_limits.cpu_limit == std::nullopt);
+   BOOST_REQUIRE(cfg.eosvmoc_config.non_whitelisted_limits.vm_limit == std::nullopt);
+   BOOST_REQUIRE(cfg.eosvmoc_config.non_whitelisted_limits.stack_size_limit == std::nullopt);
+   BOOST_REQUIRE(cfg.eosvmoc_config.non_whitelisted_limits.generated_code_size_limit == std::nullopt);
 } FC_LOG_AND_RETHROW() }
 
 // test limits are not enforced unless limits in eosvmoc_config
@@ -106,11 +106,11 @@ BOOST_AUTO_TEST_CASE( vm_limit ) { try {
    eosvmoc::config eosvmoc_config = make_eosvmoc_config_without_limits();
 
    // set vm_limit to a small value such that it is exceeded
-   eosvmoc_config.vm_limit = 64u*1024u*1024u;
+   eosvmoc_config.non_whitelisted_limits.vm_limit = 64u*1024u*1024u;
    limit_violated_test(eosvmoc_config);
 
    // set vm_limit to a large value such that it is not exceeded
-   eosvmoc_config.vm_limit = 128u*1024u*1024u;
+   eosvmoc_config.non_whitelisted_limits.vm_limit = 128u*1024u*1024u;
    limit_not_violated_test(eosvmoc_config);
 } FC_LOG_AND_RETHROW() }
 
@@ -118,7 +118,7 @@ BOOST_AUTO_TEST_CASE( vm_limit ) { try {
 BOOST_AUTO_TEST_CASE( check_config_default_vm_limit ) { try {
    eosvmoc::config eosvmoc_config;
 
-   BOOST_REQUIRE(eosvmoc_config.vm_limit);
+   BOOST_REQUIRE(eosvmoc_config.non_whitelisted_limits.vm_limit);
 } FC_LOG_AND_RETHROW() }
 #endif
 
@@ -128,11 +128,11 @@ BOOST_AUTO_TEST_CASE( stack_limit ) { try {
 
    // The stack size of the compiled WASM in the test is 104.
    // Set stack_size_limit one less than the actual needed stack size
-   eosvmoc_config.stack_size_limit = 103;
+   eosvmoc_config.non_whitelisted_limits.stack_size_limit = 103;
    limit_violated_test(eosvmoc_config);
 
    // set stack_size_limit to the actual needed stack size
-   eosvmoc_config.stack_size_limit = 104;
+   eosvmoc_config.non_whitelisted_limits.stack_size_limit = 104;
    limit_not_violated_test(eosvmoc_config);
 } FC_LOG_AND_RETHROW() }
 
@@ -144,10 +144,10 @@ BOOST_AUTO_TEST_CASE( generated_code_size_limit ) { try {
    // isn't intended to detect minute differences or regressions, give the range a wide
    // berth to work on. As a single data point, LLVM11 used in reproducible builds during
    // Spring 1.0 timeframe was 36856
-   eosvmoc_config.generated_code_size_limit = 20*1024;
+   eosvmoc_config.non_whitelisted_limits.generated_code_size_limit = 20*1024;
    limit_violated_test(eosvmoc_config);
 
-   eosvmoc_config.generated_code_size_limit = 40*1024;
+   eosvmoc_config.non_whitelisted_limits.generated_code_size_limit = 40*1024;
    limit_not_violated_test(eosvmoc_config);
 } FC_LOG_AND_RETHROW() }
 

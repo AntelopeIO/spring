@@ -9,6 +9,7 @@
 #include <boost/multi_index/sequenced_index.hpp>
 #include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/key_extractors.hpp>
+#include <boost/multi_index/member.hpp>
 
 #include <boost/interprocess/mem_algo/rbtree_best_fit.hpp>
 #include <boost/asio/local/datagram_protocol.hpp>
@@ -22,6 +23,17 @@ namespace std {
             return ct.code_id._hash[0];
         }
     };
+}
+
+namespace boost {
+   template<> struct hash<eosio::chain::eosvmoc::code_tuple> {
+      size_t operator()(const eosio::chain::eosvmoc::code_tuple& ct) const {
+         std::size_t seed = 0;
+         boost::hash_combine(seed, ct.code_id._hash[0]);
+         boost::hash_combine(seed, ct.vm_version);
+         return seed;
+      }
+   };
 }
 
 namespace eosio { namespace chain { namespace eosvmoc {
@@ -80,15 +92,11 @@ class code_cache_base {
 
       //these are really only useful to the async code cache, but keep them here so free_code can be shared
       using queued_compilies_t = boost::multi_index_container<
-         code_tuple,
+         compile_wasm_message,
          indexed_by<
             sequenced<>,
             hashed_unique<tag<by_hash>,
-               composite_key< code_tuple,
-                  member<code_tuple, digest_type, &code_tuple::code_id>,
-                  member<code_tuple, uint8_t,     &code_tuple::vm_version>
-               >
-            >
+               member<compile_wasm_message, code_tuple, &compile_wasm_message::code>>
          >
       >;
       queued_compilies_t _queued_compiles;
