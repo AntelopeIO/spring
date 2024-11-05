@@ -514,9 +514,9 @@ class Utils:
         return "comparison of %s type is not supported, context=%s" % (typeName,context)
 
     @staticmethod
-    def compareFiles(file1: str, file2: str):
-        f1 = open(file1)
-        f2 = open(file2)
+    def compareFiles(file1: str, file2: str, mode="r"):
+        f1 = open(file1, mode)
+        f2 = open(file2, mode)
 
         i = 0
         same = True
