@@ -155,6 +155,7 @@ namespace eosio::chain {
             wasm_interface::vm_type  wasm_runtime = chain::config::default_wasm_runtime;
             eosvmoc::config          eosvmoc_config;
             wasm_interface::vm_oc_enable eosvmoc_tierup     = wasm_interface::vm_oc_enable::oc_auto;
+            flat_set<account_name>   eos_vm_oc_whitelist_suffixes;
 
             db_read_mode             read_mode              = db_read_mode::HEAD;
             validation_mode          block_validation_mode  = validation_mode::FULL;
@@ -416,6 +417,8 @@ namespace eosio::chain {
          bool contracts_console()const;
 
          bool is_profiling(account_name name) const;
+
+         bool is_eos_vm_oc_whitelisted(account_name suffix) const;
 
          chain_id_type get_chain_id()const;
 

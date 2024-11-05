@@ -32,6 +32,19 @@
 const std::string deep_mind_logger_name("deep-mind");
 eosio::chain::deep_mind_handler _deep_mind_log;
 
+namespace std {
+   // declare operator<< for boost program options of vector<string>
+   std::ostream& operator<<(std::ostream& osm, const std::vector<std::string>& v) {
+      for (size_t i = 0; i < v.size(); ++i) {
+         osm << v[i];
+         if (i < v.size() - 1) {
+            osm << ", ";
+         }
+      }
+      return osm;
+   }
+}
+
 namespace eosio {
 
 //declare operator<< and validate function for read_mode in the same namespace as read_mode itself
@@ -356,6 +369,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->default_value(std::vector<string>{{"xsat"}}),
+          "EOS VM OC tier-up whitelist account suffixes")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
@@ -520,6 +535,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       LOAD_VALUE_SET( options, "actor-blacklist", chain_config->actor_blacklist );
       LOAD_VALUE_SET( options, "contract-whitelist", chain_config->contract_whitelist );
       LOAD_VALUE_SET( options, "contract-blacklist", chain_config->contract_blacklist );
+      LOAD_VALUE_SET( options, "eos-vm-oc-whitelist", chain_config->eos_vm_oc_whitelist_suffixes);
 
       LOAD_VALUE_SET( options, "trusted-producer", chain_config->trusted_producers );
 
