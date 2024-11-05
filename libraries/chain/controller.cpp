@@ -4010,10 +4010,16 @@ struct controller_impl {
 
       // validate QC claim against previous block QC info
 
-      // new claimed QC block number cannot be smaller than previous block's
+      // new claimed QC block number cannot be less than previous block's
+      // claimed QC block number
       EOS_ASSERT( new_qc_claim.block_num >= prev_qc_claim.block_num, invalid_qc_claim,
                   "Block #${b} claims a block_num (${n1}) less than the previous block's (${n2})",
                   ("n1", new_qc_claim.block_num)("n2", prev_qc_claim.block_num)("b", block_num) );
+
+      // new claimed QC block number cannot be greater than previous block number
+      EOS_ASSERT( new_qc_claim.block_num <= prev.block_num(), invalid_qc_claim,
+                  "Block #${b} claims a block_num (${n1}) that is greater than the previous block number (${n2})",
+                  ("n1", new_qc_claim.block_num)("n2", prev.block_num())("b", block_num) );
 
       if( new_qc_claim.block_num == prev_qc_claim.block_num ) {
          if( new_qc_claim.is_strong_qc == prev_qc_claim.is_strong_qc ) {
