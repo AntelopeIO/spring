@@ -57,6 +57,13 @@ class code_cache_base {
 
       void free_code(const digest_type& code_id, const uint8_t& vm_version);
 
+      // mode for get_descriptor_for_code calls
+      struct mode {
+         bool whitelisted = false;
+         bool high_priority = false;
+         bool write_window = true;
+      };
+
       // get_descriptor_for_code failure reasons
       enum class get_cd_failure {
          temporary, // oc compile not done yet, users like read-only trxs can retry
@@ -117,11 +124,6 @@ class code_cache_async : public code_cache_base {
       code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db);
       ~code_cache_async();
 
-      struct mode {
-         bool whitelisted = false;
-         bool high_priority = false;
-         bool write_window = true;
-      };
       //If code is in cache: returns pointer & bumps to front of MRU list
       //If code is not in cache, and not blacklisted, and not currently compiling: return nullptr and kick off compile
       //otherwise: return nullptr
@@ -142,7 +144,7 @@ class code_cache_sync : public code_cache_base {
       ~code_cache_sync();
 
       //Can still fail and return nullptr if, for example, there is an expected instantiation failure
-      const code_descriptor* const get_descriptor_for_code_sync(const digest_type& code_id, const uint8_t& vm_version, bool is_write_window);
+      const code_descriptor* const get_descriptor_for_code_sync(mode m, const digest_type& code_id, const uint8_t& vm_version);
 };
 
 }}}

@@ -198,15 +198,15 @@ code_cache_sync::~code_cache_sync() {
       elog("unexpected response from EOS VM OC compile monitor during shutdown");
 }
 
-const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(const digest_type& code_id, const uint8_t& vm_version, bool is_write_window) {
+const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode m, const digest_type& code_id, const uint8_t& vm_version) {
    //check for entry in cache
    code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
    if(it != _cache_index.get<by_hash>().end()) {
-      if (is_write_window)
+      if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
       return &*it;
    }
-   if(!is_write_window)
+   if(!m.write_window)
       return nullptr;
 
    const code_object* const codeobject = _db.find<code_object,by_code_hash>(boost::make_tuple(code_id, 0, vm_version));
@@ -216,7 +216,8 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(const
    std::vector<wrapped_fd> fds_to_pass;
    fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
 
-   write_message_with_fds(_compile_monitor_write_socket, compile_wasm_message{ {code_id, vm_version}, std::optional<eosvmoc::subjective_compile_limits>{} }, fds_to_pass);
+   auto msg = compile_wasm_message{ {code_id, vm_version}, !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{} };
+   write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
    auto [success, message, fds] = read_message_with_fds(_compile_monitor_read_socket);
    EOS_ASSERT(success, wasm_execution_error, "failed to read response from monitor process");
    EOS_ASSERT(std::holds_alternative<wasm_compilation_result_message>(message), wasm_execution_error, "unexpected response from monitor process");

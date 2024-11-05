@@ -11,7 +11,8 @@ BOOST_AUTO_TEST_SUITE(eosvmoc_limits_tests)
 
 // common routine to verify wasm_execution_error is raised when a resource
 // limit specified in eosvmoc_config is reached
-void limit_violated_test(const eosvmoc::config& eosvmoc_config) {
+// eosio.* is whitelisted, use a different account to avoid whitelist
+void limit_violated_test(const eosvmoc::config& eosvmoc_config, const std::string& account, bool expect_exception) {
    fc::temp_directory tempdir;
 
    constexpr bool use_genesis = true;
@@ -23,26 +24,34 @@ void limit_violated_test(const eosvmoc::config& eosvmoc_config) {
       use_genesis
    );
 
-   chain.create_accounts({"eosio.token"_n});
-   chain.set_code("eosio.token"_n, test_contracts::eosio_token_wasm());
-   chain.set_abi("eosio.token"_n, test_contracts::eosio_token_abi());
+   name acc = name{account};
+
+   chain.create_accounts({acc});
+   chain.set_code(acc, test_contracts::eosio_token_wasm());
+   chain.set_abi(acc, test_contracts::eosio_token_abi());
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
    if (chain.control->is_eos_vm_oc_enabled()) {
-      BOOST_CHECK_EXCEPTION(
-         chain.push_action( "eosio.token"_n, "create"_n, "eosio.token"_n, mvo()
-            ( "issuer", "eosio.token" )
-            ( "maximum_supply", "1000000.00 TOK" )),
-         eosio::chain::wasm_execution_error,
-         [](const eosio::chain::wasm_execution_error& e) {
-            return expect_assert_message(e, "failed to compile wasm");
-         }
-      );
+      if (expect_exception) {
+         BOOST_CHECK_EXCEPTION(
+            chain.push_action( acc, "create"_n, acc, mvo()
+               ( "issuer", account )
+               ( "maximum_supply", "1000000.00 TOK" )),
+            eosio::chain::wasm_execution_error,
+            [](const eosio::chain::wasm_execution_error& e) {
+               return expect_assert_message(e, "failed to compile wasm");
+            }
+         );
+      } else {
+         chain.push_action( acc, "create"_n, acc, mvo()
+            ( "issuer", account )
+            ( "maximum_supply", "1000000.00 TOK" ));
+      }
    } else
 #endif
    {
-      chain.push_action( "eosio.token"_n, "create"_n, "eosio.token"_n, mvo()
-         ( "issuer", "eosio.token" )
+      chain.push_action( acc, "create"_n, acc, mvo()
+         ( "issuer", account )
          ( "maximum_supply", "1000000.00 TOK" )
       );
    }
@@ -107,7 +116,8 @@ BOOST_AUTO_TEST_CASE( vm_limit ) { try {
 
    // set vm_limit to a small value such that it is exceeded
    eosvmoc_config.non_whitelisted_limits.vm_limit = 64u*1024u*1024u;
-   limit_violated_test(eosvmoc_config);
+   limit_violated_test(eosvmoc_config, "test", true);
+   limit_violated_test(eosvmoc_config, "eosio.token", false); // whitelisted account, no exception
 
    // set vm_limit to a large value such that it is not exceeded
    eosvmoc_config.non_whitelisted_limits.vm_limit = 128u*1024u*1024u;
@@ -129,7 +139,8 @@ BOOST_AUTO_TEST_CASE( stack_limit ) { try {
    // The stack size of the compiled WASM in the test is 104.
    // Set stack_size_limit one less than the actual needed stack size
    eosvmoc_config.non_whitelisted_limits.stack_size_limit = 103;
-   limit_violated_test(eosvmoc_config);
+   limit_violated_test(eosvmoc_config, "test", true);
+   limit_violated_test(eosvmoc_config, "eosio.token", false); // whitelisted account, no exception
 
    // set stack_size_limit to the actual needed stack size
    eosvmoc_config.non_whitelisted_limits.stack_size_limit = 104;
@@ -145,7 +156,8 @@ BOOST_AUTO_TEST_CASE( generated_code_size_limit ) { try {
    // berth to work on. As a single data point, LLVM11 used in reproducible builds during
    // Spring 1.0 timeframe was 36856
    eosvmoc_config.non_whitelisted_limits.generated_code_size_limit = 20*1024;
-   limit_violated_test(eosvmoc_config);
+   limit_violated_test(eosvmoc_config, "test", true);
+   limit_violated_test(eosvmoc_config, "eosio.token", false); // whitelisted account, no exception
 
    eosvmoc_config.non_whitelisted_limits.generated_code_size_limit = 40*1024;
    limit_not_violated_test(eosvmoc_config);
