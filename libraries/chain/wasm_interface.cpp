@@ -92,10 +92,15 @@ namespace eosio { namespace chain {
          const chain::eosvmoc::code_descriptor* cd = nullptr;
          chain::eosvmoc::code_cache_base::get_cd_failure failure = chain::eosvmoc::code_cache_base::get_cd_failure::temporary;
          try {
-            // Not high priority with producing a block since we want validators to have a higher probability of having
-            // already switched to oc by the time the producer has switched to oc.
-            const bool high_priority = context.is_eos_vm_oc_whitelisted() && context.is_applying_block();
-            cd = my->eosvmoc->cc.get_descriptor_for_code(high_priority, code_hash, vm_version, context.control.is_write_window(), failure);
+            // Ideally all validator nodes would switch to using oc before block producer nodes so that validators
+            // are never overwhelmed. Compile whitelisted account contracts first on non-produced blocks. This makes
+            // it more likely that validators will switch to the oc compiled contract before the block producer runs
+            // an action for the contract with oc.
+            chain::eosvmoc::code_cache_async::mode m;
+            m.whitelisted = context.is_eos_vm_oc_whitelisted();
+            m.high_priority = m.whitelisted && context.is_applying_block();
+            m.write_window = context.control.is_write_window();
+            cd = my->eosvmoc->cc.get_descriptor_for_code(m, code_hash, vm_version, failure);
             if (test_disable_tierup)
                cd = nullptr;
          } catch (...) {

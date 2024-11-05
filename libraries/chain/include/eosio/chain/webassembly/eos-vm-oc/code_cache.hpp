@@ -109,10 +109,15 @@ class code_cache_async : public code_cache_base {
       code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db);
       ~code_cache_async();
 
+      struct mode {
+         bool whitelisted = false;
+         bool high_priority = false;
+         bool write_window = true;
+      };
       //If code is in cache: returns pointer & bumps to front of MRU list
       //If code is not in cache, and not blacklisted, and not currently compiling: return nullptr and kick off compile
       //otherwise: return nullptr
-      const code_descriptor* const get_descriptor_for_code(bool high_priority, const digest_type& code_id, const uint8_t& vm_version, bool is_write_window, get_cd_failure& failure);
+      const code_descriptor* const get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure);
 
    private:
       std::thread _monitor_reply_thread;

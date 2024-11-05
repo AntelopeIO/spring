@@ -19,7 +19,9 @@ struct config {
    uint64_t get_cache_size() const { return cache_size; }
    uint64_t get_threads() const { return threads; }
 
+   // empty optional means no rlimit
    std::optional<rlim_t> get_cpu_limit() const { return !whitelisted ? cpu_limit : std::optional<rlim_t>{}; }
+   // empty optional means no rlimit
    std::optional<rlim_t> get_vm_limit() const { return !whitelisted ? vm_limit : std::optional<rlim_t>{}; }
 
    uint64_t get_stack_size_limit() const {

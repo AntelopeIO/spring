@@ -106,11 +106,11 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
 }
 
 
-const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high_priority, const digest_type& code_id, const uint8_t& vm_version, bool is_write_window, get_cd_failure& failure) {
+const code_descriptor* const code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
    //if there are any outstanding compiles, process the result queue now
    //When app is in write window, all tasks are running sequentially and read-only threads
    //are not running. Safe to update cache entries.
-   if(is_write_window && _outstanding_compiles_and_poison.size()) {
+   if(m.write_window && _outstanding_compiles_and_poison.size()) {
       auto [count_processed, bytes_remaining] = consume_compile_thread_queue();
 
       if(count_processed)
@@ -127,7 +127,7 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
             std::vector<wrapped_fd> fds_to_pass;
             fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
             auto msg = compile_wasm_message{ *nextup, _eosvmoc_config };
-            msg.eosvmoc_config.whitelisted = high_priority;
+            msg.eosvmoc_config.whitelisted = m.whitelisted;
             FC_ASSERT(write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass), "EOS VM failed to communicate to OOP manager");
             --count_processed;
          }
@@ -138,11 +138,11 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    //check for entry in cache
    code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
    if(it != _cache_index.get<by_hash>().end()) {
-      if (is_write_window)
+      if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
       return &*it;
    }
-   if(!is_write_window) {
+   if(!m.write_window) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
@@ -150,10 +150,11 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    const code_tuple ct = code_tuple{code_id, vm_version};
 
    if(_blacklist.find(ct) != _blacklist.end()) {
-      if (!high_priority) {
+      if (!m.whitelisted) {
          failure = get_cd_failure::permanent; // Compile will not start
          return nullptr;
       }
+      // whitelisted, remove from blacklist and allow to try compile again
       _blacklist.erase(ct);
    }
    if(auto it = _outstanding_compiles_and_poison.find(ct); it != _outstanding_compiles_and_poison.end()) {
@@ -167,7 +168,7 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    }
 
    if(_outstanding_compiles_and_poison.size() >= _threads) {
-      if (high_priority)
+      if (m.high_priority)
          _queued_compiles.push_front(ct);
       else
          _queued_compiles.push_back(ct);
