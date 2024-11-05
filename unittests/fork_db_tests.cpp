@@ -138,6 +138,14 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_forkdb_state) try {
    BOOST_REQUIRE(branch.size() == 2);
    BOOST_TEST(branch[0] == bsp12a);
    BOOST_TEST(branch[1] == bsp11a);
+
+   // test fetch branch when lib is greater than head
+   branch = forkdb.fetch_branch(bsp13b->id(), bsp12a->id());
+   BOOST_TEST(branch.empty());
+   branch = forkdb.fetch_branch(bsp13b->id(), bsp12b->id());
+   BOOST_REQUIRE(branch.size() == 2);
+   BOOST_TEST(branch[0] == bsp12b);
+   BOOST_TEST(branch[1] == bsp11b);
 } FC_LOG_AND_RETHROW();
 
 
