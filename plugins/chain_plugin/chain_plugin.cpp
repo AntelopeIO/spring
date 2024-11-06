@@ -35,10 +35,11 @@ eosio::chain::deep_mind_handler _deep_mind_log;
 namespace std {
    // declare operator<< for boost program options of vector<string>
    std::ostream& operator<<(std::ostream& osm, const std::vector<std::string>& v) {
+      auto size = v.size();
       osm << "{";
-      for (size_t i = 0; i < v.size(); ++i) {
+      for (size_t i = 0; i < size; ++i) {
          osm << v[i];
-         if (i < v.size() - 1) {
+         if (i < size - 1) {
             osm << ", ";
          }
       }
@@ -372,7 +373,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
          ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->default_value(std::vector<string>{{"xsat"}}),
-          "EOS VM OC tier-up whitelist account suffixes")
+          "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
