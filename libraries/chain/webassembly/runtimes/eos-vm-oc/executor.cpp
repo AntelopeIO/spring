@@ -88,8 +88,9 @@ static intrinsic eosio_exit_intrinsic("env.eosio_exit", IR::FunctionType::get(IR
   std::integral_constant<std::size_t, find_intrinsic_index("env.eosio_exit")>::value
 );
 
-static void throw_internal_exception(const char* const s) {
-   *reinterpret_cast<std::exception_ptr*>(eos_vm_oc_get_exception_ptr()) = std::make_exception_ptr(wasm_execution_error(FC_LOG_MESSAGE(error, s)));
+template <typename E>
+static void throw_internal_exception(const E& e) {
+   *reinterpret_cast<std::exception_ptr*>(eos_vm_oc_get_exception_ptr()) = std::make_exception_ptr(e);
    siglongjmp(*eos_vm_oc_get_jmp_buf(), EOSVMOC_EXIT_EXCEPTION);
    __builtin_unreachable();
 }
@@ -102,23 +103,23 @@ static void throw_internal_exception(const char* const s) {
 	void name()
 
 DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,depth_assert) {
-   throw_internal_exception("Exceeded call depth maximum");
+   throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Exceeded call depth maximum")));
 }
 
 DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,div0_or_overflow) {
-   throw_internal_exception("Division by 0 or integer overflow trapped");
+   throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Division by 0 or integer overflow trapped")));
 }
 
 DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,indirect_call_mismatch) {
-   throw_internal_exception("Indirect call function type mismatch");
+   throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Indirect call function type mismatch")));
 }
 
 DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,indirect_call_oob) {
-   throw_internal_exception("Indirect call index out of bounds");
+   throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Indirect call index out of bounds")));
 }
 
 DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,unreachable) {
-   throw_internal_exception("Unreachable reached");
+   throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Unreachable reached")));
 }
 
 struct executor_signal_init {
