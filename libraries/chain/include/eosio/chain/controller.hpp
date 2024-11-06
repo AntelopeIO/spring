@@ -418,7 +418,7 @@ namespace eosio::chain {
 
          bool is_profiling(account_name name) const;
 
-         bool is_eos_vm_oc_whitelisted(account_name suffix) const;
+         bool is_eos_vm_oc_whitelisted(account_name n) const;
 
          chain_id_type get_chain_id()const;
 

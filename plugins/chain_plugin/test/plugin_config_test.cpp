@@ -36,5 +36,6 @@ BOOST_AUTO_TEST_CASE(chain_plugin_eos_vm_oc_whitelist) {
    BOOST_CHECK(app->initialize<eosio::chain_plugin>(args.size(), const_cast<char**>(args.data())));
    auto& plugin = app->get_plugin<eosio::chain_plugin>();
    BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"hello"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xs.hello"}));
    BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat"}));
 }

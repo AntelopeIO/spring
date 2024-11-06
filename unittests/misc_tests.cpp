@@ -124,6 +124,8 @@ BOOST_AUTO_TEST_CASE(name_suffix_additional_tests) {
    BOOST_CHECK_EQUAL( name{"eosioacco.unj"}.suffix(), name{"unj"} );
    BOOST_CHECK_EQUAL( name{"eosioaccou.nj"}.suffix(), name{"nj"} );
    BOOST_CHECK_EQUAL( name{"eosioaccoun.j"}.suffix(), name{"j"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccounja"}.suffix(), name{"eosioaccounja"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccounj"}.suffix(),  name{"eosioaccounj"} );
 
    BOOST_CHECK_EQUAL( name{"e.o.s.i.o.a.c"}.suffix(), name{"c"} );
    BOOST_CHECK_EQUAL( name{"eos.ioa.cco"}.suffix(), name{"cco"} );

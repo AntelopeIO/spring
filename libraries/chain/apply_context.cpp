@@ -1092,7 +1092,7 @@ action_name apply_context::get_sender() const {
 
 bool apply_context::is_eos_vm_oc_whitelisted() const {
    return receiver.prefix() == config::system_account_name || // "eosio"_n
-          control.is_eos_vm_oc_whitelisted(receiver.suffix());
+          control.is_eos_vm_oc_whitelisted(receiver);
 }
 
 // Context             |    OC?

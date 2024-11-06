@@ -5702,8 +5702,8 @@ bool controller::is_profiling(account_name account) const {
    return my->conf.profile_accounts.find(account) != my->conf.profile_accounts.end();
 }
 
-bool controller::is_eos_vm_oc_whitelisted(account_name suffix) const {
-   return my->conf.eos_vm_oc_whitelist_suffixes.count(suffix) > 0;
+bool controller::is_eos_vm_oc_whitelisted(account_name n) const {
+   return my->conf.eos_vm_oc_whitelist_suffixes.count(n.suffix()) > 0;
 }
 
 chain_id_type controller::get_chain_id()const {
