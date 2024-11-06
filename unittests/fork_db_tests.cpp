@@ -145,6 +145,13 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    auto bsp14c = test_block_state_accessor::make_unique_block_state(14, bsp13c); // should be best branch
    BOOST_TEST(fork_db.add(bsp14c, ignore_duplicate_t::yes));
 
+   // test fetch branch when lib is greater than head
+   branch = fork_db.fetch_branch(bsp13b->id(), bsp12a->id());
+   BOOST_TEST(branch.empty());
+   branch = fork_db.fetch_branch(bsp13b->id(), bsp12b->id());
+   BOOST_REQUIRE(branch.size() == 2);
+   BOOST_TEST(branch[0] == bsp12b);
+   BOOST_TEST(branch[1] == bsp11b);
 } FC_LOG_AND_RETHROW();
 
 
