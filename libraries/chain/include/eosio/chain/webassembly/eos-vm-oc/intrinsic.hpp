@@ -25,4 +25,7 @@ using intrinsic_map_t = std::map<std::string, intrinsic_entry>;
 
 const intrinsic_map_t& get_intrinsic_map();
 
+static constexpr unsigned minimum_const_memcpy_intrinsic_to_optimize = 1;
+static constexpr unsigned maximum_const_memcpy_intrinsic_to_optimize = 128;
+
 }}}

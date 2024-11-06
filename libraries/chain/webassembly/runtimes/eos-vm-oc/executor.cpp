@@ -122,6 +122,23 @@ DEFINE_EOSVMOC_TRAP_INTRINSIC(eosvmoc_internal,unreachable) {
    throw_internal_exception(wasm_execution_error(FC_LOG_MESSAGE(error, "Unreachable reached")));
 }
 
+static void eos_vm_oc_check_memcpy_params(int32_t dest, int32_t src, int32_t length) {
+   //make sure dest & src are zexted when converted from signed 32-bit to signed ptrdiff_t; length should always be small but do it too
+   const unsigned udest = dest;
+   const unsigned usrc = src;
+   const unsigned ulength = length;
+
+   //this must remain the same behavior as the memcpy host function
+   if((size_t)(std::abs((ptrdiff_t)udest - (ptrdiff_t)usrc)) >= ulength)
+      return;
+   throw_internal_exception(overlapping_memory_error(FC_LOG_MESSAGE(error, "memcpy can only accept non-aliasing pointers")));
+}
+
+static intrinsic check_memcpy_params_intrinsic("eosvmoc_internal.check_memcpy_params", IR::FunctionType::get(IR::ResultType::none,{IR::ValueType::i32,IR::ValueType::i32,IR::ValueType::i32}),
+  (void*)&eos_vm_oc_check_memcpy_params,
+  std::integral_constant<std::size_t, find_intrinsic_index("eosvmoc_internal.check_memcpy_params")>::value
+);
+
 struct executor_signal_init {
    executor_signal_init() {
       struct sigaction sig_action, old_sig_action;
