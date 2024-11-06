@@ -35,12 +35,14 @@ eosio::chain::deep_mind_handler _deep_mind_log;
 namespace std {
    // declare operator<< for boost program options of vector<string>
    std::ostream& operator<<(std::ostream& osm, const std::vector<std::string>& v) {
+      osm << "{";
       for (size_t i = 0; i < v.size(); ++i) {
          osm << v[i];
          if (i < v.size() - 1) {
             osm << ", ";
          }
       }
+      osm << "}";
       return osm;
    }
 }
