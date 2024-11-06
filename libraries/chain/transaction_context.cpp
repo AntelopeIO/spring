@@ -459,7 +459,10 @@ namespace eosio::chain {
          return;
 
       auto now = fc::time_point::now();
-      if( explicit_billed_cpu_time || deadline_exception_code == deadline_exception::code_value ) {
+      if (explicit_billed_cpu_time && block_deadline > now) {
+         EOS_THROW( interrupt_exception, "interrupt signaled, ran ${bt}us, start ${s}",
+                    ("bt", now - pseudo_start)("s", start) );
+      } else if( explicit_billed_cpu_time || deadline_exception_code == deadline_exception::code_value ) {
          EOS_THROW( deadline_exception, "deadline exceeded ${billing_timer}us",
                      ("billing_timer", now - pseudo_start)("now", now)("deadline", _deadline)("start", start) );
       } else if( deadline_exception_code == block_cpu_usage_exceeded::code_value ) {

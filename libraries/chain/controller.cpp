@@ -1006,6 +1006,8 @@ struct controller_impl {
    async_t                         async_aggregation = async_t::yes; // by default we process incoming votes asynchronously
    my_finalizers_t                 my_finalizers;
    std::atomic<bool>               writing_snapshot = false;
+   std::atomic<bool>               applying_block = false;
+   platform_timer&                 main_thread_timer;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
@@ -1285,6 +1287,7 @@ struct controller_impl {
     read_mode( cfg.read_mode ),
     thread_pool(),
     my_finalizers(cfg.finalizers_dir / config::safety_filename),
+    main_thread_timer(timer), // assumes constructor is called from main thread
     wasmif( conf.wasm_runtime, conf.eosvmoc_tierup, db, conf.state_dir, conf.eosvmoc_config, !conf.profile_accounts.empty() )
    {
       assert(cfg.chain_thread_pool_size > 0);
@@ -3784,6 +3787,9 @@ struct controller_impl {
                }
             }
 
+            applying_block = true;
+            auto apply = fc::make_scoped_exit([&](){ applying_block = false; });
+
             transaction_trace_ptr trace;
 
             size_t packed_idx = 0;
@@ -3810,7 +3816,11 @@ struct controller_impl {
                                            std::holds_alternative<transaction_id_type>(receipt.trx);
 
                if( transaction_failed && !transaction_can_fail) {
-                  edump((*trace));
+                  if (trace->except->code() == interrupt_exception::code_value) {
+                     ilog("Interrupt of trx id: ${id}", ("id", trace->id));
+                  } else {
+                     edump((*trace));
+                  }
                   throw *trace->except;
                }
 
@@ -3879,7 +3889,8 @@ struct controller_impl {
          } catch ( const boost::interprocess::bad_alloc& ) {
             throw;
          } catch ( const fc::exception& e ) {
-            edump((e.to_detail_string()));
+            if (e.code() != interrupt_exception::code_value)
+               edump((e.to_detail_string()));
             abort_block();
             throw;
          } catch ( const std::exception& e ) {
@@ -4369,7 +4380,15 @@ struct controller_impl {
          log_irreversible();
          transition_to_savanna_if_needed();
          return controller::apply_blocks_result::complete;
-      } FC_LOG_AND_RETHROW( )
+      } catch (fc::exception& e) {
+         if (e.code() != interrupt_exception::code_value) {
+            wlog("${d}", ("d",e.to_detail_string()));
+            FC_RETHROW_EXCEPTION(e, warn, "rethrow");
+         }
+         throw;
+      } catch (...) {
+         try { throw; } FC_LOG_AND_RETHROW()
+      }
    }
 
    controller::apply_blocks_result maybe_apply_blocks( const forked_callback_t& forked_cb, const trx_meta_cache_lookup& trx_lookup )
@@ -4441,8 +4460,12 @@ struct controller_impl {
             } catch ( const boost::interprocess::bad_alloc& ) {
                throw;
             } catch (const fc::exception& e) {
-               elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
-                    ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
+               if (e.code() == interrupt_exception::code_value) {
+                  ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+               } else {
+                  elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
+                       ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
+               }
                except = std::current_exception();
             } catch (const std::exception& e) {
                elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
@@ -4503,6 +4526,16 @@ struct controller_impl {
          protocol_features.popped_blocks_to( chain_head.block_num() );
       }
       return applied_trxs;
+   }
+
+   void interrupt_transaction() {
+      // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
+      // have limited run time already. This is to allow killing a long-running transaction in a block being
+      // validated.
+      if (applying_block) {
+         ilog("Interrupting apply block");
+         main_thread_timer.expire_now();
+      }
    }
 
    // @param if_active true if instant finality is active
@@ -5263,6 +5296,10 @@ controller::apply_blocks_result controller::apply_blocks(const forked_callback_t
 
 deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
+}
+
+void controller::interrupt_transaction() {
+   my->interrupt_transaction();
 }
 
 boost::asio::io_context& controller::get_thread_pool() {

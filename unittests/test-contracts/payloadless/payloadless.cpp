@@ -50,3 +50,17 @@ void payloadless::doitslow() {
    }
 }
 
+void payloadless::doitforever() {
+   print("Im a payloadless forever action");
+   constexpr size_t max_cpu_prime = std::numeric_limits<size_t>::max();
+
+   while (true) {
+      for (size_t p = 2; p <= max_cpu_prime; p += 1) {
+         if (is_prime(p) && is_mersenne_prime(p)) {
+            // We need to keep an eye on this to make sure it doesn't get optimized out. So far so good.
+            //eosio::print_f(" %u", p);
+         }
+      }
+   }
+}
+

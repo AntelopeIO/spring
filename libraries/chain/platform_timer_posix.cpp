@@ -5,12 +5,14 @@
 #include <fc/fwd_impl.hpp>
 #include <fc/exception/exception.hpp>
 
+#include <atomic>
 #include <mutex>
 
 #include <signal.h>
 #include <time.h>
+#include <sys/types.h>
 
-namespace eosio { namespace chain {
+namespace eosio::chain {
 
 static_assert(std::atomic_bool::is_always_lock_free, "Only lock-free atomics AS-safe.");
 
@@ -19,8 +21,7 @@ struct platform_timer::impl {
 
    static void sig_handler(int, siginfo_t* si, void*) {
       platform_timer* self = (platform_timer*)si->si_value.sival_ptr;
-      self->expired = 1;
-      self->call_expiration_callback();
+      self->expire_now();
    }
 };
 
@@ -28,9 +29,9 @@ platform_timer::platform_timer() {
    static_assert(sizeof(impl) <= fwd_size);
 
    static bool initialized;
-   static std::mutex initalized_mutex;
+   static std::mutex initialized_mutex;
 
-   if(std::lock_guard guard(initalized_mutex); !initialized) {
+   if(std::lock_guard guard(initialized_mutex); !initialized) {
       struct sigaction act;
       sigemptyset(&act.sa_mask);
       act.sa_sigaction = impl::sig_handler;
@@ -55,19 +56,26 @@ platform_timer::~platform_timer() {
 
 void platform_timer::start(fc::time_point tp) {
    if(tp == fc::time_point::maximum()) {
-      expired = 0;
+      expired = false;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
    if(x.count() <= 0)
-      expired = 1;
+      expired = true;
    else {
       time_t secs = x.count() / 1000000;
       long nsec = (x.count() - (secs*1000000)) * 1000;
       struct itimerspec enable = {{0, 0}, {secs, nsec}};
-      expired = 0;
+      expired = false;
       if(timer_settime(my->timerid, 0, &enable, NULL) != 0)
-         expired = 1;
+         expired = true;
+   }
+}
+
+void platform_timer::expire_now() {
+   bool expected = false;
+   if (expired.compare_exchange_strong(expected, true)) {
+      call_expiration_callback();
    }
 }
 
@@ -76,7 +84,7 @@ void platform_timer::stop() {
       return;
    struct itimerspec disable = {{0, 0}, {0, 0}};
    timer_settime(my->timerid, 0, &disable, NULL);
-   expired = 1;
+   expired = true;
 }
 
-}}
+}

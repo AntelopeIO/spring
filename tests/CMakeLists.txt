@@ -90,6 +90,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nodeos_contrl_c_test.py ${CMAKE_CURRE
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/read_only_trx_test.py ${CMAKE_CURRENT_BINARY_DIR}/read_only_trx_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/resource_monitor_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/resource_monitor_plugin_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/light_validation_sync_test.py ${CMAKE_CURRENT_BINARY_DIR}/light_validation_sync_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/interrupt_trx_test.py ${CMAKE_CURRENT_BINARY_DIR}/interrupt_trx_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/trace_plugin_test.py ${CMAKE_CURRENT_BINARY_DIR}/trace_plugin_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/nested_container_multi_index_test.py ${CMAKE_CURRENT_BINARY_DIR}/nested_container_multi_index_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/auto_bp_peering_test.py ${CMAKE_CURRENT_BINARY_DIR}/auto_bp_peering_test.py COPYONLY)
@@ -419,6 +420,8 @@ add_test(NAME light_validation_sync_test COMMAND tests/light_validation_sync_tes
 set_property(TEST light_validation_sync_test PROPERTY LABELS nonparallelizable_tests)
 add_test(NAME light_validation_sync_if_test COMMAND tests/light_validation_sync_test.py --activate-if -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST light_validation_sync_if_test PROPERTY LABELS nonparallelizable_tests)
+add_test(NAME interrupt_trx_test COMMAND tests/interrupt_trx_test.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_property(TEST interrupt_trx_test PROPERTY LABELS nonparallelizable_tests)
 
 add_test(NAME auto_bp_peering_test COMMAND tests/auto_bp_peering_test.py -v ${UNSHARE} WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
 set_property(TEST auto_bp_peering_test PROPERTY LABELS long_running_tests)

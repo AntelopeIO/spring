@@ -12,10 +12,11 @@ public:
    void kill_on_head(account_name prod, uint32_t where_in_seq);
 
    void set_throw_on_options(const test_control_apis::read_write::throw_on_params& throw_options);
+   void set_swap_action_options(const test_control_apis::read_write::swap_action_params& swap_options);
 private:
    void block_start(chain::block_num_type block_num);
    void accepted_block_header(const chain::block_id_type& id);
-   void accepted_block(const chain::block_id_type& id);
+   void accepted_block(const chain::block_id_type& id, const chain::signed_block_ptr& block);
    void irreversible_block(const chain::block_id_type& id);
    void applied_transaction();
    void voted_block();
@@ -24,6 +25,9 @@ private:
    void throw_exception();
    void reset_throw();
    void process_next_block_state(const chain::block_id_type& id);
+
+   void swap_action_in_block(const chain::signed_block_ptr& b);
+   void reset_swap_action() { _swap_on_options = {}; }
 
    chain::controller&  _chain;
    struct kill_options {
@@ -35,7 +39,8 @@ private:
       bool                _track_head{false};
    } _kill_options;
 
-   test_control_apis::read_write::throw_on_params _throw_options;
+   test_control_apis::read_write::throw_on_params    _throw_options;
+   test_control_apis::read_write::swap_action_params _swap_on_options;
 
    std::optional<boost::signals2::scoped_connection> _block_start_connection;
    std::optional<boost::signals2::scoped_connection> _accepted_block_header_connection;
@@ -59,7 +64,7 @@ void test_control_plugin_impl::connect() {
    _accepted_block_connection =
          _chain.accepted_block().connect( [&]( const chain::block_signal_params& t ) {
             const auto& [ block, id ] = t;
-            accepted_block( id );
+            accepted_block( id, block );
          } );
    _irreversible_block_connection.emplace(
          _chain.irreversible_block().connect( [&]( const chain::block_signal_params& t ) {
@@ -96,6 +101,71 @@ void test_control_plugin_impl::reset_throw() {
    _throw_options = test_control_apis::read_write::throw_on_params{};
 }
 
+void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_ptr& b) {
+   if (b->transactions.empty())
+      return;
+
+   bool found = std::find_if(b->transactions.cbegin(), b->transactions.cend(), [&](const auto& t) {
+      return std::visit(chain::overloaded{
+                    [](const transaction_id_type&) { return false; },
+                    [&](const chain::packed_transaction& pt) {
+                       for (const auto& a : pt.get_transaction().actions) {
+                          if (a.name == _swap_on_options.from)
+                             return true;
+                       }
+                       return false;
+                    }
+                 }, t.trx);
+   }) != b->transactions.cend();
+   if (!found)
+      return;
+
+   if (!b->is_proper_svnn_block()) {
+      elog("Block is not a Savanna block, swap_action failed.");
+      return;
+   }
+
+   auto copy_b = std::make_shared<chain::signed_block>(b->clone());
+   copy_b->previous = b->calculate_id();
+   copy_b->block_extensions.clear(); // remove QC extension since header will claim same as previous block
+   copy_b->timestamp = b->timestamp.next();
+   // swap out action
+   for (auto& t : copy_b->transactions) {
+      std::visit(chain::overloaded{
+                    [](const transaction_id_type&) {},
+                    [&](chain::packed_transaction& pt) {
+                       for (auto& a : pt.get_transaction().actions) {
+                          if (a.name == _swap_on_options.from) {
+                             auto signed_tx = pt.get_signed_transaction();
+                             auto& act = signed_tx.actions.back();
+                             act.name = _swap_on_options.to;
+                             // Re-sign the transaction
+                             signed_tx.signatures.clear();
+                             signed_tx.sign(_swap_on_options.trx_priv_key, _chain.get_chain_id());
+                             // Replace the transaction
+                             auto new_packed_tx = packed_transaction(signed_tx);
+                             const_cast<packed_transaction&>(pt) = std::move(new_packed_tx);
+                          }
+                       }
+                    }
+                 }, t.trx);
+   }
+   // Re-calculate the transaction merkle
+   std::deque<chain::digest_type> trx_digests;
+   const auto& trxs = copy_b->transactions;
+   for( const auto& tr : trxs )
+      trx_digests.emplace_back( tr.digest() );
+   copy_b->transaction_mroot = chain::calculate_merkle( std::move(trx_digests) );
+   // Re-sign the block
+   copy_b->producer_signature = _swap_on_options.blk_priv_key.sign(copy_b->calculate_id());
+
+   // will be processed on the next start_block if is_new_best_head
+   const auto&[is_new_best_head, bh] = _chain.accept_block(copy_b->calculate_id(), copy_b);
+   ilog("Swapped action ${f} to ${t}, is_new_best_head ${bh}, block ${bn}",
+        ("f", _swap_on_options.from)("t", _swap_on_options.to)("bh", is_new_best_head)("bn", bh ? bh->block_num() : 0));
+   reset_swap_action();
+}
+
 void test_control_plugin_impl::block_start(chain::block_num_type block_num) {
    if (_throw_options.signal == "block_start")
       throw_exception();
@@ -106,11 +176,13 @@ void test_control_plugin_impl::accepted_block_header(const chain::block_id_type&
       throw_exception();
 }
 
-void test_control_plugin_impl::accepted_block(const chain::block_id_type& id) {
+void test_control_plugin_impl::accepted_block(const chain::block_id_type& id, const chain::signed_block_ptr& block) {
    if (_kill_options._track_head)
       process_next_block_state(id);
    if (_throw_options.signal == "accepted_block")
       throw_exception();
+   if (!_swap_on_options.from.empty())
+      swap_action_in_block(block);
 }
 
 void test_control_plugin_impl::irreversible_block(const chain::block_id_type& id) {
@@ -185,12 +257,13 @@ void test_control_plugin_impl::kill_on_head(account_name prod, uint32_t where_in
    _kill_options._track_head = true;
 }
 
-// ----------------- throw_on --------------------------------
-
 void test_control_plugin_impl::set_throw_on_options(const test_control_apis::read_write::throw_on_params& throw_options) {
    _throw_options = throw_options;
 }
 
+void test_control_plugin_impl::set_swap_action_options(const test_control_apis::read_write::swap_action_params& swap_options) {
+   _swap_on_options = swap_options;
+}
 
 test_control_plugin::test_control_plugin() = default;
 
@@ -227,6 +300,12 @@ read_write::kill_node_on_producer_results read_write::kill_node_on_producer(cons
 empty read_write::throw_on(const read_write::throw_on_params& params) const {
    ilog("received throw on: ${p}", ("p", params));
    my->set_throw_on_options(params);
+   return {};
+}
+
+empty read_write::swap_action(const read_write::swap_action_params& params) const {
+   ilog("received swap_action: ${p}", ("p", params));
+   my->set_swap_action_options(params);
    return {};
 }
 
