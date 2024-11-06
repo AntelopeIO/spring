@@ -162,9 +162,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
          } catch(eosio::vm::wasm_memory_exception& e) {
-            FC_THROW_EXCEPTION(wasm_execution_error, "access violation");
+            FC_THROW_EXCEPTION(wasm_execution_error, "access violation: ${d}", ("d", e.detail()));
          } catch(eosio::vm::exception& e) {
-            FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
+            FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure: ${d}", ("d", e.detail()));
          }
       }
 
