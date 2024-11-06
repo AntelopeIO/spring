@@ -57,30 +57,27 @@ platform_timer::~platform_timer() {
 
 void platform_timer::start(fc::time_point tp) {
    if(tp == fc::time_point::maximum()) {
-      expired = 0;
+      expired = false;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
    if(x.count() <= 0)
-      expired = 1;
+      expired = true;
    else {
-#if 0
-      std::promise<void> p;
-      auto f = p.get_future();
-      checktime_ios->post([&p,this]() {
-         expired = 0;
-         p.set_value();
-      });
-      f.get();
-#endif
-      expired = 0;
+      expired = false;
       my->timer->expires_after(std::chrono::microseconds(x.count()));
       my->timer->async_wait([this](const boost::system::error_code& ec) {
          if(ec)
             return;
-         expired = 1;
-         call_expiration_callback();
+         expire_now();
       });
+   }
+}
+
+void platform_timer::expire_now() {
+   bool expected = false;
+   if (expired.compare_exchange_strong(expected, true)) {
+      call_expiration_callback();
    }
 }
 
@@ -89,7 +86,7 @@ void platform_timer::stop() {
       return;
 
    my->timer->cancel();
-   expired = 1;
+   expired = true;
 }
 
 }}

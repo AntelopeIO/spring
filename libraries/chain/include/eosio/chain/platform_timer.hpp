@@ -17,6 +17,7 @@ struct platform_timer {
 
    void start(fc::time_point tp);
    void stop();
+   void expire_now();
 
    /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
       on any particular thread. Only a single callback can be registered at once; trying to register more will

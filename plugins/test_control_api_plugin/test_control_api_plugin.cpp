@@ -51,6 +51,10 @@ void test_control_api_plugin::plugin_startup() {
       TEST_CONTROL_RW_CALL(throw_on, 202, http_params_types::params_required)
    }, appbase::exec_queue::read_write);
 
+   app().get_plugin<http_plugin>().add_api({
+      TEST_CONTROL_RW_CALL(swap_action, 202, http_params_types::params_required)
+   }, appbase::exec_queue::read_write);
+
 }
 
 void test_control_api_plugin::plugin_shutdown() {}

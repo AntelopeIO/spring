@@ -11,4 +11,7 @@ public:
 
    [[eosio::action]]
    void doitslow();
+
+   [[eosio::action]]
+   void doitforever();
 };

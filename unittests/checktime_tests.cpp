@@ -122,6 +122,55 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_fail_tests, T, validating_testers ) { t
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
+   savanna_tester t;
+   savanna_tester other;
+   auto block = t.produce_block();
+   other.push_block(block);
+   t.create_account( "testapi"_n );
+   t.set_code( "testapi"_n, test_contracts::test_api_wasm() );
+   block = t.produce_block();
+   other.push_block(block);
+
+   auto [trace, b] = CALL_TEST_FUNCTION_WITH_BLOCK( t, "test_checktime", "checktime_pass", {});
+   BOOST_REQUIRE_EQUAL( b->transactions.size(), 1 );
+
+   // Make a copy of the valid block and swicth the checktime_pass transaction with checktime_failure
+   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
+   auto& act = signed_tx.actions.back();
+   constexpr chain::name checktime_fail_n{WASM_TEST_ACTION("test_checktime", "checktime_failure")};
+   act.name = checktime_fail_n;
+   act.data = fc::raw::pack(10000000000000000000ULL);
+   // Re-sign the transaction
+   signed_tx.signatures.clear();
+   signed_tx.sign(t.get_private_key("testapi"_n, "active"), t.get_chain_id());
+   // Replace the transaction
+   auto new_packed_tx = packed_transaction(signed_tx);
+   copy_b->transactions.back().trx = std::move(new_packed_tx);
+
+   // Re-calculate the transaction merkle
+   deque<digest_type> trx_digests;
+   const auto& trxs = copy_b->transactions;
+   for( const auto& a : trxs )
+      trx_digests.emplace_back( a.digest() );
+   copy_b->transaction_mroot = calculate_merkle( std::move(trx_digests) );
+   // Re-sign the block
+   copy_b->producer_signature = t.get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
+
+   std::thread th( [&c=*other.control]() {
+      std::this_thread::sleep_for( std::chrono::milliseconds(50) );
+      c.interrupt_transaction();
+   } );
+
+   // apply block, caught in an "infinite" loop
+   BOOST_CHECK_EXCEPTION( other.push_block(copy_b), fc::exception,
+                          [](const fc::exception& e) { return e.code() == interrupt_exception::code_value; } );
+
+   th.join();
+
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_CASE_TEMPLATE( checktime_pause_max_trx_cpu_extended_test, T, testers ) { try {
    fc::temp_directory tempdir;
    auto conf_genesis = tester::default_config( tempdir );
