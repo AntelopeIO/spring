@@ -3562,12 +3562,15 @@ struct controller_impl {
          return;
       }
 
-      ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-           "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu} us, elapsed: ${elapsed} us, applying time: ${time} us, latency: ${latency} ms]",
-           ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
-           ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
-           ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
-           ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
+      if (!replaying) { // logging for replaying is done in replay_block_log()
+         ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
+              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu} us, elapsed: ${elapsed} us, applying time: ${time} us, latency: ${latency} ms]",
+              ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
+              ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
+              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
+              ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
+      }
+
       if (_update_incoming_block_metrics) {
          _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
                                          .cpu_usage_us          = br.total_cpu_usage_us,
