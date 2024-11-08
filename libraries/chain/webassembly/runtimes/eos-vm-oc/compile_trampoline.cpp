@@ -166,28 +166,34 @@ void run_compile_trampoline(int fd) {
          prctl(PR_SET_NAME, "oc-compile");
          prctl(PR_SET_PDEATHSIG, SIGKILL);
 
-         const auto& conf = std::get<compile_wasm_message>(message).eosvmoc_config;
+         const auto& limits = std::get<compile_wasm_message>(message).limits;
 
-         // enforce cpu limit only when it is set
-         // (libtester may disable it)
-         if(conf.cpu_limit) {
-            struct rlimit cpu_limit = {*conf.cpu_limit, *conf.cpu_limit};
-            setrlimit(RLIMIT_CPU, &cpu_limit);
-         }
+         uint64_t stack_size = std::numeric_limits<uint64_t>::max();
+         uint64_t generated_code_size_limit = std::numeric_limits<uint64_t>::max();
+         if(limits) {
+            // enforce cpu limit only when it is set (libtester may disable it)
+            if(limits->cpu_limit) {
+               struct rlimit cpu_limit = {*limits->cpu_limit, *limits->cpu_limit};
+               setrlimit(RLIMIT_CPU, &cpu_limit);
+            }
 
-         // enforce vm limit only when it is set
-         // (libtester may disable it)
-         if(conf.vm_limit) {
-            struct rlimit vm_limit = {*conf.vm_limit, *conf.vm_limit};
-            setrlimit(RLIMIT_AS, &vm_limit);
+            // enforce vm limit only when it is set (libtester may disable it)
+            if(limits->vm_limit) {
+               struct rlimit vm_limit = {*limits->vm_limit, *limits->vm_limit};
+               setrlimit(RLIMIT_AS, &vm_limit);
+            }
+
+            if(limits->stack_size_limit)
+               stack_size = *limits->stack_size_limit;
+
+            if(limits->generated_code_size_limit)
+               generated_code_size_limit = *limits->generated_code_size_limit;
          }
 
          struct rlimit core_limits = {0u, 0u};
          setrlimit(RLIMIT_CORE, &core_limits);
 
-         uint64_t stack_size_limit = conf.stack_size_limit ? *conf.stack_size_limit : std::numeric_limits<uint64_t>::max();
-         size_t generated_code_size_limit = conf.generated_code_size_limit ? * conf.generated_code_size_limit : std::numeric_limits<size_t>::max();
-         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size_limit, generated_code_size_limit);
+         run_compile(std::move(fds[0]), std::move(fds[1]), stack_size, generated_code_size_limit);
          _exit(0);
       }
       else if(pid == -1)

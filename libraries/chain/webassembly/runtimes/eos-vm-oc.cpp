@@ -28,7 +28,10 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
       bool is_main_thread() { return _main_thread_id == std::this_thread::get_id(); };
 
       void apply(apply_context& context) override {
-         const code_descriptor* const cd = _eosvmoc_runtime.cc.get_descriptor_for_code_sync(_code_hash, _vm_version, context.control.is_write_window());
+         eosio::chain::eosvmoc::code_cache_sync::mode m;
+         m.whitelisted = context.is_eos_vm_oc_whitelisted();
+         m.write_window = context.control.is_write_window();
+         const code_descriptor* const cd = _eosvmoc_runtime.cc.get_descriptor_for_code_sync(m, _code_hash, _vm_version);
          EOS_ASSERT(cd, wasm_execution_error, "EOS VM OC instantiation failed");
 
          if ( is_main_thread() )
