@@ -3531,8 +3531,9 @@ struct controller_impl {
 
    void log_applied(controller::block_status s) const {
       fc::time_point now = fc::time_point::now();
-      // if syncing and not current block, then only report every 1000 blocks
-      if (now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0)
+      // * if syncing and not current block, then only report every 1000 blocks;
+      // * if replaying, do not report.
+      if ((now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0) || replaying)
          return;
 
       const auto& br = pending->_block_report;
@@ -3546,7 +3547,7 @@ struct controller_impl {
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
               ("tt", now - br.start_time));
 
-         if (_update_produced_block_metrics && !replaying) { // no need to update prometheus while replaying
+         if (_update_produced_block_metrics) {
             produced_block_metrics metrics;
             metrics.subjective_bill_account_size_total = subjective_bill.get_account_cache_size();
             metrics.scheduled_trxs_total = db.get_index<generated_transaction_multi_index, by_delay>().size();
@@ -3562,14 +3563,12 @@ struct controller_impl {
          return;
       }
 
-      if (!replaying) { // logging for replaying is done in replay_block_log()
-         ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
-              "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu} us, elapsed: ${elapsed} us, applying time: ${time} us, latency: ${latency} ms]",
-              ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
-              ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
-              ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
-              ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
-      }
+      ilog("Received block ${id}... #${n} @ ${t} signed by ${p} " // "Received" instead of "Applied" so it matches existing log output
+           "[trxs: ${count}, lib: ${lib}, net: ${net}, cpu: ${cpu} us, elapsed: ${elapsed} us, applying time: ${time} us, latency: ${latency} ms]",
+           ("p", chain_head.producer())("id", chain_head.id().str().substr(8, 16))("n", chain_head.block_num())("t", chain_head.timestamp())
+           ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
+           ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
+           ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
 
       if (_update_incoming_block_metrics) {
          _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
