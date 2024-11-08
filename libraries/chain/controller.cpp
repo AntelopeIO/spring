@@ -3531,8 +3531,9 @@ struct controller_impl {
 
    void log_applied(controller::block_status s) const {
       fc::time_point now = fc::time_point::now();
-      // if syncing and not current block, then only report every 1000 blocks
-      if (now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0)
+      // * if syncing and not current block, then only report every 1000 blocks;
+      // * if replaying, do not report.
+      if ((now - chain_head.timestamp() > fc::minutes(5) && chain_head.block_num() % 1000 != 0) || replaying)
          return;
 
       const auto& br = pending->_block_report;
@@ -3568,6 +3569,7 @@ struct controller_impl {
            ("count", chain_head.block()->transactions.size())("lib", chain_head.irreversible_blocknum())
            ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)
            ("elapsed", br.total_elapsed_time)("time", now - br.start_time)("latency", (now - chain_head.timestamp()).count() / 1000));
+
       if (_update_incoming_block_metrics) {
          _update_incoming_block_metrics({.trxs_incoming_total   = chain_head.block()->transactions.size(),
                                          .cpu_usage_us          = br.total_cpu_usage_us,
