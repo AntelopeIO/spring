@@ -110,6 +110,44 @@ namespace eosio::chain {
 
          return name{ result };
       }
+
+      /**
+       *  Returns the suffix.
+       *  for example:
+       *    "eosio.any" -> "any"
+       *    "eosio" -> "eosio"
+       */
+      constexpr name suffix() const {
+         uint32_t remaining_bits_after_last_actual_dot = 0;
+         uint32_t tmp                                  = 0;
+         for (int32_t remaining_bits = 59; remaining_bits >= 4; remaining_bits -= 5) { // Note: remaining_bits must remain signed integer
+            // Get characters one-by-one in name in order from left to right (not including the 13th character)
+            auto c = (value >> remaining_bits) & 0x1Full;
+            if (!c) { // if this character is a dot
+               tmp = static_cast<uint32_t>(remaining_bits);
+            } else { // if this character is not a dot
+               remaining_bits_after_last_actual_dot = tmp;
+            }
+         }
+
+         uint64_t thirteenth_character = value & 0x0Full;
+         if (thirteenth_character) { // if 13th character is not a dot
+            remaining_bits_after_last_actual_dot = tmp;
+         }
+
+         if (remaining_bits_after_last_actual_dot == 0) // there is no actual dot in the %name other than potentially leading dots
+            return name{ value };
+
+         // At this point remaining_bits_after_last_actual_dot has to be within the range of 4 to 59 (and restricted to
+         // increments of 5).
+
+         // Mask for remaining bits corresponding to characters after last actual dot, except for 4 least significant bits
+         // (corresponds to 13th character).
+         uint64_t mask  = (1ull << remaining_bits_after_last_actual_dot) - 16;
+         uint32_t shift = 64 - remaining_bits_after_last_actual_dot;
+
+         return name{ ((value & mask) << shift) + (thirteenth_character << (shift - 1)) };
+      }
    };
 
    // Each char of the string is encoded into 5-bit chunk and left-shifted

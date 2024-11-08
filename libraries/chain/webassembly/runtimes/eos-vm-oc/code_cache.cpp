@@ -106,11 +106,11 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
 }
 
 
-const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high_priority, const digest_type& code_id, const uint8_t& vm_version, bool is_write_window, get_cd_failure& failure) {
+const code_descriptor* const code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
    //if there are any outstanding compiles, process the result queue now
    //When app is in write window, all tasks are running sequentially and read-only threads
    //are not running. Safe to update cache entries.
-   if(is_write_window && _outstanding_compiles_and_poison.size()) {
+   if(m.write_window && _outstanding_compiles_and_poison.size()) {
       auto [count_processed, bytes_remaining] = consume_compile_thread_queue();
 
       if(count_processed)
@@ -121,12 +121,12 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
 
          //it's not clear this check is required: if apply() was called for code then it existed in the code_index; and then
          // if we got notification of it no longer existing we would have removed it from queued_compiles
-         const code_object* const codeobject = _db.find<code_object,by_code_hash>(boost::make_tuple(nextup->code_id, 0, nextup->vm_version));
+         const code_object* const codeobject = _db.find<code_object,by_code_hash>(boost::make_tuple(nextup->code.code_id, 0, nextup->code.vm_version));
          if(codeobject) {
-            _outstanding_compiles_and_poison.emplace(*nextup, false);
+            _outstanding_compiles_and_poison.emplace(nextup->code, false);
             std::vector<wrapped_fd> fds_to_pass;
             fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
-            FC_ASSERT(write_message_with_fds(_compile_monitor_write_socket, compile_wasm_message{ *nextup, _eosvmoc_config }, fds_to_pass), "EOS VM failed to communicate to OOP manager");
+            FC_ASSERT(write_message_with_fds(_compile_monitor_write_socket, *nextup, fds_to_pass), "EOS VM failed to communicate to OOP manager");
             --count_processed;
          }
          _queued_compiles.erase(nextup);
@@ -136,11 +136,11 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    //check for entry in cache
    code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
    if(it != _cache_index.get<by_hash>().end()) {
-      if (is_write_window)
+      if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
       return &*it;
    }
-   if(!is_write_window) {
+   if(!m.write_window) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
@@ -148,24 +148,29 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    const code_tuple ct = code_tuple{code_id, vm_version};
 
    if(_blacklist.find(ct) != _blacklist.end()) {
-      failure = get_cd_failure::permanent; // Compile will not start
-      return nullptr;
+      if (!m.whitelisted) {
+         failure = get_cd_failure::permanent; // Compile will not start
+         return nullptr;
+      }
+      // whitelisted, remove from blacklist and allow to try compile again
+      _blacklist.erase(ct);
    }
    if(auto it = _outstanding_compiles_and_poison.find(ct); it != _outstanding_compiles_and_poison.end()) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       it->second = false;
       return nullptr;
    }
-   if(auto it = _queued_compiles.get<by_hash>().find(boost::make_tuple(std::ref(code_id), vm_version)); it != _queued_compiles.get<by_hash>().end()) {
+   if(auto it = _queued_compiles.get<by_hash>().find(ct); it != _queued_compiles.get<by_hash>().end()) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
 
+   auto msg = compile_wasm_message{ ct, !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{} };
    if(_outstanding_compiles_and_poison.size() >= _threads) {
-      if (high_priority)
-         _queued_compiles.push_front(ct);
+      if (m.high_priority)
+         _queued_compiles.push_front(msg);
       else
-         _queued_compiles.push_back(ct);
+         _queued_compiles.push_back(msg);
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
@@ -179,7 +184,7 @@ const code_descriptor* const code_cache_async::get_descriptor_for_code(bool high
    _outstanding_compiles_and_poison.emplace(ct, false);
    std::vector<wrapped_fd> fds_to_pass;
    fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
-   write_message_with_fds(_compile_monitor_write_socket, compile_wasm_message{ ct, _eosvmoc_config }, fds_to_pass);
+   write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
    failure = get_cd_failure::temporary; // Compile might not be done yet
    return nullptr;
 }
@@ -193,15 +198,15 @@ code_cache_sync::~code_cache_sync() {
       elog("unexpected response from EOS VM OC compile monitor during shutdown");
 }
 
-const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(const digest_type& code_id, const uint8_t& vm_version, bool is_write_window) {
+const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode m, const digest_type& code_id, const uint8_t& vm_version) {
    //check for entry in cache
    code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
    if(it != _cache_index.get<by_hash>().end()) {
-      if (is_write_window)
+      if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
       return &*it;
    }
-   if(!is_write_window)
+   if(!m.write_window)
       return nullptr;
 
    const code_object* const codeobject = _db.find<code_object,by_code_hash>(boost::make_tuple(code_id, 0, vm_version));
@@ -211,7 +216,8 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(const
    std::vector<wrapped_fd> fds_to_pass;
    fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
 
-   write_message_with_fds(_compile_monitor_write_socket, compile_wasm_message{ {code_id, vm_version}, _eosvmoc_config }, fds_to_pass);
+   auto msg = compile_wasm_message{ {code_id, vm_version}, !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{} };
+   write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
    auto [success, message, fds] = read_message_with_fds(_compile_monitor_read_socket);
    EOS_ASSERT(success, wasm_execution_error, "failed to read response from monitor process");
    EOS_ASSERT(std::holds_alternative<wasm_compilation_result_message>(message), wasm_execution_error, "unexpected response from monitor process");
@@ -396,7 +402,8 @@ void code_cache_base::free_code(const digest_type& code_id, const uint8_t& vm_ve
    }
 
    //if it's in the queued list, erase it
-   if(auto i = _queued_compiles.get<by_hash>().find(boost::make_tuple(std::ref(code_id), vm_version)); i != _queued_compiles.get<by_hash>().end())
+   code_tuple ct{code_id, vm_version};
+   if(auto i = _queued_compiles.get<by_hash>().find(ct); i != _queued_compiles.get<by_hash>().end())
       _queued_compiles.get<by_hash>().erase(i);
 
    //however, if it's currently being compiled there is no way to cancel the compile,
