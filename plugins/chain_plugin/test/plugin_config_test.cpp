@@ -19,4 +19,23 @@ BOOST_AUTO_TEST_CASE(chain_plugin_default_tests) {
    auto* config = std::get_if<eosio::chain::partitioned_blocklog_config>(&plugin.chain_config().blog);
    BOOST_REQUIRE(config);
    BOOST_CHECK_EQUAL(config->max_retained_files, UINT32_MAX);
+
+   // test default eos-vm-oc-whitelist
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat"}));
+}
+
+BOOST_AUTO_TEST_CASE(chain_plugin_eos_vm_oc_whitelist) {
+   fc::temp_directory  tmp;
+   appbase::scoped_app app;
+
+   auto tmp_path = tmp.path().string();
+   std::array          args = {
+      "test_chain_plugin", "--eos-vm-oc-whitelist", "hello", "--data-dir", tmp_path.c_str(),
+  };
+
+   BOOST_CHECK(app->initialize<eosio::chain_plugin>(args.size(), const_cast<char**>(args.data())));
+   auto& plugin = app->get_plugin<eosio::chain_plugin>();
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"hello"}));
+   BOOST_CHECK(plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xs.hello"}));
+   BOOST_CHECK(!plugin.chain().is_eos_vm_oc_whitelisted(eosio::chain::name{"xsat"}));
 }

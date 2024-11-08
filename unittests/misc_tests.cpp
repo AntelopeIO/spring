@@ -74,41 +74,9 @@ FC_REFLECT( base_reflect, (bv) )
 FC_REFLECT_DERIVED( derived_reflect, (base_reflect), (dv) )
 FC_REFLECT_DERIVED( final_reflect, (derived_reflect), (fv) )
 
-namespace eosio
-{
+namespace eosio {
 using namespace chain;
 using namespace std;
-
-static constexpr uint64_t name_suffix( name nv ) {
-   uint64_t n = nv.to_uint64_t();
-   uint32_t remaining_bits_after_last_actual_dot = 0;
-   uint32_t tmp = 0;
-   for( int32_t remaining_bits = 59; remaining_bits >= 4; remaining_bits -= 5 ) { // Note: remaining_bits must remain signed integer
-      // Get characters one-by-one in name in order from left to right (not including the 13th character)
-      auto c = (n >> remaining_bits) & 0x1Full;
-      if( !c ) { // if this character is a dot
-         tmp = static_cast<uint32_t>(remaining_bits);
-      } else { // if this character is not a dot
-         remaining_bits_after_last_actual_dot = tmp;
-      }
-   }
-
-   uint64_t thirteenth_character = n & 0x0Full;
-   if( thirteenth_character ) { // if 13th character is not a dot
-      remaining_bits_after_last_actual_dot = tmp;
-   }
-
-   if( remaining_bits_after_last_actual_dot == 0 ) // there is no actual dot in the name other than potentially leading dots
-      return n;
-
-   // At this point remaining_bits_after_last_actual_dot has to be within the range of 4 to 59 (and restricted to increments of 5).
-
-   // Mask for remaining bits corresponding to characters after last actual dot, except for 4 least significant bits (corresponds to 13th character).
-   uint64_t mask = (1ull << remaining_bits_after_last_actual_dot) - 16;
-   uint32_t shift = 64 - remaining_bits_after_last_actual_dot;
-
-   return ( ((n & mask) << shift) + (thirteenth_character << (shift-1)) );
-}
 
 BOOST_AUTO_TEST_SUITE(misc_tests)
 
@@ -122,21 +90,45 @@ BOOST_AUTO_TEST_CASE(reverse_endian_tests)
 
 BOOST_AUTO_TEST_CASE(name_suffix_tests)
 {
-   BOOST_CHECK_EQUAL( name{name_suffix(name(0))}, name{0} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abcdehijklmn"_n)}, name{"abcdehijklmn"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abcdehijklmn1"_n)}, name{"abcdehijklmn1"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abc.def"_n)}, name{"def"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix(".abc.def"_n)}, name{"def"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("..abc.def"_n)}, name{"def"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abc..def"_n)}, name{"def"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abc.def.ghi"_n)}, name{"ghi"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix(".abcdefghij"_n)}, name{"abcdefghij"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix(".abcdefghij.1"_n)}, name{"1"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("a.bcdefghij"_n)}, name{"bcdefghij"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("a.bcdefghij.1"_n)}, name{"1"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("......a.b.c"_n)}, name{"c"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abcdefhi.123"_n)}, name{"123"_n} );
-   BOOST_CHECK_EQUAL( name{name_suffix("abcdefhij.123"_n)}, name{"123"_n} );
+   BOOST_CHECK_EQUAL( name(0).suffix(), name{0} );
+   BOOST_CHECK_EQUAL( name{"eosio"_n}.suffix(), name{"eosio"_n} );
+   BOOST_CHECK_EQUAL( name{"eosio.any"_n}.suffix(), name{"any"_n} );
+   BOOST_CHECK_EQUAL( name{"abcdehijklmn"_n}.suffix(), name{"abcdehijklmn"_n} );
+   BOOST_CHECK_EQUAL( name{"abcdehijklmn1"_n}.suffix(), name{"abcdehijklmn1"_n} );
+   BOOST_CHECK_EQUAL( name{"abc.def"_n}.suffix(), name{"def"_n} );
+   BOOST_CHECK_EQUAL( name{".abc.def"_n}.suffix(), name{"def"_n} );
+   BOOST_CHECK_EQUAL( name{"..abc.def"_n}.suffix(), name{"def"_n} );
+   BOOST_CHECK_EQUAL( name{"abc..def"_n}.suffix(), name{"def"_n} );
+   BOOST_CHECK_EQUAL( name{"abc.def.ghi"_n}.suffix(), name{"ghi"_n} );
+   BOOST_CHECK_EQUAL( name{".abcdefghij"_n}.suffix(), name{"abcdefghij"_n} );
+   BOOST_CHECK_EQUAL( name{".abcdefghij.1"_n}.suffix(), name{"1"_n} );
+   BOOST_CHECK_EQUAL( name{"a.bcdefghij"_n}.suffix(), name{"bcdefghij"_n} );
+   BOOST_CHECK_EQUAL( name{"a.bcdefghij.1"_n}.suffix(), name{"1"_n} );
+   BOOST_CHECK_EQUAL( name{"......a.b.c"_n}.suffix(), name{"c"_n} );
+   BOOST_CHECK_EQUAL( name{"abcdefhi.123"_n}.suffix(), name{"123"_n} );
+   BOOST_CHECK_EQUAL( name{"abcdefhij.123"_n}.suffix(), name{"123"_n} );
+}
+
+BOOST_AUTO_TEST_CASE(name_suffix_additional_tests) {
+   // ----------------------------
+   // constexpr name suffix()const
+   BOOST_CHECK_EQUAL( name{".eosioaccounj"}.suffix(), name{"eosioaccounj"} );
+   BOOST_CHECK_EQUAL( name{"e.osioaccounj"}.suffix(), name{"osioaccounj"} );
+   BOOST_CHECK_EQUAL( name{"eo.sioaccounj"}.suffix(), name{"sioaccounj"} );
+   BOOST_CHECK_EQUAL( name{"eos.ioaccounj"}.suffix(), name{"ioaccounj"} );
+   BOOST_CHECK_EQUAL( name{"eosi.oaccounj"}.suffix(), name{"oaccounj"} );
+   BOOST_CHECK_EQUAL( name{"eosio.accounj"}.suffix(), name{"accounj"} );
+   BOOST_CHECK_EQUAL( name{"eosioa.ccounj"}.suffix(), name{"ccounj"} );
+   BOOST_CHECK_EQUAL( name{"eosioac.counj"}.suffix(), name{"counj"} );
+   BOOST_CHECK_EQUAL( name{"eosioacc.ounj"}.suffix(), name{"ounj"} );
+   BOOST_CHECK_EQUAL( name{"eosioacco.unj"}.suffix(), name{"unj"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccou.nj"}.suffix(), name{"nj"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccoun.j"}.suffix(), name{"j"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccounja"}.suffix(), name{"eosioaccounja"} );
+   BOOST_CHECK_EQUAL( name{"eosioaccounj"}.suffix(),  name{"eosioaccounj"} );
+
+   BOOST_CHECK_EQUAL( name{"e.o.s.i.o.a.c"}.suffix(), name{"c"} );
+   BOOST_CHECK_EQUAL( name{"eos.ioa.cco"}.suffix(), name{"cco"} );
 }
 
 BOOST_AUTO_TEST_CASE(name_prefix_tests)
