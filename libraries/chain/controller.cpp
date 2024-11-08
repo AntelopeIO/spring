@@ -3546,7 +3546,7 @@ struct controller_impl {
               ("net", br.total_net_usage)("cpu", br.total_cpu_usage_us)("et", br.total_elapsed_time)
               ("tt", now - br.start_time));
 
-         if (_update_produced_block_metrics) {
+         if (_update_produced_block_metrics && !replaying) { // no need to update prometheus while replaying
             produced_block_metrics metrics;
             metrics.subjective_bill_account_size_total = subjective_bill.get_account_cache_size();
             metrics.scheduled_trxs_total = db.get_index<generated_transaction_multi_index, by_delay>().size();
