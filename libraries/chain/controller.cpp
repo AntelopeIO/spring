@@ -4462,6 +4462,7 @@ struct controller_impl {
             } catch (const fc::exception& e) {
                if (e.code() == interrupt_exception::code_value) {
                   ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                  throw; // do not want to remove block from fork_db
                } else {
                   elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
                        ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
@@ -4478,18 +4479,20 @@ struct controller_impl {
                // Remove the block that threw and all forks built off it.
                fork_db.remove( (*ritr)->id() );
 
-               // pop all blocks from the bad fork, discarding their transactions
-               // ritr base is a forward itr to the last block successfully applied
-               auto applied_itr = ritr.base();
-               for( auto itr = applied_itr; itr != new_head_branch.end(); ++itr ) {
-                  pop_block();
-               }
-               EOS_ASSERT( !switch_fork || chain_head.id() == old_head_branch.back()->header.previous, fork_database_exception,
-                           "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
+               if (switch_fork) {
+                  // pop all blocks from the bad fork, discarding their transactions
+                  // ritr base is a forward itr to the last block successfully applied
+                  auto applied_itr = ritr.base();
+                  for( auto itr = applied_itr; itr != new_head_branch.end(); ++itr ) {
+                     pop_block();
+                  }
+                  EOS_ASSERT( chain_head.id() == old_head_branch.back()->header.previous, fork_database_exception,
+                              "loss of sync between fork_db and chainbase during fork switch reversal" ); // _should_ never fail
 
-               // re-apply good blocks
-               for( auto ritr = old_head_branch.rbegin(); ritr != old_head_branch.rend(); ++ritr ) {
-                  apply_block( *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
+                  // re-apply good blocks
+                  for( auto ritr = old_head_branch.rbegin(); ritr != old_head_branch.rend(); ++ritr ) {
+                     apply_block( *ritr, controller::block_status::validated /* we previously validated these blocks*/, trx_lookup );
+                  }
                }
                std::rethrow_exception(except);
             } // end if exception
