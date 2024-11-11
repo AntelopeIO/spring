@@ -7,7 +7,9 @@
 
 namespace eosio { namespace chain {
 
-   class apply_context;
+struct platform_timer;
+
+class apply_context;
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
@@ -48,7 +50,7 @@ namespace eosio { namespace chain {
 
          inline static bool test_disable_tierup = false; // set by unittests to test tierup failing
 
-         wasm_interface(vm_type vm, vm_oc_enable eosvmoc_tierup, const chainbase::database& d, const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile);
+         wasm_interface(vm_type vm, vm_oc_enable eosvmoc_tierup, const chainbase::database& d, platform_timer& main_thread_timer, const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile);
          ~wasm_interface();
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
@@ -57,6 +59,9 @@ namespace eosio { namespace chain {
 
          // returns true if EOS VM OC is enabled
          bool is_eos_vm_oc_enabled() const;
+
+         // return internal executing action id, used for testing
+         uint64_t get_executing_action_id() const;
 #endif
 
          //call before dtor to skip what can be minutes of dtor overhead with some runtimes; can cause leaks
@@ -82,7 +87,6 @@ namespace eosio { namespace chain {
          std::function<bool(const digest_type& code_hash, uint8_t vm_type, uint8_t vm_version, apply_context& context)> substitute_apply;
 
       private:
-         vm_oc_enable eosvmoc_tierup;
          unique_ptr<struct wasm_interface_impl> my;
    };
 

@@ -22,6 +22,8 @@ struct code_tuple {
 
 struct compile_wasm_message {
    code_tuple code;
+   uint64_t executing_action_id{0}; // action id that initiated the compilation
+   fc::time_point queued_time;      // when compilation was queued to begin
    std::optional<eosvmoc::subjective_compile_limits> limits;
    //Two sent fd: 1) communication socket for result, 2) the wasm to compile
 };
@@ -35,6 +37,8 @@ struct code_compilation_result_message {
    unsigned apply_offset;
    int starting_memory_pages;
    unsigned initdata_prologue_size;
+   uint64_t executing_action_id{0}; // action id that initiated the compilation
+   fc::time_point queued_time;      // when compilation was queued to begin
    //Two sent fds: 1) wasm code, 2) initial memory snapshot
 };
 
@@ -50,6 +54,8 @@ struct wasm_compilation_result_message {
    code_tuple code;
    wasm_compilation_result result;
    size_t cache_free_bytes;
+   uint64_t executing_action_id{0}; // action id that initiated the compilation, copied from compile_wasm_message
+   fc::time_point queued_time;      // when compilation was queued to begin, copied from compile_wasm_message
 };
 
 using eosvmoc_message = std::variant<initialize_message,
@@ -63,9 +69,9 @@ using eosvmoc_message = std::variant<initialize_message,
 FC_REFLECT(eosio::chain::eosvmoc::initialize_message, )
 FC_REFLECT(eosio::chain::eosvmoc::initalize_response_message, (error_message))
 FC_REFLECT(eosio::chain::eosvmoc::code_tuple, (code_id)(vm_version))
-FC_REFLECT(eosio::chain::eosvmoc::compile_wasm_message, (code)(limits))
+FC_REFLECT(eosio::chain::eosvmoc::compile_wasm_message, (code)(executing_action_id)(queued_time)(limits))
 FC_REFLECT(eosio::chain::eosvmoc::evict_wasms_message, (codes))
-FC_REFLECT(eosio::chain::eosvmoc::code_compilation_result_message, (start)(apply_offset)(starting_memory_pages)(initdata_prologue_size))
+FC_REFLECT(eosio::chain::eosvmoc::code_compilation_result_message, (start)(apply_offset)(starting_memory_pages)(initdata_prologue_size)(executing_action_id)(queued_time))
 FC_REFLECT(eosio::chain::eosvmoc::compilation_result_unknownfailure, )
 FC_REFLECT(eosio::chain::eosvmoc::compilation_result_toofull, )
-FC_REFLECT(eosio::chain::eosvmoc::wasm_compilation_result_message, (code)(result)(cache_free_bytes))
+FC_REFLECT(eosio::chain::eosvmoc::wasm_compilation_result_message, (code)(result)(cache_free_bytes)(executing_action_id)(queued_time))
