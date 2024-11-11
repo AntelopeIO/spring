@@ -4436,8 +4436,9 @@ struct controller_impl {
             }
          }
 
-         auto start = fc::time_point::now();
+         const auto start_apply_blocks_loop = fc::time_point::now();
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
+            const auto start_apply_block = fc::time_point::now();
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
@@ -4450,7 +4451,7 @@ struct controller_impl {
                   }
                   // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
                   // to call apply_blocks again if this returns incomplete.
-                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500)) {
+                  if (!replaying && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
                      result = controller::apply_blocks_result::incomplete;
                      break;
                   }
@@ -4461,8 +4462,11 @@ struct controller_impl {
                throw;
             } catch (const fc::exception& e) {
                if (e.code() == interrupt_exception::code_value) {
-                  ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
-                  throw; // do not want to remove block from fork_db
+                  if (fc::time_point::now() - start_apply_block < fc::milliseconds(2 * config::block_interval_ms)) {
+                     ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                     throw; // do not want to remove block from fork_db if not interrupting a long, maybe infinite, block
+                  }
+                  ilog("interrupt while applying block, removing block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
                } else {
                   elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
                        ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
