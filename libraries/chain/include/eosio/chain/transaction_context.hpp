@@ -146,7 +146,7 @@ namespace eosio::chain {
          }
 
          void pause_billing_timer();
-         void resume_billing_timer();
+         void resume_billing_timer(fc::time_point resume_from = fc::time_point{});
 
          uint32_t update_billed_cpu_time( fc::time_point now );
 

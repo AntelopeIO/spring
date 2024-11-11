@@ -225,12 +225,11 @@ namespace eosio::chain {
          add_net_usage( initial_net_usage );  // Fail early if current net usage is already greater than the calculated limit
 
       if(control.skip_trx_checks()) {
-         transaction_timer.start( fc::time_point::maximum() );
-      } else {
-         transaction_timer.start( _deadline );
-         checktime(); // Fail early if deadline has already been exceeded
+         _deadline = block_deadline;
       }
 
+      transaction_timer.start( _deadline );
+      checktime(); // Fail early if deadline has already been exceeded
       is_initialized = true;
    }
 
@@ -494,16 +493,16 @@ namespace eosio::chain {
    }
 
    void transaction_context::pause_billing_timer() {
-      if( explicit_billed_cpu_time || pseudo_start == fc::time_point() ) return; // either irrelevant or already paused
-
       paused_time = fc::time_point::now();
       billed_time = paused_time - pseudo_start;
       pseudo_start = fc::time_point();
       transaction_timer.stop();
    }
 
-   void transaction_context::resume_billing_timer() {
-      if( explicit_billed_cpu_time || pseudo_start != fc::time_point() ) return; // either irrelevant or already running
+   void transaction_context::resume_billing_timer(fc::time_point resume_from) {
+      if (resume_from != fc::time_point()) {
+         paused_time = resume_from;
+      }
 
       auto now = fc::time_point::now();
       auto paused = now - paused_time;
