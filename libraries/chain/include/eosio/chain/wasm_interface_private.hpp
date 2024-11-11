@@ -160,7 +160,7 @@ struct eosvmoc_tier {
                }
                if (cd) {
                   if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
-                     tlog("${a} speculatively executing ${i} ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
+                     tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
                   eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
                   break;
                }
