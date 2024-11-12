@@ -112,6 +112,8 @@ struct eosvmoc_tier {
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       // called from async thread
       void async_compile_complete(boost::asio::io_context& ctx, uint64_t exec_action_id, fc::time_point queued_time) {
+         wlog("EOS VM OC tier up for ${id} compile complete ${t}ms",
+              ("id", exec_action_id)("t", (fc::time_point::now() - queued_time).count()/1000));
          if (exec_action_id == executing_action_id) { // is action still executing?
             auto elapsed = fc::time_point::now() - queued_time;
             ilog("EOS VM OC tier up for ${id} compile complete ${t}ms",
@@ -158,6 +160,7 @@ struct eosvmoc_tier {
                   context.trx_context.resume_billing_timer();
                });
                context.trx_context.pause_billing_timer();
+               ilog("get_descriptor_for_code ${id} ${h}", ("id", exec_action_id)("h", code_hash));
                cd = eosvmoc->cc.get_descriptor_for_code(m, exec_action_id, code_hash, vm_version, failure);
             } catch (...) {
                // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
@@ -176,6 +179,7 @@ struct eosvmoc_tier {
          }
 #endif
          try {
+            ilog("wasm run ${id}", ("id", executing_action_id.load()));
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
             if (attempt_tierup && eos_vm_oc_compile_interrupt) {

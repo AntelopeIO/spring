@@ -16,7 +16,7 @@ void translate_fc_exception(const fc::exception &e) {
    throw std::runtime_error("Caught Unexpected Exception");
 }
 
-static bool is_verbose = false;
+static bool is_verbose = true;
 void setup_test_logging() {
    if(is_verbose) {
       fc::logger::get(DEFAULT_LOGGER).set_log_level(fc::log_level::debug);
