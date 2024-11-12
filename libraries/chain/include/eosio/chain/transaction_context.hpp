@@ -38,7 +38,7 @@ namespace eosio::chain {
       std::optional<digests_t> digests_l; // legacy
       std::optional<digests_t> digests_s; // savanna
 
-      action_digests_t(store_which_t sw) {
+      explicit action_digests_t(store_which_t sw) {
          if (sw == store_which_t::legacy || sw == store_which_t::both)
             digests_l = digests_t{};
          if (sw == store_which_t::savanna || sw == store_which_t::both)
@@ -101,6 +101,7 @@ namespace eosio::chain {
    class transaction_context {
       private:
          void initialize();
+         void reset();
          void init( uint64_t initial_net_usage);
 
       public:
@@ -114,7 +115,7 @@ namespace eosio::chain {
                               transaction_metadata::trx_type type = transaction_metadata::trx_type::input);
          ~transaction_context();
 
-         void init_for_implicit_trx( uint64_t initial_net_usage = 0 );
+         void init_for_implicit_trx();
 
          void init_for_input_trx( uint64_t packed_trx_unprunable_size,
                                   uint64_t packed_trx_prunable_size );

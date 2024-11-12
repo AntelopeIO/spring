@@ -56,12 +56,23 @@ namespace eosio::chain {
       initialize();
    }
 
+   void transaction_context::reset() {
+      undo();
+      *trace = transaction_trace{}; // reset trace
+      initialize();
+      resume_billing_timer(start);
+
+      auto sw = executed_action_receipts.store_which();
+      executed_action_receipts = action_digests_t{sw};
+      bill_to_accounts.clear();
+      validate_ram_usage.clear();
+   }
+
    void transaction_context::initialize() {
       if (!control.skip_db_sessions() && !is_read_only()) {
          undo_session.emplace(control.mutable_db().start_undo_session(true));
       }
 
-      *trace = transaction_trace{};
       trace->id = id;
       trace->block_num = control.head().block_num() + 1;
       trace->block_time = control.pending_block_time();
@@ -245,7 +256,7 @@ namespace eosio::chain {
       is_initialized = true;
    }
 
-   void transaction_context::init_for_implicit_trx( uint64_t initial_net_usage  )
+   void transaction_context::init_for_implicit_trx()
    {
       const transaction& trx = packed_trx.get_transaction();
       if( trx.transaction_extensions.size() > 0 ) {
@@ -253,7 +264,7 @@ namespace eosio::chain {
       }
 
       published = control.pending_block_time();
-      init( initial_net_usage);
+      init(0);
    }
 
    void transaction_context::init_for_input_trx( uint64_t packed_trx_unprunable_size,
@@ -355,8 +366,7 @@ namespace eosio::chain {
             break;
          } catch ( const fc::exception& e ) {
             if (e.code() == interrupt_oc_exception::code_value) {
-               initialize(); // resets undo session
-               resume_billing_timer(start);
+               reset();
                continue;
             }
             throw;
