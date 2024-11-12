@@ -159,8 +159,6 @@ struct eosvmoc_tier {
                });
                context.trx_context.pause_billing_timer();
                cd = eosvmoc->cc.get_descriptor_for_code(m, exec_action_id, code_hash, vm_version, failure);
-               if (wasm_interface::test_disable_tierup)
-                  cd = nullptr;
             } catch (...) {
                // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
                // In the future, consider moving bits of EOS VM that can fire exceptions and such out of this call path

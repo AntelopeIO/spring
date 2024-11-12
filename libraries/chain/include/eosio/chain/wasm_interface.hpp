@@ -48,8 +48,6 @@ class apply_context;
             oc_none
          };
 
-         inline static bool test_disable_tierup = false; // set by unittests to test tierup failing
-
          wasm_interface(vm_type vm, vm_oc_enable eosvmoc_tierup, const chainbase::database& d, platform_timer& main_thread_timer, const std::filesystem::path data_dir, const eosvmoc::config& eosvmoc_config, bool profile);
          ~wasm_interface();
 
