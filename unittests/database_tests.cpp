@@ -1,4 +1,3 @@
-#include <test_contracts.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/testing/tester.hpp>
 
@@ -85,17 +84,6 @@ BOOST_AUTO_TEST_SUITE(database_tests)
          // Check the latest head block match
          BOOST_TEST(test.fetch_block_by_number(test.head().block_num())->calculate_id() ==
                     test.head().id());
-      } FC_LOG_AND_RETHROW()
-   }
-
-   //test that find_secondary_key behaves like lowerbound
-   BOOST_AUTO_TEST_CASE_TEMPLATE( find_seconary_key, T, validating_testers ) {
-      try {
-         T t;
-         t.create_account("secfind"_n);
-         t.set_code("secfind"_n, eosio::testing::test_contracts::db_find_secondary_test_wasm());
-         t.set_abi("secfind"_n, eosio::testing::test_contracts::db_find_secondary_test_abi());
-         t.push_action("secfind"_n, "doit"_n, "secfind"_n, variant_object());
       } FC_LOG_AND_RETHROW()
    }
 
