@@ -81,7 +81,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
       const auto& msg = std::get<wasm_compilation_result_message>(message);
       _result_queue.push(msg);
 
-      _compile_complete_func(msg.executing_action_id, msg.queued_time);
+      _compile_complete_func(_ctx, msg.executing_action_id, msg.queued_time);
 
       process_queued_compiles();
 

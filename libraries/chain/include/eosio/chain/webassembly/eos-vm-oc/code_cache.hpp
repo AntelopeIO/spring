@@ -132,7 +132,7 @@ class code_cache_base {
 class code_cache_async : public code_cache_base {
    public:
       // called from async thread, provides executing_action_id of any compiles spawned by get_descriptor_for_code
-      using compile_complete_callback = std::function<void(uint64_t, fc::time_point)>;
+      using compile_complete_callback = std::function<void(boost::asio::io_context&, uint64_t, fc::time_point)>;
 
       code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config,
                        const chainbase::database& db, compile_complete_callback cb);
