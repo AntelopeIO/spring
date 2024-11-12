@@ -156,6 +156,8 @@ class code_cache_async : public code_cache_base {
       void wait_on_compile_monitor_message();
       std::tuple<size_t, size_t> consume_compile_thread_queue();
       void process_queued_compiles();
+      void write_message(const code_tuple& ct, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds);
+
 };
 
 class code_cache_sync : public code_cache_base {
