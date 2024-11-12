@@ -78,6 +78,8 @@ void code_cache_async::wait_on_compile_monitor_message() {
          return;
       }
 
+      --_outstanding_compiles;
+
       const auto& msg = std::get<wasm_compilation_result_message>(message);
       _result_queue.push(msg);
 
@@ -92,10 +94,11 @@ void code_cache_async::wait_on_compile_monitor_message() {
 //called from non-main thread
 void code_cache_async::process_queued_compiles() {
    std::lock_guard g(_mtx);
-   while (_outstanding_compiles_and_poison.size() < _threads && !_queued_compiles.empty()) {
+   while (_outstanding_compiles < _threads && !_queued_compiles.empty()) {
       auto nextup = _queued_compiles.begin();
 
       _outstanding_compiles_and_poison.emplace(nextup->code(), false);
+      ++_outstanding_compiles;
       FC_ASSERT(write_message_with_fds(_compile_monitor_write_socket, nextup->msg, nextup->fds_to_pass), "EOS VM failed to communicate to OOP manager");
 
       _queued_compiles.erase(nextup);
@@ -212,6 +215,7 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
    }
 
    _outstanding_compiles_and_poison.emplace(ct, false);
+   ++_outstanding_compiles;
    write_message_with_fds(_compile_monitor_write_socket, msg, fds_to_pass);
    failure = get_cd_failure::temporary; // Compile might not be done yet
    return nullptr;

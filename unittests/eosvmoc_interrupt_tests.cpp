@@ -40,16 +40,16 @@ BOOST_AUTO_TEST_CASE( wasm_interrupt_test ) { try {
    auto pre_id = t.control->get_wasm_interface().get_executing_action_id();
 
    // Use an infinite executing action. When oc compile completes it will kill the action and restart it under
-   // eosvmoc. That action will then fail when it hits the 75000ms deadline.
-   // 75000ms has to be long enough for oc compile to complete and kill the non-oc executing transaction
+   // eosvmoc. That action will then fail when it hits the 5000ms deadline.
+   // 5000ms has to be long enough for oc compile to complete and kill the non-oc executing transaction
    BOOST_CHECK_THROW( push_trx( t, test_api_action<WASM_TEST_ACTION("test_checktime", "checktime_failure")>{},
-                                0, 150, 75000, true, fc::raw::pack(10000000000000000000ULL) ),
+                                0, 150, 5000, true, fc::raw::pack(10000000000000000000ULL) ),
                       deadline_exception );
 
    auto post_id = t.control->get_wasm_interface().get_executing_action_id();
 
    // each action uses 1 id, 2 if retried because of oc compile completion interruption
-   // if post_id == pre_id + 1, then likely that 75000ms above was not long enough for oc compile to complete
+   // if post_id == pre_id + 1, then likely that 5000ms above was not long enough for oc compile to complete
    BOOST_TEST(post_id == pre_id + 2);
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
