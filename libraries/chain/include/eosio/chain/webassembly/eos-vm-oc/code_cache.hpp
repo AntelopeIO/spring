@@ -118,6 +118,7 @@ class code_cache_base {
       std::mutex                             _mtx;
       queued_compilies_t                     _queued_compiles;                  // protected by _mtx
       std::unordered_map<code_tuple, bool>   _outstanding_compiles_and_poison;  // protected by _mtx
+      std::atomic<size_t>                    _outstanding_compiles{0};
 
       size_t _free_bytes_eviction_threshold;
       void check_eviction_threshold(size_t free_bytes);
