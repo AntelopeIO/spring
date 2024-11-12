@@ -51,19 +51,24 @@ namespace eosio::chain {
    ,executed_action_receipts(store_which)
    ,transaction_timer(std::move(tmr))
    ,trx_type(type)
-   ,net_usage(trace->net_usage)
    ,pseudo_start(s)
    {
-      if (!c.skip_db_sessions() && !is_read_only()) {
-         undo_session.emplace(c.mutable_db().start_undo_session(true));
-      }
-      trace->id = id;
-      trace->block_num = c.head().block_num() + 1;
-      trace->block_time = c.pending_block_time();
-      trace->producer_block_id = c.pending_producer_block_id();
+      initialize();
+   }
 
-      if(auto dm_logger = c.get_deep_mind_logger(is_transient()))
-      {
+   void transaction_context::initialize() {
+      if (!control.skip_db_sessions() && !is_read_only()) {
+         undo_session.emplace(control.mutable_db().start_undo_session(true));
+      }
+
+      *trace = transaction_trace{};
+      trace->id = id;
+      trace->block_num = control.head().block_num() + 1;
+      trace->block_time = control.pending_block_time();
+      trace->producer_block_id = control.pending_producer_block_id();
+      trace->net_usage = init_net_usage;
+
+      if(auto dm_logger = control.get_deep_mind_logger(is_transient())) {
          dm_logger->on_start_transaction();
       }
    }
@@ -74,6 +79,12 @@ namespace eosio::chain {
       {
          dm_logger->on_end_transaction();
       }
+   }
+
+   bool transaction_context::has_undo() const {
+      return !control.skip_db_sessions()
+             && !is_read_only()
+             && control.get_deep_mind_logger(is_transient()) == nullptr;
    }
 
    void transaction_context::disallow_transaction_extensions( const char* error_msg )const {
@@ -87,6 +98,7 @@ namespace eosio::chain {
    void transaction_context::init(uint64_t initial_net_usage)
    {
       EOS_ASSERT( !is_initialized, transaction_exception, "cannot initialize twice" );
+      init_net_usage = initial_net_usage;
 
       // set maximum to a semi-valid deadline to allow for pause math and conversion to dates for logging
       if( block_deadline == fc::time_point::maximum() ) block_deadline = start + fc::hours(24*7*52);
@@ -315,27 +327,40 @@ namespace eosio::chain {
    void transaction_context::exec() {
       EOS_ASSERT( is_initialized, transaction_exception, "must first initialize" );
 
-      const transaction& trx = packed_trx.get_transaction();
-      if( apply_context_free ) {
-         for( const auto& act : trx.context_free_actions ) {
-            schedule_action( act, act.account, true, 0, 0 );
+      while (true) {
+         try {
+            const transaction& trx = packed_trx.get_transaction();
+            if( apply_context_free ) {
+               for( const auto& act : trx.context_free_actions ) {
+                  schedule_action( act, act.account, true, 0, 0 );
+               }
+            }
+
+            if( delay == fc::microseconds() ) {
+               for( const auto& act : trx.actions ) {
+                  schedule_action( act, act.account, false, 0, 0 );
+               }
+            }
+
+            auto& action_traces = trace->action_traces;
+            uint32_t num_original_actions_to_execute = action_traces.size();
+            for( uint32_t i = 1; i <= num_original_actions_to_execute; ++i ) {
+               execute_action( i, 0 );
+            }
+
+            if( delay != fc::microseconds() ) {
+               schedule_transaction();
+            }
+
+            break;
+         } catch ( const fc::exception& e ) {
+            if (e.code() == interrupt_oc_exception::code_value) {
+               initialize(); // resets undo session
+               resume_billing_timer(start);
+               continue;
+            }
+            throw;
          }
-      }
-
-      if( delay == fc::microseconds() ) {
-         for( const auto& act : trx.actions ) {
-            schedule_action( act, act.account, false, 0, 0 );
-         }
-      }
-
-      auto& action_traces = trace->action_traces;
-      uint32_t num_original_actions_to_execute = action_traces.size();
-      for( uint32_t i = 1; i <= num_original_actions_to_execute; ++i ) {
-         execute_action( i, 0 );
-      }
-
-      if( delay != fc::microseconds() ) {
-         schedule_transaction();
       }
    }
 
@@ -344,7 +369,7 @@ namespace eosio::chain {
 
       // read-only transactions only need net_usage and elapsed in the trace
       if ( is_read_only() ) {
-         net_usage = ((net_usage + 7)/8)*8; // Round up to nearest multiple of word size (8 bytes)
+         trace->net_usage = ((trace->net_usage + 7)/8)*8; // Round up to nearest multiple of word size (8 bytes)
          trace->elapsed = fc::time_point::now() - start;
          return;
       }
@@ -387,7 +412,7 @@ namespace eosio::chain {
          tx_cpu_usage_reason = tx_cpu_usage_exceeded_reason::account_cpu_limit;
       }
 
-      net_usage = ((net_usage + 7)/8)*8; // Round up to nearest multiple of word size (8 bytes)
+      trace->net_usage = ((trace->net_usage + 7)/8)*8; // Round up to nearest multiple of word size (8 bytes)
 
       eager_net_limit = net_limit;
       check_net_usage();
@@ -399,7 +424,7 @@ namespace eosio::chain {
 
       validate_cpu_usage_to_bill( billed_cpu_time_us, account_cpu_limit, true, subjective_cpu_bill_us );
 
-      rl.add_transaction_usage( bill_to_accounts, static_cast<uint64_t>(billed_cpu_time_us), net_usage,
+      rl.add_transaction_usage( bill_to_accounts, static_cast<uint64_t>(billed_cpu_time_us), trace->net_usage,
                                 block_timestamp_type(control.pending_block_time()).slot, is_transient() ); // Should never fail
    }
 
@@ -414,19 +439,19 @@ namespace eosio::chain {
 
    void transaction_context::check_net_usage()const {
       if (!control.skip_trx_checks()) {
-         if( BOOST_UNLIKELY(net_usage > eager_net_limit) ) {
+         if( BOOST_UNLIKELY(trace->net_usage > eager_net_limit) ) {
             if ( net_limit_due_to_block ) {
                EOS_THROW( block_net_usage_exceeded,
                           "not enough space left in block: ${net_usage} > ${net_limit}",
-                          ("net_usage", net_usage)("net_limit", eager_net_limit) );
+                          ("net_usage", trace->net_usage)("net_limit", eager_net_limit) );
             }  else if (net_limit_due_to_greylist) {
                EOS_THROW( greylist_net_usage_exceeded,
                           "greylisted transaction net usage is too high: ${net_usage} > ${net_limit}",
-                          ("net_usage", net_usage)("net_limit", eager_net_limit) );
+                          ("net_usage", trace->net_usage)("net_limit", eager_net_limit) );
             } else {
                EOS_THROW( tx_net_usage_exceeded,
                           "transaction net usage is too high: ${net_usage} > ${net_limit}",
-                          ("net_usage", net_usage)("net_limit", eager_net_limit) );
+                          ("net_usage", trace->net_usage)("net_limit", eager_net_limit) );
             }
          }
       }

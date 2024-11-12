@@ -100,8 +100,8 @@ struct eosvmoc_tier {
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          if(eosvmoc_tierup != wasm_interface::vm_oc_enable::oc_none) {
             EOS_ASSERT(vm != wasm_interface::vm_type::eos_vm_oc, wasm_exception, "You can't use EOS VM OC as the base runtime when tier up is activated");
-            eosvmoc = std::make_unique<eosvmoc_tier>(data_dir, eosvmoc_config, d, [this](uint64_t executing_action_id, fc::time_point queued_time) {
-               async_compile_complete(executing_action_id, queued_time);
+            eosvmoc = std::make_unique<eosvmoc_tier>(data_dir, eosvmoc_config, d, [this](boost::asio::io_context& ctx, uint64_t executing_action_id, fc::time_point queued_time) {
+               async_compile_complete(ctx, executing_action_id, queued_time);
             });
          }
 #endif
@@ -111,76 +111,84 @@ struct eosvmoc_tier {
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       // called from async thread
-      void async_compile_complete(uint64_t exec_action_id, fc::time_point queued_time) {
+      void async_compile_complete(boost::asio::io_context& ctx, uint64_t exec_action_id, fc::time_point queued_time) {
          if (exec_action_id == executing_action_id) { // is action still executing?
-            ilog("EOS VM OC tier up compile complete ${t}ms, interrupting non-oc execution id: ${id}",
-                 ("t", (fc::time_point::now() - queued_time).count()/1000)("id", exec_action_id));
-            eos_vm_oc_compile_interrupt = true;
-            main_thread_timer.expire_now();
+            auto elapsed = fc::time_point::now() - queued_time;
+            ilog("EOS VM OC tier up for ${id} compile complete ${t}ms",
+                 ("id", exec_action_id)("t", elapsed.count()/1000));
+            auto expire_in = std::max(fc::microseconds(0), fc::milliseconds(500) - elapsed);
+            std::shared_ptr<boost::asio::steady_timer> timer = std::make_shared<boost::asio::steady_timer>(ctx);
+            timer->expires_from_now(std::chrono::microseconds(expire_in.count()));
+            timer->async_wait([timer, this, exec_action_id](const boost::system::error_code& ec) {
+               if (ec)
+                  return;
+               if (exec_action_id == executing_action_id) {
+                  ilog("EOS VM OC tier up interrupting ${id}", ("id", exec_action_id));
+                  eos_vm_oc_compile_interrupt = true;
+                  main_thread_timer.expire_now();
+               }
+            });
          }
       }
 #endif
 
       void apply( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-         while (true) {
-            bool attempt_tierup = false;
+         bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
-            attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
-            ++executing_action_id;
-            auto ex = fc::make_scoped_exit([&]() {
-               eos_vm_oc_compile_interrupt = false;
-               ++executing_action_id; // indicate no longer executing
-            });
-            if (attempt_tierup) {
-               const chain::eosvmoc::code_descriptor* cd = nullptr;
-               chain::eosvmoc::code_cache_base::get_cd_failure failure = chain::eosvmoc::code_cache_base::get_cd_failure::temporary;
-               try {
-                  // Ideally all validator nodes would switch to using oc before block producer nodes so that validators
-                  // are never overwhelmed. Compile whitelisted account contracts first on non-produced blocks. This makes
-                  // it more likely that validators will switch to the oc compiled contract before the block producer runs
-                  // an action for the contract with oc.
-                  chain::eosvmoc::code_cache_async::mode m;
-                  m.whitelisted = context.is_eos_vm_oc_whitelisted();
-                  m.high_priority = m.whitelisted && context.is_applying_block();
-                  m.write_window = context.control.is_write_window();
-                  auto timer_pause = fc::make_scoped_exit([&](){
-                     context.trx_context.resume_billing_timer();
-                  });
-                  context.trx_context.pause_billing_timer();
-                  cd = eosvmoc->cc.get_descriptor_for_code(m, executing_action_id, code_hash, vm_version, failure);
-                  if (wasm_interface::test_disable_tierup)
-                     cd = nullptr;
-               } catch (...) {
-                  // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
-                  // In the future, consider moving bits of EOS VM that can fire exceptions and such out of this call path
-                  static bool once_is_enough;
-                  if (!once_is_enough)
-                     elog("EOS VM OC has encountered an unexpected failure");
-                  once_is_enough = true;
-               }
-               if (cd) {
-                  if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
-                     tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
-                  eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
-                  break;
-               }
-            }
-#endif
-            auto start = fc::time_point::now();
+         auto ex = fc::make_scoped_exit([&]() {
+            eos_vm_oc_compile_interrupt = false;
+            ++executing_action_id; // indicate no longer executing
+         });
+         attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
+         if (attempt_tierup) {
+            const bool allow_oc_interrupt = context.is_applying_block() && context.trx_context.has_undo();
+            const uint32_t exec_action_id = allow_oc_interrupt ? executing_action_id.load() : 0;
+            const chain::eosvmoc::code_descriptor* cd = nullptr;
+            chain::eosvmoc::code_cache_base::get_cd_failure failure = chain::eosvmoc::code_cache_base::get_cd_failure::temporary;
             try {
-               get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
-            } catch (const interrupt_exception& e) {
-               if (attempt_tierup && context.is_applying_block() && eos_vm_oc_compile_interrupt) {
-                  wlog("EOS VM OC compile complete id: ${id}, interrupt of ${r} <= ${a}::${act} after ${t}ms code ${h}",
-                       ("id", executing_action_id.load())("r", context.get_receiver())("a", context.get_action().account)
-                       ("act", context.get_action().name)("t", (fc::time_point::now()-start).count()/1000)("h", code_hash));
-                  // currently no time limit on apply block, however timer does need to be reset
-                  context.trx_context.resume_billing_timer(start);
-                  continue; // attempt tierup again now that compile is complete
-               }
-               throw;
+               // Ideally all validator nodes would switch to using oc before block producer nodes so that validators
+               // are never overwhelmed. Compile whitelisted account contracts first on non-produced blocks. This makes
+               // it more likely that validators will switch to the oc compiled contract before the block producer runs
+               // an action for the contract with oc.
+               chain::eosvmoc::code_cache_async::mode m;
+               m.whitelisted = context.is_eos_vm_oc_whitelisted();
+               m.high_priority = m.whitelisted && context.is_applying_block();
+               m.write_window = context.control.is_write_window();
+               auto timer_pause = fc::make_scoped_exit([&](){
+                  context.trx_context.resume_billing_timer();
+               });
+               context.trx_context.pause_billing_timer();
+               cd = eosvmoc->cc.get_descriptor_for_code(m, exec_action_id, code_hash, vm_version, failure);
+               if (wasm_interface::test_disable_tierup)
+                  cd = nullptr;
+            } catch (...) {
+               // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
+               // In the future, consider moving bits of EOS VM that can fire exceptions and such out of this call path
+               static bool once_is_enough;
+               if (!once_is_enough)
+                  elog("EOS VM OC has encountered an unexpected failure");
+               once_is_enough = true;
             }
-            break;
+            if (cd) {
+               if (!context.is_applying_block()) // read_only_trx_test.py looks for this log statement
+                  tlog("${a} speculatively executing ${h} with eos vm oc", ("a", context.get_receiver())("h", code_hash));
+               eosvmoc->exec->execute(*cd, *eosvmoc->mem, context);
+               return;
+            }
+         }
+#endif
+         try {
+            get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
+         } catch (const interrupt_exception& e) {
+            if (attempt_tierup && eos_vm_oc_compile_interrupt) {
+               wlog("EOS VM OC compile complete id: ${id}, interrupt of ${r} <= ${a}::${act} code ${h}",
+                    ("id", executing_action_id.load())("r", context.get_receiver())("a", context.get_action().account)
+                    ("act", context.get_action().name)("h", code_hash));
+               EOS_THROW(interrupt_oc_exception, "EOS VM OC compile complete id: ${id}, interrupt of ${r} <= ${a}::${act} code ${h}",
+                    ("id", executing_action_id.load())("r", context.get_receiver())("a", context.get_action().account)
+                    ("act", context.get_action().name)("h", code_hash));
+            }
+            throw;
          }
       }
 
@@ -299,7 +307,7 @@ struct eosvmoc_tier {
       platform_timer& main_thread_timer;
       const wasm_interface::vm_type wasm_runtime_time;
       const wasm_interface::vm_oc_enable eosvmoc_tierup;
-      std::atomic<uint32_t> executing_action_id{0}; // monotonic increasing for each action apply, doesn't matter if it wraps
+      std::atomic<uint64_t> executing_action_id{1}; // monotonic increasing for each action apply
       std::atomic<bool> eos_vm_oc_compile_interrupt{false};
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED

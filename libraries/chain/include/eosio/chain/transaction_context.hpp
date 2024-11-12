@@ -100,6 +100,7 @@ namespace eosio::chain {
 
    class transaction_context {
       private:
+         void initialize();
          void init( uint64_t initial_net_usage);
 
       public:
@@ -125,7 +126,7 @@ namespace eosio::chain {
          void squash();
          void undo();
 
-         inline void add_net_usage( uint64_t u ) { net_usage += u; check_net_usage(); }
+         inline void add_net_usage( uint64_t u ) { trace->net_usage += u; check_net_usage(); }
 
          void check_net_usage()const;
 
@@ -157,6 +158,7 @@ namespace eosio::chain {
          bool is_dry_run()const { return trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
+         bool has_undo()const;
 
          int64_t set_proposed_producers(vector<producer_authority> producers);
          void    set_proposed_finalizers(finalizer_policy&& fin_pol);
@@ -237,7 +239,7 @@ namespace eosio::chain {
          bool                          net_limit_due_to_block = true;
          bool                          net_limit_due_to_greylist = false;
          uint64_t                      eager_net_limit = 0;
-         uint64_t&                     net_usage; /// reference to trace->net_usage
+         uint64_t                      init_net_usage = 0;
 
          bool                          cpu_limit_due_to_greylist = false;
 
