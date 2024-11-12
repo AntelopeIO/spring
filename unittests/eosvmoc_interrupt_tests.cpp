@@ -48,9 +48,9 @@ BOOST_AUTO_TEST_CASE( wasm_interrupt_test ) { try {
 
    auto post_id = t.control->get_wasm_interface().get_executing_action_id();
 
-   // each action uses 2 ids, 4 if retried because of oc compile completion interruption
-   // if post_id == pre_id + 2, then likely that 3000ms above was not long enough for oc compile to complete
-   BOOST_TEST(post_id == pre_id + 4);
+   // each action uses 1 id, 2 if retried because of oc compile completion interruption
+   // if post_id == pre_id + 1, then likely that 5000ms above was not long enough for oc compile to complete
+   BOOST_TEST(post_id == pre_id + 2);
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 #endif
