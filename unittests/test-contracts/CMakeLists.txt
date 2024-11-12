@@ -46,4 +46,4 @@ add_subdirectory( bls_primitives_test )
 add_subdirectory( get_block_num_test )
 add_subdirectory( nested_container_multi_index )
 add_subdirectory( savanna )
-
+add_subdirectory( db_find_secondary_test )
