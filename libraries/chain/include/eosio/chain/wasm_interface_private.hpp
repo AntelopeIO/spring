@@ -178,7 +178,7 @@ struct eosvmoc_tier {
          try {
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
-            if (attempt_tierup && eos_vm_oc_compile_interrupt) {
+            if (eos_vm_oc_compile_interrupt) {
                wlog("EOS VM OC compile complete id: ${id}, interrupt of ${r} <= ${a}::${act} code ${h}",
                     ("id", executing_action_id.load())("r", context.get_receiver())("a", context.get_action().account)
                     ("act", context.get_action().name)("h", code_hash));
