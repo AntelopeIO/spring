@@ -4402,7 +4402,6 @@ struct controller_impl {
             return;// nothing to do, fork_db at root
          auto [new_head_branch, old_head_branch] = fork_db.fetch_branch_from( new_head->id(), chain_head.id() );
 
-         auto new_head_branch_size = new_head_branch.size();
          bool switch_fork = !old_head_branch.empty();
          if( switch_fork ) {
             auto head_fork_comp_str =
@@ -4447,7 +4446,6 @@ struct controller_impl {
             try {
                bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
                                                                 : controller::block_status::complete, trx_lookup );
-               --new_head_branch_size;
                if (!switch_fork) { // always complete a switch fork
                   if (!applied || check_shutdown()) {
                      shutdown();
@@ -4455,7 +4453,8 @@ struct controller_impl {
                   }
                   // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
                   // to call apply_blocks again if this returns incomplete.
-                  if (!replaying && new_head_branch_size > 0 && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
+                  const bool more_blocks_to_process = ritr + 1 != new_head_branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
                      result = controller::apply_blocks_result::incomplete;
                      break;
                   }
