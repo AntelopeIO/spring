@@ -7,26 +7,6 @@
 
 namespace fc
 {
-   FC_REGISTER_EXCEPTIONS( (timeout_exception)
-                           (file_not_found_exception)
-                           (parse_error_exception)
-                           (invalid_arg_exception)
-                           (invalid_operation_exception)
-                           (key_not_found_exception)
-                           (bad_cast_exception)
-                           (out_of_range_exception)
-                           (canceled_exception)
-                           (assert_exception)
-                           (eof_exception)
-                           (unknown_host_exception)
-                           (null_optional)
-                           (udt_exception)
-                           (aes_exception)
-                           (overflow_exception)
-                           (underflow_exception)
-                           (divide_by_zero_exception)
-                         )
-
    namespace detail
    {
       class exception_impl
@@ -76,12 +56,6 @@ namespace fc
    { my->_elog = fc::move(m); }
 
    std::exception_ptr unhandled_exception::get_inner_exception()const { return _inner; }
-
-   NO_RETURN void     unhandled_exception::dynamic_rethrow_exception()const
-   {
-      if( !(_inner == std::exception_ptr()) ) std::rethrow_exception( _inner );
-      else { fc::exception::dynamic_rethrow_exception(); }
-   }
 
    std::shared_ptr<exception> unhandled_exception::dynamic_copy_exception()const
    {
@@ -244,23 +218,6 @@ namespace fc
       return std::string();
    }
 
-   void NO_RETURN exception_factory::rethrow( const exception& e )const
-   {
-      auto itr = _registered_exceptions.find( e.code() );
-      if( itr != _registered_exceptions.end() )
-         itr->second->rethrow( e );
-      throw e;
-   }
-   /**
-    * Rethrows the exception restoring the proper type based upon
-    * the error code.  This is used to propagate exception types
-    * across conversions to/from JSON
-    */
-   NO_RETURN void  exception::dynamic_rethrow_exception()const
-   {
-      exception_factory::instance().rethrow( *this );
-   }
-
    exception_ptr exception::dynamic_copy_exception()const
    {
        return std::make_shared<exception>(*this);
@@ -341,12 +298,6 @@ namespace fc
    }
 
    std::exception_ptr std_exception_wrapper::get_inner_exception()const { return _inner; }
-
-   NO_RETURN void std_exception_wrapper::dynamic_rethrow_exception()const
-   {
-      if( !(_inner == std::exception_ptr()) ) std::rethrow_exception( _inner );
-      else { fc::exception::dynamic_rethrow_exception(); }
-   }
 
    std::shared_ptr<exception> std_exception_wrapper::dynamic_copy_exception()const
    {
