@@ -100,8 +100,10 @@ namespace eosio::chain {
 
    class transaction_context {
       private:
+         // construction/reset initialization
          void initialize();
          void reset();
+         // common init called by init_for_* methods below
          void init( uint64_t initial_net_usage);
 
       public:

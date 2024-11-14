@@ -338,7 +338,7 @@ namespace eosio::chain {
    void transaction_context::exec() {
       EOS_ASSERT( is_initialized, transaction_exception, "must first initialize" );
 
-      while (true) {
+      for (int i = 0; i < 2; ++i) { // interrupt_oc_exception can only happen once
          try {
             const transaction& trx = packed_trx.get_transaction();
             if( apply_context_free ) {
@@ -365,7 +365,7 @@ namespace eosio::chain {
 
             break;
          } catch ( const fc::exception& e ) {
-            if (e.code() == interrupt_oc_exception::code_value) {
+            if (i == 0 && e.code() == interrupt_oc_exception::code_value) {
                reset();
                continue;
             }

@@ -7,9 +7,8 @@
 
 namespace eosio { namespace chain {
 
-struct platform_timer;
-
-class apply_context;
+   struct platform_timer;
+   class apply_context;
    class wasm_runtime_interface;
    class controller;
    namespace eosvmoc { struct config; }
