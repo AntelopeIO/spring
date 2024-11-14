@@ -1987,7 +1987,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
                                [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
    if (r != controller::apply_blocks_result::complete)
-      return start_block_result::failed;
+      return start_block_result::waiting_for_block;
 
    if (chain.should_terminate()) {
       app().quit();

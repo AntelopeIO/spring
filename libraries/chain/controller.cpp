@@ -4453,7 +4453,8 @@ struct controller_impl {
                   }
                   // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
                   // to call apply_blocks again if this returns incomplete.
-                  if (!replaying && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
+                  const bool more_blocks_to_process = ritr + 1 != new_head_branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
                      result = controller::apply_blocks_result::incomplete;
                      break;
                   }
