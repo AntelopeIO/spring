@@ -705,15 +705,39 @@ class Node(Transactions):
                         lines.append(line)
         return lines
 
-    def countInLog(self, searchStr) -> int:
+    # Verfify that in during synching, unlinkable blocks are expected if
+    # 1. they are consecutive,
+    # 2. the number of unlinkable blocks is less than sync fetch span
+    def verifyUnlinkableBlocksExpected(self, syncFetchSpan) -> bool:
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
-        count = 0
+
+        # A sample of unique line of unlinkable_block in logging file looks like:
+        # info  2024-11-14T13:48:06.038 nodeos    net_plugin.cpp:3870           process_signed_block ] unlinkable_block_exception connection - 1: #130 1d74c43582d10251...: Unlinkable block (3030001)
+        pattern = re.compile(r"unlinkable_block_exception connection - \d+: #(\d+)")
+
         for file in files:
+            blocks = []
             with open(file, 'r') as f:
-                contents = f.read()
-                count += contents.count(searchStr)
-        return count
+                for line in f:
+                    match = pattern.search(line)
+                    if match:
+                        try:
+                            blockNum = int(match.group(1))
+                            blocks.append(blockNum)
+                        except ValueError:
+                            Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
+                            return False
+                # Check if the unlinkable blocks are consecutive
+                for i in range(1, len(blocks)):
+                    if blocks[i] != blocks[i - 1] + 1:
+                        Utils.Print(f"unlinkable blocks are not consecutive in {f}, i: {i}, blocks[i - 1]: {blocks[i - 1]}, blocks[i]: {blocks[i]}")
+                        return False
+                # Check if number of unlinkable block is less than syncFetchSpan
+                if len(blocks) >= syncFetchSpan:
+                    Utils.Print(f"the number of unlinkable blocks {len(blocks)} greater than or equal to syncFetchSpan {syncFetchSpan} in {f}")
+                    return False
+        return True
 
     # Verify that we have only one "Starting block" in the log for any block number unless:
     # - the block was restarted because it was exhausted,
