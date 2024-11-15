@@ -3992,6 +3992,7 @@ namespace eosio {
    }
 
    void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
+      update_chain_info();
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
          on_pending_schedule(*pending_producers);
