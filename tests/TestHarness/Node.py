@@ -728,14 +728,18 @@ class Node(Transactions):
                         except ValueError:
                             Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
                             return False
-                # Check if the unlinkable blocks are consecutive
+                numUnlinkableBlocks = 0 if len(blocks) == 0 else 1 # numUnlinkableBlocks is at least 1 if len(blocks) > 0
                 for i in range(1, len(blocks)):
+                    if blocks[i] == blocks[i - 1]: # the same block can be received on multiple connections
+                        continue
+                    # Check if the unlinkable blocks are consecutive
                     if blocks[i] != blocks[i - 1] + 1:
                         Utils.Print(f"unlinkable blocks are not consecutive in {f}, i: {i}, blocks[i - 1]: {blocks[i - 1]}, blocks[i]: {blocks[i]}")
                         return False
-                # Check if number of unlinkable block is less than syncFetchSpan
-                if len(blocks) >= syncFetchSpan:
-                    Utils.Print(f"the number of unlinkable blocks {len(blocks)} greater than or equal to syncFetchSpan {syncFetchSpan} in {f}")
+                    ++numUnlinkableBlocks
+                # Check if number of unlinkable blocks is less than syncFetchSpan
+                if numUnlinkableBlocks >= syncFetchSpan:
+                    Utils.Print(f"the number of unlinkable blocks {numUnlinkableBlocks} greater than or equal to syncFetchSpan {syncFetchSpan} in {f}")
                     return False
         return True
 
