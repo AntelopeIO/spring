@@ -476,7 +476,7 @@ namespace eosio::chain {
       void replace_account_keys( name account, name permission, const public_key_type& key );
 
       void set_producer_node(bool is_producer_node);
-      bool is_producer_node()const;
+      bool is_producer_node()const; // thread safe, set at program initialization
 
       void set_db_read_only_mode();
       void unset_db_read_only_mode();
