@@ -1963,8 +1963,10 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
 
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {
    const chain::controller& chain = chain_plug->chain();
-   const fc::time_point     now   = fc::time_point::now();
-   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head().block_time());
+   // on speculative nodes, always use next block time. On producers, honor current clock time
+   const fc::time_point base  = _producers.empty()
+                                   ? chain.head().block_time()
+                                   : std::max<fc::time_point>(fc::time_point::now(), chain.head().block_time());
    return block_timestamp_type(base).next();
 }
 
