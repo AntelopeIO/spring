@@ -737,9 +737,9 @@ class Node(Transactions):
                         Utils.Print(f"unlinkable blocks are not consecutive in {f}, i: {i}, blocks[i - 1]: {blocks[i - 1]}, blocks[i]: {blocks[i]}")
                         return False
                     ++numUnlinkableBlocks
-                # Check if number of unlinkable blocks is less than syncFetchSpan
-                if numUnlinkableBlocks >= syncFetchSpan:
-                    Utils.Print(f"the number of unlinkable blocks {numUnlinkableBlocks} greater than or equal to syncFetchSpan {syncFetchSpan} in {f}")
+                # Check if number of unlinkable blocks is greater than syncFetchSpan
+                if numUnlinkableBlocks > syncFetchSpan:
+                    Utils.Print(f"the number of unlinkable blocks {numUnlinkableBlocks} greater than syncFetchSpan {syncFetchSpan} in {f}")
                     return False
         return True
 
