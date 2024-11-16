@@ -706,8 +706,7 @@ class Node(Transactions):
         return lines
 
     # Verfify that in during synching, unlinkable blocks are expected if
-    # 1. they are consecutive,
-    # 2. the number of unlinkable blocks is less than sync fetch span
+    # the number of each group of consecutive unlinkable blocks is less than sync fetch span
     def verifyUnlinkableBlocksExpected(self, syncFetchSpan) -> bool:
         dataDir=Utils.getNodeDataDir(self.nodeId)
         files=Node.findStderrFiles(dataDir)
@@ -728,20 +727,21 @@ class Node(Transactions):
                         except ValueError:
                             Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
                             return False
-                numUnlinkableBlocks = 0 if len(blocks) == 0 else 1 # numUnlinkableBlocks is at least 1 if len(blocks) > 0
+                numConsecutiveUnlinkableBlocks = 0 if len(blocks) == 0 else 1 # numConsecutiveUnlinkableBlocks is at least 1 if len(blocks) > 0
                 for i in range(1, len(blocks)):
-                    if blocks[i] == blocks[i - 1]: # the same block can be received on multiple connections
-                        continue
-                    # Check if the unlinkable blocks are consecutive
-                    if blocks[i] != blocks[i - 1] + 1:
-                        Utils.Print(f"unlinkable blocks are not consecutive in {f}, i: {i}, blocks[i - 1]: {blocks[i - 1]}, blocks[i]: {blocks[i]}")
-                        return False
-                    ++numUnlinkableBlocks
-                # Check if number of unlinkable blocks is greater than syncFetchSpan
-                if numUnlinkableBlocks > syncFetchSpan:
-                    Utils.Print(f"the number of unlinkable blocks {numUnlinkableBlocks} greater than syncFetchSpan {syncFetchSpan} in {f}")
-                    return False
-        return True
+                    if blocks[i] == blocks[i - 1] or blocks[i] == blocks[i - 1] + 1: # look for consecutive blocks, including duplicate
+                        if blocks[i] == blocks[i - 1] + 1: # excluding duplicate
+                            ++numConsecutiveUnlinkableBlocks
+                    else: # start a new group of consecutive blocks
+                        if numConsecutiveUnlinkableBlocks > syncFetchSpan:
+                            Utils.Print(f"the number of a group of unlinkable blocks {numConsecutiveUnlinkableBlocks} greater than syncFetchSpan {syncFetchSpan} in {f}")
+                            return False
+                        numConsecutiveUnlinkableBlocks = 1
+        if numConsecutiveUnlinkableBlocks > syncFetchSpan:
+            Utils.Print(f"the number of a group of unlinkable blocks {numConsecutiveUnlinkableBlocks} greater than syncFetchSpan {syncFetchSpan} in {f}")
+            return False
+        else:
+            return True
 
     # Verify that we have only one "Starting block" in the log for any block number unless:
     # - the block was restarted because it was exhausted,
