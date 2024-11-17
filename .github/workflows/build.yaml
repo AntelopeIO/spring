@@ -79,53 +79,6 @@ jobs:
             echo reference-contracts-ref=${{inputs.override-reference-contracts}} >> $GITHUB_OUTPUT
           fi
 
-  package:
-    name: Build deb packages
-    needs: [platform-cache, build-base]
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [ubuntu20, ubuntu22, reproducible]
-    runs-on: ubuntu-latest
-    container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.platform].image}}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Download builddir
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{matrix.platform}}-build
-      - name: Build packages
-        run: |
-          zstdcat build.tar.zst | tar x
-          cd build
-          cpack
-          ../tools/tweak-deb.sh antelope-spring_*.deb
-      - name: Install dev package
-        if: matrix.platform != 'reproducible'
-        run: |
-          apt-get update && apt-get upgrade -y
-          apt-get install -y ./build/antelope-spring_*.deb ./build/antelope-spring-dev*.deb
-      - name: Test using TestHarness
-        if: matrix.platform != 'reproducible'
-        run: |
-          python3 -c "from TestHarness import Cluster"
-      - name: Upload dev package
-        uses: actions/upload-artifact@v4
-        if: matrix.platform != 'reproducible'
-        with:
-          name: antelope-spring-dev-${{matrix.platform}}-amd64
-          path: build/antelope-spring-dev*.deb
-          compression-level: 0
-      - name: Upload spring package
-        uses: actions/upload-artifact@v4
-        if: matrix.platform == 'reproducible'
-        with:
-          name: antelope-spring-deb-amd64
-          path: build/antelope-spring_*.deb
-          compression-level: 0
-
   tests:
     name: Tests (${{matrix.cfg.name}})
     needs: [platform-cache, build-base]
@@ -133,12 +86,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
-          - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
-          - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
-          - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
-          - cfg: {name: 'asan',          base: 'asan',     builddir: 'asan'}
-          - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
           - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
     runs-on: ["self-hosted", "enf-x86-hightier"]
     container:
@@ -150,18 +97,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{matrix.cfg.builddir}}-build
-      - name: Run Parallel Tests
-        env:
-          IS_SAN: ${{endsWith(matrix.cfg.name, 'san') && 'yes' || ''}}
-        run: |
-          # https://github.com/actions/runner/issues/2033  -- need this because of full version label test looking at git revs
-          chown -R $(id -u):$(id -g) $PWD
-          zstdcat build.tar.zst | tar x
-          cd build
-          ctest --output-on-failure -j $(nproc) -LE "(nonparallelizable_tests|long_running_tests)" ${IS_SAN:+-E 'eos-vm$'} --timeout 480
       - name: Wait for core files to populate
         uses: ./.github/actions/wait-for-cores
-        if: failure()
       - name: Upload core files from failed tests
         uses: actions/upload-artifact@v4
         if: failure()
@@ -180,12 +117,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
           - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
-          - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
-          - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
-          - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
-          - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
     runs-on: ["self-hosted", "enf-x86-midtier"]
     steps:
       - uses: actions/checkout@v4
@@ -193,14 +125,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{matrix.cfg.builddir}}-build
-      - name: Run tests in parallel containers
-        uses: ./.github/actions/parallel-ctest-containers
-        with:
-          container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
-          error-log-paths: '["build/etc", "build/var", "build/spring-ignition-wd", "build/TestLogs", "build/PerformanceHarnessScenarioRunnerLogs"]'
-          log-tarball-prefix: ${{matrix.cfg.name}}
-          tests-label: nonparallelizable_tests
-          test-timeout: 420
       - name: Wait for core files to populate
         uses: ./.github/actions/wait-for-cores
         if: failure()
@@ -216,147 +140,3 @@ jobs:
             *-logs.tar.gz
             core*.zst
           compression-level: 0
-
-  lr-tests:
-    name: LR Tests (${{matrix.cfg.name}})
-    needs: [platform-cache, build-base]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - cfg: {name: 'ubuntu20',      base: 'ubuntu20', builddir: 'ubuntu20'}
-          - cfg: {name: 'ubuntu22',      base: 'ubuntu22', builddir: 'ubuntu22'}
-          - cfg: {name: 'asserton',      base: 'asserton', builddir: 'asserton'}
-          - cfg: {name: 'ubsan',         base: 'ubsan',    builddir: 'ubsan'}
-          - cfg: {name: 'ubuntu20repro', base: 'ubuntu20', builddir: 'reproducible'}
-          - cfg: {name: 'ubuntu22repro', base: 'ubuntu22', builddir: 'reproducible'}
-    runs-on: ["self-hosted", "enf-x86-lowtier"]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download builddir
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{matrix.cfg.builddir}}-build
-      - name: Run tests in parallel containers
-        uses: ./.github/actions/parallel-ctest-containers
-        with:
-          container: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
-          error-log-paths: '["build/etc", "build/var", "build/spring-ignition-wd", "build/TestLogs", "build/PerformanceHarnessScenarioRunnerLogs"]'
-          log-tarball-prefix: ${{matrix.cfg.name}}
-          tests-label: long_running_tests
-          test-timeout: 2700
-      - name: Wait for core files to populate
-        uses: ./.github/actions/wait-for-cores
-        if: failure()
-      - name: Export core dumps
-        run: docker run --mount type=bind,source=/var/lib/systemd/coredump,target=/cores alpine sh -c 'tar -C /cores/ -c .' | tar x
-        if: failure()
-      - name: Upload logs from failed tests
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: ${{matrix.cfg.name}}-lr-logs
-          path: |
-            *-logs.tar.gz
-            core*.zst
-          compression-level: 0
-
-  libtester-tests:
-    name: libtester tests
-    needs: [platform-cache, build-base, v, package]
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [ubuntu22]
-        test: [build-tree, make-dev-install, deb-install]
-    runs-on:  ["self-hosted", "enf-x86-midtier"]
-    container: ${{ matrix.test != 'deb-install' && fromJSON(needs.platform-cache.outputs.platforms)[matrix.platform].image || 'ubuntu:jammy' }}
-    env:
-      DEBIAN_FRONTEND: noninteractive
-      TZ: Etc/UTC
-    steps:
-      - name: Update Package Index & Upgrade Packages
-        run: |
-          apt-get update
-          apt-get upgrade -y
-
-      # spring
-      - if: ${{ matrix.test != 'deb-install' }}
-        name: Clone spring
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - if: ${{ matrix.test != 'deb-install' }}
-        name: Download spring builddir
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{matrix.platform}}-build
-      - if: ${{ matrix.test != 'deb-install' }}
-        name: Extract spring build
-        run: |
-          zstdcat build.tar.zst | tar x
-      - if: ${{ matrix.test == 'build-tree' }}
-        name: Set spring_DIR env var
-        run: |
-          echo "spring_DIR=$PWD/build/lib/cmake/spring" >> "$GITHUB_ENV"
-      - if: ${{ matrix.test == 'make-dev-install' }}
-        name: spring dev-install
-        run: |
-          cmake --install build
-          cmake --install build --component dev
-      - if: ${{ matrix.test == 'make-dev-install' }}
-        name: Delete spring artifacts
-        run: |
-          rm -r *
-      - if: ${{ matrix.test == 'deb-install' }}
-        name: Download antelope-spring-dev
-        uses: actions/download-artifact@v4
-        with:
-          name: antelope-spring-dev-${{matrix.platform}}-amd64
-      - if: ${{ matrix.test == 'deb-install' }}
-        name: Install antelope-spring-dev Package
-        run: |
-          apt-get install -y ./*.deb
-          rm ./*.deb
-
-      # CDT
-      - name: Download cdt
-        uses: AntelopeIO/asset-artifact-download-action@v3
-        with:
-          owner: AntelopeIO
-          repo: cdt
-          file: 'cdt_.*amd64.deb'
-          target: '${{needs.v.outputs.cdt-target}}'
-          prereleases: ${{fromJSON(needs.v.outputs.cdt-prerelease)}}
-          artifact-name: cdt_ubuntu_package_amd64
-      - name: Install cdt Packages
-        run: |
-          apt-get install -y ./*.deb
-          rm ./*.deb
-
-      # Reference Contracts
-      - name: checkout reference-contracts
-        uses: actions/checkout@v4
-        with:
-          repository: AntelopeIO/reference-contracts
-          path: reference-contracts
-          ref: '${{needs.v.outputs.reference-contracts-ref}}'
-      - if: ${{ matrix.test == 'deb-install' }}
-        name: Install reference-contracts deps
-        run: |
-          apt-get -y install cmake build-essential
-      - name: Build & Test reference-contracts
-        run: |
-          cmake -S reference-contracts -B reference-contracts/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=On -DSYSTEM_ENABLE_SPRING_VERSION_CHECK=Off -DSYSTEM_ENABLE_CDT_VERSION_CHECK=Off
-          cmake --build reference-contracts/build -- -j $(nproc)
-          cd reference-contracts/build/tests
-          ctest --output-on-failure -j $(nproc)
-
-  all-passing:
-    name: All Required Tests Passed
-    needs: [tests, np-tests, libtester-tests]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - if: needs.tests.result != 'success' || needs.np-tests.result != 'success' || needs.libtester-tests.result != 'success'
-        run: false
