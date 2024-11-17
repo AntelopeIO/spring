@@ -1,0 +1,11 @@
+name: Wait for core dumps
+description: 'Polls systemd waiting for core dumps to complete; requires access to docker socket'
+runs:
+  using: 'composite'
+  steps:
+    - name: Wait for core dumps
+      shell: bash
+      run: |
+        docker run --mount type=bind,source=/run/dbus/system_bus_socket,target=/run/dbus/system_bus_socket \
+                   --mount type=bind,source=$GITHUB_ACTION_PATH/wait-for-cores.py,target=/wait-for-cores.py \
+                   alpine sh -c 'apk add --update py3-dbus; python /wait-for-cores.py' 
