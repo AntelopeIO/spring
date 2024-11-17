@@ -127,7 +127,6 @@ jobs:
           name: ${{matrix.cfg.builddir}}-build
       - name: Wait for core files to populate
         uses: ./.github/actions/wait-for-cores
-        if: failure()
       - name: Export core dumps
         run: docker run --mount type=bind,source=/var/lib/systemd/coredump,target=/cores alpine sh -c 'tar -C /cores/ -c .' | tar x
         if: failure()
