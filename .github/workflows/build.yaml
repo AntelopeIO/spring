@@ -90,7 +90,7 @@ jobs:
     runs-on: ["self-hosted", "enf-x86-hightier"]
     container:
       image: ${{fromJSON(needs.platform-cache.outputs.platforms)[matrix.cfg.base].image}}
-      options: --security-opt seccomp=unconfined --mount type=bind,source=/var/lib/systemd/coredump,target=/cores --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock
+      options: --security-opt seccomp=unconfined --mount type=bind,source=/var/lib/systemd/coredump,target=/cores
     steps:
       - uses: actions/checkout@v4
       - name: Download builddir
