@@ -192,10 +192,11 @@ namespace eosio::chain {
 
    template<class BSP>
    void fork_database_impl<BSP>::reset_root_impl( const bsp_t& root_bsp ) {
-      index.clear();
       assert(root_bsp);
       root = root_bsp;
       root->set_valid(true);
+      pending_savanna_lib_id = block_id_type{};
+      index.clear();
    }
 
    template<class BSP>
