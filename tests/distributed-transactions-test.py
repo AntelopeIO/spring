@@ -29,7 +29,7 @@ pnodes=args.p
 topo=args.s
 delay=args.d
 total_nodes = pnodes if args.n < pnodes else args.n
-total_nodes = total_nodes if total_nodes > pnodes + 4 else pnodes + 4
+total_nodes = total_nodes if total_nodes > pnodes + 3 else pnodes + 3
 debug=args.v
 nodesFile=args.nodes_file
 dontLaunch=nodesFile is not None
@@ -64,10 +64,9 @@ try:
 
         Print("Stand up cluster")
         specificExtraNodeosArgs = {}
-        specificExtraNodeosArgs[total_nodes-1] = f' --read-mode irreversible '
+        specificExtraNodeosArgs[total_nodes-1] = f' --read-mode head '
         specificExtraNodeosArgs[total_nodes-2] = f' --read-mode irreversible '
         specificExtraNodeosArgs[total_nodes-3] = f' --read-mode speculative '
-        specificExtraNodeosArgs[total_nodes-4] = f' --read-mode speculative '
 
         if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF) is False:
             errorExit("Failed to stand up eos cluster.")
