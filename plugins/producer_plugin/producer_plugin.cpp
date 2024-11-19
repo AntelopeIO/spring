@@ -687,6 +687,7 @@ public:
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
    std::set<chain::account_name>                     _producers;
+   chain::db_read_mode                               _db_read_mode = db_read_mode::HEAD;
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
    pending_block_mode                                _pending_block_mode = pending_block_mode::speculating;
@@ -1528,10 +1529,12 @@ void producer_plugin_impl::plugin_startup() {
       dlog("producer plugin:  plugin_startup() begin");
 
       chain::controller& chain = chain_plug->chain();
-      EOS_ASSERT(_producers.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      _db_read_mode = chain.get_read_mode();
+
+      EOS_ASSERT(_producers.empty() || _db_read_mode != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
                  "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
 
-      EOS_ASSERT(_finalizer_keys.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      EOS_ASSERT(_finalizer_keys.empty() || _db_read_mode != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
                  "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
 
       EOS_ASSERT(_producers.empty() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
@@ -1972,8 +1975,11 @@ bool producer_plugin_impl::should_interrupt_start_block(const fc::time_point& de
    if (in_producing_mode()) {
       return deadline <= fc::time_point::now();
    }
-   // if we can produce then honor deadline so production starts on time
-   return (!_producers.empty() && deadline <= fc::time_point::now()) || (_received_block >= pending_block_num);
+   // if we can produce then honor deadline so production starts on time.
+   // if in irreversible mode then a received block should not interrupt since the incoming block is not processed until
+   // it becomes irreversible. We could check if LIB changed, but doesn't seem like the extra complexity is worth it.
+   return (!_producers.empty() && deadline <= fc::time_point::now())
+          || (_db_read_mode != db_read_mode::IRREVERSIBLE && _received_block >= pending_block_num);
 }
 
 producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
