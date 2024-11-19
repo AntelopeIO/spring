@@ -830,6 +830,10 @@ public:
       return _implicit_pause_vote_tracker.check_pause_status(fc::time_point::now()).should_pause();
    }
 
+   bool is_configured_producer() const {
+      return !_producers.empty();
+   }
+
    void on_accepted_block(const signed_block_ptr& block, const block_id_type& id) {
       auto& chain  = chain_plug->chain();
       auto  before = _unapplied_transactions.size();
@@ -1313,7 +1317,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
 
    chain::controller& chain = chain_plug->chain();
 
-   chain.set_producer_node(!_producers.empty());
+   chain.set_producer_node(is_configured_producer());
 
    if (options.count("signature-provider")) {
       const std::vector<std::string> key_spec_pairs = options["signature-provider"].as<std::vector<std::string>>();
@@ -1422,7 +1426,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
 
    if (options.count("read-only-threads")) {
       _ro_thread_pool_size = options.at("read-only-threads").as<uint32_t>();
-   } else if (_producers.empty()) {
+   } else if (!is_configured_producer()) {
       // appbase initialization order is non-deterministic outside listed APPBASE_PLUGIN_REQUIRES plugins.
       // To avoid setting up a dependency of producer_plugin on chain_api_plugin, search for the plugin in options instead.
       if (options.count("plugin")) {
@@ -1435,7 +1439,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
          }
       }
    }
-   EOS_ASSERT(producer_plugin::test_mode_ || _ro_thread_pool_size == 0 || _producers.empty(), plugin_config_exception,
+   EOS_ASSERT(producer_plugin::test_mode_ || _ro_thread_pool_size == 0 || !is_configured_producer(), plugin_config_exception,
               "read-only-threads not allowed on producer node");
 
    // only initialize other read-only options when read-only thread pool is enabled
@@ -1531,16 +1535,16 @@ void producer_plugin_impl::plugin_startup() {
       chain::controller& chain = chain_plug->chain();
       _db_read_mode = chain.get_read_mode();
 
-      EOS_ASSERT(_producers.empty() || _db_read_mode != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      EOS_ASSERT(!is_configured_producer() || _db_read_mode != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
                  "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
 
       EOS_ASSERT(_finalizer_keys.empty() || _db_read_mode != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
                  "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
 
-      EOS_ASSERT(_producers.empty() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
+      EOS_ASSERT(!is_configured_producer() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
                  "node cannot have any producer-name configured because block production is not safe when validation_mode is not \"full\"");
 
-      EOS_ASSERT(_producers.empty() || chain_plug->accept_transactions(), plugin_config_exception,
+      EOS_ASSERT(!is_configured_producer() || chain_plug->accept_transactions(), plugin_config_exception,
                  "node cannot have any producer-name configured because no block production is possible with no [api|p2p]-accepted-transactions");
 
       chain.set_node_finalizer_keys(_finalizer_keys);
@@ -1567,7 +1571,7 @@ void producer_plugin_impl::plugin_startup() {
          }
       }));
 
-      if (!_producers.empty()) { // track votes if producer to verify votes are being processed
+      if (is_configured_producer()) { // track votes if producer to verify votes are being processed
          auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
             const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
             try {
@@ -1586,7 +1590,7 @@ void producer_plugin_impl::plugin_startup() {
          _irreversible_block_time = fc::time_point::maximum();
       }
 
-      if (!_producers.empty()) {
+      if (is_configured_producer()) {
          ilog("Launching block production for ${n} producers at ${time}.", ("n", _producers.size())("time", fc::time_point::now()));
 
          if (_production_enabled) {
@@ -1966,8 +1970,10 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
 
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {
    const chain::controller& chain = chain_plug->chain();
-   const fc::time_point     now   = fc::time_point::now();
-   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head().block_time());
+   // on speculative nodes, always use next block time. On producers, honor current clock time
+   const fc::time_point base  = is_configured_producer()
+                                   ? std::max<fc::time_point>(fc::time_point::now(), chain.head().block_time())
+                                   : chain.head().block_time();
    return block_timestamp_type(base).next();
 }
 
@@ -1978,7 +1984,7 @@ bool producer_plugin_impl::should_interrupt_start_block(const fc::time_point& de
    // if we can produce then honor deadline so production starts on time.
    // if in irreversible mode then a received block should not interrupt since the incoming block is not processed until
    // it becomes irreversible. We could check if LIB changed, but doesn't seem like the extra complexity is worth it.
-   return (!_producers.empty() && deadline <= fc::time_point::now())
+   return (is_configured_producer() && deadline <= fc::time_point::now())
           || (_db_read_mode != db_read_mode::IRREVERSIBLE && _received_block >= pending_block_num);
 }
 
@@ -2750,7 +2756,7 @@ void producer_plugin_impl::schedule_production_loop() {
                                   }
                                }));
    } else if (result == start_block_result::waiting_for_block) {
-      if (!_producers.empty() && !production_disabled_by_policy()) {
+      if (is_configured_producer() && !production_disabled_by_policy()) {
          chain::controller& chain = chain_plug->chain();
          fc_dlog(_log, "Waiting till another block is received and scheduling Speculative/Production Change");
          auto wake_time = block_timing_util::calculate_producer_wake_up_time(_produce_block_cpu_effort, chain.head().block_num(), calculate_pending_block_time(),
@@ -2768,7 +2774,7 @@ void producer_plugin_impl::schedule_production_loop() {
    } else if (in_producing_mode()) {
       schedule_maybe_produce_block(result == start_block_result::exhausted);
 
-   } else if (in_speculating_mode() && !_producers.empty() && !production_disabled_by_policy()) {
+   } else if (in_speculating_mode() && is_configured_producer() && !production_disabled_by_policy()) {
       chain::controller& chain = chain_plug->chain();
       fc_dlog(_log, "Speculative Block Created; Scheduling Speculative/Production Change");
       EOS_ASSERT(chain.is_building_block(), missing_pending_block_state, "speculating without pending_block_state");

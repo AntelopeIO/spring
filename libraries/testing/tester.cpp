@@ -483,7 +483,7 @@ namespace eosio::testing {
             auto trace = control->push_transaction( itr->trx_meta, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true, 0 );
             if(!no_throw && trace->except) {
                // this always throws an fc::exception, since the original exception is copied into an fc::exception
-               trace->except->dynamic_rethrow_exception();
+               throw *trace->except;
             }
             itr = unapplied_transactions.erase( itr );
             res.unapplied_transaction_traces.emplace_back( std::move(trace) );
@@ -495,7 +495,7 @@ namespace eosio::testing {
                auto trace = control->push_scheduled_transaction( trx, fc::time_point::maximum(), fc::microseconds::maximum(), DEFAULT_BILLED_CPU_TIME_US, true );
                if( !no_throw && trace->except ) {
                   // this always throws an fc::exception, since the original exception is copied into an fc::exception
-                  trace->except->dynamic_rethrow_exception();
+                  throw *trace->except;
                }
             }
          }

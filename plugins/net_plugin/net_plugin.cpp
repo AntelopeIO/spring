@@ -3716,8 +3716,10 @@ namespace eosio {
          bool unlinkable = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
-            EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
-                       "received a block from the future, rejecting it: ${id}", ("id", id));
+            if (cc.is_producer_node()) {
+               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+                          "received a block from the future, rejecting it: ${id}", ("id", id));
+            }
             // this will return empty optional<block_handle> if block is not linkable
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
             best_head = abh.is_new_best_head;
@@ -4676,11 +4678,9 @@ namespace eosio {
    // called from any thread
    void connections_manager::connection_monitor(const std::weak_ptr<connection>& from_connection) {
       size_t num_rm = 0, num_clients = 0, num_peers = 0, num_bp_peers = 0;
-      auto cleanup = [&num_peers, &num_rm, this](vector<connection_ptr>&& reconnecting, 
-                                                 vector<connection_ptr>&& removing) {
+      auto cleanup = [&num_rm, this](vector<connection_ptr>&& reconnecting, vector<connection_ptr>&& removing) {
          for( auto& c : reconnecting ) {
             if (!c->resolve_and_connect()) {
-               --num_peers;
                ++num_rm;
                removing.push_back(c);
             }
@@ -4720,6 +4720,7 @@ namespace eosio {
 
          if (!c->socket_is_open() && c->state() != connection::connection_state::connecting) {
             if (!c->incoming()) {
+               --num_peers;
                reconnecting.push_back(c);
             } else {
                --num_clients;

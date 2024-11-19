@@ -91,13 +91,13 @@ inline auto push_input_trx(appbase::scoped_app& app, eosio::chain::controller& c
            [trx_promise](const next_function_variant<transaction_trace_ptr>& result) {
               if( std::holds_alternative<fc::exception_ptr>( result ) ) {
                  try {
-                    std::get<fc::exception_ptr>(result)->dynamic_rethrow_exception();
+                    throw *std::get<fc::exception_ptr>(result);
                  } catch(...) {
                     trx_promise->set_exception(std::current_exception());
                  }
               } else if ( std::get<chain::transaction_trace_ptr>( result )->except ) {
                  try {
-                    std::get<chain::transaction_trace_ptr>(result)->except->dynamic_rethrow_exception();
+                    throw *std::get<chain::transaction_trace_ptr>(result)->except;
                  } catch(...) {
                     trx_promise->set_exception(std::current_exception());
                  }
