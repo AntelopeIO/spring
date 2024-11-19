@@ -2095,7 +2095,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
          auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
+         if (head_block_age > fc::minutes(5))
             return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
       }
       last_start_block_time = now;
