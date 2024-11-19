@@ -1595,7 +1595,7 @@ void producer_plugin_impl::plugin_startup() {
       }
 
       if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
-         wlog("Accepting speculative transaction execution not recommended in read-mode=irreversible");
+         wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
       }
 
       if (is_configured_producer()) {
