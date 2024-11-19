@@ -71,18 +71,16 @@ try:
     trans=prodNode.pushMessage(contract, action, data, opts, silentErrors=True)
     assert trans and not trans[0], "push doitforever action did not fail as expected"
 
-    prodNode.processUrllibRequest("test_control", "swap_action", {"from": "doitslow", "to": "doitforever"})
-
-    action="doitslow"
-    trans=prodNode.pushMessage(contract, action, data, opts)
-    assert trans and trans[0], "Failed to push doitslow action"
-
     prodNode.waitForProducer("defproducera")
 
     prodNode.processUrllibRequest("test_control", "swap_action",
                                   {"from":"doitslow", "to":"doitforever",
                                    "trx_priv_key":EOSIO_ACCT_PRIVATE_DEFAULT_KEY,
                                    "blk_priv_key":cluster.defproduceraAccount.activePrivateKey})
+
+    action="doitslow"
+    trans=prodNode.pushMessage(contract, action, data, opts)
+    assert trans and trans[0], "Failed to push doitslow action"
 
     assert not prodNode.waitForHeadToAdvance(3), f"prodNode did advance head after doitforever action"
 

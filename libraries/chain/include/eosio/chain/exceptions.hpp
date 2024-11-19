@@ -141,10 +141,6 @@
        \
        virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
        { return std::make_shared<TYPE>( *this ); } \
-       virtual NO_RETURN void     dynamic_rethrow_exception()const \
-       { if( code() == CODE ) throw *this;\
-         else fc::exception::dynamic_rethrow_exception(); \
-       } \
        std::optional<uint64_t> error_code; \
    };
 
