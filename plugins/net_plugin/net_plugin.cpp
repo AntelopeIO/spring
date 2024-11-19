@@ -3992,6 +3992,7 @@ namespace eosio {
    }
 
    void net_plugin_impl::on_accepted_block( const signed_block_ptr& block, const block_id_type&) {
+      update_chain_info();
       sync_master->send_handshakes_if_synced(fc::time_point::now() - block->timestamp);
       if (const auto* pending_producers = chain_plug->chain().pending_producers()) {
          on_pending_schedule(*pending_producers);
@@ -4828,11 +4829,9 @@ namespace eosio {
    // called from any thread
    void connections_manager::connection_monitor(const std::weak_ptr<connection>& from_connection) {
       size_t num_rm = 0, num_clients = 0, num_peers = 0, num_bp_peers = 0;
-      auto cleanup = [&num_peers, &num_rm, this](vector<connection_ptr>&& reconnecting, 
-                                                 vector<connection_ptr>&& removing) {
+      auto cleanup = [&num_rm, this](vector<connection_ptr>&& reconnecting, vector<connection_ptr>&& removing) {
          for( auto& c : reconnecting ) {
             if (!c->resolve_and_connect()) {
-               --num_peers;
                ++num_rm;
                removing.push_back(c);
             }
@@ -4872,6 +4871,7 @@ namespace eosio {
 
          if (!c->socket_is_open() && c->state() != connection::connection_state::connecting) {
             if (!c->incoming()) {
+               --num_peers;
                reconnecting.push_back(c);
             } else {
                --num_clients;
