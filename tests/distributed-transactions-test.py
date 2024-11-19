@@ -65,7 +65,8 @@ try:
         Print("Stand up cluster")
         specificExtraNodeosArgs = {}
         specificExtraNodeosArgs[total_nodes-1] = f' --read-mode head '
-        specificExtraNodeosArgs[total_nodes-2] = f' --read-mode irreversible '
+        if activateIF: # irreversible mode speculative trx execution not recommended in legacy mode
+            specificExtraNodeosArgs[total_nodes-2] = f' --read-mode irreversible '
         specificExtraNodeosArgs[total_nodes-3] = f' --read-mode speculative '
 
         if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF) is False:
