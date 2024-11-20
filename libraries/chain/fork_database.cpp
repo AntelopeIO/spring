@@ -94,7 +94,7 @@ namespace eosio::chain {
 
       void             open_impl( const char* desc, const std::filesystem::path& fork_db_file, fc::cfile_datastream& ds, validator_t& validator );
       void             close_impl( std::ofstream& out );
-      bool             add_impl( const bsp_t& n, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
+      fork_db_add_t    add_impl( const bsp_t& n, ignore_duplicate_t ignore_duplicate, bool validate, validator_t& validator );
       bool             is_valid() const;
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
@@ -240,8 +240,8 @@ namespace eosio::chain {
    }
 
    template <class BSP>
-   bool fork_database_impl<BSP>::add_impl(const bsp_t& n, ignore_duplicate_t ignore_duplicate,
-                                          bool validate, validator_t& validator) {
+   fork_db_add_t fork_database_impl<BSP>::add_impl(const bsp_t& n, ignore_duplicate_t ignore_duplicate,
+                                                   bool validate, validator_t& validator) {
       EOS_ASSERT( root, fork_database_exception, "root not yet set" );
       EOS_ASSERT( n, fork_database_exception, "attempt to add null block state" );
 
@@ -277,15 +277,25 @@ namespace eosio::chain {
          EOS_RETHROW_EXCEPTIONS( fork_database_exception, "serialized fork database is incompatible with configured protocol features" )
       }
 
+      auto prev_head = head_impl(include_root_t::yes);
+
       auto inserted = index.insert(n);
       EOS_ASSERT(ignore_duplicate == ignore_duplicate_t::yes || inserted.second, fork_database_exception,
                  "duplicate block added: ${id}", ("id", n->id()));
 
-      return inserted.second && n == head_impl(include_root_t::no);
+      if (!inserted.second)
+         return fork_db_add_t::duplicate;
+      const bool new_head = n == head_impl(include_root_t::no);
+      if (new_head && n->previous() == prev_head->id())
+         return fork_db_add_t::appended_to_head;
+      if (new_head)
+         return fork_db_add_t::fork_switch;
+
+      return fork_db_add_t::added;
    }
 
    template<class BSP>
-   bool fork_database_t<BSP>::add( const bsp_t& n, ignore_duplicate_t ignore_duplicate ) {
+   fork_db_add_t fork_database_t<BSP>::add( const bsp_t& n, ignore_duplicate_t ignore_duplicate ) {
       std::lock_guard g( my->mtx );
       return my->add_impl(n, ignore_duplicate, false,
                           [](block_timestamp_type         timestamp,

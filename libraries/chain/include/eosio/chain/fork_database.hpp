@@ -12,6 +12,7 @@ namespace eosio::chain {
    using block_branch_t = std::vector<signed_block_ptr>;
    enum class ignore_duplicate_t { no, yes };
    enum class include_root_t { no, yes };
+   enum class fork_db_add_t { duplicate, added, appended_to_head, fork_switch };
 
    // Used for logging of comparison values used for best fork determination
    std::string log_fork_comparison(const block_state& bs);
@@ -67,9 +68,14 @@ namespace eosio::chain {
       /**
        *  Add block state to fork database.
        *  Must link to existing block in fork database or the root.
-       *  @return true if n becomes the new best head (and was not the best head before)
+       *  @returns duplicate - already added and ignore_duplicate=true
+       *           added - inserted into an existing branch or started a new branch, not best branch
+       *           appended_to_head - new best head of current best branch
+       *           fork_switch - new best head of new branch, fork switch to new branch
+       *  @throws unlinkable_block_exception - unlinkable to any branch
+       *  @throws fork_database_exception - no root, n is nullptr, protocol feature error, duplicate when ignore_duplicate=false
        */
-      bool add( const bsp_t& n, ignore_duplicate_t ignore_duplicate );
+      fork_db_add_t add( const bsp_t& n, ignore_duplicate_t ignore_duplicate );
 
       void remove( const block_id_type& id );
 
@@ -306,3 +312,6 @@ namespace eosio::chain {
       static constexpr uint32_t max_supported_version = 3;
    };
 } /// eosio::chain
+
+FC_REFLECT_ENUM( eosio::chain::fork_db_add_t,
+                 (duplicate)(added)(appended_to_head)(fork_switch) )

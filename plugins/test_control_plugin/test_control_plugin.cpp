@@ -1,4 +1,5 @@
 #include <eosio/test_control_plugin/test_control_plugin.hpp>
+#include <eosio/chain/fork_database.hpp>
 
 namespace eosio {
 
@@ -160,9 +161,9 @@ void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_pt
    copy_b->producer_signature = _swap_on_options.blk_priv_key.sign(copy_b->calculate_id());
 
    // will be processed on the next start_block if is_new_best_head
-   const auto&[is_new_best_head, bh] = _chain.accept_block(copy_b->calculate_id(), copy_b);
-   ilog("Swapped action ${f} to ${t}, is_new_best_head ${bh}, block ${bn}",
-        ("f", _swap_on_options.from)("t", _swap_on_options.to)("bh", is_new_best_head)("bn", bh ? bh->block_num() : 0));
+   const auto&[add_result, bh] = _chain.accept_block(copy_b->calculate_id(), copy_b);
+   ilog("Swapped action ${f} to ${t}, add_result ${a}, block ${bn}",
+        ("f", _swap_on_options.from)("t", _swap_on_options.to)("a", add_result)("bn", bh ? bh->block_num() : 0));
    reset_swap_action();
 }
 

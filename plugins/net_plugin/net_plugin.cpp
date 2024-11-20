@@ -9,6 +9,7 @@
 #include <eosio/chain/plugin_interface.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
+#include <eosio/chain/fork_database.hpp>
 
 #include <fc/bitutil.hpp>
 #include <fc/network/message_buffer.hpp>
@@ -3722,7 +3723,7 @@ namespace eosio {
             }
             // this will return empty optional<block_handle> if block is not linkable
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
-            best_head = abh.is_new_best_head;
+            best_head = abh.add_result == fork_db_add_t::appended_to_head || abh.add_result == fork_db_add_t::fork_switch;
             obh = std::move(abh.block);
             unlinkable = !obh;
             close_mode = sync_manager::closing_mode::handshake;

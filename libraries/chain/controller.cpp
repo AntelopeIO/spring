@@ -4232,11 +4232,11 @@ struct controller_impl {
          assert(!verify_qc_future.valid());
       }
 
-      bool best_head = fork_db.add(bsp, ignore_duplicate_t::yes);
+      fork_db_add_t add_result = fork_db.add(bsp, ignore_duplicate_t::yes);
       if constexpr (is_proper_savanna_block)
          vote_processor.notify_new_block(async_aggregation);
 
-      return controller::accepted_block_result{best_head, block_handle{std::move(bsp)}};
+      return controller::accepted_block_result{add_result, block_handle{std::move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
