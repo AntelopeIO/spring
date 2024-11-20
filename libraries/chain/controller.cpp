@@ -4538,7 +4538,7 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_transaction() {
+   void interrupt_apply_block_transaction() {
       // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
       // have limited run time already. This is to allow killing a long-running transaction in a block being
       // validated.
@@ -5308,8 +5308,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_transaction() {
-   my->interrupt_transaction();
+void controller::interrupt_apply_block_transaction() {
+   my->interrupt_apply_block_transaction();
 }
 
 boost::asio::io_context& controller::get_thread_pool() {

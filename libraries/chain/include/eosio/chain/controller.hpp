@@ -208,8 +208,8 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler
-         void interrupt_transaction();
+         /// Expected to be called from signal handler, or producer_plugin
+         void interrupt_apply_block_transaction();
 
        /**
         *
