@@ -727,6 +727,7 @@ class Node(Transactions):
                         except ValueError:
                             Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
                             return False
+                blocks.sort() # blocks from multiple connections might be out of order
                 numConsecutiveUnlinkableBlocks = 0 if len(blocks) == 0 else 1 # numConsecutiveUnlinkableBlocks is at least 1 if len(blocks) > 0
                 for i in range(1, len(blocks)):
                     if blocks[i] == blocks[i - 1] or blocks[i] == blocks[i - 1] + 1: # look for consecutive blocks, including duplicate
