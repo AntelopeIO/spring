@@ -13,6 +13,7 @@ RUN apt-get update && apt-get upgrade -y && \
                        libwayland-dev       \
                        libxkbcommon-dev     \
                        libxrandr-dev        \
+                       libxinerama-dev      \
                        pkg-config           \
                        libgmp-dev           \
                        llvm-11-dev          \
