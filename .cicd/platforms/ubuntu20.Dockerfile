@@ -8,6 +8,15 @@ RUN apt-get update && apt-get upgrade -y && \
                        git                  \
                        jq                   \
                        libcurl4-openssl-dev \
+                       libgl-dev            \
+                       libglx-dev           \
+                       libopengl-dev        \
+                       libwayland-dev       \
+                       xorg-dev             \
+                       libxkbcommon-dev     \
+                       libxrandr-dev        \
+                       libxinerama-dev      \
+                       pkg-config           \
                        libgmp-dev           \
                        llvm-11-dev          \
                        ninja-build          \
