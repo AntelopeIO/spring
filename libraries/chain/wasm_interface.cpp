@@ -100,8 +100,8 @@ namespace eosio { namespace chain {
       return my->is_eos_vm_oc_enabled();
    }
 
-   uint64_t wasm_interface::get_executing_action_id() const {
-      return my->get_executing_action_id();
+   uint64_t wasm_interface::get_eos_vm_oc_compile_interrupt_count() const {
+      return my->get_eos_vm_oc_compile_interrupt_count();
    }
 #endif
 

@@ -113,8 +113,8 @@ class code_cache_base {
 
 class code_cache_async : public code_cache_base {
    public:
-      // called from async thread, provides executing_action_id of any compiles spawned by get_descriptor_for_code
-      using compile_complete_callback = std::function<void(boost::asio::io_context&, uint64_t, fc::time_point)>;
+      // called from async thread, provides code_id of any compiles spawned by get_descriptor_for_code
+      using compile_complete_callback = std::function<void(boost::asio::io_context&, const digest_type&, fc::time_point)>;
 
       code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config,
                        const chainbase::database& db, compile_complete_callback cb);
@@ -123,9 +123,8 @@ class code_cache_async : public code_cache_base {
       //If code is in cache: returns pointer & bumps to front of MRU list
       //If code is not in cache, and not blacklisted, and not currently compiling: return nullptr and kick off compile
       //otherwise: return nullptr
-      const code_descriptor* const
-      get_descriptor_for_code(mode m, uint64_t executing_action_id,
-                              const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure);
+      const code_descriptor* const get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version,
+                                                           get_cd_failure& failure);
 
    private:
       compile_complete_callback _compile_complete_func; // called from async thread, provides executing_action_id

@@ -83,7 +83,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
       const auto& msg = std::get<wasm_compilation_result_message>(message);
       _result_queue.push(msg);
 
-      _compile_complete_func(_ctx, msg.executing_action_id, msg.queued_time);
+      _compile_complete_func(_ctx, msg.code.code_id, msg.queued_time);
 
       process_queued_compiles();
 
@@ -151,7 +151,7 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
 
 
 const code_descriptor* const
-code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
+code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
    //if there are any outstanding compiles, process the result queue now
    //When app is in write window, all tasks are running sequentially and read-only threads
    //are not running. Safe to update cache entries.
@@ -202,7 +202,6 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
 
    auto msg = compile_wasm_message{
       .code = { code_id, vm_version },
-      .executing_action_id = executing_action_id,
       .queued_time = fc::time_point::now(),
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
@@ -253,7 +252,6 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode 
 
    auto msg = compile_wasm_message{
       .code = { code_id, vm_version },
-      .executing_action_id = 0,
       .queued_time = fc::time_point{}, // could use now() if compile time measurement desired
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };

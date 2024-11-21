@@ -102,7 +102,7 @@ struct compile_monitor_session {
 
       eosvmoc_message trampoline_compile_request = msg;
       if(write_message_with_fds(_trampoline_socket, trampoline_compile_request, fds_pass_to_trampoline) == false) {
-         wasm_compilation_result_message reply{msg.code, compilation_result_unknownfailure{}, _allocator->get_free_memory(), msg.executing_action_id, msg.queued_time};
+         wasm_compilation_result_message reply{msg.code, compilation_result_unknownfailure{}, _allocator->get_free_memory(), msg.queued_time};
          write_message_with_fds(_nodeos_instance_socket, reply);
          return;
       }
@@ -123,8 +123,8 @@ struct compile_monitor_session {
             return;
          auto& [code, socket] = *current_compile_it;
          auto [success, message, fds] = read_message_with_fds(socket);
-         
-         wasm_compilation_result_message reply{code, compilation_result_unknownfailure{}, _allocator->get_free_memory(), 0, fc::time_point{}};
+
+         wasm_compilation_result_message reply{code, compilation_result_unknownfailure{}, _allocator->get_free_memory(), fc::time_point{}};
          
          void* code_ptr = nullptr;
          void* mem_ptr = nullptr;
@@ -143,7 +143,6 @@ struct compile_monitor_session {
                   copy_memfd_contents_to_pointer(code_ptr, fds[0]);
                   copy_memfd_contents_to_pointer(mem_ptr, fds[1]);
 
-                  reply.executing_action_id = result.executing_action_id;
                   reply.queued_time = result.queued_time;
                   reply.result = code_descriptor {
                      code.code_id,

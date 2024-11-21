@@ -57,8 +57,8 @@ namespace eosio { namespace chain {
          // returns true if EOS VM OC is enabled
          bool is_eos_vm_oc_enabled() const;
 
-         // return internal executing action id, used for testing
-         uint64_t get_executing_action_id() const;
+         // return number of wasm execution interrupted by eos vm oc compile completing, used for testing
+         uint64_t get_eos_vm_oc_compile_interrupt_count() const;
 #endif
 
          //call before dtor to skip what can be minutes of dtor overhead with some runtimes; can cause leaks
