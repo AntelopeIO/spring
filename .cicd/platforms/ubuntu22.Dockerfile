@@ -11,7 +11,7 @@ RUN apt-get update && apt-get upgrade -y && \
                        libglx-dev           \
                        libopengl-dev        \
                        libwayland-dev       \
-                       libxkbcommon-dev     \
+                       xorg-dev             \
                        libxrandr-dev        \
                        libxinerama-dev      \
                        pkg-config           \
