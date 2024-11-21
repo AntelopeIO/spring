@@ -687,6 +687,7 @@ public:
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
    std::set<chain::account_name>                     _producers;
+   chain::db_read_mode                               _db_read_mode = db_read_mode::HEAD;
    boost::asio::deadline_timer                       _timer;
    block_timing_util::producer_watermarks            _producer_watermarks;
    pending_block_mode                                _pending_block_mode = pending_block_mode::speculating;
@@ -831,6 +832,10 @@ public:
 
    bool is_configured_producer() const {
       return !_producers.empty();
+   }
+
+   bool irreversible_mode() const {
+      return _db_read_mode == db_read_mode::IRREVERSIBLE;
    }
 
    void on_accepted_block(const signed_block_ptr& block, const block_id_type& id) {
@@ -1532,10 +1537,12 @@ void producer_plugin_impl::plugin_startup() {
       dlog("producer plugin:  plugin_startup() begin");
 
       chain::controller& chain = chain_plug->chain();
-      EOS_ASSERT(!is_configured_producer() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      _db_read_mode = chain.get_read_mode();
+
+      EOS_ASSERT(!is_configured_producer() || !irreversible_mode(), plugin_config_exception,
                  "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
 
-      EOS_ASSERT(_finalizer_keys.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      EOS_ASSERT(_finalizer_keys.empty() || !irreversible_mode(), plugin_config_exception,
                  "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
 
       EOS_ASSERT(!is_configured_producer() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
@@ -1585,6 +1592,10 @@ void producer_plugin_impl::plugin_startup() {
          on_irreversible_block(fork_db_root);
       } else {
          _irreversible_block_time = fc::time_point::maximum();
+      }
+
+      if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
+         wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
       }
 
       if (is_configured_producer()) {
@@ -1978,8 +1989,11 @@ bool producer_plugin_impl::should_interrupt_start_block(const fc::time_point& de
    if (in_producing_mode()) {
       return deadline <= fc::time_point::now();
    }
-   // if we can produce then honor deadline so production starts on time
-   return (is_configured_producer() && deadline <= fc::time_point::now()) || (_received_block >= pending_block_num);
+   // if we can produce then honor deadline so production starts on time.
+   // if in irreversible mode then a received block should not interrupt since the incoming block is not processed until
+   // it becomes irreversible. We could check if LIB changed, but doesn't seem like the extra complexity is worth it.
+   return (is_configured_producer() && deadline <= fc::time_point::now())
+          || (!irreversible_mode() && _received_block >= pending_block_num);
 }
 
 producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
@@ -2081,7 +2095,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
          auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
+         if (head_block_age > fc::minutes(5))
             return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
       }
       last_start_block_time = now;

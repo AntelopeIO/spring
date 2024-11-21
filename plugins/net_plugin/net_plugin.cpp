@@ -4277,14 +4277,7 @@ namespace eosio {
 
          chain_id = chain_plug->get_chain_id();
          fc::rand_pseudo_bytes( node_id.data(), node_id.data_size());
-         const controller& cc = chain_plug->chain();
 
-         if( cc.get_read_mode() == db_read_mode::IRREVERSIBLE ) {
-            if( p2p_accept_transactions ) {
-               p2p_accept_transactions = false;
-               fc_wlog( logger, "p2p-accept-transactions set to false due to read-mode: irreversible" );
-            }
-         }
          if( p2p_accept_transactions ) {
             chain_plug->enable_accept_transactions();
          }

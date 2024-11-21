@@ -942,12 +942,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
       api_accept_transactions = options.at( "api-accept-transactions" ).as<bool>();
 
-      if( chain_config->read_mode == db_read_mode::IRREVERSIBLE ) {
-         if( api_accept_transactions ) {
-            api_accept_transactions = false;
-            wlog( "api-accept-transactions set to false due to read-mode: irreversible" );
-         }
-      }
       if( api_accept_transactions ) {
          enable_accept_transactions();
       }
@@ -1138,8 +1132,6 @@ void chain_plugin::plugin_initialize(const variables_map& options) {
 
 void chain_plugin_impl::plugin_startup()
 { try {
-   EOS_ASSERT( chain_config->read_mode != db_read_mode::IRREVERSIBLE || !accept_transactions, plugin_config_exception,
-               "read-mode = irreversible. transactions should not be enabled by enable_accept_transactions" );
    try {
       auto shutdown = [](){ return app().quit(); };
       auto check_shutdown = [](){ return app().is_quiting(); };
