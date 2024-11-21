@@ -7,6 +7,7 @@ RUN apt-get update && apt-get upgrade -y && \
                        git                  \
                        jq                   \
                        libcurl4-openssl-dev \
+                       libgl-dev            \
                        libglx-dev           \
                        libopengl-dev        \
                        libgmp-dev           \
