@@ -28,6 +28,16 @@ RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-g
                                                                                               zstd \
                                                                                               ;
 
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libgl-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libglx-dev  ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libopengl-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libwayland-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install xorg-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libxkbcommon-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libxrandr-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install libxinerama-dev ;
+RUN DEBIAN_FRONTEND=noninteractive apt-get -y install pkg-config ;
+
 ARG _SPRING_CLANG_VERSION=18.1.8
 ARG _SPRING_LLVM_VERSION=11.1.0
 ARG _SPRING_CMAKE_VERSION=3.27.6
