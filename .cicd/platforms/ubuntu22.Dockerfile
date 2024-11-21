@@ -11,6 +11,7 @@ RUN apt-get update && apt-get upgrade -y && \
                        libglx-dev           \
                        libopengl-dev        \
                        libwayland-dev       \
+                       libxkbcommon-dev     \
                        pkg-config           \
                        libgmp-dev           \
                        llvm-11-dev          \
