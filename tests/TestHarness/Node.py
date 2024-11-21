@@ -692,8 +692,8 @@ class Node(Transactions):
         files=Node.findStderrFiles(dataDir)
 
         # A sample of unique line of unlinkable_block in logging file looks like:
-        # info  2024-11-14T13:48:06.038 nodeos    net_plugin.cpp:3870           process_signed_block ] unlinkable_block_exception connection - 1: #130 1d74c43582d10251...: Unlinkable block (3030001)
-        pattern = re.compile(r"unlinkable_block_exception connection - \d+: #(\d+)")
+        # debug 2024-11-06T16:28:21.216 net-0 net_plugin.cpp:3744 operator() unlinkable_block 144 : 0000009063379d966646fede5662c76c970dd53ea3a3a38d4311625b72971b07, previous 143 : 0000008f172a24dd573825702ff7bdeec92ea6c2c3b22a5303a27cc367ee5a52
+        pattern = re.compile(r"unlinkable_block\s(\d+)")
 
         for file in files:
             blocks = []
@@ -708,6 +708,7 @@ class Node(Transactions):
                             Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
                             return False
                 blocks.sort() # blocks from multiple connections might be out of order
+                Utils.Print(f"Unlinkable blocks: {blocks}")
                 numConsecutiveUnlinkableBlocks = 0 if len(blocks) == 0 else 1 # numConsecutiveUnlinkableBlocks is at least 1 if len(blocks) > 0
                 for i in range(1, len(blocks)):
                     if blocks[i] == blocks[i - 1] or blocks[i] == blocks[i - 1] + 1: # look for consecutive blocks, including duplicate
