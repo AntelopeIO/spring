@@ -10,6 +10,7 @@ RUN apt-get update && apt-get upgrade -y && \
                        libgl-dev            \
                        libglx-dev           \
                        libopengl-dev        \
+                       libwayland-dev       \
                        libgmp-dev           \
                        llvm-11-dev          \
                        ninja-build          \
