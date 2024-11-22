@@ -3713,7 +3713,7 @@ namespace eosio {
 
          std::optional<block_handle> obh;
          bool exception = false;
-         bool best_head = false;
+         fork_db_add_t fork_db_add_result = fork_db_add_t::failure;
          bool unlinkable = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
@@ -3723,7 +3723,7 @@ namespace eosio {
             }
             // this will return empty optional<block_handle> if block is not linkable
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
-            best_head = abh.add_result == fork_db_add_t::appended_to_head || abh.add_result == fork_db_add_t::fork_switch;
+            fork_db_add_result = abh.add_result;
             obh = std::move(abh.block);
             unlinkable = !obh;
             close_mode = sync_manager::closing_mode::handshake;
@@ -3757,8 +3757,8 @@ namespace eosio {
          uint32_t block_num = obh->block_num();
          proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
-         fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
-                  ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
+         fc_dlog( logger, "validated block header, forkdb add ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
+                  ("bt", fork_db_add_result)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
          c->block_status_monitor_.accepted();
@@ -3771,7 +3771,7 @@ namespace eosio {
             });
          }
 
-         if (best_head) {
+         if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
 
@@ -3792,7 +3792,7 @@ namespace eosio {
                                   });
 
             // ready to process immediately, so signal producer to interrupt start_block
-            my_impl->producer_plug->received_block(block_num);
+            my_impl->producer_plug->received_block(block_num, fork_db_add_result);
          }
       });
    }

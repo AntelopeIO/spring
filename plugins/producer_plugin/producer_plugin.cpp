@@ -9,6 +9,7 @@
 #include <eosio/chain/subjective_billing.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/unapplied_transaction_queue.hpp>
+#include <eosio/chain/fork_database.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
 #include <fc/io/json.hpp>
@@ -2947,8 +2948,12 @@ void producer_plugin_impl::produce_block() {
    _time_tracker.clear();
 }
 
-void producer_plugin::received_block(uint32_t block_num) {
+void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result) {
    my->_received_block = block_num;
+   if (fork_db_add_result == fork_db_add_t::fork_switch) {
+      fc_ilog(_log, "new best fork received");
+      my->chain_plug->chain().interrupt_apply_block_transaction();
+   }
 }
 
 void producer_plugin::log_failed_transaction(const transaction_id_type&    trx_id,
