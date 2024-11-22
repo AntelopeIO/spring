@@ -164,6 +164,7 @@ void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_pt
    const auto&[add_result, bh] = _chain.accept_block(copy_b->calculate_id(), copy_b);
    ilog("Swapped action ${f} to ${t}, add_result ${a}, block ${bn}",
         ("f", _swap_on_options.from)("t", _swap_on_options.to)("a", add_result)("bn", bh ? bh->block_num() : 0));
+   app().find_plugin<net_plugin>()->broadcast_block(copy_b, copy_b->calculate_id());
    reset_swap_action();
 }
 

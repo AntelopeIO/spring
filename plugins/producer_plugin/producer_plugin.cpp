@@ -2012,10 +2012,13 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
 
    abort_block();
 
-   auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                               [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-   if (r != controller::apply_blocks_result::complete)
-      return start_block_result::waiting_for_block;
+   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
+   if (!is_configured_producer()) {
+      auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                                  [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+      if (r != controller::apply_blocks_result::complete)
+         return start_block_result::waiting_for_block;
+   }
 
    if (chain.should_terminate()) {
       app().quit();
@@ -2766,6 +2769,7 @@ void producer_plugin_impl::schedule_production_loop() {
       // we failed to start a block, so try again later?
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+            chain_plug->chain().interrupt_apply_block_transaction();
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
@@ -2851,6 +2855,7 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
       _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
          if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+            chain_plug->chain().interrupt_apply_block_transaction();
             app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
             });
