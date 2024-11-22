@@ -37,7 +37,7 @@ BOOST_AUTO_TEST_CASE( wasm_interrupt_test ) { try {
    t.set_code( "testapi"_n, test_contracts::test_api_wasm() );
    t.produce_block();
 
-   auto pre_id = t.control->get_wasm_interface().get_executing_action_id();
+   auto pre_count = t.control->get_wasm_interface().get_eos_vm_oc_compile_interrupt_count();
 
    // Use an infinite executing action. When oc compile completes it will kill the action and restart it under
    // eosvmoc. That action will then fail when it hits the 5000ms deadline.
@@ -46,11 +46,10 @@ BOOST_AUTO_TEST_CASE( wasm_interrupt_test ) { try {
                                 0, 150, 5000, true, fc::raw::pack(10000000000000000000ULL) ),
                       deadline_exception );
 
-   auto post_id = t.control->get_wasm_interface().get_executing_action_id();
+   auto post_count = t.control->get_wasm_interface().get_eos_vm_oc_compile_interrupt_count();
 
-   // each action uses 1 id, 2 if retried because of oc compile completion interruption
-   // if post_id == pre_id + 1, then likely that 5000ms above was not long enough for oc compile to complete
-   BOOST_TEST(post_id == pre_id + 2);
+   // if post_count == pre_count, then likely that 5000ms above was not long enough for oc compile to complete
+   BOOST_TEST(post_count == pre_count + 1);
 
    BOOST_REQUIRE_EQUAL( t.validate(), true );
 #endif

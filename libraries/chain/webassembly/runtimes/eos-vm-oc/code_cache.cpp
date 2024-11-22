@@ -83,7 +83,7 @@ void code_cache_async::wait_on_compile_monitor_message() {
       const auto& msg = std::get<wasm_compilation_result_message>(message);
       _result_queue.push(msg);
 
-      _compile_complete_func(_ctx, msg.executing_action_id, msg.queued_time);
+      _compile_complete_func(_ctx, msg.code.code_id, msg.queued_time);
 
       process_queued_compiles();
 
@@ -92,8 +92,8 @@ void code_cache_async::wait_on_compile_monitor_message() {
 }
 
 //call with _mtx locked
-void code_cache_async::write_message(const code_tuple& ct, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds) {
-   _outstanding_compiles_and_poison.emplace(ct, false);
+void code_cache_async::write_message(const digest_type& code_id, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds) {
+   _outstanding_compiles_and_poison.emplace(code_id, false);
    ++_outstanding_compiles;
    if (!write_message_with_fds(_compile_monitor_write_socket, message, fds)) {
       wlog("EOS VM failed to communicate to OOP manager");
@@ -106,7 +106,7 @@ void code_cache_async::process_queued_compiles() {
    while (_outstanding_compiles < _threads && !_queued_compiles.empty()) {
       auto nextup = _queued_compiles.begin();
 
-      write_message(nextup->code(), nextup->msg, nextup->fds_to_pass);
+      write_message(nextup->code_id(), nextup->msg, nextup->fds_to_pass);
 
       _queued_compiles.erase(nextup);
    }
@@ -119,25 +119,25 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
    auto outstanding_compiles = _outstanding_compiles_and_poison; // will always be small, <= _threads
    g.unlock();
 
-   std::vector<code_tuple> erased;
+   std::vector<digest_type> erased;
    erased.reserve(outstanding_compiles.size());
    size_t bytes_remaining = 0;
    size_t gotsome = _result_queue.consume_all([&](const wasm_compilation_result_message& result) {
-      if(outstanding_compiles[result.code] == false) {
+      if(outstanding_compiles[result.code.code_id] == false) {
          std::visit(overloaded {
             [&](const code_descriptor& cd) {
                _cache_index.push_front(cd);
             },
             [&](const compilation_result_unknownfailure&) {
                wlog("code ${c} failed to tier-up with EOS VM OC", ("c", result.code.code_id));
-               _blacklist.emplace(result.code);
+               _blacklist.emplace(result.code.code_id);
             },
             [&](const compilation_result_toofull&) {
                run_eviction_round(); // call without mutex lock
             }
          }, result.result);
       }
-      erased.push_back(result.code);
+      erased.push_back(result.code.code_id);
       bytes_remaining = result.cache_free_bytes;
    });
 
@@ -151,7 +151,7 @@ std::tuple<size_t, size_t> code_cache_async::consume_compile_thread_queue() {
 
 
 const code_descriptor* const
-code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
+code_cache_async::get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure) {
    //if there are any outstanding compiles, process the result queue now
    //When app is in write window, all tasks are running sequentially and read-only threads
    //are not running. Safe to update cache entries.
@@ -163,7 +163,7 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
    }
 
    //check for entry in cache
-   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
+   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(code_id);
    if(it != _cache_index.get<by_hash>().end()) {
       if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
@@ -174,23 +174,21 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
       return nullptr;
    }
 
-   const code_tuple ct = code_tuple{code_id, vm_version};
-
-   if(_blacklist.find(ct) != _blacklist.end()) {
+   if(_blacklist.find(code_id) != _blacklist.end()) {
       if (!m.whitelisted) {
          failure = get_cd_failure::permanent; // Compile will not start
          return nullptr;
       }
       // whitelisted, remove from blacklist and allow to try compile again
-      _blacklist.erase(ct);
+      _blacklist.erase(code_id);
    }
    std::unique_lock g(_mtx);
-   if(auto it = _outstanding_compiles_and_poison.find(ct); it != _outstanding_compiles_and_poison.end()) {
+   if(auto it = _outstanding_compiles_and_poison.find(code_id); it != _outstanding_compiles_and_poison.end()) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       it->second = false;
       return nullptr;
    }
-   if(_queued_compiles.get<by_hash>().contains(ct)) {
+   if(_queued_compiles.get<by_hash>().contains(code_id)) {
       failure = get_cd_failure::temporary; // Compile might not be done yet
       return nullptr;
    }
@@ -203,8 +201,7 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
    }
 
    auto msg = compile_wasm_message{
-      .code = ct,
-      .executing_action_id = executing_action_id,
+      .code = { code_id, vm_version },
       .queued_time = fc::time_point::now(),
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
@@ -221,7 +218,7 @@ code_cache_async::get_descriptor_for_code(mode m, uint64_t executing_action_id, 
       return nullptr;
    }
 
-   write_message(ct, msg, fds_to_pass);
+   write_message(code_id, msg, fds_to_pass);
    failure = get_cd_failure::temporary; // Compile might not be done yet
    return nullptr;
 }
@@ -237,7 +234,7 @@ code_cache_sync::~code_cache_sync() {
 
 const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode m, const digest_type& code_id, const uint8_t& vm_version) {
    //check for entry in cache
-   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
+   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(code_id);
    if(it != _cache_index.get<by_hash>().end()) {
       if (m.write_window)
          _cache_index.relocate(_cache_index.begin(), _cache_index.project<0>(it));
@@ -254,8 +251,7 @@ const code_descriptor* const code_cache_sync::get_descriptor_for_code_sync(mode 
    fds_to_pass.emplace_back(memfd_for_bytearray(codeobject->code));
 
    auto msg = compile_wasm_message{
-      .code = {code_id, vm_version},
-      .executing_action_id = 0,
+      .code = { code_id, vm_version },
       .queued_time = fc::time_point{}, // could use now() if compile time measurement desired
       .limits = !m.whitelisted ? _eosvmoc_config.non_whitelisted_limits : std::optional<subjective_compile_limits>{}
    };
@@ -438,7 +434,7 @@ code_cache_base::~code_cache_base() {
 
 // called from main thread
 void code_cache_base::free_code(const digest_type& code_id, const uint8_t& vm_version) {
-   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(boost::make_tuple(code_id, vm_version));
+   code_cache_index::index<by_hash>::type::iterator it = _cache_index.get<by_hash>().find(code_id);
 
    std::lock_guard g(_mtx);
    if(it != _cache_index.get<by_hash>().end()) {
@@ -447,14 +443,13 @@ void code_cache_base::free_code(const digest_type& code_id, const uint8_t& vm_ve
    }
 
    //if it's in the queued list, erase it
-   code_tuple ct{code_id, vm_version};
-   if(auto i = _queued_compiles.get<by_hash>().find(ct); i != _queued_compiles.get<by_hash>().end())
+   if(auto i = _queued_compiles.get<by_hash>().find(code_id); i != _queued_compiles.get<by_hash>().end())
       _queued_compiles.get<by_hash>().erase(i);
 
    //however, if it's currently being compiled there is no way to cancel the compile,
    //so instead set a poison boolean that indicates not to insert the code in to the cache
    //once the compile is complete
-   const std::unordered_map<code_tuple, bool>::iterator compiling_it = _outstanding_compiles_and_poison.find({code_id, vm_version});
+   const std::unordered_map<digest_type, bool>::iterator compiling_it = _outstanding_compiles_and_poison.find(code_id);
    if(compiling_it != _outstanding_compiles_and_poison.end())
       compiling_it->second = true;
 }
