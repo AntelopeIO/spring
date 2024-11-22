@@ -1133,7 +1133,10 @@ void chain_plugin::plugin_initialize(const variables_map& options) {
 void chain_plugin_impl::plugin_startup()
 { try {
    try {
-      auto shutdown = [](){ return app().quit(); };
+      auto shutdown = []() {
+         dlog("controller shutdown, quitting...");
+         return app().quit();
+      };
       auto check_shutdown = [](){ return app().is_quiting(); };
       if (snapshot_path)
          chain->startup(shutdown, check_shutdown, std::make_shared<threaded_snapshot_reader>(*snapshot_path));
