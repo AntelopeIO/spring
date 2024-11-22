@@ -4459,6 +4459,11 @@ namespace eosio {
       my->increment_dropped_trxs = std::move(fun);
    }
 
+   void net_plugin::broadcast_block(const signed_block_ptr& b, const block_id_type& id) {
+      fc_dlog(logger, "broadcasting block ${n} ${id}", ("n", b->block_num())("id", id));
+      my->dispatcher.bcast_block(b, id);
+   }
+
    //----------------------------------------------------------------------------
 
    size_t connections_manager::number_connections() const {

@@ -1,6 +1,7 @@
 #pragma once
 #include <eosio/chain/application.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
+#include <eosio/net_plugin/net_plugin.hpp>
 #include <fc/variant.hpp>
 #include <memory>
 
@@ -53,7 +54,7 @@ private:
 
 class test_control_plugin : public plugin<test_control_plugin> {
 public:
-   APPBASE_PLUGIN_REQUIRES((chain_plugin))
+   APPBASE_PLUGIN_REQUIRES((chain_plugin)(net_plugin))
 
    test_control_plugin();
    test_control_plugin(const test_control_plugin&) = delete;
