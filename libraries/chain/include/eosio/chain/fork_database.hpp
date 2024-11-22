@@ -12,7 +12,7 @@ namespace eosio::chain {
    using block_branch_t = std::vector<signed_block_ptr>;
    enum class ignore_duplicate_t { no, yes };
    enum class include_root_t { no, yes };
-   enum class fork_db_add_t { duplicate, added, appended_to_head, fork_switch };
+   enum class fork_db_add_t { failure, duplicate, added, appended_to_head, fork_switch };
 
    // Used for logging of comparison values used for best fork determination
    std::string log_fork_comparison(const block_state& bs);
@@ -314,4 +314,4 @@ namespace eosio::chain {
 } /// eosio::chain
 
 FC_REFLECT_ENUM( eosio::chain::fork_db_add_t,
-                 (duplicate)(added)(appended_to_head)(fork_switch) )
+                 (failure)(duplicate)(added)(appended_to_head)(fork_switch) )
