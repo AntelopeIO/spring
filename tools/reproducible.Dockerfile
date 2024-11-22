@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# debian:bookworm on Sep 20 2023
-FROM debian@sha256:10901ccd8d249047f9761845b4594f121edef079cfd8224edebd9ea726f0a7f6 AS builder
+# debian:bullseye on Sep 20 2023
+FROM debian@sha256:8436ffce11662a4b696c8b6ce26d9fc73d24a12d1688c1ed2b008014df1535c4 AS builder
 
 
 # If enabling the snapshot repo below, this ought to be after the base image time from above.
