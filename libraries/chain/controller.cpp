@@ -4440,7 +4440,6 @@ struct controller_impl {
 
          const auto start_apply_blocks_loop = fc::time_point::now();
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
-            const auto start_apply_block = fc::time_point::now();
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
@@ -4465,11 +4464,9 @@ struct controller_impl {
                throw;
             } catch (const fc::exception& e) {
                if (e.code() == interrupt_exception::code_value) {
-                  if (fc::time_point::now() - start_apply_block < fc::milliseconds(2 * config::block_interval_ms)) {
-                     ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
-                     throw; // do not want to remove block from fork_db if not interrupting a long, maybe infinite, block
-                  }
-                  ilog("interrupt while applying block, removing block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                  // do not want to remove block from fork_db if interrupted
+                  ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                  throw;
                } else {
                   elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
                        ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
