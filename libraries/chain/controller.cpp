@@ -1870,12 +1870,8 @@ struct controller_impl {
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
             if (auto fork_db_head = fork_db.head()) {
-               // applies all blocks up to fork_db head from fork_db, shouldn't return incomplete, but if it does loop until complete
-               ilog("applying ${n} fork database blocks from ${ch} to ${fh}",
+               ilog("fork database contains ${n} blocks after head from ${ch} to ${fh}",
                     ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
-               while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
-                  ;
-               ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", fork_db_head->block_num())("id", fork_db_head->id()) );
             }
          }
 
@@ -2049,29 +2045,8 @@ struct controller_impl {
                // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
                bool chain_head_is_root = chain_head.id() == fork_db.root()->id();
                if (chain_head_is_root) {
-                  ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
+                  ilog( "read_mode has changed from irreversible" );
                }
-
-               // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
-               if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
-                  ilog("applying branch from fork database ending with block: ${id}", ("id", pending_head->id()));
-                  // applies all blocks up to forkdb head from forkdb, shouldn't return incomplete, but if it does loop until complete
-                  while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
-                     ;
-               }
-            }
-         } else {
-            // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
-            // it was syncing and had processed blocks into the fork database but not yet applied them. In general,
-            // it makes sense to process those blocks on startup. However, if the node was shutdown via
-            // terminate-at-block, the current expectation is that the node can be restarted to examine the state at
-            // which it was shutdown. For now, we will only process these blocks if there are peers configured. This
-            // is a bit of a hack for Spring 1.0.0 until we can add a proper pause-at-block (issue #570) which could
-            // be used to explicitly request a node to not process beyond a specified block.
-            if (conf.num_configured_p2p_peers > 0) {
-               ilog("Process blocks out of fork_db if needed");
-               log_irreversible();
-               transition_to_savanna_if_needed();
             }
          }
       };
