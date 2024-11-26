@@ -4510,7 +4510,13 @@ namespace eosio {
          resolve_and_connect(peer, p2p_address);
       }
       if (!peers.empty()) {
-         // in case there are blocks in the fork database ready to process
+         // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
+         // it was syncing and had processed blocks into the fork database but not yet applied them.
+         // If the node was shutdown via terminate-at-block, the current expectation is that the node can be restarted
+         // to examine the state at which it was shutdown. For now, we will only process these blocks if there are
+         // peers configured. This is a bit of a hack for Spring 1.0.0 until we can add a proper
+         // pause-at-block (issue #570) which could be used to explicitly request a node to not process beyond
+         // a specified block.
          my_impl->process_blocks();
       }
    }
