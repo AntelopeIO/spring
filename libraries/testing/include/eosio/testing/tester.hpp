@@ -218,6 +218,7 @@ namespace eosio::testing {
          // producer become inactive
          void                 produce_min_num_of_blocks_to_spend_time_wo_inactive_prod(const fc::microseconds target_elapsed_time = fc::microseconds());
          void                 push_block(const signed_block_ptr& b);
+         void                 apply_blocks();
 
          /**
           * These transaction IDs represent transactions available in the head chain state as scheduled

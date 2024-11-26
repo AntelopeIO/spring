@@ -340,8 +340,9 @@ namespace eosio::testing {
       case block_signal::accepted_block:
          // should get accepted_block signal after accepted_block_header signal
          // or after accepted_block (on fork switch, accepted block signaled when block re-applied)
-         return present && (itr->second == block_signal::accepted_block_header ||
-                            itr->second == block_signal::accepted_block);
+         // or first thing on restart if applying out of the forkdb
+         return !present || (present && (itr->second == block_signal::accepted_block_header ||
+                                         itr->second == block_signal::accepted_block));
 
       case block_signal::irreversible_block:
          // can be signaled on restart as the first thing since other signals happened before shutdown
@@ -458,6 +459,11 @@ namespace eosio::testing {
          last_produced_block[b->producer] = block_id;
       }
       _check_for_vote_if_needed(*control, bh);
+   }
+
+   void base_tester::apply_blocks() {
+      while (control->apply_blocks( {}, {} ) == controller::apply_blocks_result::incomplete)
+         ;
    }
 
    signed_block_ptr base_tester::_produce_block( fc::microseconds skip_time, bool skip_pending_trxs ) {

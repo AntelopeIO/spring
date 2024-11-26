@@ -263,6 +263,7 @@ namespace savanna_cluster {
       void open_from_snapshot(const std::string& snapshot) {
          dlog("node ${i} - restoring from snapshot", ("i", _node_idx));
          open(buffered_snapshot_suite::get_reader(snapshot));
+         apply_blocks();
       }
 
       std::vector<uint8_t> save_fsi() const {
