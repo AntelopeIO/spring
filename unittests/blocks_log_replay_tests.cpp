@@ -87,6 +87,7 @@ struct blog_replay_fixture {
       // Resume replay
       eosio::testing::tester replay_chain_1(copied_config_1, *genesis, call_startup_t::no);
       replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
+      replay_chain_1.apply_blocks();
 
       // Make sure new chain contain the account created by original chain
       BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay1"_n));
@@ -97,7 +98,6 @@ struct blog_replay_fixture {
       // with last_irreversible_block_num and last_head_block_num
       BOOST_CHECK(replay_chain_1.last_irreversible_block_num() == last_irreversible_block_num);
       if (!remove_fork_db) {
-         replay_chain_1.apply_blocks();
          BOOST_CHECK(replay_chain_1.head().block_num() == last_head_block_num);
       } else {
          BOOST_CHECK(replay_chain_1.head().block_num() == last_irreversible_block_num);
@@ -129,7 +129,6 @@ BOOST_FIXTURE_TEST_CASE(replay_through, blog_replay_fixture) try {
    // Make sure replayed irreversible_block_num and head_block_num match
    // with last_irreversible_block_num and last_head_block_num
    BOOST_CHECK(replay_chain.last_irreversible_block_num() == last_irreversible_block_num);
-   replay_chain.apply_blocks();
    BOOST_CHECK(replay_chain.head().block_num() == last_head_block_num);
 } FC_LOG_AND_RETHROW()
 

@@ -424,6 +424,7 @@ namespace eosio::testing {
       open(std::move(pfs), snapshot_chain_id, [&snapshot,&control=this->control]() {
          control->startup( [](){}, []() { return false; }, snapshot );
       });
+      apply_blocks();
    }
 
    void base_tester::open( protocol_feature_set&& pfs, const genesis_state& genesis, call_startup_t call_startup ) {
@@ -431,6 +432,7 @@ namespace eosio::testing {
          open(std::move(pfs), genesis.compute_chain_id(), [&genesis,&control=this->control]() {
             control->startup( [](){}, []() { return false; }, genesis );
          });
+         apply_blocks();
       } else {
          open(std::move(pfs), genesis.compute_chain_id(), nullptr);
       }
@@ -440,6 +442,7 @@ namespace eosio::testing {
       open(std::move(pfs), expected_chain_id, [&control=this->control]() {
          control->startup( [](){}, []() { return false; } );
       });
+      apply_blocks();
    }
 
    void base_tester::push_block(const signed_block_ptr& b) {
