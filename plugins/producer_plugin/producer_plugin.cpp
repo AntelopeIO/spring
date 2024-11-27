@@ -1633,7 +1633,10 @@ void producer_plugin_impl::plugin_startup() {
          app().quit();
       } );
 
-      schedule_production_loop();
+      // start production after net_plugin has started in case there are poison blocks in the fork database
+      app().executor().post(priority::high, exec_queue::read_write, [this]() {
+         schedule_production_loop();
+      });
 
       dlog("producer plugin:  plugin_startup() end");
    }
