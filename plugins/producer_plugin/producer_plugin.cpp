@@ -2112,58 +2112,6 @@ producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
       }
    }
 
-   return start_block_result::succeeded;
-}
-
-producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
-   chain::controller& chain = chain_plug->chain();
-
-   if (!chain_plug->accept_transactions())
-      return start_block_result::waiting_for_block;
-
-   abort_block();
-
-   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
-   if (!is_configured_producer()) {
-      auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                                  [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-      if (r != controller::apply_blocks_result::complete)
-         return start_block_result::waiting_for_block;
-   }
-
-   if (chain.should_terminate()) {
-      app().quit();
-      return start_block_result::failed;
-   }
-
-   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
-
-   block_handle         head               = chain.head();
-   fc::time_point       now                = fc::time_point::now();
-   block_timestamp_type block_time         = calculate_pending_block_time();
-   producer_authority   scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
-
-   start_block_result r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
-   if (r != start_block_result::succeeded)
-      return r;
-
-   if (is_configured_producer() && in_speculating_mode()) {
-      // if not producing right now, see if any blocks have come in that need to be applied
-      const block_id_type head_id = head.id();
-      chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                         [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-      head = chain.head();
-      if (head_id != head.id()) { // blocks were applied
-         now                = fc::time_point::now();
-         block_time         = calculate_pending_block_time();
-         scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
-
-         r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
-         if (r != start_block_result::succeeded)
-            return r;
-      }
-   }
-
    if (in_producing_mode()) {
       uint32_t production_round_index = block_timestamp_type(block_time).slot % chain::config::producer_repetitions;
       if (production_round_index == 0) {
@@ -2189,6 +2137,66 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          _pending_block_deadline = now + fc::milliseconds(config::block_interval_ms);
       }
    }
+
+   return start_block_result::succeeded;
+}
+
+producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
+   chain::controller& chain = chain_plug->chain();
+
+   if (!chain_plug->accept_transactions())
+      return start_block_result::waiting_for_block;
+
+   abort_block();
+
+   auto apply_blocks = [&]() -> controller::apply_blocks_result {
+      try {
+         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                                   [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+      } catch (...) {} // errors logged in apply_blocks
+      return controller::apply_blocks_result::incomplete;
+   };
+
+   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
+   if (!is_configured_producer()) {
+      auto r = apply_blocks();
+      if (r != controller::apply_blocks_result::complete)
+         return start_block_result::waiting_for_block;
+   }
+
+   if (chain.should_terminate()) {
+      app().quit();
+      return start_block_result::failed;
+   }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
+
+   block_handle         head               = chain.head();
+   fc::time_point       now                = fc::time_point::now();
+   block_timestamp_type block_time         = calculate_pending_block_time();
+   producer_authority   scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
+
+   start_block_result r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
+   if (r != start_block_result::succeeded)
+      return r;
+
+   if (is_configured_producer() && in_speculating_mode()) {
+      // if not producing right now, see if any blocks have come in that need to be applied
+      const block_id_type head_id = head.id();
+      schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
+      apply_blocks();
+      head = chain.head();
+      if (head_id != head.id()) { // blocks were applied
+         now                = fc::time_point::now();
+         block_time         = calculate_pending_block_time();
+         scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
+
+         r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
+         if (r != start_block_result::succeeded)
+            return r;
+      }
+   }
+
    const auto& preprocess_deadline = _pending_block_deadline;
 
    const block_num_type head_block_num    = head.block_num();
