@@ -136,7 +136,6 @@ struct eosvmoc_tier {
          bool attempt_tierup = false;
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          attempt_tierup = eosvmoc && (eosvmoc_tierup == wasm_interface::vm_oc_enable::oc_all || context.should_use_eos_vm_oc());
-         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() && context.trx_context.has_undo();
          if (attempt_tierup) {
             const chain::eosvmoc::code_descriptor* cd = nullptr;
             chain::eosvmoc::code_cache_base::get_cd_failure failure = chain::eosvmoc::code_cache_base::get_cd_failure::temporary;
@@ -170,11 +169,15 @@ struct eosvmoc_tier {
             }
          }
 #endif
+         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() && context.trx_context.has_undo();
          auto ex = fc::make_scoped_exit([&]() {
-            eos_vm_oc_compile_interrupt = false;
-            executing_code_hash.store({}); // indicate no longer executing
+            if (allow_oc_interrupt) {
+               eos_vm_oc_compile_interrupt = false;
+               executing_code_hash.store({}); // indicate no longer executing
+            }
          });
-         executing_code_hash.store(code_hash);
+         if (allow_oc_interrupt)
+            executing_code_hash.store(code_hash);
          try {
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
