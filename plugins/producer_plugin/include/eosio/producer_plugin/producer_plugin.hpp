@@ -83,7 +83,12 @@ public:
 
    controller::apply_blocks_result on_incoming_block();
 
+   struct pause_at_block_params {
+      chain::block_num_type block_num{0}; // block height to pause block evaluation/production
+   };
+
    void pause();
+   void pause_at_block(const pause_at_block_params& params);
    void resume();
    bool paused() const;
    void update_runtime_options(const runtime_options& options);
@@ -140,6 +145,9 @@ public:
 
    void log_failed_transaction(const transaction_id_type& trx_id, const chain::packed_transaction_ptr& packed_trx_ptr, const char* reason) const;
 
+   // initiate calls to process_incoming_block to process all queued blocks
+   void process_blocks();
+
    // thread-safe, called when a new block is received
    void received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result);
 
@@ -168,3 +176,4 @@ FC_REFLECT(eosio::producer_plugin::get_account_ram_corrections_result, (rows)(mo
 FC_REFLECT(eosio::producer_plugin::get_unapplied_transactions_params, (lower_bound)(limit)(time_limit_ms))
 FC_REFLECT(eosio::producer_plugin::unapplied_trx, (trx_id)(expiration)(trx_type)(first_auth)(first_receiver)(first_action)(total_actions)(billed_cpu_time_us)(size))
 FC_REFLECT(eosio::producer_plugin::get_unapplied_transactions_result, (size)(incoming_size)(trxs)(more))
+FC_REFLECT(eosio::producer_plugin::pause_at_block_params, (block_num));
