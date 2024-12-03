@@ -1161,7 +1161,21 @@ public:
       }
    }
 
+   void pause_at_block(block_num_type block_num) {
+      auto& chain = chain_plug->chain();
+
+      auto head = chain.head();
+      EOS_ASSERT(block_num > head.block_num(), invalid_pause_at_block_request,
+                 "Pause at block ${bn} <= chain head ${h}", ("bn", block_num)("h", head.block_num()));
+
+      fc_ilog(_log, "Set pause at block #${bn}", ("bn", block_num));
+      chain.set_pause_at_block_num(block_num);
+   }
+
    void resume() {
+      auto& chain = chain_plug->chain();
+      chain.set_pause_at_block_num(std::numeric_limits<block_num_type>::max());
+
       _pause_production = false;
       // reset vote received so production can be explicitly resumed, will pause again when received vote time limit hit again
       if (_is_savanna_active)
@@ -1680,6 +1694,10 @@ void producer_plugin::pause() {
    my->_pause_production = true;
 }
 
+void producer_plugin::pause_at_block(const pause_at_block_params& params) {
+   my->pause_at_block(params.block_num);
+}
+
 void producer_plugin::resume() {
    my->resume();
 }
@@ -2172,6 +2190,10 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
    _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
 
    block_handle         head               = chain.head();
+
+   if (head.block_num() == chain.get_pause_at_block_num())
+      return start_block_result::waiting_for_block;
+
    fc::time_point       now                = fc::time_point::now();
    block_timestamp_type block_time         = calculate_pending_block_time();
    producer_authority   scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);

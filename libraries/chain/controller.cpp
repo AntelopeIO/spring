@@ -992,6 +992,7 @@ struct controller_impl {
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
+   block_num_type                  pause_at_block_num = std::numeric_limits<block_num_type>::max();
    const db_read_mode              read_mode;
    bool                            in_trx_requiring_checks = false; ///< if true, checks that are normally skipped on replay (e.g. auth checks) cannot be skipped
    std::optional<fc::microseconds> subjective_cpu_leeway;
@@ -3704,6 +3705,9 @@ struct controller_impl {
                shutdown();
                return false;
             }
+            if (should_pause()) {
+               return false;
+            }
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
 
@@ -4420,8 +4424,8 @@ struct controller_impl {
             try {
                bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
                                                                 : controller::block_status::complete, trx_lookup );
-               if (!switch_fork) { // always complete a switch fork
-                  if (!applied || check_shutdown()) {
+               if (!switch_fork) {
+                  if (check_shutdown()) {
                      shutdown();
                      break; // result should be complete since we are shutting down
                   }
@@ -4432,6 +4436,10 @@ struct controller_impl {
                      result = controller::apply_blocks_result::incomplete;
                      break;
                   }
+               }
+               if (!applied) {
+                  result = controller::apply_blocks_result::incomplete;
+                  break;
                }
             } catch ( const std::bad_alloc& ) {
                throw;
@@ -4953,6 +4961,14 @@ struct controller_impl {
 
    bool should_terminate() const {
       return should_terminate(chain_head.block_num());
+   }
+
+   bool should_pause() const {
+      if (chain_head.block_num() == pause_at_block_num) {
+         ilog("Pausing at block #${b}", ("b", pause_at_block_num));
+         return true;
+      }
+      return false;
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -6046,6 +6062,15 @@ void controller::set_producer_node(bool is_producer_node) {
 bool controller::is_producer_node()const {
    return my->is_producer_node;
 }
+
+void controller::set_pause_at_block_num(block_num_type block_num) {
+   my->pause_at_block_num = block_num;
+}
+
+block_num_type controller::get_pause_at_block_num()const {
+   return my->pause_at_block_num;
+}
+
 
 void controller::set_db_read_only_mode() {
    mutable_db().set_read_only_mode();

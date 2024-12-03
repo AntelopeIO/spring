@@ -479,6 +479,9 @@ namespace eosio::chain {
       void set_producer_node(bool is_producer_node);
       bool is_producer_node()const; // thread safe, set at program initialization
 
+      void set_pause_at_block_num(block_num_type block_num);
+      block_num_type get_pause_at_block_num()const;
+
       void set_db_read_only_mode();
       void unset_db_read_only_mode();
       void init_thread_local_data();
