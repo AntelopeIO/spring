@@ -457,7 +457,6 @@ namespace eosio {
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
       void start_monitors();
-      void process_blocks();
 
       void expire();
       /** \name Peer Timestamps
@@ -3774,32 +3773,13 @@ namespace eosio {
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
             ++c->unique_blocks_rcvd_count;
-            fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
-            my_impl->process_blocks();
-
+            fc_dlog(logger, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+            my_impl->producer_plug->process_blocks();
 
             // ready to process immediately, so signal producer to interrupt start_block
             my_impl->producer_plug->received_block(block_num, fork_db_add_result);
          }
       });
-   }
-
-   void net_plugin_impl::process_blocks() {
-      auto process_incoming_blocks = [](auto self) -> void {
-         try {
-            auto r = my_impl->producer_plug->on_incoming_block();
-            if (r == controller::apply_blocks_result::incomplete) {
-               app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
-                  self(self);
-               });
-            }
-         } catch (...) {} // errors on applied blocks logged in controller
-      };
-
-      app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
-                            [process_incoming_blocks]() {
-                               process_incoming_blocks(process_incoming_blocks);
-                            });
    }
 
    // thread safe
@@ -4517,7 +4497,7 @@ namespace eosio {
          // peers configured. This is a bit of a hack for Spring 1.0.0 until we can add a proper
          // pause-at-block (issue #570) which could be used to explicitly request a node to not process beyond
          // a specified block.
-         my_impl->process_blocks();
+         my_impl->producer_plug->process_blocks();
       }
    }
 

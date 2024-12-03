@@ -2998,6 +2998,24 @@ void producer_plugin_impl::produce_block() {
    _time_tracker.clear();
 }
 
+void producer_plugin::process_blocks() {
+   auto process_incoming_blocks = [this](auto self) -> void {
+      try {
+         auto r = on_incoming_block();
+         if (r == controller::apply_blocks_result::incomplete) {
+            app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
+               self(self);
+            });
+         }
+      } catch (...) {} // errors on applied blocks logged in controller
+   };
+
+   app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
+                         [process_incoming_blocks]() {
+                            process_incoming_blocks(process_incoming_blocks);
+                         });
+}
+
 void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result) {
    my->_received_block = block_num;
    if (fork_db_add_result == fork_db_add_t::fork_switch) {
