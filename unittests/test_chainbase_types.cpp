@@ -73,7 +73,8 @@ BOOST_AUTO_TEST_CASE(chainbase_type_segment_alloc) {
    fs::path temp = temp_dir.path() / "pinnable_mapped_file_101";
 
    pinnable_mapped_file pmf(temp, true, 1024 * 1024, false, pinnable_mapped_file::map_mode::mapped);
-   chainbase::allocator<book> alloc(pmf.get_segment_manager());
+   auto seg_mgr = pmf.get_segment_manager();
+   auto alloc = chainbase::make_allocator<book>(seg_mgr);
    bip_vector<book, chainbase::allocator<book>> v(alloc);
    bip_vector<book, chainbase::allocator<book>> v2(alloc);
 
@@ -82,6 +83,6 @@ BOOST_AUTO_TEST_CASE(chainbase_type_segment_alloc) {
    auto a2 = v2[1].authors[0].get_allocator();
       
    // check that objects inside the vectors are allocated within the pinnable_mapped_file segment
-   BOOST_REQUIRE(a  && (chainbase::allocator<book>)(*a) == alloc);
-   BOOST_REQUIRE(a2 && (chainbase::allocator<book>)(*a2) == alloc);
+   BOOST_REQUIRE(a  && *a == chainbase::make_allocator<shared_string::allocator_type::value_type>(seg_mgr));
+   BOOST_REQUIRE(a2 && *a2 == chainbase::make_allocator<shared_string_vector::allocator_type::value_type>(seg_mgr));
 }
