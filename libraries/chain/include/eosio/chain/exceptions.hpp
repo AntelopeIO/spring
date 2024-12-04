@@ -390,6 +390,8 @@ namespace eosio { namespace chain {
                                     3080010, "Read-only transaction eos-vm-oc compile permanent failure" )
       FC_DECLARE_DERIVED_EXCEPTION( interrupt_exception, resource_exhausted_exception,
                                     3080011, "Transaction interrupted by signal" )
+      FC_DECLARE_DERIVED_EXCEPTION( interrupt_oc_exception, resource_exhausted_exception,
+                                    3080012, "Transaction interrupted by oc compile" )
 
    FC_DECLARE_DERIVED_EXCEPTION( authorization_exception, chain_exception,
                                  3090000, "Authorization exception" )

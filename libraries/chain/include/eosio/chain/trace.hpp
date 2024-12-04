@@ -97,7 +97,7 @@ namespace eosio::chain {
       block_timestamp_type                       block_time;
       std::optional<block_id_type>               producer_block_id;
       std::optional<transaction_receipt_header>  receipt;
-      fc::microseconds                           elapsed;
+      fc::microseconds                           elapsed{};
       uint64_t                                   net_usage = 0;
       bool                                       scheduled = false;
       vector<action_trace>                       action_traces;
