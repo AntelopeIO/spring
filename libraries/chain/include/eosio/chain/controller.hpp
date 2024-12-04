@@ -244,8 +244,9 @@ namespace eosio::chain {
 
          /// Apply any blocks that are ready from the fork_db
          enum class apply_blocks_result {
-            complete,  // all ready blocks in forkdb have been applied
-            incomplete // time limit reached, additional blocks may be available in forkdb to process
+            complete,   // all ready blocks in forkdb have been applied
+            incomplete, // time limit reached, additional blocks may be available in forkdb to process
+            paused      // apply blocks currently paused
          };
          apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
