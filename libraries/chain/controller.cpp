@@ -4346,7 +4346,7 @@ struct controller_impl {
 
          log_irreversible();
          transition_to_savanna_if_needed();
-         return controller::apply_blocks_result::complete;
+         return should_pause() ? controller::apply_blocks_result::paused : controller::apply_blocks_result::complete;
       } catch (fc::exception& e) {
          if (e.code() != interrupt_exception::code_value) {
             wlog("${d}", ("d",e.to_detail_string()));
