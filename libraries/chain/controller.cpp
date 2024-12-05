@@ -4952,7 +4952,13 @@ struct controller_impl {
 
    bool should_pause() const {
       if (chain_head.block_num() == pause_at_block_num) {
-         ilog("Pausing at block #${b}", ("b", pause_at_block_num));
+         // when paused new blocks can come in which causes check if we are still paused, do not spam the log
+         static fc::time_point log_time;
+         fc::time_point now = fc::time_point::now();
+         if (log_time < now - fc::seconds(1)) {
+            ilog("Pausing at block #${b}", ("b", pause_at_block_num));
+            log_time = now;
+         }
          return true;
       }
       return false;
