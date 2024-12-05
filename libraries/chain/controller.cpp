@@ -1870,12 +1870,8 @@ struct controller_impl {
             fork_db_reset_root_to_chain_head();
          } else if( !except_ptr && !check_shutdown() && !irreversible_mode() ) {
             if (auto fork_db_head = fork_db.head()) {
-               // applies all blocks up to fork_db head from fork_db, shouldn't return incomplete, but if it does loop until complete
-               ilog("applying ${n} fork database blocks from ${ch} to ${fh}",
+               ilog("fork database contains ${n} blocks after head from ${ch} to ${fh}",
                     ("n", fork_db_head->block_num() - chain_head.block_num())("ch", chain_head.block_num())("fh", fork_db_head->block_num()));
-               while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
-                  ;
-               ilog( "reversible blocks replayed to ${bn} : ${id}", ("bn", fork_db_head->block_num())("id", fork_db_head->id()) );
             }
          }
 
@@ -2041,42 +2037,6 @@ struct controller_impl {
       // At this point chain_head != nullptr && fork_db.head() != nullptr && fork_db.root() != nullptr.
       // Furthermore, fork_db.root()->block_num() <= lib_num.
       // Also, even though blog.head() may still be nullptr, blog.first_block_num() is guaranteed to be lib_num + 1.
-
-      auto finish_init = [&](auto& fork_db) {
-         if( read_mode != db_read_mode::IRREVERSIBLE ) {
-            auto pending_head = fork_db.head();
-            if ( pending_head && pending_head->id() != chain_head.id() ) {
-               // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
-               bool chain_head_is_root = chain_head.id() == fork_db.root()->id();
-               if (chain_head_is_root) {
-                  ilog( "read_mode has changed from irreversible: applying best branch from fork database" );
-               }
-
-               // See comment below about pause-at-block for why `|| conf.num_configured_p2p_peers > 0`
-               if (chain_head_is_root || conf.num_configured_p2p_peers > 0) {
-                  ilog("applying branch from fork database ending with block: ${id}", ("id", pending_head->id()));
-                  // applies all blocks up to forkdb head from forkdb, shouldn't return incomplete, but if it does loop until complete
-                  while (maybe_apply_blocks(forked_callback_t{}, trx_meta_cache_lookup{}) == controller::apply_blocks_result::incomplete)
-                     ;
-               }
-            }
-         } else {
-            // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
-            // it was syncing and had processed blocks into the fork database but not yet applied them. In general,
-            // it makes sense to process those blocks on startup. However, if the node was shutdown via
-            // terminate-at-block, the current expectation is that the node can be restarted to examine the state at
-            // which it was shutdown. For now, we will only process these blocks if there are peers configured. This
-            // is a bit of a hack for Spring 1.0.0 until we can add a proper pause-at-block (issue #570) which could
-            // be used to explicitly request a node to not process beyond a specified block.
-            if (conf.num_configured_p2p_peers > 0) {
-               ilog("Process blocks out of fork_db if needed");
-               log_irreversible();
-               transition_to_savanna_if_needed();
-            }
-         }
-      };
-
-      fork_db_.apply<void>(finish_init);
 
       // At Leap startup, we want to provide to our local finalizers the correct safety information
       // to use if they don't already have one.
@@ -4232,11 +4192,11 @@ struct controller_impl {
          assert(!verify_qc_future.valid());
       }
 
-      bool best_head = fork_db.add(bsp, ignore_duplicate_t::yes);
+      fork_db_add_t add_result = fork_db.add(bsp, ignore_duplicate_t::yes);
       if constexpr (is_proper_savanna_block)
          vote_processor.notify_new_block(async_aggregation);
 
-      return controller::accepted_block_result{best_head, block_handle{std::move(bsp)}};
+      return controller::accepted_block_result{add_result, block_handle{std::move(bsp)}};
    }
 
    // thread safe, expected to be called from thread other than the main thread
@@ -4440,7 +4400,6 @@ struct controller_impl {
 
          const auto start_apply_blocks_loop = fc::time_point::now();
          for( auto ritr = new_head_branch.rbegin(); ritr != new_head_branch.rend(); ++ritr ) {
-            const auto start_apply_block = fc::time_point::now();
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
@@ -4465,11 +4424,9 @@ struct controller_impl {
                throw;
             } catch (const fc::exception& e) {
                if (e.code() == interrupt_exception::code_value) {
-                  if (fc::time_point::now() - start_apply_block < fc::milliseconds(2 * config::block_interval_ms)) {
-                     ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
-                     throw; // do not want to remove block from fork_db if not interrupting a long, maybe infinite, block
-                  }
-                  ilog("interrupt while applying block, removing block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                  // do not want to remove block from fork_db if interrupted
+                  ilog("interrupt while applying block ${bn} : ${id}", ("bn", bsp->block_num())("id", bsp->id()));
+                  throw;
                } else {
                   elog("exception thrown while applying block ${bn} : ${id}, previous ${p}, error: ${e}",
                        ("bn", bsp->block_num())("id", bsp->id())("p", bsp->previous())("e", e.to_detail_string()));
@@ -4538,7 +4495,7 @@ struct controller_impl {
       return applied_trxs;
    }
 
-   void interrupt_transaction() {
+   void interrupt_apply_block_transaction() {
       // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
       // have limited run time already. This is to allow killing a long-running transaction in a block being
       // validated.
@@ -5308,8 +5265,8 @@ deque<transaction_metadata_ptr> controller::abort_block() {
    return my->abort_block();
 }
 
-void controller::interrupt_transaction() {
-   my->interrupt_transaction();
+void controller::interrupt_apply_block_transaction() {
+   my->interrupt_apply_block_transaction();
 }
 
 boost::asio::io_context& controller::get_thread_pool() {

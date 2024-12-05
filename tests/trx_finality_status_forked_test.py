@@ -212,6 +212,9 @@ try:
             info = prodD.getInfo()
             retStatus = prodD.getTransactionStatus(transId)
             state = getState(retStatus)
+            if state == forkedOutState:
+                prodD.waitForNextBlock()
+                continue
             blockNum = getBlockNum(retStatus) + 2 # Add 2 to give time to move from locally applied to in-block
             if (state == inBlockState or state == irreversibleState) or ( info['head_block_producer'] == 'defproducerd' and info['last_irreversible_block_num'] > blockNum ):
                 break

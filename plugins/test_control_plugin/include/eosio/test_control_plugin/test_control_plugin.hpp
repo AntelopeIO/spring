@@ -1,6 +1,7 @@
 #pragma once
 #include <eosio/chain/application.hpp>
 #include <eosio/chain_plugin/chain_plugin.hpp>
+#include <eosio/net_plugin/net_plugin.hpp>
 #include <fc/variant.hpp>
 #include <memory>
 
@@ -40,6 +41,7 @@ class read_write {
          chain::name to;
          fc::crypto::private_key trx_priv_key;
          fc::crypto::private_key blk_priv_key;
+         bool shutdown = false; // shutdown node before next block
       };
       empty swap_action(const swap_action_params& params) const;
 
@@ -53,7 +55,7 @@ private:
 
 class test_control_plugin : public plugin<test_control_plugin> {
 public:
-   APPBASE_PLUGIN_REQUIRES((chain_plugin))
+   APPBASE_PLUGIN_REQUIRES((chain_plugin)(net_plugin))
 
    test_control_plugin();
    test_control_plugin(const test_control_plugin&) = delete;
@@ -78,4 +80,4 @@ private:
 FC_REFLECT(eosio::test_control_apis::empty, )
 FC_REFLECT(eosio::test_control_apis::read_write::kill_node_on_producer_params, (producer)(where_in_sequence)(based_on_lib) )
 FC_REFLECT(eosio::test_control_apis::read_write::throw_on_params, (signal)(exception) )
-FC_REFLECT(eosio::test_control_apis::read_write::swap_action_params, (from)(to)(trx_priv_key)(blk_priv_key) )
+FC_REFLECT(eosio::test_control_apis::read_write::swap_action_params, (from)(to)(trx_priv_key)(blk_priv_key)(shutdown) )

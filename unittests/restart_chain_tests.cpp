@@ -63,6 +63,7 @@ class replay_tester : public base_tester {
          control->applied_transaction().connect(on_applied_trx);
          control->startup( [](){}, []() { return false; }, genesis );
       });
+      apply_blocks();
    }
    using base_tester::produce_block;
 
@@ -221,7 +222,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( test_light_validation_restart_from_block_log, T, 
                                              other_trace = t;
                                           }
                                        });
-
 
    BOOST_REQUIRE(other_trace);
    BOOST_REQUIRE(other_trace->receipt);

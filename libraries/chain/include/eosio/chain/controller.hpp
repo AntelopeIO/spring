@@ -96,6 +96,7 @@ namespace eosio::chain {
    using resource_limits::resource_limits_manager;
    using apply_handler = std::function<void(apply_context&)>;
 
+   enum class fork_db_add_t;
    using forked_callback_t = std::function<void(const transaction_metadata_ptr&)>;
 
    // lookup transaction_metadata via supplied function to avoid re-creation
@@ -207,8 +208,8 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler
-         void interrupt_transaction();
+         /// Expected to be called from signal handler, or producer_plugin
+         void interrupt_apply_block_transaction();
 
        /**
         *
@@ -235,7 +236,7 @@ namespace eosio::chain {
          void set_async_aggregation(async_t val);
 
          struct accepted_block_result {
-            const bool is_new_best_head = false; // true if new best head
+            const fork_db_add_t add_result;
             std::optional<block_handle> block;   // empty optional if block is unlinkable
          };
          // thread-safe

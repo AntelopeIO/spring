@@ -9,6 +9,7 @@
 #include <eosio/chain/plugin_interface.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/producer_plugin/producer_plugin.hpp>
+#include <eosio/chain/fork_database.hpp>
 
 #include <fc/bitutil.hpp>
 #include <fc/network/message_buffer.hpp>
@@ -456,6 +457,7 @@ namespace eosio {
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
       void start_monitors();
+      void process_blocks();
 
       void expire();
       /** \name Peer Timestamps
@@ -3712,7 +3714,7 @@ namespace eosio {
 
          std::optional<block_handle> obh;
          bool exception = false;
-         bool best_head = false;
+         fork_db_add_t fork_db_add_result = fork_db_add_t::failure;
          bool unlinkable = false;
          sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
          try {
@@ -3722,7 +3724,7 @@ namespace eosio {
             }
             // this will return empty optional<block_handle> if block is not linkable
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
-            best_head = abh.is_new_best_head;
+            fork_db_add_result = abh.add_result;
             obh = std::move(abh.block);
             unlinkable = !obh;
             close_mode = sync_manager::closing_mode::handshake;
@@ -3756,8 +3758,8 @@ namespace eosio {
          uint32_t block_num = obh->block_num();
          proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
-         fc_dlog( logger, "validated block header, best_head ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
-                  ("bt", best_head)("cid", cid)("num", block_num)("id", obh->id()) );
+         fc_dlog( logger, "validated block header, forkdb add ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
+                  ("bt", fork_db_add_result)("cid", cid)("num", block_num)("id", obh->id()) );
          my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
          my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
          c->block_status_monitor_.accepted();
@@ -3770,30 +3772,34 @@ namespace eosio {
             });
          }
 
-         if (best_head) {
+         if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
             ++c->unique_blocks_rcvd_count;
             fc_dlog(logger, "posting incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+            my_impl->process_blocks();
 
-            auto process_incoming_blocks = [](auto self) -> void {
-               try {
-                  auto r = my_impl->producer_plug->on_incoming_block();
-                  if (r == controller::apply_blocks_result::incomplete) {
-                     app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
-                        self(self);
-                     });
-                  }
-               } catch (...) {} // errors on applied blocks logged in controller
-             };
-
-            app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
-                                  [process_incoming_blocks]() {
-                                     process_incoming_blocks(process_incoming_blocks);
-                                  });
 
             // ready to process immediately, so signal producer to interrupt start_block
-            my_impl->producer_plug->received_block(block_num);
+            my_impl->producer_plug->received_block(block_num, fork_db_add_result);
          }
       });
+   }
+
+   void net_plugin_impl::process_blocks() {
+      auto process_incoming_blocks = [](auto self) -> void {
+         try {
+            auto r = my_impl->producer_plug->on_incoming_block();
+            if (r == controller::apply_blocks_result::incomplete) {
+               app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
+                  self(self);
+               });
+            }
+         } catch (...) {} // errors on applied blocks logged in controller
+      };
+
+      app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
+                            [process_incoming_blocks]() {
+                               process_incoming_blocks(process_incoming_blocks);
+                            });
    }
 
    // thread safe
@@ -4458,6 +4464,11 @@ namespace eosio {
       my->increment_dropped_trxs = std::move(fun);
    }
 
+   void net_plugin::broadcast_block(const signed_block_ptr& b, const block_id_type& id) {
+      fc_dlog(logger, "broadcasting block ${n} ${id}", ("n", b->block_num())("id", id));
+      my->dispatcher.bcast_block(b, id);
+   }
+
    //----------------------------------------------------------------------------
 
    size_t connections_manager::number_connections() const {
@@ -4497,6 +4508,16 @@ namespace eosio {
       g.unlock();
       for (const auto& peer : peers) {
          resolve_and_connect(peer, p2p_address);
+      }
+      if (!peers.empty()) {
+         // It is possible that the node was shutdown with blocks to process in the fork database. For example, if
+         // it was syncing and had processed blocks into the fork database but not yet applied them.
+         // If the node was shutdown via terminate-at-block, the current expectation is that the node can be restarted
+         // to examine the state at which it was shutdown. For now, we will only process these blocks if there are
+         // peers configured. This is a bit of a hack for Spring 1.0.0 until we can add a proper
+         // pause-at-block (issue #570) which could be used to explicitly request a node to not process beyond
+         // a specified block.
+         my_impl->process_blocks();
       }
    }
 
