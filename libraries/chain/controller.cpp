@@ -2040,21 +2040,6 @@ struct controller_impl {
       // Furthermore, fork_db.root()->block_num() <= lib_num.
       // Also, even though blog.head() may still be nullptr, blog.first_block_num() is guaranteed to be lib_num + 1.
 
-      auto finish_init = [&](auto& fork_db) {
-         if( read_mode != db_read_mode::IRREVERSIBLE ) {
-            auto pending_head = fork_db.head();
-            if ( pending_head && pending_head->id() != chain_head.id() ) {
-               // chain_head equal to root means that read_mode was changed from irreversible mode to head/speculative
-               bool chain_head_is_root = chain_head.id() == fork_db.root()->id();
-               if (chain_head_is_root) {
-                  ilog( "read_mode has changed from irreversible" );
-               }
-            }
-         }
-      };
-
-      fork_db_.apply<void>(finish_init);
-
       // At Leap startup, we want to provide to our local finalizers the correct safety information
       // to use if they don't already have one.
       // If we start at a block prior to the IF transition, that information will be provided when
