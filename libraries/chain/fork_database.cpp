@@ -448,8 +448,8 @@ namespace eosio::chain {
    BSP fork_database_impl<BSP>::search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const {
       if (!root)
          return {};
-      if( include_root == include_root_t::yes && root->id() == h && root->block_num() == block_num ) {
-         return root;
+      if( include_root == include_root_t::yes && root->block_num() == block_num ) {
+         return root; // root is root of every branch, no need to check h
       }
       if (block_num <= root->block_num())
          return {};
@@ -582,7 +582,7 @@ namespace eosio::chain {
    template<class BSP>
    BSP fork_database_impl<BSP>::get_block_impl(const block_id_type& id,
                                                include_root_t include_root /* = include_root_t::no */) const {
-      if( include_root == include_root_t::yes && root->id() == id ) {
+      if( include_root == include_root_t::yes && root && root->id() == id ) {
          return root;
       }
       auto itr = index.find( id );
