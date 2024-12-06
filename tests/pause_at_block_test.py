@@ -68,18 +68,18 @@ try:
 
     Utils.Print(f"Verify paused at block {blockNum}")
     assert prodNode2.getHeadBlockNum() == blockNum, "Prod Node_01 did not pause at block"
-    assert headNode.getHeadBlockNum() == blockNum, "Head Node_02 did not pause at block"
-    assert specNode.getHeadBlockNum() == blockNum, "Speculative Node_03 did not pause at block"
-    assert irrvNode.getHeadBlockNum() == blockNum, "Irreversible Node_04 did not pause at block"
+    assert headNode.getHeadBlockNum() == blockNum, "Head Node_03 did not pause at block"
+    assert specNode.getHeadBlockNum() == blockNum, "Speculative Node_04 did not pause at block"
+    assert irrvNode.getHeadBlockNum() == blockNum, "Irreversible Node_05 did not pause at block"
 
     Utils.Print(f"Verify prod node still producing blocks")
     assert prodNode.waitForLibToAdvance(), "LIB did not advance with paused nodes"
 
     Utils.Print(f"Verify still paused at block {blockNum}")
     assert prodNode2.getHeadBlockNum() == blockNum, "Prod Node_01 did not pause at block"
-    assert headNode.getHeadBlockNum() == blockNum, "Head Node_02 did not pause at block"
-    assert specNode.getHeadBlockNum() == blockNum, "Speculative Node_03 did not pause at block"
-    assert irrvNode.getHeadBlockNum() == blockNum, "Irreversible Node_04 did not pause at block"
+    assert headNode.getHeadBlockNum() == blockNum, "Head Node_03 did not pause at block"
+    assert specNode.getHeadBlockNum() == blockNum, "Speculative Node_04 did not pause at block"
+    assert irrvNode.getHeadBlockNum() == blockNum, "Irreversible Node_05 did not pause at block"
 
     Utils.Print(f"Resume paused nodes")
     prodNode2.processUrllibRequest("producer", "resume", {})
@@ -89,9 +89,9 @@ try:
 
     Utils.Print(f"Verify nodes resumed")
     assert prodNode2.waitForLibToAdvance(), "Prod Node_01 did not resume"
-    assert headNode.waitForLibToAdvance(), "Head Node_02 did not resume"
-    assert specNode.waitForLibToAdvance(), "Speculative Node_03 did not resume"
-    assert irrvNode.waitForLibToAdvance(), "Irreversible Node_04 did not resume"
+    assert headNode.waitForLibToAdvance(), "Head Node_03 did not resume"
+    assert specNode.waitForLibToAdvance(), "Speculative Node_04 did not resume"
+    assert irrvNode.waitForLibToAdvance(), "Irreversible Node_05 did not resume"
 
     testSuccessful = True
 finally:
