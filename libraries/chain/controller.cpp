@@ -1149,14 +1149,14 @@ struct controller_impl {
 
    signed_block_ptr fork_db_fetch_block_by_id( const block_id_type& id ) const {
       return fork_db.apply<signed_block_ptr>([&](const auto& forkdb) {
-         auto bsp = forkdb.get_block(id);
+         auto bsp = forkdb.get_block(id, include_root_t::yes);
          return bsp ? bsp->block : signed_block_ptr{};
       });
    }
 
    signed_block_ptr fork_db_fetch_block_on_best_branch_by_num(uint32_t block_num) const {
       return fork_db.apply<signed_block_ptr>([&](const auto& forkdb) {
-         auto bsp = forkdb.search_on_head_branch(block_num);
+         auto bsp = forkdb.search_on_head_branch(block_num, include_root_t::yes);
          if (bsp) return bsp->block;
          return signed_block_ptr{};
       });
