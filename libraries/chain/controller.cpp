@@ -992,6 +992,7 @@ struct controller_impl {
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
    bool                            replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
+   block_num_type                  pause_at_block_num = std::numeric_limits<block_num_type>::max();
    const db_read_mode              read_mode;
    bool                            in_trx_requiring_checks = false; ///< if true, checks that are normally skipped on replay (e.g. auth checks) cannot be skipped
    std::optional<fc::microseconds> subjective_cpu_leeway;
@@ -1357,9 +1358,9 @@ struct controller_impl {
 
    // When in IRREVERSIBLE mode fork_db blocks are applied and marked valid when they become irreversible
    template<typename ForkDB, typename BSP>
-   bool apply_irreversible_block(ForkDB& fork_db, const BSP& bsp) {
+   controller::apply_blocks_result apply_irreversible_block(ForkDB& fork_db, const BSP& bsp) {
       if (read_mode != db_read_mode::IRREVERSIBLE)
-         return true; // ignore
+         return controller::apply_blocks_result::complete; // ignore
       if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(bsp)>>) {
          // before transition to savanna
          return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
@@ -1375,22 +1376,23 @@ struct controller_impl {
             return apply_block(bsp, controller::block_status::complete, trx_meta_cache_lookup{});
          }
          // only called during transition when not a proper savanna block
-         return fork_db_.apply_l<bool>([&](const auto& fork_db_l) {
+         return fork_db_.apply_l<controller::apply_blocks_result>([&](const auto& fork_db_l) {
             block_state_legacy_ptr legacy = fork_db_l.get_block(bsp->id());
             fork_db_.switch_to(fork_database::in_use_t::legacy); // apply block uses to know what types to create
             block_state_ptr prev = fork_db.get_block(legacy->previous(), include_root_t::yes);
             assert(prev);
-            if( apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{}) ) {
+            controller::apply_blocks_result r = apply_block(legacy, controller::block_status::complete, trx_meta_cache_lookup{});
+            if( r == controller::apply_blocks_result::complete) {
                fc::scoped_exit<std::function<void()>> e([&]{fork_db_.switch_to(fork_database::in_use_t::both);});
                // irreversible apply was just done, calculate new_valid here instead of in transition_to_savanna()
                assert(legacy->action_mroot_savanna);
                transition_add_to_savanna_fork_db(fork_db, legacy, bsp, prev);
-               return true;
+               return r;
             }
             // add to fork_db as it expects root != head
             transition_add_to_savanna_fork_db(fork_db, legacy, bsp, prev);
             fork_db_.switch_to(fork_database::in_use_t::legacy);
-            return false;
+            return r;
          });
       }
    }
@@ -1573,7 +1575,7 @@ struct controller_impl {
             auto it = v.begin();
 
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-               if (!apply_irreversible_block(fork_db, *bitr))
+               if (apply_irreversible_block(fork_db, *bitr) != controller::apply_blocks_result::complete)
                   break;
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
@@ -3681,13 +3683,16 @@ struct controller_impl {
    }
 
    template<class BSP>
-   bool apply_block( const BSP& bsp, controller::block_status s,
-                     const trx_meta_cache_lookup& trx_lookup ) {
+   controller::apply_blocks_result apply_block( const BSP& bsp, controller::block_status s,
+                                                const trx_meta_cache_lookup& trx_lookup ) {
       try {
          try {
             if (should_terminate()) {
                shutdown();
-               return false;
+               return controller::apply_blocks_result::incomplete;
+            }
+            if (should_pause()) {
+               return controller::apply_blocks_result::paused;
             }
 
             auto start = fc::time_point::now(); // want to report total time of applying a block
@@ -3845,7 +3850,7 @@ struct controller_impl {
 
             commit_block(s);
 
-            return true;
+            return controller::apply_blocks_result::complete;
          } catch ( const std::bad_alloc& ) {
             throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
@@ -4317,7 +4322,7 @@ struct controller_impl {
 
                BSP bsp = std::make_shared<typename BSP::element_type>(*head, b, protocol_features.get_protocol_feature_set(), validator, skip_validate_signee);
 
-               if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{})) {
+               if (apply_block(bsp, controller::block_status::irreversible, trx_meta_cache_lookup{}) == controller::apply_blocks_result::complete) {
                   // On replay, log_irreversible is not called and so no irreversible_block signal is emitted.
                   // So emit it explicitly here.
                   emit( irreversible_block, std::tie(bsp->block, bsp->id()), __FILE__, __LINE__ );
@@ -4341,7 +4346,7 @@ struct controller_impl {
 
          log_irreversible();
          transition_to_savanna_if_needed();
-         return controller::apply_blocks_result::complete;
+         return should_pause() ? controller::apply_blocks_result::paused : controller::apply_blocks_result::complete;
       } catch (fc::exception& e) {
          if (e.code() != interrupt_exception::code_value) {
             wlog("${d}", ("d",e.to_detail_string()));
@@ -4403,20 +4408,26 @@ struct controller_impl {
             auto except = std::exception_ptr{};
             const auto& bsp = *ritr;
             try {
-               bool applied = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
-                                                                : controller::block_status::complete, trx_lookup );
-               if (!switch_fork) { // always complete a switch fork
-                  if (!applied || check_shutdown()) {
+               result = apply_block( bsp, bsp->is_valid() ? controller::block_status::validated
+                                                          : controller::block_status::complete, trx_lookup );
+               if (!switch_fork) {
+                  if (check_shutdown()) {
                      shutdown();
-                     break; // result should be complete since we are shutting down
-                  }
-                  // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
-                  // to call apply_blocks again if this returns incomplete.
-                  const bool more_blocks_to_process = ritr + 1 != new_head_branch.rend();
-                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
-                     result = controller::apply_blocks_result::incomplete;
+                     result = controller::apply_blocks_result::incomplete; // doesn't really matter since we are shutting down
                      break;
                   }
+                  if (result == controller::apply_blocks_result::complete) {
+                     // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
+                     // to call apply_blocks again if this returns incomplete.
+                     const bool more_blocks_to_process = ritr + 1 != new_head_branch.rend();
+                     if (!replaying && more_blocks_to_process && fc::time_point::now() - start_apply_blocks_loop > fc::milliseconds(500)) {
+                        result = controller::apply_blocks_result::incomplete;
+                        break;
+                     }
+                  }
+               }
+               if (result != controller::apply_blocks_result::complete) {
+                  break;
                }
             } catch ( const std::bad_alloc& ) {
                throw;
@@ -4938,6 +4949,20 @@ struct controller_impl {
 
    bool should_terminate() const {
       return should_terminate(chain_head.block_num());
+   }
+
+   bool should_pause() const {
+      if (chain_head.block_num() == pause_at_block_num) {
+         // when paused new blocks can come in which causes check if we are still paused, do not spam the log
+         static fc::time_point log_time;
+         fc::time_point now = fc::time_point::now();
+         if (log_time < now - fc::seconds(1)) {
+            ilog("Pausing at block #${b}", ("b", pause_at_block_num));
+            log_time = now;
+         }
+         return true;
+      }
+      return false;
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
@@ -6031,6 +6056,15 @@ void controller::set_producer_node(bool is_producer_node) {
 bool controller::is_producer_node()const {
    return my->is_producer_node;
 }
+
+void controller::set_pause_at_block_num(block_num_type block_num) {
+   my->pause_at_block_num = block_num;
+}
+
+block_num_type controller::get_pause_at_block_num()const {
+   return my->pause_at_block_num;
+}
+
 
 void controller::set_db_read_only_mode() {
    mutable_db().set_read_only_mode();

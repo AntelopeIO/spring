@@ -609,6 +609,8 @@ namespace eosio { namespace chain {
                                     3170015, "Invalid snapshot request" )
       FC_DECLARE_DERIVED_EXCEPTION( snapshot_execution_exception,  producer_exception,
                                     3170016, "Snapshot execution exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( invalid_pause_at_block_request, producer_exception,
+                                    3170017, "Invalid pause at block request" )
 
    FC_DECLARE_DERIVED_EXCEPTION( reversible_blocks_exception,           chain_exception,
                                  3180000, "Reversible Blocks exception" )
