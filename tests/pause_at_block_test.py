@@ -31,23 +31,23 @@ try:
     specificNodeosArgs = {
         0 : "--enable-stale-production",
 
-        2 : "--read-mode head",
-        3 : "--read-mode speculative",
-        4 : "--read-mode irreversible"
+        3 : "--read-mode head",
+        4 : "--read-mode speculative",
+        5 : "--read-mode irreversible"
     }
     assert cluster.launch(
-        pnodes=2,
-        prodCount=2,
-        totalProducers=2,
-        totalNodes=5,
+        pnodes=3,
+        prodCount=3,
+        totalProducers=3,
+        totalNodes=6,
         loadSystemContract=False,
         activateIF=True)
 
     prodNode = cluster.getNode(0)
     prodNode2 = cluster.getNode(1)
-    headNode = cluster.getNode(2)
-    specNode = cluster.getNode(3)
-    irrvNode = cluster.getNode(4)
+    headNode = cluster.getNode(3)
+    specNode = cluster.getNode(4)
+    irrvNode = cluster.getNode(5)
 
     prodNode.waitForProducer("defproducerb");
     prodNode.waitForProducer("defproducera");
