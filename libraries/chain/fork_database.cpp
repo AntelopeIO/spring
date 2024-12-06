@@ -582,7 +582,7 @@ namespace eosio::chain {
    template<class BSP>
    BSP fork_database_impl<BSP>::get_block_impl(const block_id_type& id,
                                                include_root_t include_root /* = include_root_t::no */) const {
-      if( include_root == include_root_t::yes && root->id() == id ) {
+      if( include_root == include_root_t::yes && root && root->id() == id ) {
          return root;
       }
       auto itr = index.find( id );
