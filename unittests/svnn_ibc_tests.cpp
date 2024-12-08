@@ -666,43 +666,43 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "30") //bitset bytes are reversed, so we do the same to test
+         ("bitset_string", "03") //bitset bytes are reversed, so we do the same to test
          ("bitset_vector", bitset_2)
          ("finalizers_count", 3)
       );
-
+      
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "ae00")
+         ("bitset_string", "00ea")
          ("bitset_vector", bitset_3)
          ("finalizers_count", 11)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "1263")
+         ("bitset_string", "3621")
          ("bitset_vector", bitset_4)
          ("finalizers_count", 14)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "fffff1")
+         ("bitset_string", "1fffff")
          ("bitset_vector", bitset_5)
          ("finalizers_count", 21)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "fff700")
+         ("bitset_string", "007fff")
          ("bitset_vector", bitset_6)
          ("finalizers_count", 21)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "30")
+         ("bitset_string", "03")
          ("bitset_vector", bitset_7)
          ("finalizers_count", 4)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "c0")
+         ("bitset_string", "0c")
          ("bitset_vector", bitset_8)
          ("finalizers_count", 4)
       );

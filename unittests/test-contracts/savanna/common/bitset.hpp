@@ -63,8 +63,8 @@ namespace savanna {
             std::string result;
             result.reserve(data.size() * 2); // Each byte will be represented by two hex characters
             for (auto byte : data) {
-                result.push_back(hex_chars[byte & 0x0F]);
-                result.push_back(hex_chars[(byte >> 4) & 0x0F]);
+                result.insert(result.begin(), hex_chars[byte & 0x0F]);
+                result.insert(result.begin(), hex_chars[(byte >> 4) & 0x0F]);
             }
             return result;
         }
