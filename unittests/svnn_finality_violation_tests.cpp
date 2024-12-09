@@ -149,8 +149,8 @@ void shouldPass(const finality_proof::proof_test_cluster& chain, const account_n
     std::pair<std::string, std::string> blame = fc::raw::unpack<std::pair<std::string, std::string>>(trace.return_value);
 
     //finalizers 0 and 1 are guilty, while finalizer 2 and 3 are innocent, see bitset tests in svnn_ibc_tests
-    BOOST_TEST(blame.first == "30"); //0011 (reverse order)
-    BOOST_TEST(blame.second == "c0"); //1100 (reverse order)
+    BOOST_TEST(blame.first == "03"); //0011
+    BOOST_TEST(blame.second == "0c"); //1100
 
 }
 

@@ -24,7 +24,6 @@ savanna::bitset create_bitset(const size_t finalizers_count, const std::optional
 
     }
     else if (strong_votes.has_value()) return savanna::bitset(finalizers_count, strong_votes.value());
-
     else return savanna::bitset(finalizers_count, weak_votes.value());
 
 }
