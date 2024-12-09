@@ -4413,7 +4413,8 @@ struct controller_impl {
                if (!switch_fork) {
                   if (check_shutdown()) {
                      shutdown();
-                     break; // result should be complete since we are shutting down
+                     result = controller::apply_blocks_result::incomplete; // doesn't really matter since we are shutting down
+                     break;
                   }
                   if (result == controller::apply_blocks_result::complete) {
                      // Break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. User expected
