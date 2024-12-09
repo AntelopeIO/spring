@@ -1,8 +1,14 @@
 #include "finality_violation.hpp"
 
 savanna::bitset merge_bitsets(const savanna::bitset& bitset_1, const savanna::bitset& bitset_2){
+
+    //check that bitsets are of the same size
     check(bitset_1.size()==bitset_2.size(), "cannot merge bitsets of different sizes");
+
+    //create a new bitset of the same size as the input bitsets
     savanna::bitset result_bitset(bitset_1.size());
+
+    //merge the bitsets by setting the bits that are set in either of the input bitsets into the result bitset
     for (size_t i = 0 ; i < bitset_1.size(); i++){
         if (bitset_1.test(i) || bitset_2.test(i)) result_bitset.set(i);
     }
@@ -11,10 +17,12 @@ savanna::bitset merge_bitsets(const savanna::bitset& bitset_1, const savanna::bi
 
 savanna::bitset create_bitset(const size_t finalizers_count, const std::optional<std::vector<uint8_t>>& strong_votes, const std::optional<std::vector<uint8_t>>& weak_votes){
 
+    //check that at least one set of votes is present
     check(strong_votes.has_value() || weak_votes.has_value(), "must have at least one set of votes to create a bitset");
 
-    savanna::bitset result_bitset(finalizers_count);
+        savanna::bitset result_bitset(finalizers_count);
 
+    //if both strong and weak votes are present, merge them
     if (strong_votes.has_value() && weak_votes.has_value()){
 
         savanna::bitset strong_bitset(finalizers_count, strong_votes.value());
@@ -23,24 +31,32 @@ savanna::bitset create_bitset(const size_t finalizers_count, const std::optional
         return merge_bitsets(strong_bitset, weak_bitset);
 
     }
+    //if only strong votes are present, use them
     else if (strong_votes.has_value()) return savanna::bitset(finalizers_count, strong_votes.value());
+    //if only weak votes are present, use them
     else return savanna::bitset(finalizers_count, weak_votes.value());
 
 }
 
 
-std::pair<savanna::bitset, savanna::bitset> check_bitsets(const finalizer_policy_input& finalizer_policy, const finality_proof& proof_1, const finality_proof& proof_2){
+std::pair<savanna::bitset, savanna::bitset> check_bitsets(const finalizer_policy_input& finalizer_policy, const finality_proof& high_proof, const finality_proof& low_proof, const bool high_proof_strong_votes_only = false, const bool low_proof_strong_votes_only = false){
 
-    std::optional<std::vector<uint8_t>> sv1 = proof_1.active_policy_qc.strong_votes;
-    std::optional<std::vector<uint8_t>> sv2 = proof_2.active_policy_qc.strong_votes;
+    std::optional<std::vector<uint8_t>> hsv = high_proof.active_policy_qc.strong_votes;
+    std::optional<std::vector<uint8_t>> lsv = low_proof.active_policy_qc.strong_votes;
 
-    std::optional<std::vector<uint8_t>> wv1 = proof_1.active_policy_qc.weak_votes;
-    std::optional<std::vector<uint8_t>> wv2 = proof_2.active_policy_qc.weak_votes;
+    std::optional<std::vector<uint8_t>> hwv = high_proof.active_policy_qc.weak_votes;
+    std::optional<std::vector<uint8_t>> lwv = low_proof.active_policy_qc.weak_votes;
 
-    savanna::bitset proof_1_bitset = create_bitset(finalizer_policy.finalizers.size(), sv1, wv1);
-    savanna::bitset proof_2_bitset = create_bitset(finalizer_policy.finalizers.size(), sv2, wv2);
+    //if bitset verification applies only to strong votes, remove weak votes
+    if (high_proof_strong_votes_only) hwv = std::nullopt;
+    if (low_proof_strong_votes_only) lwv = std::nullopt;
 
-    auto result = bitset::compare(proof_1_bitset, proof_2_bitset);
+    //create bitsets
+    savanna::bitset high_proof_bitset = create_bitset(finalizer_policy.finalizers.size(), hsv, hwv);
+    savanna::bitset low_proof_bitset = create_bitset(finalizer_policy.finalizers.size(), lsv, lwv);
+
+    //compare bitsets
+    auto result = bitset::compare(high_proof_bitset, low_proof_bitset);
 
     return result;
 
@@ -117,7 +133,7 @@ std::pair<std::string, std::string> finality_violation::rule2(   const finalizer
 
     //Proof of rule #2 finality violation
 
-    auto result = check_bitsets(finalizer_policy, high_proof, low_proof);
+    auto result = check_bitsets(finalizer_policy, high_proof, low_proof, false, true);
 
     return {result.first.to_string(), result.second.to_string()};
 
@@ -156,7 +172,7 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
 
     //Proof of rule #3 finality violation
 
-    auto result = check_bitsets(finalizer_policy, high_proof, low_proof);
+    auto result = check_bitsets(finalizer_policy, high_proof, low_proof, true, false);
 
     return {result.first.to_string(), result.second.to_string()};
 

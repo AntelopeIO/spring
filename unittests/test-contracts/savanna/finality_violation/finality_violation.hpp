@@ -28,6 +28,12 @@ CONTRACT finality_violation : public contract {
                      const finality_proof& low_proof,
                      const std::vector<checksum256>& reversible_blocks_digests);
       
+
+      
+      // compare two bitsets
+      static std::pair<savanna::bitset, savanna::bitset> compare_qc(const quorum_certificate_input& qc1, const quorum_certificate_input& qc2);
+
+      //For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
       ACTION testmroot(const checksum256& root, const std::vector<checksum256>& reversible_blocks_digests);
 
 };
