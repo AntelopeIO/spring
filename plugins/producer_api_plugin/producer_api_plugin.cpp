@@ -119,10 +119,9 @@ void producer_api_plugin::plugin_startup() {
    app().get_plugin<http_plugin>().add_api({
        CALL_WITH_400(producer, producer_rw, producer, pause,
             INVOKE_V_V(producer, pause), 201),
-      // TODO: Enable for Spring 2.0.0
-      // CALL_WITH_400(producer, producer_rw, producer, pause_at_block,
-      //       INVOKE_V_R(producer, pause_at_block, producer_plugin::pause_at_block_params), 201),
-      CALL_WITH_400(producer, producer_rw, producer, resume,
+       CALL_WITH_400(producer, producer_rw, producer, pause_at_block,
+            INVOKE_V_R(producer, pause_at_block, producer_plugin::pause_at_block_params), 201),
+       CALL_WITH_400(producer, producer_rw, producer, resume,
             INVOKE_V_V(producer, resume), 201),
        CALL_WITH_400(producer, producer_rw, producer, update_runtime_options,
             INVOKE_V_R(producer, update_runtime_options, producer_plugin::runtime_options), 201),
