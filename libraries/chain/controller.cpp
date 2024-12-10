@@ -1493,6 +1493,8 @@ struct controller_impl {
       if( new_lib_num <= lib_num )
          return;
 
+      const fc::time_point start = fc::time_point::now();
+
       auto mark_branch_irreversible = [&, this](auto& forkdb) {
          assert(!irreversible_mode() || forkdb.head());
          const auto& head_id = irreversible_mode() ? forkdb.head()->id() : chain_head.id();
@@ -1512,7 +1514,14 @@ struct controller_impl {
                // irreversible. Instead, this moves irreversible as much as possible and allows the next maybe_switch_forks call to apply these
                // non-validated blocks. After the maybe_switch_forks call (before next produced block or on next received block), irreversible
                // can then move forward on the then validated blocks.
-               return read_mode == db_read_mode::IRREVERSIBLE || bsp->is_valid();
+               // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
+               // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
+               if (read_mode == db_read_mode::IRREVERSIBLE) {
+                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
+                     return false;
+                  return true;
+               }
+               return bsp->is_valid();
             };
 
             std::vector<std::future<std::vector<char>>> v;
@@ -4985,7 +4994,7 @@ struct controller_impl {
    }
 
    bool should_terminate() const {
-      return should_terminate(chain_head.block_num());
+      return should_terminate(chain_head.block_num()) || check_shutdown();
    }
 
    bool is_builtin_activated( builtin_protocol_feature_t f )const {
