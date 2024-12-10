@@ -84,6 +84,57 @@ BOOST_AUTO_TEST_SUITE(database_tests)
          // Check the latest head block match
          BOOST_TEST(test.fetch_block_by_number(test.head().block_num())->calculate_id() ==
                     test.head().id());
+
+         // Verify LIB can be found
+         const auto lib_num = test.last_irreversible_block_num();
+         auto lib           = test.fetch_block_by_number(lib_num);
+         BOOST_REQUIRE(lib);
+         auto lib_id = lib->calculate_id();
+         BOOST_TEST(lib_num == lib->block_num());
+         lib = test.fetch_block_by_id(lib_id);
+         BOOST_REQUIRE(lib);
+         BOOST_TEST(lib->calculate_id() == lib_id);
+
+      } FC_LOG_AND_RETHROW()
+   }
+
+   // Test the block fetching methods on database, fetch_bock_by_id, and fetch_block_by_number
+   BOOST_AUTO_TEST_CASE_TEMPLATE( get_blocks_no_block_log, T, validating_testers ) {
+      try {
+         fc::temp_directory tempdir;
+
+         constexpr bool use_genesis = true;
+         T test(
+            tempdir,
+            [&](controller::config& cfg) {
+               cfg.blog = eosio::chain::empty_blocklog_config{};
+            },
+            use_genesis
+         );
+
+         // Ensure that future block doesn't exist
+         const auto nonexisting_future_block_num = test.head().block_num() + 1;
+         BOOST_TEST(test.fetch_block_by_number(nonexisting_future_block_num) == nullptr);
+         BOOST_TEST(test.fetch_block_by_id(sha256::hash("xx")) == nullptr);
+
+         test.produce_block();
+
+         // Previous nonexisting future block should exist now
+         BOOST_CHECK_NO_THROW(test.fetch_block_by_number(nonexisting_future_block_num));
+         // Check the latest head block match
+         BOOST_TEST(test.fetch_block_by_number(test.head().block_num())->calculate_id() == test.head().id());
+         BOOST_TEST(test.fetch_block_by_id(test.head().id())->calculate_id() == test.head().id());
+
+         // Verify LIB can be found
+         const auto lib_num = test.last_irreversible_block_num();
+         auto lib           = test.fetch_block_by_number(lib_num);
+         BOOST_REQUIRE(lib);
+         auto lib_id = lib->calculate_id();
+         BOOST_TEST(lib_num == lib->block_num());
+         lib = test.fetch_block_by_id(lib_id);
+         BOOST_REQUIRE(lib);
+         BOOST_TEST(lib->calculate_id() == lib_id);
+
       } FC_LOG_AND_RETHROW()
    }
 

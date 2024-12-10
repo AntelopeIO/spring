@@ -1609,12 +1609,12 @@ void producer_plugin_impl::plugin_startup() {
       const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
       if (fork_db_root) {
          on_irreversible_block(fork_db_root);
+
+         if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
+            wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
+         }
       } else {
          _irreversible_block_time = fc::time_point::maximum();
-      }
-
-      if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
-         wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
       }
 
       if (is_configured_producer()) {
