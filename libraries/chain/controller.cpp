@@ -1556,6 +1556,7 @@ struct controller_impl {
             }
          } catch( const std::exception& e ) {
             try {
+               elog("Caught exception while logging irreversible: ${e}", ("e", e.what()));
                if (root_id != forkdb.root()->id()) {
                   forkdb.advance_root(root_id);
                }
