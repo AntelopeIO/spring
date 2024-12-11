@@ -1308,8 +1308,6 @@ struct controller_impl {
    // When in IRREVERSIBLE mode fork_db blocks are applied and marked valid when they become irreversible
    template<typename ForkDB, typename BSP>
    bool apply_irreversible_block(ForkDB& forkdb, const BSP& bsp) {
-      if (read_mode != db_read_mode::IRREVERSIBLE)
-         return true; // ignore
       controller::block_report br;
       if constexpr (std::is_same_v<block_state_legacy_ptr, std::decay_t<decltype(bsp)>>) {
          // before transition to savanna
@@ -1516,7 +1514,7 @@ struct controller_impl {
                // can then move forward on the then validated blocks.
                // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
                // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
-               if (read_mode == db_read_mode::IRREVERSIBLE) {
+               if (irreversible_mode()) {
                   if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
                      return false;
                   return true;
@@ -1524,24 +1522,29 @@ struct controller_impl {
                return bsp->is_valid();
             };
 
-            std::vector<std::future<std::vector<char>>> v;
-            v.reserve( branch.size() );
-            for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-
-               v.emplace_back( post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } ) );
+            using packed_block_future = std::future<std::vector<char>>;
+            std::vector<packed_block_future> v;
+            if (!irreversible_mode()) {
+               v.reserve( branch.size() );
+               for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
+                  v.emplace_back( post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } ) );
+               }
             }
             auto it = v.begin();
 
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-               if (!apply_irreversible_block(forkdb, *bitr))
-                  break;
+               packed_block_future f;
+               if (irreversible_mode()) {
+                  f = post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } );
+                  if (!apply_irreversible_block(forkdb, *bitr))
+                     break;
+               }
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
 
                // blog.append could fail due to failures like running out of space.
                // Do it before commit so that in case it throws, DB can be rolled back.
-               blog.append( (*bitr)->block, (*bitr)->id(), it->get() );
-               ++it;
+               blog.append( (*bitr)->block, (*bitr)->id(), irreversible_mode() ? f.get() : it++->get() );
 
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
@@ -1557,9 +1560,9 @@ struct controller_impl {
                   forkdb.advance_root(root_id);
                }
             } catch( const fc::exception& e2 ) {
-               wlog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.to_detail_string())("e", e.what()));
+               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.to_detail_string())("e", e.what()));
             } catch( const std::exception& e2 ) {
-               wlog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.what())("e", e.what()));
+               elog("Caught exception ${e2}, while processing exception ${e}", ("e2", e2.what())("e", e.what()));
             }
             throw;
          }
