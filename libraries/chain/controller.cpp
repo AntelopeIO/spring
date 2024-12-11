@@ -1587,7 +1587,7 @@ struct controller_impl {
                packed_block_future f;
                if (irreversible_mode()) {
                   f = post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } );
-                  if (!apply_irreversible_block(forkdb, *bitr) != controller::apply_blocks_result::complete)
+                  if (apply_irreversible_block(fork_db, *bitr) != controller::apply_blocks_result::complete)
                      break;
                }
 
