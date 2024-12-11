@@ -1983,6 +1983,7 @@ struct controller_impl {
                }
             }
          });
+
          auto snapshot_load_time = (fc::time_point::now() - snapshot_load_start_time).to_seconds();
          auto db_size = db.get_segment_manager()->get_size();
          auto free_size = db.get_segment_manager()->get_free_memory();
@@ -2242,6 +2243,7 @@ struct controller_impl {
                section.read_row(rows_for_this_tid, db);
                read_row_count.fetch_add(2u, std::memory_order_relaxed);
 
+               utils_t::preallocate(db, rows_for_this_tid.value);
                for(size_t idx = 0; idx < rows_for_this_tid.value; idx++) {
                   utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
