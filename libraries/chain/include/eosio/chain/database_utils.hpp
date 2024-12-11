@@ -60,6 +60,10 @@ namespace eosio::chain {
          static void create( chainbase::database& db, F cons ) {
             db.create<typename index_t::value_type>(cons);
          }
+
+         static void preallocate( chainbase::database& db, size_t num ) {
+            db.preallocate<typename index_t::value_type>(num);
+         }
    };
 
    template<typename Index>
