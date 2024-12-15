@@ -137,7 +137,17 @@ mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy,
               ("strong_votes", finality_proof::finalizers_string(low_qc.active_policy_sig.strong_votes.value())) 
            )
         )
-        ("reversible_blocks_digests", digests);
+        ("reversible_proof_of_inclusion", mvo()
+            ("target_block_index", 0)
+            ("final_block_index", 0)
+            ("target", mvo()
+                ("block_num", 0)
+                ("timestamp", low_qc_block.timestamp)
+                ("finality_digest", low_qc_block.finality_digest)
+                ("parent_timestamp", low_qc_block.parent_timestamp)
+            )
+            ("merkle_branches", finality_proof::generate_proof_of_inclusion(digests, 0))
+        );
 
 }
 

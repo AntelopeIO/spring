@@ -46,6 +46,28 @@
             ]
         },
         {
+            "name": "block_ref_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
+                }
+            ]
+        },
+        {
             "name": "finality_proof",
             "base": "",
             "fields": [
@@ -158,6 +180,28 @@
             ]
         },
         {
+            "name": "reversible_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_block_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "final_block_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "block_ref_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
+                }
+            ]
+        },
+        {
             "name": "rule1",
             "base": "",
             "fields": [
@@ -192,8 +236,8 @@
                     "type": "finality_proof"
                 },
                 {
-                    "name": "reversible_blocks_digests",
-                    "type": "checksum256[]"
+                    "name": "reversible_proof_of_inclusion",
+                    "type": "reversible_proof_of_inclusion"
                 }
             ]
         },
@@ -214,8 +258,8 @@
                     "type": "finality_proof"
                 },
                 {
-                    "name": "reversible_blocks_digests",
-                    "type": "checksum256[]"
+                    "name": "reversible_proof_of_inclusion",
+                    "type": "reversible_proof_of_inclusion"
                 }
             ]
         },

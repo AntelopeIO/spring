@@ -20,13 +20,13 @@ CONTRACT finality_violation : public contract {
       std::pair<std::string, std::string> rule2(  const finalizer_policy_input& finalizer_policy, 
                      const finality_proof& high_proof,
                      const finality_proof& low_proof,
-                     const std::vector<checksum256>& reversible_blocks_digests);
+                     const reversible_proof_of_inclusion& reversible_proof_of_inclusion);
 
       [[eosio::action]]
       std::pair<std::string, std::string> rule3(  const finalizer_policy_input& finalizer_policy, 
                      const finality_proof& high_proof,
                      const finality_proof& low_proof,
-                     const std::vector<checksum256>& reversible_blocks_digests);
+                     const reversible_proof_of_inclusion& reversible_proof_of_inclusion);
       
 
       
