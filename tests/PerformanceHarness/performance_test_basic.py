@@ -220,7 +220,7 @@ class PerformanceTestBasic:
         self.nodeosLogPath = self.nodeosLogDir/f"node_{str(self.validationNodeId).zfill(2)}"/"stderr.txt"
 
         # Setup cluster and its wallet manager
-        self.walletMgr=WalletMgr(True)
+        self.walletMgr=WalletMgr(True, port=7899)
         self.cluster=Cluster(loggingLevel=self.clusterConfig.loggingLevel, loggingLevelDict=self.clusterConfig.loggingDict,
                              nodeosVers=self.clusterConfig.nodeosVers,unshared=self.testHelperConfig.unshared,
                              keepRunning=self.clusterConfig.dontKill, keepLogs=self.clusterConfig.keepLogs)
@@ -339,6 +339,7 @@ class PerformanceTestBasic:
         return self.cluster.launch(
             pnodes=self.clusterConfig._pNodes,
             totalNodes=self.clusterConfig._totalNodes,
+            totalProducers=self.clusterConfig._pNodes,
             genesisPath=self.clusterConfig.genesisPath,
             maximumP2pPerHost=self.clusterConfig.maximumP2pPerHost,
             maximumClients=self.clusterConfig.maximumClients,
