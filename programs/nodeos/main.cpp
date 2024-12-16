@@ -191,7 +191,7 @@ int main(int argc, char** argv)
       controller& chain = app->get_plugin<chain_plugin>().chain();
       app->set_stop_executor_cb([&app, &chain]() {
          ilog("appbase quit called");
-         chain.interrupt_transaction();
+         chain.interrupt_apply_block_transaction();
          app->get_io_context().stop();
       });
       if (auto resmon_plugin = app->find_plugin<resource_monitor_plugin>()) {

@@ -81,13 +81,8 @@ BOOST_AUTO_TEST_CASE(not_check_configs_if_no_read_only_threads) {
    test_configs_common(specific_args, app_init_status::succeeded);
 }
 
-void test_trxs_common(std::vector<const char*>& specific_args, bool test_disable_tierup = false) {
+void test_trxs_common(std::vector<const char*>& specific_args) {
    try {
-      fc::scoped_exit<std::function<void()>> on_exit = []() {
-         chain::wasm_interface::test_disable_tierup = false;
-      };
-      chain::wasm_interface::test_disable_tierup = test_disable_tierup;
-
       using namespace std::chrono_literals;
       fc::temp_directory temp;
       appbase::scoped_app app;
@@ -206,7 +201,7 @@ BOOST_AUTO_TEST_CASE(with_3_read_only_threads_no_tierup) {
                                              "--eos-vm-oc-enable=none",
 #endif
                                             };
-   test_trxs_common(specific_args, true);
+   test_trxs_common(specific_args);
 }
 
 // test read-only trxs on 8 separate threads (with --read-only-threads)
@@ -222,7 +217,7 @@ BOOST_AUTO_TEST_CASE(with_8_read_only_threads_no_tierup) {
                                              "--eos-vm-oc-enable=none",
 #endif
                                             };
-   test_trxs_common(specific_args, true);
+   test_trxs_common(specific_args);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <boost/lockfree/spsc_queue.hpp>
-
 #include <eosio/chain/webassembly/eos-vm-oc/eos-vm-oc.hpp>
 #include <eosio/chain/webassembly/eos-vm-oc/ipc_helpers.hpp>
 #include <boost/multi_index_container.hpp>
@@ -10,30 +8,19 @@
 #include <boost/multi_index/composite_key.hpp>
 #include <boost/multi_index/key_extractors.hpp>
 #include <boost/multi_index/member.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
 
 #include <boost/interprocess/mem_algo/rbtree_best_fit.hpp>
 #include <boost/asio/local/datagram_protocol.hpp>
 
+#include <fc/crypto/sha256.hpp>
 
 #include <thread>
 
-namespace std {
-    template<> struct hash<eosio::chain::eosvmoc::code_tuple> {
-        size_t operator()(const eosio::chain::eosvmoc::code_tuple& ct) const noexcept {
-            return ct.code_id._hash[0];
-        }
-    };
-}
-
-namespace boost {
-   template<> struct hash<eosio::chain::eosvmoc::code_tuple> {
-      size_t operator()(const eosio::chain::eosvmoc::code_tuple& ct) const {
-         std::size_t seed = 0;
-         boost::hash_combine(seed, ct.code_id._hash[0]);
-         boost::hash_combine(seed, ct.vm_version);
-         return seed;
-      }
-   };
+namespace fc {
+   inline size_t hash_value(const fc::sha256& code_id) {
+      return boost::hash<fc::sha256>()(code_id);
+   }
 }
 
 namespace eosio { namespace chain { namespace eosvmoc {
@@ -46,7 +33,6 @@ namespace bip = boost::interprocess;
 using allocator_t = bip::rbtree_best_fit<bip::null_mutex_family, bip::offset_ptr<void>, alignof(std::max_align_t)>;
 
 struct config;
-
 
 class code_cache_base {
    public:
@@ -78,10 +64,7 @@ class code_cache_base {
          indexed_by<
             sequenced<>,
             hashed_unique<tag<by_hash>,
-               composite_key< code_descriptor,
-                  member<code_descriptor, digest_type, &code_descriptor::code_hash>,
-                  member<code_descriptor, uint8_t,     &code_descriptor::vm_version>
-               >
+               member<code_descriptor, digest_type, &code_descriptor::code_hash>
             >
          >
       > code_cache_index;
@@ -92,22 +75,31 @@ class code_cache_base {
 
       std::filesystem::path _cache_file_path;
       int                   _cache_fd;
+      std::atomic<uint64_t> _executing_id{0}; // id of executing action
 
       io_context _ctx;
-      local::datagram_protocol::socket _compile_monitor_write_socket{_ctx};
+      local::datagram_protocol::socket _compile_monitor_write_socket{_ctx}; // protected by _mtx for async
       local::datagram_protocol::socket _compile_monitor_read_socket{_ctx};
 
+      struct queued_compile_entry {
+         compile_wasm_message    msg;
+         std::vector<wrapped_fd> fds_to_pass;
+
+         const digest_type&      code_id() const { return msg.code.code_id; }
+      };
       //these are really only useful to the async code cache, but keep them here so free_code can be shared
       using queued_compilies_t = boost::multi_index_container<
-         compile_wasm_message,
+         queued_compile_entry,
          indexed_by<
             sequenced<>,
             hashed_unique<tag<by_hash>,
-               member<compile_wasm_message, code_tuple, &compile_wasm_message::code>>
+               const_mem_fun<queued_compile_entry, const digest_type&, &queued_compile_entry::code_id>>
          >
       >;
-      queued_compilies_t _queued_compiles;
-      std::unordered_map<code_tuple, bool> _outstanding_compiles_and_poison;
+      std::mutex                             _mtx;
+      queued_compilies_t                     _queued_compiles;                  // protected by _mtx
+      std::unordered_map<digest_type, bool>  _outstanding_compiles_and_poison;  // protected by _mtx
+      std::atomic<size_t>                    _outstanding_compiles{0};
 
       size_t _free_bytes_eviction_threshold;
       void check_eviction_threshold(size_t free_bytes);
@@ -121,21 +113,31 @@ class code_cache_base {
 
 class code_cache_async : public code_cache_base {
    public:
-      code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config, const chainbase::database& db);
+      // called from async thread, provides code_id of any compiles spawned by get_descriptor_for_code
+      using compile_complete_callback = std::function<void(boost::asio::io_context&, const digest_type&, fc::time_point)>;
+
+      code_cache_async(const std::filesystem::path& data_dir, const eosvmoc::config& eosvmoc_config,
+                       const chainbase::database& db, compile_complete_callback cb);
       ~code_cache_async();
 
       //If code is in cache: returns pointer & bumps to front of MRU list
       //If code is not in cache, and not blacklisted, and not currently compiling: return nullptr and kick off compile
       //otherwise: return nullptr
-      const code_descriptor* const get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version, get_cd_failure& failure);
+      const code_descriptor* const get_descriptor_for_code(mode m, const digest_type& code_id, const uint8_t& vm_version,
+                                                           get_cd_failure& failure);
 
    private:
+      compile_complete_callback _compile_complete_func; // called from async thread, provides executing_action_id
       std::thread _monitor_reply_thread;
       boost::lockfree::spsc_queue<wasm_compilation_result_message> _result_queue;
+      std::unordered_set<digest_type> _blacklist;
+      size_t _threads;
+
       void wait_on_compile_monitor_message();
       std::tuple<size_t, size_t> consume_compile_thread_queue();
-      std::unordered_set<code_tuple> _blacklist;
-      size_t _threads;
+      void process_queued_compiles();
+      void write_message(const digest_type& code_id, const eosvmoc_message& message, const std::vector<wrapped_fd>& fds);
+
 };
 
 class code_cache_sync : public code_cache_base {

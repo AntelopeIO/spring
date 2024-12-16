@@ -9,8 +9,8 @@ from TestHarness.TestHelper import AppArgs
 ###############################################################
 # interrupt_trx_test
 #
-# Test applying a block with an infinite trx and verify SIGTERM kill
-# interrupts the transaction and aborts the block.
+# Verify an infinite trx in a block is auto recovered when a new
+# best head is received.
 # 
 ###############################################################
 
@@ -32,18 +32,19 @@ testSuccessful = False
 try:
     TestHelper.printSystemInfo("BEGIN")
     assert cluster.launch(
-        pnodes=1,
-        prodCount=1,
-        totalProducers=1,
-        totalNodes=2,
+        pnodes=2,
+        prodCount=2,
+        totalProducers=2,
+        totalNodes=3,
         loadSystemContract=False,
         activateIF=True,
         extraNodeosArgs="--plugin eosio::test_control_api_plugin")
 
     prodNode = cluster.getNode(0)
-    validationNode = cluster.getNode(1)
+    prodNode2 = cluster.getNode(1)
+    validationNode = cluster.getNode(2)
 
-    # Create a transaction to create an account
+    # load payloadless contract
     Utils.Print("create a new account payloadless from the producer node")
     payloadlessAcc = Account("payloadless")
     payloadlessAcc.ownerPublicKey = EOSIO_ACCT_PUBLIC_DEFAULT_KEY
@@ -56,6 +57,7 @@ try:
     Utils.Print("Publish payloadless contract")
     trans = prodNode.publishContract(payloadlessAcc, contractDir, wasmFile, abiFile, waitForTransBlock=True)
 
+    # test normal trx
     contract="payloadless"
     action="doit"
     data="{}"
@@ -63,16 +65,41 @@ try:
     trans=prodNode.pushMessage(contract, action, data, opts)
     assert trans and trans[0], "Failed to push doit action"
 
+    # test trx that will be replaced later
     action="doitslow"
     trans=prodNode.pushMessage(contract, action, data, opts)
     assert trans and trans[0], "Failed to push doitslow action"
 
+    # infinite trx, will fail since it will hit trx exec limit
     action="doitforever"
     trans=prodNode.pushMessage(contract, action, data, opts, silentErrors=True)
     assert trans and not trans[0], "push doitforever action did not fail as expected"
 
+    # swap out doitslow action in block with doitforever action
+    prodNode.waitForProducer("defproducerb")
     prodNode.waitForProducer("defproducera")
 
+    prodNode.processUrllibRequest("test_control", "swap_action",
+                                  {"from":"doitslow", "to":"doitforever",
+                                   "trx_priv_key":EOSIO_ACCT_PRIVATE_DEFAULT_KEY,
+                                   "blk_priv_key":cluster.defproduceraAccount.activePrivateKey,
+                                   "shutdown":"true"})
+
+    # trx that will be swapped out for doitforever
+    action="doitslow"
+    trans=prodNode.pushMessage(contract, action, data, opts)
+    assert trans and trans[0], "Failed to push doitslow action"
+
+    assert prodNode.waitForNodeToExit(5), f"prodNode did not exit after doitforever action and shutdown"
+    assert not prodNode.verifyAlive(), f"prodNode did not exit after doitforever action"
+
+    # relaunch and verify auto recovery
+    prodNode.relaunch(timeout=365) # large timeout to wait on other producer
+
+    prodNode.waitForProducer("defproducerb")
+    prodNode.waitForProducer("defproducera")
+
+    # verify auto recovery without any restart
     prodNode.processUrllibRequest("test_control", "swap_action",
                                   {"from":"doitslow", "to":"doitforever",
                                    "trx_priv_key":EOSIO_ACCT_PRIVATE_DEFAULT_KEY,
@@ -82,11 +109,9 @@ try:
     trans=prodNode.pushMessage(contract, action, data, opts)
     assert trans and trans[0], "Failed to push doitslow action"
 
-    assert not prodNode.waitForHeadToAdvance(3), f"prodNode did advance head after doitforever action"
-
-    prodNode.interruptAndVerifyExitStatus()
-
-    assert not prodNode.verifyAlive(), "prodNode did not exit from SIGINT"
+    assert prodNode.waitForHeadToAdvance(blocksToAdvance=3), "prodNode not advancing head after doitforever action"
+    assert prodNode.waitForLibToAdvance(), "prodNode did not advance lib after doitforever action"
+    assert prodNode2.waitForLibToAdvance(), "prodNode2 did not advance lib after doitforever action"
 
     testSuccessful = True
 finally:

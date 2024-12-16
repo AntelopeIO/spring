@@ -94,6 +94,9 @@ namespace eosio {
         void register_increment_failed_p2p_connections(std::function<void()>&&);
         void register_increment_dropped_trxs(std::function<void()>&&);
 
+        // for testing
+        void broadcast_block(const signed_block_ptr& b, const block_id_type& id);
+
       private:
         std::shared_ptr<class net_plugin_impl> my;
    };

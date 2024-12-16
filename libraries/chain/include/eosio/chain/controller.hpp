@@ -96,6 +96,7 @@ namespace eosio::chain {
    using resource_limits::resource_limits_manager;
    using apply_handler = std::function<void(apply_context&)>;
 
+   enum class fork_db_add_t;
    using forked_callback_t = std::function<void(const transaction_metadata_ptr&)>;
 
    // lookup transaction_metadata via supplied function to avoid re-creation
@@ -207,8 +208,8 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler
-         void interrupt_transaction();
+         /// Expected to be called from signal handler, or producer_plugin
+         void interrupt_apply_block_transaction();
 
        /**
         *
@@ -235,7 +236,7 @@ namespace eosio::chain {
          void set_async_aggregation(async_t val);
 
          struct accepted_block_result {
-            const bool is_new_best_head = false; // true if new best head
+            const fork_db_add_t add_result;
             std::optional<block_handle> block;   // empty optional if block is unlinkable
          };
          // thread-safe
@@ -243,8 +244,9 @@ namespace eosio::chain {
 
          /// Apply any blocks that are ready from the fork_db
          enum class apply_blocks_result {
-            complete,  // all ready blocks in forkdb have been applied
-            incomplete // time limit reached, additional blocks may be available in forkdb to process
+            complete,   // all ready blocks in forkdb have been applied
+            incomplete, // time limit reached, additional blocks may be available in forkdb to process
+            paused      // apply blocks currently paused
          };
          apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
@@ -477,6 +479,9 @@ namespace eosio::chain {
 
       void set_producer_node(bool is_producer_node);
       bool is_producer_node()const; // thread safe, set at program initialization
+
+      void set_pause_at_block_num(block_num_type block_num);
+      block_num_type get_pause_at_block_num()const;
 
       void set_db_read_only_mode();
       void unset_db_read_only_mode();

@@ -87,6 +87,7 @@ struct blog_replay_fixture {
       // Resume replay
       eosio::testing::tester replay_chain_1(copied_config_1, *genesis, call_startup_t::no);
       replay_chain_1.control->startup( [](){}, []()->bool{ return false; } );
+      replay_chain_1.apply_blocks();
 
       // Make sure new chain contain the account created by original chain
       BOOST_REQUIRE_NO_THROW(replay_chain_1.get_account("replay1"_n));

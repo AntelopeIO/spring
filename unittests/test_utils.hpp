@@ -67,6 +67,38 @@ struct test_chain_action {
    }
 };
 
+template<class T, typename Tester>
+void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu_usage_ms, uint32_t max_block_cpu_ms,
+              bool explicit_bill, std::vector<char> payload = {}, name account = "testapi"_n, transaction_metadata::trx_type trx_type = transaction_metadata::trx_type::input ) {
+   signed_transaction trx;
+
+   action act;
+   act.account = ac.get_account();
+   act.name = ac.get_name();
+   if ( trx_type != transaction_metadata::trx_type::read_only ) {
+      auto pl = vector<permission_level>{{account, config::active_name}};
+      act.authorization = pl;
+   }
+   act.data = payload;
+
+   trx.actions.push_back(act);
+   test.set_transaction_headers(trx);
+   if ( trx_type != transaction_metadata::trx_type::read_only ) {
+      auto sigs = trx.sign(test.get_private_key(account, "active"), test.get_chain_id());
+   }
+   flat_set<public_key_type> keys;
+   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys);
+   auto ptrx = std::make_shared<packed_transaction>( std::move(trx) );
+
+   auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), test.control->get_thread_pool(),
+                                                        test.get_chain_id(), fc::microseconds::maximum(),
+                                                        trx_type );
+   auto res = test.control->push_transaction( fut.get(), fc::time_point::now() + fc::milliseconds(max_block_cpu_ms),
+                                              fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us, explicit_bill, 0 );
+   if( res->except_ptr ) std::rethrow_exception( res->except_ptr );
+   if( res->except ) throw *res->except;
+};
+
 static constexpr unsigned int DJBH(const char* cp) {
    unsigned int hash = 5381;
    while (*cp)
