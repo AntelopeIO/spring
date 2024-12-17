@@ -109,6 +109,7 @@ try:
     trans=prodNode.pushMessage(contract, action, data, opts)
     assert trans and trans[0], "Failed to push doitslow action"
 
+    assert prodNode.waitForHeadToAdvance(blocksToAdvance=3), "prodNode not advancing head after doitforever action"
     assert prodNode.waitForLibToAdvance(), "prodNode did not advance lib after doitforever action"
     assert prodNode2.waitForLibToAdvance(), "prodNode2 did not advance lib after doitforever action"
 
