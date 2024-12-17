@@ -339,7 +339,7 @@ class PerformanceTestBasic:
         return self.cluster.launch(
             pnodes=self.clusterConfig._pNodes,
             totalNodes=self.clusterConfig._totalNodes,
-            totalProducers=self.clusterConfig._pNodes,
+            totalProducers=self.clusterConfig._pNodes if self.clusterConfig._totalNodes > 21 else None,
             genesisPath=self.clusterConfig.genesisPath,
             maximumP2pPerHost=self.clusterConfig.maximumP2pPerHost,
             maximumClients=self.clusterConfig.maximumClients,
