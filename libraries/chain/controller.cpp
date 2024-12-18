@@ -3515,7 +3515,7 @@ struct controller_impl {
       if (s == controller::block_status::incomplete) {
          const auto& new_b = chain_head.block();
          ilog("Produced block ${id}... #${n} @ ${t} signed by ${p} "
-              "[trxs: ${count}, lib: ${lib}, confirmed: ${confs}, net: ${net}, cpu: ${cpu} us, elapsed: ${et} us, producing time: ${tt} us]",
+              "[trxs: ${count}, lib: ${lib}${confs}, net: ${net}, cpu: ${cpu} us, elapsed: ${et} us, producing time: ${tt} us]",
               ("id", chain_head.id().str().substr(8, 16))("n", new_b->block_num())("p", new_b->producer)("t", new_b->timestamp)
               ("count", new_b->transactions.size())("lib", chain_head.irreversible_blocknum())
               ("confs", new_b->is_proper_svnn_block() ? "" : ", confirmed: " + std::to_string(new_b->confirmed))
