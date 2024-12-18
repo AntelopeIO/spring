@@ -756,7 +756,7 @@ class Cluster(object):
 
     # Spread funds across accounts with transactions spread through cluster nodes.
     #  Validate transactions are synchronized on root node
-    def spreadFunds(self, source, accounts, amount=1):
+    def spreadFunds(self, source, accounts, amount=1, waitForFinalization=False):
         assert(source)
         assert(isinstance(source, Account))
         assert(accounts)
@@ -819,9 +819,14 @@ class Cluster(object):
         # As an extra step wait for last transaction on the root node
         node=self.nodes[0]
         if Utils.Debug: Utils.Print("Wait for transaction id %s on node port %d" % (transId, node.port))
-        if node.waitForTransactionInBlock(transId) is False:
-            Utils.Print("ERROR: Failed to validate transaction %s got rolled into a block on server port %d." % (transId, node.port))
-            return False
+        if waitForFinalization:
+            if node.waitForTransFinalization(transId) is False:
+                Utils.Print("ERROR: Failed to validate transaction %s got rolled into a final block on server port %d." % (transId, node.port))
+                return False
+        else:
+            if node.waitForTransactionInBlock(transId) is False:
+                Utils.Print("ERROR: Failed to validate transaction %s got rolled into a block on server port %d." % (transId, node.port))
+                return False
 
         return True
 
@@ -850,7 +855,7 @@ class Cluster(object):
 
         return True
 
-    def spreadFundsAndValidate(self, transferAmount=1):
+    def spreadFundsAndValidate(self, transferAmount=1, waitForFinalization=False):
         """Sprays 'transferAmount' funds across configured accounts and validates action. The spray is done in a trickle down fashion with account 1
         receiving transferAmount*n SYS and forwarding x-transferAmount funds. Transfer actions are spread round-robin across the cluster to vaidate system cohesiveness."""
 
@@ -859,7 +864,7 @@ class Cluster(object):
         assert(initialBalances)
         assert(isinstance(initialBalances, dict))
 
-        if False == self.spreadFunds(self.defproduceraAccount, self.accounts, transferAmount):
+        if False == self.spreadFunds(self.defproduceraAccount, self.accounts, transferAmount, waitForFinalization=waitForFinalization):
             Utils.Print("ERROR: Failed to spread funds across nodes.")
             return False
 
