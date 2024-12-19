@@ -1619,10 +1619,7 @@ class PluginHttpTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(self):
-        global keepLogs
         self.killNodes(self)
-        if unittest.TestResult().wasSuccessful() and not keepLogs:
-            self.cleanEnv(self)
 
     
 if __name__ == "__main__":
@@ -1634,9 +1631,13 @@ if __name__ == "__main__":
     parser.add_argument('unittest_args', nargs=argparse.REMAINDER)
 
     args = parser.parse_args()
-    global keepLogs
-    keepLogs = args.keep_logs;
+    keepLogs = args.keep_logs
 
     # Now set the sys.argv to the unittest_args (leaving sys.argv[0] alone)
     sys.argv[1:] = args.unittest_args
-    unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(PluginHttpTest)
+    results = unittest.TextTestRunner().run(suite)
+    if not results.wasSuccessful():
+        keepLogs = True
+    if not keepLogs:
+        PluginHttpTest().cleanEnv()
