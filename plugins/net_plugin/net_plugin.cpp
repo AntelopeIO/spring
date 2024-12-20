@@ -2683,7 +2683,6 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( sb, no_reason );
                cp->enqueue_buffer( signed_block_which, sb, bnum, no_reason );
             }
          });
@@ -2691,9 +2690,6 @@ namespace eosio {
    }
 
    void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
-      if (my_impl->sync_master->syncing_from_peer())
-         return;
-
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
@@ -3938,15 +3934,18 @@ namespace eosio {
    }
 
    void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg ) {
-      buffer_factory buff_factory;
-      auto send_buffer = buff_factory.get_send_buffer( *msg );
+      if (my_impl->sync_master->syncing_from_peer())
+         return;
 
       fc_dlog(vote_logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
                 ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
-      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg{std::move(send_buffer)}]() mutable {
-         my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
+      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg]() mutable {
+            buffer_factory buff_factory;
+            auto send_buffer = buff_factory.get_send_buffer( *msg );
+
+            my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(send_buffer) );
       });
    }
 
