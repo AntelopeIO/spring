@@ -601,7 +601,7 @@ namespace eosio {
       void clear_write_queue() {
          fc::lock_guard g( _mtx );
          _write_queue.clear();
-         _sync_write_queue.clear();
+         _trx_write_queue.clear();
          _write_queue_size = 0;
       }
 
@@ -627,10 +627,10 @@ namespace eosio {
          fc::unique_lock g( _mtx );
          // if out_queue is not empty then async_write is in progress
          bool async_write_in_progress = !_out_queue.empty();
-         bool ready = ((!_sync_write_queue.empty() || !_write_queue.empty()) && !async_write_in_progress);
+         bool ready = ((!_trx_write_queue.empty() || !_write_queue.empty()) && !async_write_in_progress);
          g.unlock();
          if (async_write_in_progress) {
-            fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
+            fc_elog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
          }
          return ready;
       }
@@ -640,8 +640,8 @@ namespace eosio {
                             std::function<void( boost::system::error_code, std::size_t )> callback,
                             uint32_t net_message_which ) {
          fc::lock_guard g( _mtx );
-         if( net_message_which == signed_block_which ) {
-            _sync_write_queue.push_back( {buff, std::move(callback)} );
+         if( net_message_which == packed_transaction_which ) {
+            _trx_write_queue.push_back( {buff, std::move(callback)} );
          } else {
             _write_queue.push_back( {buff, std::move(callback)} );
          }
@@ -654,11 +654,11 @@ namespace eosio {
 
       void fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs ) {
          fc::lock_guard g( _mtx );
-         if( !_sync_write_queue.empty() ) { // always send msgs from sync_write_queue first
-            fill_out_buffer( bufs, _sync_write_queue );
-         } else { // postpone real_time write_queue if sync queue is not empty
+         if( !_write_queue.empty() ) { // always send msgs from write_queue first
             fill_out_buffer( bufs, _write_queue );
-            EOS_ASSERT( _write_queue_size == 0, plugin_exception, "write queue size expected to be zero" );
+         } else {
+            fill_out_buffer( bufs, _trx_write_queue );
+            assert(_trx_write_queue.empty() && _write_queue.empty() && _write_queue_size == 0);
          }
       }
 
@@ -692,7 +692,7 @@ namespace eosio {
       mutable fc::mutex   _mtx;
       uint32_t            _write_queue_size GUARDED_BY(_mtx) {0};
       deque<queued_write> _write_queue      GUARDED_BY(_mtx);
-      deque<queued_write> _sync_write_queue GUARDED_BY(_mtx); // sync_write_queue will be sent first
+      deque<queued_write> _trx_write_queue GUARDED_BY(_mtx); // trx_write_queue will be sent last
       deque<queued_write> _out_queue        GUARDED_BY(_mtx);
 
    }; // queued_buffer
