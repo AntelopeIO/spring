@@ -1566,24 +1566,6 @@ namespace eosio {
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
-      boost::asio::post(strand, [c{std::move(c)}, bufs{std::move(bufs)}]() {
-         boost::asio::async_write( *c->socket, bufs,
-            boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
-            try {
-               c->buffer_queue.clear_out_queue();
-               // May have closed connection and cleared buffer_queue
-               if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
-                  peer_ilog(c, "async write socket closed before callback");
-                  c->close();
-                  return;
-               }
-               if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
-                  peer_ilog( c, "async write socket changed before callback");
-                  boost::system::error_code ec;
-                  socket->shutdown( tcp::socket::shutdown_both, ec );
-                  socket->close( ec );
-                  return;
-               }
       boost::asio::async_write( *c->socket, bufs,
          boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
          try {
