@@ -1582,37 +1582,55 @@ namespace eosio {
                   socket->close( ec );
                   return;
                }
-
-               if( ec ) {
-                  if( ec.value() != boost::asio::error::eof ) {
-                     peer_wlog( c, "Error sending to peer: ${i}", ( "i", ec.message() ) );
-                  } else {
-                     peer_wlog( c, "connection closure detected on write" );
-                  }
-                  c->close();
-                  return;
-               }
-               peer_dlog(c, "async write complete");
-               c->bytes_sent += w;
-               c->last_bytes_sent = c->get_time();
-
-               c->buffer_queue.out_callback( ec, w );
-
-               c->enqueue_sync_block();
-               c->do_queue_write();
-            } catch ( const std::bad_alloc& ) {
-              throw;
-            } catch ( const boost::interprocess::bad_alloc& ) {
-              throw;
-            } catch( const fc::exception& ex ) {
-               peer_elog( c, "fc::exception in do_queue_write: ${s}", ("s", ex.to_string()) );
-            } catch( const std::exception& ex ) {
-               peer_elog( c, "std::exception in do_queue_write: ${s}", ("s", ex.what()) );
-            } catch( ... ) {
-               peer_elog( c, "Unknown exception in do_queue_write" );
+      boost::asio::async_write( *c->socket, bufs,
+         boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
+         try {
+            peer_dlog(c, "async write complete");
+            // May have closed connection and cleared buffer_queue
+            if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
+               peer_ilog(c, "async write socket closed before callback");
+               c->buffer_queue.clear_out_queue();
+               c->close();
+               return;
             }
-         }));
-      });
+            if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
+               peer_ilog( c, "async write socket changed before callback");
+               c->buffer_queue.clear_out_queue();
+               boost::system::error_code ec;
+               socket->shutdown( tcp::socket::shutdown_both, ec );
+               socket->close( ec );
+               return;
+            }
+
+            if( ec ) {
+               if( ec.value() != boost::asio::error::eof ) {
+                  peer_wlog( c, "Error sending to peer: ${i}", ( "i", ec.message() ) );
+               } else {
+                  peer_wlog( c, "connection closure detected on write" );
+               }
+               c->close();
+               return;
+            }
+            c->bytes_sent += w;
+            c->last_bytes_sent = c->get_time();
+
+            c->buffer_queue.out_callback( ec, w );
+            c->buffer_queue.clear_out_queue();
+
+            c->enqueue_sync_block();
+            c->do_queue_write();
+         } catch ( const std::bad_alloc& ) {
+           throw;
+         } catch ( const boost::interprocess::bad_alloc& ) {
+           throw;
+         } catch( const fc::exception& ex ) {
+            peer_elog( c, "fc::exception in do_queue_write: ${s}", ("s", ex.to_string()) );
+         } catch( const std::exception& ex ) {
+            peer_elog( c, "std::exception in do_queue_write: ${s}", ("s", ex.what()) );
+         } catch( ... ) {
+            peer_elog( c, "Unknown exception in do_queue_write" );
+         }
+      }));
    }
 
    // called from connection strand
