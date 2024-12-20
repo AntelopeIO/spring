@@ -638,9 +638,9 @@ namespace eosio {
       // @param callback must not callback into queued_buffer
       bool add_write_queue( const std::shared_ptr<vector<char>>& buff,
                             std::function<void( boost::system::error_code, std::size_t )> callback,
-                            bool to_sync_queue ) {
+                            uint32_t net_message_which ) {
          fc::lock_guard g( _mtx );
-         if( to_sync_queue ) {
+         if( net_message_which == signed_block_which ) {
             _sync_write_queue.push_back( {buff, std::move(callback)} );
          } else {
             _write_queue.push_back( {buff, std::move(callback)} );
@@ -967,12 +967,11 @@ namespace eosio {
       void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
 
       void enqueue( const net_message &msg );
-      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, bool to_sync_queue = false);
+      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num );
       void enqueue_buffer( uint32_t net_message_which,
                            const std::shared_ptr<std::vector<char>>& send_buffer,
                            block_num_type block_num,
-                           go_away_reason close_after_send,
-                           bool to_sync_queue = false);
+                           go_away_reason close_after_send);
       void cancel_sync();
       void flush_queues();
       bool enqueue_sync_block();
@@ -981,9 +980,9 @@ namespace eosio {
       void cancel_sync_wait();
       void sync_wait();
 
-      void queue_write(const std::shared_ptr<vector<char>>& buff,
-                       std::function<void(boost::system::error_code, std::size_t)> callback,
-                       bool to_sync_queue = false);
+      void queue_write(uint32_t net_message_which,
+                       const std::shared_ptr<vector<char>>& buff,
+                       std::function<void(boost::system::error_code, std::size_t)> callback);
       void do_queue_write();
 
       bool is_valid( const handshake_message& msg ) const;
@@ -1546,10 +1545,10 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::queue_write(const std::shared_ptr<vector<char>>& buff,
-                                std::function<void(boost::system::error_code, std::size_t)> callback,
-                                bool to_sync_queue) {
-      if( !buffer_queue.add_write_queue( buff, std::move(callback), to_sync_queue )) {
+   void connection::queue_write(uint32_t net_message_which,
+                                const std::shared_ptr<vector<char>>& buff,
+                                std::function<void(boost::system::error_code, std::size_t)> callback) {
+      if( !buffer_queue.add_write_queue( buff, std::move(callback), net_message_which )) {
          peer_wlog( this, "write_queue full ${s} bytes, giving up on connection", ("s", buffer_queue.write_queue_size()) );
          close();
          return;
@@ -1666,7 +1665,7 @@ namespace eosio {
             }
          }
          block_sync_throttling = false;
-         auto sent = enqueue_block( sb, num, true );
+         auto sent = enqueue_block( sb, num );
          block_sync_total_bytes_sent += sent;
          block_sync_frame_bytes_sent += sent;
          ++peer_requested->last;
@@ -1826,14 +1825,14 @@ namespace eosio {
    }
 
    // called from connection strand
-   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num, bool to_sync_queue ) {
+   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num ) {
       peer_dlog( this, "enqueue block ${num}", ("num", block_num) );
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
       latest_blk_time = std::chrono::steady_clock::now();
-      enqueue_buffer( signed_block_which, sb, block_num, no_reason, to_sync_queue);
+      enqueue_buffer( signed_block_which, sb, block_num, no_reason);
       return sb->size();
    }
 
@@ -1841,11 +1840,10 @@ namespace eosio {
    void connection::enqueue_buffer( uint32_t net_message_which,
                                     const std::shared_ptr<std::vector<char>>& send_buffer,
                                     block_num_type block_num, // only valid for net_message_which == signed_block_which
-                                    go_away_reason close_after_send,
-                                    bool to_sync_queue)
+                                    go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
-      queue_write(send_buffer,
+      queue_write(net_message_which, send_buffer,
             [conn{std::move(self)}, close_after_send, net_message_which, block_num](boost::system::error_code ec, std::size_t ) {
                         if (ec) {
                            fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.to_string()));
@@ -1859,8 +1857,7 @@ namespace eosio {
                            conn->close();
                            return;
                         }
-                  },
-                  to_sync_queue);
+                  });
    }
 
    // thread safe
