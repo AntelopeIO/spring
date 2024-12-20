@@ -1543,6 +1543,8 @@ struct controller_impl {
       if( new_lib_num <= lib_num )
          return result;
 
+      const fc::time_point start = fc::time_point::now();
+
       auto mark_branch_irreversible = [&, this](auto& fork_db) {
          assert(!irreversible_mode() || fork_db.head());
          const auto& head_id = irreversible_mode() ? fork_db.head()->id() : chain_head.id();
@@ -1582,6 +1584,12 @@ struct controller_impl {
                   result = apply_irreversible_block(fork_db, *bitr);
                   if (result != controller::apply_blocks_result::complete)
                      break;
+                  // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
+                  const bool more_blocks_to_process = bitr + 1 != branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
+                     result = controller::apply_blocks_result::incomplete;
+                     break;
+                  }
                }
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
