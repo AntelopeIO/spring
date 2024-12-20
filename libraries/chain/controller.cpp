@@ -1584,12 +1584,6 @@ struct controller_impl {
                   result = apply_irreversible_block(fork_db, *bitr);
                   if (result != controller::apply_blocks_result::complete)
                      break;
-                  // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
-                  const bool more_blocks_to_process = bitr + 1 != branch.rend();
-                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
-                     result = controller::apply_blocks_result::incomplete;
-                     break;
-                  }
                }
 
                emit( irreversible_block, std::tie((*bitr)->block, (*bitr)->id()), __FILE__, __LINE__ );
@@ -1604,6 +1598,14 @@ struct controller_impl {
                if ((*bitr)->block->is_proper_svnn_block() && fork_db_.version_in_use() == fork_database::in_use_t::both) {
                   fork_db_.switch_to(fork_database::in_use_t::savanna);
                   break;
+               }
+               if (irreversible_mode()) {
+                  // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
+                  const bool more_blocks_to_process = bitr + 1 != branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
+                     result = controller::apply_blocks_result::incomplete;
+                     break;
+                  }
                }
             }
          } FC_CAPTURE_AND_RETHROW() } catch ( const fc::exception& e ) {
