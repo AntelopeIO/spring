@@ -1498,7 +1498,7 @@ struct controller_impl {
       }
    }
 
-   void log_irreversible() {
+   controller::apply_blocks_result log_irreversible() {
       EOS_ASSERT( fork_db_has_root(), fork_database_exception, "fork database not properly initialized" );
 
       const std::optional<block_id_type> log_head_id = blog.head_id();
@@ -1538,9 +1538,10 @@ struct controller_impl {
 
       const block_id_type new_lib_id = pending_lib_id();
       const block_num_type new_lib_num = block_header::num_from_id(new_lib_id);
+      controller::apply_blocks_result result = controller::apply_blocks_result::complete;
 
       if( new_lib_num <= lib_num )
-         return;
+         return result;
 
       const fc::time_point start = fc::time_point::now();
 
@@ -1555,7 +1556,7 @@ struct controller_impl {
          // pending LIB. If the pending LIB not found on the head branch then fetch_branch returns an empty branch.
          // Otherwise fetch_branch will return from chain_head to root iff chain_head on pending LIB branch.
          auto branch = new_lib_num <= head_num ? fork_db.fetch_branch(head_id, new_lib_id) : fork_db.fetch_branch(new_lib_id, head_id);
-         try {
+         try { try {
             auto should_process = [&](auto& bsp) {
                // Only make irreversible blocks that have been validated. Blocks in the fork database may not be on our current best head
                // and therefore have not been validated.
@@ -1563,14 +1564,7 @@ struct controller_impl {
                // irreversible. Instead, this moves irreversible as much as possible and allows the next maybe_switch_forks call to apply these
                // non-validated blocks. After the maybe_switch_forks call (before next produced block or on next received block), irreversible
                // can then move forward on the then validated blocks.
-               // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run. There is a post
-               // for every incoming blocks; enough posted tasks to apply all blocks queued to the fork db.
-               if (irreversible_mode()) {
-                  if (!replaying && fc::time_point::now() - start > fc::milliseconds(500))
-                     return false;
-                  return true;
-               }
-               return bsp->is_valid();
+               return irreversible_mode() || bsp->is_valid();
             };
 
             using packed_block_future = std::future<std::vector<char>>;
@@ -1587,7 +1581,8 @@ struct controller_impl {
                packed_block_future f;
                if (irreversible_mode()) {
                   f = post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } );
-                  if (apply_irreversible_block(fork_db, *bitr) != controller::apply_blocks_result::complete)
+                  result = apply_irreversible_block(fork_db, *bitr);
+                  if (result != controller::apply_blocks_result::complete)
                      break;
                }
 
@@ -1604,10 +1599,19 @@ struct controller_impl {
                   fork_db_.switch_to(fork_database::in_use_t::savanna);
                   break;
                }
+               if (irreversible_mode()) {
+                  // In irreversible mode, break every ~500ms to allow other tasks (e.g. get_info, SHiP) opportunity to run
+                  const bool more_blocks_to_process = bitr + 1 != branch.rend();
+                  if (!replaying && more_blocks_to_process && fc::time_point::now() - start > fc::milliseconds(500)) {
+                     result = controller::apply_blocks_result::incomplete;
+                     break;
+                  }
+               }
             }
-         } catch( const std::exception& e ) {
+         } FC_CAPTURE_AND_RETHROW() } catch ( const fc::exception& e ) {
             try {
-               elog("Caught exception while logging irreversible: ${e}", ("e", e.what()));
+               if (e.code() != interrupt_exception::code_value)
+                  elog("Caught exception while logging irreversible: ${e}", ("e", e.to_detail_string()));
                if (root_id != fork_db.root()->id()) {
                   fork_db.advance_root(root_id);
                }
@@ -1631,6 +1635,8 @@ struct controller_impl {
       };
 
       fork_db_.apply<void>(mark_branch_irreversible);
+
+      return result;
    }
 
    void initialize_blockchain_state(const genesis_state& genesis) {
@@ -4357,9 +4363,9 @@ struct controller_impl {
             return maybe_apply_blocks( cb, trx_lookup );
          }
 
-         log_irreversible();
+         auto result = log_irreversible();
          transition_to_savanna_if_needed();
-         return should_pause() ? controller::apply_blocks_result::paused : controller::apply_blocks_result::complete;
+         return result;
       } catch (fc::exception& e) {
          if (e.code() != interrupt_exception::code_value) {
             wlog("${d}", ("d",e.to_detail_string()));
@@ -4500,8 +4506,10 @@ struct controller_impl {
          }
 
          // irreversible can change even if block not applied to head, integrated qc can move LIB
-         log_irreversible();
+         auto log_result = log_irreversible();
          transition_to_savanna_if_needed();
+         if (log_result != controller::apply_blocks_result::complete)
+            result = log_result;
       };
 
       fork_db_.apply<void>(do_apply_blocks);
