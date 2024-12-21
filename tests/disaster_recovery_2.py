@@ -105,7 +105,7 @@ try:
 
     Print("Resume production on Node0")
     node0.processUrllibRequest("producer", "resume")
-    assert node0.waitForIrreversibleBlock(lib) # lib, not lib+1 because waitForIrreversibleBlock uses >
+    assert node0.waitForIrreversibleBlock(lib+1)
     libN = node0.getIrreversibleBlockNum()
     assert libN > lib
 

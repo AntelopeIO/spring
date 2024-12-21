@@ -100,7 +100,8 @@ try:
         errorExit("Accounts creation failed.")
 
     Print("Spread funds and validate")
-    if not cluster.spreadFundsAndValidate(10):
+    # if activateIF then irreversible node needs funds to be irreversible before validation
+    if not cluster.spreadFundsAndValidate(10, waitForFinalization=activateIF):
         errorExit("Failed to spread and validate funds.")
 
     print("Funds spread validated")
