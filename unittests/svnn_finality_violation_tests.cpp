@@ -644,8 +644,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     proof_1_target_reversible_block.second,
                                                                     block_10_reversible_blocks);
 
-
-        real_chain.node0.push_action("violation"_n, "rule2"_n, "violation"_n, valid_rule_2_proof_1);
+        shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_1);
      
         std::cout << std::endl << "proof 1 passed" << std::endl << std::endl;
 
