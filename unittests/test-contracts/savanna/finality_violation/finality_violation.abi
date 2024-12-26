@@ -184,11 +184,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_block_index",
+                    "name": "target_reversible_block_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "final_block_index",
+                    "name": "final_reversible_block_index",
                     "type": "uint64"
                 },
                 {
@@ -276,6 +276,20 @@
                     "type": "checksum256[]"
                 }
             ]
+        },
+        {
+            "name": "testpath",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_block_index",
+                    "type": "uint32"
+                },
+                {
+                    "name": "final_block_index",
+                    "type": "uint32"
+                }
+            ]
         }
     ],
     "actions": [
@@ -297,6 +311,11 @@
         {
             "name": "testmroot",
             "type": "testmroot",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "testpath",
+            "type": "testpath",
             "ricardian_contract": ""
         }
     ],

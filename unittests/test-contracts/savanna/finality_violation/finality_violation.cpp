@@ -156,24 +156,28 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
     auto finalizer_digests = check_qcs(finalizer_policy, high_proof, low_proof);
 
     //Compare timestamps
-    block_timestamp high_proof_timestamp = high_proof.qc_block.level_3_commitments.value().timestamp;
+    block_timestamp target_proof_timestamp = proof_of_inclusion.target.timestamp;
     block_timestamp low_proof_last_claim_timestamp = low_proof.qc_block.level_3_commitments.value().latest_qc_claim_timestamp;
 
-    block_timestamp high_proof_parent_timestamp = proof_of_inclusion.target.parent_timestamp;
+    block_timestamp target_proof_parent_timestamp = proof_of_inclusion.target.parent_timestamp;
 
     //Verify that the proof of inclusion resolves to the reversible blocks mroot of the high proof
     check(proof_of_inclusion.root() == high_proof.qc_block.level_3_commitments.value().reversible_blocks_mroot, "proof of inclusion must resolve to the reversible blocks mroot of the high proof");
 
+    print("target_proof_timestamp: ", target_proof_timestamp.to_string(), "\n");
+    print("low_proof_last_claim_timestamp: ", low_proof_last_claim_timestamp.to_string(), "\n");
+    print("target_proof_parent_timestamp: ", target_proof_parent_timestamp.to_string(), "\n");
+
     //A lock violation has occured if the high proof timestamp is greater than or equal to the low proof last claim timestamp and the high proof parent timestamp is less than the low proof last claim timestamp
-    bool lock_violation = high_proof_timestamp >= low_proof_last_claim_timestamp && high_proof_parent_timestamp < low_proof_last_claim_timestamp;
+    bool lock_violation = target_proof_timestamp >= low_proof_last_claim_timestamp && target_proof_parent_timestamp < low_proof_last_claim_timestamp;
     check(lock_violation, "proofs must demonstrate a lock violation");
     
     bool finality_violation = false;
 
     //If the timestamp for the submitted reversible blocks leaf node is strictly greater than low_proof_last_claim_timestamp, we know that the low proof block is not an ancestor of the high proof block 
     //and therefore, a rule 3 violation has occurred.
-    if(proof_of_inclusion.target.timestamp > low_proof_last_claim_timestamp) finality_violation = true;
-    else if(proof_of_inclusion.target.timestamp == low_proof_last_claim_timestamp) {
+    if(target_proof_timestamp > low_proof_last_claim_timestamp) finality_violation = true;
+    else if(target_proof_timestamp == low_proof_last_claim_timestamp) {
         //If the timestamp for the submitted reversible blocks leaf node is exactly equal to low_proof_timestamp, we need to compare the finality digest of the low proof block to the finality digest of the submitted reversible blocks leaf node,
         //to check that they are not the same. If they are the same, the submitted proof is not correct. But if they are different, then we know that the low proof block is not an ancestor of the high proof block 
         check(finalizer_digests.second != proof_of_inclusion.target.finality_digest, "finality digest of low proof must be different from the finality digest of the submitted reversible blocks leaf node");
@@ -192,4 +196,17 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
 ACTION finality_violation::testmroot(const checksum256& root, const std::vector<checksum256>& reversible_blocks_digests){
     checksum256 c_root = get_merkle_root(reversible_blocks_digests);
     check(c_root == root, "invalid root");
+}
+
+//For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
+ACTION finality_violation::testpath(const uint32_t target_block_index, const uint32_t final_block_index){
+    std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
+        print("target_block_index: ", target_block_index, "\n");
+        print("final_block_index: ", final_block_index, "\n");
+        print("proof_path.size(): ", proof_path.size(), "\n");
+    for(int i = 0; i < proof_path.size(); i++){
+        print("proof_path[", i, "]: ", uint16_t(proof_path[i]), "\n");
+    }
+
+    //check(false, "expected failure");
 }

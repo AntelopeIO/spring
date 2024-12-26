@@ -35,5 +35,6 @@ CONTRACT finality_violation : public contract {
 
       //For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
       ACTION testmroot(const checksum256& root, const std::vector<checksum256>& reversible_blocks_digests);
+      ACTION testpath(const uint32_t target_block_index, const uint32_t final_block_index);
 
 };

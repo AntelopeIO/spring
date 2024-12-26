@@ -67,11 +67,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_block_index",
+                    "name": "target_action_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "final_block_index",
+                    "name": "final_action_index",
                     "type": "uint64"
                 },
                 {

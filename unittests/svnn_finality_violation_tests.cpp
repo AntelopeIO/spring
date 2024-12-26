@@ -49,108 +49,6 @@ finality_block_data get_finality_block_data(const ibc_block_data_t& block_result
     };
 }
 
-mvo prepare_rule_1_proof(  const finalizer_policy& active_finalizer_policy, 
-                    const finality_block_data& fake_qc_block, 
-                    const qc_t& fake_qc, 
-                    const finality_block_data& real_qc_block, 
-                    const qc_t& real_qc){
-
-    return mvo()
-        ("finalizer_policy", active_finalizer_policy)
-        ("proof_1", mvo() 
-           ("qc_block", mvo()
-              ("major_version", 1)
-              ("minor_version", 0)
-              ("active_finalizer_policy_generation", 1)
-              ("pending_finalizer_policy_generation", 1)
-              ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
-              ("last_pending_finalizer_policy", active_finalizer_policy)
-              ("level_3_commitments", fake_qc_block.level_3_commitments)
-              ("witness_hash", fake_qc_block.base_digest)
-              ("finality_mroot", fake_qc_block.finality_root)
-           )
-           ("active_policy_qc", mvo()
-              ("signature", fake_qc.active_policy_sig.sig.to_string())
-              ("strong_votes", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
-           )
-        )
-        ("proof_2", mvo()
-           ("qc_block", mvo()
-              ("major_version", 1)
-              ("minor_version", 0)
-              ("active_finalizer_policy_generation", 1)
-              ("pending_finalizer_policy_generation", 1)
-              ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
-              ("last_pending_finalizer_policy", active_finalizer_policy)
-              ("level_3_commitments", real_qc_block.level_3_commitments)
-              ("witness_hash", real_qc_block.base_digest)
-              ("finality_mroot", real_qc_block.finality_root)
-           )
-           ("active_policy_qc", mvo()
-              ("signature", real_qc.active_policy_sig.sig.to_string())
-              ("strong_votes", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
-           )
-        );
-
-}
-
-mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy, 
-                    const finality_block_data& high_qc_block, 
-                    const qc_t& high_qc, 
-                    const finality_block_data& low_qc_block, 
-                    const qc_t& low_qc, 
-                    const std::vector<digest_type>& digests){
-
-    return mvo()
-        ("finalizer_policy", active_finalizer_policy)
-        ("high_proof", mvo() 
-           ("qc_block", mvo()
-              ("major_version", 1)
-              ("minor_version", 0)
-              ("active_finalizer_policy_generation", 1)
-              ("pending_finalizer_policy_generation", 1)
-              ("last_pending_finalizer_policy_start_timestamp", high_qc_block.last_pending_finalizer_policy_start_timestamp)
-              ("last_pending_finalizer_policy", active_finalizer_policy)
-              ("level_3_commitments", high_qc_block.level_3_commitments)
-              ("witness_hash", high_qc_block.base_digest)
-              ("finality_mroot", high_qc_block.finality_root)
-           )
-           ("active_policy_qc", mvo()
-              ("signature", high_qc.active_policy_sig.sig.to_string())
-              ("strong_votes", finality_proof::finalizers_string(high_qc.active_policy_sig.strong_votes.value())) 
-           )
-        )
-        ("low_proof", mvo()
-           ("qc_block", mvo()
-              ("major_version", 1)
-              ("minor_version", 0)
-              ("active_finalizer_policy_generation", 1)
-              ("pending_finalizer_policy_generation", 1)
-              ("last_pending_finalizer_policy_start_timestamp", low_qc_block.last_pending_finalizer_policy_start_timestamp)
-              ("last_pending_finalizer_policy", active_finalizer_policy)
-              ("level_3_commitments", low_qc_block.level_3_commitments)
-              ("witness_hash", low_qc_block.base_digest)
-              ("finality_mroot", low_qc_block.finality_root)
-           )
-           ("active_policy_qc", mvo()
-              ("signature", low_qc.active_policy_sig.sig.to_string())
-              ("strong_votes", finality_proof::finalizers_string(low_qc.active_policy_sig.strong_votes.value())) 
-           )
-        )
-        ("reversible_proof_of_inclusion", mvo()
-            ("target_block_index", 0)
-            ("final_block_index", 0)
-            ("target", mvo()
-                ("block_num", 0)
-                ("timestamp", low_qc_block.timestamp)
-                ("finality_digest", low_qc_block.finality_digest)
-                ("parent_timestamp", low_qc_block.parent_timestamp)
-            )
-            ("merkle_branches", finality_proof::generate_proof_of_inclusion(digests, 0))
-        );
-
-}
-
 
 void shouldPass(const finality_proof::proof_test_cluster& chain, const account_name& rule, const mvo& proof){
 
@@ -208,7 +106,163 @@ digest_type compute_block_ref_digest(const finality_block_data& b){
 
 }
 
+std::vector<digest_type> get_reversible_blocks_digests(const std::vector<finality_block_data>& blocks){
+
+    std::vector<digest_type> block_ref_digests;
+
+    for (int i = 0 ; i < blocks.size(); i++){
+
+        finality_block_data b = blocks[i];
+
+        digest_type digest = compute_block_ref_digest(b);
+
+        block_ref_digests.push_back(digest);
+
+    }
+
+    return block_ref_digests;
+
+}
+
+digest_type calculate_reversible_blocks_merkle(const std::vector<finality_block_data>& blocks){
+
+    std::vector<digest_type> block_ref_digests = get_reversible_blocks_digests(blocks);
+
+    return calculate_merkle(block_ref_digests);
+
+}
+
+        
+std::pair<finality_block_data, size_t> get_target_reversible_block(const std::vector<finality_block_data>& reversible_blocks, const uint32_t& block_num){
+
+    auto itr = std::find_if(reversible_blocks.begin(), reversible_blocks.end(), [&](const finality_block_data& b){
+        return b.block_num == block_num;
+    });
+
+    size_t index = std::distance(reversible_blocks.begin(), itr);
+    
+    return std::make_pair(*itr, index);
+
+}
+
 BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
+
+    mvo prepare_rule_1_proof(  const finalizer_policy& active_finalizer_policy, 
+                        const finality_block_data& fake_qc_block, 
+                        const qc_t& fake_qc, 
+                        const finality_block_data& real_qc_block, 
+                        const qc_t& real_qc){
+
+        return mvo()
+            ("finalizer_policy", active_finalizer_policy)
+            ("proof_1", mvo() 
+            ("qc_block", mvo()
+                ("major_version", 1)
+                ("minor_version", 0)
+                ("active_finalizer_policy_generation", 1)
+                ("pending_finalizer_policy_generation", 1)
+                ("last_pending_finalizer_policy_start_timestamp", fake_qc_block.last_pending_finalizer_policy_start_timestamp)
+                ("last_pending_finalizer_policy", active_finalizer_policy)
+                ("level_3_commitments", fake_qc_block.level_3_commitments)
+                ("witness_hash", fake_qc_block.base_digest)
+                ("finality_mroot", fake_qc_block.finality_root)
+            )
+            ("active_policy_qc", mvo()
+                ("signature", fake_qc.active_policy_sig.sig.to_string())
+                ("strong_votes", finality_proof::finalizers_string(fake_qc.active_policy_sig.strong_votes.value())) 
+            )
+            )
+            ("proof_2", mvo()
+            ("qc_block", mvo()
+                ("major_version", 1)
+                ("minor_version", 0)
+                ("active_finalizer_policy_generation", 1)
+                ("pending_finalizer_policy_generation", 1)
+                ("last_pending_finalizer_policy_start_timestamp", real_qc_block.last_pending_finalizer_policy_start_timestamp)
+                ("last_pending_finalizer_policy", active_finalizer_policy)
+                ("level_3_commitments", real_qc_block.level_3_commitments)
+                ("witness_hash", real_qc_block.base_digest)
+                ("finality_mroot", real_qc_block.finality_root)
+            )
+            ("active_policy_qc", mvo()
+                ("signature", real_qc.active_policy_sig.sig.to_string())
+                ("strong_votes", finality_proof::finalizers_string(real_qc.active_policy_sig.strong_votes.value())) 
+            )
+            );
+
+    }
+
+    mvo prepare_rule_2_3_proof(  const finalizer_policy& active_finalizer_policy, 
+                        const finality_block_data& high_qc_block, 
+                        const qc_t& high_qc, 
+                        const finality_block_data& low_qc_block, 
+                        const qc_t& low_qc, 
+                        const finality_block_data& target_reversible_block, 
+                        const size_t target_reversible_block_index, 
+                        const std::vector<finality_block_data>& reversible_blocks){
+
+        std::cout << "target_reversible_block_index: " << target_reversible_block_index << std::endl;
+        std::cout << "reversible_blocks.size(): " << reversible_blocks.size() << std::endl;
+
+        std::cout << "target_reversible_block: " << compute_block_ref_digest(target_reversible_block) << std::endl;
+
+        std::vector<digest_type> merkle_branches = finality_proof::generate_proof_of_inclusion(get_reversible_blocks_digests(reversible_blocks), target_reversible_block_index);
+
+        for(const auto& digest : merkle_branches){
+            std::cout << "merkle branch: " << digest << std::endl;
+        }
+
+
+        return mvo()
+            ("finalizer_policy", active_finalizer_policy)
+            ("high_proof", mvo() 
+            ("qc_block", mvo()
+                ("major_version", 1)
+                ("minor_version", 0)
+                ("active_finalizer_policy_generation", 1)
+                ("pending_finalizer_policy_generation", 1)
+                ("last_pending_finalizer_policy_start_timestamp", high_qc_block.last_pending_finalizer_policy_start_timestamp)
+                ("last_pending_finalizer_policy", active_finalizer_policy)
+                ("level_3_commitments", high_qc_block.level_3_commitments)
+                ("witness_hash", high_qc_block.base_digest)
+                ("finality_mroot", high_qc_block.finality_root)
+            )
+            ("active_policy_qc", mvo()
+                ("signature", high_qc.active_policy_sig.sig.to_string())
+                ("strong_votes", finality_proof::finalizers_string(high_qc.active_policy_sig.strong_votes.value())) 
+            )
+            )
+            ("low_proof", mvo()
+            ("qc_block", mvo()
+                ("major_version", 1)
+                ("minor_version", 0)
+                ("active_finalizer_policy_generation", 1)
+                ("pending_finalizer_policy_generation", 1)
+                ("last_pending_finalizer_policy_start_timestamp", low_qc_block.last_pending_finalizer_policy_start_timestamp)
+                ("last_pending_finalizer_policy", active_finalizer_policy)
+                ("level_3_commitments", low_qc_block.level_3_commitments)
+                ("witness_hash", low_qc_block.base_digest)
+                ("finality_mroot", low_qc_block.finality_root)
+            )
+            ("active_policy_qc", mvo()
+                ("signature", low_qc.active_policy_sig.sig.to_string())
+                ("strong_votes", finality_proof::finalizers_string(low_qc.active_policy_sig.strong_votes.value())) 
+            )
+            )
+            ("reversible_proof_of_inclusion", mvo()
+                ("target_reversible_block_index", target_reversible_block_index)
+                ("final_reversible_block_index", reversible_blocks.size() - 1)
+                ("target", mvo()
+                    ("block_num", target_reversible_block.block_num)
+                    ("timestamp", target_reversible_block.timestamp)
+                    ("finality_digest", target_reversible_block.finality_digest)
+                    ("parent_timestamp", target_reversible_block.parent_timestamp)
+                )
+                ("merkle_branches", merkle_branches)
+            );
+
+    }
+
 
     BOOST_AUTO_TEST_CASE(contract_get_merkle_root) { try {
 
@@ -312,9 +366,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //The data_cache stores data relevant to finality violation proofs.
             //It only operates in optimistic mode, which is sufficient for finality violation proofs testing purposes
 
-            //store the reversible blocks
-            std::vector<finality_block_data> reversible_blocks;
-
             //store the last block over which we have a QC, as well as said QC
             finality_block_data high_qc_block;
             qc_t high_qc;
@@ -322,9 +373,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             //store the last final block, as wall as the first QC over it. The last_final_qc and high_qc together constitute the 2-chains required for finality progress
             finality_block_data last_final_block;
             qc_t last_final_qc;
-
-            //store all policies sunset data
-            std::vector<policy_sunset_data> policy_sunsets;
 
             //current active finalizer policy
             finalizer_policy active_finalizer_policy;
@@ -393,23 +441,35 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
             }
 
-            std::vector<digest_type> get_reversible_blocks_digests(){
+            // std::vector<digest_type> get_reversible_blocks_digests(){
 
-                std::vector<digest_type> block_ref_digests;
+            //     std::vector<digest_type> block_ref_digests;
 
-                for (int i = 0 ; i < reversible_blocks.size() - 1; i++){
+            //     for (int i = 0 ; i < reversible_blocks.size() - 1; i++){
 
-                    finality_block_data b = reversible_blocks[i];
+            //         finality_block_data b = reversible_blocks[i];
 
-                    digest_type digest = compute_block_ref_digest(b);
+            //         digest_type digest = compute_block_ref_digest(b);
 
-                    block_ref_digests.push_back(digest);
+            //         block_ref_digests.push_back(digest);
 
-                }
+            //     }
 
-                return block_ref_digests;
+            //     return block_ref_digests;
 
+            // }
+
+            std::vector<finality_block_data> get_reversible_blocks(){
+                std::vector<finality_block_data> result(reversible_blocks.begin(), reversible_blocks.end() - 1);
+                return result;
             }
+
+            finality_block_data get_qc_block(){
+                return reversible_blocks.back();
+            }
+
+            //store the reversible blocks
+            std::vector<finality_block_data> reversible_blocks;
 
         };
         
@@ -457,7 +517,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_REQUIRE(fake_chain_block_4_result.qc_data.qc.has_value());
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size() == 1u);
         
         //produce a few blocks on the real chain
         auto real_chain_genesis_block_result = real_chain.produce_block();
@@ -494,7 +554,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_5_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_5_result = real_chain.produce_block();
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 1u);
         
         //verify the chains have diverged
         BOOST_TEST(fake_chain_block_5_result.finality_digest != real_chain_block_5_result.finality_digest);
@@ -532,7 +592,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_9_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_9_result = real_chain.produce_block();
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 1u);
 
         //restore vote propagation for fake chain. This leaves a one-block gap where no finality progress was achieved
         fake_chain.vote_propagation = {1,1,0};
@@ -540,7 +600,22 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_10_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_10_result = real_chain.produce_block();
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 2u);
+        //get the reversible blocks for block #10 (should be two digests, block ref data of #8 and #9)
+        std::vector<finality_block_data> block_10_reversible_blocks = light_client_data.get_reversible_blocks();
+
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 2u);
+        BOOST_TEST(block_10_reversible_blocks.size() == 2u);
+
+        BOOST_TEST(compute_block_ref_digest(block_10_reversible_blocks[0]) == compute_block_ref_digest(fake_chain_block_8_result));
+        BOOST_TEST(compute_block_ref_digest(block_10_reversible_blocks[1]) == compute_block_ref_digest(fake_chain_block_9_result));
+
+        //calculate the merkle root of the reversible blocks digests
+        digest_type block_10_reversible_blocks_merkle_root = calculate_reversible_blocks_merkle(block_10_reversible_blocks);
+
+        //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
+        BOOST_TEST(fake_chain_block_10_result.level_3_commitments.reversible_blocks_mroot == block_10_reversible_blocks_merkle_root);
+
+        auto proof_1_target_reversible_block = get_target_reversible_block(light_client_data.get_reversible_blocks(), real_chain_block_9_result.block->block_num());
 
         //Real chain has a QC on #9 carried by #10, but fake chain doesn't
         BOOST_TEST(!fake_chain_block_10_result.qc_data.qc.has_value());
@@ -553,17 +628,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_11_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_11_result.qc_data.qc.has_value());
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 3u);
-
-        //get the reversible blocks for block #10 (should be two digests, block ref data of #8 and #9)
-        std::vector<digest_type> block_10_reversible_blocks_digests = light_client_data.get_reversible_blocks_digests();
-
-        //since we're preparing the proof for block #10, we must discard block #11
-        block_10_reversible_blocks_digests.pop_back();
-
-        BOOST_TEST(block_10_reversible_blocks_digests.size() == 2u);
-        BOOST_TEST(block_10_reversible_blocks_digests[0] == compute_block_ref_digest(fake_chain_block_8_result));
-        BOOST_TEST(block_10_reversible_blocks_digests[1] == compute_block_ref_digest(fake_chain_block_9_result));
+        BOOST_TEST(light_client_data.get_reversible_blocks().size() == 3u);
 
         //Light client recorded the last QC (over block #10) on the fake chain, which was delivered via block #11. 
         //Block #10 claims a QC over block #8. We provide fake block #10 and the QC over it, as well as the digests of the reversible blocks the light client recorded (block #8 and block #9).
@@ -571,13 +636,18 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Since there is a time range conflict, and since the real block #9 finality digest doesn't appear in the list of reversible blocks digests committed to by the fake block QC, 
         //this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(), 
+                                                                    light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #10
+                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #10
                                                                     get_finality_block_data(real_chain_block_9_result), 
                                                                     get_finality_block_data(real_chain_block_10_result).qc_data.qc.value(),
-                                                                    block_10_reversible_blocks_digests);
+                                                                    proof_1_target_reversible_block.first,
+                                                                    proof_1_target_reversible_block.second,
+                                                                    block_10_reversible_blocks);
+
 
         real_chain.node0.push_action("violation"_n, "rule2"_n, "violation"_n, valid_rule_2_proof_1);
+     
+        std::cout << std::endl << "proof 1 passed" << std::endl << std::endl;
 
         auto fake_chain_block_12_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_12_result = real_chain.produce_block();
@@ -585,7 +655,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_12_result.qc_data.qc.has_value());
         BOOST_TEST(real_chain_block_12_result.qc_data.qc.has_value());
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 1u);
         
         //we can now test the other possibility for rule #2, where the high proof is actually from the real chain
 
@@ -595,7 +665,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_13_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_13_result = real_chain.produce_block();
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 1u);
 
         //restore vote propagation on the real chain
         real_chain.vote_propagation = {1,0,1};
@@ -603,10 +673,23 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto fake_chain_block_14_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_14_result = real_chain.produce_block();
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 1u);
+        BOOST_TEST(light_client_data.get_reversible_blocks().size()  == 1u);
 
         //compute reversible digests on block #12 and #13 on the real chain
-        std::vector<digest_type> block_14_reversible_blocks_digests = { compute_block_ref_digest(real_chain_block_12_result), compute_block_ref_digest(real_chain_block_13_result)};
+        std::vector<finality_block_data> block_14_reversible_blocks = { get_finality_block_data(real_chain_block_12_result), 
+                                                                        get_finality_block_data(real_chain_block_13_result)};
+
+        for (const auto& block : block_14_reversible_blocks){
+            std::cout << "block # : " << block.block_num << " -> " << compute_block_ref_digest(block) << std::endl;
+        }   
+
+        //calculate the merkle root of the reversible blocks digests
+        digest_type block_14_reversible_blocks_merkle_root = calculate_reversible_blocks_merkle(block_14_reversible_blocks);
+
+        //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
+        BOOST_TEST(real_chain_block_14_result.level_3_commitments.reversible_blocks_mroot == block_14_reversible_blocks_merkle_root);
+
+        std::cout << "block 14 reversible blocks merkle root: " << block_14_reversible_blocks_merkle_root << std::endl;
 
         //Fake chain has a QC on #13 carried by #14, but real chain doesn't
         BOOST_TEST(fake_chain_block_14_result.qc_data.qc.has_value());
@@ -617,6 +700,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         //Things are back to normal on the real chain, and we have a QC 
         BOOST_TEST(real_chain_block_15_result.qc_data.qc.has_value());
+        
+        auto proof_2_target_reversible_block = get_target_reversible_block(block_14_reversible_blocks, block_14_reversible_blocks[block_14_reversible_blocks.size()-1].block_num);
 
         //We discovered a QC (over block #14) on the real chain, which was delivered via block #15. 
         //Last QC recorded on the fake chain was over block #13, and was delivered by block #14
@@ -626,9 +711,11 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_14_result), 
                                                                     get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
-                                                                    block_14_reversible_blocks_digests);
+                                                                    light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #13
+                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #13
+                                                                    proof_2_target_reversible_block.first,
+                                                                    proof_2_target_reversible_block.second,
+                                                                    block_14_reversible_blocks);
 
         shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2);
 
@@ -665,31 +752,41 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         auto real_chain_block_19_result = real_chain.produce_block();
 
         //compute reversible digests on block #16, #17 and #18 on the real chain
-        std::vector<digest_type> block_19_reversible_blocks_digests = { compute_block_ref_digest(real_chain_block_16_result), compute_block_ref_digest(real_chain_block_17_result), compute_block_ref_digest(real_chain_block_18_result)};
+        std::vector<finality_block_data> block_19_reversible_blocks = { get_finality_block_data(real_chain_block_16_result), get_finality_block_data(real_chain_block_17_result), get_finality_block_data(real_chain_block_18_result)};
+  
+        //calculate the merkle root of the reversible blocks digests
+        digest_type block_19_reversible_blocks_merkle_root = calculate_reversible_blocks_merkle(block_19_reversible_blocks);
+
+        //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
+        BOOST_TEST(real_chain_block_19_result.level_3_commitments.reversible_blocks_mroot == block_19_reversible_blocks_merkle_root);
 
         BOOST_TEST(fake_chain_block_19_result.qc_data.qc.has_value());
         BOOST_TEST(!real_chain_block_19_result.qc_data.qc.has_value());
 
-        //At this point, we can verify that the time range of the last fake chain block on which we have a QC is fully encapsulated within the time range of the last real chain block
+        //At this point, we can verify that the time range of the last fake chain block on which we have a QC is fully contained within the time range of the last real chain block
         BOOST_TEST(fake_chain_block_18_result.level_3_commitments.latest_qc_claim_block_num == fake_chain_block_17_result.block->block_num());
         BOOST_TEST(real_chain_block_19_result.level_3_commitments.latest_qc_claim_block_num == real_chain_block_16_result.block->block_num());
         
+        auto proof_3_target_reversible_block = get_target_reversible_block(block_19_reversible_blocks, fake_chain_block_17_result.block->block_num());
+
         //stop producing on fake chain, produce one more block on the real chain to get a QC on previous block
         auto real_chain_block_20_result = real_chain.produce_block();
 
         BOOST_TEST(real_chain_block_20_result.qc_data.qc.has_value());
 
         //We can now produce a proof of finality violation demonstrating that finalizers were locked on #18 on the fake chain, while also voting on a conflicting block #19 
-        //on the real chain which is not a descendant of #18, where the time range committed to by #18 is fully encapsulated within the time range committed to by #19
+        //on the real chain which is not a descendant of #18, where the time range committed to by #18 is fully contained within the time range committed to by #19
         mutable_variant_object valid_rule_3_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_19_result), 
                                                                     get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
-                                                                    block_19_reversible_blocks_digests);
+                                                                    light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #18
+                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #18
+                                                                    proof_3_target_reversible_block.first,
+                                                                    proof_3_target_reversible_block.second,
+                                                                    block_19_reversible_blocks);
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1);
-
+    
         //Resume production on fake chain
         auto fake_chain_block_20_result = light_client_data.scan_block(fake_chain.produce_block());
         BOOST_TEST(fake_chain_block_20_result.qc_data.qc.has_value());
@@ -729,33 +826,40 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //At this point, we can verify that the time range of the last real chain block on which we have a QC is fully encapsulated within the time range of the last fake chain block
         BOOST_TEST(fake_chain_block_24_result.level_3_commitments.latest_qc_claim_block_num == fake_chain_block_21_result.block->block_num());
         BOOST_TEST(real_chain_block_23_result.level_3_commitments.latest_qc_claim_block_num == real_chain_block_22_result.block->block_num());
-        
+
+        //get the reversible blocks for block #24 (should be three blocks: #21, #22 and #23)
+        std::vector<finality_block_data> block_24_reversible_blocks = light_client_data.get_reversible_blocks();
+
+
+        BOOST_TEST(block_24_reversible_blocks.size() == 3u);
+
+        BOOST_TEST(compute_block_ref_digest(block_24_reversible_blocks[0]) == compute_block_ref_digest(fake_chain_block_21_result));
+        BOOST_TEST(compute_block_ref_digest(block_24_reversible_blocks[1]) == compute_block_ref_digest(fake_chain_block_22_result));
+        BOOST_TEST(compute_block_ref_digest(block_24_reversible_blocks[2]) == compute_block_ref_digest(fake_chain_block_23_result));
+
+        //calculate the merkle root of the reversible blocks digests
+        digest_type block_24_reversible_blocks_merkle_root = calculate_reversible_blocks_merkle(block_24_reversible_blocks);
+
+        //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
+        BOOST_TEST(fake_chain_block_24_result.level_3_commitments.reversible_blocks_mroot == block_24_reversible_blocks_merkle_root);
+
         //stop producing on real chain, produce one more block on the fake chain to get a QC on previous block
         auto fake_chain_block_25_result = light_client_data.scan_block(fake_chain.produce_block());
 
         BOOST_TEST(fake_chain_block_25_result.qc_data.qc.has_value());
 
-        BOOST_TEST(light_client_data.get_reversible_blocks_digests().size() == 4u);
-
-        //get the reversible blocks for block #24 (should be three digests, block ref data of #21, #22 and #23)
-        std::vector<digest_type> block_24_reversible_blocks_digests = light_client_data.get_reversible_blocks_digests();
-
-        //since we're preparing the proof for block #24, we must discard block #25
-        block_24_reversible_blocks_digests.pop_back();
-
-        BOOST_TEST(block_24_reversible_blocks_digests.size() == 3u);
-        BOOST_TEST(block_24_reversible_blocks_digests[0] == compute_block_ref_digest(fake_chain_block_21_result));
-        BOOST_TEST(block_24_reversible_blocks_digests[1] == compute_block_ref_digest(fake_chain_block_22_result));
-        BOOST_TEST(block_24_reversible_blocks_digests[2] == compute_block_ref_digest(fake_chain_block_23_result));
+        auto proof_4_target_reversible_block = get_target_reversible_block(block_24_reversible_blocks, fake_chain_block_22_result.block->block_num());
 
         //We can now produce a proof of finality violation demonstrating that finalizers were locked on #23 on the real chain, while also voting on a conflicting block #24 
-        //on the fake chain which is not a descendant of #23, where the time range committed to by #23 is fully encapsulated within the time range committed to by #24
+        //on the fake chain which is not a descendant of #23, where the time range committed to by #23 is fully contained within the time range committed to by #24
         mutable_variant_object valid_rule_3_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-2], 
-                                                                    light_client_data.reversible_blocks[light_client_data.reversible_blocks.size()-1].qc_data.qc.value(),
+                                                                    light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #23
+                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #23
                                                                     get_finality_block_data(real_chain_block_23_result), 
-                                                                    get_finality_block_data(real_chain_block_24_result).qc_data.qc.value(), 
-                                                                    block_24_reversible_blocks_digests);
+                                                                    get_finality_block_data(real_chain_block_24_result).qc_data.qc.value(),
+                                                                    proof_4_target_reversible_block.first,
+                                                                    proof_4_target_reversible_block.second,
+                                                                    block_24_reversible_blocks);
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_2);
 

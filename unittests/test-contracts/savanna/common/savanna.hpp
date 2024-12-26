@@ -126,7 +126,13 @@ namespace savanna {
    checksum256 _compute_root(const std::vector<checksum256>& proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
-       check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
+
+      print("target_block_index: ", target_block_index, "\n");
+      print("final_block_index: ", final_block_index, "\n");
+      print("proof_path size: ", proof_path.size(), "\n");
+      print("proof_nodes size: ", proof_nodes.size(), "\n");   
+
+       check(proof_path.size() == proof_nodes.size(), "proof path size and proof nodes size mismatch");
        for (int i = 0 ; i < proof_nodes.size() ; i++){
            const checksum256 node = proof_nodes[i];
            hash = hash_pair(proof_path[i] ? std::make_pair(node, hash) : std::make_pair(hash, node));
@@ -332,8 +338,8 @@ namespace savanna {
    };
 
    struct action_proof_of_inclusion {
-      uint64_t target_block_index = 0;
-      uint64_t final_block_index = 0;
+      uint64_t target_action_index = 0;
+      uint64_t final_action_index = 0;
 
       action_data target;
 
@@ -342,7 +348,7 @@ namespace savanna {
       //returns the merkle root obtained by hashing target.digest() with merkle_branches
       checksum256 root() const {
          checksum256 digest = action_data_internal(target).digest();
-         checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
+         checksum256 root = _compute_root(merkle_branches, digest, target_action_index, final_action_index);
          return root;
       }; 
    };
@@ -395,8 +401,8 @@ namespace savanna {
    };
 
    struct reversible_proof_of_inclusion {
-      uint64_t target_block_index = 0;
-      uint64_t final_block_index = 0;
+      uint64_t target_reversible_block_index = 0;
+      uint64_t final_reversible_block_index = 0;
 
       block_ref_data target;
 
@@ -405,7 +411,7 @@ namespace savanna {
       //returns the merkle root obtained by hashing target.digest() with merkle_branches
       checksum256 root() const {
          checksum256 digest = target.digest();
-         checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
+         checksum256 root = _compute_root(merkle_branches, digest, target_reversible_block_index, final_reversible_block_index);
          return root;
       }; 
    };
