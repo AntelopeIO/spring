@@ -263,32 +263,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
     }
 
-
-    BOOST_AUTO_TEST_CASE(contract_get_merkle_root) { try {
-
-        //verify that get_merkle_root function from savanna contract produces the same results than calculate_merkle
-        std::vector<digest_type> digests = {    digest_type{"cb7ea678fe3a84fcff103f9cf08b97e5dd0b01bee54635f49255050f34bdbf34"},
-                                                digest_type{"ac2607856dea36137a1d6d0dd79b980f1ac7b104c59dc1e5fdd5f1568c7169c3"},
-                                                digest_type{"a1af721189bdf59121043169b891a9e8fa545611be35eb95139bb1f2f409fcb3"},
-                                                digest_type{"1afa2d6299822185c1f5332445f1fe304e12bf51a6221abdf75fcda6cdc38f56"},
-                                                digest_type{"2dafbbd44d65e07ba48652cd5d83857765d19f93075ae2a9eb7749d2cdf1341d"} };
-
-        digest_type root = calculate_merkle(digests);
-
-        tester c;
-
-        c.create_accounts( {account_name("violation")} );
-      
-        c.produce_block();
-
-        c.set_code( "violation"_n, test_contracts::finality_violation_wasm() );
-        c.set_abi( "violation"_n, test_contracts::finality_violation_abi() );
-
-        c.push_action("violation"_n, "testmroot"_n, "eosio"_n, mvo()("root", root)("reversible_blocks_digests", digests));
-
-
-    } FC_LOG_AND_RETHROW() }
-
     BOOST_AUTO_TEST_CASE(cluster_vote_propagation_tests) { try {
   
         finality_proof::proof_test_cluster cluster_1; 
@@ -350,17 +324,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
             ("memo", "");
 
         //setup a light client data cache
-
-        //data retained for every policy change
-        struct policy_sunset_data { 
-            
-            finalizer_policy policy;
-
-            ibc_block_data_t last_qc_block;
-            qc_data_t last_qc;
-
-        };
-
         struct data_cache {
 
             //The data_cache stores data relevant to finality violation proofs.
@@ -441,32 +404,16 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
             }
 
-            // std::vector<digest_type> get_reversible_blocks_digests(){
-
-            //     std::vector<digest_type> block_ref_digests;
-
-            //     for (int i = 0 ; i < reversible_blocks.size() - 1; i++){
-
-            //         finality_block_data b = reversible_blocks[i];
-
-            //         digest_type digest = compute_block_ref_digest(b);
-
-            //         block_ref_digests.push_back(digest);
-
-            //     }
-
-            //     return block_ref_digests;
-
-            // }
-
             std::vector<finality_block_data> get_reversible_blocks(){
                 std::vector<finality_block_data> result(reversible_blocks.begin(), reversible_blocks.end() - 1);
                 return result;
             }
 
-            finality_block_data get_qc_block(){
+            finality_block_data get_current_block(){
                 return reversible_blocks.back();
             }
+
+        private:
 
             //store the reversible blocks
             std::vector<finality_block_data> reversible_blocks;
@@ -615,7 +562,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
         BOOST_TEST(fake_chain_block_10_result.level_3_commitments.reversible_blocks_mroot == block_10_reversible_blocks_merkle_root);
 
-        auto proof_1_target_reversible_block = get_target_reversible_block(light_client_data.get_reversible_blocks(), real_chain_block_9_result.block->block_num());
+        auto valid_proof_1_target_reversible_block = get_target_reversible_block(light_client_data.get_reversible_blocks(), real_chain_block_9_result.block->block_num());
 
         //Real chain has a QC on #9 carried by #10, but fake chain doesn't
         BOOST_TEST(!fake_chain_block_10_result.qc_data.qc.has_value());
@@ -637,16 +584,42 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #10
-                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #10
+                                                                    light_client_data.get_current_block().qc_data.qc.value(), //QC over fake block #10
                                                                     get_finality_block_data(real_chain_block_9_result), 
                                                                     get_finality_block_data(real_chain_block_10_result).qc_data.qc.value(),
-                                                                    proof_1_target_reversible_block.first,
-                                                                    proof_1_target_reversible_block.second,
+                                                                    valid_proof_1_target_reversible_block.first,
+                                                                    valid_proof_1_target_reversible_block.second,
+                                                                    block_10_reversible_blocks);
+                                                                    
+
+        //The contract correctly accepts the valid proof, as it is a proof of violation of rule #2
+        shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_1);
+
+        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the low proof block
+        mutable_variant_object invalid_rule_2_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
+                                                                    get_finality_block_data(real_chain_block_10_result), //real block #10
+                                                                    get_finality_block_data(real_chain_block_11_result).qc_data.qc.value(), //QC over real block #11
+                                                                    get_finality_block_data(real_chain_block_9_result), 
+                                                                    get_finality_block_data(real_chain_block_10_result).qc_data.qc.value(),
+                                                                    get_finality_block_data(real_chain_block_9_result),
+                                                                    0,
+                                                                    {get_finality_block_data(real_chain_block_9_result)});
+
+        //The contract rejects the invalid proof
+        shouldFail(real_chain, "rule2"_n, invalid_rule_2_proof_1);
+
+        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the low proof block
+        mutable_variant_object invalid_rule_2_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
+                                                                    get_finality_block_data(real_chain_block_10_result), //real block #10
+                                                                    get_finality_block_data(real_chain_block_11_result).qc_data.qc.value(), //QC over real block #11
+                                                                    get_finality_block_data(real_chain_block_9_result), 
+                                                                    get_finality_block_data(real_chain_block_10_result).qc_data.qc.value(),
+                                                                    valid_proof_1_target_reversible_block.first,
+                                                                    valid_proof_1_target_reversible_block.second,
                                                                     block_10_reversible_blocks);
 
-        shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_1);
-     
-        std::cout << std::endl << "proof 1 passed" << std::endl << std::endl;
+        //The contract rejects the invalid proof
+        shouldFail(real_chain, "rule2"_n, invalid_rule_2_proof_2);
 
         auto fake_chain_block_12_result = light_client_data.scan_block(fake_chain.produce_block());
         auto real_chain_block_12_result = real_chain.produce_block();
@@ -678,10 +651,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         std::vector<finality_block_data> block_14_reversible_blocks = { get_finality_block_data(real_chain_block_12_result), 
                                                                         get_finality_block_data(real_chain_block_13_result)};
 
-        for (const auto& block : block_14_reversible_blocks){
-            std::cout << "block # : " << block.block_num << " -> " << compute_block_ref_digest(block) << std::endl;
-        }   
-
         //calculate the merkle root of the reversible blocks digests
         digest_type block_14_reversible_blocks_merkle_root = calculate_reversible_blocks_merkle(block_14_reversible_blocks);
 
@@ -700,7 +669,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Things are back to normal on the real chain, and we have a QC 
         BOOST_TEST(real_chain_block_15_result.qc_data.qc.has_value());
         
-        auto proof_2_target_reversible_block = get_target_reversible_block(block_14_reversible_blocks, block_14_reversible_blocks[block_14_reversible_blocks.size()-1].block_num);
+        auto valid_proof_2_target_reversible_block = get_target_reversible_block(block_14_reversible_blocks, block_14_reversible_blocks[block_14_reversible_blocks.size()-1].block_num);
 
         //We discovered a QC (over block #14) on the real chain, which was delivered via block #15. 
         //Last QC recorded on the fake chain was over block #13, and was delivered by block #14
@@ -711,9 +680,9 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     get_finality_block_data(real_chain_block_14_result), 
                                                                     get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
                                                                     light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #13
-                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #13
-                                                                    proof_2_target_reversible_block.first,
-                                                                    proof_2_target_reversible_block.second,
+                                                                    light_client_data.get_current_block().qc_data.qc.value(), //QC over fake block #13
+                                                                    valid_proof_2_target_reversible_block.first,
+                                                                    valid_proof_2_target_reversible_block.second,
                                                                     block_14_reversible_blocks);
 
         shouldPass(real_chain, "rule2"_n, valid_rule_2_proof_2);
@@ -766,7 +735,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         BOOST_TEST(fake_chain_block_18_result.level_3_commitments.latest_qc_claim_block_num == fake_chain_block_17_result.block->block_num());
         BOOST_TEST(real_chain_block_19_result.level_3_commitments.latest_qc_claim_block_num == real_chain_block_16_result.block->block_num());
         
-        auto proof_3_target_reversible_block = get_target_reversible_block(block_19_reversible_blocks, fake_chain_block_17_result.block->block_num());
+        auto valid_proof_3_target_reversible_block = get_target_reversible_block(block_19_reversible_blocks, fake_chain_block_17_result.block->block_num());
 
         //stop producing on fake chain, produce one more block on the real chain to get a QC on previous block
         auto real_chain_block_20_result = real_chain.produce_block();
@@ -779,12 +748,23 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     get_finality_block_data(real_chain_block_19_result), 
                                                                     get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
                                                                     light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #18
-                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #18
-                                                                    proof_3_target_reversible_block.first,
-                                                                    proof_3_target_reversible_block.second,
+                                                                    light_client_data.get_current_block().qc_data.qc.value(), //QC over fake block #18
+                                                                    valid_proof_3_target_reversible_block.first,
+                                                                    valid_proof_3_target_reversible_block.second,
                                                                     block_19_reversible_blocks);
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1);
+        
+        mutable_variant_object invalid_rule_3_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
+                                                                    get_finality_block_data(real_chain_block_19_result), 
+                                                                    get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
+                                                                    get_finality_block_data(real_chain_block_16_result), //real block #16
+                                                                    get_finality_block_data(real_chain_block_17_result).qc_data.qc.value(), //QC over fake block #16
+                                                                    get_finality_block_data(real_chain_block_16_result),
+                                                                    0,
+                                                                    {get_finality_block_data(real_chain_block_16_result)});
+
+        shouldFail(real_chain, "rule3"_n, invalid_rule_3_proof_1);
     
         //Resume production on fake chain
         auto fake_chain_block_20_result = light_client_data.scan_block(fake_chain.produce_block());
@@ -847,17 +827,17 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         BOOST_TEST(fake_chain_block_25_result.qc_data.qc.has_value());
 
-        auto proof_4_target_reversible_block = get_target_reversible_block(block_24_reversible_blocks, fake_chain_block_22_result.block->block_num());
+        auto valid_proof_4_target_reversible_block = get_target_reversible_block(block_24_reversible_blocks, fake_chain_block_22_result.block->block_num());
 
         //We can now produce a proof of finality violation demonstrating that finalizers were locked on #23 on the real chain, while also voting on a conflicting block #24 
         //on the fake chain which is not a descendant of #23, where the time range committed to by #23 is fully contained within the time range committed to by #24
         mutable_variant_object valid_rule_3_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #23
-                                                                    light_client_data.get_qc_block().qc_data.qc.value(), //QC over fake block #23
+                                                                    light_client_data.get_current_block().qc_data.qc.value(), //QC over fake block #23
                                                                     get_finality_block_data(real_chain_block_23_result), 
                                                                     get_finality_block_data(real_chain_block_24_result).qc_data.qc.value(),
-                                                                    proof_4_target_reversible_block.first,
-                                                                    proof_4_target_reversible_block.second,
+                                                                    valid_proof_4_target_reversible_block.first,
+                                                                    valid_proof_4_target_reversible_block.second,
                                                                     block_24_reversible_blocks);
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_2);

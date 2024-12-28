@@ -262,34 +262,6 @@
                     "type": "reversible_proof_of_inclusion"
                 }
             ]
-        },
-        {
-            "name": "testmroot",
-            "base": "",
-            "fields": [
-                {
-                    "name": "root",
-                    "type": "checksum256"
-                },
-                {
-                    "name": "reversible_blocks_digests",
-                    "type": "checksum256[]"
-                }
-            ]
-        },
-        {
-            "name": "testpath",
-            "base": "",
-            "fields": [
-                {
-                    "name": "target_block_index",
-                    "type": "uint32"
-                },
-                {
-                    "name": "final_block_index",
-                    "type": "uint32"
-                }
-            ]
         }
     ],
     "actions": [
@@ -306,16 +278,6 @@
         {
             "name": "rule3",
             "type": "rule3",
-            "ricardian_contract": ""
-        },
-        {
-            "name": "testmroot",
-            "type": "testmroot",
-            "ricardian_contract": ""
-        },
-        {
-            "name": "testpath",
-            "type": "testpath",
             "ricardian_contract": ""
         }
     ],

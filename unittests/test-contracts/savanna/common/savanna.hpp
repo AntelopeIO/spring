@@ -127,11 +127,6 @@ namespace savanna {
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
 
-      print("target_block_index: ", target_block_index, "\n");
-      print("final_block_index: ", final_block_index, "\n");
-      print("proof_path size: ", proof_path.size(), "\n");
-      print("proof_nodes size: ", proof_nodes.size(), "\n");   
-
        check(proof_path.size() == proof_nodes.size(), "proof path size and proof nodes size mismatch");
        for (int i = 0 ; i < proof_nodes.size() ; i++){
            const checksum256 node = proof_nodes[i];

@@ -164,10 +164,6 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
     //Verify that the proof of inclusion resolves to the reversible blocks mroot of the high proof
     check(proof_of_inclusion.root() == high_proof.qc_block.level_3_commitments.value().reversible_blocks_mroot, "proof of inclusion must resolve to the reversible blocks mroot of the high proof");
 
-    print("target_proof_timestamp: ", target_proof_timestamp.to_string(), "\n");
-    print("low_proof_last_claim_timestamp: ", low_proof_last_claim_timestamp.to_string(), "\n");
-    print("target_proof_parent_timestamp: ", target_proof_parent_timestamp.to_string(), "\n");
-
     //A lock violation has occured if the high proof timestamp is greater than or equal to the low proof last claim timestamp and the high proof parent timestamp is less than the low proof last claim timestamp
     bool lock_violation = target_proof_timestamp >= low_proof_last_claim_timestamp && target_proof_parent_timestamp < low_proof_last_claim_timestamp;
     check(lock_violation, "proofs must demonstrate a lock violation");
@@ -190,23 +186,4 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
 
     return {result.first.to_string(), result.second.to_string()};
 
-}
-
-//For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
-ACTION finality_violation::testmroot(const checksum256& root, const std::vector<checksum256>& reversible_blocks_digests){
-    checksum256 c_root = get_merkle_root(reversible_blocks_digests);
-    check(c_root == root, "invalid root");
-}
-
-//For testing purposes, to verify that smart contract merkle tree implementation matches Spring merkle tree implementation 
-ACTION finality_violation::testpath(const uint32_t target_block_index, const uint32_t final_block_index){
-    std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
-        print("target_block_index: ", target_block_index, "\n");
-        print("final_block_index: ", final_block_index, "\n");
-        print("proof_path.size(): ", proof_path.size(), "\n");
-    for(int i = 0; i < proof_path.size(); i++){
-        print("proof_path[", i, "]: ", uint16_t(proof_path[i]), "\n");
-    }
-
-    //check(false, "expected failure");
 }
