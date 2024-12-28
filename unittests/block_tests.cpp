@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(std::move(*b));
+   auto copy_b = std::make_shared<signed_block>(b->clone());
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    auto& act = signed_tx.actions.back();
    auto act_data = act.template data_as<newaccount>();
@@ -72,7 +72,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(std::move(*b));
+   auto copy_b = std::make_shared<signed_block>(b->clone());
    const auto& packed_trx = std::get<packed_transaction>(copy_b->transactions.back().trx);
    auto signed_tx = packed_trx.get_signed_transaction();
 

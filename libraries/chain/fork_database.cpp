@@ -99,7 +99,7 @@ namespace eosio::chain {
 
       bsp_t            get_block_impl( const block_id_type& id, include_root_t include_root = include_root_t::no ) const;
       bool             block_exists_impl( const block_id_type& id ) const;
-      bool             validated_block_exists_impl( const block_id_type& id ) const;
+      bool             validated_block_exists_impl( const block_id_type& id, const block_id_type& claimed_id ) const;
       void             reset_root_impl( const bsp_t& root_bs );
       void             advance_root_impl( const block_id_type& id );
       void             remove_impl( const block_id_type& id );
@@ -141,7 +141,6 @@ namespace eosio::chain {
          bs_t s;
          fc::raw::unpack( ds, s );
          // do not populate transaction_metadatas, they will be created as needed in apply_block with appropriate key recovery
-         s.header_exts = s.block->validate_and_extract_header_extensions();
          add_impl( std::make_shared<bs_t>( std::move( s ) ), ignore_duplicate_t::no, true, validator );
       }
    }
@@ -449,8 +448,8 @@ namespace eosio::chain {
    BSP fork_database_impl<BSP>::search_on_branch_impl( const block_id_type& h, uint32_t block_num, include_root_t include_root ) const {
       if (!root)
          return {};
-      if( include_root == include_root_t::yes && root->id() == h && root->block_num() == block_num ) {
-         return root;
+      if( include_root == include_root_t::yes && root->block_num() == block_num ) {
+         return root; // root is root of every branch, no need to check h
       }
       if (block_num <= root->block_num())
          return {};
@@ -583,7 +582,7 @@ namespace eosio::chain {
    template<class BSP>
    BSP fork_database_impl<BSP>::get_block_impl(const block_id_type& id,
                                                include_root_t include_root /* = include_root_t::no */) const {
-      if( include_root == include_root_t::yes && root->id() == id ) {
+      if( include_root == include_root_t::yes && root && root->id() == id ) {
          return root;
       }
       auto itr = index.find( id );
@@ -604,15 +603,30 @@ namespace eosio::chain {
    }
 
    template<class BSP>
-   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id) const {
+   bool fork_database_t<BSP>::validated_block_exists(const block_id_type& id, const block_id_type& claimed_id) const {
       std::lock_guard g( my->mtx );
-      return my->validated_block_exists_impl(id);
+      return my->validated_block_exists_impl(id, claimed_id);
    }
 
+   // precondition: claimed_id is either id, or an ancestor of id
+   // returns true if block `id`, or one of its ancestors not older than claimed_id, is found in fork_db
+   // and `is_valid()`.
+   // ------------------------------------------------------------------------------------------------------
    template<class BSP>
-   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id) const {
-      auto itr = index.find( id );
-      return itr != index.end() && (*itr)->is_valid();
+   bool fork_database_impl<BSP>::validated_block_exists_impl(const block_id_type& id, const block_id_type& claimed_id) const {
+      bool id_present = false;
+
+      for (auto i = index.find(id); i != index.end(); i = index.find((*i)->previous())) {
+         id_present = true;
+         if ((*i)->is_valid())
+            return true;
+         if ((*i)->id() == claimed_id)
+            return false;
+      }
+
+      // if we return `true`, let's validate the precondition and make sure claimed_id is not in another branch
+      assert(!id_present || block_header::num_from_id(claimed_id) <= block_header::num_from_id(root->id()));
+      return id_present || id == root->id();
    }
 
 // ------------------ fork_database -------------------------
@@ -647,10 +661,16 @@ namespace eosio::chain {
       std::ofstream out( fork_db_file.generic_string().c_str(), std::ios::out | std::ios::binary | std::ofstream::trunc );
 
       fc::raw::pack( out, magic_number );
-      fc::raw::pack( out, max_supported_version ); // write out current version which is always max_supported_version
-                                                   // version == 1 -> legacy
-                                                   // version == 2 -> savanna (two possible fork_db, one containing `block_state_legacy`,
-                                                   //                          one containing `block_state`)
+
+      // write out current version which is always max_supported_version
+      // version == 1 -> legacy
+      // version == 2 -> Spring 1.0.0
+      //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
+      //                  unsupported by Spring 1.0.1 and above
+      // version == 3 -> Spring 1.0.1 updated block_header_state (core with policy gen #)
+      //                 (two possible fork_db, one containing `block_state_legacy`, one containing `block_state`)
+      // ---------------------------------------------------------------------------------------------------------
+      fc::raw::pack( out, max_supported_version );
 
       fc::raw::pack(out, static_cast<uint32_t>(in_use_value));
 
@@ -692,6 +712,8 @@ namespace eosio::chain {
 
             uint32_t version = 0;
             fc::raw::unpack( ds, version );
+            EOS_ASSERT( version != 2, fork_database_exception,
+                        "Version 2 of fork_database (created by Spring 1.0.0) is not supported" );
             EOS_ASSERT( version >= fork_database::min_supported_version && version <= fork_database::max_supported_version,
                         fork_database_exception,
                        "Unsupported version of fork database file '${filename}'. "
@@ -707,7 +729,7 @@ namespace eosio::chain {
                break;
             }
 
-            case 2:
+            case 3:
             {
                // ---------- Savanna format ----------------------------
                uint32_t in_use_raw;

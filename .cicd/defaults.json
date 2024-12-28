@@ -1,6 +1,6 @@
 {
     "cdt":{
-       "target":"main",
+       "target":"4.1",
        "prerelease":true
     },
     "referencecontracts":{

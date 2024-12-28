@@ -87,8 +87,6 @@ private:
    std::optional<digest_type> base_digest;  // For finality_data sent to SHiP, computed on demand in get_finality_data()
 
    // ------ private methods -----------------------------------------------------------
-   void                                set_valid(bool v) { validated.store(v); }
-   bool                                is_valid() const { return validated.load(); }
    bool                                is_pub_keys_recovered() const { return pub_keys_recovered; }
    deque<transaction_metadata_ptr>     extract_trxs_metas();
    void                                set_trxs_metas(deque<transaction_metadata_ptr>&& trxs_metas, bool keys_recovered);
@@ -97,9 +95,9 @@ private:
    friend struct test_block_state_accessor;
    friend struct fc::reflector<block_state>;
    friend struct controller_impl;
-   template <typename BS> friend struct fork_database_impl;
    friend struct completed_block;
    friend struct building_block;
+
 public:
    // ------ functions -----------------------------------------------------------------
    const block_id_type&   id()                const { return block_header_state::id(); }
@@ -107,13 +105,16 @@ public:
    uint32_t               block_num()         const { return block_header_state::block_num(); }
    block_timestamp_type   timestamp()         const { return block_header_state::timestamp(); }
    const extensions_type& header_extensions() const { return block_header_state::header.header_extensions; }
-   uint32_t               irreversible_blocknum() const { return core.last_final_block_num(); } // backwards compatibility
+   uint32_t               irreversible_blocknum() const { return core.last_final_block_num(); }
 
    uint32_t               last_final_block_num() const         { return core.last_final_block_num(); }
    block_timestamp_type   last_final_block_timestamp() const   { return core.last_final_block_timestamp(); }
 
    uint32_t               latest_qc_block_num() const          { return core.latest_qc_claim().block_num; }
    block_timestamp_type   latest_qc_block_timestamp() const    { return core.latest_qc_block_timestamp(); }
+
+   void                   set_valid(bool v) { validated.store(v); }
+   bool                   is_valid() const  { return validated.load(); }
 
    std::optional<qc_t> get_best_qc() const { return aggregating_qc.get_best_qc(block_num()); } // thread safe
    bool received_qc_is_strong() const { return aggregating_qc.received_qc_is_strong(); } // thread safe
@@ -127,7 +128,11 @@ public:
       return timestamp() > fc::time_point::now() - fc::seconds(30);
    }
 
-   block_ref make_block_ref() const { return block_ref{block_id, timestamp(), strong_digest }; } // use the cached `finality_digest`
+   // use the cached `finality_digest`
+   block_ref make_block_ref() const {
+      return block_ref{block_id, timestamp(), strong_digest, active_finalizer_policy->generation,
+                       pending_finalizer_policy ? pending_finalizer_policy->second->generation : 0};
+   }
 
    protocol_feature_activation_set_ptr get_activated_protocol_features() const { return block_header_state::activated_protocol_features; }
    // build next valid structure from current one with input of next
@@ -178,10 +183,14 @@ public:
          bool                              skip_validate_signee,
          const std::optional<digest_type>& action_mroot_savanna);
 
-   explicit block_state(snapshot_detail::snapshot_block_state_v7&& sbs);
+   explicit block_state(snapshot_detail::snapshot_block_state_v8&& sbs);
 
-   void sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority);
-   void verify_signee(const std::vector<signature_type>& additional_signatures, const block_signing_authority& valid_block_signing_authority) const;
+   // Only defined for latest_qc_block_num() <= num <= block_num()
+   finalizer_policies_t get_finalizer_policies(block_num_type num) const {
+      if (num == block_num())
+         return block_header_state::get_finalizer_policies(make_block_ref());
+      return block_header_state::get_finalizer_policies(core.get_block_reference(num));
+   }
 };
 
 using block_state_ptr       = std::shared_ptr<block_state>;

@@ -9,20 +9,91 @@
 
 namespace eosio::chain {
 
+namespace detail {
+
+   inline void verify_signee(const signature_type& producer_signature, const block_id_type& block_id,
+                             const std::vector<signature_type>& additional_signatures,
+                             const block_signing_authority& valid_block_signing_authority)
+   {
+      auto num_keys_in_authority = std::visit([](const auto& a) { return a.keys.size(); },
+                                              valid_block_signing_authority);
+      EOS_ASSERT(1 + additional_signatures.size() <= num_keys_in_authority, wrong_signing_key,
+                 "number of block signatures (${num_block_signatures}) exceeds number of keys (${num_keys}) in block"
+                 " signing authority: ${authority}",
+                 ("num_block_signatures", 1 + additional_signatures.size())("num_keys", num_keys_in_authority)
+                 ("authority", valid_block_signing_authority));
+
+      std::set<public_key_type> keys;
+      keys.emplace(fc::crypto::public_key(producer_signature, block_id, true));
+
+      for (const auto& s : additional_signatures) {
+         auto res = keys.emplace(s, block_id, true);
+         EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice: ${key}", ("key", *res.first));
+      }
+
+      bool is_satisfied = false;
+      size_t relevant_sig_count = 0;
+
+      std::tie(is_satisfied, relevant_sig_count) = producer_authority::keys_satisfy_and_relevant(
+         keys, valid_block_signing_authority);
+
+      EOS_ASSERT(relevant_sig_count == keys.size(), wrong_signing_key,
+                 "block signed by unexpected key: ${signing_keys}, expected: ${authority}. ${c} != ${s}",
+                 ("signing_keys", keys)("authority", valid_block_signing_authority)("c", relevant_sig_count)("s", keys. size()));
+
+      EOS_ASSERT(is_satisfied, wrong_signing_key,
+                 "block signatures ${signing_keys} do not satisfy the block signing authority: ${authority}",
+                 ("signing_keys", keys)("authority", valid_block_signing_authority));
+   }
+
+   // EOS_ASSERTs if signature does not validate
+   inline bool verify_block_sig(const block_header_state& prev, const signed_block_ptr& block, bool skip_validate_signee) {
+      if (!skip_validate_signee) {
+         auto sigs = detail::extract_additional_signatures(block);
+         const auto& valid_block_signing_authority = prev.get_producer_for_block_at(block->timestamp).authority;
+         verify_signee(block->producer_signature, block->calculate_id(), sigs, valid_block_signing_authority);
+      }
+      return true;
+   };
+
+   void inject_additional_signatures( signed_block& b, const std::vector<signature_type>& additional_signatures) {
+      if (!additional_signatures.empty()) {
+         // as an optimization we don't copy this out into the legitimate extension structure as it serializes
+         // the same way as the vector of signatures
+         static_assert(fc::reflector<additional_block_signatures_extension>::total_member_count == 1);
+         static_assert(std::is_same_v<decltype(additional_block_signatures_extension::signatures), std::vector<signature_type>>);
+
+         emplace_extension(b.block_extensions, additional_block_signatures_extension::extension_id(),
+                           fc::raw::pack(additional_signatures));
+      }
+   }
+
+   void sign(signed_block& block, const block_id_type& block_id,
+             const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority) {
+      auto sigs = signer(block_id);
+
+      EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
+      block.producer_signature = sigs.back();
+      // last is producer signature, rest are additional signatures to inject in the block extension
+      sigs.pop_back();
+
+      verify_signee(block.producer_signature, block_id, sigs, valid_block_signing_authority);
+      inject_additional_signatures(block, sigs);
+   }
+
+} // namespace detail
+
+using namespace eosio::chain::detail;
+
+// ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
 block_state::block_state(const block_header_state& prev, signed_block_ptr b, const protocol_feature_set& pfs,
                          const validator_t& validator, bool skip_validate_signee)
-   : block_header_state(prev.next(*b, validator))
+   : block_header_state((verify_block_sig(prev, b, skip_validate_signee), prev.next(*b, validator)))
    , block(std::move(b))
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
    , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
 {
-   // ASSUMPTION FROM controller_impl::apply_block = all untrusted blocks will have their signatures pre-validated here
-   if( !skip_validate_signee ) {
-      auto sigs = detail::extract_additional_signatures(block);
-      const auto& valid_block_signing_authority = prev.get_producer_for_block_at(block->timestamp).authority;
-      verify_signee(sigs, valid_block_signing_authority);
-   }
 }
 
 block_state::block_state(const block_header_state&                bhs,
@@ -34,7 +105,7 @@ block_state::block_state(const block_header_state&                bhs,
                          const block_signing_authority&           valid_block_signing_authority,
                          const digest_type&                       action_mroot)
    : block_header_state(bhs)
-   , block(std::make_shared<signed_block>(signed_block_header{bhs.header}))
+   , block()
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
    , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{})
@@ -43,14 +114,18 @@ block_state::block_state(const block_header_state&                bhs,
    , cached_trxs(std::move(trx_metas))
    , action_mroot(action_mroot)
 {
-   block->transactions = std::move(trx_receipts);
+   mutable_signed_block_ptr new_block = std::make_shared<signed_block>(signed_block_header{bhs.header});
+   new_block->transactions = std::move(trx_receipts);
 
    if( qc ) {
       fc_dlog(vote_logger, "integrate qc ${qc} into block ${bn} ${id}", ("qc", qc->to_qc_claim())("bn", block_num())("id", id()));
-      emplace_extension(block->block_extensions, quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
+      emplace_extension(new_block->block_extensions,
+                        quorum_certificate_extension::extension_id(), fc::raw::pack( *qc ));
    }
 
-   sign(signer, valid_block_signing_authority);
+   sign(*new_block, block_id, signer, valid_block_signing_authority);
+
+   block = std::move(new_block);
 }
 
 // Used for transition from dpos to Savanna.
@@ -138,25 +213,30 @@ block_state_ptr block_state::create_transition_block(
    return result_ptr;
 }
 
-block_state::block_state(snapshot_detail::snapshot_block_state_v7&& sbs)
+// Spring 1.0.1 to ? snapshot v8 format. Updated `finality_core` to include finalizer policies
+// generation numbers. Also new member `block_state::latest_qc_claim_block_active_finalizer_policy`
+// ------------------------------------------------------------------------------------------------
+block_state::block_state(snapshot_detail::snapshot_block_state_v8&& sbs)
    : block_header_state {
-         .block_id                    = sbs.block_id,
-         .header                      = std::move(sbs.header),
-         .activated_protocol_features = std::move(sbs.activated_protocol_features),
-         .core                        = std::move(sbs.core),
-         .active_finalizer_policy     = std::move(sbs.active_finalizer_policy),
-         .active_proposer_policy      = std::move(sbs.active_proposer_policy),
+         .block_id                        = sbs.block_id,
+         .header                          = std::move(sbs.header),
+         .activated_protocol_features     = std::move(sbs.activated_protocol_features),
+         .core                            = std::move(sbs.core),
+         .active_finalizer_policy         = std::move(sbs.active_finalizer_policy),
+         .active_proposer_policy          = std::move(sbs.active_proposer_policy),
          .latest_proposed_proposer_policy = std::move(sbs.latest_proposed_proposer_policy),
          .latest_pending_proposer_policy  = std::move(sbs.latest_pending_proposer_policy),
-         .proposed_finalizer_policies = std::move(sbs.proposed_finalizer_policies),
-         .pending_finalizer_policy    = std::move(sbs.pending_finalizer_policy),
-         .finalizer_policy_generation = sbs.finalizer_policy_generation,
+         .proposed_finalizer_policies     = std::move(sbs.proposed_finalizer_policies),
+         .pending_finalizer_policy        = std::move(sbs.pending_finalizer_policy),
+         .latest_qc_claim_block_active_finalizer_policy = std::move(sbs.latest_qc_claim_block_active_finalizer_policy),
+         .finalizer_policy_generation     = sbs.finalizer_policy_generation,
          .last_pending_finalizer_policy_digest = sbs.last_pending_finalizer_policy_digest,
          .last_pending_finalizer_policy_start_timestamp = sbs.last_pending_finalizer_policy_start_timestamp
       }
    , strong_digest(compute_finality_digest())
    , weak_digest(create_weak_digest(strong_digest))
-   , aggregating_qc(active_finalizer_policy, pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
+   , aggregating_qc(active_finalizer_policy,
+                    pending_finalizer_policy ? pending_finalizer_policy->second : finalizer_policy_ptr{}) // just in case we receive votes
    , valid(std::move(sbs.valid))
 {
    header_exts = header.validate_and_extract_header_extensions();
@@ -187,7 +267,14 @@ vote_status_t block_state::has_voted(const bls_public_key& key) const {
 
 // Called from net threads
 void block_state::verify_qc(const qc_t& qc) const {
-   aggregating_qc.verify_qc(qc, strong_digest, weak_digest);
+   // Do not use `block_state::aggregating_qc` which applies only for `this` block.
+   // `verify_qc()` can be called on a descendant `block_state` of `qc.block_num`, so we need
+   // to create a new `aggregating_qc_t` with the finalizer policies of the claimed block.
+   // ---------------------------------------------------------------------------------------
+   finalizer_policies_t policies = get_finalizer_policies(qc.block_num);
+   aggregating_qc_t aggregating_qc(policies.active_finalizer_policy, policies.pending_finalizer_policy);
+
+   aggregating_qc.verify_qc(qc, policies.finality_digest, create_weak_digest(policies.finality_digest));
 }
 
 qc_claim_t block_state::extract_qc_claim() const {
@@ -238,11 +325,13 @@ digest_type block_state::get_validation_mroot(block_num_type target_block_num) c
    }
 
    assert(valid->validation_mroots.size() > 0);
-   assert(core.last_final_block_num() <= target_block_num &&
-          target_block_num < core.last_final_block_num() + valid->validation_mroots.size());
-   assert(target_block_num - core.last_final_block_num() < valid->validation_mroots.size());
+   auto low  = core.last_final_block_num();
+   auto high = low + valid->validation_mroots.size();
+   EOS_ASSERT(low <= target_block_num && target_block_num < high, block_validate_exception,
+              "target_block_num ${b} is outside of range of ${low} and ${high}",
+              ("b", target_block_num)("low", low)("high", high));
 
-   return valid->validation_mroots[target_block_num - core.last_final_block_num()];
+   return valid->validation_mroots[target_block_num - low];
 }
 
 digest_type block_state::get_finality_mroot_claim(const qc_claim_t& qc_claim) const {
@@ -292,60 +381,6 @@ finality_data_t block_state::get_finality_data() {
       .pending_finalizer_policy                 = std::move(pending_fin_pol),
       .last_pending_finalizer_policy_generation = get_last_pending_finalizer_policy().generation
    };
-}
-
-void inject_additional_signatures( signed_block& b, const std::vector<signature_type>& additional_signatures)
-{
-   if (!additional_signatures.empty()) {
-      // as an optimization we don't copy this out into the legitimate extension structure as it serializes
-      // the same way as the vector of signatures
-      static_assert(fc::reflector<additional_block_signatures_extension>::total_member_count == 1);
-      static_assert(std::is_same_v<decltype(additional_block_signatures_extension::signatures), std::vector<signature_type>>);
-
-      emplace_extension(b.block_extensions, additional_block_signatures_extension::extension_id(), fc::raw::pack( additional_signatures ));
-   }
-}
-
-void block_state::sign(const signer_callback_type& signer, const block_signing_authority& valid_block_signing_authority ) {
-   auto sigs = signer( block_id );
-
-   EOS_ASSERT(!sigs.empty(), no_block_signatures, "Signer returned no signatures");
-   block->producer_signature = sigs.back(); // last is producer signature, rest are additional signatures to inject in the block extension
-   sigs.pop_back();
-
-   verify_signee(sigs, valid_block_signing_authority);
-   inject_additional_signatures(*block, sigs);
-}
-
-void block_state::verify_signee(const std::vector<signature_type>& additional_signatures, const block_signing_authority& valid_block_signing_authority) const {
-   auto num_keys_in_authority = std::visit([](const auto &a){ return a.keys.size(); }, valid_block_signing_authority);
-   EOS_ASSERT(1 + additional_signatures.size() <= num_keys_in_authority, wrong_signing_key,
-              "number of block signatures (${num_block_signatures}) exceeds number of keys (${num_keys}) in block signing authority: ${authority}",
-              ("num_block_signatures", 1 + additional_signatures.size())
-              ("num_keys", num_keys_in_authority)
-              ("authority", valid_block_signing_authority)
-   );
-
-   std::set<public_key_type> keys;
-   keys.emplace(fc::crypto::public_key( block->producer_signature, block_id, true ));
-
-   for (const auto& s: additional_signatures) {
-      auto res = keys.emplace(s, block_id, true);
-      EOS_ASSERT(res.second, wrong_signing_key, "block signed by same key twice: ${key}", ("key", *res.first));
-   }
-
-   bool is_satisfied = false;
-   size_t relevant_sig_count = 0;
-
-   std::tie(is_satisfied, relevant_sig_count) = producer_authority::keys_satisfy_and_relevant(keys, valid_block_signing_authority);
-
-   EOS_ASSERT(relevant_sig_count == keys.size(), wrong_signing_key,
-              "block signed by unexpected key: ${signing_keys}, expected: ${authority}. ${c} != ${s}",
-              ("signing_keys", keys)("authority", valid_block_signing_authority)("c", relevant_sig_count)("s", keys.size()));
-
-   EOS_ASSERT(is_satisfied, wrong_signing_key,
-              "block signatures ${signing_keys} do not satisfy the block signing authority: ${authority}",
-              ("signing_keys", keys)("authority", valid_block_signing_authority));
 }
 
 } /// eosio::chain

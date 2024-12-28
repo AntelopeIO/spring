@@ -17,7 +17,6 @@ using namespace eosio;
 using namespace testing;
 using namespace chain;
 
-BOOST_AUTO_TEST_SUITE(snapshot_tests)
 
 namespace {
    void variant_diff_helper(const fc::variant& lhs, const fc::variant& rhs, std::function<void(const std::string&, const fc::variant&, const fc::variant&)>&& out){
@@ -120,6 +119,10 @@ namespace {
       BOOST_REQUIRE_EQUAL(lhs_integrity_hash.str(), rhs_integrity_hash.str());
    }
 }
+
+// Split the tests into multiple parts which run approximately the same time
+// so that they can finish within CICD time limits
+BOOST_AUTO_TEST_SUITE(snapshot_part1_tests)
 
 template<typename TESTER, typename SNAPSHOT_SUITE>
 void exhaustive_snapshot_test()
@@ -325,6 +328,9 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(test_chain_id_in_snapshot, SNAPSHOT_SUITE, snapsho
    chain_id_in_snapshot_test<savanna_tester, SNAPSHOT_SUITE>();
 }
 
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(snapshot_part2_tests)
+
 static auto get_extra_args() {
    bool save_snapshot = false;
    bool generate_log = false;
@@ -382,10 +388,10 @@ void compatible_versions_test()
    std::filesystem::copy(source_log_dir / "blocks.index", config.blocks_dir / "blocks.index");
    TESTER base_chain(config, *genesis);
 
-   std::string current_version = "v7";
+   std::string current_version = "v8";
 
    int ordinal = 0;
-   for(std::string version : {"v2", "v3", "v4" , "v5", "v6", "v7"})
+   for(std::string version : {"v2", "v3", "v4", "v5", "v6", "v8"}) // v7 version not supported in Spring 1.0.1 and above
    {
       if(save_snapshot && version == current_version) continue;
       static_assert(chain_snapshot_header::minimum_compatible_version <= 2, "version 2 unit test is no longer needed.  Please clean up data files");
@@ -411,7 +417,7 @@ void compatible_versions_test()
    // 1. update `current_version` and the list of versions in `for` loop
    // 2. run: `unittests/unit_test -t "snapshot_tests/test_com*" -- --save-snapshot` to generate new snapshot files
    // 3. copy the newly generated files (see `ls -lrth ./unittests/snapshots/snap_*` to `spring/unittests/snapshots`
-   //    for example `cp ./unittests/snapshots/snap_v7.* ../unittests/snapshots`
+   //    for example `cp ./unittests/snapshots/snap_v8.* ../unittests/snapshots`
    // 4. edit `unittests/snapshots/CMakeLists.txt` and add the `configure_file` commands for the 3 new files.
    //    now the test should pass.
    // 5. add the 3 new snapshot files in git.

@@ -186,7 +186,7 @@ namespace eosio::chain {
             size_t             total_net_usage = 0;
             size_t             total_cpu_usage_us = 0;
             fc::microseconds   total_elapsed_time{};
-            fc::microseconds   total_time{};
+            fc::time_point     start_time{fc::time_point::now()};
          };
 
          void assemble_and_complete_block( block_report& br, const signer_callback_type& signer_callback );
@@ -394,8 +394,10 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
+         // thread safe
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
+
          /// @return true if terminate-at-block reached
          /// not-thread-safe
          bool should_terminate() const;

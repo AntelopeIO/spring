@@ -72,11 +72,12 @@ try:
         # LIB has advanced, which indicate at least 2 of non-producer finalizers have voted.
         block_num = cluster.getNode(1).getIrreversibleBlockNum()
         block = cluster.getNode(1).getBlock(block_num)
-        qc_ext = block["qc_extension"]
-        Print(f'{qc_ext}')
-        # "11111" is the representation of a bitset showing which finalizers have voted (we have five total finalizers)
-        if qc_ext["qc"]["active_policy_sig"]["strong_votes"] == "11111":
-            break
+        if "qc_extension" in block:
+            qc_ext = block["qc_extension"]
+            Print(f'{qc_ext}')
+            # "11111" is the representation of a bitset showing which finalizers have voted (we have five total finalizers)
+            if qc_ext["qc"]["active_policy_sig"]["strong_votes"] == "11111":
+                break
         cluster.getNode(1).waitForLibToAdvance()
         i += 1
     assert i < 3, "Not all finalizers voted"

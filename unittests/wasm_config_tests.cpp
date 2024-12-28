@@ -79,8 +79,6 @@ struct old_wasm_tester : tester {
 };
 
 // Split the tests into multiple parts so that they can be finished within CICD time limit
-BOOST_AUTO_TEST_SUITE(wasm_config_part1_tests)
-
 template<typename T>
 void test_max_mutable_global_bytes(T& chain, int32_t n_globals, int32_t oversize) {
    chain.produce_block();
@@ -119,13 +117,7 @@ void test_max_mutable_global_bytes(T& chain, int32_t n_globals, int32_t oversize
    }
 }
 
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_mutable_global_bytes_lgcy, data::make({ 4096, 8192 , 16384 }) * data::make({0, 1}), n_globals, oversize) {
-   test_max_mutable_global_bytes(*this, n_globals, oversize);
-}
 
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_mutable_global_bytes_svnn, data::make({ 4096, 8192 , 16384 }) * data::make({0, 1}), n_globals, oversize) {
-   test_max_mutable_global_bytes(*this, n_globals, oversize);
-}
 
 static const char many_funcs_wast[] = R"=====(
 (module
@@ -217,6 +209,18 @@ void test_max_section_elements(T& chain, int32_t n_elements, int32_t oversize, c
    }
 }
 
+// Split the tests into multiple parts which run approximately the same time
+// so that they can finish within CICD time limits
+BOOST_AUTO_TEST_SUITE(wasm_config_part1_tests)
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_mutable_global_bytes_lgcy, data::make({ 4096, 8192 , 16384 }) * data::make({0, 1}), n_globals, oversize) {
+   test_max_mutable_global_bytes(*this, n_globals, oversize);
+}
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_mutable_global_bytes_svnn, data::make({ 4096, 8192 , 16384 }) * data::make({0, 1}), n_globals, oversize) {
+   test_max_mutable_global_bytes(*this, n_globals, oversize);
+}
+
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_section_elements_lgcy,
                        data::make({1024, 8192, 16384}) * data::make({0, 1}) *
                        (data::make({many_funcs_wast, many_types_wast, many_imports_wast, many_globals_wast, many_elem_wast, many_data_wast}) ^
@@ -224,6 +228,10 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_section
                        n_elements, oversize, wast, one_element) {
    test_max_section_elements(*this, n_elements, oversize, wast, one_element);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
 
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_section_elements_svnn,
                        data::make({1024, 8192, 16384}) * data::make({0, 1}) *
@@ -233,107 +241,7 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_sectio
    test_max_section_elements(*this, n_elements, oversize, wast, one_element);
 }
 
-
-// export has to be formatted slightly differently because export names
-// must be unique and apply must be one of the exports.
-template<typename T>
-void test_max_section_elements_export(T& chain, int32_t n_elements, int32_t oversize) {
-   chain.produce_block();
-   chain.create_accounts({"section"_n});
-   chain.produce_block();
-
-   std::string buf;
-   for(int i = 0; i < n_elements + oversize - 1; ++i) {
-      buf += "(export \"fn$";
-      buf += std::to_string(i);
-      buf += "\" (func 0))";
-   }
-   std::string code = fc::format_string(many_exports_wast, fc::mutable_variant_object("SECTION", buf));
-
-   auto params = genesis_state::default_initial_wasm_configuration;
-   params.max_section_elements = n_elements;
-   chain.set_wasm_params(params);
-
-   if(oversize) {
-      BOOST_CHECK_THROW(chain.set_code("section"_n, code.c_str()), wasm_exception);
-   } else {
-      chain.set_code("section"_n, code.c_str());
-      chain.push_action("section"_n);
-      --params.max_section_elements;
-      chain.set_wasm_params(params);
-      chain.produce_block();
-      chain.push_action("section"_n);
-      chain.produce_block();
-      chain.set_code("section"_n, vector<uint8_t>{}); // clear existing code
-      BOOST_CHECK_THROW(chain.set_code("section"_n, code.c_str()), wasm_exception);
-   }
-}
-
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_section_elements_export_lgcy,
-                       data::make({1024, 8192, 16384}) * data::make({0, 1}),
-                       n_elements, oversize) {
-   test_max_section_elements_export(*this, n_elements, oversize);
-}
-
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_section_elements_export_svnn,
-                       data::make({1024, 8192, 16384}) * data::make({0, 1}),
-                       n_elements, oversize) {
-   test_max_section_elements_export(*this, n_elements, oversize);
-}
-
 BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part2_tests)
-
-static const char max_linear_memory_wast[] = R"=====(
-(module
-  (import "env" "eosio_assert" (func $$eosio_assert (param i32 i32)))
-  (memory 4)
-  (data (i32.const ${OFFSET}) "\11\22\33\44")
-  (func (export "apply") (param i64 i64 i64)
-    (call $$eosio_assert (i32.eq (i32.load (i32.const ${OFFSET})) (i32.const 0x44332211)) (i32.const 0))
-  )
-)
-)=====";
-
-template<typename T>
-void test_max_linear_memory_init(T& chain, int32_t n_init, int32_t oversize) {
-   chain.produce_block();
-   chain.create_accounts({"initdata"_n});
-   chain.produce_block();
-
-   std::string code = fc::format_string(max_linear_memory_wast, fc::mutable_variant_object("OFFSET", n_init + oversize - 4));
-
-   auto params = genesis_state::default_initial_wasm_configuration;
-   params.max_linear_memory_init = n_init;
-   chain.set_wasm_params(params);
-
-   if(oversize) {
-      BOOST_CHECK_THROW(chain.set_code("initdata"_n, code.c_str()), wasm_exception);
-   } else {
-      chain.set_code("initdata"_n, code.c_str());
-      chain.push_action("initdata"_n);
-      --params.max_linear_memory_init;
-      chain.set_wasm_params(params);
-      chain.produce_block();
-      chain.push_action("initdata"_n);
-      chain.produce_block();
-      chain.set_code("initdata"_n, vector<uint8_t>{}); // clear existing code
-      BOOST_CHECK_THROW(chain.set_code("initdata"_n, code.c_str()), wasm_exception);
-   }
-}
-
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_linear_memory_init_lgcy,
-                       data::make({32768, 65536, 86513, 131072}) * data::make({0, 1}),
-                       n_init, oversize) {
-   test_max_linear_memory_init(*this, n_init, oversize);
-}
-
-BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_linear_memory_init_svnn,
-                       data::make({32768, 65536, 86513, 131072}) * data::make({0, 1}),
-                       n_init, oversize) {
-   test_max_linear_memory_init(*this, n_init, oversize);
-}
 
 static const std::vector<std::tuple<int, int, bool, bool>> func_local_params = {
    // Default value of max_func_local_bytes
@@ -392,9 +300,112 @@ void test_max_func_local_bytes(T& chain, int32_t n_params, int32_t n_locals, int
    }
 }
 
+// export has to be formatted slightly differently because export names
+// must be unique and apply must be one of the exports.
+template<typename T>
+void test_max_section_elements_export(T& chain, int32_t n_elements, int32_t oversize) {
+   chain.produce_block();
+   chain.create_accounts({"section"_n});
+   chain.produce_block();
+
+   std::string buf;
+   for(int i = 0; i < n_elements + oversize - 1; ++i) {
+      buf += "(export \"fn$";
+      buf += std::to_string(i);
+      buf += "\" (func 0))";
+   }
+   std::string code = fc::format_string(many_exports_wast, fc::mutable_variant_object("SECTION", buf));
+
+   auto params = genesis_state::default_initial_wasm_configuration;
+   params.max_section_elements = n_elements;
+   chain.set_wasm_params(params);
+
+   if(oversize) {
+      BOOST_CHECK_THROW(chain.set_code("section"_n, code.c_str()), wasm_exception);
+   } else {
+      chain.set_code("section"_n, code.c_str());
+      chain.push_action("section"_n);
+      --params.max_section_elements;
+      chain.set_wasm_params(params);
+      chain.produce_block();
+      chain.push_action("section"_n);
+      chain.produce_block();
+      chain.set_code("section"_n, vector<uint8_t>{}); // clear existing code
+      BOOST_CHECK_THROW(chain.set_code("section"_n, code.c_str()), wasm_exception);
+   }
+}
+
+BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_section_elements_export_lgcy,
+                       data::make({1024, 8192, 16384}) * data::make({0, 1}),
+                       n_elements, oversize) {
+   test_max_section_elements_export(*this, n_elements, oversize);
+}
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_section_elements_export_svnn,
+                       data::make({1024, 8192, 16384}) * data::make({0, 1}),
+                       n_elements, oversize) {
+   test_max_section_elements_export(*this, n_elements, oversize);
+}
+
+
+static const char max_linear_memory_wast[] = R"=====(
+(module
+  (import "env" "eosio_assert" (func $$eosio_assert (param i32 i32)))
+  (memory 4)
+  (data (i32.const ${OFFSET}) "\11\22\33\44")
+  (func (export "apply") (param i64 i64 i64)
+    (call $$eosio_assert (i32.eq (i32.load (i32.const ${OFFSET})) (i32.const 0x44332211)) (i32.const 0))
+  )
+)
+)=====";
+
+template<typename T>
+void test_max_linear_memory_init(T& chain, int32_t n_init, int32_t oversize) {
+   chain.produce_block();
+   chain.create_accounts({"initdata"_n});
+   chain.produce_block();
+
+   std::string code = fc::format_string(max_linear_memory_wast, fc::mutable_variant_object("OFFSET", n_init + oversize - 4));
+
+   auto params = genesis_state::default_initial_wasm_configuration;
+   params.max_linear_memory_init = n_init;
+   chain.set_wasm_params(params);
+
+   if(oversize) {
+      BOOST_CHECK_THROW(chain.set_code("initdata"_n, code.c_str()), wasm_exception);
+   } else {
+      chain.set_code("initdata"_n, code.c_str());
+      chain.push_action("initdata"_n);
+      --params.max_linear_memory_init;
+      chain.set_wasm_params(params);
+      chain.produce_block();
+      chain.push_action("initdata"_n);
+      chain.produce_block();
+      chain.set_code("initdata"_n, vector<uint8_t>{}); // clear existing code
+      BOOST_CHECK_THROW(chain.set_code("initdata"_n, code.c_str()), wasm_exception);
+   }
+}
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_linear_memory_init_lgcy,
+                       data::make({32768, 65536, 86513, 131072}) * data::make({0, 1}),
+                       n_init, oversize) {
+   test_max_linear_memory_init(*this, n_init, oversize);
+}
+
+BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_linear_memory_init_svnn,
+                       data::make({32768, 65536, 86513, 131072}) * data::make({0, 1}),
+                       n_init, oversize) {
+   test_max_linear_memory_init(*this, n_init, oversize);
+}
+
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<legacy_validating_tester>, max_func_local_bytes_lgcy, data::make({0, 8192, 16384}) * data::make(func_local_params), n_params, n_locals, n_stack, set_high, expect_success) {
    test_max_func_local_bytes(*this, n_params, n_locals, n_stack, set_high, expect_success);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(wasm_config_part4_tests)
 
 BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_func_local_bytes_svnn, data::make({0, 8192, 16384}) * data::make(func_local_params), n_params, n_locals, n_stack, set_high, expect_success) {
    test_max_func_local_bytes(*this, n_params, n_locals, n_stack, set_high, expect_success);
@@ -599,9 +610,6 @@ BOOST_FIXTURE_TEST_CASE(max_func_local_bytes_mixed_old, old_wasm_tester) {
    BOOST_CHECK_THROW(set_code("stackz"_n, code.c_str()), wasm_exception);
 }
 
-BOOST_AUTO_TEST_SUITE_END()
-
-BOOST_AUTO_TEST_SUITE(wasm_config_part3_tests)
 
 template<typename T>
 void test_max_table_elements(T& chain, int32_t max_table_elements, int32_t oversize) {
@@ -692,6 +700,9 @@ BOOST_DATA_TEST_CASE_F(wasm_config_tester<savanna_validating_tester>, max_nested
                        n_nesting, oversize) {
    test_max_nested_structures(*this, n_nesting, oversize);
 }
+
+BOOST_AUTO_TEST_SUITE_END()
+BOOST_AUTO_TEST_SUITE(wasm_config_part5_tests)
 
 static const char max_symbol_func_wast[] = R"=====(
 (module

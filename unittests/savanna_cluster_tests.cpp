@@ -9,6 +9,8 @@ BOOST_AUTO_TEST_SUITE(savanna_cluster_tests)
 
 // test set_finalizer host function serialization and tester set_finalizers
 BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
+      auto& C=_nodes[2]; auto& D=_nodes[3];
+
       auto node3_lib = _nodes[3].lib_num();                 // Store initial lib (after Savanna transtion)
       BOOST_REQUIRE_EQUAL(num_nodes(), num_lib_advancing([&]() { // Check that lib advances on all nodes
          _nodes[0].produce_block();                         // Blocks & votes are propagated to all connected peers.
@@ -35,8 +37,7 @@ BOOST_FIXTURE_TEST_CASE(simple_test, savanna_cluster::cluster_t) { try {
       node3_lib      = _nodes[3].lib_num();
       BOOST_REQUIRE_EQUAL(node0_lib, node3_lib);
 
-      const std::vector<size_t> partition {2, 3};
-      set_partition(partition);                             // Simulate 2 disconnected partitions:
+      set_partition( {&C, &D} );                            // Simulate 2 disconnected partitions:
                                                             // nodes {0, 1} and nodes {2, 3}
 
       // at this point, each node has a QC to include into the next block it produces which will advance lib.

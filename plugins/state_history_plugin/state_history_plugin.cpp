@@ -100,22 +100,24 @@ public:
    template <typename Protocol>
    void create_listener(const std::string& address) {
       const boost::posix_time::milliseconds accept_timeout(200);
-      // connections set must only be modified by main thread; run listener on main thread to avoid needing another post()
-      fc::create_listener<Protocol>(app().get_io_service(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
-         catch_and_log([this, &socket]() {
-            connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
-                                            trace_log, chain_state_log, finality_data_log,
-                                            [this](const chain::block_num_type block_num) {
-                                               return get_block_id(block_num);
-                                            },
-                                            [this](const chain::block_id_type& block_id) {
-                                               return chain_plug->chain().fetch_block_by_id(block_id);
-                                            },
-                                            [this](session_base* conn) {
-                                               boost::asio::post(app().get_io_service(), [conn, this]() {
-                                                  connections.erase(connections.find(conn));
-                                               });
-                                            }, _log));
+      // connections set must only be modified by main thread; run listener on ship thread so sockets use default executor of the ship thread
+      fc::create_listener<Protocol>(thread_pool.get_executor(), _log, accept_timeout, address, "", [this](Protocol::socket&& socket) {
+         boost::asio::post(app().get_io_service(), [this, socket{std::move(socket)}]() mutable {
+            catch_and_log([this, &socket]() {
+               connections.emplace(new session(std::move(socket), boost::asio::make_strand(thread_pool.get_executor()), chain_plug->chain(),
+                                               trace_log, chain_state_log, finality_data_log,
+                                               [this](const chain::block_num_type block_num) {
+                                                  return get_block_id(block_num);
+                                               },
+                                               [this](const chain::block_id_type& block_id) {
+                                                  return chain_plug->chain().fetch_block_by_id(block_id);
+                                               },
+                                               [this](session_base* conn) {
+                                                  boost::asio::post(app().get_io_service(), [conn, this]() {
+                                                     connections.erase(connections.find(conn));
+                                                  });
+                                               }, _log));
+            });
          });
       });
    }
@@ -378,6 +380,16 @@ void state_history_plugin_impl::plugin_shutdown() {
    accepted_block_connection.reset();
    block_start_connection.reset();
    thread_pool.stop();
+
+   // This is a temporary fix until https://github.com/AntelopeIO/spring/issues/842 can be worked.
+   // Drain the io_service of anything that could be referencing state_history_plugin
+   if (app().executor().get_io_service().stopped()) {
+      app().executor().get_io_service().restart();
+      while (app().executor().get_io_service().poll())
+         ;
+      // clear priority queue of anything pushed by poll(), see application_base exec()
+      app().executor().clear();
+   }
 }
 
 void state_history_plugin::plugin_shutdown() {

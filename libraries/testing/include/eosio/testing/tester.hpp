@@ -8,6 +8,7 @@
 #include <fc/io/json.hpp>
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple_io.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 
 #include <eosio/testing/bls_utils.hpp>
 
@@ -520,6 +521,13 @@ namespace eosio::testing {
             return {cfg, gen};
          }
 
+         static bool arguments_contains(const std::string& arg) {
+            auto argc = boost::unit_test::framework::master_test_suite().argc;
+            auto argv = boost::unit_test::framework::master_test_suite().argv;
+
+            return std::find(argv, argv + argc, arg) != (argv + argc);
+         }
+
          // ideally, users of `tester` should not access the controller directly,
          // so we provide APIs to access the chain head and fork_db head, and some
          // other commonly used APIs.
@@ -528,6 +536,7 @@ namespace eosio::testing {
          block_handle     fork_db_head() const { return control->fork_db_head(); }
 
          chain_id_type    get_chain_id() const { return control->get_chain_id(); }
+         block_id_type    last_irreversible_block_id() const { return control->last_irreversible_block_id(); }
          uint32_t         last_irreversible_block_num() const { return control->last_irreversible_block_num(); }
          bool             block_exists(const block_id_type& id) const { return  control->block_exists(id); }
 
@@ -575,6 +584,9 @@ namespace eosio::testing {
          signed_block_ptr       _finish_block();
          void                   _check_for_vote_if_needed(controller& c, const block_handle& bh);
 
+         enum class block_signal { block_start, accepted_block_header, accepted_block, irreversible_block };
+         bool                   _check_signal(const block_id_type& id, block_signal sig);
+
       // Fields:
       protected:
          bool                   _expect_votes {true};                          // if set, ensure the node votes on each block
@@ -591,6 +603,7 @@ namespace eosio::testing {
          map<transaction_id_type, transaction_receipt> chain_transactions;
          map<account_name, block_id_type>              last_produced_block;
          unapplied_transaction_queue                   unapplied_transactions;
+         boost::unordered_flat_map<block_id_type, block_signal> blocks_signaled;
 
       public:
          vector<digest_type>                           protocol_features_to_be_activated_wo_preactivation;

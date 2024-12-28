@@ -21,7 +21,7 @@ namespace eosio::chain {
                  );
 
       block_state_legacy( pending_block_header_state_legacy&& cur,
-                          signed_block_ptr&& b, // unsigned block
+                          mutable_signed_block_ptr&& b, // unsigned block
                           deque<transaction_metadata_ptr>&& trx_metas,
                           const std::optional<digests_t>& action_receipt_digests_savanna,
                           const protocol_feature_set& pfs,
@@ -51,19 +51,16 @@ namespace eosio::chain {
       const producer_authority_schedule*     pending_schedule_auth() const { return &block_header_state_legacy::pending_schedule.schedule; }
       const deque<transaction_metadata_ptr>& trxs_metas()            const { return _cached_trxs; }
 
-      
+      void set_valid(bool v) { validated.store(v); }
+      bool is_valid() const  { return validated.load(); }
+
       using fork_db_block_state_accessor_t = block_state_legacy_accessor;
+
    private: // internal use only, not thread safe
-      friend struct block_state_legacy_accessor;
       friend struct fc::reflector<block_state_legacy>;
       friend struct controller_impl;
-      template <typename BS> friend struct fork_database_impl;
       friend struct completed_block;
       friend struct block_state;
-
-      // not thread safe, expected to only be called from main thread
-      void set_valid(bool v) { validated = v; }
-      bool is_valid() const { return validated; }
 
       bool is_pub_keys_recovered()const { return _pub_keys_recovered; }
       
@@ -78,7 +75,7 @@ namespace eosio::chain {
          _cached_trxs = std::move( trxs_metas );
       }
 
-      bool                                                validated = false;
+      copyable_atomic<bool>                               validated{false};
 
       bool                                                _pub_keys_recovered = false;
       /// this data is redundant with the data stored in block, but facilitates
