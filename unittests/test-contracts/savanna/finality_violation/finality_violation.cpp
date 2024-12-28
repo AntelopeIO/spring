@@ -182,6 +182,7 @@ std::pair<std::string, std::string> finality_violation::rule3(   const finalizer
     
     check(finality_violation, "proofs must demonstrate a finality violation");
 
+    //Proof of rule #3 finality violation
     auto result = check_bitsets(finalizer_policy, high_proof, low_proof, true, false);
 
     return {result.first.to_string(), result.second.to_string()};

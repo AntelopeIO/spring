@@ -201,17 +201,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                         const size_t target_reversible_block_index, 
                         const std::vector<finality_block_data>& reversible_blocks){
 
-        std::cout << "target_reversible_block_index: " << target_reversible_block_index << std::endl;
-        std::cout << "reversible_blocks.size(): " << reversible_blocks.size() << std::endl;
-
-        std::cout << "target_reversible_block: " << compute_block_ref_digest(target_reversible_block) << std::endl;
-
         std::vector<digest_type> merkle_branches = finality_proof::generate_proof_of_inclusion(get_reversible_blocks_digests(reversible_blocks), target_reversible_block_index);
-
-        for(const auto& digest : merkle_branches){
-            std::cout << "merkle branch: " << digest << std::endl;
-        }
-
 
         return mvo()
             ("finalizer_policy", active_finalizer_policy)
@@ -580,8 +570,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //Light client recorded the last QC (over block #10) on the fake chain, which was delivered via block #11. 
         //Block #10 claims a QC over block #8. We provide fake block #10 and the QC over it, as well as the digests of the reversible blocks the light client recorded (block #8 and block #9).
         //We also provide the real block #9 and a QC over it, delivered via block #10.
-        //Since there is a time range conflict, and since the real block #9 finality digest doesn't appear in the list of reversible blocks digests committed to by the fake block QC, 
-        //this is a proof of violation of rule #2.
+        //Since there is a time range conflict, and since the low proof block is not a descendant of the high proof block, this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     light_client_data.get_reversible_blocks()[light_client_data.get_reversible_blocks().size()-1], //fake block #10
                                                                     light_client_data.get_current_block().qc_data.qc.value(), //QC over fake block #10
@@ -608,7 +597,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //The contract rejects the invalid proof
         shouldFail(real_chain, "rule2"_n, invalid_rule_2_proof_1);
 
-        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the low proof block
+        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the 
+        //low proof block
         mutable_variant_object invalid_rule_2_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_10_result), //real block #10
                                                                     get_finality_block_data(real_chain_block_11_result).qc_data.qc.value(), //QC over real block #11
@@ -657,8 +647,6 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //verify the merkle root of the reversible blocks digests is the same as the one recorded by the light client
         BOOST_TEST(real_chain_block_14_result.level_3_commitments.reversible_blocks_mroot == block_14_reversible_blocks_merkle_root);
 
-        std::cout << "block 14 reversible blocks merkle root: " << block_14_reversible_blocks_merkle_root << std::endl;
-
         //Fake chain has a QC on #13 carried by #14, but real chain doesn't
         BOOST_TEST(fake_chain_block_14_result.qc_data.qc.has_value());
         BOOST_TEST(!real_chain_block_14_result.qc_data.qc.has_value());
@@ -674,8 +662,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
         //We discovered a QC (over block #14) on the real chain, which was delivered via block #15. 
         //Last QC recorded on the fake chain was over block #13, and was delivered by block #14
         //We provide the real block #14 and its QC, the reversible digests at that time (block #12 and #13), as well as the fake block #13 and its QC.
-        //Since there is a time range conflict, and the fake block #13 finality digest doesn't appear in the list of the digests committed to by the real block QC, 
-        //this is a proof of violation of rule #2.
+        //Since there is a time range conflict, and the low proof block is not a descendant of the high proof block, this is a proof of violation of rule #2.
         mutable_variant_object valid_rule_2_proof_2 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_14_result), 
                                                                     get_finality_block_data(real_chain_block_15_result).qc_data.qc.value(), 
@@ -755,7 +742,8 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1);
         
-        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the low proof block
+        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the 
+        //low proof block
         mutable_variant_object invalid_rule_3_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_19_result), 
                                                                     get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
