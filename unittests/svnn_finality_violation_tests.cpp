@@ -755,6 +755,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
 
         shouldPass(real_chain, "rule3"_n, valid_rule_3_proof_1);
         
+        //Now, to ensure the smart contract rejects invalid proofs, we can test providing a proof from the real chain where the high proof block is a descendant of the low proof block
         mutable_variant_object invalid_rule_3_proof_1 = prepare_rule_2_3_proof(  light_client_data.active_finalizer_policy, 
                                                                     get_finality_block_data(real_chain_block_19_result), 
                                                                     get_finality_block_data(real_chain_block_20_result).qc_data.qc.value(), 
@@ -764,6 +765,7 @@ BOOST_AUTO_TEST_SUITE(svnn_finality_violation)
                                                                     0,
                                                                     {get_finality_block_data(real_chain_block_16_result)});
 
+        //The contract rejects the invalid proof
         shouldFail(real_chain, "rule3"_n, invalid_rule_3_proof_1);
     
         //Resume production on fake chain
