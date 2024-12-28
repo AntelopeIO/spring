@@ -18,45 +18,12 @@ using namespace eosio::testing;
 
 using mvo = mutable_variant_object;
 
-std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
-   static const char* hexchar = "0123456789abcdef";
-
-   boost::dynamic_bitset<unsigned char> bs(bitset);
-   bs.resize((bs.size() + 7) & ~0x7);
-   assert(bs.size() % 8 == 0);
-
-   std::string result;
-   result.resize(bs.size() / 4);
-   for (size_t i = 0; i < bs.size(); i += 4) {
-      size_t x = 0;
-      for (size_t j = 0; j < 4; ++j)
-         x += bs[i+j] << j;
-      auto slot = i / 4;
-      result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
-   }
-   return result;
-}
-
-std::string binary_to_hex(const std::string& bin) {
-   boost::dynamic_bitset<unsigned char> bitset(bin.size());
-   for (size_t i = 0; i < bin.size(); ++i) {
-       if (bin[i] == '1') {
-           bitset.set(bin.size() - 1 - i);
-       }
-   }
-   return bitset_to_input_string(bitset);
-}
-
-auto active_finalizers_string = [](const finality_proof::ibc_block_data_t& bd)  {
-   return bitset_to_input_string(bd.qc_data.qc.value().active_policy_sig.strong_votes.value());
-};
-
 BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
    BOOST_AUTO_TEST_CASE(ibc_test) { try {
 
       // cluster is set up with the head about to produce IF Genesis
-      finality_proof::proof_test_cluster<4> cluster;
+      finality_proof::proof_test_cluster cluster;
 
       // produce IF Genesis block
       auto genesis_block_result = cluster.produce_block();
@@ -97,9 +64,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       auto block_5_result = cluster.produce_block(); //block num : 9
       auto block_6_result = cluster.produce_block(); //block num : 10
 
-      BOOST_TEST(block_4_result.qc_data.qc.has_value());
-      BOOST_TEST(block_5_result.qc_data.qc.has_value());
-      BOOST_TEST(block_6_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_4_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_5_result.qc_data.qc.has_value());
+      BOOST_REQUIRE(block_6_result.qc_data.qc.has_value());
       
       // create a few proofs we'll use to perform tests
 
@@ -114,12 +81,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("witness_hash", block_3_result.level_2_commitments_digest)
+                  ("witness_hash", block_3_result.level_2_commitments_digest())
                   ("finality_mroot", block_3_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_4_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_4_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_4_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -130,7 +97,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_2_result.level_2_commitments_digest)
+                     ("witness_hash", block_2_result.level_2_commitments_digest())
                      ("finality_mroot", block_2_result.finality_root)
                   )
                   ("timestamp", block_2_result.block->timestamp)
@@ -153,12 +120,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("witness_hash", block_3_result.level_2_commitments_digest)
+                  ("witness_hash", block_3_result.level_2_commitments_digest())
                   ("finality_mroot", block_3_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_4_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_4_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_4_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -188,12 +155,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("witness_hash", block_4_result.level_2_commitments_digest)
+                  ("witness_hash", block_4_result.level_2_commitments_digest())
                   ("finality_mroot", block_4_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_5_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_5_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_5_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -204,7 +171,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_2_result.level_2_commitments_digest)
+                     ("witness_hash", block_2_result.level_2_commitments_digest())
                      ("finality_mroot", block_2_result.finality_root)
                   )
                   ("timestamp", block_2_result.block->timestamp)
@@ -230,7 +197,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_2_result.level_2_commitments_digest)
+                     ("witness_hash", block_2_result.level_2_commitments_digest())
                      ("finality_mroot", block_2_result.finality_root)
                   )
                   ("timestamp", block_2_result.block->timestamp)
@@ -327,8 +294,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // onblock action proof
       mutable_variant_object onblock_action_proof = mvo()
-         ("target_block_index", 0)
-         ("final_block_index", 3)
+         ("target_action_index", 0)
+         ("final_action_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", block_7_result.onblock_trace.act.account)
@@ -346,8 +313,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // first action proof (check_heavy_proof_1)
       mutable_variant_object action_proof_1 = mvo()
-         ("target_block_index", 1)
-         ("final_block_index", 3)
+         ("target_action_index", 1)
+         ("final_action_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", check_heavy_proof_1_trace.act.account)
@@ -364,8 +331,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
 
       // second action proof (check_light_proof_1)
       mutable_variant_object action_proof_2 = mvo()
-         ("target_block_index", 2)
-         ("final_block_index", 3)
+         ("target_action_index", 2)
+         ("final_action_index", 3)
          ("target", mvo()
             ("action", mvo()
                ("account", check_light_proof_1_trace.act.account)
@@ -388,12 +355,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("witness_hash", block_8_result.level_2_commitments_digest)
+                  ("witness_hash", block_8_result.level_2_commitments_digest())
                   ("finality_mroot", block_8_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_9_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_9_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_9_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -404,7 +371,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_7_result.level_2_commitments_digest)
+                     ("witness_hash", block_7_result.level_2_commitments_digest())
                      ("finality_mroot", block_7_result.finality_root)
                   )
                   ("timestamp", block_7_result.block->timestamp)
@@ -429,7 +396,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_7_result.level_2_commitments_digest)
+                     ("witness_hash", block_7_result.level_2_commitments_digest())
                      ("finality_mroot", block_7_result.finality_root)
                   )
                   ("timestamp", block_7_result.block->timestamp)
@@ -490,13 +457,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("pending_finalizer_policy_generation", 2)
-                  ("witness_hash", block_10_result.level_2_commitments_digest)
+                  ("witness_hash", block_10_result.level_2_commitments_digest())
                   ("finality_mroot", block_10_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_11_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_11_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_11_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -507,7 +473,7 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("witness_hash", block_9_result.level_2_commitments_digest)
+                     ("witness_hash", block_9_result.level_2_commitments_digest())
                      ("finality_mroot", block_9_result.finality_root)
                   )
                   ("timestamp", block_9_result.block->timestamp)
@@ -549,17 +515,17 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 1)
-                  ("last_pending_finalizer_policy_generation", 2)
-                  ("witness_hash", block_11_result.level_2_commitments_digest)
+                  ("pending_finalizer_policy_generation", 2)
+                  ("witness_hash", block_11_result.level_2_commitments_digest())
                   ("finality_mroot", block_11_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_12_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_12_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_12_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
                ("pending_policy_qc", mvo()
                   ("signature", block_12_result.qc_data.qc.value().pending_policy_sig.value().sig.to_string())
-                  ("finalizers", active_finalizers_string(block_12_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_12_result.qc_data.qc.value().pending_policy_sig.value().strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -570,9 +536,9 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("last_pending_finalizer_policy_generation", 2)
-                     ("pending_finalizer_policy", cluster.last_pending_finalizer_policy)
-                     ("witness_hash", block_10_result.level_3_commitments_digest)
+                     ("pending_finalizer_policy_generation", 2)
+                     ("last_pending_finalizer_policy", cluster.last_pending_finalizer_policy)
+                     ("witness_hash", block_10_result.level_3_commitments_digest())
                      ("last_pending_finalizer_policy_start_timestamp", block_10_result.last_pending_finalizer_policy_start_timestamp )
                      ("finality_mroot", block_10_result.finality_root)
                   )
@@ -603,12 +569,12 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                   ("major_version", 1)
                   ("minor_version", 0)
                   ("active_finalizer_policy_generation", 2)
-                  ("witness_hash", block_12_result.level_2_commitments_digest)
+                  ("witness_hash", block_12_result.level_2_commitments_digest())
                   ("finality_mroot", block_12_result.finality_root)
                )
                ("active_policy_qc", mvo()
                   ("signature", block_13_result.qc_data.qc.value().active_policy_sig.sig.to_string())
-                  ("finalizers", active_finalizers_string(block_13_result)) 
+                  ("strong_votes", finality_proof::finalizers_string(block_13_result.qc_data.qc.value().active_policy_sig.strong_votes.value())) 
                )
             )
             ("target_block_proof_of_inclusion", mvo() 
@@ -619,8 +585,8 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
                      ("major_version", 1)
                      ("minor_version", 0)
                      ("active_finalizer_policy_generation", 1)
-                     ("last_pending_finalizer_policy_generation", 2)
-                     ("witness_hash", block_11_result.level_2_commitments_digest)
+                     ("pending_finalizer_policy_generation", 2)
+                     ("witness_hash", block_11_result.level_2_commitments_digest())
                      ("finality_mroot", block_11_result.finality_root)
                   )
                   ("timestamp", block_11_result.block->timestamp)
@@ -648,16 +614,13 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // The QC provided to prove this also proves a commitment from finalizers to this policy, so the smart contract can accept it.
       action_trace check_heavy_proof_4_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_4)->action_traces[0];
 
-      BOOST_CHECK(true); 
       // now that we have successfully proven finalizer policy generation #2, the contract has it, and we can prove heavy_proof_5
       action_trace check_heavy_proof_5_trace = cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, heavy_proof_5)->action_traces[0];
 
-      BOOST_CHECK(true); 
       // we now test light proof we should still be able to verify a proof of finality for block #2 without finality proof,
       // since the previous root is still cached
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
       
-      BOOST_CHECK(true); 
       cluster.produce_blocks(10); //advance 5 seconds
 
       // the root is still cached when performing this action, so the action succeeds.
@@ -665,7 +628,6 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       // so subsequent calls with the same action data will fail
       cluster.node0.push_action("ibc"_n, "checkproof"_n, "ibc"_n, light_proof_1);
 
-      BOOST_CHECK(true); 
       cluster.produce_block(); //advance 1 block to avoid duplicate transaction
 
       last_action_failed = false;
@@ -688,12 +650,14 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       chain.set_code( "ibc"_n, eosio::testing::test_contracts::ibc_wasm());
       chain.set_abi( "ibc"_n, eosio::testing::test_contracts::ibc_abi());
 
-      std::string bitset_1 = binary_to_hex("0");
-      std::string bitset_2 = binary_to_hex("011");
-      std::string bitset_3 = binary_to_hex("00011101010");
-      std::string bitset_4 = binary_to_hex("11011000100001");
-      std::string bitset_5 = binary_to_hex("111111111111111111111");
-      std::string bitset_6 = binary_to_hex("000000111111111111111");
+      std::string bitset_1 = finality_proof::binary_to_hex("0");
+      std::string bitset_2 = finality_proof::binary_to_hex("011");
+      std::string bitset_3 = finality_proof::binary_to_hex("00011101010");
+      std::string bitset_4 = finality_proof::binary_to_hex("11011000100001");
+      std::string bitset_5 = finality_proof::binary_to_hex("111111111111111111111");
+      std::string bitset_6 = finality_proof::binary_to_hex("000000111111111111111");
+      std::string bitset_7 = finality_proof::binary_to_hex("0011");
+      std::string bitset_8 = finality_proof::binary_to_hex("1100");
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
          ("bitset_string", "00")
@@ -702,33 +666,45 @@ BOOST_AUTO_TEST_SUITE(svnn_ibc)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "30") //bitset bytes are reversed, so we do the same to test
+         ("bitset_string", "03")
          ("bitset_vector", bitset_2)
          ("finalizers_count", 3)
       );
-
+      
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "ae00")
+         ("bitset_string", "00ea")
          ("bitset_vector", bitset_3)
          ("finalizers_count", 11)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "1263")
+         ("bitset_string", "3621")
          ("bitset_vector", bitset_4)
          ("finalizers_count", 14)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "fffff1")
+         ("bitset_string", "1fffff")
          ("bitset_vector", bitset_5)
          ("finalizers_count", 21)
       );
 
       chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
-         ("bitset_string", "fff700")
+         ("bitset_string", "007fff")
          ("bitset_vector", bitset_6)
          ("finalizers_count", 21)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "03")
+         ("bitset_vector", bitset_7)
+         ("finalizers_count", 4)
+      );
+
+      chain.push_action("ibc"_n, "testbitset"_n, "ibc"_n, mvo()
+         ("bitset_string", "0c")
+         ("bitset_vector", bitset_8)
+         ("finalizers_count", 4)
       );
 
    } FC_LOG_AND_RETHROW() }
