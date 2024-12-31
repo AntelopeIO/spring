@@ -44,6 +44,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /producer/pause_at_block:
+    post:
+      summary: pause_at_block
+      description: Pause producer node at the specified block.
+      operationId: pause_at_block
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                block_num:
+                  type: integer
+                  description: Block number
+                  example: 5102
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+        "400":
+          description: client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /producer/resume:
     post:
       summary: resume
