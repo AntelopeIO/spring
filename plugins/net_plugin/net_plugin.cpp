@@ -635,9 +635,9 @@ namespace eosio {
          _write_queue_size = 0;
       }
 
-      void clear_out_queue(boost::system::error_code ec, std::size_t w) {
+      void clear_out_queue(boost::system::error_code ec, std::size_t number_of_bytes_written) {
          fc::lock_guard g( _mtx );
-         out_callback( ec, w );
+         out_callback( ec, number_of_bytes_written );
          _out_queue.clear();
       }
 
@@ -704,9 +704,9 @@ namespace eosio {
          }
       }
 
-      void out_callback( boost::system::error_code ec, std::size_t w ) REQUIRES(_mtx) {
+      void out_callback( boost::system::error_code ec, std::size_t number_of_bytes_written ) REQUIRES(_mtx) {
          for( auto& m : _out_queue ) {
-            m.callback( ec, w );
+            m.callback( ec, number_of_bytes_written );
          }
       }
 
@@ -718,10 +718,10 @@ namespace eosio {
 
       alignas(hardware_destructive_interference_sz)
       mutable fc::mutex   _mtx;
-      uint32_t            _write_queue_size GUARDED_BY(_mtx) {0};
-      deque<queued_write> _write_queue      GUARDED_BY(_mtx);
-      deque<queued_write> _trx_write_queue  GUARDED_BY(_mtx); // trx_write_queue will be sent last
-      deque<queued_write> _out_queue        GUARDED_BY(_mtx);
+      uint32_t            _write_queue_size GUARDED_BY(_mtx) {0}; // size of _write_queue and _trx_write_queue
+      deque<queued_write> _write_queue      GUARDED_BY(_mtx); // queued messages, all messages except trxs
+      deque<queued_write> _trx_write_queue  GUARDED_BY(_mtx); // queued trx messages, trx_write_queue will be sent last
+      deque<queued_write> _out_queue        GUARDED_BY(_mtx); // currently being async_write
 
    }; // queued_buffer
 
@@ -1593,8 +1593,8 @@ namespace eosio {
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
-      boost::asio::async_write( *c->socket, bufs,
-         boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
+      boost::asio::async_write( *socket, bufs,
+         boost::asio::bind_executor( strand, [c, socket=socket]( boost::system::error_code ec, std::size_t w ) {
          try {
             peer_dlog(c, "async write complete");
             // May have closed connection and cleared buffer_queue
