@@ -47,7 +47,8 @@ paths:
   /producer/pause_at_block:
     post:
       summary: pause_at_block
-      description: Pause node at the specified block. Use /producer/resume to un-pause. If specified block is less than head then returns an error.
+      description: |
+      Pause node at the specified block. Use /producer/resume to un-pause. If specified block is less than head then returns an error.
       ### Useage
       Note that is pauses all nodes not just producer nodes. The common use case is to use on non-producer nodes as a way of freezing state. For example, a user might wish to download all the rolls of a table. This would allow the user to freeze at a block number and then iterate through an entire table.
       operationId: pause_at_block
