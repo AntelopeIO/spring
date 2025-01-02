@@ -63,8 +63,7 @@ try:
     irrvNode.processUrllibRequest("producer", "pause_at_block", {"block_num":blockNum}),
 
     assert prodNode.waitForLibToAdvance(), "LIB did not advance with paused nodes"
-    # blockNum -1 since waitForBlock uses `> blockNum` instead of `>=`
-    assert prodNode2.waitForBlock(blockNum-1), f"Block {blockNum} did not arrive after pausing"
+    assert prodNode2.waitForBlock(blockNum), f"Block {blockNum} did not arrive after pausing"
 
     Utils.Print(f"Verify paused at block {blockNum}")
     assert prodNode2.getHeadBlockNum() == blockNum, "Prod Node_01 did not pause at block"
