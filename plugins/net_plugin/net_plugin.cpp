@@ -630,7 +630,7 @@ namespace eosio {
          bool ready = ((!_trx_write_queue.empty() || !_write_queue.empty()) && !async_write_in_progress);
          g.unlock();
          if (async_write_in_progress) {
-            fc_elog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
+            fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
          }
          return ready;
       }
