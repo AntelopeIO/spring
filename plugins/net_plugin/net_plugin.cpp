@@ -3172,7 +3172,7 @@ namespace eosio {
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
-      assert(which == vote_message_which);
+      assert(to_msg_type_t(which) == msg_type_t::vote_message); // verified by caller
       vote_message_ptr ptr = std::make_shared<vote_message>();
       fc::raw::unpack( ds, *ptr );
 
