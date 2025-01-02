@@ -598,6 +598,14 @@ namespace eosio {
    // thread safe
    class queued_buffer : boost::noncopyable {
    public:
+      void reset() {
+         fc::lock_guard g( _mtx );
+         _write_queue.clear();
+         _trx_write_queue.clear();
+         _write_queue_size = 0;
+         _out_queue.clear();
+      }
+
       void clear_write_queue() {
          fc::lock_guard g( _mtx );
          _write_queue.clear();
@@ -605,11 +613,10 @@ namespace eosio {
          _write_queue_size = 0;
       }
 
-      void clear_out_queue() {
+      void clear_out_queue(boost::system::error_code ec, std::size_t w) {
          fc::lock_guard g( _mtx );
-         while ( !_out_queue.empty() ) {
-            _out_queue.pop_front();
-         }
+         out_callback( ec, w );
+         _out_queue.clear();
       }
 
       uint32_t write_queue_size() const {
@@ -662,13 +669,6 @@ namespace eosio {
          }
       }
 
-      void out_callback( boost::system::error_code ec, std::size_t w ) {
-         fc::lock_guard g( _mtx );
-         for( auto& m : _out_queue ) {
-            m.callback( ec, w );
-         }
-      }
-
    private:
       struct queued_write;
       void fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs,
@@ -679,6 +679,12 @@ namespace eosio {
             _write_queue_size -= m.buff->size();
             _out_queue.emplace_back( m );
             w_queue.pop_front();
+         }
+      }
+
+      void out_callback( boost::system::error_code ec, std::size_t w ) REQUIRES(_mtx) {
+         for( auto& m : _out_queue ) {
+            m.callback( ec, w );
          }
       }
 
@@ -1572,16 +1578,16 @@ namespace eosio {
             // May have closed connection and cleared buffer_queue
             if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
                peer_ilog(c, "async write socket closed before callback");
-               c->buffer_queue.clear_out_queue();
+               c->buffer_queue.clear_out_queue(ec, w);
                c->close();
                return;
             }
             if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
                peer_ilog( c, "async write socket changed before callback");
-               c->buffer_queue.clear_out_queue();
-               boost::system::error_code ec;
-               socket->shutdown( tcp::socket::shutdown_both, ec );
-               socket->close( ec );
+               c->buffer_queue.clear_out_queue(ec, w);
+               boost::system::error_code ignore_ec;
+               socket->shutdown( tcp::socket::shutdown_both, ignore_ec );
+               socket->close( ignore_ec );
                return;
             }
 
@@ -1597,8 +1603,7 @@ namespace eosio {
             c->bytes_sent += w;
             c->last_bytes_sent = c->get_time();
 
-            c->buffer_queue.out_callback( ec, w );
-            c->buffer_queue.clear_out_queue();
+            c->buffer_queue.clear_out_queue(ec, w);
 
             c->enqueue_sync_block();
             c->do_queue_write();
@@ -2748,7 +2753,7 @@ namespace eosio {
    void connection::connect( const tcp::resolver::results_type& endpoints ) {
       set_state(connection_state::connecting);
       pending_message_buffer.reset();
-      buffer_queue.clear_out_queue();
+      buffer_queue.reset();
       boost::asio::async_connect( *socket, endpoints,
          boost::asio::bind_executor( strand,
                [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
