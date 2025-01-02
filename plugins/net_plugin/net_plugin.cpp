@@ -253,9 +253,31 @@ namespace eosio {
 
    constexpr auto     message_header_size = sizeof(uint32_t);
 
-   constexpr uint32_t signed_block_which           = fc::get_index<net_message, signed_block>();         // see protocol net_message
-   constexpr uint32_t packed_transaction_which     = fc::get_index<net_message, packed_transaction>();   // see protocol net_message
-   constexpr uint32_t vote_message_which           = fc::get_index<net_message, vote_message>();         // see protocol net_message
+   // see protocol net_message
+   enum class msg_type_t {
+      handshake_message      = fc::get_index<net_message, handshake_message>(),
+      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
+      go_away_message        = fc::get_index<net_message, go_away_message>(),
+      time_message           = fc::get_index<net_message, time_message>(),
+      notice_message         = fc::get_index<net_message, notice_message>(),
+      request_message        = fc::get_index<net_message, request_message>(),
+      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
+      signed_block           = fc::get_index<net_message, signed_block>(),
+      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
+      vote_message           = fc::get_index<net_message, vote_message>(),
+      unknown
+   };
+
+   constexpr uint32_t to_index(msg_type_t net_msg) {
+      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
+      return static_cast<uint32_t>(net_msg);
+   }
+
+   constexpr msg_type_t to_msg_type_t(size_t v) {
+      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
+      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
+      return static_cast<msg_type_t>(v);
+   }
 
    class connections_manager {
    public:
@@ -645,9 +667,9 @@ namespace eosio {
       // @param callback must not callback into queued_buffer
       bool add_write_queue( const std::shared_ptr<vector<char>>& buff,
                             std::function<void( boost::system::error_code, std::size_t )> callback,
-                            uint32_t net_message_which ) {
+                            msg_type_t net_msg ) {
          fc::lock_guard g( _mtx );
-         if( net_message_which == packed_transaction_which ) {
+         if( net_msg == msg_type_t::packed_transaction ) {
             _trx_write_queue.push_back( {buff, std::move(callback)} );
          } else {
             _write_queue.push_back( {buff, std::move(callback)} );
@@ -698,7 +720,7 @@ namespace eosio {
       mutable fc::mutex   _mtx;
       uint32_t            _write_queue_size GUARDED_BY(_mtx) {0};
       deque<queued_write> _write_queue      GUARDED_BY(_mtx);
-      deque<queued_write> _trx_write_queue GUARDED_BY(_mtx); // trx_write_queue will be sent last
+      deque<queued_write> _trx_write_queue  GUARDED_BY(_mtx); // trx_write_queue will be sent last
       deque<queued_write> _out_queue        GUARDED_BY(_mtx);
 
    }; // queued_buffer
@@ -972,9 +994,9 @@ namespace eosio {
       void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
 
-      void enqueue( const net_message &msg );
+      void enqueue( const net_message& msg );
       size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num );
-      void enqueue_buffer( uint32_t net_message_which,
+      void enqueue_buffer( msg_type_t net_msg,
                            const std::shared_ptr<std::vector<char>>& send_buffer,
                            block_num_type block_num,
                            go_away_reason close_after_send);
@@ -986,7 +1008,7 @@ namespace eosio {
       void cancel_sync_wait();
       void sync_wait();
 
-      void queue_write(uint32_t net_message_which,
+      void queue_write(msg_type_t net_msg,
                        const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback);
       void do_queue_write();
@@ -1551,10 +1573,10 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::queue_write(uint32_t net_message_which,
+   void connection::queue_write(msg_type_t net_msg,
                                 const std::shared_ptr<vector<char>>& buff,
                                 std::function<void(boost::system::error_code, std::size_t)> callback) {
-      if( !buffer_queue.add_write_queue( buff, std::move(callback), net_message_which )) {
+      if( !buffer_queue.add_write_queue( buff, std::move(callback), net_msg )) {
          peer_wlog( this, "write_queue full ${s} bytes, giving up on connection", ("s", buffer_queue.write_queue_size()) );
          close();
          return;
@@ -1740,7 +1762,7 @@ namespace eosio {
       }
 
       static send_buffer_type create_send_buffer_from_serialized_block( const std::vector<char>& v ) {
-         static_assert( signed_block_which == fc::get_index<net_message, signed_block>() );
+         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
 
          // match net_message static_variant pack
          const uint32_t which_size = fc::raw::pack_size( unsigned_int( signed_block_which ) );
@@ -1780,7 +1802,8 @@ namespace eosio {
    private:
 
       static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
-         static_assert( signed_block_which == fc::get_index<net_message, signed_block>() );
+         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
+
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
          fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
@@ -1807,7 +1830,8 @@ namespace eosio {
    private:
 
       static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
-         static_assert( packed_transaction_which == fc::get_index<net_message, packed_transaction>() );
+         constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
+
          // this implementation is to avoid copy of packed_transaction to net_message
          // matches which of net_message for packed_transaction
          return buffer_factory::create_send_buffer( packed_transaction_which, *trx );
@@ -1826,7 +1850,7 @@ namespace eosio {
 
       buffer_factory buff_factory;
       const auto& send_buffer = buff_factory.get_send_buffer( m );
-      enqueue_buffer( m.index(), send_buffer, 0, close_after_send );
+      enqueue_buffer( to_msg_type_t(m.index()), send_buffer, 0, close_after_send );
    }
 
    // called from connection strand
@@ -1837,24 +1861,24 @@ namespace eosio {
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
       latest_blk_time = std::chrono::steady_clock::now();
-      enqueue_buffer( signed_block_which, sb, block_num, no_reason);
+      enqueue_buffer( msg_type_t::signed_block, sb, block_num, no_reason);
       return sb->size();
    }
 
    // called from connection strand
-   void connection::enqueue_buffer( uint32_t net_message_which,
+   void connection::enqueue_buffer( msg_type_t net_msg,
                                     const std::shared_ptr<std::vector<char>>& send_buffer,
-                                    block_num_type block_num, // only valid for net_message_which == signed_block_which
+                                    block_num_type block_num, // only valid for net_msg == signed_block variant which
                                     go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
-      queue_write(net_message_which, send_buffer,
-            [conn{std::move(self)}, close_after_send, net_message_which, block_num](boost::system::error_code ec, std::size_t ) {
+      queue_write(net_msg, send_buffer,
+            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t ) {
                         if (ec) {
                            fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.to_string()));
                            return;
                         }
-                        if (net_message_which == signed_block_which)
+                        if (net_msg == msg_type_t::signed_block)
                            fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
                         if (close_after_send != no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
@@ -2685,7 +2709,7 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( signed_block_which, sb, bnum, no_reason );
+               cp->enqueue_buffer( msg_type_t::signed_block, sb, bnum, no_reason );
             }
          });
       } );
@@ -2699,7 +2723,7 @@ namespace eosio {
             if (cp->protocol_version >= proto_savanna) {
                if (vote_logger.is_enabled(fc::log_level::debug))
                   peer_dlog(cp, "sending vote msg");
-               cp->enqueue_buffer( vote_message_which, msg, 0, no_reason );
+               cp->enqueue_buffer( msg_type_t::vote_message, msg, 0, no_reason );
             }
          });
          return true;
@@ -2721,7 +2745,7 @@ namespace eosio {
          send_buffer_type sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
          boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
-            cp->enqueue_buffer( packed_transaction_which, sb, 0, no_reason );
+            cp->enqueue_buffer( msg_type_t::packed_transaction, sb, 0, no_reason );
          } );
       } );
    }
@@ -2990,12 +3014,14 @@ namespace eosio {
          unsigned_int which{};
          fc::raw::unpack( peek_ds, which );
 
-         if( which == signed_block_which ) {
+         msg_type_t net_msg = to_msg_type_t(which.value);
+
+         if( net_msg == msg_type_t::signed_block ) {
             latest_blk_time = now;
             return process_next_block_message( message_length );
-         } else if( which == packed_transaction_which ) {
+         } else if( net_msg == msg_type_t::packed_transaction ) {
             return process_next_trx_message( message_length );
-         } else if( which == vote_message_which ) {
+         } else if( net_msg == msg_type_t::vote_message ) {
             return process_next_vote_message( message_length );
          } else {
             auto ds = pending_message_buffer.create_datastream();
