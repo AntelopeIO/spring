@@ -253,9 +253,31 @@ namespace eosio {
 
    constexpr auto     message_header_size = sizeof(uint32_t);
 
-   constexpr uint32_t signed_block_which           = fc::get_index<net_message, signed_block>();         // see protocol net_message
-   constexpr uint32_t packed_transaction_which     = fc::get_index<net_message, packed_transaction>();   // see protocol net_message
-   constexpr uint32_t vote_message_which           = fc::get_index<net_message, vote_message>();         // see protocol net_message
+   // see protocol net_message
+   enum class msg_type_t {
+      handshake_message      = fc::get_index<net_message, handshake_message>(),
+      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
+      go_away_message        = fc::get_index<net_message, go_away_message>(),
+      time_message           = fc::get_index<net_message, time_message>(),
+      notice_message         = fc::get_index<net_message, notice_message>(),
+      request_message        = fc::get_index<net_message, request_message>(),
+      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
+      signed_block           = fc::get_index<net_message, signed_block>(),
+      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
+      vote_message           = fc::get_index<net_message, vote_message>(),
+      unknown
+   };
+
+   constexpr uint32_t to_index(msg_type_t net_msg) {
+      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
+      return static_cast<uint32_t>(net_msg);
+   }
+
+   constexpr msg_type_t to_msg_type_t(size_t v) {
+      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
+      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
+      return static_cast<msg_type_t>(v);
+   }
 
    class connections_manager {
    public:
@@ -598,18 +620,25 @@ namespace eosio {
    // thread safe
    class queued_buffer : boost::noncopyable {
    public:
+      void reset() {
+         fc::lock_guard g( _mtx );
+         _write_queue.clear();
+         _trx_write_queue.clear();
+         _write_queue_size = 0;
+         _out_queue.clear();
+      }
+
       void clear_write_queue() {
          fc::lock_guard g( _mtx );
          _write_queue.clear();
-         _sync_write_queue.clear();
+         _trx_write_queue.clear();
          _write_queue_size = 0;
       }
 
-      void clear_out_queue() {
+      void clear_out_queue(boost::system::error_code ec, std::size_t number_of_bytes_written) {
          fc::lock_guard g( _mtx );
-         while ( !_out_queue.empty() ) {
-            _out_queue.pop_front();
-         }
+         out_callback( ec, number_of_bytes_written );
+         _out_queue.clear();
       }
 
       uint32_t write_queue_size() const {
@@ -627,7 +656,7 @@ namespace eosio {
          fc::unique_lock g( _mtx );
          // if out_queue is not empty then async_write is in progress
          bool async_write_in_progress = !_out_queue.empty();
-         bool ready = ((!_sync_write_queue.empty() || !_write_queue.empty()) && !async_write_in_progress);
+         bool ready = ((!_trx_write_queue.empty() || !_write_queue.empty()) && !async_write_in_progress);
          g.unlock();
          if (async_write_in_progress) {
             fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
@@ -638,10 +667,10 @@ namespace eosio {
       // @param callback must not callback into queued_buffer
       bool add_write_queue( const std::shared_ptr<vector<char>>& buff,
                             std::function<void( boost::system::error_code, std::size_t )> callback,
-                            bool to_sync_queue ) {
+                            msg_type_t net_msg ) {
          fc::lock_guard g( _mtx );
-         if( to_sync_queue ) {
-            _sync_write_queue.push_back( {buff, std::move(callback)} );
+         if( net_msg == msg_type_t::packed_transaction ) {
+            _trx_write_queue.push_back( {buff, std::move(callback)} );
          } else {
             _write_queue.push_back( {buff, std::move(callback)} );
          }
@@ -654,18 +683,11 @@ namespace eosio {
 
       void fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs ) {
          fc::lock_guard g( _mtx );
-         if( !_sync_write_queue.empty() ) { // always send msgs from sync_write_queue first
-            fill_out_buffer( bufs, _sync_write_queue );
-         } else { // postpone real_time write_queue if sync queue is not empty
+         if( !_write_queue.empty() ) { // always send msgs from write_queue first
             fill_out_buffer( bufs, _write_queue );
-            EOS_ASSERT( _write_queue_size == 0, plugin_exception, "write queue size expected to be zero" );
-         }
-      }
-
-      void out_callback( boost::system::error_code ec, std::size_t w ) {
-         fc::lock_guard g( _mtx );
-         for( auto& m : _out_queue ) {
-            m.callback( ec, w );
+         } else {
+            fill_out_buffer( bufs, _trx_write_queue );
+            assert(_trx_write_queue.empty() && _write_queue.empty() && _write_queue_size == 0);
          }
       }
 
@@ -682,6 +704,12 @@ namespace eosio {
          }
       }
 
+      void out_callback( boost::system::error_code ec, std::size_t number_of_bytes_written ) REQUIRES(_mtx) {
+         for( auto& m : _out_queue ) {
+            m.callback( ec, number_of_bytes_written );
+         }
+      }
+
    private:
       struct queued_write {
          std::shared_ptr<vector<char>> buff;
@@ -690,10 +718,10 @@ namespace eosio {
 
       alignas(hardware_destructive_interference_sz)
       mutable fc::mutex   _mtx;
-      uint32_t            _write_queue_size GUARDED_BY(_mtx) {0};
-      deque<queued_write> _write_queue      GUARDED_BY(_mtx);
-      deque<queued_write> _sync_write_queue GUARDED_BY(_mtx); // sync_write_queue will be sent first
-      deque<queued_write> _out_queue        GUARDED_BY(_mtx);
+      uint32_t            _write_queue_size GUARDED_BY(_mtx) {0}; // size of _write_queue and _trx_write_queue
+      deque<queued_write> _write_queue      GUARDED_BY(_mtx); // queued messages, all messages except trxs
+      deque<queued_write> _trx_write_queue  GUARDED_BY(_mtx); // queued trx messages, trx_write_queue will be sent last
+      deque<queued_write> _out_queue        GUARDED_BY(_mtx); // currently being async_write
 
    }; // queued_buffer
 
@@ -966,11 +994,12 @@ namespace eosio {
       void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
 
-      void enqueue( const net_message &msg );
-      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, bool to_sync_queue = false);
-      void enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
-                           go_away_reason close_after_send,
-                           bool to_sync_queue = false);
+      void enqueue( const net_message& msg );
+      size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num );
+      void enqueue_buffer( msg_type_t net_msg,
+                           const std::shared_ptr<std::vector<char>>& send_buffer,
+                           block_num_type block_num,
+                           go_away_reason close_after_send);
       void cancel_sync();
       void flush_queues();
       bool enqueue_sync_block();
@@ -979,9 +1008,9 @@ namespace eosio {
       void cancel_sync_wait();
       void sync_wait();
 
-      void queue_write(const std::shared_ptr<vector<char>>& buff,
-                       std::function<void(boost::system::error_code, std::size_t)> callback,
-                       bool to_sync_queue = false);
+      void queue_write(msg_type_t net_msg,
+                       const std::shared_ptr<vector<char>>& buff,
+                       std::function<void(boost::system::error_code, std::size_t)> callback);
       void do_queue_write();
 
       bool is_valid( const handshake_message& msg ) const;
@@ -1544,10 +1573,10 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::queue_write(const std::shared_ptr<vector<char>>& buff,
-                                std::function<void(boost::system::error_code, std::size_t)> callback,
-                                bool to_sync_queue) {
-      if( !buffer_queue.add_write_queue( buff, std::move(callback), to_sync_queue )) {
+   void connection::queue_write(msg_type_t net_msg,
+                                const std::shared_ptr<vector<char>>& buff,
+                                std::function<void(boost::system::error_code, std::size_t)> callback) {
+      if( !buffer_queue.add_write_queue( buff, std::move(callback), net_msg )) {
          peer_wlog( this, "write_queue full ${s} bytes, giving up on connection", ("s", buffer_queue.write_queue_size()) );
          close();
          return;
@@ -1564,55 +1593,54 @@ namespace eosio {
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
-      boost::asio::post(strand, [c{std::move(c)}, bufs{std::move(bufs)}]() {
-         boost::asio::async_write( *c->socket, bufs,
-            boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
-            try {
-               c->buffer_queue.clear_out_queue();
-               // May have closed connection and cleared buffer_queue
-               if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
-                  peer_ilog(c, "async write socket closed before callback");
-                  c->close();
-                  return;
-               }
-               if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
-                  peer_ilog( c, "async write socket changed before callback");
-                  boost::system::error_code ec;
-                  socket->shutdown( tcp::socket::shutdown_both, ec );
-                  socket->close( ec );
-                  return;
-               }
-
-               if( ec ) {
-                  if( ec.value() != boost::asio::error::eof ) {
-                     peer_wlog( c, "Error sending to peer: ${i}", ( "i", ec.message() ) );
-                  } else {
-                     peer_wlog( c, "connection closure detected on write" );
-                  }
-                  c->close();
-                  return;
-               }
-               peer_dlog(c, "async write complete");
-               c->bytes_sent += w;
-               c->last_bytes_sent = c->get_time();
-
-               c->buffer_queue.out_callback( ec, w );
-
-               c->enqueue_sync_block();
-               c->do_queue_write();
-            } catch ( const std::bad_alloc& ) {
-              throw;
-            } catch ( const boost::interprocess::bad_alloc& ) {
-              throw;
-            } catch( const fc::exception& ex ) {
-               peer_elog( c, "fc::exception in do_queue_write: ${s}", ("s", ex.to_string()) );
-            } catch( const std::exception& ex ) {
-               peer_elog( c, "std::exception in do_queue_write: ${s}", ("s", ex.what()) );
-            } catch( ... ) {
-               peer_elog( c, "Unknown exception in do_queue_write" );
+      boost::asio::async_write( *socket, bufs,
+         boost::asio::bind_executor( strand, [c, socket=socket]( boost::system::error_code ec, std::size_t w ) {
+         try {
+            peer_dlog(c, "async write complete");
+            // May have closed connection and cleared buffer_queue
+            if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
+               peer_ilog(c, "async write socket closed before callback");
+               c->buffer_queue.clear_out_queue(ec, w);
+               c->close();
+               return;
             }
-         }));
-      });
+            if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
+               peer_ilog( c, "async write socket changed before callback");
+               c->buffer_queue.clear_out_queue(ec, w);
+               boost::system::error_code ignore_ec;
+               socket->shutdown( tcp::socket::shutdown_both, ignore_ec );
+               socket->close( ignore_ec );
+               return;
+            }
+
+            if( ec ) {
+               if( ec.value() != boost::asio::error::eof ) {
+                  peer_wlog( c, "Error sending to peer: ${i}", ( "i", ec.message() ) );
+               } else {
+                  peer_wlog( c, "connection closure detected on write" );
+               }
+               c->close();
+               return;
+            }
+            c->bytes_sent += w;
+            c->last_bytes_sent = c->get_time();
+
+            c->buffer_queue.clear_out_queue(ec, w);
+
+            c->enqueue_sync_block();
+            c->do_queue_write();
+         } catch ( const std::bad_alloc& ) {
+           throw;
+         } catch ( const boost::interprocess::bad_alloc& ) {
+           throw;
+         } catch( const fc::exception& ex ) {
+            peer_elog( c, "fc::exception in do_queue_write: ${s}", ("s", ex.to_string()) );
+         } catch( const std::exception& ex ) {
+            peer_elog( c, "std::exception in do_queue_write: ${s}", ("s", ex.what()) );
+         } catch( ... ) {
+            peer_elog( c, "Unknown exception in do_queue_write" );
+         }
+      }));
    }
 
    // called from connection strand
@@ -1664,7 +1692,7 @@ namespace eosio {
             }
          }
          block_sync_throttling = false;
-         auto sent = enqueue_block( sb, num, true );
+         auto sent = enqueue_block( sb, num );
          block_sync_total_bytes_sent += sent;
          block_sync_frame_bytes_sent += sent;
          ++peer_requested->last;
@@ -1734,7 +1762,7 @@ namespace eosio {
       }
 
       static send_buffer_type create_send_buffer_from_serialized_block( const std::vector<char>& v ) {
-         static_assert( signed_block_which == fc::get_index<net_message, signed_block>() );
+         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
 
          // match net_message static_variant pack
          const uint32_t which_size = fc::raw::pack_size( unsigned_int( signed_block_which ) );
@@ -1774,7 +1802,8 @@ namespace eosio {
    private:
 
       static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
-         static_assert( signed_block_which == fc::get_index<net_message, signed_block>() );
+         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
+
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
          fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
@@ -1801,7 +1830,8 @@ namespace eosio {
    private:
 
       static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
-         static_assert( packed_transaction_which == fc::get_index<net_message, packed_transaction>() );
+         constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
+
          // this implementation is to avoid copy of packed_transaction to net_message
          // matches which of net_message for packed_transaction
          return buffer_factory::create_send_buffer( packed_transaction_which, *trx );
@@ -1820,38 +1850,43 @@ namespace eosio {
 
       buffer_factory buff_factory;
       const auto& send_buffer = buff_factory.get_send_buffer( m );
-      enqueue_buffer( send_buffer, close_after_send );
+      enqueue_buffer( to_msg_type_t(m.index()), send_buffer, 0, close_after_send );
    }
 
    // called from connection strand
-   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num, bool to_sync_queue ) {
+   size_t connection::enqueue_block( const std::vector<char>& b, uint32_t block_num ) {
       peer_dlog( this, "enqueue block ${num}", ("num", block_num) );
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
       latest_blk_time = std::chrono::steady_clock::now();
-      enqueue_buffer( sb, no_reason, to_sync_queue);
+      enqueue_buffer( msg_type_t::signed_block, sb, block_num, no_reason);
       return sb->size();
    }
 
    // called from connection strand
-   void connection::enqueue_buffer( const std::shared_ptr<std::vector<char>>& send_buffer,
-                                    go_away_reason close_after_send,
-                                    bool to_sync_queue)
+   void connection::enqueue_buffer( msg_type_t net_msg,
+                                    const std::shared_ptr<std::vector<char>>& send_buffer,
+                                    block_num_type block_num, // only valid for net_msg == signed_block variant which
+                                    go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
-      queue_write(send_buffer,
-            [conn{std::move(self)}, close_after_send](boost::system::error_code ec, std::size_t ) {
-                        if (ec) return;
+      queue_write(net_msg, send_buffer,
+            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t ) {
+                        if (ec) {
+                           fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.to_string()));
+                           return;
+                        }
+                        if (net_msg == msg_type_t::signed_block)
+                           fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
                         if (close_after_send != no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
                                     ("r", reason_str(close_after_send))("cid", conn->connection_id) );
                            conn->close();
                            return;
                         }
-                  },
-                  to_sync_queue);
+                  });
    }
 
    // thread safe
@@ -2674,16 +2709,13 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( sb, no_reason );
+               cp->enqueue_buffer( msg_type_t::signed_block, sb, bnum, no_reason );
             }
          });
       } );
    }
 
    void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
-      if (my_impl->sync_master->syncing_from_peer())
-         return;
-
       my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
@@ -2691,7 +2723,7 @@ namespace eosio {
             if (cp->protocol_version >= proto_savanna) {
                if (vote_logger.is_enabled(fc::log_level::debug))
                   peer_dlog(cp, "sending vote msg");
-               cp->enqueue_buffer( msg, no_reason );
+               cp->enqueue_buffer( msg_type_t::vote_message, msg, 0, no_reason );
             }
          });
          return true;
@@ -2713,7 +2745,7 @@ namespace eosio {
          send_buffer_type sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
          boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
-            cp->enqueue_buffer( sb, no_reason );
+            cp->enqueue_buffer( msg_type_t::packed_transaction, sb, 0, no_reason );
          } );
       } );
    }
@@ -2745,7 +2777,7 @@ namespace eosio {
    void connection::connect( const tcp::resolver::results_type& endpoints ) {
       set_state(connection_state::connecting);
       pending_message_buffer.reset();
-      buffer_queue.clear_out_queue();
+      buffer_queue.reset();
       boost::asio::async_connect( *socket, endpoints,
          boost::asio::bind_executor( strand,
                [c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
@@ -2982,12 +3014,14 @@ namespace eosio {
          unsigned_int which{};
          fc::raw::unpack( peek_ds, which );
 
-         if( which == signed_block_which ) {
+         msg_type_t net_msg = to_msg_type_t(which.value);
+
+         if( net_msg == msg_type_t::signed_block ) {
             latest_blk_time = now;
             return process_next_block_message( message_length );
-         } else if( which == packed_transaction_which ) {
+         } else if( net_msg == msg_type_t::packed_transaction ) {
             return process_next_trx_message( message_length );
-         } else if( which == vote_message_which ) {
+         } else if( net_msg == msg_type_t::vote_message ) {
             return process_next_vote_message( message_length );
          } else {
             auto ds = pending_message_buffer.create_datastream();
@@ -3138,7 +3172,7 @@ namespace eosio {
       auto ds = pending_message_buffer.create_datastream();
       unsigned_int which{};
       fc::raw::unpack( ds, which );
-      assert(which == vote_message_which);
+      assert(to_msg_type_t(which) == msg_type_t::vote_message); // verified by caller
       vote_message_ptr ptr = std::make_shared<vote_message>();
       fc::raw::unpack( ds, *ptr );
 
@@ -3928,15 +3962,18 @@ namespace eosio {
    }
 
    void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg ) {
-      buffer_factory buff_factory;
-      auto send_buffer = buff_factory.get_send_buffer( *msg );
+      if (my_impl->sync_master->syncing_from_peer())
+         return;
 
       fc_dlog(vote_logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
                 ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
-      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg{std::move(send_buffer)}]() mutable {
-         my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(msg) );
+      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg]() mutable {
+            buffer_factory buff_factory;
+            auto send_buffer = buff_factory.get_send_buffer( *msg );
+
+            my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(send_buffer) );
       });
    }
 
