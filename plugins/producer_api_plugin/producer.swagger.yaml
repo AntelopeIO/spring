@@ -44,6 +44,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /producer/pause_at_block:
+    post:
+      summary: pause_at_block
+      description: |
+        Pause node at the specified block. Use /producer/resume to un-pause. If specified block is less than head then returns an error.
+        
+        ### Usage
+        
+        Note that this pauses all nodes not just producer nodes. The common use case is to use on non-producer nodes as a way of freezing state. For example, a user might wish to download all the rows of a table. This would allow the user to freeze at a block number and then iterate through an entire table.
+      operationId: pause_at_block
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                block_num:
+                  type: integer
+                  description: Block number
+                  example: 5102
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OK"
+        "400":
+          description: client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /producer/resume:
     post:
       summary: resume
