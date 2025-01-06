@@ -2159,11 +2159,13 @@ namespace eosio {
       } );
    }
 
-// static, thread safe
-void sync_manager::send_block_nack_resets() {
-      my_impl->connections.for_each_block_connection( []( const connection_ptr& ci ) {
-         if( ci->current() ) {
-            ci->send_block_nack({});
+   // static, thread safe
+   void sync_manager::send_block_nack_resets() {
+      my_impl->connections.for_each_block_connection( []( const connection_ptr& cp ) {
+         if (cp->current()) {
+            boost::asio::post(cp->strand, [cp]() {
+               cp->send_block_nack({});
+            });
          }
       } );
    }
