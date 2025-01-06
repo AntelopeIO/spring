@@ -920,6 +920,7 @@ namespace eosio {
       static constexpr uint16_t consecutive_block_nacks_threshold{3}; // stop sending blocks when reached
       uint16_t        consecutive_blocks_nacks{0};
       block_id_type   last_block_nack;
+      block_id_type   last_block_notice;
 
       connection_status get_status()const;
 
@@ -3793,6 +3794,15 @@ namespace eosio {
       latest_blk_time = std::chrono::steady_clock::now();
       if (my_impl->dispatcher.have_block(msg.id)) {
          my_impl->dispatcher.add_peer_block(msg.id, connection_id);
+      } else {
+         if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
+            send_block_nack({});
+            request_message req;
+            req.req_blocks.mode = normal;
+            req.req_blocks.ids.push_back(last_block_notice);
+            enqueue( req );
+         }
+         last_block_notice = msg.id;
       }
    }
 
