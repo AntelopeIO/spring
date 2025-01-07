@@ -3796,9 +3796,10 @@ namespace eosio {
          my_impl->dispatcher.add_peer_block(msg.id, connection_id);
       } else {
          if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
+            peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
             send_block_nack({});
             request_message req;
-            req.req_blocks.mode = normal;
+            req.req_blocks.mode = catch_up;
             req.req_blocks.ids.push_back(last_block_notice);
             enqueue( req );
          }
