@@ -1328,7 +1328,7 @@ namespace eosio {
          return;
       if (s == connection_state::connected && curr != connection_state::connecting)
          return;
-      fc_dlog(logger, "old connection ${id} state ${os} becoming ${ns}", ("id", connection_id)("os", state_str(curr))("ns", state_str(s)));
+      fc_dlog(logger, "old connection - ${c} state ${os} becoming ${ns}", ("c", connection_id)("os", state_str(curr))("ns", state_str(s)));
 
       conn_state = s;
    }
@@ -1510,9 +1510,12 @@ namespace eosio {
          no_retry = benign_other;
          enqueue( go_away_message( benign_other ) );
       } else {
-         if( on_fork ) msg_head_num = 0;
          // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1, unless include_msg_head
-         if (include_msg_head) --msg_head_num;
+         if (on_fork) {
+            msg_head_num = 0;
+         } else if (include_msg_head) {
+            --msg_head_num;
+         }
          blk_send_branch( msg_head_num, fork_db_root_num, head_num );
       }
    }
