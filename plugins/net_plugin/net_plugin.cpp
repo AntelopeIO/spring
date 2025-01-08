@@ -1002,7 +1002,7 @@ namespace eosio {
       }
       /** @} */
 
-      void blk_send_branch( const block_id_type& msg_head_id );
+      void blk_send_branch( const block_id_type& msg_head_id, bool include_msg_head );
       void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
 
       void enqueue( const net_message& msg );
@@ -1136,13 +1136,13 @@ namespace eosio {
 
       void operator()( const block_nack_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_dlog( c, "handle block_nack_message ${id}", ("id", msg.id) );
+         peer_dlog( c, "handle block_nack_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
 
       void operator()( const block_notice_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_dlog( c, "handle block_notice_message ${id}", ("id", msg.id) );
+         peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
    };
@@ -1464,7 +1464,7 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::blk_send_branch( const block_id_type& msg_head_id ) {
+   void connection::blk_send_branch( const block_id_type& msg_head_id, bool include_msg_head ) {
       uint32_t head_num = my_impl->get_chain_head_num();
 
       peer_dlog(this, "head_num = ${h}",("h",head_num));
@@ -1505,7 +1505,8 @@ namespace eosio {
          enqueue( go_away_message( benign_other ) );
       } else {
          if( on_fork ) msg_head_num = 0;
-         // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1
+         // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1, unless include_msg_head
+         if (include_msg_head) --msg_head_num;
          blk_send_branch( msg_head_num, fork_db_root_num, head_num );
       }
    }
@@ -3695,14 +3696,25 @@ namespace eosio {
       }
 
       switch (msg.req_blocks.mode) {
-      case catch_up :
-         peer_dlog( this, "received request_message:catch_up" );
-         blk_send_branch( msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back() );
+      case catch_up : {
+         const block_id_type& id = msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back();
+         peer_dlog( this, "received request_message:catch_up #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
+         blk_send_branch( id, false );
          break;
-      case normal :
+      }
+      case normal : {
+         if (protocol_version >= proto_block_nack) {
+            if (!msg.req_blocks.ids.empty()) {
+               const block_id_type& id = msg.req_blocks.ids.back();
+               peer_dlog( this, "received request_message:normal #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
+               blk_send_branch( id, true );
+               return;
+            }
+         }
          peer_wlog( this, "Invalid request_message, req_blocks.mode = normal" );
          close();
          return;
+      }
       default:;
       }
 
@@ -3799,7 +3811,7 @@ namespace eosio {
             peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
             send_block_nack({});
             request_message req;
-            req.req_blocks.mode = catch_up;
+            req.req_blocks.mode = normal;
             req.req_blocks.ids.push_back(last_block_notice);
             enqueue( req );
          }
