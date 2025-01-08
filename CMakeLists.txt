@@ -1,5 +1,5 @@
 # Defines ChainBase library target.
-cmake_minimum_required( VERSION 3.5 )
+cmake_minimum_required( VERSION 3.12 )
 project( ChainBase )
 
 #list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules" )
@@ -17,6 +17,9 @@ IF( WIN32 )
 ENDIF(WIN32)
 
 if(NOT TARGET Boost::unit_test_framework)
+   if(POLICY CMP0167)
+      cmake_policy(SET CMP0167 NEW)
+   endif()
    FIND_PACKAGE(Boost 1.67 REQUIRED COMPONENTS system unit_test_framework)
 endif()
 
