@@ -209,7 +209,7 @@ pinnable_mapped_file::pinnable_mapped_file(const std::filesystem::path& dir, boo
       if (on_tempfs_filesystem(_data_file_path))
          BOOST_THROW_EXCEPTION(std::system_error(make_error_code(db_error_code::tempfs_incompatible_mode)));
 
-      boost::asio::io_service sig_ios;
+      boost::asio::io_context sig_ios;
       boost::asio::signal_set sig_set(sig_ios, SIGINT, SIGTERM);
 #ifdef SIGPIPE
       sig_set.add(SIGPIPE);
@@ -358,7 +358,7 @@ void pinnable_mapped_file::setup_non_file_mapping() {
 #endif
 }
 
-void pinnable_mapped_file::load_database_file(boost::asio::io_service& sig_ios) {
+void pinnable_mapped_file::load_database_file(boost::asio::io_context& sig_ios) {
    std::cerr << "CHAINBASE: Preloading \"" << _database_name << "\" database file, this could take a moment..." << '\n';
    char* const dst = (char*)_non_file_mapped_mapping;
    size_t offset = 0;
