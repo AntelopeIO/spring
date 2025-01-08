@@ -2761,7 +2761,6 @@ namespace eosio {
                boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
                   cp->latest_blk_time = std::chrono::steady_clock::now();
                   peer_dlog( cp, "bcast block_notice ${b}", ("b", bnum) );
-                  cp->enqueue_buffer( msg_type_t::block_notice_message, send_buffer, 0, no_reason );
                   cp->enqueue_buffer( msg_type_t::block_notice_message, false, send_buffer, 0, no_reason );
                });
                return;
@@ -2775,7 +2774,6 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( msg_type_t::signed_block, sb, bnum, no_reason );
                cp->enqueue_buffer( msg_type_t::signed_block, false, sb, bnum, no_reason );
             }
          });
