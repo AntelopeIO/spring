@@ -2750,9 +2750,13 @@ namespace eosio {
                   ("s", cp->socket_is_open())("c", connection::state_str(cp->state()))("ss", cp->peer_syncing_from_us.load())("cid", cp->connection_id) );
          if( !cp->current() ) return;
 
+         if( !add_peer_block( id, cp->connection_id ) ) {
+            fc_dlog( logger, "not bcast block ${b} to connection - ${cid}", ("b", bnum)("cid", cp->connection_id) );
+            return;
+         }
+
          if (cp->protocol_version >= proto_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
-               add_peer_block( id, cp->connection_id );
                auto send_buffer = block_id_buff_factory.get_send_buffer( block_notice_message{id} );
                boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
                   cp->latest_blk_time = std::chrono::steady_clock::now();
