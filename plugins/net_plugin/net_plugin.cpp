@@ -921,7 +921,7 @@ namespace eosio {
       std::chrono::nanoseconds         connection_start_time{0};
 
       // block nack support
-      static constexpr uint16_t consecutive_block_nacks_threshold{3}; // stop sending blocks when reached
+      static constexpr uint16_t consecutive_block_nacks_threshold{0}; // stop sending blocks when reached
       uint16_t        consecutive_blocks_nacks{0};
       block_id_type   last_block_nack;
       block_id_type   last_block_notice;
