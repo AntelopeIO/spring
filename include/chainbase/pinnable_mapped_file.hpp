@@ -3,7 +3,7 @@
 #include <system_error>
 #include <boost/interprocess/managed_mapped_file.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/container/flat_map.hpp>
 #include <filesystem>
 #include <vector>
@@ -85,7 +85,7 @@ class pinnable_mapped_file {
 
    private:
       void                                          set_mapped_file_db_dirty(bool);
-      void                                          load_database_file(boost::asio::io_service& sig_ios);
+      void                                          load_database_file(boost::asio::io_context& sig_ios);
       void                                          save_database_file(bool flush = true);
       static bool                                   all_zeros(const std::byte* data, size_t sz);
       void                                          setup_non_file_mapping();
