@@ -921,7 +921,7 @@ namespace eosio {
       std::chrono::nanoseconds         connection_start_time{0};
 
       // block nack support
-      static constexpr uint16_t consecutive_block_nacks_threshold{0}; // stop sending blocks when reached
+      static constexpr uint16_t consecutive_block_nacks_threshold{2}; // stop sending blocks when reached
       uint16_t        consecutive_blocks_nacks{0};
       block_id_type   last_block_nack;
       block_id_type   last_block_notice;
@@ -3120,9 +3120,9 @@ namespace eosio {
          pending_message_buffer.advance_read_ptr( message_length ); // advance before any send
 
          // if we have the block then it has been header validated, add for this connection_id
-         if (my_impl->dispatcher.add_peer_block(blk_id, connection_id)) {
-            send_block_nack(blk_id);
-         }
+         my_impl->dispatcher.add_peer_block(blk_id, connection_id);
+         send_block_nack(blk_id);
+
          peer_dlog( this, "already received block ${num}, id ${id}..., latency ${l}ms",
                     ("num", blk_num)("id", blk_id.str().substr(8,16))("l", age.count()/1000) );
          my_impl->sync_master->sync_recv_block( shared_from_this(), blk_id, blk_num, age );
@@ -3817,13 +3817,15 @@ namespace eosio {
       if (my_impl->dispatcher.have_block(msg.id)) {
          my_impl->dispatcher.add_peer_block(msg.id, connection_id);
       } else {
-         if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
-            peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
-            send_block_nack({});
-            request_message req;
-            req.req_blocks.mode = normal;
-            req.req_blocks.ids.push_back(last_block_notice);
-            enqueue( req );
+         if (!my_impl->dispatcher.have_block(last_block_notice)) { // still don't have previous block
+            if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
+               peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
+               send_block_nack({});
+               request_message req;
+               req.req_blocks.mode = normal;
+               req.req_blocks.ids.push_back(last_block_notice);
+               enqueue( req );
+            }
          }
          last_block_notice = msg.id;
       }
