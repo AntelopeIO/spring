@@ -193,7 +193,7 @@ class PerformanceTestBasic:
 
         Utils.Debug = self.testHelperConfig.verbose
         self.errorExit = Utils.errorExit
-        self.emptyBlockGoal = 1
+        self.emptyBlockGoal = 7
 
         self.testStart = datetime.utcnow()
         self.testEnd = self.testStart
