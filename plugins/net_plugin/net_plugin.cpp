@@ -2757,7 +2757,8 @@ namespace eosio {
 
          if (cp->protocol_version >= proto_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
-               if (!my_impl->is_producer(b->producer)) { // always broadcast our produced blocks
+               // always broadcast our produced blocks, no need for block_notice if not in sync
+               if (!my_impl->is_producer(b->producer) && my_impl->sync_master->is_in_sync()) {
                   auto send_buffer = block_id_buff_factory.get_send_buffer( block_notice_message{id} );
                   boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
