@@ -1006,7 +1006,7 @@ namespace eosio {
       }
       /** @} */
 
-      void blk_send_branch( const block_id_type& msg_head_id, bool include_msg_head );
+      void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
 
       void enqueue( const net_message& msg );
@@ -1470,7 +1470,7 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::blk_send_branch( const block_id_type& msg_head_id, bool include_msg_head ) {
+   void connection::blk_send_branch( const block_id_type& msg_head_id ) {
       uint32_t head_num = my_impl->get_chain_head_num();
 
       peer_dlog(this, "head_num = ${h}",("h",head_num));
@@ -1510,12 +1510,9 @@ namespace eosio {
          no_retry = benign_other;
          enqueue( go_away_message( benign_other ) );
       } else {
-         // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1, unless include_msg_head
-         if (on_fork) {
+         // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1
+         if (on_fork)
             msg_head_num = 0;
-         } else if (include_msg_head) {
-            --msg_head_num;
-         }
          blk_send_branch( msg_head_num, fork_db_root_num, head_num );
       }
    }
@@ -3709,7 +3706,7 @@ namespace eosio {
       case catch_up : {
          const block_id_type& id = msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back();
          peer_dlog( this, "received request_message:catch_up #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
-         blk_send_branch( id, false );
+         blk_send_branch( id );
          break;
       }
       case normal : {
@@ -3717,7 +3714,10 @@ namespace eosio {
             if (!msg.req_blocks.ids.empty()) {
                const block_id_type& id = msg.req_blocks.ids.back();
                peer_dlog( this, "received request_message:normal #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
-               blk_send_branch( id, true );
+               uint32_t head_num = my_impl->get_chain_head_num();
+               auto msg_head_num = block_header::num_from_id(id);
+               // --msg_head_num since blk_send_branch adds one to request and we need to start at msg_head_num
+               blk_send_branch( --msg_head_num, 0, head_num );
                return;
             }
          }
