@@ -100,6 +100,11 @@ class bp_connection_manager {
       config.my_bp_accounts.insert(accounts.begin(), accounts.end());
    }
 
+   // thread safe, my_bp_accounts only modified during plugin startup
+   bool is_producer(account_name account) const {
+      return config.my_bp_accounts.count(account) != 0;
+   }
+
    // Only called at plugin startup
    void set_bp_peers(const std::vector<std::string>& peers) {
       try {
