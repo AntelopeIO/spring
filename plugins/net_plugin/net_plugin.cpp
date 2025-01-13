@@ -1456,6 +1456,7 @@ namespace eosio {
       last_vote_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
+      last_block_notice = block_id_type{};
 
       uint32_t head_num = my_impl->get_chain_head_num();
       if (last_received_block_num >= head_num) {
@@ -1521,6 +1522,8 @@ namespace eosio {
    void connection::blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num ) {
       if( !peer_requested ) {
          auto last = msg_head_num != 0 ? msg_head_num : fork_db_root_num;
+         if (peer_requested->start_block <= last+1 && peer_requested->end_block >= head_num)
+            return; // nothing to do, send in progress
          peer_requested = peer_sync_state( last+1, head_num, last );
       } else {
          auto last = msg_head_num != 0 ? msg_head_num : std::min( peer_requested->last, fork_db_root_num );
@@ -1920,7 +1923,7 @@ namespace eosio {
                            return;
                         }
                         if (net_msg == msg_type_t::signed_block)
-                           fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
+                           fc_ilog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
                         if (close_after_send != no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
                                     ("r", reason_str(close_after_send))("cid", conn->connection_id) );
@@ -3820,7 +3823,7 @@ namespace eosio {
       if (my_impl->dispatcher.have_block(msg.id)) {
          my_impl->dispatcher.add_peer_block(msg.id, connection_id);
       } else {
-         if (!my_impl->dispatcher.have_block(last_block_notice)) { // still don't have previous block
+         if (!last_block_notice.empty() && !my_impl->dispatcher.have_block(last_block_notice)) { // still don't have previous block
             if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
                peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
                send_block_nack({});
