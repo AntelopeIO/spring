@@ -925,6 +925,7 @@ namespace eosio {
       uint16_t        consecutive_blocks_nacks{0};
       block_id_type   last_block_nack;
       block_id_type   last_block_notice;
+      request_message last_request_message GUARDED_BY(conn_mtx);
 
       connection_status get_status()const;
 
@@ -1148,7 +1149,7 @@ namespace eosio {
 
       void operator()( const block_notice_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
+         peer_ilog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
    };
@@ -1438,6 +1439,8 @@ namespace eosio {
          last_handshake_sent = handshake_message();
          last_close = fc::time_point::now();
          conn_node_id = fc::sha256();
+         last_request_message.req_blocks.mode = none;
+         last_request_message.req_blocks.ids.clear();
       }
       peer_fork_db_root_num = 0;
       peer_ping_time_ns = std::numeric_limits<decltype(peer_ping_time_ns)::value_type>::max();
@@ -3825,12 +3828,23 @@ namespace eosio {
       } else {
          if (!last_block_notice.empty() && !my_impl->dispatcher.have_block(last_block_notice)) { // still don't have previous block
             if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
-               peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
-               send_block_nack({});
+               peer_dlog(this, "Received 2 unknown block notices, see if already requested");
                request_message req;
                req.req_blocks.mode = normal;
                req.req_blocks.ids.push_back(last_block_notice);
-               enqueue( req );
+               bool already_requested = my_impl->connections.any_of_block_connections([&req](const auto& c) {
+                  fc::lock_guard g_conn( c->conn_mtx );
+                  return c->last_request_message == req;
+               });
+               if (!already_requested) {
+                  peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
+                  send_block_nack({});
+                  {
+                     fc::lock_guard g_conn( conn_mtx );
+                     last_request_message = req;
+                  }
+                  enqueue( req );
+               }
             }
          }
          last_block_notice = msg.id;
