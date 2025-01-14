@@ -1522,12 +1522,12 @@ namespace eosio {
    void connection::blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num ) {
       if( !peer_requested ) {
          auto last = msg_head_num != 0 ? msg_head_num : fork_db_root_num;
-         if (peer_requested->start_block <= last+1 && peer_requested->end_block >= head_num)
-            return; // nothing to do, send in progress
          peer_requested = peer_sync_state( last+1, head_num, last );
       } else {
          auto last = msg_head_num != 0 ? msg_head_num : std::min( peer_requested->last, fork_db_root_num );
-         uint32_t end   = std::max( peer_requested->end_block, head_num );
+         uint32_t end = std::max( peer_requested->end_block, head_num );
+         if (peer_requested->start_block <= last+1 && peer_requested->end_block >= end)
+            return; // nothing to do, send in progress
          peer_requested = peer_sync_state( last+1, end, last );
       }
       if( peer_requested->start_block <= peer_requested->end_block ) {
@@ -3790,7 +3790,7 @@ namespace eosio {
    void connection::handle_message( const block_nack_message& msg ) {
       auto block_num = block_header::num_from_id(msg.id);
 
-      peer_dlog(this, "received block nack #${bn}:${id}, consecutive ${c}", ("bn", block_num)("id", msg.id)("c", consecutive_blocks_nacks));
+      peer_elog(this, "received block nack #${bn}:${id}, consecutive ${c}", ("bn", block_num)("id", msg.id)("c", consecutive_blocks_nacks));
 
       if (block_num == 0) { // peer requested reset
          consecutive_blocks_nacks = 0;
