@@ -415,6 +415,7 @@ namespace eosio {
 
       uint32_t                              max_nodes_per_host = 1;
       bool                                  p2p_accept_transactions = true;
+      bool                                  p2p_disable_block_nack = false;
       bool                                  p2p_accept_votes = true;
       fc::microseconds                      p2p_dedup_cache_expire_time_us{};
 
@@ -2761,9 +2762,9 @@ namespace eosio {
             return;
          }
 
-         if (cp->protocol_version >= proto_block_nack) {
+         if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
-               // always broadcast our produced blocks, no need for block_notice if not in sync
+               // always broadcast our produced blocks
                if (!my_impl->is_producer(b->producer)) {
                   auto send_buffer = block_id_buff_factory.get_send_buffer( block_notice_message{id} );
                   boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
@@ -3255,7 +3256,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_block_nack(const block_id_type& block_id) {
-      if (protocol_version < proto_block_nack)
+      if (protocol_version < proto_block_nack || my_impl->p2p_disable_block_nack)
          return;
 
       if (my_impl->sync_master->syncing_from_peer())
@@ -4298,6 +4299,8 @@ namespace eosio {
            "    p2p.blk.eos.io:9876:blk\n")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
+         ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
+            "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
            "The account and public p2p endpoint of a block producer node to automatically connect to when the it is in producer schedule proximity\n."
            "   Syntax: account,host:port\n"
@@ -4356,6 +4359,7 @@ namespace eosio {
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
+         p2p_disable_block_nack = options.at( "p2p-disable-block-nack" ).as<bool>();
 
          use_socket_read_watermark = options.at( "use-socket-read-watermark" ).as<bool>();
          keepalive_interval = std::chrono::milliseconds( options.at( "p2p-keepalive-interval-ms" ).as<int>() );
