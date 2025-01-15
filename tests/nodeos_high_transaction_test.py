@@ -112,6 +112,9 @@ try:
             nonProdNodes.append(node)
         else:
             prodNodes.append(node)
+    if not args.send_duplicates:
+        # want to test sending to a node that is configured as a producer but not producing
+        nonProdNodes.append(cluster.biosNode)
     nonProdNodeCount = len(nonProdNodes)
 
     # ***   delegate bandwidth to accounts   ***
