@@ -58,7 +58,7 @@ platform_timer::platform_timer() {
 
             if(c == 1 && anEvent.filter == EVFILT_TIMER) {
                platform_timer* self = (platform_timer*)anEvent.udata;
-               self->expire_now();
+               self->_expire_now();
             }
             else if(c == 1 && anEvent.filter == EVFILT_USER)
                return;
@@ -105,21 +105,28 @@ void platform_timer::start(fc::time_point tp) {
    }
 }
 
-void platform_timer::expire_now() {
-   bool expected = false;
-   if (expired.compare_exchange_strong(expected, true)) {
+void platform_timer::_expire_now() {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
+      call_expiration_callback();
+   }
+}
+
+void platform_timer::interrupt_timer() {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::interrupted)) {
       call_expiration_callback();
    }
 }
 
 void platform_timer::stop() {
-   if(expired)
+   if(_state == state_t::stopped)
       return;
 
    struct kevent64_s stop_timer_event;
    EV_SET64(&stop_timer_event, my->timerid, EVFILT_TIMER, EV_DELETE, 0, 0, 0, 0, 0);
    kevent64(kqueue_fd, &stop_timer_event, 1, NULL, 0, KEVENT_FLAG_IMMEDIATE, NULL);
-   expired = true;
+   _state = state_t::stopped;
 }
 
 }}

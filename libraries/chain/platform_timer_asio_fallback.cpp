@@ -57,36 +57,43 @@ platform_timer::~platform_timer() {
 
 void platform_timer::start(fc::time_point tp) {
    if(tp == fc::time_point::maximum()) {
-      expired = false;
+      _state = state_t::running;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
    if(x.count() <= 0)
-      expired = true;
+      _state = state_t::timed_out;
    else {
-      expired = false;
+      _state = state_t::running;
       my->timer->expires_after(std::chrono::microseconds(x.count()));
       my->timer->async_wait([this](const boost::system::error_code& ec) {
          if(ec)
             return;
-         expire_now();
+         _expire_now();
       });
    }
 }
 
-void platform_timer::expire_now() {
-   bool expected = false;
-   if (expired.compare_exchange_strong(expected, true)) {
+void platform_timer::_expire_now() {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
+      call_expiration_callback();
+   }
+}
+
+void platform_timer::interrupt_timer() {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::interrupted)) {
       call_expiration_callback();
    }
 }
 
 void platform_timer::stop() {
-   if(expired)
+   if(_state == state_t::stopped)
       return;
 
    my->timer->cancel();
-   expired = true;
+   _state = state_t::stopped;
 }
 
 }}
