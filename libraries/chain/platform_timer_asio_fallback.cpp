@@ -69,12 +69,12 @@ void platform_timer::start(fc::time_point tp) {
       my->timer->async_wait([this](const boost::system::error_code& ec) {
          if(ec)
             return;
-         _expire_now();
+         expire_now();
       });
    }
 }
 
-void platform_timer::_expire_now() {
+void platform_timer::expire_now() {
    state_t expected = state_t::running;
    if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
       call_expiration_callback();

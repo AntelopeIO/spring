@@ -16,7 +16,6 @@ struct platform_timer {
    void start(fc::time_point tp);
    void stop();
    void interrupt_timer();
-   void _expire_now(); // called by internal timer
 
    /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
       on any particular thread. Only a single callback can be registered at once; trying to register more will
@@ -43,8 +42,9 @@ struct platform_timer {
    state_t timer_state() const { return _state; }
 
 private:
-   std::atomic<state_t> _state = state_t::stopped;
+   void expire_now();
 
+   std::atomic<state_t> _state = state_t::stopped;
 
    struct impl;
    constexpr static size_t fwd_size = 8;

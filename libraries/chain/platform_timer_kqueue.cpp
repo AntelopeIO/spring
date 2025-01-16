@@ -58,7 +58,7 @@ platform_timer::platform_timer() {
 
             if(c == 1 && anEvent.filter == EVFILT_TIMER) {
                platform_timer* self = (platform_timer*)anEvent.udata;
-               self->_expire_now();
+               self->expire_now();
             }
             else if(c == 1 && anEvent.filter == EVFILT_USER)
                return;
@@ -105,7 +105,7 @@ void platform_timer::start(fc::time_point tp) {
    }
 }
 
-void platform_timer::_expire_now() {
+void platform_timer::expire_now() {
    state_t expected = state_t::running;
    if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
       call_expiration_callback();

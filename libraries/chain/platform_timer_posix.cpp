@@ -21,7 +21,7 @@ struct platform_timer::impl {
 
    static void sig_handler(int, siginfo_t* si, void*) {
       platform_timer* self = (platform_timer*)si->si_value.sival_ptr;
-      self->_expire_now();
+      self->expire_now();
    }
 };
 
@@ -72,7 +72,7 @@ void platform_timer::start(fc::time_point tp) {
    }
 }
 
-void platform_timer::_expire_now() {
+void platform_timer::expire_now() {
    state_t expected = state_t::running;
    if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
       call_expiration_callback();
