@@ -7,8 +7,6 @@
 
 #include <atomic>
 
-#include <signal.h>
-
 namespace eosio { namespace chain {
 
 struct platform_timer {
@@ -17,7 +15,8 @@ struct platform_timer {
 
    void start(fc::time_point tp);
    void stop();
-   void expire_now();
+   void interrupt_timer();
+   void _expire_now(); // called by internal timer
 
    /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
       on any particular thread. Only a single callback can be registered at once; trying to register more will
@@ -35,9 +34,18 @@ struct platform_timer {
       _expiration_callback_data = user;
    }
 
-   std::atomic_bool expired = true;
+   enum class state_t {
+      running,
+      timed_out,
+      interrupted,
+      stopped
+   };
+   state_t timer_state() const { return _state; }
 
 private:
+   std::atomic<state_t> _state = state_t::stopped;
+
+
    struct impl;
    constexpr static size_t fwd_size = 8;
    fc::fwd<impl,fwd_size> my;

@@ -14,8 +14,7 @@
 namespace eosio::chain {
 
    transaction_checktime_timer::transaction_checktime_timer(platform_timer& timer)
-         : expired(timer.expired), _timer(timer) {
-      expired = 0;
+         : _timer(timer) {
    }
 
    void transaction_checktime_timer::start(fc::time_point tp) {
@@ -489,11 +488,12 @@ namespace eosio::chain {
    }
 
    void transaction_context::checktime()const {
-      if(BOOST_LIKELY(transaction_timer.expired == false))
+      platform_timer::state_t expired = transaction_timer.timer_state();
+      if(BOOST_LIKELY(expired == platform_timer::state_t::running))
          return;
 
       auto now = fc::time_point::now();
-      if (explicit_billed_cpu_time && block_deadline > now) {
+      if (expired == platform_timer::state_t::interrupted) {
          EOS_THROW( interrupt_exception, "interrupt signaled, ran ${bt}us, start ${s}",
                     ("bt", now - pseudo_start)("s", start) );
       } else if( explicit_billed_cpu_time || deadline_exception_code == deadline_exception::code_value ) {

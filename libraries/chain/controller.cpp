@@ -4533,7 +4533,7 @@ struct controller_impl {
       // validated.
       if (applying_block) {
          ilog("Interrupting apply block");
-         main_thread_timer.expire_now();
+         main_thread_timer.interrupt_timer();
       }
    }
 

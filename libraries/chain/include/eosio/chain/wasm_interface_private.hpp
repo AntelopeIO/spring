@@ -124,8 +124,7 @@ struct eosvmoc_tier {
                   return;
                if (executing_code_hash.load() == code_id) {
                   ilog("EOS VM OC tier up interrupting ${id}", ("id", code_id));
-                  eos_vm_oc_compile_interrupt = true;
-                  main_thread_timer.expire_now();
+                  main_thread_timer.interrupt_timer();
                }
             });
          }
@@ -172,7 +171,6 @@ struct eosvmoc_tier {
          const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() && context.trx_context.has_undo();
          auto ex = fc::make_scoped_exit([&]() {
             if (allow_oc_interrupt) {
-               eos_vm_oc_compile_interrupt = false;
                executing_code_hash.store({}); // indicate no longer executing
             }
          });
@@ -181,7 +179,7 @@ struct eosvmoc_tier {
          try {
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
-            if (allow_oc_interrupt && eos_vm_oc_compile_interrupt) {
+            if (allow_oc_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
                dlog("EOS VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
                     ("r", context.get_receiver())("a", context.get_action().account)
@@ -310,7 +308,6 @@ struct eosvmoc_tier {
       const wasm_interface::vm_type wasm_runtime_time;
       const wasm_interface::vm_oc_enable eosvmoc_tierup;
       large_atomic<digest_type> executing_code_hash{};
-      std::atomic<bool> eos_vm_oc_compile_interrupt{false};
       uint32_t eos_vm_oc_compile_interrupt_count{0}; // for testing
 
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
