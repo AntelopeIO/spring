@@ -440,10 +440,12 @@ namespace eosio::chain {
    void transaction_context::squash() {
       if (undo_session) undo_session->squash();
       control.apply_trx_block_context(trx_blk_context);
+      transaction_timer.stop();
    }
 
    void transaction_context::undo() {
       if (undo_session) undo_session->undo();
+      transaction_timer.stop();
    }
 
    void transaction_context::check_net_usage()const {

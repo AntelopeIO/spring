@@ -55,6 +55,7 @@ platform_timer::~platform_timer() {
 }
 
 void platform_timer::start(fc::time_point tp) {
+   assert(_state == state_t::stopped);
    if(tp == fc::time_point::maximum()) {
       _state = state_t::running;
       return;
