@@ -2765,7 +2765,7 @@ namespace eosio {
 
          if (cp->protocol_version >= proto_block_nack && !my_impl->p2p_disable_block_nack) {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
-               // always broadcast our produced blocks
+               // only send block_notice if we didn't produce the block, otherwise broadcast the block below
                if (!my_impl->is_producer(b->producer)) {
                   auto send_buffer = block_id_buff_factory.get_send_buffer( block_notice_message{id} );
                   boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
