@@ -102,7 +102,7 @@ class bp_connection_manager {
 
    // thread safe, my_bp_accounts only modified during plugin startup
    bool is_producer(account_name account) const {
-      return config.my_bp_accounts.count(account) != 0;
+      return config.my_bp_accounts.contains(account);
    }
 
    // Only called at plugin startup
