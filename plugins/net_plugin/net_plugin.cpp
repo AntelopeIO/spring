@@ -3794,11 +3794,10 @@ namespace eosio {
    void connection::handle_message( const block_nack_message& msg ) {
       auto block_num = block_header::num_from_id(msg.id);
 
-      peer_elog(this, "received block nack #${bn}:${id}, consecutive ${c}", ("bn", block_num)("id", msg.id)("c", consecutive_blocks_nacks));
-
       if (block_num == 0) { // peer requested reset
          consecutive_blocks_nacks = 0;
          last_block_nack = msg.id;
+         peer_dlog(this, "received block nack reset");
          return;
       }
 
@@ -3815,6 +3814,8 @@ namespace eosio {
          }
       }
       last_block_nack = msg.id;
+
+      peer_dlog(this, "received block nack #${bn}:${id}, consecutive ${c}", ("bn", block_num)("id", msg.id)("c", consecutive_blocks_nacks));
    }
 
    // called from connection strand
