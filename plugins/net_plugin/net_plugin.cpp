@@ -3830,7 +3830,7 @@ namespace eosio {
       } else {
          if (!last_block_notice.empty() && !my_impl->dispatcher.have_block(last_block_notice)) { // still don't have previous block
             if (block_header::num_from_id(last_block_notice) == block_header::num_from_id(msg.id) - 1) {
-               peer_dlog(this, "Received 2 unknown block notices, see if already requested");
+               peer_dlog(this, "Received 2 consecutive unknown block notices, checking already requested");
                request_message req;
                req.req_blocks.mode = normal;
                req.req_blocks.ids.push_back(last_block_notice);
@@ -3839,7 +3839,8 @@ namespace eosio {
                   return c->last_request_message == req;
                });
                if (!already_requested) {
-                  peer_ilog(this, "Received 2 unknown block notices, requesting blocks from ${bn}", ("bn", block_header::num_from_id(last_block_notice)));
+                  peer_ilog(this, "Received 2 consecutive unknown block notices, requesting blocks from ${bn}",
+                            ("bn", block_header::num_from_id(last_block_notice)));
                   send_block_nack({});
                   {
                      fc::lock_guard g_conn( conn_mtx );
