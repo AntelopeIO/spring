@@ -3336,10 +3336,7 @@ namespace eosio {
                fc::unique_lock g_check_conn( check->conn_mtx );
                fc_dlog( logger, "dup check: connected ${c}, ${l} =? ${r}",
                         ("c", check->connected())("l", check->last_handshake_recv.node_id)("r", msg.node_id) );
-               if(check->connected() && check->last_handshake_recv.node_id == msg.node_id) {
-                  return true;
-               }
-               return false;
+               return check->connected() && check->last_handshake_recv.node_id == msg.node_id;
             };
             if (my_impl->connections.any_of_connections(std::move(is_duplicate))) {
                peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
