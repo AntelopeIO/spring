@@ -20,6 +20,7 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs=AppArgs()
+appArgs.add(flag="--read-only-threads", type=int, help="number of read-only threads", default=2)
 appArgs.add(flag="--test-length-seconds", type=int, help="number of seconds to search for a failure", default=10)
 appArgs.add(flag="--eos-vm-oc-enable", type=str, help="specify eos-vm-oc-enable option", default="auto")
 appArgs.add(flag="--wasm-runtime", type=str, help="if set to eos-vm-oc, must compile with EOSIO_EOS_VM_OC_DEVELOPER", default="eos-vm-jit")
@@ -41,7 +42,9 @@ dumpErrorDetails=args.dump_error_details
 testLengthSeconds=args.test_length_seconds
 
 Utils.Debug=debug
-testSuccessful=False
+threadLock=threading.Lock()
+allResponsesGood=True
+numShortResponses=0
 stopThread=False
 
 random.seed(seed) # Use a fixed seed for repeatability.
@@ -82,7 +85,7 @@ def startCluster():
     specificExtraNodeosArgs={}
     # producer nodes will be mapped to 0 through pnodes-1, so the number pnodes is the no-producing API node
     specificExtraNodeosArgs[pnodes]="--read-only-threads "
-    specificExtraNodeosArgs[pnodes]+=" 2 "
+    specificExtraNodeosArgs[pnodes]+=str(args.read_only_threads)
     specificExtraNodeosArgs[pnodes]+=" --max-transaction-time "
     specificExtraNodeosArgs[pnodes]+=" 10 "
     if args.eos_vm_oc_enable:
@@ -137,25 +140,47 @@ def longROtrxThread():
     while stopThread==False:
         sendTransaction(tightloopAccountName, 'doit', {"count": 50000000}, opts='--read')  #50 million is a good number to always take >10ms
 
+def shortROtrxThread():
+    Print("start a shortROtrxThread")
+
+    global numShortResponses
+    global allResponsesGood
+
+    while stopThread==False:
+        results = sendTransaction(tightloopAccountName, 'doit', {"count": 250000}, opts='--read')  #250k will hopefully complete within 10ms, even on slower hardware
+        with threadLock:
+            allResponsesGood &= results[0]
+            numShortResponses += 1
+
+def testPassed():
+    return allResponsesGood and numShortResponses > 0
+
 try:
     startCluster()
     deployTestContracts()
+    # ROtrx won't pump OC's cache so prime OC's cache of this contract with some actions
+    for i in range(2):
+        trans = apiNode.pushMessage(tightloopAccountName, 'doit', '{"count": 1}', "-p {}@active".format(tightloopAccountName))
+        assert(trans[0])
+        apiNode.waitForTransactionInBlock(trans[1]['transaction_id'], exitOnError=True)
 
     # start a background thread that constantly runs a ROtrx that is never expected to complete in max-transaction-time
     thr = threading.Thread(target = longROtrxThread)
     thr.start()
 
-    endTime = time.time() + testLengthSeconds
-    # and then run some other ROtrx that should complete successfully
-    while time.time() < endTime:
-        results = sendTransaction(tightloopAccountName, 'doit', {"count": 1000000}, opts='--read')  #1 million is a good number to always take <10ms
-        assert(results[0])
+    # start twice the number of configured nodeos RO threads to spam short ROtrx; the 2x is hopefully to keep nodeos RO threads as busy as possible
+    shortThreadList = []
+    for i in range(args.read_only_threads*2):
+        shortThreadList.append(threading.Thread(target = shortROtrxThread))
+        shortThreadList[i].start()
 
-    testSuccessful = True
+    time.sleep(testLengthSeconds)
 finally:
     stopThread = True;
     thr.join()
-    TestHelper.shutdown(cluster, walletMgr, testSuccessful, dumpErrorDetails)
+    for sthr in shortThreadList:
+        sthr.join()
+    TestHelper.shutdown(cluster, walletMgr, testPassed(), dumpErrorDetails)
 
-errorCode = 0 if testSuccessful else 1
+errorCode = 0 if testPassed() else 1
 exit(errorCode)
