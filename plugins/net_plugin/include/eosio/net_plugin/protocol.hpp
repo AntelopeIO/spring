@@ -112,8 +112,7 @@ namespace eosio {
     uint32_t       pending{0};
     vector<T>      ids;
     bool           empty () const { return (mode == none || ids.empty()); }
-    auto operator<=>(const select_ids<T>&) const noexcept = default;
-    bool operator==(const select_ids<T>&) const noexcept = default;
+    bool operator==(const select_ids&) const noexcept = default;
   };
 
   using ordered_txn_ids = select_ids<transaction_id_type>;
@@ -130,7 +129,6 @@ namespace eosio {
     ordered_txn_ids req_trx;
     ordered_blk_ids req_blocks;
 
-    auto operator<=>(const request_message&) const noexcept = default;
     bool operator==(const request_message&) const noexcept = default;
   };
 
