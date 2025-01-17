@@ -68,7 +68,7 @@ def startCluster():
         with open(nodesFile, "r") as f:
             jsonStr=f.read()
         if not cluster.initializeNodesFromJson(jsonStr):
-            errorExit("Failed to initilize nodes from Json string.")
+            errorExit("Failed to initialize nodes from Json string.")
         total_nodes=len(cluster.getNodes())
 
         print("Stand up walletd")
@@ -95,7 +95,7 @@ def startCluster():
         specificExtraNodeosArgs[pnodes]+=" --wasm-runtime "
         specificExtraNodeosArgs[pnodes]+=args.wasm_runtime
 
-    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, activateIF=activateIF, specificExtraNodeosArgs=specificExtraNodeosArgs, extraNodeosArgs="--resource-monitor-not-shutdown-on-threshold-exceeded" ) is False:
+    if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, activateIF=activateIF, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         errorExit("Failed to stand up eos cluster.")
 
     Print ("Wait for Cluster stabilization")
@@ -141,7 +141,7 @@ try:
     startCluster()
     deployTestContracts()
 
-    # start a background thread that constatly runs a ROtrx that is never expected to complete in max-transaction-time
+    # start a background thread that constantly runs a ROtrx that is never expected to complete in max-transaction-time
     thr = threading.Thread(target = longROtrxThread)
     thr.start()
 
