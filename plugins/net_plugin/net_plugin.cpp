@@ -658,8 +658,7 @@ namespace eosio {
          fc::unique_lock g( _mtx );
          // if out_queue is not empty then async_write is in progress
          const bool async_write_in_progress = !_out_queue.empty();
-         const bool ready = !async_write_in_progress &&
-            (!_sync_write_queue.empty() || !_write_queue.empty() || !_trx_write_queue.empty());
+         const bool ready = !async_write_in_progress && _write_queue_size != 0;
          g.unlock();
          if (async_write_in_progress) {
             fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
