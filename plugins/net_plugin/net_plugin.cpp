@@ -1156,32 +1156,6 @@ namespace eosio {
    };
    
 
-   std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add, bool incoming) {
-      // host:port:[<trx>|<blk>]
-      if (peer_add.empty()) return {};
-
-      string::size_type p = peer_add[0] == '[' ? peer_add.find(']') : 0;
-      string::size_type colon = p != string::npos ? peer_add.find(':', p) : string::npos;
-      if (colon == std::string::npos || colon == 0) {
-         // if incoming then not an error this peer can do anything about
-         if (incoming) {
-            fc_dlog( logger, "Invalid peer address. must be \"host:port[:<blk>|<trx>]\": ${p}", ("p", peer_add) );
-         } else {
-            fc_elog( logger, "Invalid peer address. must be \"host:port[:<blk>|<trx>]\": ${p}", ("p", peer_add) );
-         }
-         return {};
-      }
-      string::size_type colon2 = peer_add.find(':', colon + 1);
-      string::size_type end = colon2 == string::npos
-            ? string::npos : peer_add.find_first_of( " :+=.,<>!$%^&(*)|-#@\t", colon2 + 1 ); // future proof by including most symbols without using regex
-      string host = (p > 0) ? peer_add.substr( 1, p-1 ) : peer_add.substr( 0, colon );
-      string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
-      string type = colon2 == string::npos ? "" : end == string::npos ?
-         peer_add.substr( colon2 + 1 ) : peer_add.substr( colon2 + 1, end - (colon2 + 1) );
-      return {std::move(host), std::move(port), std::move(type)};
-   }
-
-
    template<typename Function>
    bool connections_manager::any_of_supplied_peers( Function&& f ) const {
       std::shared_lock g( connections_mtx );
@@ -1294,9 +1268,11 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::set_connection_type( const std::string& peer_add ) {      
-      auto [host, port, type] = split_host_port_type(peer_add, false);
-      if( type.empty() ) {
+   void connection::set_connection_type( const std::string& peer_add ) {
+      auto [host, port, type] = net_utils::split_host_port_type(peer_add);
+      if (host.empty()) {
+         fc_dlog( logger, "Invalid address: ${a}", ("a", peer_add));
+      } else if( type.empty() ) {
          fc_dlog( logger, "Setting connection - ${c} type for: ${peer} to both transactions and blocks", ("c", connection_id)("peer", peer_add) );
          connection_type = both;
       } else if( type == "trx" ) {
@@ -2905,7 +2881,7 @@ namespace eosio {
             fc_ilog(logger, "Accepted new connection: " + paddr_str);
 
             connections.any_of_supplied_peers([&listen_address, &paddr_str, &paddr_desc, &limit](const string& peer_addr) {
-               auto [host, port, type] = split_host_port_type(peer_addr, false);
+               auto [host, port, type] = net_utils::split_host_port_type(peer_addr);
                if (host == paddr_str) {
                   if (limit > 0) {
                      fc_dlog(logger, "Connection inbound to ${la} from ${a} is a configured p2p-peer-address and will not be throttled", ("la", listen_address)("a", paddr_desc));
@@ -3416,9 +3392,11 @@ namespace eosio {
          }
 
          if( incoming() ) {
-            auto [host, port, type] = split_host_port_type(msg.p2p_address, true);
+            auto [host, port, type] = net_utils::split_host_port_type(msg.p2p_address);
             if (host.size())
                set_connection_type( msg.p2p_address);
+            else
+               peer_dlog(this, "Invalid handshake p2p_address ${p}", ("p", msg.p2p_address));
 
             peer_dlog( this, "checking for duplicate" );
             auto is_duplicate = [&](const connection_ptr& check) {
@@ -4293,7 +4271,7 @@ namespace eosio {
          ( "p2p-server-address", bpo::value< vector<string> >(), "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint. May be used as many times as p2p-listen-endpoint. If provided, the first address will be used in handshakes with other nodes. Otherwise the default is used.")
          ( "p2p-peer-address", bpo::value< vector<string> >()->composing(),
            "The public endpoint of a peer node to connect to. Use multiple p2p-peer-address options as needed to compose a network.\n"
-           "  Syntax: host:port[:<trx>|<blk>]\n"
+           "  Syntax: host:port[:trx|:blk]\n"
            "  The optional 'trx' and 'blk' indicates to node that only transactions 'trx' or blocks 'blk' should be sent."
            "  Examples:\n"
            "    p2p.eos.io:9876\n"
@@ -4420,6 +4398,11 @@ namespace eosio {
          std::vector<std::string> peers;
          if( options.count( "p2p-peer-address" )) {
             peers = options.at( "p2p-peer-address" ).as<vector<string>>();
+            for (const auto& peer : peers) {
+               const auto& [host, port, type] = net_utils::split_host_port_type(peer);
+               EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]");
+            }
             connections.add_supplied_peers(peers);
          }
          if( options.count( "agent-name" )) {
@@ -4728,7 +4711,7 @@ namespace eosio {
    }
 
    string connections_manager::resolve_and_connect( const string& peer_address, const string& listen_address ) {
-      auto [host, port, type] = split_host_port_type(peer_address, false);
+      auto [host, port, type] = net_utils::split_host_port_type(peer_address);
       if (host.empty()) {
          return "invalid peer address";
       }
@@ -4762,7 +4745,7 @@ namespace eosio {
             return false;
       }
 
-      auto [host, port, type] = split_host_port_type(peer_address(), false);
+      auto [host, port, type] = net_utils::split_host_port_type(peer_address());
       if (host.empty())
          return false;
 

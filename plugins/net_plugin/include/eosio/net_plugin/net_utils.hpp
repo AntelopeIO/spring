@@ -65,4 +65,24 @@ namespace detail {
       return {listen_addr, block_sync_rate_limit};
    }
 
+   inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
+      using std::string;
+      // host:port:[<trx>|<blk>]
+      if (peer_add.empty()) return {};
+
+      string::size_type p = peer_add[0] == '[' ? peer_add.find(']') : 0;
+      string::size_type colon = p != string::npos ? peer_add.find(':', p) : string::npos;
+      if (colon == string::npos || colon == 0) {
+         return {};
+      }
+      string::size_type colon2 = peer_add.find(':', colon + 1);
+      string::size_type end = colon2 == string::npos
+            ? string::npos : peer_add.find_first_of( " :+=.,<>!$%^&(*)|-#@\t", colon2 + 1 ); // future proof by including most symbols without using regex
+      string host = (p > 0) ? peer_add.substr( 1, p-1 ) : peer_add.substr( 0, colon );
+      string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
+      string type = colon2 == string::npos ? "" : end == string::npos ?
+         peer_add.substr( colon2 + 1 ) : peer_add.substr( colon2 + 1, end - (colon2 + 1) );
+      return {std::move(host), std::move(port), std::move(type)};
+   }
+
 } // namespace eosio::net_utils
