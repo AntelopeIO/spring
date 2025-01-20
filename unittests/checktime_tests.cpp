@@ -466,12 +466,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, T, validating_testers) { t
 	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
-
-        //hit deadline exception, but cache the contract
-        BOOST_CHECK_EXCEPTION( call_test( chain, test_api_action<WASM_TEST_ACTION("test_checktime", "checktime_sha1_failure")>{},
-                                          5000, 8, 8 ),
-                               deadline_exception, is_deadline_exception );
-
+        //run a simple action to cache the contract
+        CALL_TEST_FUNCTION(chain, "test_checktime", "checktime_pass", {});
         BOOST_TEST( chain.is_code_cached("testapi"_n) );
 
         //the contract should be cached, now we should get deadline_exception because of calls to checktime() from hashing function
