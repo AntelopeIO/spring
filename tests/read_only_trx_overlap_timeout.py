@@ -23,7 +23,7 @@ appArgs=AppArgs()
 appArgs.add(flag="--read-only-threads", type=int, help="number of read-only threads", default=2)
 appArgs.add(flag="--test-length-seconds", type=int, help="number of seconds to search for a failure", default=10)
 appArgs.add(flag="--eos-vm-oc-enable", type=str, help="specify eos-vm-oc-enable option", default="auto")
-appArgs.add(flag="--wasm-runtime", type=str, help="if set to eos-vm-oc, must compile with EOSIO_EOS_VM_OC_DEVELOPER", default="eos-vm-jit")
+appArgs.add(flag="--wasm-runtime", type=str, help="if set to eos-vm-oc, must compile with EOSIO_EOS_VM_OC_DEVELOPER", default="")
 
 args=TestHelper.parse_args({"-d","-s","--nodes-file","--seed"
                             ,"--activate-if","--dump-error-details","-v","--leave-running"
@@ -91,10 +91,10 @@ def startCluster():
     specificExtraNodeosArgs[roTrxNodeIndex]+=str(args.read_only_threads)
     specificExtraNodeosArgs[roTrxNodeIndex]+=" --max-transaction-time "
     specificExtraNodeosArgs[roTrxNodeIndex]+=" 10 "
-    if args.eos_vm_oc_enable:
+    if args.eos_vm_oc_enable != "off":
         if platform.system() != "Linux":
             Print("OC not run on Linux. Skip the test")
-            exit(True) # Do not fail the test
+            exit(0) # Do not fail the test
         specificExtraNodeosArgs[roTrxNodeIndex]+=" --eos-vm-oc-enable "
         specificExtraNodeosArgs[roTrxNodeIndex]+=args.eos_vm_oc_enable
     if args.wasm_runtime:
