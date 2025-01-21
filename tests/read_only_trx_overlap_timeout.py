@@ -32,7 +32,7 @@ args=TestHelper.parse_args({"-d","-s","--nodes-file","--seed"
 pnodes=1
 topo=args.s
 delay=args.d
-total_nodes=2
+total_nodes=3
 debug=args.v
 nodesFile=args.nodes_file
 dontLaunch=nodesFile is not None
@@ -56,12 +56,14 @@ EOSIO_ACCT_PUBLIC_DEFAULT_KEY = "EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5
 
 producerNode = None
 apiNode = None
+roTrxNode = None
 tightloopAccountName = "tightloop"
 
 def startCluster():
     global total_nodes
     global producerNode
     global apiNode
+    global roTrxNode
 
     TestHelper.printSystemInfo("BEGIN")
     cluster.setWalletMgr(walletMgr)
@@ -83,20 +85,21 @@ def startCluster():
     Print("Stand up cluster")
     # set up read-only options for API node
     specificExtraNodeosArgs={}
-    # producer nodes will be mapped to 0 through pnodes-1, so the number pnodes is the no-producing API node
-    specificExtraNodeosArgs[pnodes]="--read-only-threads "
-    specificExtraNodeosArgs[pnodes]+=str(args.read_only_threads)
-    specificExtraNodeosArgs[pnodes]+=" --max-transaction-time "
-    specificExtraNodeosArgs[pnodes]+=" 10 "
+    # last node will be the roTrx node
+    roTrxNodeIndex = total_nodes-1
+    specificExtraNodeosArgs[roTrxNodeIndex]="--read-only-threads "
+    specificExtraNodeosArgs[roTrxNodeIndex]+=str(args.read_only_threads)
+    specificExtraNodeosArgs[roTrxNodeIndex]+=" --max-transaction-time "
+    specificExtraNodeosArgs[roTrxNodeIndex]+=" 10 "
     if args.eos_vm_oc_enable:
         if platform.system() != "Linux":
             Print("OC not run on Linux. Skip the test")
             exit(True) # Do not fail the test
-        specificExtraNodeosArgs[pnodes]+=" --eos-vm-oc-enable "
-        specificExtraNodeosArgs[pnodes]+=args.eos_vm_oc_enable
+        specificExtraNodeosArgs[roTrxNodeIndex]+=" --eos-vm-oc-enable "
+        specificExtraNodeosArgs[roTrxNodeIndex]+=args.eos_vm_oc_enable
     if args.wasm_runtime:
-        specificExtraNodeosArgs[pnodes]+=" --wasm-runtime "
-        specificExtraNodeosArgs[pnodes]+=args.wasm_runtime
+        specificExtraNodeosArgs[roTrxNodeIndex]+=" --wasm-runtime "
+        specificExtraNodeosArgs[roTrxNodeIndex]+=args.wasm_runtime
 
     if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, activateIF=activateIF, specificExtraNodeosArgs=specificExtraNodeosArgs) is False:
         errorExit("Failed to stand up eos cluster.")
@@ -107,7 +110,8 @@ def startCluster():
         errorExit("Cluster never stabilized")
 
     producerNode = cluster.getNode()
-    apiNode = cluster.nodes[-1]
+    roTrxNode = cluster.nodes[-1]
+    apiNode = cluster.nodes[-2]
 
 
 def deployTestContracts():
@@ -123,7 +127,7 @@ def deployTestContracts():
     producerNode.publishContract(tightloopAccount, tightloopContractDir, tightloopWasmFile, tightloopAbiFile, waitForTransBlock=True)
 
 
-def sendTransaction(account, action, data, auth=[], opts=None):
+def sendROTransaction(account, action, data, auth=[], opts=None):
     trx = {
        "actions": [{
           "account": account,
@@ -132,13 +136,13 @@ def sendTransaction(account, action, data, auth=[], opts=None):
           "data": data
       }]
     }
-    return apiNode.pushTransaction(trx, opts)
+    return roTrxNode.pushTransaction(trx, opts)
 
 def longROtrxThread():
     Print("start longROtrxThread")
 
     while stopThread==False:
-        sendTransaction(tightloopAccountName, 'doit', {"count": 50000000}, opts='--read')  #50 million is a good number to always take >10ms
+        sendROTransaction(tightloopAccountName, 'doit', {"count": 50000000}, opts='--read')  #50 million is a good number to always take >10ms
 
 def shortROtrxThread():
     Print("start a shortROtrxThread")
@@ -147,7 +151,7 @@ def shortROtrxThread():
     global allResponsesGood
 
     while stopThread==False:
-        results = sendTransaction(tightloopAccountName, 'doit', {"count": 250000}, opts='--read')  #250k will hopefully complete within 10ms, even on slower hardware
+        results = sendROTransaction(tightloopAccountName, 'doit', {"count": 250000}, opts='--read')  #250k will hopefully complete within 10ms, even on slower hardware
         with threadLock:
             allResponsesGood &= results[0]
             numShortResponses += 1
