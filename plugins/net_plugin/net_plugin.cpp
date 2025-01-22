@@ -4287,38 +4287,41 @@ namespace eosio {
    {
       cfg.add_options()
          ( "p2p-listen-endpoint", bpo::value< vector<string> >()->default_value( vector<string>(1, string("0.0.0.0:9876:0")) ),
-           "The actual host:port[:trx|:blk][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times. "
-           "  The optional rate cap will limit per connection block sync bandwidth to the specified rate.  Total "
-           "  allowed bandwidth is the rate-cap multiplied by the connection count limit.  A number alone will be "
-           "  interpreted as bytes per second.  The number may be suffixed with units.  Supported units are: "
-           "  'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
-           "  Transactions and blocks outside of sync mode are not throttled."
-           "  The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
-           "  Examples:\n"
-           "    192.168.0.100:9876:1MiB/s\n"
-           "    node.eos.io:9876:trx:1512KB/s\n"
-           "    node.eos.io:9876:0.5GB/s\n"
-           "    [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
-         ( "p2p-server-address", bpo::value< vector<string> >(), "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint. May be used as many times as p2p-listen-endpoint. If provided, the first address will be used in handshakes with other nodes. Otherwise the default is used.")
+           "The actual host:port[:trx|:blk][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
+           " The optional rate cap will limit per connection block sync bandwidth to the specified rate. Total"
+           " allowed bandwidth is the rate-cap multiplied by the connection count limit. A number alone will be"
+           " interpreted as bytes per second. The number may be suffixed with units. Supported units are:"
+           " 'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
+           " Transactions and blocks outside sync mode are not throttled."
+           " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
+           " Examples:\n"
+           "   192.168.0.100:9876:1MiB/s\n"
+           "   node.eos.io:9876:trx:1512KB/s\n"
+           "   node.eos.io:9876:0.5GB/s\n"
+           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
+         ( "p2p-server-address", bpo::value< vector<string> >(),
+           "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
+           " May be used as many times as p2p-listen-endpoint."
+           " If provided, the first address will be used in handshakes with other nodes; otherwise the default is used.")
          ( "p2p-peer-address", bpo::value< vector<string> >()->composing(),
            "The public endpoint of a peer node to connect to. Use multiple p2p-peer-address options as needed to compose a network.\n"
-           "  Syntax: host:port[:trx|:blk]\n"
-           "  The optional 'trx' and 'blk' indicates to node that only transactions 'trx' or blocks 'blk' should be sent."
-           "  Examples:\n"
-           "    p2p.eos.io:9876\n"
-           "    p2p.trx.eos.io:9876:trx\n"
-           "    p2p.blk.eos.io:9876:blk\n")
+           " Syntax: host:port[:trx|:blk]\n"
+           " The optional 'trx' and 'blk' indicates to node that only transactions 'trx' or blocks 'blk' should be sent."
+           " Examples:\n"
+           "   p2p.eos.io:9876\n"
+           "   p2p.trx.eos.io:9876:trx\n"
+           "   p2p.blk.eos.io:9876:blk\n")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
             "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
-           "The account and public p2p endpoint of a block producer node to automatically connect to when the it is in producer schedule proximity\n."
-           "   Syntax: account,host:port\n"
-           "   Example,\n"
-           "     eosproducer1,p2p.eos.io:9876\n"
-           "     eosproducer2,p2p.trx.eos.io:9876:trx\n"
-           "     eosproducer3,p2p.blk.eos.io:9876:blk\n")
+           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule proximity\n."
+           "  Syntax: account,host:port\n"
+           "  Example,\n"
+           "    eosproducer1,p2p.eos.io:9876\n"
+           "    eosproducer2,p2p.trx.eos.io:9876:trx\n"
+           "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
          ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
