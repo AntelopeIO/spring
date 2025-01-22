@@ -97,6 +97,9 @@ try:
     Print("Killing bios node")
     cluster.biosNode.kill(signal.SIGTERM)
 
+    # blocks could be received but not processed, so give a bit of delay for blocks to be processed
+    time.sleep(1)
+
     Print("Verify head no longer advancing after bios killed")
     assert not noBlocks02.waitForHeadToAdvance(), "head advanced on node02 unexpectedly"
     assert not noBlocks03.waitForHeadToAdvance(), "head advanced on node03 unexpectedly"
