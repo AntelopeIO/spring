@@ -1210,11 +1210,10 @@ namespace eosio {
 
    //---------------------------------------------------------------------------
 
-   connection::connection( const string& endpoint, const string& listen_address )
+   connection::connection( const string& endpoint, const string& this_address )
       : peer_addr( endpoint ),
         strand( boost::asio::make_strand(my_impl->thread_pool.get_executor()) ),
         socket( new tcp::socket( strand ) ),
-        listen_address( listen_address ),
         log_p2p_address( endpoint ),
         connection_id( ++my_impl->current_connection_id ),
         sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
@@ -1222,6 +1221,8 @@ namespace eosio {
         last_handshake_sent(),
         p2p_address( endpoint )
    {
+      auto [host, port, type] = net_utils::split_host_port_type(this_address);
+      listen_address = host + ":" + port; // do not include type in listen_address to avoid peer setting type on connection
       set_connection_type( peer_address() );
       my_impl->mark_bp_connection(this);
       fc_ilog( logger, "created connection - ${c} to ${n}", ("c", connection_id)("n", endpoint) );
