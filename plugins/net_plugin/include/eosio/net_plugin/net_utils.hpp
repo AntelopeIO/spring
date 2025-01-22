@@ -40,32 +40,63 @@ namespace detail {
       return block_sync_rate_limit;
    }
 
+   /// @return host, port, remainder
+   inline std::tuple<std::string, std::string, std::string> split_host_port_remainder(const std::string& peer_add) {
+      using std::string;
+      // host:port[:trx|:blk][:<rate>]
+      if (peer_add.empty()) return {};
+
+      string::size_type p = peer_add[0] == '[' ? peer_add.find(']') : 0;
+      if (p == 0) {
+         if( auto colon_count = std::count(peer_add.begin(), peer_add.end(), ':'); colon_count >= 7 ) {
+            EOS_ASSERT( colon_count <= 2, chain::plugin_config_exception,
+                        "Invalid address specification ${a}; IPv6 addresses must be enclosed in square brackets.", ("a", peer_add));
+         }
+      }
+      string::size_type colon = p != string::npos ? peer_add.find(':', p) : string::npos;
+      if (colon == string::npos || colon == 0) {
+         return {};
+      }
+      string::size_type colon2 = peer_add.find(':', colon + 1);
+      string host = (p > 0) ? peer_add.substr( 0, p+1 ) : peer_add.substr( 0, colon );
+      string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
+      string remainder = colon2 == string::npos ? "" : peer_add.substr( colon2 + 1 );
+      return {std::move(host), std::move(port), std::move(remainder)};
+   }
+
 } // namespace detail
 
-   /// @return listen address and block sync rate limit (in bytes/sec) of address string
+   /// @return host, port, type
+   inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
+      using std::string;
+      // host:port[:trx|:blk][:<rate>]   // rate is discarded
+      if (peer_add.empty()) return {};
+
+      auto [host, port, remainder] = detail::split_host_port_remainder(peer_add);
+      if (host.empty()) return {};
+
+      string::size_type end = remainder.find_first_of( " :+=.,<>!$%^&(*)|-#@\t" ); // future proof by including most symbols without using regex
+      std::string type = remainder.substr(0, end);
+
+      return {std::move(host), std::move(port), std::move(type)};
+   }
+
+   /// @return listen address, type [trx|blk], and block sync rate limit (in bytes/sec) of address string
    inline std::tuple<std::string, size_t> parse_listen_address( const std::string& address ) {
-      auto listen_addr = address;
-      auto limit = std::string("0");
-      auto last_colon_location = address.rfind(':');
-      if( auto right_bracket_location = address.find(']'); right_bracket_location != address.npos ) {
-         if( std::count(address.begin()+right_bracket_location, address.end(), ':') > 1 ) {
-            listen_addr = std::string(address, 0, last_colon_location);
-            limit = std::string(address, last_colon_location+1);
-         }
-      } else {
-         if( auto colon_count = std::count(address.begin(), address.end(), ':'); colon_count > 1 ) {
-            EOS_ASSERT( colon_count <= 2, chain::plugin_config_exception,
-                        "Invalid address specification ${addr}; IPv6 addresses must be enclosed in square brackets.", ("addr", address));
-            listen_addr = std::string(address, 0, last_colon_location);
-            limit = std::string(address, last_colon_location+1);
-         }
+
+      auto [host, port, remainder] = detail::split_host_port_remainder(address);
+      auto listen_addr = host + ":" + port;
+      auto limit = remainder;
+      auto last_colon_location = remainder.rfind(':');
+      if (last_colon_location != std::string::npos) {
+         limit = std::string(remainder, last_colon_location+1);
       }
       auto block_sync_rate_limit = detail::parse_connection_rate_limit(limit);
 
-      return {listen_addr, block_sync_rate_limit};
+      return {std::move(listen_addr), block_sync_rate_limit};
    }
 
-   inline std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add) {
+   inline std::tuple<std::string, std::string, std::string> split_host_xport_type(const std::string& peer_add) {
       using std::string;
       // host:port:[<trx>|<blk>]
       if (peer_add.empty()) return {};
