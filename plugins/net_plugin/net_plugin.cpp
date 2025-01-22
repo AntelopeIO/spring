@@ -3721,15 +3721,21 @@ namespace eosio {
       switch (msg.req_blocks.mode) {
       case catch_up : {
          const block_id_type& id = msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back();
-         peer_dlog( this, "received request_message:catch_up #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
+         peer_dlog( this, "${d} request_message:catch_up #${bn}:${id}",
+                    ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(id))("id",id) );
+         if (!is_blocks_connection())
+            return;
          blk_send_branch( id );
-         break;
+         return;
       }
       case normal : {
          if (protocol_version >= proto_block_nack) {
             if (!msg.req_blocks.ids.empty()) {
                const block_id_type& id = msg.req_blocks.ids.back();
-               peer_dlog( this, "received request_message:normal #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
+               peer_dlog( this, "${d} request_message:normal #${bn}:${id}",
+                          ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(id))("id",id) );
+               if (!is_blocks_connection())
+                  return;
                uint32_t head_num = my_impl->get_chain_head_num();
                auto msg_head_num = block_header::num_from_id(id);
                // --msg_head_num since blk_send_branch adds one to request and we need to start at msg_head_num
@@ -3771,6 +3777,11 @@ namespace eosio {
          peer_requested.reset();
          flush_queues();
       } else {
+         if (!is_blocks_connection()) {
+            peer_dlog(this, "received sync_request_message ${m} on transaction only connection, ignoring", ("m", msg));
+            return;
+         }
+
          if (peer_requested) {
             // This happens when peer already requested some range and sync is still in progress
             // It could be higher in case of peer requested head catchup and current request is lib catchup
