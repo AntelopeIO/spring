@@ -125,7 +125,7 @@ struct eosvmoc_tier {
                if (executing_code_hash.load() == code_id) {
                   ilog("EOS VM OC tier up interrupting ${id}", ("id", code_id));
                   eos_vm_oc_compile_interrupt = true;
-                  main_thread_timer.expire_now();
+                  main_thread_timer.interrupt_timer();
                }
             });
          }
@@ -181,7 +181,7 @@ struct eosvmoc_tier {
          try {
             get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
-            if (allow_oc_interrupt && eos_vm_oc_compile_interrupt) {
+            if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
                dlog("EOS VM OC compile complete interrupt of ${r} <= ${a}::${act} code ${h}, interrupt #${c}",
                     ("r", context.get_receiver())("a", context.get_action().account)

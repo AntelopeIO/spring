@@ -93,6 +93,7 @@ bool exception_is_exhausted(const fc::exception& e) {
    return (code == block_cpu_usage_exceeded::code_value) ||
           (code == block_net_usage_exceeded::code_value) ||
           (code == deadline_exception::code_value) ||
+          (code == interrupt_exception::code_value) || // allow interrupted trxs to be retried
           (code == ro_trx_vm_oc_compile_temporary_failure::code_value);
 }
 } // namespace

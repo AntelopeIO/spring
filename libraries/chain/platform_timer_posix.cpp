@@ -55,36 +55,44 @@ platform_timer::~platform_timer() {
 }
 
 void platform_timer::start(fc::time_point tp) {
+   assert(_state == state_t::stopped);
    if(tp == fc::time_point::maximum()) {
-      expired = false;
+      _state = state_t::running;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
    if(x.count() <= 0)
-      expired = true;
+      _state = state_t::timed_out;
    else {
       time_t secs = x.count() / 1000000;
       long nsec = (x.count() - (secs*1000000)) * 1000;
       struct itimerspec enable = {{0, 0}, {secs, nsec}};
-      expired = false;
+      _state = state_t::running;
       if(timer_settime(my->timerid, 0, &enable, NULL) != 0)
-         expired = true;
+         _state = state_t::timed_out;
    }
 }
 
 void platform_timer::expire_now() {
-   bool expected = false;
-   if (expired.compare_exchange_strong(expected, true)) {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::timed_out)) {
+      call_expiration_callback();
+   }
+}
+
+void platform_timer::interrupt_timer() {
+   state_t expected = state_t::running;
+   if (_state.compare_exchange_strong(expected, state_t::interrupted)) {
       call_expiration_callback();
    }
 }
 
 void platform_timer::stop() {
-   if(expired)
+   if(_state == state_t::stopped)
       return;
    struct itimerspec disable = {{0, 0}, {0, 0}};
    timer_settime(my->timerid, 0, &disable, NULL);
-   expired = true;
+   _state = state_t::stopped;
 }
 
 }
