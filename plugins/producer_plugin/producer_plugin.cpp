@@ -1479,29 +1479,31 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
                  plugin_config_exception,
                  "read-only-read-window-time-us (${read}) must be at least greater than  ${min} us",
                  ("read", _ro_read_window_time_us)("min", _ro_read_window_minimum_time_us));
-      _ro_read_window_effective_time_us = _ro_read_window_time_us - _ro_read_window_minimum_time_us;
-
+      _ro_read_window_effective_time_us = _ro_read_window_time_us;
       ilog("read-only-write-window-time-us: ${ww} us, read-only-read-window-time-us: ${rw} us, effective read window time to be used: ${w} us",
            ("ww", _ro_write_window_time_us)("rw", _ro_read_window_time_us)("w", _ro_read_window_effective_time_us));
-   }
-   app().executor().init_read_threads(_ro_thread_pool_size);
+      // Make sure _ro_max_trx_time_us is always set.
+      // Make sure a read-only transaction can finish within the read
+      // window if scheduled at the very beginning of the window.
+      if (_max_transaction_time_ms.load() > 0) {
+         _ro_max_trx_time_us = fc::milliseconds(_max_transaction_time_ms.load());
+      } else {
+         // max-transaction-time can be set to negative for unlimited time
+         _ro_max_trx_time_us = fc::microseconds::maximum();
+      }
+      // Factor _ro_read_window_minimum_time_us into _ro_max_trx_time_us
+      // such that a transaction which runs less than or equal to _ro_max_trx_time_us
+      // can fit in effective read-only window
+      assert(_ro_read_window_effective_time_us > _ro_read_window_minimum_time_us);
+      if (_ro_max_trx_time_us  > _ro_read_window_effective_time_us - _ro_read_window_minimum_time_us) {
+         _ro_max_trx_time_us = _ro_read_window_effective_time_us - _ro_read_window_minimum_time_us;
+      }
+      ilog("Read-only max transaction time ${rot}us set to fit in the effective read-only window ${row}us.",
+           ("rot", _ro_max_trx_time_us)("row", _ro_read_window_effective_time_us));
+      ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
-   // Make sure _ro_max_trx_time_us is always set.
-   // Make sure a read-only transaction can finish within the read
-   // window if scheduled at the very beginning of the window.
-   // Add _ro_read_window_minimum_time_us for safety margin.
-   if (_max_transaction_time_ms.load() > 0) {
-      _ro_max_trx_time_us = fc::milliseconds(_max_transaction_time_ms.load());
-   } else {
-      // max-transaction-time can be set to negative for unlimited time
-      _ro_max_trx_time_us = fc::microseconds::maximum();
+      app().executor().init_read_threads(_ro_thread_pool_size);
    }
-   if (_ro_max_trx_time_us > _ro_read_window_effective_time_us) {
-      _ro_max_trx_time_us = _ro_read_window_effective_time_us;
-   }
-   ilog("Read-only max transaction time ${rot}us set to fit in the effective read-only window ${row}us.",
-        ("rot", _ro_max_trx_time_us)("row", _ro_read_window_effective_time_us));
-   ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
    _incoming_block_sync_provider = app().get_method<incoming::methods::block_sync>().register_provider(
       [this](const signed_block_ptr& block, const block_id_type& block_id, const block_handle& bh) {
