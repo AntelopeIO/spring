@@ -29,6 +29,8 @@ BOOST_AUTO_TEST_CASE(test_parse_rate_limit) {
       , "0.0.0.0:9877:trx:640KB/s - additional info"
       , "[2001:db8:85a3:8d3:1319:8a2e:370:7348]additional info:trx:640KB/s"
       , "0.0.0.0"
+      , "0.0.0.0:"
+      , "0.0.0.0::"
    };
    size_t which = 0;
    auto [listen_addr, block_sync_rate_limit] = eosio::net_utils::parse_listen_address(p2p_addresses.at(which++));
@@ -109,6 +111,12 @@ BOOST_AUTO_TEST_CASE(test_parse_rate_limit) {
    BOOST_CHECK_EXCEPTION(eosio::net_utils::parse_listen_address(p2p_addresses.at(which++)), eosio::chain::plugin_config_exception,
                          [](const eosio::chain::plugin_config_exception& e)
                          {return std::strstr(e.top_message().c_str(), "unexpected number of colons");});
+   BOOST_CHECK_EXCEPTION(eosio::net_utils::parse_listen_address(p2p_addresses.at(which++)), eosio::chain::plugin_config_exception,
+                         [](const eosio::chain::plugin_config_exception& e)
+                         {return std::strstr(e.top_message().c_str(), "host or port missing");});
+   BOOST_CHECK_EXCEPTION(eosio::net_utils::parse_listen_address(p2p_addresses.at(which++)), eosio::chain::plugin_config_exception,
+                         [](const eosio::chain::plugin_config_exception& e)
+                         {return std::strstr(e.top_message().c_str(), "host or port missing");});
 }
 
 BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
@@ -139,6 +147,8 @@ BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
       , "0.0.0.0:9877:trx:640KB/s - additional info"
       , "[2001:db8:85a3:8d3:1319:8a2e:370:7348]additional info:trx:640KB/s"
       , "0.0.0.0"
+      , "0.0.0.0:"
+      , "0.0.0.0::"
    };
    size_t which = 0;
    auto [host, port, type] = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
@@ -237,6 +247,14 @@ BOOST_AUTO_TEST_CASE(test_split_host_port_type) {
    BOOST_CHECK_EQUAL(host, "0.0.0.0");
    BOOST_CHECK_EQUAL(port, "9877");
    BOOST_CHECK_EQUAL(type, "trx");
+   std::tie(host, port, type) = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
+   BOOST_CHECK_EQUAL(host, "");
+   BOOST_CHECK_EQUAL(port, "");
+   BOOST_CHECK_EQUAL(type, "");
+   std::tie(host, port, type) = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
+   BOOST_CHECK_EQUAL(host, "");
+   BOOST_CHECK_EQUAL(port, "");
+   BOOST_CHECK_EQUAL(type, "");
    std::tie(host, port, type) = eosio::net_utils::split_host_port_type(p2p_addresses.at(which++));
    BOOST_CHECK_EQUAL(host, "");
    BOOST_CHECK_EQUAL(port, "");
