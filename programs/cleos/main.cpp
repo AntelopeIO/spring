@@ -679,19 +679,32 @@ void print_result( const fc::variant& result ) { try {
          }
 
          cerr << status << " transaction: " << transaction_id << "  ";
-         if( net < 0 ) {
-            cerr << "<unknown>";
+         if (!tx_read) {
+            if( net < 0 ) {
+               cerr << "<unknown>";
+            } else {
+               cerr << net;
+            }
+            cerr << " bytes  ";
+            if( cpu < 0 ) {
+               cerr << "<unknown>";
+            } else {
+               cerr << cpu;
+            }
+            cerr << " us\n";
          } else {
-            cerr << net;
+            int64_t elapsed = -1;
+            if (processed.get_object().contains( "elapsed" )) {
+               elapsed = processed["elapsed"].as_int64();
+            }
+            cerr << " elapsed ";
+            if (elapsed < 0) {
+               cerr << "<unknown>";
+            } else {
+               cerr << elapsed;
+            }
+            cerr << " us\n";
          }
-         cerr << " bytes  ";
-         if( cpu < 0 ) {
-            cerr << "<unknown>";
-         } else {
-            cerr << cpu;
-         }
-
-         cerr << " us\n";
 
          if( status == "failed" ) {
             auto soft_except = processed["except"].as<std::optional<fc::exception>>();
@@ -703,7 +716,8 @@ void print_result( const fc::variant& result ) { try {
             for( const auto& a : actions ) {
                print_action_tree( a );
             }
-            wlog( "\rwarning: transaction executed locally, but may not be confirmed by the network yet" );
+            if (!tx_read && !tx_dry_run)
+               wlog( "\rwarning: transaction executed locally, but may not be confirmed by the network yet" );
          }
       } else {
          cerr << fc::json::to_pretty_string( result ) << endl;
