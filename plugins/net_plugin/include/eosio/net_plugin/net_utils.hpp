@@ -60,13 +60,22 @@ namespace detail {
                     "Invalid address specification ${a}; IPv6 addresses must be enclosed in square brackets.", ("a", peer_add));
          return {};
 
+      } else if (colon_count < 1 || colon_count > 3) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception,
+                    "Invalid address specification ${a}; unexpected number of colons.", ("a", peer_add));
+         return {};
       }
       string::size_type colon = peer_add.find(':', end_bracket+1);
       if (colon == string::npos || colon == 0) {
          return {};
       }
+      if (end_bracket != 0 && end_bracket+1 != colon) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception,
+                    "Invalid address specification ${a}; unexpected character after ']'.", ("a", peer_add));
+         return {};
+      }
       string::size_type colon2 = peer_add.find(':', colon + 1);
-      string host = (end_bracket > 0) ? peer_add.substr( 0, end_bracket+1 ) : peer_add.substr( 0, colon );
+      string host = peer_add.substr( 0, colon );
       string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
       string remainder = colon2 == string::npos ? "" : peer_add.substr( colon2 + 1 );
       return {std::move(host), std::move(port), std::move(remainder)};
@@ -85,17 +94,21 @@ namespace detail {
       auto [host, port, remainder] = detail::split_host_port_remainder(peer_add, should_throw);
       if (host.empty()) return {};
 
-      string::size_type end = remainder.find_first_of( " :+=.,<>!$%^&(*)|-#@\t" ); // future proof by including most symbols without using regex
-      std::string type = remainder.substr(0, end);
+      std::string type;
+      if (remainder.starts_with("blk") || remainder.starts_with("trx")) {
+         type = remainder.substr(0, 3);
+      }
 
       return {std::move(host), std::move(port), std::move(type)};
    }
 
-   /// @return listen address, type [trx|blk], and block sync rate limit (in bytes/sec) of address string
+   /// @return listen address and block sync rate limit (in bytes/sec) of address string
    /// @throws chain::plugin_config_exception on invalid address
    inline std::tuple<std::string, size_t> parse_listen_address( const std::string& address ) {
       constexpr bool should_throw = true;
       auto [host, port, remainder] = detail::split_host_port_remainder(address, should_throw);
+      EOS_ASSERT(!host.empty() && !port.empty(), chain::plugin_config_exception,
+                 "Invalid address specification ${a}; host or port missing.", ("a", address));
       auto listen_addr = host + ":" + port;
       auto limit = remainder;
       auto last_colon_location = remainder.rfind(':');
