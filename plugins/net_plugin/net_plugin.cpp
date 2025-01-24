@@ -1151,7 +1151,7 @@ namespace eosio {
 
       void operator()( const block_notice_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_ilog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
+         peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
    };
@@ -1928,7 +1928,7 @@ namespace eosio {
                            return;
                         }
                         if (net_msg == msg_type_t::signed_block)
-                           fc_ilog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
+                           fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
                         if (close_after_send != no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
                                     ("r", reason_str(close_after_send))("cid", conn->connection_id) );
@@ -3144,7 +3144,7 @@ namespace eosio {
          block_num_type fork_db_root_num = my_impl->get_fork_db_root_num();
          if( blk_num <= fork_db_root_num ) {
             pending_message_buffer.advance_read_ptr( message_length ); // advance before any send
-            peer_ilog( this, "received block ${n} less than froot ${fr}", ("n", blk_num)("fr", fork_db_root_num) );
+            peer_dlog( this, "received block ${n} less than froot ${fr}", ("n", blk_num)("fr", fork_db_root_num) );
             send_block_nack(blk_id);
             cancel_sync_wait();
 
