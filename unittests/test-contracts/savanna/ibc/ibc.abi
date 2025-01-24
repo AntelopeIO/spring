@@ -67,11 +67,11 @@
             "base": "",
             "fields": [
                 {
-                    "name": "target_block_index",
+                    "name": "target_action_index",
                     "type": "uint64"
                 },
                 {
-                    "name": "final_block_index",
+                    "name": "final_action_index",
                     "type": "uint64"
                 },
                 {
@@ -101,16 +101,20 @@
                     "type": "uint32"
                 },
                 {
-                    "name": "last_pending_finalizer_policy_generation",
+                    "name": "pending_finalizer_policy_generation",
                     "type": "uint32?"
                 },
                 {
-                    "name": "pending_finalizer_policy",
+                    "name": "last_pending_finalizer_policy",
                     "type": "finalizer_policy_input?"
                 },
                 {
                     "name": "last_pending_finalizer_policy_start_timestamp",
                     "type": "block_timestamp_type?"
+                },
+                {
+                    "name": "level_3_commitments",
+                    "type": "level_3_commitments_input?"
                 },
                 {
                     "name": "witness_hash",
@@ -204,11 +208,11 @@
                 },
                 {
                     "name": "active_policy_qc",
-                    "type": "quorum_certificate"
+                    "type": "quorum_certificate_input"
                 },
                 {
                     "name": "pending_policy_qc",
-                    "type": "quorum_certificate?"
+                    "type": "quorum_certificate_input?"
                 }
             ]
         },
@@ -267,6 +271,32 @@
             ]
         },
         {
+            "name": "level_3_commitments_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "reversible_blocks_mroot",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "latest_qc_claim_finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                }
+            ]
+        },
+        {
             "name": "permission_level",
             "base": "",
             "fields": [
@@ -295,12 +325,16 @@
             ]
         },
         {
-            "name": "quorum_certificate",
+            "name": "quorum_certificate_input",
             "base": "",
             "fields": [
                 {
-                    "name": "finalizers",
-                    "type": "bytes"
+                    "name": "strong_votes",
+                    "type": "bytes?"
+                },
+                {
+                    "name": "weak_votes",
+                    "type": "bytes?"
                 },
                 {
                     "name": "signature",

@@ -1,0 +1,301 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.2",
+    "types": [],
+    "structs": [
+        {
+            "name": "block_finality_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "major_version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "minor_version",
+                    "type": "uint32"
+                },
+                {
+                    "name": "active_finalizer_policy_generation",
+                    "type": "uint32"
+                },
+                {
+                    "name": "pending_finalizer_policy_generation",
+                    "type": "uint32?"
+                },
+                {
+                    "name": "last_pending_finalizer_policy",
+                    "type": "finalizer_policy_input?"
+                },
+                {
+                    "name": "last_pending_finalizer_policy_start_timestamp",
+                    "type": "block_timestamp_type?"
+                },
+                {
+                    "name": "level_3_commitments",
+                    "type": "level_3_commitments_input?"
+                },
+                {
+                    "name": "witness_hash",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "finality_mroot",
+                    "type": "checksum256"
+                }
+            ]
+        },
+        {
+            "name": "block_ref_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "parent_timestamp",
+                    "type": "block_timestamp_type"
+                }
+            ]
+        },
+        {
+            "name": "finality_proof",
+            "base": "",
+            "fields": [
+                {
+                    "name": "qc_block",
+                    "type": "block_finality_data"
+                },
+                {
+                    "name": "active_policy_qc",
+                    "type": "quorum_certificate_input"
+                },
+                {
+                    "name": "pending_policy_qc",
+                    "type": "quorum_certificate_input?"
+                }
+            ]
+        },
+        {
+            "name": "finalizer_authority_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "description",
+                    "type": "string"
+                },
+                {
+                    "name": "weight",
+                    "type": "uint64"
+                },
+                {
+                    "name": "public_key",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "finalizer_policy_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "generation",
+                    "type": "uint32"
+                },
+                {
+                    "name": "threshold",
+                    "type": "uint64"
+                },
+                {
+                    "name": "finalizers",
+                    "type": "finalizer_authority_input[]"
+                }
+            ]
+        },
+        {
+            "name": "level_3_commitments_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "reversible_blocks_mroot",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "latest_qc_claim_finality_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "latest_qc_claim_timestamp",
+                    "type": "block_timestamp_type"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "block_timestamp_type"
+                }
+            ]
+        },
+        {
+            "name": "pair_string_string",
+            "base": "",
+            "fields": [
+                {
+                    "name": "first",
+                    "type": "string"
+                },
+                {
+                    "name": "second",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "quorum_certificate_input",
+            "base": "",
+            "fields": [
+                {
+                    "name": "strong_votes",
+                    "type": "bytes?"
+                },
+                {
+                    "name": "weak_votes",
+                    "type": "bytes?"
+                },
+                {
+                    "name": "signature",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "reversible_proof_of_inclusion",
+            "base": "",
+            "fields": [
+                {
+                    "name": "target_reversible_block_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "final_reversible_block_index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "target",
+                    "type": "block_ref_data"
+                },
+                {
+                    "name": "merkle_branches",
+                    "type": "checksum256[]"
+                }
+            ]
+        },
+        {
+            "name": "rule1",
+            "base": "",
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "proof_1",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "proof_2",
+                    "type": "finality_proof"
+                }
+            ]
+        },
+        {
+            "name": "rule2",
+            "base": "",
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "high_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "low_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "reversible_proof_of_inclusion",
+                    "type": "reversible_proof_of_inclusion"
+                }
+            ]
+        },
+        {
+            "name": "rule3",
+            "base": "",
+            "fields": [
+                {
+                    "name": "finalizer_policy",
+                    "type": "finalizer_policy_input"
+                },
+                {
+                    "name": "high_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "low_proof",
+                    "type": "finality_proof"
+                },
+                {
+                    "name": "reversible_proof_of_inclusion",
+                    "type": "reversible_proof_of_inclusion"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "rule1",
+            "type": "rule1",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "rule2",
+            "type": "rule2",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "rule3",
+            "type": "rule3",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [],
+    "ricardian_clauses": [],
+    "variants": [],
+    "action_results": [
+        {
+            "name": "rule1",
+            "result_type": "pair_string_string"
+        },
+        {
+            "name": "rule2",
+            "result_type": "pair_string_string"
+        },
+        {
+            "name": "rule3",
+            "result_type": "pair_string_string"
+        }
+    ]
+}
