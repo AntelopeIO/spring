@@ -148,10 +148,6 @@ struct eosvmoc_tier {
                m.whitelisted = context.is_eos_vm_oc_whitelisted();
                m.high_priority = m.whitelisted && context.is_applying_block();
                m.write_window = context.control.is_write_window();
-               auto timer_pause = fc::make_scoped_exit([&](){
-                  context.trx_context.resume_billing_timer();
-               });
-               context.trx_context.pause_billing_timer();
                cd = eosvmoc->cc.get_descriptor_for_code(m, code_hash, vm_version, failure);
             } catch (...) {
                // swallow errors here, if EOS VM OC has gone in to the weeds we shouldn't bail: continue to try and run baseline
