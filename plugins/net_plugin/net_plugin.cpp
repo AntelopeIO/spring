@@ -3757,7 +3757,7 @@ namespace eosio {
             if (msg.req_blocks.ids.size() == 2 && msg.req_trx.ids.empty()) {
                const block_id_type& req_id = msg.req_blocks.ids[0]; // 0 - req_id, 1 - peer_head_id
                peer_dlog( this, "${d} request_message:normal #${bn}:${id}",
-                          ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(req_id))("id",id) );
+                          ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(req_id))("id",req_id) );
                if (!is_blocks_connection())
                   return;
                const block_id_type& peer_head_id = msg.req_blocks.ids[1];
