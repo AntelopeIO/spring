@@ -3078,8 +3078,10 @@ struct controller_impl {
             } else {
                transaction_receipt_header r;
                r.status = transaction_receipt::executed;
-               r.cpu_usage_us = trx_context.billed_cpu_time_us;
-               r.net_usage_words = trace->net_usage / 8;
+               if (!trx->is_read_only()) {
+                  r.cpu_usage_us = trx_context.billed_cpu_time_us;
+                  r.net_usage_words = trace->net_usage / 8;
+               }
                trace->receipt = r;
             }
 
@@ -4533,7 +4535,7 @@ struct controller_impl {
       // validated.
       if (applying_block) {
          ilog("Interrupting apply block");
-         main_thread_timer.expire_now();
+         main_thread_timer.interrupt_timer();
       }
    }
 
