@@ -128,8 +128,6 @@ namespace eosio {
     request_message() : req_trx(), req_blocks() {}
     ordered_txn_ids req_trx;
     ordered_blk_ids req_blocks;
-
-    bool operator==(const request_message&) const noexcept = default;
   };
 
    struct sync_request_message {
@@ -142,6 +140,7 @@ namespace eosio {
    };
 
    struct block_notice_message {
+      block_id_type previous;
       block_id_type id;
    };
 
@@ -176,7 +175,7 @@ FC_REFLECT( eosio::notice_message, (known_trx)(known_blocks) )
 FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
-FC_REFLECT( eosio::block_notice_message, (id) )
+FC_REFLECT( eosio::block_notice_message, (previous)(id) )
 
 /**
  *
