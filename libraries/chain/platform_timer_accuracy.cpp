@@ -39,9 +39,10 @@ void compute_and_print_timer_accuracy(platform_timer& timer) {
       for(unsigned int i = 0; i < loops; ++i) {
          auto start = std::chrono::high_resolution_clock::now();
          timer.start(fc::time_point(fc::time_point::now().time_since_epoch() + fc::microseconds(interval)));
-         while(!timer.expired) {}
+         while(timer.timer_state() == platform_timer::state_t::running) {}
          auto end = std::chrono::high_resolution_clock::now();
          int timer_slop = std::chrono::duration_cast<std::chrono::microseconds>(end-start).count() - interval;
+         timer.stop();
 
          //since more samples are run for the shorter expirations, weigh the longer expirations accordingly. This
          //helps to make a few results more fair. Two such examples: AWS c4&i5 xen instances being rather stable
