@@ -97,6 +97,11 @@ foreach(TEST_SUITE ${UNIT_TESTS}) # create an independent target for each test s
       # to run unit_test with all log from blockchain displayed, put "--verbose" after "--", i.e. "unit_test -- --verbose"
       foreach(RUNTIME ${EOSIO_WASM_RUNTIMES})
         add_test(NAME ${TRIMMED_SUITE_NAME}_unit_test_${RUNTIME} COMMAND unit_test --run_test=${SUITE_NAME} --report_level=detailed --color_output -- --${RUNTIME})
+        # add a duplicate test to run without fsgsbase instructions for a limited number of OC wasm tests
+        if(RUNTIME STREQUAL "eos-vm-oc" AND TRIMMED_SUITE_NAME MATCHES "^wasm_part")
+           add_test(NAME ${TRIMMED_SUITE_NAME}_unit_test_${RUNTIME}-nofsgs COMMAND unit_test --run_test=${SUITE_NAME} --report_level=detailed --color_output -- --${RUNTIME})
+           set_tests_properties(${TRIMMED_SUITE_NAME}_unit_test_${RUNTIME}-nofsgs PROPERTIES ENVIRONMENT "SPRING_DISABLE_FSGSBASE=1" COST 5000)
+        endif()
         # build list of tests to run during coverage testing
         if(ctest_tests)
           string(APPEND ctest_tests "|")
