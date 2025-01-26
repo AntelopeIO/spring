@@ -111,7 +111,8 @@ namespace eosio::chain {
       init_net_usage = initial_net_usage;
 
       // set maximum to a semi-valid deadline to allow for pause math and conversion to dates for logging
-      if( block_deadline == fc::time_point::maximum() ) block_deadline = start + fc::hours(24*7*52);
+      const fc::time_point far_future_time = start + fc::days(7*52);
+      if( block_deadline == fc::time_point::maximum() ) block_deadline = far_future_time;
 
       const auto& cfg = control.get_global_properties().configuration;
       auto& rl = control.get_mutable_resource_limits_manager();
@@ -250,7 +251,10 @@ namespace eosio::chain {
          _deadline = block_deadline;
       }
 
-      transaction_timer.start( _deadline );
+      if(_deadline < far_future_time)
+         transaction_timer.start( _deadline );
+      else
+         transaction_timer.start( fc::time_point::maximum() );  //avoids overhead in starting the timer at all
       checktime(); // Fail early if deadline has already been exceeded
       is_initialized = true;
    }

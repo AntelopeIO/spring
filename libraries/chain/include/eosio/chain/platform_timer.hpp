@@ -13,13 +13,19 @@ struct platform_timer {
    platform_timer();
    ~platform_timer();
 
+   //start() & stop() are not thread safe to each other; i.e. do not overlap calls to start() and stop()
    void start(fc::time_point tp);
    void stop();
+   //interrupt_timer() can be called from any thread
    void interrupt_timer();
 
-   /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
+   /* Sets a callback for when timer expires. Be aware this could fire from a signal handling context and/or
       on any particular thread. Only a single callback can be registered at once; trying to register more will
-      result in an exception. Setting to nullptr disables any current set callback */
+      result in an exception. Setting to nullptr disables any current set callback.
+      Also, stop() is not perfectly synchronized with the callback. It is possible for stop() to return and the
+      callback still execute if the timer expires and stop() is called nearly simultaneously.
+      However, set_expiration_callback() is synchronized with the callback.
+   */
    void set_expiration_callback(void(*func)(void*), void* user) {
       bool expect_false = false;
       while(!atomic_compare_exchange_strong(&_callback_variables_busy, &expect_false, true))
@@ -45,6 +51,7 @@ private:
    void expire_now();
 
    std::atomic<state_t> _state = state_t::stopped;
+   bool timer_running_forever = false;
 
    struct impl;
    constexpr static size_t fwd_size = 8;

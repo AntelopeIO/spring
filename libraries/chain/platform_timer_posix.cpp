@@ -58,9 +58,11 @@ void platform_timer::start(fc::time_point tp) {
    assert(_state == state_t::stopped);
    if(tp == fc::time_point::maximum()) {
       _state = state_t::running;
+      timer_running_forever = true;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
+   timer_running_forever = false;
    if(x.count() <= 0)
       _state = state_t::timed_out;
    else {
@@ -88,11 +90,14 @@ void platform_timer::interrupt_timer() {
 }
 
 void platform_timer::stop() {
-   if(_state == state_t::stopped)
+   const state_t prior_state = _state;
+   if(prior_state == state_t::stopped)
+      return;
+   _state = state_t::stopped;
+   if(prior_state == state_t::timed_out || timer_running_forever)
       return;
    struct itimerspec disable = {{0, 0}, {0, 0}};
    timer_settime(my->timerid, 0, &disable, NULL);
-   _state = state_t::stopped;
 }
 
 }
