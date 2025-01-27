@@ -112,6 +112,7 @@ namespace eosio {
     uint32_t       pending{0};
     vector<T>      ids;
     bool           empty () const { return (mode == none || ids.empty()); }
+    bool operator==(const select_ids&) const noexcept = default;
   };
 
   using ordered_txn_ids = select_ids<transaction_id_type>;
@@ -134,6 +135,15 @@ namespace eosio {
       uint32_t end_block{0};
    };
 
+   struct block_nack_message {
+      block_id_type id;
+   };
+
+   struct block_notice_message {
+      block_id_type previous;
+      block_id_type id;
+   };
+
    using net_message = std::variant<handshake_message,
                                     chain_size_message,
                                     go_away_message,
@@ -143,7 +153,9 @@ namespace eosio {
                                     sync_request_message,
                                     signed_block,
                                     packed_transaction,
-                                    vote_message>;
+                                    vote_message,
+                                    block_nack_message,
+                                    block_notice_message>;
 
 } // namespace eosio
 
@@ -162,6 +174,8 @@ FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )
 FC_REFLECT( eosio::notice_message, (known_trx)(known_blocks) )
 FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
+FC_REFLECT( eosio::block_nack_message, (id) )
+FC_REFLECT( eosio::block_notice_message, (previous)(id) )
 
 /**
  *

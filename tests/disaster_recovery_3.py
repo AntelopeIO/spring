@@ -99,7 +99,7 @@ try:
     for node in [node2, node3]:
         assert node.waitForBlock(n_LIB, timeout=None, blockType=BlockType.lib), "Node did not advance LIB after shutdown of node0 and node1"
         currentLIB = node.getIrreversibleBlockNum()
-        assert currentLIB == n_LIB, f"Node advanced LIB {currentLIB} beyond N LIB {n_LIB}"
+        assert currentLIB == n_LIB, f"Node {node.nodeId} advanced LIB {currentLIB} beyond N LIB {n_LIB}"
 
     Print("Shutdown other two nodes")
     for node in [node2, node3]:
