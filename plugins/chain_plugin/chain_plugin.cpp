@@ -285,7 +285,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
          ("checkpoint", bpo::value<vector<string>>()->composing(), "Pairs of [BLOCK_NUM,BLOCK_ID] that should be enforced as checkpoints.")
          ("wasm-runtime", bpo::value<eosio::chain::wasm_interface::vm_type>()->value_name("runtime")->notifier([](const auto& vm){
             if(vm == wasm_interface::vm_type::eos_vm_oc)
-               wlog("forced-eos-vm-oc mode is not supported. It is for development purposes only");
+               wlog("eos-vm-oc-forced mode is not supported. It is for development purposes only");
          })->default_value(eosio::chain::config::default_wasm_runtime, default_wasm_runtime_str), wasm_runtime_opt.c_str()
          )
          ("profile-account", boost::program_options::value<vector<string>>()->composing(),

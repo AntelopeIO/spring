@@ -26,7 +26,7 @@ appArgs=AppArgs()
 appArgs.add(flag="--read-only-threads", type=int, help="number of read-only threads", default=0)
 appArgs.add(flag="--num-test-runs", type=int, help="number of times to run the tests", default=1)
 appArgs.add(flag="--eos-vm-oc-enable", type=str, help="specify eos-vm-oc-enable option", default="auto")
-appArgs.add(flag="--wasm-runtime", type=str, help="if wanting eos-vm-oc, must use 'forced-eos-vm-oc'", default="eos-vm-jit")
+appArgs.add(flag="--wasm-runtime", type=str, help="if wanting eos-vm-oc, must use 'eos-vm-oc-forced'", default="eos-vm-jit")
 
 args=TestHelper.parse_args({"-p","-n","-d","-s","--nodes-file","--seed"
                             ,"--activate-if","--dump-error-details","-v","--leave-running"
