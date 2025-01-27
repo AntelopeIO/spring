@@ -89,9 +89,9 @@ platform_timer::~platform_timer() {
 
 void platform_timer::start(fc::time_point tp) {
    assert(_state == state_t::stopped);
-   if(tp == fc::time_point::maximum()) {
+   timer_running_forever = tp == fc::time_point::maximum();
+   if(timer_running_forever) {
       _state = state_t::running;
-      timer_running_forever = true;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
