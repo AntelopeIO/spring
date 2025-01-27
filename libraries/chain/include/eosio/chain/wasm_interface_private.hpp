@@ -115,7 +115,6 @@ struct eosvmoc_tier {
       void async_compile_complete(boost::asio::io_context& ctx, const digest_type& code_id, fc::time_point queued_time) {
          if (executing_code_hash.load() == code_id) { // is action still executing?
             auto elapsed = fc::time_point::now() - queued_time;
-            ilog("EOS VM OC tier up for ${id} compile complete ${t}ms", ("id", code_id)("t", elapsed.count()/1000));
             auto expire_in = std::max(fc::microseconds(0), fc::milliseconds(500) - elapsed);
             std::shared_ptr<boost::asio::steady_timer> timer = std::make_shared<boost::asio::steady_timer>(ctx);
             timer->expires_from_now(std::chrono::microseconds(expire_in.count()));
