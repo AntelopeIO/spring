@@ -362,6 +362,32 @@ try:
             assert cluster.getNode(nodeId).relaunch(), f"Unable to relaunch {nodeId}"
             assert cluster.getNode(nodeId).waitForLibToAdvance(), f"LIB did not advance for {nodeId}"
 
+    # Test interrupt during replay
+    if success:
+        # create some heavy blocks to make replay take longer
+        for i in range(50):
+            if i % 2 == 0:
+                contract="eosio.token"
+            else:
+                contract="eosio.system"
+            contractDir=str(cluster.unittestsContractsPath / contract)
+            wasmFile="%s.wasm" % (contract)
+            abiFile="%s.abi" % (contract)
+            Utils.Print("Publish %s contract" % (contract))
+            cluster.biosNode.publishContract(cluster.eosioAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
+
+        for nodeId, nodeArgs in {**replayNodeosArgs}.items():
+            node = cluster.getNode(nodeId)
+            chainArg=f'--replay-blockchain --disable-replay-opts --chain-threads 1'
+            assert node.kill(signal.SIGTERM), "Unable to kill"
+            assert node.relaunch(chainArg=chainArg, timeout=None), f"Unable to relaunch {nodeId}"
+            # tricky to get a good timing here, need enough for the node to launch, but not complete replay
+            time.sleep(0.5)
+            assert node.kill(signal.SIGTERM), "Unable to kill after relaunch"
+            assert node.relaunch(rmArgs=chainArg), "Unable to relaunch after kill"
+            assert node.waitForLibToAdvance(), "LIB did not advance after relaunch"
+            assert node.kill(signal.SIGTERM), "Unable to kill node"
+
     testSuccessful = success
 
     Utils.Print("Script End ................................")
