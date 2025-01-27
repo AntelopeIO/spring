@@ -800,6 +800,7 @@ namespace eosio {
       const string& peer_address() const { return peer_addr; } // thread safe, const
 
       void set_connection_type( const string& peer_addr );
+      void set_peer_connection_type( const string& peer_addr );
       bool is_transactions_only_connection()const { return connection_type == transactions_only; } // thread safe, atomic
       bool is_blocks_only_connection()const { return connection_type == blocks_only; }
       bool is_transactions_connection() const { return connection_type != blocks_only; } // thread safe, atomic
@@ -1156,32 +1157,6 @@ namespace eosio {
    };
    
 
-   std::tuple<std::string, std::string, std::string> split_host_port_type(const std::string& peer_add, bool incoming) {
-      // host:port:[<trx>|<blk>]
-      if (peer_add.empty()) return {};
-
-      string::size_type p = peer_add[0] == '[' ? peer_add.find(']') : 0;
-      string::size_type colon = p != string::npos ? peer_add.find(':', p) : string::npos;
-      if (colon == std::string::npos || colon == 0) {
-         // if incoming then not an error this peer can do anything about
-         if (incoming) {
-            fc_dlog( logger, "Invalid peer address. must be \"host:port[:<blk>|<trx>]\": ${p}", ("p", peer_add) );
-         } else {
-            fc_elog( logger, "Invalid peer address. must be \"host:port[:<blk>|<trx>]\": ${p}", ("p", peer_add) );
-         }
-         return {};
-      }
-      string::size_type colon2 = peer_add.find(':', colon + 1);
-      string::size_type end = colon2 == string::npos
-            ? string::npos : peer_add.find_first_of( " :+=.,<>!$%^&(*)|-#@\t", colon2 + 1 ); // future proof by including most symbols without using regex
-      string host = (p > 0) ? peer_add.substr( 1, p-1 ) : peer_add.substr( 0, colon );
-      string port = peer_add.substr( colon + 1, colon2 == string::npos ? string::npos : colon2 - (colon + 1));
-      string type = colon2 == string::npos ? "" : end == string::npos ?
-         peer_add.substr( colon2 + 1 ) : peer_add.substr( colon2 + 1, end - (colon2 + 1) );
-      return {std::move(host), std::move(port), std::move(type)};
-   }
-
-
    template<typename Function>
    bool connections_manager::any_of_supplied_peers( Function&& f ) const {
       std::shared_lock g( connections_mtx );
@@ -1253,11 +1228,10 @@ namespace eosio {
       return { on_fork, unknown_block };
    }
 
-   connection::connection( const string& endpoint, const string& listen_address )
+   connection::connection( const string& endpoint, const string& this_address )
       : peer_addr( endpoint ),
         strand( boost::asio::make_strand(my_impl->thread_pool.get_executor()) ),
         socket( new tcp::socket( strand ) ),
-        listen_address( listen_address ),
         log_p2p_address( endpoint ),
         connection_id( ++my_impl->current_connection_id ),
         sync_response_expected_timer( my_impl->thread_pool.get_executor() ),
@@ -1265,6 +1239,8 @@ namespace eosio {
         last_handshake_sent(),
         p2p_address( endpoint )
    {
+      auto [host, port, type] = net_utils::split_host_port_type(this_address);
+      listen_address = host + ":" + port; // do not include type in listen_address to avoid peer setting type on connection
       set_connection_type( peer_address() );
       my_impl->mark_bp_connection(this);
       fc_ilog( logger, "created connection - ${c} to ${n}", ("c", connection_id)("n", endpoint) );
@@ -1312,9 +1288,11 @@ namespace eosio {
    }
 
    // called from connection strand
-   void connection::set_connection_type( const std::string& peer_add ) {      
-      auto [host, port, type] = split_host_port_type(peer_add, false);
-      if( type.empty() ) {
+   void connection::set_connection_type( const std::string& peer_add ) {
+      auto [host, port, type] = net_utils::split_host_port_type(peer_add);
+      if (host.empty()) {
+         fc_dlog( logger, "Invalid address: ${a}", ("a", peer_add));
+      } else if( type.empty() ) {
          fc_dlog( logger, "Setting connection - ${c} type for: ${peer} to both transactions and blocks", ("c", connection_id)("peer", peer_add) );
          connection_type = both;
       } else if( type == "trx" ) {
@@ -1325,6 +1303,29 @@ namespace eosio {
          connection_type = blocks_only;
       } else {
          fc_wlog( logger, "Unknown connection - ${c} type: ${t}, for ${peer}", ("c", connection_id)("t", type)("peer", peer_add) );
+      }
+   }
+
+   // called from connection strand
+   void connection::set_peer_connection_type( const std::string& peer_add ) {
+      // peer p2p-listen-endpoint received via handshake may indicate they do not want trx or blocks
+      auto [host, port, type] = net_utils::split_host_port_type(peer_add);
+      if (host.empty()) {
+         fc_dlog( logger, "Invalid peer address: ${a}", ("a", peer_add));
+      } else if( type.empty() ) {
+         // peer asked for both, continue with p2p-peer-address type
+      } else if( type == "trx" ) {
+         if (connection_type == both) { // only switch to trx if p2p-peer-address didn't specify a connection type
+            fc_dlog( logger, "Setting peer connection - ${c} type for: ${peer} to transactions only", ("c", connection_id)("peer", peer_add) );
+            connection_type = transactions_only;
+         }
+      } else if( type == "blk" ) {
+         if (connection_type == both) { // only switch to blocks if p2p-peer-address didn't specify a connection type
+            fc_dlog( logger, "Setting peer connection - ${c} type for: ${peer} to blocks only", ("c", connection_id)("peer", peer_add) );
+            connection_type = blocks_only;
+         }
+      } else {
+         fc_dlog( logger, "Unknown peer connection - ${c} type: ${t}, for ${peer}", ("c", connection_id)("t", type)("peer", peer_add) );
       }
    }
 
@@ -2930,7 +2931,7 @@ namespace eosio {
             fc_ilog(logger, "Accepted new connection: " + paddr_str);
 
             connections.any_of_supplied_peers([&listen_address, &paddr_str, &paddr_desc, &limit](const string& peer_addr) {
-               auto [host, port, type] = split_host_port_type(peer_addr, false);
+               auto [host, port, type] = net_utils::split_host_port_type(peer_addr);
                if (host == paddr_str) {
                   if (limit > 0) {
                      fc_dlog(logger, "Connection inbound to ${la} from ${a} is a configured p2p-peer-address and will not be throttled", ("la", listen_address)("a", paddr_desc));
@@ -3440,9 +3441,11 @@ namespace eosio {
          }
 
          if( incoming() ) {
-            auto [host, port, type] = split_host_port_type(msg.p2p_address, true);
+            auto [host, port, type] = net_utils::split_host_port_type(msg.p2p_address);
             if (host.size())
                set_connection_type( msg.p2p_address);
+            else
+               peer_dlog(this, "Invalid handshake p2p_address ${p}", ("p", msg.p2p_address));
 
             peer_dlog( this, "checking for duplicate" );
             auto is_duplicate = [&](const connection_ptr& check) {
@@ -3463,6 +3466,9 @@ namespace eosio {
             }
          } else {
             peer_dlog(this, "skipping duplicate check, addr == ${pa}, id = ${ni}", ("pa", peer_address())("ni", msg.node_id));
+
+            // check if peer requests no trx or no blocks
+            set_peer_connection_type(msg.p2p_address);
          }
 
          if( msg.chain_id != my_impl->chain_id ) {
@@ -3710,16 +3716,19 @@ namespace eosio {
       switch (msg.req_blocks.mode) {
       case catch_up : {
          const block_id_type& id = msg.req_blocks.ids.empty() ? block_id_type() : msg.req_blocks.ids.back();
-         peer_dlog( this, "received request_message:catch_up #${bn}:${id}", ("bn", block_header::num_from_id(id))("id",id) );
+         peer_dlog( this, "${d} request_message:catch_up #${bn}:${id}",
+                    ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(id))("id",id) );
+         if (!is_blocks_connection())
+            return;
          blk_send_branch( id );
-         break;
+         return;
       }
       case normal : {
          if (protocol_version >= proto_block_nack) {
             if (msg.req_blocks.ids.size() == 2 && msg.req_trx.ids.empty()) {
                const block_id_type& req_id = msg.req_blocks.ids[0]; // 0 - req_id, 1 - peer_head_id
                peer_dlog( this, "${d} request_message:normal #${bn}:${id}",
-                          ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(req_id))("id", req_id) );
+                          ("d", is_blocks_connection() ? "received" : "ignoring")("bn", block_header::num_from_id(req_id))("id",req_id) );
                if (!is_blocks_connection())
                   return;
                const block_id_type& peer_head_id = msg.req_blocks.ids[1];
@@ -3761,6 +3770,11 @@ namespace eosio {
          peer_requested.reset();
          flush_queues();
       } else {
+         if (!is_blocks_connection()) {
+            peer_dlog(this, "received sync_request_message ${m} on transaction only connection, ignoring", ("m", msg));
+            return;
+         }
+
          if (peer_requested) {
             // This happens when peer already requested some range and sync is still in progress
             // It could be higher in case of peer requested head catchup and current request is lib catchup
@@ -4247,11 +4261,15 @@ namespace eosio {
       if(hello.sig == chain::signature_type())
          hello.token = sha256();
       hello.p2p_address = listen_address;
-      if( is_transactions_only_connection() ) hello.p2p_address += ":trx";
-      // if we are not accepting transactions tell peer we are blocks only
-      if( is_blocks_only_connection() || !my_impl->p2p_accept_transactions ) hello.p2p_address += ":blk";
-      if( !is_blocks_only_connection() && !my_impl->p2p_accept_transactions ) {
-         peer_dlog( this, "p2p-accept-transactions=false inform peer blocks only connection ${a}", ("a", hello.p2p_address) );
+      if (incoming()) {
+         if( is_transactions_only_connection() && hello.p2p_address.find(":trx") == std::string::npos ) hello.p2p_address += ":trx";
+         // if we are not accepting transactions tell peer we are blocks only
+         if( is_blocks_only_connection() || !my_impl->p2p_accept_transactions )
+            if (hello.p2p_address.find(":blk") == std::string::npos)
+               hello.p2p_address += ":blk";
+         if( !is_blocks_only_connection() && !my_impl->p2p_accept_transactions ) {
+            peer_dlog( this, "p2p-accept-transactions=false inform peer blocks only connection ${a}", ("a", hello.p2p_address) );
+         }
       }
       hello.p2p_address += " - " + hello.node_id.str().substr(0,7);
 #if defined( __APPLE__ )
@@ -4278,37 +4296,42 @@ namespace eosio {
    void net_plugin::set_program_options( options_description& /*cli*/, options_description& cfg )
    {
       cfg.add_options()
-         ( "p2p-listen-endpoint", bpo::value< vector<string> >()->default_value( vector<string>(1, string("0.0.0.0:9876:0")) ), "The actual host:port[:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times. "
-           "  The optional rate cap will limit per connection block sync bandwidth to the specified rate.  Total "
-           "  allowed bandwidth is the rate-cap multiplied by the connection count limit.  A number alone will be "
-           "  interpreted as bytes per second.  The number may be suffixed with units.  Supported units are: "
-           "  'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
-           "  Transactions and blocks outside of sync mode are not throttled."
-           "  Examples:\n"
-           "    192.168.0.100:9876:1MiB/s\n"
-           "    node.eos.io:9876:1512KB/s\n"
-           "    node.eos.io:9876:0.5GB/s\n"
-           "    [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
-         ( "p2p-server-address", bpo::value< vector<string> >(), "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint. May be used as many times as p2p-listen-endpoint. If provided, the first address will be used in handshakes with other nodes. Otherwise the default is used.")
+         ( "p2p-listen-endpoint", bpo::value< vector<string> >()->default_value( vector<string>(1, string("0.0.0.0:9876:0")) ),
+           "The actual host:port[:trx|:blk][:<rate-cap>] used to listen for incoming p2p connections. May be used multiple times."
+           " The optional rate cap will limit per connection block sync bandwidth to the specified rate. Total"
+           " allowed bandwidth is the rate-cap multiplied by the connection count limit. A number alone will be"
+           " interpreted as bytes per second. The number may be suffixed with units. Supported units are:"
+           " 'B/s', 'KB/s', 'MB/s, 'GB/s', 'TB/s', 'KiB/s', 'MiB/s', 'GiB/s', 'TiB/s'."
+           " Transactions and blocks outside sync mode are not throttled."
+           " The optional 'trx' and 'blk' indicates to peers that only transactions 'trx' or blocks 'blk' should be sent."
+           " Examples:\n"
+           "   192.168.0.100:9876:1MiB/s\n"
+           "   node.eos.io:9876:trx:1512KB/s\n"
+           "   node.eos.io:9876:0.5GB/s\n"
+           "   [2001:db8:85a3:8d3:1319:8a2e:370:7348]:9876:250KB/s")
+         ( "p2p-server-address", bpo::value< vector<string> >(),
+           "An externally accessible host:port for identifying this node. Defaults to p2p-listen-endpoint."
+           " May be used as many times as p2p-listen-endpoint."
+           " If provided, the first address will be used in handshakes with other nodes; otherwise the default is used.")
          ( "p2p-peer-address", bpo::value< vector<string> >()->composing(),
            "The public endpoint of a peer node to connect to. Use multiple p2p-peer-address options as needed to compose a network.\n"
-           "  Syntax: host:port[:<trx>|<blk>]\n"
-           "  The optional 'trx' and 'blk' indicates to node that only transactions 'trx' or blocks 'blk' should be sent."
-           "  Examples:\n"
-           "    p2p.eos.io:9876\n"
-           "    p2p.trx.eos.io:9876:trx\n"
-           "    p2p.blk.eos.io:9876:blk\n")
+           " Syntax: host:port[:trx|:blk]\n"
+           " The optional 'trx' and 'blk' indicates to node that only transactions 'trx' or blocks 'blk' should be sent."
+           " Examples:\n"
+           "   p2p.eos.io:9876\n"
+           "   p2p.trx.eos.io:9876:trx\n"
+           "   p2p.blk.eos.io:9876:blk\n")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
             "Disable block notice and block nack. All blocks received will be broadcast to all peers unless already received.")
          ( "p2p-auto-bp-peer", bpo::value< vector<string> >()->composing(),
-           "The account and public p2p endpoint of a block producer node to automatically connect to when the it is in producer schedule proximity\n."
-           "   Syntax: account,host:port\n"
-           "   Example,\n"
-           "     eosproducer1,p2p.eos.io:9876\n"
-           "     eosproducer2,p2p.trx.eos.io:9876:trx\n"
-           "     eosproducer3,p2p.blk.eos.io:9876:blk\n")
+           "The account and public p2p endpoint of a block producer node to automatically connect to when it is in producer schedule proximity\n."
+           "  Syntax: account,host:port\n"
+           "  Example,\n"
+           "    eosproducer1,p2p.eos.io:9876\n"
+           "    eosproducer2,p2p.trx.eos.io:9876:trx\n"
+           "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
          ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
@@ -4419,6 +4442,11 @@ namespace eosio {
          std::vector<std::string> peers;
          if( options.count( "p2p-peer-address" )) {
             peers = options.at( "p2p-peer-address" ).as<vector<string>>();
+            for (const auto& peer : peers) {
+               const auto& [host, port, type] = net_utils::split_host_port_type(peer);
+               EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]");
+            }
             connections.add_supplied_peers(peers);
          }
          if( options.count( "agent-name" )) {
@@ -4727,7 +4755,7 @@ namespace eosio {
    }
 
    string connections_manager::resolve_and_connect( const string& peer_address, const string& listen_address ) {
-      auto [host, port, type] = split_host_port_type(peer_address, false);
+      auto [host, port, type] = net_utils::split_host_port_type(peer_address);
       if (host.empty()) {
          return "invalid peer address";
       }
@@ -4761,7 +4789,7 @@ namespace eosio {
             return false;
       }
 
-      auto [host, port, type] = split_host_port_type(peer_address(), false);
+      auto [host, port, type] = net_utils::split_host_port_type(peer_address());
       if (host.empty())
          return false;
 
