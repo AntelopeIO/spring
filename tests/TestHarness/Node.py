@@ -527,6 +527,11 @@ class Node(Transactions):
         err = dd / Path(f'stderr.{launch_time}.txt')
         pidf = dd / Path(f'{Utils.EosServerName}.pid')
 
+        i = 0
+        while err.is_file():
+            i = i + 1
+            err = dd / Path(f'stderr.{launch_time}-{i}.txt')
+
         Utils.Print(f'spawning child: {" ".join(cmd)}')
         dd.mkdir(parents=True, exist_ok=True)
         with out.open('w') as sout, err.open('w') as serr:
