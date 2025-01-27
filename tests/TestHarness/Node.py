@@ -465,21 +465,22 @@ class Node(Transactions):
                 pass
             return False
 
-        if waitForTerm:
-            isAlive=self.waitForNodeToExit(timeout)
-        else:
-            isAlive=Utils.waitForBool(isNodeAlive, timeout, sleepTime=1)
+        if timeout is not None:
+            if waitForTerm:
+                isAlive=self.waitForNodeToExit(timeout)
+            else:
+                isAlive=Utils.waitForBool(isNodeAlive, timeout, sleepTime=1)
 
-        if isAlive:
-            Utils.Print("Node relaunch was successful.")
-        else:
-            Utils.Print("ERROR: Node relaunch Failed.")
-            # Ensure the node process is really killed
-            if self.popenProc:
-                self.popenProc.send_signal(signal.SIGTERM)
-                self.popenProc.wait()
-            self.pid=None
-            return False
+            if isAlive:
+                Utils.Print("Node relaunch was successful.")
+            else:
+                Utils.Print("ERROR: Node relaunch Failed.")
+                # Ensure the node process is really killed
+                if self.popenProc:
+                    self.popenProc.send_signal(signal.SIGTERM)
+                    self.popenProc.wait()
+                self.pid=None
+                return False
 
         self.cmd=cmdArr
         self.killed=False
