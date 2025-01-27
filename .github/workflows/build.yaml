@@ -168,7 +168,9 @@ jobs:
           path: /cores
           compression-level: 0
       - name: Check CPU Features
-        run: awk 'BEGIN {err = 1} /bmi2/ && /adx/ {err = 0} END {exit err}' /proc/cpuinfo
+        run: |
+          awk 'BEGIN {err = 1} /bmi2/ && /adx/ {err = 0} END {exit err}' /proc/cpuinfo
+          build/tools/fsgsbase-enabled
 
   np-tests:
     name: NP Tests (${{matrix.cfg.name}})
