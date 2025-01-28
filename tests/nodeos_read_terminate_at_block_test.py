@@ -382,7 +382,7 @@ try:
             assert node.kill(signal.SIGTERM), "Unable to kill"
             assert node.relaunch(chainArg=chainArg, timeout=None), f"Unable to relaunch {nodeId}"
             # tricky to get a good timing here, need enough for the node to launch, but not complete replay
-            time.sleep(0.5)
+            time.sleep(1)
             assert node.kill(signal.SIGTERM), "Unable to kill after relaunch"
             assert node.relaunch(rmArgs=chainArg), "Unable to relaunch after kill"
             assert node.waitForLibToAdvance(), "LIB did not advance after relaunch"
