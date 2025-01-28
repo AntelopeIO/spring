@@ -88,20 +88,23 @@ platform_timer::~platform_timer() {
 }
 
 void platform_timer::start(fc::time_point tp) {
-   if(tp == fc::time_point::maximum()) {
-      expired = false;
+   assert(_state == state_t::stopped);
+   timer_running_forever = tp == fc::time_point::maximum();
+   if(timer_running_forever) {
+      _state = state_t::running;
       return;
    }
    fc::microseconds x = tp.time_since_epoch() - fc::time_point::now().time_since_epoch();
+   timer_running_forever = false;
    if(x.count() <= 0)
-      expired = true;
+      _state = state_t::timed_out;
    else {
       struct kevent64_s aTimerEvent;
       EV_SET64(&aTimerEvent, my->timerid, EVFILT_TIMER, EV_ADD|EV_ENABLE|EV_ONESHOT, NOTE_USECONDS|NOTE_CRITICAL, x.count(), (uint64_t)this, 0, 0);
 
-      expired = false;
+      _state = state_t::running;
       if(kevent64(kqueue_fd, &aTimerEvent, 1, NULL, 0, KEVENT_FLAG_IMMEDIATE, NULL) != 0)
-         expired = true;
+         _state = state_t::timed_out;
    }
 }
 
@@ -120,7 +123,11 @@ void platform_timer::interrupt_timer() {
 }
 
 void platform_timer::stop() {
-   if(_state == state_t::stopped)
+   const state_t prior_state = _state;
+   if(prior_state == state_t::stopped)
+      return;
+   _state = state_t::stopped;
+   if(prior_state == state_t::timed_out || timer_running_forever)
       return;
 
    struct kevent64_s stop_timer_event;
