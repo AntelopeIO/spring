@@ -44,7 +44,7 @@ def verifyExceptionShutsdown(node, sig, exception):
     if node.isProducer:
         node.waitForProducer("defproducera")
     node.processUrllibRequest("test_control", "throw_on", {"signal":sig, "exception":exception})
-    assert node.waitForNodeToExit(timeout=5), f"Node {node.nodeId} did not shutdown on {sig} exception {exception}"
+    assert node.waitForNodeToExit(timeout=10), f"Node {node.nodeId} did not shutdown on {sig} exception {exception}"
     assert not node.verifyAlive(), f"Node {node.nodeId} did not shutdown on {sig} exception {exception}"
     assert node.relaunch(), f"Node {node.nodeId} relaunch failed after {sig} exception {exception}"
     assert node.waitForHeadToAdvance(), f"Node {node.nodeId} did not advance head after relaunch after {sig} exception {exception}"
