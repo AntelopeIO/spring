@@ -990,7 +990,7 @@ struct controller_impl {
    // persist chain_head after vote_processor shutdown, avoids concurrent access, after chain_head & conf since this uses them
    fc::scoped_exit<std::function<void()>> write_chain_head = [&]() { chain_head.write(conf.state_dir / config::chain_head_filename); };
    const chain_id_type             chain_id; // read by thread_pool threads, value will not be changed
-   bool                            replaying = false;
+   std::atomic<bool>               replaying = false;
    bool                            is_producer_node = false; // true if node is configured as a block producer
    block_num_type                  pause_at_block_num = std::numeric_limits<block_num_type>::max();
    const db_read_mode              read_mode;
@@ -1751,7 +1751,8 @@ struct controller_impl {
       }
       transition_legacy_branch.clear(); // not needed after replay
       auto end = fc::time_point::now();
-      ilog( "${n} irreversible blocks replayed from block log", ("n", 1 + chain_head.block_num() - start_block_num) );
+      ilog( "${n} irreversible blocks replayed from block log, chain head ${bn}",
+            ("n", 1 + chain_head.block_num() - start_block_num)("bn", chain_head.block_num()) );
       ilog( "replayed ${n} blocks in ${duration} seconds, ${mspb} ms/block",
             ("n", chain_head.block_num() + 1 - start_block_num)("duration", (end-start).count()/1000000)
             ("mspb", ((end-start).count()/1000.0)/(chain_head.block_num()-start_block_num)) );
@@ -2050,7 +2051,8 @@ struct controller_impl {
          ilog( "chain database started with hash: ${hash}", ("hash", calculate_integrity_hash()) );
       okay_to_print_integrity_hash_on_stop = true;
 
-      fc::scoped_set_value r(replaying, true);
+      replaying = true;
+      auto replay_reset = fc::make_scoped_exit([&](){ replaying = false; });
       replay( startup ); // replay any irreversible and reversible blocks ahead of current head
 
       if( check_shutdown() ) return;
@@ -4533,7 +4535,7 @@ struct controller_impl {
       // Only interrupt transaction if applying a block. Speculative trxs already have a deadline set so they
       // have limited run time already. This is to allow killing a long-running transaction in a block being
       // validated.
-      if (applying_block) {
+      if (!replaying && applying_block) {
          ilog("Interrupting apply block");
          main_thread_timer.interrupt_timer();
       }
