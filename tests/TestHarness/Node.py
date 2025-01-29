@@ -527,6 +527,7 @@ class Node(Transactions):
         err = dd / Path(f'stderr.{launch_time}.txt')
         pidf = dd / Path(f'{Utils.EosServerName}.pid')
 
+        # make sure unique file name to avoid overwrite of existing log file
         i = 0
         while err.is_file():
             i = i + 1
