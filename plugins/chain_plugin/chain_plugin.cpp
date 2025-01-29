@@ -32,6 +32,22 @@
 const std::string deep_mind_logger_name("deep-mind");
 eosio::chain::deep_mind_handler _deep_mind_log;
 
+namespace std {
+   // declare operator<< for boost program options of vector<string>
+   std::ostream& operator<<(std::ostream& osm, const std::vector<std::string>& v) {
+      auto size = v.size();
+      osm << "{";
+      for (size_t i = 0; i < size; ++i) {
+         osm << v[i];
+         if (i < size - 1) {
+            osm << ", ";
+         }
+      }
+      osm << "}";
+      return osm;
+   }
+}
+
 namespace eosio {
 
 //declare operator<< and validate function for read_mode in the same namespace as read_mode itself
@@ -237,10 +253,6 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
    delim = ", ";
 #endif
 
-#ifdef EOSIO_EOS_VM_OC_DEVELOPER
-   wasm_runtime_opt += delim + "\"eos-vm-oc\"";
-   wasm_runtime_desc += "\"eos-vm-oc\" : Unsupported. Instead, use one of the other runtimes along with the option eos-vm-oc-enable.\n";
-#endif
    wasm_runtime_opt += ")\n" + wasm_runtime_desc;
 
    std::string default_wasm_runtime_str= eosio::chain::wasm_interface::vm_type_string(eosio::chain::config::default_wasm_runtime);
@@ -272,13 +284,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "the location of the protocol_features directory (absolute path or relative to application config dir)")
          ("checkpoint", bpo::value<vector<string>>()->composing(), "Pairs of [BLOCK_NUM,BLOCK_ID] that should be enforced as checkpoints.")
          ("wasm-runtime", bpo::value<eosio::chain::wasm_interface::vm_type>()->value_name("runtime")->notifier([](const auto& vm){
-#ifndef EOSIO_EOS_VM_OC_DEVELOPER
-            //throwing an exception here (like EOS_ASSERT) is just gobbled up with a "Failed to initialize" error :(
-            if(vm == wasm_interface::vm_type::eos_vm_oc) {
-               elog("EOS VM OC is a tier-up compiler and works in conjunction with the configured base WASM runtime. Enable EOS VM OC via 'eos-vm-oc-enable' option");
-               EOS_ASSERT(false, plugin_exception, "");
-            }
-#endif
+            if(vm == wasm_interface::vm_type::eos_vm_oc)
+               wlog("eos-vm-oc-forced mode is not supported. It is for development purposes only");
          })->default_value(eosio::chain::config::default_wasm_runtime, default_wasm_runtime_str), wasm_runtime_opt.c_str()
          )
          ("profile-account", boost::program_options::value<vector<string>>()->composing(),
@@ -356,6 +363,8 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->default_value(std::vector<string>{{"xsat"}}),
+          "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
          ("transaction-retry-max-storage-size-gb", bpo::value<uint64_t>(),
@@ -520,6 +529,7 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       LOAD_VALUE_SET( options, "actor-blacklist", chain_config->actor_blacklist );
       LOAD_VALUE_SET( options, "contract-whitelist", chain_config->contract_whitelist );
       LOAD_VALUE_SET( options, "contract-blacklist", chain_config->contract_blacklist );
+      LOAD_VALUE_SET( options, "eos-vm-oc-whitelist", chain_config->eos_vm_oc_whitelist_suffixes);
 
       LOAD_VALUE_SET( options, "trusted-producer", chain_config->trusted_producers );
 
@@ -923,12 +933,6 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
       }
       api_accept_transactions = options.at( "api-accept-transactions" ).as<bool>();
 
-      if( chain_config->read_mode == db_read_mode::IRREVERSIBLE ) {
-         if( api_accept_transactions ) {
-            api_accept_transactions = false;
-            wlog( "api-accept-transactions set to false due to read-mode: irreversible" );
-         }
-      }
       if( api_accept_transactions ) {
          enable_accept_transactions();
       }
@@ -1119,10 +1123,11 @@ void chain_plugin::plugin_initialize(const variables_map& options) {
 
 void chain_plugin_impl::plugin_startup()
 { try {
-   EOS_ASSERT( chain_config->read_mode != db_read_mode::IRREVERSIBLE || !accept_transactions, plugin_config_exception,
-               "read-mode = irreversible. transactions should not be enabled by enable_accept_transactions" );
    try {
-      auto shutdown = [](){ return app().quit(); };
+      auto shutdown = []() {
+         dlog("controller shutdown, quitting...");
+         return app().quit();
+      };
       auto check_shutdown = [](){ return app().is_quiting(); };
       if (snapshot_path)
          chain->startup(shutdown, check_shutdown, std::make_shared<threaded_snapshot_reader>(*snapshot_path));

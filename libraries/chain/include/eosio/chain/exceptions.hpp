@@ -141,10 +141,6 @@
        \
        virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
        { return std::make_shared<TYPE>( *this ); } \
-       virtual NO_RETURN void     dynamic_rethrow_exception()const \
-       { if( code() == CODE ) throw *this;\
-         else fc::exception::dynamic_rethrow_exception(); \
-       } \
        std::optional<uint64_t> error_code; \
    };
 
@@ -394,6 +390,8 @@ namespace eosio { namespace chain {
                                     3080010, "Read-only transaction eos-vm-oc compile permanent failure" )
       FC_DECLARE_DERIVED_EXCEPTION( interrupt_exception, resource_exhausted_exception,
                                     3080011, "Transaction interrupted by signal" )
+      FC_DECLARE_DERIVED_EXCEPTION( interrupt_oc_exception, resource_exhausted_exception,
+                                    3080012, "Transaction interrupted by oc compile" )
 
    FC_DECLARE_DERIVED_EXCEPTION( authorization_exception, chain_exception,
                                  3090000, "Authorization exception" )
@@ -611,6 +609,8 @@ namespace eosio { namespace chain {
                                     3170015, "Invalid snapshot request" )
       FC_DECLARE_DERIVED_EXCEPTION( snapshot_execution_exception,  producer_exception,
                                     3170016, "Snapshot execution exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( invalid_pause_at_block_request, producer_exception,
+                                    3170017, "Invalid pause at block request" )
 
    FC_DECLARE_DERIVED_EXCEPTION( reversible_blocks_exception,           chain_exception,
                                  3180000, "Reversible Blocks exception" )

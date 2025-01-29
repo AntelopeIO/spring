@@ -133,7 +133,7 @@ void snapshot_scheduler::execute_snapshot(uint32_t srid, chain::controller& chai
    auto next = [srid, this](const chain::next_function_variant<snapshot_information>& result) {
       if(std::holds_alternative<fc::exception_ptr>(result)) {
          try {
-            std::get<fc::exception_ptr>(result)->dynamic_rethrow_exception();
+            throw *std::get<fc::exception_ptr>(result);
          } catch(const fc::exception& e) {
             EOS_THROW(snapshot_execution_exception,
                      "Snapshot creation error: ${details}",

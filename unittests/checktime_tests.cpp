@@ -43,38 +43,6 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_pass_tests, T, validating_testers)  { tr
 } FC_LOG_AND_RETHROW() }
 
 template<class T, typename Tester>
-void push_trx(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu_usage_ms, uint32_t max_block_cpu_ms,
-              bool explicit_bill, std::vector<char> payload = {}, name account = "testapi"_n, transaction_metadata::trx_type trx_type = transaction_metadata::trx_type::input ) {
-   signed_transaction trx;
-
-   action act;
-   act.account = ac.get_account();
-   act.name = ac.get_name();
-   if ( trx_type != transaction_metadata::trx_type::read_only ) {
-      auto pl = vector<permission_level>{{account, config::active_name}};
-      act.authorization = pl;
-   }
-   act.data = payload;
-
-   trx.actions.push_back(act);
-   test.set_transaction_headers(trx);
-   if ( trx_type != transaction_metadata::trx_type::read_only ) {
-      auto sigs = trx.sign(test.get_private_key(account, "active"), test.get_chain_id());
-   }
-   flat_set<public_key_type> keys;
-   trx.get_signature_keys(test.get_chain_id(), fc::time_point::maximum(), keys);
-   auto ptrx = std::make_shared<packed_transaction>( std::move(trx) );
-
-   auto fut = transaction_metadata::start_recover_keys( std::move( ptrx ), test.control->get_thread_pool(),
-                                                        test.get_chain_id(), fc::microseconds::maximum(),
-                                                        trx_type );
-   auto res = test.control->push_transaction( fut.get(), fc::time_point::now() + fc::milliseconds(max_block_cpu_ms),
-                                              fc::milliseconds(max_cpu_usage_ms), billed_cpu_time_us, explicit_bill, 0 );
-   if( res->except_ptr ) std::rethrow_exception( res->except_ptr );
-   if( res->except ) throw *res->except;
-};
-
-template<class T, typename Tester>
 void call_test(Tester& test, T ac, uint32_t billed_cpu_time_us , uint32_t max_cpu_usage_ms, uint32_t max_block_cpu_ms,
                std::vector<char> payload = {}, name account = "testapi"_n, transaction_metadata::trx_type trx_type = transaction_metadata::trx_type::input ) {
    push_trx(test, ac, billed_cpu_time_us, max_cpu_usage_ms, max_block_cpu_ms, billed_cpu_time_us > 0, payload, account, trx_type);
@@ -160,7 +128,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
 
    std::thread th( [&c=*other.control]() {
       std::this_thread::sleep_for( std::chrono::milliseconds(50) );
-      c.interrupt_transaction();
+      c.interrupt_apply_block_transaction();
    } );
 
    // apply block, caught in an "infinite" loop
@@ -498,12 +466,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(checktime_hashing_fail, T, validating_testers) { t
 	chain.produce_block();
 
         BOOST_TEST( !chain.is_code_cached("testapi"_n) );
-
-        //hit deadline exception, but cache the contract
-        BOOST_CHECK_EXCEPTION( call_test( chain, test_api_action<WASM_TEST_ACTION("test_checktime", "checktime_sha1_failure")>{},
-                                          5000, 8, 8 ),
-                               deadline_exception, is_deadline_exception );
-
+        //run a simple action to cache the contract
+        CALL_TEST_FUNCTION(chain, "test_checktime", "checktime_pass", {});
         BOOST_TEST( chain.is_code_cached("testapi"_n) );
 
         //the contract should be cached, now we should get deadline_exception because of calls to checktime() from hashing function

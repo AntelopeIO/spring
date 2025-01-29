@@ -39,9 +39,8 @@ static void segv_handler(int sig, siginfo_t* info, void* ctx)  {
    control_block* cb_in_main_segment;
 
    //a 0 GS value is an indicator an executor hasn't been active on this thread recently
-   uint64_t current_gs;
-   syscall(SYS_arch_prctl, ARCH_GET_GS, &current_gs);
-   if(current_gs == 0)
+   uint64_t current_gs = eos_vm_oc_getgs();
+   if(eos_vm_oc_getgs() == 0)
       goto notus;
 
    cb_in_main_segment = reinterpret_cast<control_block*>(current_gs - memory::cb_offset);
@@ -188,11 +187,11 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
          mprotect(mem.full_page_memory_base() + initial_page_offset * eosio::chain::wasm_constraints::wasm_page_size,
                   (code.starting_memory_pages - initial_page_offset) * eosio::chain::wasm_constraints::wasm_page_size, PROT_READ | PROT_WRITE);
       }
-      arch_prctl(ARCH_SET_GS, (unsigned long*)(mem.zero_page_memory_base()+initial_page_offset*memory::stride));
+      eos_vm_oc_setgs((uint64_t)mem.zero_page_memory_base()+initial_page_offset*memory::stride);
       memset(mem.full_page_memory_base(), 0, 64u*1024u*code.starting_memory_pages);
    }
    else
-      arch_prctl(ARCH_SET_GS, (unsigned long*)mem.zero_page_memory_base());
+      eos_vm_oc_setgs((uint64_t)mem.zero_page_memory_base());
 
    void* globals;
    if(code.initdata_prologue_size > memory::max_prologue_size) {
@@ -279,7 +278,7 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
 }
 
 executor::~executor() {
-   arch_prctl(ARCH_SET_GS, nullptr);
+   eos_vm_oc_setgs(0);
    munmap(code_mapping, code_mapping_size);
 }
 

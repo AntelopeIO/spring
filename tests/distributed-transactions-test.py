@@ -12,7 +12,7 @@ from TestHarness.TestHelper import AppArgs
 # Performs currency transfers between N accounts sent to http endpoints of
 # N nodes and verifies, after a steady state is reached, that the accounts
 # balances are correct
-# if called with --nodes-file it will will load a json description of nodes
+# if called with --nodes-file it will load a json description of nodes
 # that are already running and run distributed test against them (not
 # currently testing this feature)
 #
@@ -22,20 +22,19 @@ Print=Utils.Print
 errorExit=Utils.errorExit
 
 appArgs = AppArgs()
-extraArgs = appArgs.add_bool(flag="--speculative", help="Run nodes in read-mode=speculative")
-args=TestHelper.parse_args({"-p","-n","-d","-s","--nodes-file","--seed", "--speculative", "--activate-if"
+args=TestHelper.parse_args({"-p","-n","-d","-s","--nodes-file","--seed", "--activate-if"
                            ,"--dump-error-details","-v","--leave-running","--keep-logs","--unshared"}, applicationSpecificArgs=appArgs)
 
 pnodes=args.p
 topo=args.s
 delay=args.d
 total_nodes = pnodes if args.n < pnodes else args.n
+total_nodes = total_nodes if total_nodes > pnodes + 3 else pnodes + 3
 debug=args.v
 nodesFile=args.nodes_file
 dontLaunch=nodesFile is not None
 seed=args.seed
 dumpErrorDetails=args.dump_error_details
-speculative=args.speculative
 activateIF=args.activate_if
 
 Utils.Debug=debug
@@ -64,11 +63,13 @@ try:
                (pnodes, total_nodes-pnodes, topo, delay))
 
         Print("Stand up cluster")
-        extraNodeosArgs = ""
-        if speculative:
-           extraNodeosArgs = " --read-mode speculative "
+        specificExtraNodeosArgs = {}
+        specificExtraNodeosArgs[total_nodes-1] = f' --read-mode head '
+        if activateIF: # irreversible mode speculative trx execution not recommended in legacy mode
+            specificExtraNodeosArgs[total_nodes-2] = f' --read-mode irreversible '
+        specificExtraNodeosArgs[total_nodes-3] = f' --read-mode speculative '
 
-        if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, extraNodeosArgs=extraNodeosArgs, activateIF=activateIF) is False:
+        if cluster.launch(pnodes=pnodes, totalNodes=total_nodes, topo=topo, delay=delay, specificExtraNodeosArgs=specificExtraNodeosArgs, activateIF=activateIF) is False:
             errorExit("Failed to stand up eos cluster.")
 
         Print ("Wait for Cluster stabilization")
@@ -99,7 +100,8 @@ try:
         errorExit("Accounts creation failed.")
 
     Print("Spread funds and validate")
-    if not cluster.spreadFundsAndValidate(10):
+    # if activateIF then irreversible node needs funds to be irreversible before validation
+    if not cluster.spreadFundsAndValidate(10, waitForFinalization=activateIF):
         errorExit("Failed to spread and validate funds.")
 
     print("Funds spread validated")

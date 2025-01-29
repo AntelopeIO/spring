@@ -26,6 +26,8 @@ int32_t eos_vm_oc_grow_memory(int32_t grow, int32_t max);
 sigjmp_buf* eos_vm_oc_get_jmp_buf();
 void* eos_vm_oc_get_exception_ptr();
 void* eos_vm_oc_get_bounce_buffer_list();
+uint64_t eos_vm_oc_getgs();
+void eos_vm_oc_setgs(uint64_t gs);
 
 #ifdef __cplusplus
 }

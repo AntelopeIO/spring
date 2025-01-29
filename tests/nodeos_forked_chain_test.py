@@ -500,8 +500,8 @@ try:
     Print("Tracking the blocks from the divergence till there are 10*12 blocks on one chain and 10*12+1 on the other, from block %d to %d" % (killBlockNum, lastBlockNum))
 
     for blockNum in range(killBlockNum,lastBlockNum):
-        blockProducer0=prodNodes[0].getBlockProducerByNum(blockNum)
-        blockProducer1=prodNodes[1].getBlockProducerByNum(blockNum)
+        blockProducer0=prodNodes[0].getBlockProducerByNum(blockNum, timeout=70)
+        blockProducer1=prodNodes[1].getBlockProducerByNum(blockNum, timeout=70)
         blockProducers0.append({"blockNum":blockNum, "prod":blockProducer0})
         blockProducers1.append({"blockNum":blockNum, "prod":blockProducer1})
 

@@ -9,6 +9,7 @@
 #include <eosio/chain/subjective_billing.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/unapplied_transaction_queue.hpp>
+#include <eosio/chain/fork_database.hpp>
 #include <eosio/resource_monitor_plugin/resource_monitor_plugin.hpp>
 
 #include <fc/io/json.hpp>
@@ -92,6 +93,7 @@ bool exception_is_exhausted(const fc::exception& e) {
    return (code == block_cpu_usage_exceeded::code_value) ||
           (code == block_net_usage_exceeded::code_value) ||
           (code == deadline_exception::code_value) ||
+          (code == interrupt_exception::code_value) || // allow interrupted trxs to be retried
           (code == ro_trx_vm_oc_compile_temporary_failure::code_value);
 }
 } // namespace
@@ -557,9 +559,8 @@ private:
 class producer_plugin_impl : public std::enable_shared_from_this<producer_plugin_impl> {
 public:
    producer_plugin_impl()
-      : _timer(app().make_timer<boost::asio::deadline_timer>())
-      , _transaction_ack_channel(app().get_channel<compat::channels::transaction_ack>())
-      , _ro_timer(app().make_timer<boost::asio::deadline_timer>()) {}
+      : _transaction_ack_channel(app().get_channel<compat::channels::transaction_ack>())
+   {}
 
    void     schedule_production_loop();
    void     schedule_maybe_produce_block(bool exhausted);
@@ -683,11 +684,14 @@ public:
    bool                                  _production_enabled = false;
    bool                                  _pause_production   = false;
 
+   eosio::chain::named_thread_pool<struct prod>      _timer_thread;
+   boost::asio::deadline_timer                       _timer{_timer_thread.get_executor()};
+
    using signature_provider_type = signature_provider_plugin::signature_provider_type;
    std::map<chain::public_key_type, signature_provider_type> _signature_providers;
    chain::bls_pub_priv_key_map_t                     _finalizer_keys; // public, private
    std::set<chain::account_name>                     _producers;
-   boost::asio::deadline_timer                       _timer;
+   chain::db_read_mode                               _db_read_mode = db_read_mode::HEAD;
    block_timing_util::producer_watermarks            _producer_watermarks;
    pending_block_mode                                _pending_block_mode = pending_block_mode::speculating;
    unapplied_transaction_queue                       _unapplied_transactions;
@@ -800,7 +804,7 @@ public:
                                                                    // use atomic for simplicity and performance
    fc::time_point                 _ro_read_window_start_time;
    fc::time_point                 _ro_window_deadline;    // only modified on app thread, read-window deadline or write-window deadline
-   boost::asio::deadline_timer    _ro_timer;              // only accessible from the main thread
+   boost::asio::deadline_timer    _ro_timer{_timer_thread.get_executor()}; // only accessible from the main thread
    fc::microseconds               _ro_max_trx_time_us{0}; // calculated during option initialization
    ro_trx_queue_t                 _ro_exhausted_trx_queue;
    alignas(hardware_destructive_interference_sz)
@@ -827,6 +831,14 @@ public:
 
    bool implicitly_paused() const {
       return _implicit_pause_vote_tracker.check_pause_status(fc::time_point::now()).should_pause();
+   }
+
+   bool is_configured_producer() const {
+      return !_producers.empty();
+   }
+
+   bool irreversible_mode() const {
+      return _db_read_mode == db_read_mode::IRREVERSIBLE;
    }
 
    void on_accepted_block(const signed_block_ptr& block, const block_id_type& id) {
@@ -1112,8 +1124,7 @@ public:
    }
 
 
-   fc::microseconds get_irreversible_block_age() {
-      auto now = fc::time_point::now();
+   fc::microseconds get_irreversible_block_age(fc::time_point now = fc::time_point::now()) {
       if (now < _irreversible_block_time) {
          return fc::microseconds(0);
       } else {
@@ -1151,7 +1162,21 @@ public:
       }
    }
 
+   void pause_at_block(block_num_type block_num) {
+      auto& chain = chain_plug->chain();
+
+      auto head = chain.head();
+      EOS_ASSERT(block_num > head.block_num(), invalid_pause_at_block_request,
+                 "Pause at block ${bn} <= chain head ${h}", ("bn", block_num)("h", head.block_num()));
+
+      fc_ilog(_log, "Set pause at block #${bn}", ("bn", block_num));
+      chain.set_pause_at_block_num(block_num);
+   }
+
    void resume() {
+      auto& chain = chain_plug->chain();
+      chain.set_pause_at_block_num(std::numeric_limits<block_num_type>::max());
+
       _pause_production = false;
       // reset vote received so production can be explicitly resumed, will pause again when received vote time limit hit again
       if (_is_savanna_active)
@@ -1178,6 +1203,10 @@ public:
    };
 
    inline bool should_interrupt_start_block( const fc::time_point& deadline, uint32_t pending_block_num ) const;
+   start_block_result determine_pending_block_mode(const fc::time_point& now,
+                                                   const block_handle& head,
+                                                   const block_timestamp_type& block_time,
+                                                   const producer_authority& scheduled_producer);
    start_block_result start_block();
 
    block_timestamp_type calculate_pending_block_time() const;
@@ -1312,7 +1341,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
 
    chain::controller& chain = chain_plug->chain();
 
-   chain.set_producer_node(!_producers.empty());
+   chain.set_producer_node(is_configured_producer());
 
    if (options.count("signature-provider")) {
       const std::vector<std::string> key_spec_pairs = options["signature-provider"].as<std::vector<std::string>>();
@@ -1421,7 +1450,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
 
    if (options.count("read-only-threads")) {
       _ro_thread_pool_size = options.at("read-only-threads").as<uint32_t>();
-   } else if (_producers.empty()) {
+   } else if (!is_configured_producer()) {
       // appbase initialization order is non-deterministic outside listed APPBASE_PLUGIN_REQUIRES plugins.
       // To avoid setting up a dependency of producer_plugin on chain_api_plugin, search for the plugin in options instead.
       if (options.count("plugin")) {
@@ -1434,7 +1463,7 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
          }
       }
    }
-   EOS_ASSERT(producer_plugin::test_mode_ || _ro_thread_pool_size == 0 || _producers.empty(), plugin_config_exception,
+   EOS_ASSERT(producer_plugin::test_mode_ || _ro_thread_pool_size == 0 || !is_configured_producer(), plugin_config_exception,
               "read-only-threads not allowed on producer node");
 
    // only initialize other read-only options when read-only thread pool is enabled
@@ -1450,29 +1479,31 @@ void producer_plugin_impl::plugin_initialize(const boost::program_options::varia
                  plugin_config_exception,
                  "read-only-read-window-time-us (${read}) must be at least greater than  ${min} us",
                  ("read", _ro_read_window_time_us)("min", _ro_read_window_minimum_time_us));
-      _ro_read_window_effective_time_us = _ro_read_window_time_us - _ro_read_window_minimum_time_us;
-
+      _ro_read_window_effective_time_us = _ro_read_window_time_us;
       ilog("read-only-write-window-time-us: ${ww} us, read-only-read-window-time-us: ${rw} us, effective read window time to be used: ${w} us",
            ("ww", _ro_write_window_time_us)("rw", _ro_read_window_time_us)("w", _ro_read_window_effective_time_us));
-   }
-   app().executor().init_read_threads(_ro_thread_pool_size);
+      // Make sure _ro_max_trx_time_us is always set.
+      // Make sure a read-only transaction can finish within the read
+      // window if scheduled at the very beginning of the window.
+      if (_max_transaction_time_ms.load() > 0) {
+         _ro_max_trx_time_us = fc::milliseconds(_max_transaction_time_ms.load());
+      } else {
+         // max-transaction-time can be set to negative for unlimited time
+         _ro_max_trx_time_us = fc::microseconds::maximum();
+      }
+      // Factor _ro_read_window_minimum_time_us into _ro_max_trx_time_us
+      // such that a transaction which runs less than or equal to _ro_max_trx_time_us
+      // can fit in effective read-only window
+      assert(_ro_read_window_effective_time_us > _ro_read_window_minimum_time_us);
+      if (_ro_max_trx_time_us  > _ro_read_window_effective_time_us - _ro_read_window_minimum_time_us) {
+         _ro_max_trx_time_us = _ro_read_window_effective_time_us - _ro_read_window_minimum_time_us;
+      }
+      ilog("Read-only max transaction time ${rot}us set to fit in the effective read-only window ${row}us.",
+           ("rot", _ro_max_trx_time_us)("row", _ro_read_window_effective_time_us));
+      ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
-   // Make sure _ro_max_trx_time_us is always set.
-   // Make sure a read-only transaction can finish within the read
-   // window if scheduled at the very beginning of the window.
-   // Add _ro_read_window_minimum_time_us for safety margin.
-   if (_max_transaction_time_ms.load() > 0) {
-      _ro_max_trx_time_us = fc::milliseconds(_max_transaction_time_ms.load());
-   } else {
-      // max-transaction-time can be set to negative for unlimited time
-      _ro_max_trx_time_us = fc::microseconds::maximum();
+      app().executor().init_read_threads(_ro_thread_pool_size);
    }
-   if (_ro_max_trx_time_us > _ro_read_window_effective_time_us) {
-      _ro_max_trx_time_us = _ro_read_window_effective_time_us;
-   }
-   ilog("Read-only max transaction time ${rot}us set to fit in the effective read-only window ${row}us.",
-        ("rot", _ro_max_trx_time_us)("row", _ro_read_window_effective_time_us));
-   ilog("read-only-threads ${s}, max read-only trx time to be enforced: ${t} us", ("s", _ro_thread_pool_size)("t", _ro_max_trx_time_us));
 
    _incoming_block_sync_provider = app().get_method<incoming::methods::block_sync>().register_provider(
       [this](const signed_block_ptr& block, const block_id_type& block_id, const block_handle& bh) {
@@ -1528,16 +1559,18 @@ void producer_plugin_impl::plugin_startup() {
       dlog("producer plugin:  plugin_startup() begin");
 
       chain::controller& chain = chain_plug->chain();
-      EOS_ASSERT(_producers.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      _db_read_mode = chain.get_read_mode();
+
+      EOS_ASSERT(!is_configured_producer() || !irreversible_mode(), plugin_config_exception,
                  "node cannot have any producer-name configured because block production is impossible when read_mode is \"irreversible\"");
 
-      EOS_ASSERT(_finalizer_keys.empty() || chain.get_read_mode() != chain::db_read_mode::IRREVERSIBLE, plugin_config_exception,
+      EOS_ASSERT(_finalizer_keys.empty() || !irreversible_mode(), plugin_config_exception,
                  "node cannot have any finalizers configured because finalization is impossible when read_mode is \"irreversible\"");
 
-      EOS_ASSERT(_producers.empty() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
+      EOS_ASSERT(!is_configured_producer() || chain.get_validation_mode() == chain::validation_mode::FULL, plugin_config_exception,
                  "node cannot have any producer-name configured because block production is not safe when validation_mode is not \"full\"");
 
-      EOS_ASSERT(_producers.empty() || chain_plug->accept_transactions(), plugin_config_exception,
+      EOS_ASSERT(!is_configured_producer() || chain_plug->accept_transactions(), plugin_config_exception,
                  "node cannot have any producer-name configured because no block production is possible with no [api|p2p]-accepted-transactions");
 
       chain.set_node_finalizer_keys(_finalizer_keys);
@@ -1564,7 +1597,7 @@ void producer_plugin_impl::plugin_startup() {
          }
       }));
 
-      if (!_producers.empty()) { // track votes if producer to verify votes are being processed
+      if (is_configured_producer()) { // track votes if producer to verify votes are being processed
          auto on_vote_signal = [this]( const vote_signal_params& vote_signal ) {
             const auto& [connection_id, status, msg, active_auth, pending_auth] = vote_signal;
             try {
@@ -1579,11 +1612,15 @@ void producer_plugin_impl::plugin_startup() {
       const auto fork_db_root     = chain.fetch_block_by_number(fork_db_root_num);
       if (fork_db_root) {
          on_irreversible_block(fork_db_root);
+
+         if (!_is_savanna_active && irreversible_mode() && chain_plug->accept_transactions()) {
+            wlog("Legacy consensus active. Accepting speculative transaction execution not recommended in read-mode=irreversible");
+         }
       } else {
          _irreversible_block_time = fc::time_point::maximum();
       }
 
-      if (!_producers.empty()) {
+      if (is_configured_producer()) {
          ilog("Launching block production for ${n} producers at ${time}.", ("n", _producers.size())("time", fc::time_point::now()));
 
          if (_production_enabled) {
@@ -1608,7 +1645,15 @@ void producer_plugin_impl::plugin_startup() {
          start_write_window();
       }
 
-      schedule_production_loop();
+      _timer_thread.start( 1, []( const fc::exception& e ) {
+         elog("Exception in producer timer thread, exiting: ${e}", ("e", e.to_detail_string()));
+         app().quit();
+      } );
+
+      // start production after net_plugin has started in case there are poison blocks in the fork database
+      app().executor().post(priority::high, exec_queue::read_write, [this]() {
+         schedule_production_loop();
+      });
 
       dlog("producer plugin:  plugin_startup() end");
    }
@@ -1620,6 +1665,7 @@ void producer_plugin::plugin_startup() {
 }
 
 void producer_plugin_impl::plugin_shutdown() {
+   _timer_thread.stop();
    _ro_thread_pool.stop();
    // unapplied transaction queue holds lambdas that reference plugins
    _unapplied_transactions.clear();
@@ -1649,6 +1695,10 @@ controller::apply_blocks_result producer_plugin::on_incoming_block() {
 void producer_plugin::pause() {
    fc_ilog(_log, "Producer paused.");
    my->_pause_production = true;
+}
+
+void producer_plugin::pause_at_block(const pause_at_block_params& params) {
+   my->pause_at_block(params.block_num);
 }
 
 void producer_plugin::resume() {
@@ -1963,8 +2013,10 @@ producer_plugin::get_unapplied_transactions_result producer_plugin::get_unapplie
 
 block_timestamp_type producer_plugin_impl::calculate_pending_block_time() const {
    const chain::controller& chain = chain_plug->chain();
-   const fc::time_point     now   = fc::time_point::now();
-   const fc::time_point     base  = std::max<fc::time_point>(now, chain.head().block_time());
+   // on speculative nodes, always use next block time. On producers, honor current clock time
+   const fc::time_point base  = is_configured_producer()
+                                   ? std::max<fc::time_point>(fc::time_point::now(), chain.head().block_time())
+                                   : chain.head().block_time();
    return block_timestamp_type(base).next();
 }
 
@@ -1972,40 +2024,22 @@ bool producer_plugin_impl::should_interrupt_start_block(const fc::time_point& de
    if (in_producing_mode()) {
       return deadline <= fc::time_point::now();
    }
-   // if we can produce then honor deadline so production starts on time
-   return (!_producers.empty() && deadline <= fc::time_point::now()) || (_received_block >= pending_block_num);
+   // if we can produce then honor deadline so production starts on time.
+   // if in irreversible mode then a received block should not interrupt since the incoming block is not processed until
+   // it becomes irreversible. We could check if LIB changed, but doesn't seem like the extra complexity is worth it.
+   return (is_configured_producer() && deadline <= fc::time_point::now())
+          || (!irreversible_mode() && _received_block >= pending_block_num);
 }
 
-producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
-   chain::controller& chain = chain_plug->chain();
-
-   if (!chain_plug->accept_transactions())
-      return start_block_result::waiting_for_block;
-
-   abort_block();
-
-   auto r = chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
-                               [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
-   if (r != controller::apply_blocks_result::complete)
-      return start_block_result::failed;
-
-   if (chain.should_terminate()) {
-      app().quit();
-      return start_block_result::failed;
-   }
-
-   _time_tracker.clear(); // make sure we start tracking block time after `maybe_switch_forks()`
-
-   block_handle               head              = chain.head();
-   block_num_type             head_block_num    = head.block_num();
-   const fc::time_point       now               = fc::time_point::now();
-   const block_timestamp_type block_time        = calculate_pending_block_time();
-   const uint32_t             pending_block_num = head_block_num + 1;
+producer_plugin_impl::start_block_result
+producer_plugin_impl::determine_pending_block_mode(const fc::time_point& now,
+                                                   const block_handle& head,
+                                                   const block_timestamp_type& block_time,
+                                                   const producer_authority& scheduled_producer)
+{
+   block_num_type head_block_num = head.block_num();
 
    _pending_block_mode = pending_block_mode::producing;
-
-   // copy as reference is invalidated by abort_block() below
-   const producer_authority scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
 
    size_t num_relevant_signatures = 0;
    scheduled_producer.for_each_key([&](const public_key_type& key) {
@@ -2015,7 +2049,7 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       }
    });
 
-   auto irreversible_block_age = get_irreversible_block_age();
+   auto irreversible_block_age = get_irreversible_block_age(now);
 
    bool not_producing_when_time = false;
    // If the next block production opportunity is in the present or future, we're synced.
@@ -2074,8 +2108,8 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
       static fc::time_point last_start_block_time = fc::time_point::maximum(); // always start with speculative block
       // Determine if we are syncing: if we have recently started an old block then assume we are syncing
       if (last_start_block_time < now + fc::microseconds(config::block_interval_us)) {
-         auto head_block_age = now - chain.head().block_time();
-         if (head_block_age > fc::seconds(5))
+         auto head_block_age = now - head.block_time();
+         if (head_block_age > fc::minutes(5))
             return start_block_result::waiting_for_block; // if syncing no need to create a block just to immediately abort it
       }
       last_start_block_time = now;
@@ -2124,7 +2158,74 @@ producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
          _pending_block_deadline = now + fc::milliseconds(config::block_interval_ms);
       }
    }
+
+   return start_block_result::succeeded;
+}
+
+producer_plugin_impl::start_block_result producer_plugin_impl::start_block() {
+   chain::controller& chain = chain_plug->chain();
+
+   if (!chain_plug->accept_transactions())
+      return start_block_result::waiting_for_block;
+
+   abort_block();
+
+   auto apply_blocks = [&]() -> controller::apply_blocks_result {
+      try {
+         return chain.apply_blocks([this](const transaction_metadata_ptr& trx) { _unapplied_transactions.add_forked(trx); },
+                                   [this](const transaction_id_type& id) { return _unapplied_transactions.get_trx(id); });
+      } catch (...) {} // errors logged in apply_blocks
+      return controller::apply_blocks_result::incomplete;
+   };
+
+   // producers need to be able to start producing on schedule, do not apply blocks as it might take a long time to apply
+   if (!is_configured_producer()) {
+      auto r = apply_blocks();
+      if (r != controller::apply_blocks_result::complete)
+         return start_block_result::waiting_for_block;
+   }
+
+   if (chain.should_terminate()) {
+      app().quit();
+      return start_block_result::failed;
+   }
+
+   _time_tracker.clear(); // make sure we start tracking block time after `apply_blocks()`
+
+   block_handle         head               = chain.head();
+
+   if (head.block_num() == chain.get_pause_at_block_num())
+      return start_block_result::waiting_for_block;
+
+   fc::time_point       now                = fc::time_point::now();
+   block_timestamp_type block_time         = calculate_pending_block_time();
+   producer_authority   scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
+
+   start_block_result r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
+   if (r != start_block_result::succeeded)
+      return r;
+
+   if (is_configured_producer() && in_speculating_mode()) {
+      // if not producing right now, see if any blocks have come in that need to be applied
+      const block_id_type head_id = head.id();
+      schedule_delayed_production_loop(weak_from_this(), _pending_block_deadline); // interrupt apply_blocks at deadline
+      apply_blocks();
+      head = chain.head();
+      if (head_id != head.id()) { // blocks were applied
+         now                = fc::time_point::now();
+         block_time         = calculate_pending_block_time();
+         scheduled_producer = chain.head_active_producers(block_time).get_scheduled_producer(block_time);
+
+         r = determine_pending_block_mode(now, head, block_time, scheduled_producer);
+         if (r != start_block_result::succeeded)
+            return r;
+      }
+   }
+
    const auto& preprocess_deadline = _pending_block_deadline;
+
+   const block_num_type head_block_num    = head.block_num();
+   const uint32_t       pending_block_num = head_block_num + 1;
 
    fc_dlog(_log, "Starting block #${n} ${bt} producer ${p}, deadline ${d}",
            ("n", pending_block_num)("bt", block_time)("p", scheduled_producer.producer_name)("d", _pending_block_deadline));
@@ -2736,15 +2837,16 @@ void producer_plugin_impl::schedule_production_loop() {
       _timer.expires_from_now(boost::posix_time::microseconds(config::block_interval_us / 10));
 
       // we failed to start a block, so try again later?
-      _timer.async_wait(
-         app().executor().wrap(priority::high, exec_queue::read_write,
-                               [this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-                                  if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
-                                     schedule_production_loop();
-                                  }
-                               }));
+      _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+         if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+            chain_plug->chain().interrupt_apply_block_transaction();
+            app().executor().post(priority::high, exec_queue::read_write, [this]() {
+               schedule_production_loop();
+            });
+         }
+      });
    } else if (result == start_block_result::waiting_for_block) {
-      if (!_producers.empty() && !production_disabled_by_policy()) {
+      if (is_configured_producer() && !production_disabled_by_policy()) {
          chain::controller& chain = chain_plug->chain();
          fc_dlog(_log, "Waiting till another block is received and scheduling Speculative/Production Change");
          auto wake_time = block_timing_util::calculate_producer_wake_up_time(_produce_block_cpu_effort, chain.head().block_num(), calculate_pending_block_time(),
@@ -2762,7 +2864,7 @@ void producer_plugin_impl::schedule_production_loop() {
    } else if (in_producing_mode()) {
       schedule_maybe_produce_block(result == start_block_result::exhausted);
 
-   } else if (in_speculating_mode() && !_producers.empty() && !production_disabled_by_policy()) {
+   } else if (in_speculating_mode() && is_configured_producer() && !production_disabled_by_policy()) {
       chain::controller& chain = chain_plug->chain();
       fc_dlog(_log, "Speculative Block Created; Scheduling Speculative/Production Change");
       EOS_ASSERT(chain.is_building_block(), missing_pending_block_state, "speculating without pending_block_state");
@@ -2802,16 +2904,17 @@ void producer_plugin_impl::schedule_maybe_produce_block(bool exhausted) {
               ("num", chain.head().block_num() + 1)("desc", block_is_exhausted() ? "Exhausted" : "Deadline exceeded"));
    }
 
-   _timer.async_wait(app().executor().wrap(priority::high, exec_queue::read_write,
-      [&chain, this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-         if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+   _timer.async_wait([&chain, this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+      if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+         app().executor().post(priority::high, exec_queue::read_write, [&chain, this]() {
             // pending_block_state expected, but can't assert inside async_wait
             auto block_num = chain.is_building_block() ? chain.head().block_num() + 1 : 0;
             fc_dlog(_log, "Produce block timer for ${num} running at ${time}", ("num", block_num)("time", fc::time_point::now()));
             auto res = maybe_produce_block();
             fc_dlog(_log, "Producing Block #${num} returned: ${res}", ("num", block_num)("res", res));
-         }
-      }));
+         });
+      }
+   });
 }
 
 void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<producer_plugin_impl>& weak_this,
@@ -2820,12 +2923,14 @@ void producer_plugin_impl::schedule_delayed_production_loop(const std::weak_ptr<
       fc_dlog(_log, "Scheduling Speculative/Production Change at ${time}", ("time", wake_up_time));
       static const boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
       _timer.expires_at(epoch + boost::posix_time::microseconds(wake_up_time->time_since_epoch().count()));
-      _timer.async_wait(app().executor().wrap(priority::high, exec_queue::read_write,
-         [this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
-            if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+      _timer.async_wait([this, cid = ++_timer_corelation_id](const boost::system::error_code& ec) {
+         if (ec != boost::asio::error::operation_aborted && cid == _timer_corelation_id) {
+            chain_plug->chain().interrupt_apply_block_transaction();
+            app().executor().post(priority::high, exec_queue::read_write, [this]() {
                schedule_production_loop();
-            }
-         }));
+            });
+         }
+      });
    } else {
       fc_dlog(_log, "Not Scheduling Speculative/Production, no local producers had valid wake up times");
    }
@@ -2918,8 +3023,32 @@ void producer_plugin_impl::produce_block() {
    _time_tracker.clear();
 }
 
-void producer_plugin::received_block(uint32_t block_num) {
+void producer_plugin::process_blocks() {
+   auto process_incoming_blocks = [this](auto self) -> void {
+      try {
+         auto r = on_incoming_block();
+         if (r == controller::apply_blocks_result::incomplete) {
+            app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write, [self]() {
+               self(self);
+            });
+         }
+      } catch (...) {} // errors on applied blocks logged in controller
+   };
+
+   app().executor().post(handler_id::process_incoming_block, priority::medium, exec_queue::read_write,
+                         [process_incoming_blocks]() {
+                            process_incoming_blocks(process_incoming_blocks);
+                         });
+}
+
+void producer_plugin::received_block(uint32_t block_num, chain::fork_db_add_t fork_db_add_result) {
    my->_received_block = block_num;
+   // fork_db_add_t::fork_switch means head block of best fork (different from the current branch) is received.
+   // Since a better fork is available, interrupt current block validation and allow a fork switch to the better branch.
+   if (fork_db_add_result == fork_db_add_t::fork_switch) {
+      fc_ilog(_log, "new best fork received");
+      my->chain_plug->chain().interrupt_apply_block_transaction();
+   }
 }
 
 void producer_plugin::log_failed_transaction(const transaction_id_type&    trx_id,
@@ -2965,13 +3094,14 @@ void producer_plugin_impl::start_write_window() {
    _ro_window_deadline = now + _ro_write_window_time_us; // not allowed on block producers, so no need to limit to block deadline
    auto expire_time = boost::posix_time::microseconds(_ro_write_window_time_us.count());
    _ro_timer.expires_from_now(expire_time);
-   _ro_timer.async_wait(app().executor().wrap( // stay on app thread
-      priority::high, exec_queue::read_write, // placed in read_write so only called from main thread
-      [this](const boost::system::error_code& ec) {
-         if (ec != boost::asio::error::operation_aborted) {
-            switch_to_read_window();
-         }
-      }));
+   _ro_timer.async_wait([this](const boost::system::error_code& ec) {
+      if (ec != boost::asio::error::operation_aborted) {
+         app().executor().post(priority::high, exec_queue::read_write, // placed in read_write so only called from main thread
+                               [this]() {
+                                  switch_to_read_window();
+                               });
+      }
+   });
 }
 
 // Called only from app thread
@@ -3011,8 +3141,8 @@ void producer_plugin_impl::switch_to_read_window() {
    auto expire_time = boost::posix_time::microseconds(_ro_read_window_time_us.count());
    _ro_timer.expires_from_now(expire_time);
    // Needs to be on read_only because that is what is being processed until switch_to_write_window().
-   _ro_timer.async_wait(
-      app().executor().wrap(priority::high, exec_queue::read_only, [this](const boost::system::error_code& ec) {
+   _ro_timer.async_wait([this](const boost::system::error_code& ec) {
+      app().executor().post(priority::high, exec_queue::read_only, [this, ec]() {
          if (ec != boost::asio::error::operation_aborted) {
             // use future to make sure all read-only tasks finished before switching to write window
             for (auto& task : _ro_exec_tasks_fut) {
@@ -3024,7 +3154,8 @@ void producer_plugin_impl::switch_to_read_window() {
          } else {
             _ro_exec_tasks_fut.clear();
          }
-      }));
+      });
+   });
 }
 
 // Called from a read only thread. Run in parallel with app and other read only threads

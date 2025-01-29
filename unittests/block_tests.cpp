@@ -380,5 +380,43 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(no_onblock_test, T, testers) { try {
 
 } FC_LOG_AND_RETHROW() }
 
+// Verify a block with invalid QC block number is rejected.
+BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
+   skip_validate = true;
+
+   // First we create a valid block
+   create_account("newacc"_n);
+   auto b = produce_block_no_validation();
+
+   // Make a copy of the valid block
+   auto copy_b = std::make_shared<signed_block>(b->clone());
+
+   // Retrieve finality extension
+   auto fin_ext_id = finality_extension::extension_id();
+   std::optional<block_header_extension> header_fin_ext = copy_b->extract_header_extension(fin_ext_id);
+
+   // Remove finality extension from header extensions
+   auto& h_exts = copy_b->header_extensions;
+   std::erase_if(h_exts, [&](const auto& ext) {
+      return ext.first == fin_ext_id;
+   });
+
+   // Set QC claim block number to an invalid number (QC claim block number cannot be greater than previous block number)
+   auto& f_ext = std::get<finality_extension>(*header_fin_ext);
+   f_ext.qc_claim.block_num = copy_b->block_num(); // copy_b->block_num() is 1 greater than previous block number
+
+   // Add the corrupted finality extension back to header extensions
+   emplace_extension(h_exts, fin_ext_id, fc::raw::pack(f_ext));
+
+   // Re-sign the block
+   copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
+
+   // Push the corrupted block. It must be rejected.
+   BOOST_REQUIRE_EXCEPTION(validate_push_block(copy_b), fc::exception,
+                           [] (const fc::exception &e)->bool {
+                              return e.code() == invalid_qc_claim::code_value &&
+                                     e.to_detail_string().find("that is greater than the previous block number") != std::string::npos;
+                           }) ;
+}
 
 BOOST_AUTO_TEST_SUITE_END()

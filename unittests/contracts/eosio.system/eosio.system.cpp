@@ -301,18 +301,3 @@ void system_contract::init( unsigned_int version, symbol core ) {
 } /// eosio.system
 
 
-EOSIO_DISPATCH( eosiosystem::system_contract,
-// native.hpp (newaccount definition is actually in eosio.system.cpp)
-(newaccount)(updateauth)(deleteauth)(linkauth)(unlinkauth)(canceldelay)(onerror)(setabi)
-// eosio.system.cpp
-      (init)(setram)(setramrate)(setparams)(setpriv)(setalimits)(rmvproducer)(updtrevision)(bidname)(bidrefund)
-// rex.cpp
-      (deposit)(withdraw)(buyrex)(unstaketorex)(sellrex)(cnclrexorder)(rentcpu)(rentnet)(fundcpuloan)(fundnetloan)
-      (defcpuloan)(defnetloan)(updaterex)(consolidate)(rexexec)(closerex)
-// delegate_bandwidth.cpp
-      (buyrambytes)(buyram)(sellram)(delegatebw)(undelegatebw)(refund)
-// voting.cpp
-      (regproducer)(unregprod)(voteproducer)(regproxy)
-// producer_pay.cpp
-      (onblock)(claimrewards)
-)

@@ -40,7 +40,7 @@ using namespace eosio;
       auto next = [cb=std::move(cb), body=std::move(body)](const chain::next_function_variant<call_result>& result){ \
          if (std::holds_alternative<fc::exception_ptr>(result)) {\
             try {\
-               std::get<fc::exception_ptr>(result)->dynamic_rethrow_exception();\
+               throw *std::get<fc::exception_ptr>(result);\
             } catch (...) {\
                http_plugin::handle_exception(#api_name, #call_name, body, cb);\
             }\
@@ -119,6 +119,8 @@ void producer_api_plugin::plugin_startup() {
    app().get_plugin<http_plugin>().add_api({
        CALL_WITH_400(producer, producer_rw, producer, pause,
             INVOKE_V_V(producer, pause), 201),
+       CALL_WITH_400(producer, producer_rw, producer, pause_at_block,
+            INVOKE_V_R(producer, pause_at_block, producer_plugin::pause_at_block_params), 201),
        CALL_WITH_400(producer, producer_rw, producer, resume,
             INVOKE_V_V(producer, resume), 201),
        CALL_WITH_400(producer, producer_rw, producer, update_runtime_options,

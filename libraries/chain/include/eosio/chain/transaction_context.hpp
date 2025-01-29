@@ -20,12 +20,13 @@ namespace eosio::chain {
          void start(fc::time_point tp);
          void stop();
 
+         platform_timer::state_t timer_state() const { return _timer.timer_state(); }
+
          /* Sets a callback for when timer expires. Be aware this could might fire from a signal handling context and/or
             on any particular thread. Only a single callback can be registered at once; trying to register more will
             result in an exception. Use nullptr to disable a previously set callback. */
          void set_expiration_callback(void(*func)(void*), void* user);
 
-         std::atomic_bool& expired;
       private:
          platform_timer& _timer;
 
@@ -38,7 +39,7 @@ namespace eosio::chain {
       std::optional<digests_t> digests_l; // legacy
       std::optional<digests_t> digests_s; // savanna
 
-      action_digests_t(store_which_t sw) {
+      explicit action_digests_t(store_which_t sw) {
          if (sw == store_which_t::legacy || sw == store_which_t::both)
             digests_l = digests_t{};
          if (sw == store_which_t::savanna || sw == store_which_t::both)
@@ -100,6 +101,10 @@ namespace eosio::chain {
 
    class transaction_context {
       private:
+         // construction/reset initialization
+         void initialize();
+         void reset();
+         // common init called by init_for_* methods below
          void init( uint64_t initial_net_usage);
 
       public:
@@ -113,7 +118,7 @@ namespace eosio::chain {
                               transaction_metadata::trx_type type = transaction_metadata::trx_type::input);
          ~transaction_context();
 
-         void init_for_implicit_trx( uint64_t initial_net_usage = 0 );
+         void init_for_implicit_trx();
 
          void init_for_input_trx( uint64_t packed_trx_unprunable_size,
                                   uint64_t packed_trx_prunable_size );
@@ -125,7 +130,7 @@ namespace eosio::chain {
          void squash();
          void undo();
 
-         inline void add_net_usage( uint64_t u ) { net_usage += u; check_net_usage(); }
+         inline void add_net_usage( uint64_t u ) { trace->net_usage += u; check_net_usage(); }
 
          void check_net_usage()const;
 
@@ -146,7 +151,7 @@ namespace eosio::chain {
          }
 
          void pause_billing_timer();
-         void resume_billing_timer();
+         void resume_billing_timer(fc::time_point resume_from = fc::time_point{});
 
          uint32_t update_billed_cpu_time( fc::time_point now );
 
@@ -157,6 +162,7 @@ namespace eosio::chain {
          bool is_dry_run()const { return trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
+         bool has_undo()const;
 
          int64_t set_proposed_producers(vector<producer_authority> producers);
          void    set_proposed_finalizers(finalizer_policy&& fin_pol);
@@ -237,7 +243,7 @@ namespace eosio::chain {
          bool                          net_limit_due_to_block = true;
          bool                          net_limit_due_to_greylist = false;
          uint64_t                      eager_net_limit = 0;
-         uint64_t&                     net_usage; /// reference to trace->net_usage
+         uint64_t                      init_net_usage = 0;
 
          bool                          cpu_limit_due_to_greylist = false;
 

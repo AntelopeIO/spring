@@ -7,8 +7,9 @@
 
 namespace eosio::chain {
 
+uint32_t nonce = 0;
+
 inline block_id_type make_block_id(block_num_type block_num) {
-   static uint32_t nonce = 0;
    ++nonce;
    block_id_type id = fc::sha256::hash(std::to_string(block_num) + "-" + std::to_string(nonce));
    id._hash[0] &= 0xffffffff00000000;
@@ -57,26 +58,38 @@ using namespace eosio::chain;
 struct generate_fork_db_state {
    generate_fork_db_state() {
       fork_db.reset_root(root);
-      fork_db.add(bsp11a, ignore_duplicate_t::no);
-      fork_db.add(bsp11b, ignore_duplicate_t::no);
-      fork_db.add(bsp11c, ignore_duplicate_t::no);
-      fork_db.add(bsp12a, ignore_duplicate_t::no);
-      fork_db.add(bsp13a, ignore_duplicate_t::no);
-      fork_db.add(bsp12b, ignore_duplicate_t::no);
-      fork_db.add(bsp12bb, ignore_duplicate_t::no);
-      fork_db.add(bsp12bbb, ignore_duplicate_t::no);
-      fork_db.add(bsp12c, ignore_duplicate_t::no);
-      fork_db.add(bsp13b, ignore_duplicate_t::no);
-      fork_db.add(bsp13bb, ignore_duplicate_t::no);
-      fork_db.add(bsp13bbb, ignore_duplicate_t::no);
-      fork_db.add(bsp14b, ignore_duplicate_t::no);
-      fork_db.add(bsp13c, ignore_duplicate_t::no);
+      BOOST_TEST((fork_db.add(bsp11a, ignore_duplicate_t::no) == fork_db_add_t::appended_to_head));
+      BOOST_TEST((fork_db.add(bsp11b, ignore_duplicate_t::no) == fork_db_add_t::added));
+      BOOST_TEST((fork_db.add(bsp11c, ignore_duplicate_t::no) == fork_db_add_t::added));
+         BOOST_TEST((fork_db.add(bsp12a, ignore_duplicate_t::no) == fork_db_add_t::appended_to_head));
+            BOOST_TEST((fork_db.add(bsp13a, ignore_duplicate_t::no) == fork_db_add_t::appended_to_head));
+         BOOST_TEST((fork_db.add(bsp12b, ignore_duplicate_t::no) == fork_db_add_t::added));
+         BOOST_TEST((fork_db.add(bsp12bb, ignore_duplicate_t::no) == fork_db_add_t::added));
+         BOOST_TEST((fork_db.add(bsp12bbb, ignore_duplicate_t::no) == fork_db_add_t::added));
+         BOOST_TEST((fork_db.add(bsp12c, ignore_duplicate_t::no) == fork_db_add_t::added));
+            BOOST_TEST((fork_db.add(bsp13b, ignore_duplicate_t::no) == fork_db_add_t::fork_switch));
+
+            // no fork_switch, because id is less
+            BOOST_TEST(bsp13bb->latest_qc_block_timestamp() == bsp13b->latest_qc_block_timestamp());
+            BOOST_TEST(bsp13bb->timestamp() == bsp13b->timestamp());
+            BOOST_TEST(bsp13bb->id() < bsp13b->id());
+            BOOST_TEST((fork_db.add(bsp13bb, ignore_duplicate_t::no) == fork_db_add_t::added));
+
+            // fork_switch by id, everything else is the same
+            BOOST_TEST(bsp13bbb->latest_qc_block_timestamp() == bsp13b->latest_qc_block_timestamp());
+            BOOST_TEST(bsp13bbb->timestamp() == bsp13b->timestamp());
+            BOOST_TEST(bsp13bbb->id() > bsp13b->id());
+            BOOST_TEST((fork_db.add(bsp13bbb, ignore_duplicate_t::no) == fork_db_add_t::fork_switch));
+
+               BOOST_TEST((fork_db.add(bsp14b, ignore_duplicate_t::no) == fork_db_add_t::fork_switch));
+            BOOST_TEST((fork_db.add(bsp13c, ignore_duplicate_t::no) == fork_db_add_t::added));
    }
 
    fork_database_if_t fork_db;
 
    // Setup fork database with blocks based on a root of block 10
    // Add a number of forks in the fork database
+   bool reset_nonce = [&]() { nonce = 0; return true; }();
    block_state_ptr root = test_block_state_accessor::make_genesis_block_state();
    block_state_ptr   bsp11a = test_block_state_accessor::make_unique_block_state(11, root);
    block_state_ptr     bsp12a = test_block_state_accessor::make_unique_block_state(12, bsp11a);
@@ -112,12 +125,12 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    BOOST_TEST(!fork_db.get_block(bsp12b->id()));
    BOOST_TEST(!fork_db.get_block(bsp13b->id()));
    BOOST_TEST(!fork_db.get_block(bsp14b->id()));
-   BOOST_TEST(!fork_db.add(bsp12b, ignore_duplicate_t::no)); // will throw if already exists
+   BOOST_TEST((fork_db.add(bsp12b, ignore_duplicate_t::no) == fork_db_add_t::added)); // will throw if already exists
    // 13b not the best branch because 13c has higher timestamp
-   BOOST_TEST(!fork_db.add(bsp13b, ignore_duplicate_t::no)); // will throw if already exists
+   BOOST_TEST((fork_db.add(bsp13b, ignore_duplicate_t::no) == fork_db_add_t::added)); // will throw if already exists
    // 14b has a higher timestamp than 13c
-   BOOST_TEST(fork_db.add(bsp14b, ignore_duplicate_t::no)); // will throw if already exists
-   BOOST_TEST(!fork_db.add(bsp14b, ignore_duplicate_t::yes));
+   BOOST_TEST((fork_db.add(bsp14b, ignore_duplicate_t::no) == fork_db_add_t::fork_switch)); // will throw if already exists
+   BOOST_TEST((fork_db.add(bsp14b, ignore_duplicate_t::yes) == fork_db_add_t::duplicate));
 
    // test search
    BOOST_TEST(fork_db.search_on_branch( bsp13bb->id(), 11) == bsp11b);
@@ -143,7 +156,7 @@ BOOST_FIXTURE_TEST_CASE(add_remove_test, generate_fork_db_state) try {
    BOOST_TEST(branch[1] == bsp11a);
 
    auto bsp14c = test_block_state_accessor::make_unique_block_state(14, bsp13c); // should be best branch
-   BOOST_TEST(fork_db.add(bsp14c, ignore_duplicate_t::yes));
+   BOOST_TEST((fork_db.add(bsp14c, ignore_duplicate_t::yes) == fork_db_add_t::fork_switch));
 
    // test fetch branch when lib is greater than head
    branch = fork_db.fetch_branch(bsp13b->id(), bsp12a->id());

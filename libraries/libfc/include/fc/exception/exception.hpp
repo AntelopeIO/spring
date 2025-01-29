@@ -110,13 +110,6 @@ namespace fc
          std::string top_message( )const;
 
          /**
-          *  Throw this exception as its most derived type.
-          *
-          *  @note does not return.
-          */
-         virtual NO_RETURN void     dynamic_rethrow_exception()const;
-
-         /**
           *  This is equivalent to:
           *  @code
           *   try { throwAsDynamic_exception(); }
@@ -163,7 +156,6 @@ namespace fc
 
        std::exception_ptr get_inner_exception()const;
 
-       virtual NO_RETURN void               dynamic_rethrow_exception()const;
        virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
       private:
        std::exception_ptr _inner;
@@ -188,7 +180,6 @@ namespace fc
 
        static std_exception_wrapper from_current_exception(const std::exception& e);
 
-       virtual NO_RETURN void               dynamic_rethrow_exception()const;
        virtual std::shared_ptr<exception>   dynamic_copy_exception()const;
       private:
        std::exception_ptr _inner;
@@ -205,55 +196,6 @@ namespace fc
                                                    std::make_exception_ptr(fc::forward<T>(e)) );
 #endif
    }
-
-
-   class exception_factory
-   {
-      public:
-        struct base_exception_builder
-        {
-           virtual NO_RETURN void rethrow( const exception& e )const = 0;
-        };
-
-        template<typename T>
-        struct exception_builder : public base_exception_builder
-        {
-           virtual NO_RETURN void rethrow( const exception& e )const override
-           {
-              throw T( e );
-           }
-        };
-
-        template<typename T>
-        void register_exception()
-        {
-           static exception_builder<T> builder;
-           auto itr = _registered_exceptions.find( T::code_value );
-           assert( itr == _registered_exceptions.end() );
-           (void)itr; // in release builds this hides warnings
-           _registered_exceptions[T::code_value] = &builder;
-        }
-
-        void NO_RETURN rethrow( const exception& e )const;
-
-        static exception_factory& instance()
-        {
-           static exception_factory once;
-           return once;
-        }
-
-      private:
-        std::unordered_map<int64_t,base_exception_builder*> _registered_exceptions;
-   };
-#define FC_REGISTER_EXCEPTION(r, unused, base) \
-   fc::exception_factory::instance().register_exception<base>();
-
-#define FC_REGISTER_EXCEPTIONS( SEQ )\
-     \
-   static bool exception_init = []()->bool{ \
-    BOOST_PP_SEQ_FOR_EACH( FC_REGISTER_EXCEPTION, v, SEQ )  \
-      return true; \
-   }();  \
 
 
 #define FC_DECLARE_DERIVED_EXCEPTION( TYPE, BASE, CODE, WHAT ) \
@@ -285,10 +227,6 @@ namespace fc
        \
        virtual std::shared_ptr<fc::exception> dynamic_copy_exception()const\
        { return std::make_shared<TYPE>( *this ); } \
-       virtual NO_RETURN void     dynamic_rethrow_exception()const \
-       { if( code() == CODE ) throw *this;\
-         else fc::exception::dynamic_rethrow_exception(); \
-       } \
    };
 
   #define FC_DECLARE_EXCEPTION( TYPE, CODE, WHAT ) \

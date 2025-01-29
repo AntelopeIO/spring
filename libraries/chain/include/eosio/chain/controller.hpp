@@ -96,6 +96,7 @@ namespace eosio::chain {
    using resource_limits::resource_limits_manager;
    using apply_handler = std::function<void(apply_context&)>;
 
+   enum class fork_db_add_t;
    using forked_callback_t = std::function<void(const transaction_metadata_ptr&)>;
 
    // lookup transaction_metadata via supplied function to avoid re-creation
@@ -155,6 +156,7 @@ namespace eosio::chain {
             wasm_interface::vm_type  wasm_runtime = chain::config::default_wasm_runtime;
             eosvmoc::config          eosvmoc_config;
             wasm_interface::vm_oc_enable eosvmoc_tierup     = wasm_interface::vm_oc_enable::oc_auto;
+            flat_set<account_name>   eos_vm_oc_whitelist_suffixes;
 
             db_read_mode             read_mode              = db_read_mode::HEAD;
             validation_mode          block_validation_mode  = validation_mode::FULL;
@@ -206,8 +208,8 @@ namespace eosio::chain {
           */
          deque<transaction_metadata_ptr> abort_block();
 
-         /// Expected to be called from signal handler
-         void interrupt_transaction();
+         /// Expected to be called from signal handler, or producer_plugin
+         void interrupt_apply_block_transaction();
 
        /**
         *
@@ -234,7 +236,7 @@ namespace eosio::chain {
          void set_async_aggregation(async_t val);
 
          struct accepted_block_result {
-            const bool is_new_best_head = false; // true if new best head
+            const fork_db_add_t add_result;
             std::optional<block_handle> block;   // empty optional if block is unlinkable
          };
          // thread-safe
@@ -242,8 +244,9 @@ namespace eosio::chain {
 
          /// Apply any blocks that are ready from the fork_db
          enum class apply_blocks_result {
-            complete,  // all ready blocks in forkdb have been applied
-            incomplete // time limit reached, additional blocks may be available in forkdb to process
+            complete,   // all ready blocks in forkdb have been applied
+            incomplete, // time limit reached, additional blocks may be available in forkdb to process
+            paused      // apply blocks currently paused
          };
          apply_blocks_result apply_blocks(const forked_callback_t& cb, const trx_meta_cache_lookup& trx_lookup);
 
@@ -420,6 +423,8 @@ namespace eosio::chain {
 
          bool is_profiling(account_name name) const;
 
+         bool is_eos_vm_oc_whitelisted(const account_name& n) const;
+
          chain_id_type get_chain_id()const;
 
          // thread safe
@@ -473,7 +478,10 @@ namespace eosio::chain {
       void replace_account_keys( name account, name permission, const public_key_type& key );
 
       void set_producer_node(bool is_producer_node);
-      bool is_producer_node()const;
+      bool is_producer_node()const; // thread safe, set at program initialization
+
+      void set_pause_at_block_num(block_num_type block_num);
+      block_num_type get_pause_at_block_num()const;
 
       void set_db_read_only_mode();
       void unset_db_read_only_mode();
