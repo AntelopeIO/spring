@@ -363,7 +363,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "'auto' - EOS VM OC tier-up is enabled for eosio.* accounts, read-only trxs, and except on producers applying blocks.\n"
           "'all'  - EOS VM OC tier-up is enabled for all contract execution.\n"
           "'none' - EOS VM OC tier-up is completely disabled.\n")
-         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->default_value(std::vector<string>{{"xsat"}}),
+         ("eos-vm-oc-whitelist", bpo::value<vector<string>>()->composing()->multitoken()->default_value(std::vector<string>{{"xsat"}}),
           "EOS VM OC tier-up whitelist account suffixes for tier-up runtime 'auto'.")
 #endif
          ("enable-account-queries", bpo::value<bool>()->default_value(false), "enable queries to find accounts by various metadata.")
@@ -533,6 +533,15 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
 
       LOAD_VALUE_SET( options, "trusted-producer", chain_config->trusted_producers );
 
+      if (!chain_config->eos_vm_oc_whitelist_suffixes.empty()) {
+         const auto& wl = chain_config->eos_vm_oc_whitelist_suffixes;
+         std::string s = std::accumulate(std::next(wl.begin()), wl.end(),
+                                         wl.begin()->to_string(),
+                                         [](std::string a, account_name b) -> std::string {
+                                            return std::move(a) + ", " + b.to_string();
+                                         });
+         ilog("eos-vm-oc-whitelist accounts: ${a}", ("a", s));
+      }
       if( options.count( "action-blacklist" )) {
          const std::vector<std::string>& acts = options["action-blacklist"].as<std::vector<std::string>>();
          auto& list = chain_config->action_blacklist;
