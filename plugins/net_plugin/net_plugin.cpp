@@ -1951,7 +1951,9 @@ namespace eosio {
       queue_write(net_msg, queue, send_buffer,
             [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t ) {
                         if (ec) {
-                           fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.message()));
+                           if (ec != boost::asio::error::operation_aborted && ec != boost::asio::error::connection_reset && conn->socket_is_open()) {
+                              fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.message()));
+                           }
                            return;
                         }
                         if (net_msg == msg_type_t::signed_block)
