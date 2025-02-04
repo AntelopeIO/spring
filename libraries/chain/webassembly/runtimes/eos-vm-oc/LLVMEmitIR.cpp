@@ -697,12 +697,14 @@ namespace LLVMJIT
 			llvm::Value* callee;
 			const FunctionType* calleeType;
 			bool isExit = false;
+			bool isMemcpy = false;
 			if(imm.functionIndex < moduleContext.importedFunctionOffsets.size())
 			{
 				calleeType = module.types[module.functions.imports[imm.functionIndex].type.index];
 				llvm::Value* ic = irBuilder.CreateLoad( emitLiteralPointer((void*)(OFFSET_OF_FIRST_INTRINSIC-moduleContext.importedFunctionOffsets[imm.functionIndex]*8), llvmI64Type->getPointerTo(256)) );
 				callee = irBuilder.CreateIntToPtr(ic, asLLVMType(calleeType)->getPointerTo());
 				isExit = module.functions.imports[imm.functionIndex].moduleName == "env" && module.functions.imports[imm.functionIndex].exportName == "eosio_exit";
+				isMemcpy = module.functions.imports[imm.functionIndex].moduleName == "env" && module.functions.imports[imm.functionIndex].exportName == "memcpy";
 			}
 			else
 			{
@@ -714,6 +716,28 @@ namespace LLVMJIT
 			// Pop the call arguments from the operand stack.
 			auto llvmArgs = (llvm::Value**)alloca(sizeof(llvm::Value*) * calleeType->parameters.size());
 			popMultiple(llvmArgs,calleeType->parameters.size());
+
+			//convert small constant sized memcpy host function calls to a load+store (plus small call to validate non-overlap rule)
+			if(isMemcpy) {
+				assert(calleeType->parameters.size() == 3);
+				if(llvm::ConstantInt* const_memcpy_sz = llvm::dyn_cast<llvm::ConstantInt>(llvmArgs[2]);
+				     const_memcpy_sz &&
+					  const_memcpy_sz->getZExtValue() >= minimum_const_memcpy_intrinsic_to_optimize &&
+					  const_memcpy_sz->getZExtValue() <= maximum_const_memcpy_intrinsic_to_optimize) {
+					const unsigned sz_value = const_memcpy_sz->getZExtValue();
+					llvm::IntegerType* type_of_memcpy_width = llvm::Type::getIntNTy(context, sz_value*8);
+
+					llvm::Value* load_pointer = coerceByteIndexToPointer(llvmArgs[1],0,type_of_memcpy_width);
+					llvm::Value* store_pointer = coerceByteIndexToPointer(llvmArgs[0],0,type_of_memcpy_width);
+					irBuilder.CreateStore(irBuilder.CreateLoad(load_pointer), store_pointer, true);
+
+					emitRuntimeIntrinsic("eosvmoc_internal.check_memcpy_params",
+					                     FunctionType::get(ResultType::none,{ValueType::i32,ValueType::i32,ValueType::i32}),
+						                  {llvmArgs[0],llvmArgs[1],llvmArgs[2]});
+					push(llvmArgs[0]);
+					return;
+				}
+			}
 
 			// Call the function.
 			auto result = createCall(callee,llvm::ArrayRef<llvm::Value*>(llvmArgs,calleeType->parameters.size()));
