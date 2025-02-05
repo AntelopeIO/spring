@@ -62,7 +62,7 @@ struct test_fixture {
       }
 
       // clone the QC block
-      auto qc_block = std::make_shared<signed_block>(blog.read_block_by_num(block_num)->clone());
+      auto qc_block = blog.read_block_by_num(block_num)->clone();
       BOOST_TEST(qc_block);
 
       // remove qc block until the end from block log
@@ -92,7 +92,8 @@ struct test_fixture {
 
       // add the corrupted block back to block log
       block_log new_blog(blocks_dir, config.blog);
-      new_blog.append(qc_block, qc_block->calculate_id());
+      auto qc_signed_block = signed_block::create_signed_block(std::move(qc_block));
+      new_blog.append(qc_signed_block, qc_signed_block->calculate_id());
    }
 
    // Corrupts finality_extension in the last block of the blocks log
@@ -106,7 +107,7 @@ struct test_fixture {
 
       // retrieve the last block in block log
       uint32_t  last_block_num = blog.head()->block_num();
-      auto last_block = std::make_shared<signed_block>(blog.read_block_by_num(last_block_num)->clone());
+      auto last_block = blog.read_block_by_num(last_block_num)->clone();
       BOOST_TEST(last_block);
 
       // remove last block from block log
@@ -133,7 +134,8 @@ struct test_fixture {
       // add the corrupted block to block log. Need to instantiate a
       // new_blog as a block has been removed from blocks log.
       block_log new_blog(blocks_dir, config.blog);
-      new_blog.append(last_block, last_block->calculate_id());
+      auto last_signed_block = signed_block::create_signed_block(std::move(last_block));
+      new_blog.append(last_signed_block, last_signed_block->calculate_id());
    }
 };
 

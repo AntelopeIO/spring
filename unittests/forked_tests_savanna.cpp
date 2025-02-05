@@ -113,7 +113,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
          auto& fork = forks.at(j);
 
          if (j <= i) {
-            auto copy_b = std::make_shared<signed_block>(b->clone());
+            auto copy_b = b->clone();
             if (j == i) {
                // corrupt this block (forks[j].blocks[j] is corrupted)
                copy_b->action_mroot._hash[0] ^= 0x1ULL;
@@ -126,7 +126,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
             copy_b->producer_signature = pk.sign(copy_b->calculate_id());
 
             // add this new block to our corrupted block merkle
-            fork.blocks.emplace_back(copy_b);
+            fork.blocks.emplace_back(signed_block::create_signed_block(std::move(copy_b)));
          } else {
             fork.blocks.emplace_back(b);
          }

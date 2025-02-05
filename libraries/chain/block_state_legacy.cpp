@@ -64,7 +64,7 @@ namespace eosio::chain {
    {}
 
    block_state_legacy::block_state_legacy( pending_block_header_state_legacy&& cur,
-                                           mutable_signed_block_ptr&& b,
+                                           mutable_block_ptr&& b,
                                            deque<transaction_metadata_ptr>&& trx_metas,
                                            const std::optional<digests_t>& action_receipt_digests_savanna,
                                            const protocol_feature_set& pfs,
@@ -72,7 +72,7 @@ namespace eosio::chain {
                                            const signer_callback_type& signer
                            )
    :block_header_state_legacy( inject_additional_signatures( std::move(cur), *b, pfs, validator, signer ) )
-   ,block( std::move(b) )
+   ,block( signed_block::create_signed_block(std::move(b)) )
    ,_pub_keys_recovered( true ) // called by produce_block so signature recovery of trxs must have been done
    ,_cached_trxs( std::move(trx_metas) )
    ,action_mroot_savanna( action_receipt_digests_savanna ? std::optional<digest_type>(calculate_merkle(*action_receipt_digests_savanna)) : std::nullopt )
