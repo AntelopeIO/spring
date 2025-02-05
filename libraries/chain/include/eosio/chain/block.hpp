@@ -101,7 +101,7 @@ namespace eosio { namespace chain {
       signed_block& operator=(signed_block&&) = default;
       mutable_block_ptr clone() const { return std::unique_ptr<signed_block>(new signed_block(*this)); }
       static mutable_block_ptr create_mutable_block(const signed_block_header& h) { return std::unique_ptr<signed_block>(new signed_block(h)); }
-      static signed_block_ptr  create_signed_block(mutable_block_ptr&& b) { b->pack(); return b; }
+      static signed_block_ptr  create_signed_block(mutable_block_ptr&& b) { b->pack(); return signed_block_ptr{std::move(b)}; }
 
       deque<transaction_receipt>   transactions; /// new or generated transactions
       extensions_type              block_extensions;
