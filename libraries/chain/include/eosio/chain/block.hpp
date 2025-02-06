@@ -86,6 +86,8 @@ namespace eosio { namespace chain {
    using block_extension = block_extension_types::block_extension_t;
 
    using signed_block_ptr = std::shared_ptr<const signed_block>;
+   // mutable_block_ptr is built up until it is signed and converted to signed_block_ptr
+   // mutable_block_ptr is not thread safe and should be moved into signed_block_ptr when complete
    using mutable_block_ptr = std::unique_ptr<signed_block>;
 
    /**
