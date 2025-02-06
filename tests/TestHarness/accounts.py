@@ -40,6 +40,7 @@ class NamedAccounts:
 
 ###########################################################################################
 class Account(object):
+    """EOS representation of the account, and allows you to populate the account keys"""
     # pylint: disable=too-few-public-methods
 
     def __init__(self, name):
