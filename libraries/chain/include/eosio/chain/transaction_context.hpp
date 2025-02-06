@@ -114,8 +114,8 @@ namespace eosio::chain {
                               const transaction_id_type& trx_id, // trx_id diff than t.id() before replace_deferred
                               transaction_checktime_timer&& timer,
                               action_digests_t::store_which_t sad,
-                              fc::time_point start = fc::time_point::now(),
-                              transaction_metadata::trx_type type = transaction_metadata::trx_type::input);
+                              fc::time_point start,
+                              transaction_metadata::trx_type type);
          ~transaction_context();
 
          void init_for_implicit_trx();
