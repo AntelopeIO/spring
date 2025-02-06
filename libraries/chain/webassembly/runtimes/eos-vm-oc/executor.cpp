@@ -231,7 +231,6 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
       syscall(SYS_mprotect, self->code_mapping, self->code_mapping_size, PROT_NONE);
       self->mapping_is_executable = false;
    }, this);
-   context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
    auto cleanup = fc::make_scoped_exit([cb, &tt=context.trx_context.transaction_timer, &mem=mem](){
       cb->is_running = false;
@@ -244,6 +243,8 @@ void executor::execute(const code_descriptor& code, memory& mem, apply_context& 
                   (cb->current_linear_memory_pages - base_pages) * eosio::chain::wasm_constraints::wasm_page_size, PROT_NONE);
       }
    });
+
+   context.trx_context.checktime(); //catch any expiration that might have occurred before setting up callback
 
    void(*apply_func)(uint64_t, uint64_t, uint64_t) = (void(*)(uint64_t, uint64_t, uint64_t))(cb->running_code_base + code.apply_offset);
 
