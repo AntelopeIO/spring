@@ -2690,6 +2690,8 @@ struct controller_impl {
       } catch ( const boost::interprocess::bad_alloc& ) {
          throw;
       } catch( const fc::exception& e ) {
+         // apply_onerror for deferred trxs is implicit so interrupt oc not allowed
+         assert(e.code() != interrupt_oc_exception::code_value);
          handle_exception(e);
       } catch ( const std::exception& e ) {
          auto wrapper = fc::std_exception_wrapper::from_current_exception(e);

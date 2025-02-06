@@ -164,7 +164,10 @@ struct eosvmoc_tier {
             }
          }
 #endif
-         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() && context.trx_context.has_undo();
+         // do not allow oc interrupt if no undo as the transaction needs to be undone to restart it.
+         // do not allow oc interrupt if implicit as deferred trx onerror execute outside the transaction retry in transaction_context.
+         const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() &&
+                                         context.trx_context.has_undo() && !context.trx_context.is_implicit();
          auto ex = fc::make_scoped_exit([&]() {
             if (allow_oc_interrupt) {
                eos_vm_oc_compile_interrupt = false;
