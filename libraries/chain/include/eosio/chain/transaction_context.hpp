@@ -163,6 +163,7 @@ namespace eosio::chain {
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_implicit()const { return trx_type == transaction_metadata::trx_type::implicit; };
+         bool is_scheduled()const { return trx_type == transaction_metadata::trx_type::scheduled; };
          bool has_undo()const;
 
          int64_t set_proposed_producers(vector<producer_authority> producers);
