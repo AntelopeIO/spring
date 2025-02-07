@@ -164,9 +164,12 @@ struct eosvmoc_tier {
             }
          }
 #endif
-         // do not allow oc interrupt if no undo as the transaction needs to be undone to restart it.
-         // do not allow oc interrupt if implicit as deferred trx onerror execute as implicit outside the transaction
-         // retry in transaction_context. Also scheduled manage the undo stack explicitly.
+         // Do not allow oc interrupt if no undo as the transaction needs to be undone to restart it.
+         // Do not allow oc interrupt if implicit or scheduled. There are two implicit trxs: onblock and onerror.
+         //   The onerror trx of deferred trxs is implicit. Interrupt needs to be disabled for deferred trxs because
+         //   they capture all exceptions, explicitly handle undo stack, and directly call trx_context.execute_action.
+         //   Not allowing interrupt for onblock seems rather harmless, so instead of distinguishing between onerror and
+         //   onblock, just disallow for all implicit.
          const bool allow_oc_interrupt = attempt_tierup && context.is_applying_block() &&
                                          context.trx_context.has_undo() && !context.trx_context.is_implicit() && !context.trx_context.is_scheduled();
          auto ex = fc::make_scoped_exit([&]() {
