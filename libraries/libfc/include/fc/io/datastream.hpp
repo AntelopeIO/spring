@@ -192,6 +192,8 @@ public:
    bool read( char* d, size_t s ) {
       if (ds.read(d, s)) {
          auto size = mirror.size();
+         if (mirror.capacity() < size + s)
+            mirror.reserve(std::bit_ceil(size + s));
          mirror.resize(size + s);
          memcpy(mirror.data() + size, d, s);
          return true;
