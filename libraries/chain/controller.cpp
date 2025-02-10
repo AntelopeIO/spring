@@ -2644,7 +2644,8 @@ struct controller_impl {
 
       transaction_checktime_timer trx_timer(timer);
       const packed_transaction trx( std::move( etrx ) );
-      transaction_context trx_context( self, trx, trx.id(), std::move(trx_timer), bb.action_receipt_digests().store_which(), start );
+      transaction_context trx_context( self, trx, trx.id(), std::move(trx_timer), bb.action_receipt_digests().store_which(),
+                                       start, transaction_metadata::trx_type::implicit );
 
       if (auto dm_logger = get_deep_mind_logger(trx_context.is_transient())) {
          dm_logger->on_onerror(etrx);
@@ -2690,6 +2691,8 @@ struct controller_impl {
       } catch ( const boost::interprocess::bad_alloc& ) {
          throw;
       } catch( const fc::exception& e ) {
+         // apply_onerror for deferred trxs is implicit so interrupt oc not allowed
+         assert(e.code() != interrupt_oc_exception::code_value);
          handle_exception(e);
       } catch ( const std::exception& e ) {
          auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
@@ -2815,7 +2818,8 @@ struct controller_impl {
       auto& bb = std::get<building_block>(pending->_block_stage);
 
       transaction_checktime_timer trx_timer( timer );
-      transaction_context trx_context( self, *trx->packed_trx(), gtrx.trx_id, std::move(trx_timer), bb.action_receipt_digests().store_which() );
+      transaction_context trx_context( self, *trx->packed_trx(), gtrx.trx_id, std::move(trx_timer), bb.action_receipt_digests().store_which(),
+                                       start, transaction_metadata::trx_type::scheduled );
       trx_context.leeway =  fc::microseconds(0); // avoid stealing cpu resource
       trx_context.block_deadline = block_deadline;
       trx_context.max_transaction_time_subjective = max_transaction_time;
