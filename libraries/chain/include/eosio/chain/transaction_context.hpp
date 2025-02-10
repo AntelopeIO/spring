@@ -114,8 +114,8 @@ namespace eosio::chain {
                               const transaction_id_type& trx_id, // trx_id diff than t.id() before replace_deferred
                               transaction_checktime_timer&& timer,
                               action_digests_t::store_which_t sad,
-                              fc::time_point start = fc::time_point::now(),
-                              transaction_metadata::trx_type type = transaction_metadata::trx_type::input);
+                              fc::time_point start,
+                              transaction_metadata::trx_type type);
          ~transaction_context();
 
          void init_for_implicit_trx();
@@ -162,6 +162,8 @@ namespace eosio::chain {
          bool is_dry_run()const { return trx_type == transaction_metadata::trx_type::dry_run; };
          bool is_read_only()const { return trx_type == transaction_metadata::trx_type::read_only; };
          bool is_transient()const { return trx_type == transaction_metadata::trx_type::read_only || trx_type == transaction_metadata::trx_type::dry_run; };
+         bool is_implicit()const { return trx_type == transaction_metadata::trx_type::implicit; };
+         bool is_scheduled()const { return trx_type == transaction_metadata::trx_type::scheduled; };
          bool has_undo()const;
 
          int64_t set_proposed_producers(vector<producer_authority> producers);

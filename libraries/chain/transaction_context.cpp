@@ -59,6 +59,7 @@ namespace eosio::chain {
       undo();
       *trace = transaction_trace{}; // reset trace
       initialize();
+      transaction_timer.stop();
       resume_billing_timer(start);
 
       auto sw = executed_action_receipts.store_which();
