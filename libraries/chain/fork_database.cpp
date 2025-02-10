@@ -505,8 +505,8 @@ namespace eosio::chain {
       auto first_branch = (first == root->id()) ? root : get_block_impl(first);
       auto second_branch = (second == root->id()) ? root : get_block_impl(second);
 
-      EOS_ASSERT(first_branch, fork_db_block_not_found, "block ${id} does not exist", ("id", first));
-      EOS_ASSERT(second_branch, fork_db_block_not_found, "block ${id} does not exist", ("id", second));
+      EOS_ASSERT(first_branch, fork_db_block_not_found, "block #${n} ${id} does not exist", ("n", block_header::num_from_id(first))("id", first));
+      EOS_ASSERT(second_branch, fork_db_block_not_found, "block #${n} ${id} does not exist", ("n", block_header::num_from_id(second))("id", second));
 
       while( first_branch->block_num() > second_branch->block_num() )
       {
