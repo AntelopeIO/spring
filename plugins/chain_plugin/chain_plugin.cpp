@@ -778,6 +778,11 @@ void chain_plugin_impl::plugin_initialize(const variables_map& options) {
          ilog( "Replay requested: deleting state database" );
          if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 )
             wlog( "The --truncate-at-block option does not work for a regular replay of the blockchain." );
+         if (!options.count( "snapshot" )) {
+            auto first_block = block_log::extract_first_block_num(blocks_dir, retained_dir);
+            EOS_ASSERT(first_block == 1, plugin_config_exception,
+                       "replay-blockchain without snapshot requested without a full block log, first block: ${n}", ("n", first_block));
+         }
          clear_directory_contents( chain_config->state_dir );
       } else if( options.at( "truncate-at-block" ).as<uint32_t>() > 0 ) {
          wlog( "The --truncate-at-block option can only be used with --hard-replay-blockchain." );

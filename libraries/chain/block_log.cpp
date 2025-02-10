@@ -510,6 +510,9 @@ namespace eosio { namespace chain {
             else
                head = {};
          }
+
+         static block_log_preamble extract_block_log_preamble(const std::filesystem::path& block_dir,
+                                                              const std::filesystem::path& retained_dir);
       }; // block_log_impl
 
       /// Would remove pre-existing block log and index, never write blocks into disk.
@@ -1459,8 +1462,8 @@ namespace eosio { namespace chain {
    }
 
    // static
-   std::optional<block_log::chain_context> block_log::extract_chain_context(const std::filesystem::path& block_dir,
-                                                                            const std::filesystem::path& retained_dir) {
+   block_log_preamble detail::block_log_impl::extract_block_log_preamble(const std::filesystem::path& block_dir,
+                                                                         const std::filesystem::path& retained_dir) {
       std::filesystem::path first_block_file;
       if (!retained_dir.empty() && std::filesystem::exists(retained_dir)) {
          for_each_file_in_dir_matches(retained_dir, R"(blocks-1-\d+\.log)",
@@ -1474,9 +1477,9 @@ namespace eosio { namespace chain {
       }
 
       if (!first_block_file.empty()) {
-         return block_log_data(first_block_file).get_preamble().chain_context;
+         return block_log_data(first_block_file).get_preamble();
       }
-      
+
       if (!retained_dir.empty() && std::filesystem::exists(retained_dir)) {
          const std::regex        my_filter(R"(blocks-\d+-\d+\.log)");
          std::smatch             what;
@@ -1489,10 +1492,16 @@ namespace eosio { namespace chain {
             std::string file = p->path().filename().string();
             if (!std::regex_match(file, what, my_filter))
                continue;
-            return block_log_data(p->path()).chain_id();
+            return block_log_data(p->path()).get_preamble();
          }
       }
       return {};
+   }
+
+   // static
+   std::optional<block_log::chain_context> block_log::extract_chain_context(const std::filesystem::path& block_dir,
+                                                                            const std::filesystem::path& retained_dir) {
+      return detail::block_log_impl::extract_block_log_preamble(block_dir, retained_dir).chain_context;
    }
 
    // static
@@ -1514,6 +1523,12 @@ namespace eosio { namespace chain {
          [](const chain_id_type& id){ return id; },
          [](const genesis_state& gs){ return gs.compute_chain_id(); }
           } , *context);
+   }
+
+   // static
+   uint32_t block_log::extract_first_block_num(const std::filesystem::path& block_dir,
+                                               const std::filesystem::path& retained_dir) {
+      return detail::block_log_impl::extract_block_log_preamble(block_dir, retained_dir).first_block_num;
    }
 
    // static

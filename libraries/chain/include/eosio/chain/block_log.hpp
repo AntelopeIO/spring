@@ -95,6 +95,9 @@ namespace eosio { namespace chain {
          extract_chain_id(const std::filesystem::path& data_dir,
                           const std::filesystem::path& retained_dir = std::filesystem::path{});
 
+         static uint32_t extract_first_block_num(const std::filesystem::path& block_dir,
+                                                 const std::filesystem::path& retained_dir = std::filesystem::path{});
+
          static void construct_index(const std::filesystem::path& block_file_name, const std::filesystem::path& index_file_name);
 
          static bool contains_genesis_state(uint32_t version, uint32_t first_block_num);
