@@ -64,7 +64,7 @@ namespace eosio::chain {
 
       auto sw = executed_action_receipts.store_which();
       executed_action_receipts = action_digests_t{sw};
-      bill_to_accounts.clear();
+      // bill_to_accounts is only updated in init()
       validate_ram_usage.clear();
    }
 
