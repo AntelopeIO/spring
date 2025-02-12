@@ -64,7 +64,7 @@ namespace eosio::chain {
 
       auto sw = executed_action_receipts.store_which();
       executed_action_receipts = action_digests_t{sw};
-      // bill_to_accounts is only updated in init()
+      // bill_to_accounts should only be updated in init(), not updated during transaction execution
       validate_ram_usage.clear();
    }
 
