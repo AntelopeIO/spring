@@ -441,7 +441,7 @@ BOOST_FIXTURE_TEST_CASE( invalid_action_mroot_test, tester )
                            [] (const fc::exception &e)->bool {
                               return e.code() == block_validate_exception::code_value &&
                                      e.to_detail_string().find("computed finality mroot") != std::string::npos &&
-                                     e.to_detail_string().find("does not match supplied action mroot") != std::string::npos;
+                                     e.to_detail_string().find("does not match supplied finality mroot") != std::string::npos;
                            });
 }
 

@@ -4062,10 +4062,10 @@ struct controller_impl {
 
          // compute finality mroot using previous block state and new qc claim
          auto        computed_finality_mroot = prev.get_finality_mroot_claim(new_qc_claim);
-         const auto& supplied_action_mroot   = b->action_mroot;
-         EOS_ASSERT( computed_finality_mroot == supplied_action_mroot, block_validate_exception,
-                     "computed finality mroot (${computed}) does not match supplied action mroot ${supplied} by header extension. Block number: ${b}, block id: ${id}",
-                     ("computed", computed_finality_mroot)("supplied", supplied_action_mroot)("b", block_num)("id", id) );
+         const auto& supplied_finality_mroot  = b->action_mroot;
+         EOS_ASSERT( computed_finality_mroot == supplied_finality_mroot, block_validate_exception,
+                     "computed finality mroot (${computed}) does not match supplied finality mroot ${supplied} by header extension. Block number: ${b}, block id: ${id}",
+                     ("computed", computed_finality_mroot)("supplied", supplied_finality_mroot)("b", block_num)("id", id) );
       }
 
       return std::optional{qc_proof};
