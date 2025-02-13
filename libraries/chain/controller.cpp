@@ -231,7 +231,7 @@ struct assembled_block {
       block_id_type                     id;
       pending_block_header_state_legacy pending_block_header_state;
       deque<transaction_metadata_ptr>   trx_metas;
-      mutable_signed_block_ptr          unsigned_block;
+      mutable_block_ptr                 unsigned_block;
 
       // if the unsigned_block pre-dates block-signing authorities this may be present.
       std::optional<producer_authority_schedule> new_producer_authority_cache;
@@ -728,7 +728,7 @@ struct building_block {
                }
 
                // in dpos, we create a signed_block here. In IF mode, we do it later (when we are ready to sign it)
-               auto block_ptr = std::make_shared<signed_block>(bb.pending_block_header_state.make_block_header(
+               auto block_ptr = signed_block::create_mutable_block(bb.pending_block_header_state.make_block_header(
                   transaction_mroot, action_mroot, bb.new_pending_producer_schedule, std::move(new_finalizer_policy),
                   vector<digest_type>(bb.new_protocol_feature_activations), pfs));
 
@@ -1567,20 +1567,8 @@ struct controller_impl {
                return irreversible_mode() || bsp->is_valid();
             };
 
-            using packed_block_future = std::future<std::vector<char>>;
-            std::vector<packed_block_future> v;
-            if (!irreversible_mode()) {
-               v.reserve( branch.size() );
-               for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-                  v.emplace_back( post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } ) );
-               }
-            }
-            auto it = v.begin();
-
             for( auto bitr = branch.rbegin(); bitr != branch.rend() && should_process(*bitr); ++bitr ) {
-               packed_block_future f;
                if (irreversible_mode()) {
-                  f = post_async_task( thread_pool.get_executor(), [b=(*bitr)->block]() { return fc::raw::pack(*b); } );
                   result = apply_irreversible_block(fork_db, *bitr);
                   if (result != controller::apply_blocks_result::complete)
                      break;
@@ -1590,7 +1578,7 @@ struct controller_impl {
 
                // blog.append could fail due to failures like running out of space.
                // Do it before commit so that in case it throws, DB can be rolled back.
-               blog.append( (*bitr)->block, (*bitr)->id(), irreversible_mode() ? f.get() : it++->get() );
+               blog.append( (*bitr)->block, (*bitr)->id(), (*bitr)->block->packed_signed_block() );
 
                db.commit( (*bitr)->block_num() );
                root_id = (*bitr)->id();
@@ -1659,7 +1647,7 @@ struct controller_impl {
       auto head = std::make_shared<block_state_legacy>();
       static_cast<block_header_state_legacy&>(*head) = genheader;
       head->activated_protocol_features = std::make_shared<protocol_feature_activation_set>(); // no activated protocol features in genesis
-      head->block = std::make_shared<signed_block>(genheader.header);
+      head->block = signed_block::create_signed_block(signed_block::create_mutable_block(genheader.header));
       chain_head = block_handle{head};
 
       db.set_revision( chain_head.block_num() );
@@ -5535,7 +5523,7 @@ signed_block_ptr controller::fetch_block_by_number( uint32_t block_num )const  {
 
 std::vector<char> controller::fetch_serialized_block_by_number( uint32_t block_num)const  { try {
    if (signed_block_ptr b = my->fork_db_fetch_block_on_best_branch_by_num(block_num)) {
-      return fc::raw::pack(*b);
+      return b->packed_signed_block();
    }
 
    return my->blog.read_serialized_block_by_num(block_num);

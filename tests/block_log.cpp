@@ -36,7 +36,7 @@ struct block_log_fixture {
       }
       else {
          eosio::chain::genesis_state gs;
-         log->reset(gs, std::make_shared<eosio::chain::signed_block>());
+         log->reset(gs, eosio::chain::signed_block::create_signed_block(eosio::chain::signed_block::create_mutable_block({})));
 
          //in this case it's not really empty since the "genesis block" is present. These tests only
          // work because the default ctor of a block_header (used above) has previous 0'ed out which
@@ -54,11 +54,12 @@ struct block_log_fixture {
       std::vector<char> a;
       a.assign(size, fillchar);
 
-      auto p = std::make_shared<eosio::chain::signed_block>();
+      auto p = eosio::chain::signed_block::create_mutable_block({});
       p->previous._hash[0] = fc::endian_reverse_u32(index-1);
       p->header_extensions.push_back(std::make_pair<uint16_t, std::vector<char>>(0, std::vector<char>(a)));
 
-      log->append(p, p->calculate_id(), fc::raw::pack(*p));
+      auto sp = eosio::chain::signed_block::create_signed_block(std::move(p));
+      log->append(sp, sp->calculate_id(), sp->packed_signed_block());
 
       if(index + 1 > written_data.size())
          written_data.resize(index + 1);

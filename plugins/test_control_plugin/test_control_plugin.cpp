@@ -126,7 +126,7 @@ void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_pt
       return;
    }
 
-   auto copy_b = std::make_shared<chain::signed_block>(b->clone());
+   auto copy_b = b->clone();
    copy_b->previous = b->calculate_id();
    copy_b->block_extensions.clear(); // remove QC extension since header will claim same as previous block
    copy_b->timestamp = b->timestamp.next();
@@ -159,12 +159,13 @@ void test_control_plugin_impl::swap_action_in_block(const chain::signed_block_pt
    copy_b->transaction_mroot = chain::calculate_merkle( std::move(trx_digests) );
    // Re-sign the block
    copy_b->producer_signature = _swap_on_options.blk_priv_key.sign(copy_b->calculate_id());
+   auto copy_b_signed = signed_block::create_signed_block(std::move(copy_b));
 
    // will be processed on the next start_block if is_new_best_head
-   const auto&[add_result, bh] = _chain.accept_block(copy_b->calculate_id(), copy_b);
+   const auto&[add_result, bh] = _chain.accept_block(copy_b_signed->calculate_id(), copy_b_signed);
    ilog("Swapped action ${f} to ${t}, add_result ${a}, block ${bn}",
         ("f", _swap_on_options.from)("t", _swap_on_options.to)("a", add_result)("bn", bh ? bh->block_num() : 0));
-   app().find_plugin<net_plugin>()->broadcast_block(copy_b, copy_b->calculate_id());
+   app().find_plugin<net_plugin>()->broadcast_block(copy_b_signed, copy_b_signed->calculate_id());
    if (_swap_on_options.shutdown)
       app().quit();
    reset_swap_action();

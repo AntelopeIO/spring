@@ -664,10 +664,11 @@ namespace eosio { namespace chain {
 
          signed_block_ptr read_block_by_num(uint32_t block_num) final {
             try {
-               uint64_t pos = get_block_pos(block_num);
+               auto [ pos, size ] = get_block_position_and_size(block_num);
                if (pos != block_log::npos) {
                   block_file.seek(pos);
-                  return read_block(block_file, block_num);
+                  fc::datastream_mirror ds(block_file, size);
+                  return read_block(ds, block_num);
                }
                return retry_read_block_by_num(block_num);
             }
@@ -804,7 +805,7 @@ namespace eosio { namespace chain {
 
          void reset(const genesis_state& gs, const signed_block_ptr& first_block) override {
             this->reset(1, gs, default_initial_version);
-            this->append(first_block, first_block->calculate_id(), fc::raw::pack(*first_block));
+            this->append(first_block, first_block->calculate_id(), first_block->packed_signed_block());
          }
 
          void reset(const chain_id_type& chain_id, uint32_t first_block_num) override {
@@ -1097,9 +1098,13 @@ namespace eosio { namespace chain {
          }
 
          signed_block_ptr retry_read_block_by_num(uint32_t block_num) final {
-            auto ds = catalog.ro_stream_for_block(block_num);
-            if (ds)
-               return read_block(*ds, block_num);
+            uint64_t block_size = 0;
+
+            auto ds = catalog.ro_stream_and_size_for_block(block_num, block_size);
+            if (ds) {
+               fc::datastream_mirror dsm(*ds, block_size);
+               return read_block(dsm, block_num);
+            }
             return {};
          }
 
@@ -1280,9 +1285,8 @@ namespace eosio { namespace chain {
    }
 
    void block_log::append(const signed_block_ptr& b, const block_id_type& id) {
-      std::vector<char> packed_block = fc::raw::pack(*b);
       std::lock_guard g(my->mtx);
-      my->append(b, id, packed_block);
+      my->append(b, id, b->packed_signed_block());
    }
 
    void block_log::append(const signed_block_ptr& b, const block_id_type& id, const std::vector<char>& packed_block) {
