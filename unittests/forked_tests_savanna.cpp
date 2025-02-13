@@ -115,8 +115,10 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
          if (j <= i) {
             auto copy_b = b->clone();
             if (j == i) {
-               // corrupt this block (forks[j].blocks[j] is corrupted)
-               copy_b->action_mroot._hash[0] ^= 0x1ULL;
+               // Corrupt this block (forks[j].blocks[j] is corrupted).
+               // Do not corrupt the block by modifying action_mroot, as action_mroot is checked
+               // by block header validation, _nodes[0].push_block(b) would fail.
+               copy_b->confirmed++;
             } else if (j < i) {
                // link to a corrupted chain (fork.blocks[j] was corrupted)
                copy_b->previous = fork.blocks.back()->calculate_id();
@@ -177,7 +179,7 @@ BOOST_FIXTURE_TEST_CASE(fork_with_bad_block_savanna, savanna_cluster::cluster_t)
 
          // push the block which should attempt the corrupted fork and fail
          BOOST_REQUIRE_EXCEPTION(_nodes[0].push_block(fork.blocks.back()), fc::exception,
-                                 fc_exception_message_starts_with( "finality_mroot does not match"));
+                                 fc_exception_message_starts_with( "Block ID does not match"));
          BOOST_REQUIRE_EQUAL(_nodes[0].head().id(), node0_head);
       }
    }

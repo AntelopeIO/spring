@@ -421,4 +421,28 @@ BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
                            }) ;
 }
 
+// Verify that a block with an invalid action mroot is rejected
+BOOST_FIXTURE_TEST_CASE( invalid_action_mroot_test, tester )
+{
+   // Create a block with transaction
+   create_account("newacc"_n);
+   auto b = produce_block();
+
+   // Make a copy of the block and corrupt its action mroot
+   auto copy_b = b->clone();
+   copy_b->action_mroot = digest_type::hash("corrupted");
+
+   // Re-sign the block
+   copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
+
+   // Push the block containing corruptted action mroot. It should fail
+   BOOST_REQUIRE_EXCEPTION(push_block(signed_block::create_signed_block(std::move(copy_b))),
+                           fc::exception,
+                           [] (const fc::exception &e)->bool {
+                              return e.code() == block_validate_exception::code_value &&
+                                     e.to_detail_string().find("computed finality mroot") != std::string::npos &&
+                                     e.to_detail_string().find("does not match supplied finality mroot") != std::string::npos;
+                           });
+}
+
 BOOST_AUTO_TEST_SUITE_END()

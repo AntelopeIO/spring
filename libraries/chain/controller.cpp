@@ -3959,7 +3959,7 @@ struct controller_impl {
    // Called from net-threads. It is thread safe as signed_block is never modified after creation.
    // -----------------------------------------------------------------------------
    std::optional<qc_t> verify_basic_proper_block_invariants( const block_id_type& id, const signed_block_ptr& b,
-                                                             const block_header_state& prev ) {
+                                                             const block_state& prev ) {
       assert(b->is_proper_svnn_block());
 
       auto qc_ext_id = quorum_certificate_extension::extension_id();
@@ -4053,6 +4053,20 @@ struct controller_impl {
       EOS_ASSERT( qc_proof.is_strong() == new_qc_claim.is_strong_qc, block_validate_exception,
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
+
+      // `valid` structure can be modified while this function is running on net thread.
+      // Use is_valid() instead. It uses atomic `validated` and when it is true, `valid`
+      // has been constructed.
+      if (prev.is_valid()) {
+         assert(prev.valid);
+
+         // compute finality mroot using previous block state and new qc claim
+         auto        computed_finality_mroot = prev.get_finality_mroot_claim(new_qc_claim);
+         const auto& supplied_finality_mroot  = b->action_mroot;
+         EOS_ASSERT( computed_finality_mroot == supplied_finality_mroot, block_validate_exception,
+                     "computed finality mroot (${computed}) does not match supplied finality mroot ${supplied} by header extension. Block number: ${b}, block id: ${id}",
+                     ("computed", computed_finality_mroot)("supplied", supplied_finality_mroot)("b", block_num)("id", id) );
+      }
 
       return std::optional{qc_proof};
    }
