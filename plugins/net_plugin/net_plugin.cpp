@@ -15,6 +15,7 @@
 #include <fc/network/message_buffer.hpp>
 #include <fc/io/json.hpp>
 #include <fc/io/raw.hpp>
+#include <fc/io/datastream.hpp>
 #include <fc/variant_object.hpp>
 #include <fc/crypto/rand.hpp>
 #include <fc/exception/exception.hpp>
@@ -3190,8 +3191,10 @@ namespace eosio {
             return true;
       }
 
-      auto ds = pending_message_buffer.create_datastream();
-      fc::raw::unpack( ds, which );
+      auto mb_ds = pending_message_buffer.create_datastream();
+      fc::raw::unpack( mb_ds, which );
+
+      fc::datastream_mirror ds(mb_ds, message_length);
       shared_ptr<signed_block> ptr = std::make_shared<signed_block>();
       fc::raw::unpack( ds, *ptr );
 

@@ -14,14 +14,15 @@ struct block_log_get_block_fixture {
 
       log.emplace(block_dir);
 
-      log->reset(genesis_state(), std::make_shared<signed_block>());
+      log->reset(genesis_state(), signed_block::create_signed_block(signed_block::create_mutable_block({})));
       BOOST_REQUIRE_EQUAL(log->first_block_num(), 1u);
       BOOST_REQUIRE_EQUAL(log->head()->block_num(), 1u);
 
       for(uint32_t i = 2; i < last_block_num + 1; ++i) {
-         auto p = std::make_shared<signed_block>();
+         auto p = signed_block::create_mutable_block({});
          p->previous._hash[0] = fc::endian_reverse_u32(i-1);
-         log->append(p, p->calculate_id());
+         auto sp = signed_block::create_signed_block(std::move(p));
+         log->append(sp, sp->calculate_id());
       }
       BOOST_REQUIRE_EQUAL(log->head()->block_num(), last_block_num);
    };

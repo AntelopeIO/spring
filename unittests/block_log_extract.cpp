@@ -11,7 +11,7 @@ using namespace eosio::chain;
 struct block_log_extract_fixture {
    block_log_extract_fixture() {
       log.emplace(dir.path());
-      log->reset(genesis_state(), std::make_shared<signed_block>());
+      log->reset(genesis_state(), signed_block::create_signed_block(signed_block::create_mutable_block({})));
       BOOST_REQUIRE_EQUAL(log->first_block_num(), 1u);
       BOOST_REQUIRE_EQUAL(log->head()->block_num(), 1u);
       for(uint32_t i = 2; i < 13; ++i) {
@@ -21,9 +21,10 @@ struct block_log_extract_fixture {
    };
 
    void add(uint32_t index) {
-      auto p = std::make_shared<signed_block>();
+      auto p = signed_block::create_mutable_block({});
       p->previous._hash[0] = fc::endian_reverse_u32(index-1);
-      log->append(p, p->calculate_id());
+      auto sp = signed_block::create_signed_block(std::move(p));
+      log->append(sp, sp->calculate_id());
    }
 
    static void rename_blocks_files(std::filesystem::path dir) {

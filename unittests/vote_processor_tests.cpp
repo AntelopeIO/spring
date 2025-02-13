@@ -35,7 +35,7 @@ bls_private_key bls_priv_key_2 = bls_private_key::generate();
 std::vector<bls_private_key> bls_priv_keys{bls_priv_key_0, bls_priv_key_1, bls_priv_key_2};
 
 auto create_genesis_block_state() { // block 2
-   auto block = std::make_shared<signed_block>();
+   auto block = signed_block::create_mutable_block({});
 
    block->producer = eosio::chain::config::system_account_name;
    auto pub_key = eosio::testing::base_tester::get_public_key( block->producer, "active" );
@@ -54,7 +54,7 @@ auto create_genesis_block_state() { // block 2
    producer_authority_schedule schedule = { 0, { producer_authority{block->producer, block_signing_authority_v0{ 1, {{pub_key, 1}} } } } };
    auto genesis = std::make_shared<block_state>();
    block->previous = make_block_id(1);
-   genesis->block = block;
+   genesis->block = signed_block::create_signed_block(std::move(block));
    genesis->activated_protocol_features = std::make_shared<protocol_feature_activation_set>();
    genesis->active_finalizer_policy = std::make_shared<finalizer_policy>(new_finalizer_policy);
    genesis->active_proposer_policy = std::make_shared<proposer_policy>(proposer_policy{.proposer_schedule = schedule});
@@ -66,7 +66,7 @@ auto create_genesis_block_state() { // block 2
 auto create_test_block_state(const block_state_ptr& prev) {
    static block_timestamp_type timestamp;
    timestamp = timestamp.next(); // each test block state will be unique
-   auto block = std::make_shared<signed_block>(prev->block->clone());
+   auto block = prev->block->clone();
    block->producer = eosio::chain::config::system_account_name;
    block->previous = prev->id();
    block->timestamp = timestamp;

@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    auto& act = signed_tx.actions.back();
    auto act_data = act.template data_as<newaccount>();
@@ -53,7 +53,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   auto [best_head, obh] = validator.control->accept_block( copy_b->calculate_id(), copy_b );
+   auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+   auto [best_head, obh] = validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b );
    BOOST_REQUIRE(obh);
    validator.control->abort_block();
    BOOST_REQUIRE_EXCEPTION(validator.control->apply_blocks( {}, trx_meta_cache_lookup{} ), fc::exception ,
@@ -72,7 +73,7 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
    auto b = main.produce_block();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    const auto& packed_trx = std::get<packed_transaction>(copy_b->transactions.back().trx);
    auto signed_tx = packed_trx.get_signed_transaction();
 
@@ -96,7 +97,8 @@ BOOST_AUTO_TEST_CASE_TEMPLATE( block_with_invalid_tx_mroot_test, T, testers )
 
    // Push block with invalid transaction to other chain
    T validator;
-   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( copy_b->calculate_id(), copy_b ), fc::exception,
+   auto signed_copy_b = signed_block::create_signed_block(std::move(copy_b));
+   BOOST_REQUIRE_EXCEPTION(validator.control->accept_block( signed_copy_b->calculate_id(), signed_copy_b ), fc::exception,
                            [] (const fc::exception &e)->bool {
                               return e.code() == block_validate_exception::code_value &&
                                      e.to_detail_string().find("invalid block transaction merkle root") != std::string::npos;
@@ -110,7 +112,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
    signed_block_ptr b = main.produce_block_no_validation();
 
    // Make a copy of the valid block and corrupt the transaction
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    const auto& packed_trx = std::get<packed_transaction>(copy_b->transactions.back().trx);
    auto signed_tx = packed_trx.get_signed_transaction();
    // Corrupt one signature
@@ -141,7 +143,7 @@ std::pair<signed_block_ptr, signed_block_ptr> corrupt_trx_in_block(T& main, acco
       copy_b->producer_signature = main.get_private_key(b->producer, "active").sign(sig_digest);
    }
 
-   return std::pair<signed_block_ptr, signed_block_ptr>(b, copy_b);
+   return std::pair<signed_block_ptr, signed_block_ptr>(b, signed_block::create_signed_block(std::move(copy_b)));
 }
 
 // verify that a block with a transaction with an incorrect signature, is blindly accepted from a trusted producer
@@ -389,7 +391,7 @@ BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
    auto b = produce_block_no_validation();
 
    // Make a copy of the valid block
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
 
    // Retrieve finality extension
    auto fin_ext_id = finality_extension::extension_id();
@@ -412,7 +414,7 @@ BOOST_FIXTURE_TEST_CASE( invalid_qc_claim_block_num_test, validating_tester ) {
    copy_b->producer_signature = get_private_key(config::system_account_name, "active").sign(copy_b->calculate_id());
 
    // Push the corrupted block. It must be rejected.
-   BOOST_REQUIRE_EXCEPTION(validate_push_block(copy_b), fc::exception,
+   BOOST_REQUIRE_EXCEPTION(validate_push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
                            [] (const fc::exception &e)->bool {
                               return e.code() == invalid_qc_claim::code_value &&
                                      e.to_detail_string().find("that is greater than the previous block number") != std::string::npos;

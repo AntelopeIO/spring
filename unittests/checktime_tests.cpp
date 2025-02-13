@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    BOOST_REQUIRE_EQUAL( b->transactions.size(), 1 );
 
    // Make a copy of the valid block and swicth the checktime_pass transaction with checktime_failure
-   auto copy_b = std::make_shared<signed_block>(b->clone());
+   auto copy_b = b->clone();
    auto signed_tx = std::get<packed_transaction>(copy_b->transactions.back().trx).get_signed_transaction();
    auto& act = signed_tx.actions.back();
    constexpr chain::name checktime_fail_n{WASM_TEST_ACTION("test_checktime", "checktime_failure")};
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE( checktime_interrupt_test) { try {
    } );
 
    // apply block, caught in an "infinite" loop
-   BOOST_CHECK_EXCEPTION( other.push_block(copy_b), fc::exception,
+   BOOST_CHECK_EXCEPTION( other.push_block(signed_block::create_signed_block(std::move(copy_b))), fc::exception,
                           [](const fc::exception& e) { return e.code() == interrupt_exception::code_value; } );
 
    th.join();
