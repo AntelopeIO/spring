@@ -4066,7 +4066,12 @@ struct controller_impl {
                   "QC is_strong (${s1}) in block extension does not match is_strong_qc (${s2}) in header extension. Block number: ${b}",
                   ("s1", qc_proof.is_strong())("s2", new_qc_claim.is_strong_qc)("b", block_num) );
 
-      if (prev.valid) {
+      // `valid` structure can be modified while this function is running on net thread.
+      // Use is_valid() instead. It uses atomic `validated` and when it is true, `valid`
+      // has been constructed.
+      if (prev.is_valid()) {
+         assert(prev.valid);
+
          // compute finality mroot using previous block state and new qc claim
          auto computed_finality_mroot = prev.get_finality_mroot_claim(new_qc_claim);
          EOS_ASSERT( computed_finality_mroot == b->action_mroot, block_validate_exception,
