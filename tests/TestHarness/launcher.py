@@ -324,7 +324,7 @@ class cluster_generator:
         }.get(self.args.shape, self.make_custom)()
 
         if not self.args.nogen:
-            genesis = selfinit_genesis()
+            genesis = self.init_genesis()
             for node_name, node in self.network.nodes.items():
                 node.config_dir_name.mkdir(parents=True, exist_ok=True)
                 self.write_logging_config_file(node)
