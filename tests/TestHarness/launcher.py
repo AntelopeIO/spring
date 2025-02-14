@@ -324,7 +324,7 @@ class cluster_generator:
         }.get(self.args.shape, self.make_custom)()
 
         if not self.args.nogen:
-            genesis = self.init_genesis()
+            genesis = selfinit_genesis()
             for node_name, node in self.network.nodes.items():
                 node.config_dir_name.mkdir(parents=True, exist_ok=True)
                 self.write_logging_config_file(node)
@@ -367,7 +367,7 @@ class cluster_generator:
                             'context_free_discount_net_usage_den': 100,
                             'max_block_cpu_usage': 500000 if self.args.max_block_cpu_usage is None else self.args.max_block_cpu_usage,
                             'target_block_cpu_usage_pct': 1000,
-                            'max_transaction_cpu_usage': 475000 if self.args.max_transaction_cpu_usage is None else self.args.max_transaction_cpu_usage,
+                            'max_transaction_cpu_usage': 150000 if self.args.max_transaction_cpu_usage is None else self.args.max_transaction_cpu_usage,
                             'min_transaction_cpu_usage': 100,
                             'max_transaction_lifetime': 3600,
                             'deferred_trx_expiration_window': 600,
