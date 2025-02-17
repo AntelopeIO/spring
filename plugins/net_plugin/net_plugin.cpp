@@ -851,6 +851,7 @@ namespace eosio {
       std::atomic<uint32_t>           peer_fork_db_head_block_num{0};
       std::atomic<uint32_t>           last_received_block_num{0};
       std::atomic<uint32_t>           unique_blocks_rcvd_count{0};
+      std::atomic<uint32_t>           unique_trxs_rcvd_count{0};
       std::atomic<size_t>             bytes_received{0};
       std::atomic<std::chrono::nanoseconds>   last_bytes_received{0ns};
       std::atomic<size_t>             bytes_sent{0};
