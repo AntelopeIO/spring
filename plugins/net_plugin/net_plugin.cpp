@@ -288,6 +288,7 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
+         uint32_t connection_id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -298,8 +299,8 @@ namespace eosio {
                key<&connection_detail::host>
             >,
             ordered_unique<
-               tag<struct by_connection>,
-               key<&connection_detail::c>
+               tag<by_connection_id>,
+               const_mem_fun<connection_detail, uint32_t, &connection_detail::connection_id>
             >
          >
       >;
@@ -1089,6 +1090,8 @@ namespace eosio {
          return !last_handshake_recv.p2p_address.empty();
       }
    }; // class connection
+
+   uint32_t connections_manager::connection_detail::connection_id() const { return c->connection_id; }
 
    const string connection::unknown = "<unknown>";
 
@@ -3881,6 +3884,7 @@ namespace eosio {
       const auto& tid = trx->id();
 
       peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
+      ++unique_trxs_rcvd_count;
 
       size_t trx_size = calc_trx_size( trx );
       trx_in_progress_size += trx_size;
@@ -4870,7 +4874,7 @@ namespace eosio {
       vector<connection_status> result;
       {
          std::shared_lock g( connections_mtx );
-         auto& index = connections.get<by_connection>();
+         auto& index = connections.get<by_connection_id>();
          result.reserve( index.size() );
          conns.reserve( index.size() );
          for( const connection_detail& cd : index ) {
@@ -4930,17 +4934,17 @@ namespace eosio {
             }
          }
          std::scoped_lock g( connections_mtx );
-         auto& index = connections.get<by_connection>();
+         auto& index = connections.get<by_connection_id>();
          for( auto& c : removing ) {
-            index.erase(c);
+            index.erase(c->connection_id);
          }
       };
       auto max_time = fc::time_point::now().safe_add(max_cleanup_time);
       std::vector<connection_ptr> reconnecting, removing;
       auto from = from_connection.lock();
       std::unique_lock g( connections_mtx );
-      auto& index = connections.get<by_connection>();
-      auto it = (from ? index.find(from) : index.begin());
+      auto& index = connections.get<by_connection_id>();
+      auto it = (from ? index.find(from->connection_id) : index.begin());
       if (it == index.end()) it = index.begin();
       while (it != index.end()) {
          if (fc::time_point::now() >= max_time) {
@@ -4990,7 +4994,7 @@ namespace eosio {
       assert(update_p2p_connection_metrics);
       auto from = from_connection.lock();
       std::shared_lock g(connections_mtx);
-      const auto& index = connections.get<by_connection>();
+      const auto& index = connections.get<by_connection_id>();
       size_t num_clients = 0, num_peers = 0, num_bp_peers = 0;
       net_plugin::p2p_per_connection_metrics per_connection(index.size());
       for (auto it = index.begin(); it != index.end(); ++it) {
