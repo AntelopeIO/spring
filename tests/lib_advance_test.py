@@ -143,11 +143,9 @@ try:
 
     # instant finality does not drop late blocks, but can still get unlinkable when syncing and getting a produced block
     allowedUnlinkableBlocks = afterBlockNum-beforeBlockNum
-    logFile = Utils.getNodeDataDir(prodNode3.nodeId) + "/stderr.txt"
-    f = open(logFile)
-    contents = f.read()
-    if contents.count("unlinkable_block") > (allowedUnlinkableBlocks):
-        errorExit(f"Node{prodNode3.nodeId} has more than {allowedUnlinkableBlocks} unlinkable blocks: {logFile}.")
+    numUnlinkableBlocks = prodNode3.numUniqueUnlinkableBlocks()
+    if numUnlinkableBlocks > allowedUnlinkableBlocks:
+        errorExit(f"Node{prodNode3.nodeId} has {numUnlinkableBlocks} unlinkable blocks which is more than allowed {allowedUnlinkableBlocks}.")
 
     testSuccessful=True
 finally:
