@@ -361,6 +361,8 @@ namespace eosio {
       string disconnect(const string& host);
       void close_all();
 
+      connection_ptr find_connection(uint32_t connection_id) const;
+
       std::optional<connection_status> status(const string& host) const;
       vector<connection_status> connection_statuses() const;
 
@@ -903,6 +905,7 @@ namespace eosio {
       std::atomic<bool>       is_bp_connection = false;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
+      std::atomic<uint32_t>   unique_votes_rcvd_count{0};
 
       alignas(hardware_destructive_interference_sz)
       fc::mutex                        sync_response_expected_timer_mtx;
@@ -4122,6 +4125,8 @@ namespace eosio {
       switch( status ) {
       case vote_result_t::success:
          bcast_vote_message(connection_id, msg);
+         if (auto c = my_impl->connections.find_connection(connection_id))
+            ++c->unique_votes_rcvd_count;
          break;
       case vote_result_t::unknown_public_key:
       case vote_result_t::invalid_signature:
@@ -4702,6 +4707,14 @@ namespace eosio {
    size_t connections_manager::number_connections() const {
       std::shared_lock g(connections_mtx);
       return connections.size();
+   }
+
+   connection_ptr connections_manager::find_connection(uint32_t connection_id) const {
+      std::shared_lock g(connections_mtx);
+      const auto& index = connections.get<by_connection_id>();
+      if (auto i = index.find(connection_id); i != index.end())
+         return i->c;
+      return {};
    }
 
    void connections_manager::add_supplied_peers(const vector<string>& peers ) {
