@@ -422,6 +422,7 @@ namespace eosio {
       bool                                  p2p_disable_block_nack = false;
       bool                                  p2p_accept_votes = true;
       fc::microseconds                      p2p_dedup_cache_expire_time_us{};
+      uint16_t                              p2p_peer_limit = 6;
 
       chain_id_type                         chain_id;
       fc::sha256                            node_id;
@@ -4336,6 +4337,8 @@ namespace eosio {
            "   p2p.eos.io:9876\n"
            "   p2p.trx.eos.io:9876:trx\n"
            "   p2p.blk.eos.io:9876:blk\n")
+         ( "p2p-peer-limit", bpo::value<uint16_t>()->default_value(6),
+           "Limit the number of p2p-peer-address to remain connected to. Selects the best peers of p2p-peer-address-list.")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
@@ -4397,6 +4400,7 @@ namespace eosio {
          p2p_dedup_cache_expire_time_us = fc::seconds( options.at( "p2p-dedup-cache-expire-time-sec" ).as<uint32_t>() );
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
+         p2p_peer_limit = options.at("p2p-peer-limit").as<uint16_t>();
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
          p2p_disable_block_nack = options.at( "p2p-disable-block-nack" ).as<bool>();
 
