@@ -3,7 +3,7 @@
        "target":"4.1",
        "prerelease":true
     },
-    "referencecontracts":{
-       "ref":"main"
+    "eossystemcontracts":{
+       "ref":"release/3.2"
     }
  }
