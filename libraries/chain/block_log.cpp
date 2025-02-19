@@ -597,7 +597,7 @@ namespace eosio { namespace chain {
                uint64_t pos = block_file.tellp();
 
                EOS_ASSERT(index_file.tellp() == sizeof(uint64_t) * (b->block_num() - preamble.first_block_num),
-                          block_log_append_fail, "Append to index file occuring at wrong position.",
+                          block_log_append_fail, "Append to index file occurring at wrong position.",
                           ("position", (uint64_t)index_file.tellp())(
                                 "expected", (b->block_num() - preamble.first_block_num) * sizeof(uint64_t)));
                block_file.write(packed_block.data(), packed_block.size());
