@@ -1160,6 +1160,7 @@ namespace eosio { namespace chain {
             // convert from  non-pruned block log to pruned if necessary
             if (!preamble.is_currently_pruned()) {
                block_file.open(fc::cfile::update_rw_mode);
+               index_file.open(fc::cfile::update_rw_mode);
                update_head(read_head());
                first_block_number = preamble.first_block_num;
                // need to convert non-pruned log to pruned log. prune any blocks to start with
