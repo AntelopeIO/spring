@@ -4398,9 +4398,13 @@ struct controller_impl {
          if( switch_fork ) {
             auto head_fork_comp_str =
                block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
-            ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                 ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+            ilog("switching forks from ${chid} (block number ${chn} ${cp}) ${c} to ${nhid} (block number ${nhn} np) ${n}",
+                 ("chid", chain_head.id())("chn", chain_head.block_num())("cp", chain_head.producer())
+                 ("nhid", new_head->id())("nhn", new_head->block_num())("np", new_head->producer())
                  ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
+            if (chain_head.block_num() == new_head->block_num() && chain_head.producer() == new_head->producer()) {
+               wlog("${p} double produced block ${n}", ("p", new_head->producer())("n", new_head->block_num()));
+            }
 
             // not possible to log transaction specific info when switching forks
             if (auto dm_logger = get_deep_mind_logger(false)) {
