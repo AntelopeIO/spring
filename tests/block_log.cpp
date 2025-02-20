@@ -651,7 +651,7 @@ BOOST_DATA_TEST_CASE(nonprune_to_prune_on_start, bdata::make({1, 1500}) * bdata:
 
    const unsigned num_blocks_to_add = prune_blocks*3;
    unsigned next_block = starting_block == 1 ? 2 : starting_block;
-   for(unsigned i = 0; i < prune_blocks*3; ++i)
+   for(auto i = 0; i < prune_blocks*3; ++i)
       t.add(next_block++, payload_size(), 'z');
    t.check_n_bounce([&]() {});
 
