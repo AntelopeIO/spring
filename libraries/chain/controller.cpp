@@ -4398,7 +4398,7 @@ struct controller_impl {
          if( switch_fork ) {
             auto head_fork_comp_str =
                block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
-            ilog("switching forks from ${chid} (block number ${chn} ${cp}) ${c} to ${nhid} (block number ${nhn} np) ${n}",
+            ilog("switching forks from ${chid} (block number ${chn} ${cp}) ${c} to ${nhid} (block number ${nhn} ${np}) ${n}",
                  ("chid", chain_head.id())("chn", chain_head.block_num())("cp", chain_head.producer())
                  ("nhid", new_head->id())("nhn", new_head->block_num())("np", new_head->producer())
                  ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
