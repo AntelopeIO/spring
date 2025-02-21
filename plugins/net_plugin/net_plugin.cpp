@@ -230,8 +230,8 @@ namespace eosio {
       void rm_block(const block_id_type& blkid);
 
       bool add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id,
-                         const time_point_sec& now = time_point_sec(time_point::now()) );
-      bool have_txn( const transaction_id_type& tid ) const;
+                         const time_point& now );
+      bool add_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id );
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
@@ -2736,14 +2736,15 @@ namespace eosio {
       index.erase(p.first, p.second);
    }
 
+   // returns true if [id, connection_id] is not found
    bool dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                                        uint32_t connection_id, const time_point_sec& now ) {
+                                        uint32_t connection_id, const time_point& now ) {
       fc::lock_guard g( local_txns_mtx );
       auto tptr = local_txns.get<by_id>().find( std::make_tuple( std::ref( id ), connection_id ) );
       bool added = (tptr == local_txns.end());
       if( added ) {
          // expire at either transaction expiration or configured max expire time whichever is less
-         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         time_point_sec expires{now + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
@@ -2753,10 +2754,18 @@ namespace eosio {
       return added;
    }
 
-   bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
+   // return true if trx already received, adds to local trxs with connection_id
+   bool dispatch_manager::add_txn(const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id ) {
       fc::lock_guard g( local_txns_mtx );
-      const auto tptr = local_txns.get<by_id>().find( tid );
-      return tptr != local_txns.end();
+      bool contains = local_txns.get<by_id>().contains( id );
+      // expire at either transaction expiration or configured max expire time whichever is less
+      time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
+      expires = std::min( trx_expires, expires );
+      local_txns.insert( node_transaction_state{
+         .id = id,
+         .expires = expires,
+         .connection_id = connection_id} );
+      return contains;
    }
 
    void dispatch_manager::expire_txns() {
@@ -2844,7 +2853,7 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      const fc::time_point_sec now{fc::time_point::now()};
+      const fc::time_point now{fc::time_point::now()};
       my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
          if( !cp->is_transactions_connection() || !cp->current() ) {
             return;
@@ -3262,10 +3271,8 @@ namespace eosio {
          }
          return true;
       }
-      bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id );
 
-      if( have_trx ) {
+      if (!my_impl->dispatcher.add_txn( ptr->id(), ptr->expiration(), connection_id )) {
          peer_dlog( this, "got a duplicate transaction - dropping" );
          return true;
       }
