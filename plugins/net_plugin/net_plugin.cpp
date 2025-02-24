@@ -4364,7 +4364,7 @@ namespace eosio {
            "   p2p.trx.eos.io:9876:trx\n"
            "   p2p.blk.eos.io:9876:blk\n")
          ( "p2p-peer-limit", bpo::value<uint16_t>()->default_value(6),
-           "Soft limit on the number of p2p-peer-address to remain connected to. Selects the best peers of p2p-peer-address-list.")
+           "Soft limit on the number of p2p-peer-address to remain connected to. Selects the best peers of p2p-peer-address list.")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
@@ -4427,18 +4427,9 @@ namespace eosio {
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
          p2p_peer_limit = options.at("p2p-peer-limit").as<uint16_t>();
+         EOS_ASSERT( p2p_peer_limit >= 1, chain::plugin_config_exception, "p2p-peer-limit should be >= 1");
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
          p2p_disable_block_nack = options.at( "p2p-disable-block-nack" ).as<bool>();
-
-         if (p2p_accept_transactions || chain_plug->accept_votes()) {
-            if (p2p_accept_transactions && chain_plug->accept_votes()) {
-               EOS_ASSERT( p2p_peer_limit >= 6, chain::plugin_config_exception,
-                           "p2p-peer-limit with vote processing and trx processing should be >= 6, two connections each reserved for votes and trxs.");
-            } else {
-               EOS_ASSERT( p2p_peer_limit >= 4, chain::plugin_config_exception,
-                           "p2p-peer-limit with vote processing or trx processing should be >= 4, two connections reserved for vote or trx processing");
-            }
-         }
 
          use_socket_read_watermark = options.at( "use-socket-read-watermark" ).as<bool>();
          keepalive_interval = std::chrono::milliseconds( options.at( "p2p-keepalive-interval-ms" ).as<int>() );
@@ -4505,6 +4496,11 @@ namespace eosio {
             }
             connections.add_supplied_peers(peers);
          }
+
+         if (peers.size() > p2p_peer_limit && p2p_accept_transactions) {
+            fc_wlog(logger, "p2p-peer-limit=${n} ignored due to p2p-accept-transactions=true", ("n", p2p_peer_limit));
+         }
+
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
             EOS_ASSERT( user_agent_name.length() <= max_handshake_str_length, chain::plugin_config_exception,
