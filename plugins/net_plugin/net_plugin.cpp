@@ -927,7 +927,7 @@ namespace eosio {
       std::string                      remote_endpoint_ip     GUARDED_BY(conn_mtx);
       boost::asio::ip::address_v6::bytes_type remote_endpoint_ip_array GUARDED_BY(conn_mtx);
 
-      std::chrono::nanoseconds         connection_start_time{0};
+      std::atomic<std::chrono::nanoseconds>         connection_start_time;
 
       // block nack support
       static constexpr uint16_t consecutive_block_nacks_threshold{2}; // stop sending blocks when reached
@@ -1372,6 +1372,9 @@ namespace eosio {
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
       stat.last_vote_received = last_vote_received;
+      stat.start_time = fc::time_point(fc::microseconds(connection_start_time.load().count()/1000));
+      stat.unique_trx_count = unique_trxs_rcvd_count;
+      stat.unique_blk_count = unique_blocks_rcvd_count;
       fc::lock_guard g( conn_mtx );
       stat.peer = peer_addr;
       stat.remote_ip = log_remote_endpoint_ip;
@@ -1485,6 +1488,10 @@ namespace eosio {
       block_sync_frame_bytes_sent = 0;
       block_sync_throttling = false;
       last_vote_received = time_point{};
+      unique_votes_rcvd_count = 0;
+      unique_blocks_rcvd_count = 0;
+      unique_trxs_rcvd_count = 0;
+      last_unique_block_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
 
