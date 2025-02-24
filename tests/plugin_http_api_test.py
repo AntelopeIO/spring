@@ -1637,7 +1637,12 @@ if __name__ == "__main__":
     sys.argv[1:] = args.unittest_args
     suite = unittest.TestLoader().loadTestsFromTestCase(PluginHttpTest)
     results = unittest.TextTestRunner().run(suite)
+    testSuccessful = True
     if not results.wasSuccessful():
         keepLogs = True
+        testSuccessful = False
     if not keepLogs:
         PluginHttpTest().cleanEnv()
+
+    exitCode = 0 if testSuccessful else 1
+    exit(exitCode)
