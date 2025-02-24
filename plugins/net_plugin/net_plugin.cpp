@@ -230,8 +230,8 @@ namespace eosio {
       void rm_block(const block_id_type& blkid);
 
       bool add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id,
-                         const time_point_sec& now = time_point_sec(time_point::now()) );
-      bool have_txn( const transaction_id_type& tid ) const;
+                         const time_point& now );
+      bool add_txn( const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id );
       void expire_txns();
 
       void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
@@ -248,6 +248,7 @@ namespace eosio {
    constexpr auto     def_max_clients = 25; // 0 for unlimited clients
    constexpr auto     def_max_nodes_per_host = 1;
    constexpr auto     def_conn_retry_wait = 30;
+   constexpr auto     def_conn_retry_wait_peer_limit_multiplier = 10;
    constexpr auto     def_txn_expire_wait = std::chrono::seconds(3);
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
@@ -288,6 +289,7 @@ namespace eosio {
       struct connection_detail {
          std::string host;
          connection_ptr c;
+         uint32_t connection_id() const;
       };
 
       using connection_details_index = multi_index_container<
@@ -298,8 +300,8 @@ namespace eosio {
                key<&connection_detail::host>
             >,
             ordered_unique<
-               tag<struct by_connection>,
-               key<&connection_detail::c>
+               tag<by_connection_id>,
+               const_mem_fun<connection_detail, uint32_t, &connection_detail::connection_id>
             >
          >
       >;
@@ -309,6 +311,7 @@ namespace eosio {
       mutable std::shared_mutex        connections_mtx;
       connection_details_index         connections;
       chain::flat_set<string>          supplied_peers;
+      std::atomic<uint64_t>            max_peer_ping_time_ns{std::numeric_limits<uint64_t>::max()};;
 
       alignas(hardware_destructive_interference_sz)
       fc::mutex                             connector_check_timer_mtx;
@@ -321,6 +324,7 @@ namespace eosio {
       fc::microseconds                                         max_cleanup_time;
       boost::asio::steady_timer::duration                      connector_period{0};
       uint32_t                                                 max_client_count{def_max_clients};
+      uint16_t                                                 peer_limit{6};
       std::function<void(net_plugin::p2p_connections_metrics)> update_p2p_connection_metrics;
 
    private: // must call with held mutex
@@ -331,13 +335,16 @@ namespace eosio {
 
    public:
       size_t number_connections() const;
+      size_t number_connected_peers() const;
       void add_supplied_peers(const vector<string>& peers );
+      void maybe_disconnect(connection_ptr c) const;
 
       // not thread safe, only call on startup
       void init(std::chrono::milliseconds heartbeat_timeout_ms,
                 fc::microseconds conn_max_cleanup_time,
                 boost::asio::steady_timer::duration conn_period,
-                uint32_t maximum_client_count);
+                uint32_t maximum_client_count,
+                uint16_t peer_limit);
 
       std::chrono::milliseconds get_heartbeat_timeout() const { return heartbeat_timeout; }
 
@@ -359,6 +366,8 @@ namespace eosio {
       string resolve_and_connect(const string& host, const string& p2p_address);
       string disconnect(const string& host);
       void close_all();
+
+      connection_ptr find_connection(uint32_t connection_id) const;
 
       std::optional<connection_status> status(const string& host) const;
       vector<connection_status> connection_statuses() const;
@@ -419,6 +428,7 @@ namespace eosio {
       bool                                  p2p_disable_block_nack = false;
       bool                                  p2p_accept_votes = true;
       fc::microseconds                      p2p_dedup_cache_expire_time_us{};
+      uint16_t                              p2p_peer_limit = 6;
 
       chain_id_type                         chain_id;
       fc::sha256                            node_id;
@@ -850,6 +860,7 @@ namespace eosio {
       std::atomic<uint32_t>           peer_fork_db_head_block_num{0};
       std::atomic<uint32_t>           last_received_block_num{0};
       std::atomic<uint32_t>           unique_blocks_rcvd_count{0};
+      std::atomic<uint32_t>           unique_trxs_rcvd_count{0};
       std::atomic<size_t>             bytes_received{0};
       std::atomic<std::chrono::nanoseconds>   last_bytes_received{0ns};
       std::atomic<size_t>             bytes_sent{0};
@@ -901,6 +912,9 @@ namespace eosio {
       std::atomic<bool>       is_bp_connection = false;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
+      std::atomic<uint32_t>   unique_votes_rcvd_count{0};
+      std::atomic<time_point> last_unique_block_received;
+      std::atomic<bool>       closed_by_peer_limit = false;
 
       alignas(hardware_destructive_interference_sz)
       fc::mutex                        sync_response_expected_timer_mtx;
@@ -921,7 +935,7 @@ namespace eosio {
       std::string                      remote_endpoint_ip     GUARDED_BY(conn_mtx);
       boost::asio::ip::address_v6::bytes_type remote_endpoint_ip_array GUARDED_BY(conn_mtx);
 
-      std::chrono::nanoseconds         connection_start_time{0};
+      std::atomic<std::chrono::nanoseconds>         connection_start_time;
 
       // block nack support
       static constexpr uint16_t consecutive_block_nacks_threshold{2}; // stop sending blocks when reached
@@ -1089,6 +1103,8 @@ namespace eosio {
          return !last_handshake_recv.p2p_address.empty();
       }
    }; // class connection
+
+   uint32_t connections_manager::connection_detail::connection_id() const { return c->connection_id; }
 
    const string connection::unknown = "<unknown>";
 
@@ -1364,6 +1380,9 @@ namespace eosio {
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
       stat.last_vote_received = last_vote_received;
+      stat.start_time = fc::time_point(fc::microseconds(connection_start_time.load().count()/1000));
+      stat.unique_trx_count = unique_trxs_rcvd_count;
+      stat.unique_blk_count = unique_blocks_rcvd_count;
       fc::lock_guard g( conn_mtx );
       stat.peer = peer_addr;
       stat.remote_ip = log_remote_endpoint_ip;
@@ -1388,6 +1407,7 @@ namespace eosio {
          peer_dlog( this, "connected" );
          socket_open = true;
          connection_start_time = get_time();
+         closed_by_peer_limit = false;
          start_read_message();
          return true;
       }
@@ -1477,6 +1497,10 @@ namespace eosio {
       block_sync_frame_bytes_sent = 0;
       block_sync_throttling = false;
       last_vote_received = time_point{};
+      unique_votes_rcvd_count = 0;
+      unique_blocks_rcvd_count = 0;
+      unique_trxs_rcvd_count = 0;
+      last_unique_block_received = time_point{};
       consecutive_blocks_nacks = 0;
       last_block_nack = block_id_type{};
 
@@ -2728,14 +2752,15 @@ namespace eosio {
       index.erase(p.first, p.second);
    }
 
+   // returns true if [id, connection_id] is not found
    bool dispatch_manager::add_peer_txn( const transaction_id_type& id, const time_point_sec& trx_expires,
-                                        uint32_t connection_id, const time_point_sec& now ) {
+                                        uint32_t connection_id, const time_point& now ) {
       fc::lock_guard g( local_txns_mtx );
       auto tptr = local_txns.get<by_id>().find( std::make_tuple( std::ref( id ), connection_id ) );
       bool added = (tptr == local_txns.end());
       if( added ) {
          // expire at either transaction expiration or configured max expire time whichever is less
-         time_point_sec expires{now.to_time_point() + my_impl->p2p_dedup_cache_expire_time_us};
+         time_point_sec expires{now + my_impl->p2p_dedup_cache_expire_time_us};
          expires = std::min( trx_expires, expires );
          local_txns.insert( node_transaction_state{
             .id = id,
@@ -2745,10 +2770,18 @@ namespace eosio {
       return added;
    }
 
-   bool dispatch_manager::have_txn( const transaction_id_type& tid ) const {
+   // return true if trx not already received, adds to local trxs with connection_id
+   bool dispatch_manager::add_txn(const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id ) {
       fc::lock_guard g( local_txns_mtx );
-      const auto tptr = local_txns.get<by_id>().find( tid );
-      return tptr != local_txns.end();
+      bool contains = local_txns.get<by_id>().contains( id );
+      // expire at either transaction expiration or configured max expire time whichever is less
+      time_point_sec expires{fc::time_point::now() + my_impl->p2p_dedup_cache_expire_time_us};
+      expires = std::min( trx_expires, expires );
+      local_txns.insert( node_transaction_state{
+         .id = id,
+         .expires = expires,
+         .connection_id = connection_id} );
+      return !contains;
    }
 
    void dispatch_manager::expire_txns() {
@@ -2836,7 +2869,7 @@ namespace eosio {
    // called from any thread
    void dispatch_manager::bcast_transaction(const packed_transaction_ptr& trx) {
       trx_buffer_factory buff_factory;
-      const fc::time_point_sec now{fc::time_point::now()};
+      const fc::time_point now{fc::time_point::now()};
       my_impl->connections.for_each_connection( [this, &trx, &now, &buff_factory]( const connection_ptr& cp ) {
          if( !cp->is_transactions_connection() || !cp->current() ) {
             return;
@@ -3254,10 +3287,8 @@ namespace eosio {
          }
          return true;
       }
-      bool have_trx = my_impl->dispatcher.have_txn( ptr->id() );
-      my_impl->dispatcher.add_peer_txn( ptr->id(), ptr->expiration(), connection_id );
 
-      if( have_trx ) {
+      if (!my_impl->dispatcher.add_txn( ptr->id(), ptr->expiration(), connection_id )) {
          peer_dlog( this, "got a duplicate transaction - dropping" );
          return true;
       }
@@ -3672,6 +3703,8 @@ namespace eosio {
       // make sure we also get the latency we need
       if (peer_ping_time_ns == std::numeric_limits<uint64_t>::max()) {
          send_time();
+      } else {
+         my_impl->connections.maybe_disconnect(shared_from_this());
       }
    }
 
@@ -3910,6 +3943,7 @@ namespace eosio {
       const auto& tid = trx->id();
 
       peer_dlog( this, "received packed_transaction ${id}", ("id", tid) );
+      ++unique_trxs_rcvd_count;
 
       size_t trx_size = calc_trx_size( trx );
       trx_in_progress_size += trx_size;
@@ -4025,6 +4059,7 @@ namespace eosio {
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
             ++c->unique_blocks_rcvd_count;
+            c->last_unique_block_received = fc::time_point::now();
             fc_dlog(logger, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
             my_impl->producer_plug->process_blocks();
 
@@ -4146,6 +4181,8 @@ namespace eosio {
       switch( status ) {
       case vote_result_t::success:
          bcast_vote_message(connection_id, msg);
+         if (auto c = my_impl->connections.find_connection(connection_id))
+            ++c->unique_votes_rcvd_count;
          break;
       case vote_result_t::unknown_public_key:
       case vote_result_t::invalid_signature:
@@ -4355,6 +4392,8 @@ namespace eosio {
            "   p2p.eos.io:9876\n"
            "   p2p.trx.eos.io:9876:trx\n"
            "   p2p.blk.eos.io:9876:blk\n")
+         ( "p2p-peer-limit", bpo::value<uint16_t>()->default_value(6),
+           "Soft limit on the number of p2p-peer-address to remain connected to. Selects the best peers of p2p-peer-address list.")
          ( "p2p-max-nodes-per-host", bpo::value<int>()->default_value(def_max_nodes_per_host), "Maximum number of client nodes from any single IP address")
          ( "p2p-accept-transactions", bpo::value<bool>()->default_value(true), "Allow transactions received over p2p network to be evaluated and relayed if valid.")
          ( "p2p-disable-block-nack", bpo::value<bool>()->default_value(false),
@@ -4373,7 +4412,7 @@ namespace eosio {
            "Tuple of [PublicKey, WIF private key] (may specify multiple times)")
          ( "max-clients", bpo::value<uint32_t>()->default_value(def_max_clients), "Maximum number of clients from which connections are accepted, use 0 for no limit")
          ( "connection-cleanup-period", bpo::value<int>()->default_value(def_conn_retry_wait), "number of seconds to wait before cleaning up dead connections")
-         ( "max-cleanup-time-msec", bpo::value<uint32_t>()->default_value(10), "max connection cleanup time per cleanup call in milliseconds")
+         ( "max-cleanup-time-msec", bpo::value<uint32_t>()->default_value(50), "max connection cleanup time per cleanup call in milliseconds")
          ( "p2p-dedup-cache-expire-time-sec", bpo::value<uint32_t>()->default_value(10), "Maximum time to track transaction for duplicate optimization")
          ( "net-threads", bpo::value<uint16_t>()->default_value(my->thread_pool_size),
            "Number of worker threads in net_plugin thread pool" )
@@ -4416,6 +4455,8 @@ namespace eosio {
          p2p_dedup_cache_expire_time_us = fc::seconds( options.at( "p2p-dedup-cache-expire-time-sec" ).as<uint32_t>() );
          resp_expected_period = def_resp_expected_wait;
          max_nodes_per_host = options.at( "p2p-max-nodes-per-host" ).as<int>();
+         p2p_peer_limit = options.at("p2p-peer-limit").as<uint16_t>();
+         EOS_ASSERT( p2p_peer_limit >= 1, chain::plugin_config_exception, "p2p-peer-limit should be >= 1");
          p2p_accept_transactions = options.at( "p2p-accept-transactions" ).as<bool>();
          p2p_disable_block_nack = options.at( "p2p-disable-block-nack" ).as<bool>();
 
@@ -4437,7 +4478,8 @@ namespace eosio {
          connections.init( std::chrono::milliseconds( options.at("p2p-keepalive-interval-ms").as<int>() * 2 ),
                                fc::milliseconds( options.at("max-cleanup-time-msec").as<uint32_t>() ),
                                std::chrono::seconds( options.at("connection-cleanup-period").as<int>() ),
-                               options.at("max-clients").as<uint32_t>() );
+                               options.at("max-clients").as<uint32_t>(),
+                               p2p_peer_limit );
 
          if( options.count( "p2p-listen-endpoint" )) {
             auto p2ps =  options.at("p2p-listen-endpoint").as<vector<string>>();
@@ -4483,6 +4525,11 @@ namespace eosio {
             }
             connections.add_supplied_peers(peers);
          }
+
+         if (peers.size() > p2p_peer_limit && p2p_accept_transactions) {
+            fc_wlog(logger, "p2p-peer-limit=${n} ignored due to p2p-accept-transactions=true", ("n", p2p_peer_limit));
+         }
+
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
             EOS_ASSERT( user_agent_name.length() <= max_handshake_str_length, chain::plugin_config_exception,
@@ -4728,20 +4775,71 @@ namespace eosio {
       return connections.size();
    }
 
+   size_t connections_manager::number_connected_peers() const {
+      size_t num = 0;
+      for_each_block_connection([&num](const auto& cc) {
+         if (cc->socket_is_open() && !cc->incoming()) {
+            ++num;
+         }
+      });
+      return num;
+   }
+
+   connection_ptr connections_manager::find_connection(uint32_t connection_id) const {
+      std::shared_lock g(connections_mtx);
+      const auto& index = connections.get<by_connection_id>();
+      if (auto i = index.find(connection_id); i != index.end())
+         return i->c;
+      return {};
+   }
+
    void connections_manager::add_supplied_peers(const vector<string>& peers ) {
       std::lock_guard g(connections_mtx);
       supplied_peers.insert( peers.begin(), peers.end() );
+   }
+
+   void connections_manager::maybe_disconnect(connection_ptr c) const {
+      assert(c);
+      // if accepting trx then don't disconnect from any peers
+      if (my_impl->p2p_accept_transactions) return;
+      // if syncing then other connections are basically idle
+      if (my_impl->sync_master->syncing_from_peer()) return;
+      // verify current, not syncing from us
+      if (!c->current()) return;
+      // remain connected for a heartbeat to gather info
+      if (c->connection_start_time.load() > connection::get_time() - get_heartbeat_timeout()) return;
+      // we have received votes first from this connection
+      if (c->unique_votes_rcvd_count > 0) return;
+      // we received block first from this connection recently
+      if (c->last_unique_block_received.load() > fc::time_point::now() - fc::minutes(10)) return;
+      // quick check if more connections than limit
+      if (number_connections() <= peer_limit) return;
+      // do we have more than the limit currently
+      if (number_connected_peers() <= peer_limit) return;
+
+      auto peer_ping_time = c->get_peer_ping_time_ns();
+      if (peer_ping_time < max_peer_ping_time_ns) {
+         return;
+      }
+
+      peer_ilog(c, "Disconnecting from peer that is not one of the best of p2p-peer-address, ping ${p}ms, max ${m}ms",
+                ("p", peer_ping_time/1000000)("m", max_peer_ping_time_ns.load()/1000000));
+
+      c->closed_by_peer_limit = true;
+      c->close(false);
    }
 
    // not thread safe, only call on startup
    void connections_manager::init( std::chrono::milliseconds heartbeat_timeout_ms,
              fc::microseconds conn_max_cleanup_time,
              boost::asio::steady_timer::duration conn_period,
-             uint32_t maximum_client_count ) {
+             uint32_t maximum_client_count,
+             uint16_t p2p_peer_limit) {
       heartbeat_timeout = heartbeat_timeout_ms;
       max_cleanup_time = conn_max_cleanup_time;
       connector_period = conn_period;
       max_client_count = maximum_client_count;
+      peer_limit = p2p_peer_limit;
    }
 
    fc::microseconds connections_manager::get_connector_period() const {
@@ -4899,7 +4997,7 @@ namespace eosio {
       vector<connection_status> result;
       {
          std::shared_lock g( connections_mtx );
-         auto& index = connections.get<by_connection>();
+         auto& index = connections.get<by_connection_id>();
          result.reserve( index.size() );
          conns.reserve( index.size() );
          for( const connection_detail& cd : index ) {
@@ -4951,25 +5049,38 @@ namespace eosio {
    // called from any thread
    void connections_manager::connection_monitor(const std::weak_ptr<connection>& from_connection) {
       size_t num_rm = 0, num_clients = 0, num_peers = 0, num_bp_peers = 0;
-      auto cleanup = [&num_rm, this](vector<connection_ptr>&& reconnecting, vector<connection_ptr>&& removing) {
-         for( auto& c : reconnecting ) {
-            if (!c->resolve_and_connect()) {
-               ++num_rm;
-               removing.push_back(c);
+      std::multiset<uint64_t> ping_times;
+      auto cleanup = [&num_rm, num_peers, this](vector<connection_ptr>&& reconnecting, vector<connection_ptr>&& removing) {
+         // if num_peers less than or equal the peer_limit then attempt to connect to all configured peers
+         // the best of the configured peers will be chosen after they connect.
+         if (num_peers <= peer_limit) {
+            for( auto& c : reconnecting ) {
+               if (!c->resolve_and_connect()) {
+                  ++num_rm;
+                  removing.push_back(c);
+               }
             }
          }
          std::scoped_lock g( connections_mtx );
-         auto& index = connections.get<by_connection>();
+         auto& index = connections.get<by_connection_id>();
          for( auto& c : removing ) {
-            index.erase(c);
+            index.erase(c->connection_id);
          }
       };
+      auto record_max_peer_ping_time = [&]() {
+         if (ping_times.size() > peer_limit) {
+            auto itr = ping_times.begin();
+            std::advance(itr, peer_limit-1);
+            max_peer_ping_time_ns = *itr;
+         }
+      };
+      auto peer_limit_reconnect_time = connection::get_time() - (connector_period * def_conn_retry_wait_peer_limit_multiplier);
       auto max_time = fc::time_point::now().safe_add(max_cleanup_time);
       std::vector<connection_ptr> reconnecting, removing;
       auto from = from_connection.lock();
       std::unique_lock g( connections_mtx );
-      auto& index = connections.get<by_connection>();
-      auto it = (from ? index.find(from) : index.begin());
+      auto& index = connections.get<by_connection_id>();
+      auto it = (from ? index.find(from->connection_id) : index.begin());
       if (it == index.end()) it = index.begin();
       while (it != index.end()) {
          if (fc::time_point::now() >= max_time) {
@@ -4994,16 +5105,23 @@ namespace eosio {
          if (!c->socket_is_open() && c->state() != connection::connection_state::connecting) {
             if (!c->incoming()) {
                --num_peers;
-               reconnecting.push_back(c);
+               if (!c->closed_by_peer_limit || (c->connection_start_time.load() < peer_limit_reconnect_time)) {
+                  reconnecting.push_back(c);
+               }
             } else {
                --num_clients;
                ++num_rm;
                removing.push_back(c);
             }
          }
+         auto ping_time = c->get_peer_ping_time_ns();
+         if (ping_time < std::numeric_limits<uint64_t>::max()) {
+            ping_times.insert(ping_time);
+         }
          ++it;
       }
       g.unlock();
+      record_max_peer_ping_time();
       cleanup(std::move(reconnecting), std::move(removing));
 
       if( num_clients > 0 || num_peers > 0 ) {
@@ -5019,7 +5137,7 @@ namespace eosio {
       assert(update_p2p_connection_metrics);
       auto from = from_connection.lock();
       std::shared_lock g(connections_mtx);
-      const auto& index = connections.get<by_connection>();
+      const auto& index = connections.get<by_connection_id>();
       size_t num_clients = 0, num_peers = 0, num_bp_peers = 0;
       net_plugin::p2p_per_connection_metrics per_connection(index.size());
       for (auto it = index.begin(); it != index.end(); ++it) {
