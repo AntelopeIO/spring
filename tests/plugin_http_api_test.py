@@ -128,8 +128,12 @@ class PluginHttpTest(unittest.TestCase):
         command = "get_info"
         endpoint=self.endpoint("chain_ro")
 
-        # get_info without parameter
+        # get_info without parameter with default chain_ro endpoint
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
+        self.assertIn("server_version", ret_json["payload"])
+        # get_info without parameter with an endpoint (catelog) other than chain_ro
+        # get_info should work on any end point
+        ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=self.endpoint("producer_ro"))
         self.assertIn("server_version", ret_json["payload"])
         # get_info with empty content parameter
         ret_json = self.nodeos.processUrllibRequest(resource, command, self.empty_content_dict, endpoint=endpoint)
@@ -1637,7 +1641,12 @@ if __name__ == "__main__":
     sys.argv[1:] = args.unittest_args
     suite = unittest.TestLoader().loadTestsFromTestCase(PluginHttpTest)
     results = unittest.TextTestRunner().run(suite)
+    testSuccessful = True
     if not results.wasSuccessful():
         keepLogs = True
+        testSuccessful = False
     if not keepLogs:
         PluginHttpTest().cleanEnv()
+
+    exitCode = 0 if testSuccessful else 1
+    exit(exitCode)
