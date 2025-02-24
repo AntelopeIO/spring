@@ -9,7 +9,7 @@ import signal
 
 from TestHarness import Cluster, Node, TestHelper, Utils, WalletMgr, CORE_SYMBOL, createAccountKeys
 
-testSuccessful = True
+testSuccessful = False
 
 class TraceApiPluginTest(unittest.TestCase):
     cluster=Cluster(defproduceraPrvtKey=None)
@@ -93,8 +93,6 @@ class TraceApiPluginTest(unittest.TestCase):
                     self.assertIn('memo', prms)
                 break
         self.assertTrue(isTrxInBlockFromTraceApi)
-        global testSuccessful
-        testSuccessful = True
 
         # relaunch with no time allocated for http response & abi-serializer
         node.kill(signal.SIGTERM)
@@ -110,6 +108,8 @@ class TraceApiPluginTest(unittest.TestCase):
         Utils.Print(f"{cmdDesc} returned: {result}")
         self.assertIn("test transfer a->b", result)
 
+        global testSuccessful
+        testSuccessful = True
     @classmethod
     def setUpClass(self):
         self.startEnv(self)
@@ -120,4 +120,5 @@ class TraceApiPluginTest(unittest.TestCase):
         TraceApiPluginTest.cluster.shutdown()
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main() # main() exits with non-zero (1) if any assert* fails. no need to call exit() explicitly again
+
