@@ -2770,7 +2770,7 @@ namespace eosio {
       return added;
    }
 
-   // return true if trx already received, adds to local trxs with connection_id
+   // return true if trx not already received, adds to local trxs with connection_id
    bool dispatch_manager::add_txn(const transaction_id_type& id, const time_point_sec& trx_expires, uint32_t connection_id ) {
       fc::lock_guard g( local_txns_mtx );
       bool contains = local_txns.get<by_id>().contains( id );
@@ -2781,7 +2781,7 @@ namespace eosio {
          .id = id,
          .expires = expires,
          .connection_id = connection_id} );
-      return contains;
+      return !contains;
    }
 
    void dispatch_manager::expire_txns() {
