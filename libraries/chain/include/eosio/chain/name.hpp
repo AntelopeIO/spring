@@ -181,7 +181,7 @@ namespace std {
       typedef eosio::chain::name argument_type;
 
       size_t operator()(const argument_type& name) const noexcept {
-         assert(sizeof(size_t) == sizeof(uint64_t));
+         static_assert(sizeof(size_t) == sizeof(uint64_t));
          uint64_t v         = name.to_uint64_t();
          auto     num_zeros = std::countr_zero(v);
          if (num_zeros >= 4) {
