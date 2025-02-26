@@ -920,7 +920,7 @@ namespace eosio {
       std::string                      remote_endpoint_ip     GUARDED_BY(conn_mtx);
       boost::asio::ip::address_v6::bytes_type remote_endpoint_ip_array GUARDED_BY(conn_mtx);
 
-      std::chrono::nanoseconds         connection_start_time{0};
+      std::atomic<std::chrono::nanoseconds>  connection_start_time;
 
       // block nack support
       static constexpr uint16_t consecutive_block_nacks_threshold{2}; // stop sending blocks when reached
