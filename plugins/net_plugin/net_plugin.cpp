@@ -1028,10 +1028,11 @@ namespace eosio {
       void sync_wait();
 
       void queue_write(msg_type_t net_msg,
+                       block_num_type block_num,
                        queued_buffer::queue_t queue,
                        const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback);
-      void do_queue_write();
+      void do_queue_write(block_num_type block_num);
 
       bool is_valid( const handshake_message& msg ) const;
 
@@ -1070,14 +1071,16 @@ namespace eosio {
 
       fc::variant_object get_logger_variant() const {
          fc::mutable_variant_object mvo;
-         mvo( "_name", log_p2p_address)
+         mvo( "_peer", peer_addr.empty() ? log_p2p_address : peer_addr )
+            ( "_name", log_p2p_address)
             ( "_cid", connection_id )
             ( "_id", conn_node_id )
             ( "_sid", short_conn_node_id )
             ( "_ip", log_remote_endpoint_ip )
             ( "_port", log_remote_endpoint_port )
             ( "_lip", local_endpoint_ip )
-            ( "_lport", local_endpoint_port );
+            ( "_lport", local_endpoint_port )
+            ( "_nver", protocol_version.load() );
          return mvo;
       }
 
@@ -1649,6 +1652,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::queue_write(msg_type_t net_msg,
+                                block_num_type block_num,
                                 queued_buffer::queue_t queue,
                                 const std::shared_ptr<vector<char>>& buff,
                                 std::function<void(boost::system::error_code, std::size_t)> callback) {
@@ -1657,20 +1661,23 @@ namespace eosio {
          close();
          return;
       }
-      do_queue_write();
+      do_queue_write(block_num);
    }
 
    // called from connection strand
-   void connection::do_queue_write() {
-      if( !buffer_queue.ready_to_send(connection_id) || closed() )
+   void connection::do_queue_write(block_num_type block_num) {
+      if( !buffer_queue.ready_to_send(connection_id) || closed() ) {
+         if (block_num > 0) {
+            peer_dlog(this, "not sending block yet ${n}", ("n", block_num) );
+         }
          return;
-      connection_ptr c(shared_from_this());
+      }
 
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
       boost::asio::async_write( *socket, bufs,
-         boost::asio::bind_executor( strand, [c, socket=socket]( boost::system::error_code ec, std::size_t w ) {
+         boost::asio::bind_executor( strand, [c=shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t w ) {
          try {
             peer_dlog(c, "async write complete");
             // May have closed connection and cleared buffer_queue
@@ -1704,7 +1711,7 @@ namespace eosio {
             c->buffer_queue.clear_out_queue(ec, w);
 
             c->enqueue_sync_block();
-            c->do_queue_write();
+            c->do_queue_write(0);
          } catch ( const std::bad_alloc& ) {
            throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
@@ -1949,8 +1956,8 @@ namespace eosio {
                                     go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
-      queue_write(net_msg, queue, send_buffer,
-            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t ) {
+      queue_write(net_msg, block_num, queue, send_buffer,
+            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t s) {
                         if (ec) {
                            if (ec != boost::asio::error::operation_aborted && ec != boost::asio::error::connection_reset && conn->socket_is_open()) {
                               fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.message()));
@@ -4383,6 +4390,7 @@ namespace eosio {
          ( "peer-log-format", bpo::value<string>()->default_value( "[\"${_name}\" - ${_cid} ${_ip}:${_port}] " ),
            "The string used to format peers when logging messages about them.  Variables are escaped with ${<variable name>}.\n"
            "Available Variables:\n"
+           "   _peer  \tendpoint name\n\n"
            "   _name  \tself-reported name\n\n"
            "   _cid   \tassigned connection id\n\n"
            "   _id    \tself-reported ID (64 hex characters)\n\n"
@@ -4390,7 +4398,8 @@ namespace eosio {
            "   _ip    \tremote IP address of peer\n\n"
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
-           "   _lport \tlocal port number connected to peer\n\n")
+           "   _lport \tlocal port number connected to peer\n\n"
+           "   _nver  \tp2p protocol version\n\n")
          ( "p2p-keepalive-interval-ms", bpo::value<int>()->default_value(def_keepalive_interval), "peer heartbeat keepalive message interval in milliseconds")
 
         ;
