@@ -1377,11 +1377,12 @@ namespace eosio {
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       update_endpoints();
-      boost::asio::ip::tcp::no_delay nodelay( true );
       boost::system::error_code ec;
-      socket->set_option( nodelay, ec );
+      socket->set_option( boost::asio::ip::tcp::no_delay{true}, ec );
+      if (!ec) socket->set_option(boost::asio::socket_base::send_buffer_size{1024*1024}, ec);
+      if (!ec) socket->set_option(boost::asio::socket_base::receive_buffer_size{1024*1024}, ec);
       if( ec ) {
-         peer_wlog( this, "connection failed (set_option): ${e1}", ( "e1", ec.message() ) );
+         peer_wlog( this, "connection failed (set_option): ${e}", ( "e", ec.message() ) );
          close();
          return false;
       } else {
