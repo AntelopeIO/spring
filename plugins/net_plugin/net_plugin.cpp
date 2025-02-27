@@ -4387,7 +4387,7 @@ namespace eosio {
          ( "sync-peer-limit", bpo::value<uint32_t>()->default_value(3),
            "Number of peers to sync from")
          ( "use-socket-read-watermark", bpo::value<bool>()->default_value(false), "Enable experimental socket read watermark optimization")
-         ( "peer-log-format", bpo::value<string>()->default_value( "[\"${_name}\" - ${_cid} ${_ip}:${_port}] " ),
+         ( "peer-log-format", bpo::value<string>()->default_value( "[\"${_peer}\" - ${_cid} ${_ip}:${_port}] " ),
            "The string used to format peers when logging messages about them.  Variables are escaped with ${<variable name>}.\n"
            "Available Variables:\n"
            "   _peer  \tendpoint name\n\n"
