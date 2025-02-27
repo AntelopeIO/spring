@@ -1154,7 +1154,7 @@ namespace eosio {
 
       void operator()( const block_notice_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_ilog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
+         peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
    };
