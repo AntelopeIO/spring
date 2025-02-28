@@ -430,6 +430,9 @@ namespace eosio {
       /** @} */
 
       alignas(hardware_destructive_interference_sz)
+      fc::mutex                             accept_blk_mtx; // avoid extra work of validating same block at same time
+
+      alignas(hardware_destructive_interference_sz)
       fc::mutex                             expire_timer_mtx;
       boost::asio::steady_timer             expire_timer GUARDED_BY(expire_timer_mtx) {thread_pool.get_executor()};
 
@@ -3947,103 +3950,89 @@ namespace eosio {
 
    // called from connection strand
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
-      // post to dispatcher strand so that we don't have multiple threads validating the block header
-      peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
-         if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
-            return;
-         controller& cc = my_impl->chain_plug->chain();
+      if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
+         return;
 
-         auto fork_db_root_num = my_impl->get_fork_db_root_num();
+      controller& cc = my_impl->chain_plug->chain();
 
-         // may have come in on a different connection and posted into dispatcher strand before this one
-         if( block_header::num_from_id(id) <= fork_db_root_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
-            boost::asio::post(c->strand, [c, id, ptr{std::move(ptr)}]() {
-               if (my_impl->dispatcher.add_peer_block( id, c->connection_id )) {
-                  c->send_block_nack(id);
-               }
-               const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
-            });
-            return;
+      // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
+      // Because we now process blocks immediately into the fork database, during savanna transition the first proper
+      // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
+      // the main thread will have finished transitioning and will be linkable. This is a bit of a hack but seems
+      // like an okay compromise for a condition, outside of testing, will rarely happen.
+      static bool proper_svnn_block_seen = false;
+
+      std::optional<block_handle> obh;
+      bool exception = false;
+      fork_db_add_t fork_db_add_result = fork_db_add_t::failure;
+      bool unlinkable = false;
+      sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
+      try {
+         if (cc.is_producer_node()) {
+            EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
+                       "received a block from the future, rejecting it: ${id}", ("id", id));
          }
-
-         // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
-         // Because we now process blocks immediately into the fork database, during savanna transition the first proper
-         // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
-         // the main thread will have finished transitioning and will be linkable. This is a bit of a hack but seems
-         // like an okay compromise for a condition, outside of testing, will rarely happen.
-         static bool proper_svnn_block_seen = false;
-
-         std::optional<block_handle> obh;
-         bool exception = false;
-         fork_db_add_t fork_db_add_result = fork_db_add_t::failure;
-         bool unlinkable = false;
-         sync_manager::closing_mode close_mode = sync_manager::closing_mode::immediately;
-         try {
-            if (cc.is_producer_node()) {
-               EOS_ASSERT(ptr->timestamp < (fc::time_point::now() + fc::seconds(7)), block_from_the_future,
-                          "received a block from the future, rejecting it: ${id}", ("id", id));
-            }
-            // this will return empty optional<block_handle> if block is not linkable
-            controller::accepted_block_result abh = cc.accept_block( id, ptr );
-            fork_db_add_result = abh.add_result;
-            obh = std::move(abh.block);
-            unlinkable = !obh;
-            close_mode = sync_manager::closing_mode::handshake;
-         } catch( const invalid_qc_claim& ex) {
-            exception = true;
-            fc_wlog( logger, "invalid QC claim exception, connection - ${cid}: #${n} ${id}...: ${m}",
-                     ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16))("m",ex.to_string()));
-         } catch( const fc::exception& ex ) {
-            exception = true;
-            fc_ilog( logger, "bad block exception connection - ${cid}: #${n} ${id}...: ${m}",
-                     ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16))("m",ex.to_string()));
-         } catch( ... ) {
-            exception = true;
-            fc_wlog( logger, "bad block connection - ${cid}: #${n} ${id}...: unknown exception",
-                     ("cid", cid)("n", ptr->block_num())("id", id.str().substr(8,16)));
+         // This mutex is not about thread-safety; the call to accept_block is thread-safe.
+         // This mutex is to avoid extra work of validating the same block header on multiple threads at the same time.
+         // The mutex is used instead of posting to the dispatcher strand as the post to the dispatcher strand adds
+         // a thread switch which adds a delay in processing.
+         fc::lock_guard g(my_impl->accept_blk_mtx);
+         // this will return empty optional<block_handle> if block is not linkable
+         controller::accepted_block_result abh = cc.accept_block( id, ptr );
+         fork_db_add_result = abh.add_result;
+         obh = std::move(abh.block);
+         unlinkable = fork_db_add_result == fork_db_add_t::failure;
+         close_mode = sync_manager::closing_mode::handshake;
+      } catch( const invalid_qc_claim& ex) {
+         exception = true;
+         peer_wlog(this, "invalid QC claim exception: #${n} ${id}...: ${m}",
+                   ("n", ptr->block_num())("id", id.str().substr(8,16))("m",ex.to_string()));
+      } catch( const fc::exception& ex ) {
+         exception = true;
+         peer_ilog(this, "bad block exception: #${n} ${id}...: ${m}",
+                   ("n", ptr->block_num())("id", id.str().substr(8,16))("m",ex.to_string()));
+      } catch( ... ) {
+         exception = true;
+         peer_wlog(this, "bad block: #${n} ${id}...: unknown exception",
+                   ("n", ptr->block_num())("id", id.str().substr(8,16)));
+      }
+      if( exception || unlinkable) {
+         const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
+         if (unlinkable && !first_proper_svnn_block) {
+            peer_dlog(this, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
+                      ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
          }
-         if( exception || unlinkable) {
-            const bool first_proper_svnn_block = !proper_svnn_block_seen && ptr->is_proper_svnn_block();
-            if (unlinkable && !first_proper_svnn_block) {
-               fc_dlog(logger, "unlinkable_block ${bn} : ${id}, previous ${pn} : ${pid}",
-                       ("bn", ptr->block_num())("id", id)("pn", block_header::num_from_id(ptr->previous))("pid", ptr->previous));
-            }
-            boost::asio::post(c->strand, [c, id, blk_num=ptr->block_num(), close_mode]() {
-               peer_dlog( c, "rejected block ${bn} ${id}", ("bn", blk_num)("id", id) );
-               my_impl->sync_master->rejected_block( c, blk_num, close_mode );
-            });
-            return;
-         }
+         peer_dlog(this, "rejected block ${bn} ${id}", ("bn", ptr->block_num())("id", id));
+         my_impl->sync_master->rejected_block( shared_from_this(), ptr->block_num(), close_mode );
+         return;
+      }
 
-         assert(obh);
-         uint32_t block_num = obh->block_num();
-         proper_svnn_block_seen = obh->header().is_proper_svnn_block();
+      assert(obh);
+      uint32_t block_num = obh->block_num();
+      proper_svnn_block_seen = obh->header().is_proper_svnn_block();
 
-         fc_dlog( logger, "validated block header, forkdb add ${bt}, broadcasting immediately, connection - ${cid}, blk num = ${num}, id = ${id}",
-                  ("bt", fork_db_add_result)("cid", cid)("num", block_num)("id", obh->id()) );
-         my_impl->dispatcher.add_peer_block( obh->id(), cid ); // no need to send back to sender
-         my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
-         c->block_status_monitor_.accepted();
+      peer_dlog(this, "validated block header, forkdb add ${bt}, broadcasting immediately, blk num = ${num}, id = ${id}",
+               ("bt", fork_db_add_result)("num", block_num)("id", obh->id()) );
+      my_impl->dispatcher.add_peer_block( obh->id(), connection_id ); // no need to send back to sender
+      my_impl->dispatcher.bcast_block( obh->block(), obh->id() );
+      block_status_monitor_.accepted();
 
-         if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            // non-irreversible notifies sync_manager when block is applied
-            my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
-               const fc::microseconds age(fc::time_point::now() - bh.timestamp());
-               sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
-            });
-         }
+      if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+         // non-irreversible notifies sync_manager when block is applied
+         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
+            const fc::microseconds age(fc::time_point::now() - bh.timestamp());
+            sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
+         });
+      }
 
-         if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
-            ++c->unique_blocks_rcvd_count;
-            fc_dlog(logger, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
-            my_impl->producer_plug->process_blocks();
+      if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
+         ++unique_blocks_rcvd_count;
+         peer_dlog(this, "post process_incoming_block to app thread, block ${n}", ("n", ptr->block_num()));
+         my_impl->producer_plug->process_blocks();
 
-            // ready to process immediately, so signal producer to interrupt start_block
-            my_impl->producer_plug->received_block(block_num, fork_db_add_result);
-         }
-      });
+         // ready to process immediately, so signal producer to interrupt start_block
+         my_impl->producer_plug->received_block(block_num, fork_db_add_result);
+      }
    }
 
    // thread safe
