@@ -630,7 +630,7 @@ namespace eosio {
          _write_queue.clear();
          _sync_write_queue.clear();
          _trx_write_queue.clear();
-         _write_queue_size = 0;
+         //_write_queue_size = 0;
          _out_queue.clear();
       }
 
@@ -639,32 +639,33 @@ namespace eosio {
          _write_queue.clear();
          _sync_write_queue.clear();
          _trx_write_queue.clear();
-         _write_queue_size = 0;
+         //_write_queue_size = 0;
       }
 
-      void clear_out_queue(boost::system::error_code ec, std::size_t number_of_bytes_written) {
+      void clear_out_queue(uint32_t id, boost::system::error_code ec, std::size_t number_of_bytes_written) {
          fc::lock_guard g( _mtx );
-         out_callback( ec, number_of_bytes_written );
-         _out_queue.clear();
+         out_callback( id, ec, number_of_bytes_written );
+         _out_queue.erase(id);
       }
+
 
       uint32_t write_queue_size() const {
          fc::lock_guard g( _mtx );
-         return _write_queue_size;
+         return _write_queue.size() + _sync_write_queue.size() + _trx_write_queue.size() + out_queue_size();
       }
 
       // called from connection strand
-      bool ready_to_send(uint32_t connection_id) const {
-         fc::unique_lock g( _mtx );
-         // if out_queue is not empty then async_write is in progress
-         const bool async_write_in_progress = !_out_queue.empty();
-         const bool ready = !async_write_in_progress && _write_queue_size != 0;
-         g.unlock();
-         if (async_write_in_progress) {
-            fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
-         }
-         return ready;
-      }
+      // bool ready_to_send(uint32_t connection_id) const {
+      //    fc::unique_lock g( _mtx );
+      //    // if out_queue is not empty then async_write is in progress
+      //    const bool async_write_in_progress = !_out_queue.empty();
+      //    const bool ready = !async_write_in_progress && _write_queue_size != 0;
+      //    g.unlock();
+      //    if (async_write_in_progress) {
+      //       fc_dlog(logger, "Connection - ${id} not ready to send data, async write in progress", ("id", connection_id));
+      //    }
+      //    return ready;
+      // }
 
       enum class queue_t { block_sync, general };
       // @param callback must not callback into queued_buffer
@@ -680,42 +681,59 @@ namespace eosio {
          } else {
             _write_queue.emplace_back( buff, std::move(callback) );
          }
-         _write_queue_size += buff->size();
-         if( _write_queue_size > 2 * def_max_write_queue_size ) {
+         if (_write_queue.size() + _sync_write_queue.size() + _trx_write_queue.size() + out_queue_size() > 2 * def_max_write_queue_size)
             return false;
-         }
+         // _write_queue_size += buff->size();
+         // if( _write_queue_size > 2 * def_max_write_queue_size ) {
+         //    return false;
+         // }
          return true;
       }
 
-      void fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs ) {
+      uint32_t fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs ) {
          fc::lock_guard g( _mtx );
+         uint32_t id = 0;
          if (!_sync_write_queue.empty()) { // always send msgs from sync_write_queue first
-            fill_out_buffer( bufs, _sync_write_queue );
+            id = fill_out_buffer( bufs, _sync_write_queue );
          } else if (!_write_queue.empty()) { // always send msgs from write_queue before trx queue
-            fill_out_buffer( bufs, _write_queue );
-         } else {
-            fill_out_buffer( bufs, _trx_write_queue );
-            assert(_trx_write_queue.empty() && _write_queue.empty() && _sync_write_queue.empty() && _write_queue_size == 0);
+            id = fill_out_buffer( bufs, _write_queue );
+         } else if (!_trx_write_queue.empty()) {
+            id = fill_out_buffer( bufs, _trx_write_queue );
+//            assert(_trx_write_queue.empty() && _write_queue.empty() && _sync_write_queue.empty() && _write_queue_size == 0);
+            assert(_trx_write_queue.empty() && _write_queue.empty() && _sync_write_queue.empty());
          }
+         return id;
       }
 
    private:
       struct queued_write;
-      void fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs,
-                            deque<queued_write>& w_queue ) REQUIRES(_mtx) {
+      uint32_t fill_out_buffer( std::vector<boost::asio::const_buffer>& bufs,
+                                deque<queued_write>& w_queue ) REQUIRES(_mtx) {
+         ++_out_queue_id;
          while ( !w_queue.empty() ) {
             auto& m = w_queue.front();
             bufs.emplace_back( m.buff->data(), m.buff->size() );
-            _write_queue_size -= m.buff->size();
-            _out_queue.emplace_back( m );
+            //_write_queue_size -= m.buff->size();
+            _out_queue[_out_queue_id].emplace_back( std::move(m) );
             w_queue.pop_front();
+         }
+         return _out_queue_id;
+      }
+
+      void out_callback( uint32_t id, boost::system::error_code ec, std::size_t number_of_bytes_written ) REQUIRES(_mtx) {
+         for( auto& m : _out_queue.at(id) ) {
+            m.callback( ec, number_of_bytes_written );
          }
       }
 
-      void out_callback( boost::system::error_code ec, std::size_t number_of_bytes_written ) REQUIRES(_mtx) {
-         for( auto& m : _out_queue ) {
-            m.callback( ec, number_of_bytes_written );
+      size_t out_queue_size() const REQUIRES(_mtx) {
+         size_t size = 0;
+         for (const auto& e : _out_queue) {
+            for (const auto& b : e.second) {
+               size = b.buff->size();
+            }
          }
+         return size;
       }
 
    private:
@@ -726,11 +744,12 @@ namespace eosio {
 
       alignas(hardware_destructive_interference_sz)
       mutable fc::mutex   _mtx;
-      uint32_t            _write_queue_size GUARDED_BY(_mtx) {0}; // size of _write_queue + _sync_write_queue + _trx_write_queue
+      uint32_t            _out_queue_id     GUARDED_BY(_mtx) {0};
+      //uint32_t            _write_queue_size GUARDED_BY(_mtx) {0}; // size of _write_queue + _sync_write_queue + _trx_write_queue
       deque<queued_write> _write_queue      GUARDED_BY(_mtx); // queued messages, all messages except sync & trxs
       deque<queued_write> _sync_write_queue GUARDED_BY(_mtx); // sync_write_queue blocks will be sent first
       deque<queued_write> _trx_write_queue  GUARDED_BY(_mtx); // queued trx messages, trx_write_queue will be sent last
-      deque<queued_write> _out_queue        GUARDED_BY(_mtx); // currently being async_write
+      map<uint32_t, deque<queued_write>> _out_queue GUARDED_BY(_mtx); // currently being async_write
 
    }; // queued_buffer
 
@@ -1666,34 +1685,36 @@ namespace eosio {
 
    // called from connection strand
    void connection::do_queue_write(std::optional<block_num_type> block_num) {
-      if( !buffer_queue.ready_to_send(connection_id) ) {
-         if (block_num) {
-            peer_dlog(this, "connection currently sending, queueing block ${n}", ("n", *block_num) );
-         }
-         return;
-      }
+      // if( !buffer_queue.ready_to_send(connection_id) ) {
+      //    if (block_num) {
+      //       peer_dlog(this, "connection currently sending, queueing block ${n}", ("n", *block_num) );
+      //    }
+      //    return;
+      // }
       if (closed()) {
          peer_dlog(this, "connection closed, not sending queued write");
          return;
       }
 
       std::vector<boost::asio::const_buffer> bufs;
-      buffer_queue.fill_out_buffer( bufs );
+      uint32_t id = buffer_queue.fill_out_buffer( bufs );
+      if (id == 0)
+         return;
 
       boost::asio::async_write( *socket, bufs,
-         boost::asio::bind_executor( strand, [c=shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t w ) {
+         boost::asio::bind_executor( strand, [id, c=shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t w ) {
          try {
             peer_dlog(c, "async write complete");
             // May have closed connection and cleared buffer_queue
             if (!c->socket->is_open() && c->socket_is_open()) { // if socket_open then close not called
                peer_ilog(c, "async write socket closed before callback");
-               c->buffer_queue.clear_out_queue(ec, w);
+               c->buffer_queue.clear_out_queue(id, ec, w);
                c->close();
                return;
             }
             if (socket != c->socket ) { // different socket, c must have created a new socket, make sure previous is closed
                peer_ilog( c, "async write socket changed before callback");
-               c->buffer_queue.clear_out_queue(ec, w);
+               c->buffer_queue.clear_out_queue(id, ec, w);
                boost::system::error_code ignore_ec;
                socket->shutdown( tcp::socket::shutdown_both, ignore_ec );
                socket->close( ignore_ec );
@@ -1712,7 +1733,7 @@ namespace eosio {
             c->bytes_sent += w;
             c->last_bytes_sent = c->get_time();
 
-            c->buffer_queue.clear_out_queue(ec, w);
+            c->buffer_queue.clear_out_queue(id, ec, w);
 
             c->enqueue_sync_block();
             c->do_queue_write(std::nullopt);
