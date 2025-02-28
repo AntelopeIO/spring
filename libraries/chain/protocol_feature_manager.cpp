@@ -372,7 +372,7 @@ Builtin protocol feature: SYNC_CALL
 
 Enables synchronous calls to functions in other and own contracts.
 */
-            {}
+            {builtin_protocol_feature_t::savanna}
          } )
    ;
 
