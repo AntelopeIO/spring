@@ -4239,11 +4239,11 @@ struct controller_impl {
 
       auto f = [&](auto& fork_db) -> controller::accepted_block_result {
          if (auto bsp = fork_db.get_block(id, include_root_t::yes))
-            return {.add_result = fork_db_add_t::duplicate, .block{std::move(bsp)}};
+            return controller::accepted_block_result{.add_result = fork_db_add_t::duplicate, .block{std::move(bsp)}};
          // previous not found, means it is unlinkable
          auto prev = fork_db.get_block( b->previous, include_root_t::yes );
          if( !prev )
-            return {.add_result = fork_db_add_t::failure, .block{}};
+            return controller::accepted_block_result{.add_result = fork_db_add_t::failure, .block{}};
 
          return create_block_state_i( fork_db, id, b, *prev );
       };
