@@ -272,13 +272,13 @@ namespace eosio::testing {
             break;
          }
          case setup_policy::full:
-         case setup_policy::full_except_do_not_disable_deferred_trx:
+         case setup_policy::full_prior_to_disable_deferred_trx:
          case setup_policy::full_except_do_not_transition_to_savanna: {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
-            if( policy == setup_policy::full_except_do_not_disable_deferred_trx ) {
-               preactivate_all_but_disable_deferred_trx();
+            if( policy == setup_policy::full_prior_to_disable_deferred_trx ) {
+               preactivate_all_prior_to_disable_deferred_trx();
             } else {
                preactivate_all_builtin_protocol_features();
             }
@@ -288,7 +288,7 @@ namespace eosio::testing {
             }
 
             // Do not transition to Savanna under full_except_do_not_transition_to_savanna or
-            // full_except_do_not_disable_deferred_trx
+            // full_prior_to_disable_deferred_trx
             if( policy == setup_policy::full ) {
                // BLS voting is slow. Use only 1 finalizer for default testser.
                finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
@@ -1475,7 +1475,7 @@ namespace eosio::testing {
       preactivate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
-   void base_tester::preactivate_all_but_disable_deferred_trx() {
+   void base_tester::preactivate_all_prior_to_disable_deferred_trx() {
       std::vector<builtin_protocol_feature_t> builtins;
       for( const auto& f : get_all_builtin_protocol_features() ) {
          // Before deferred trxs feature is fully disabled, existing tests involving
