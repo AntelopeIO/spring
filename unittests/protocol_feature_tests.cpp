@@ -2316,4 +2316,21 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(set_finalizers_test, T, testers) { try {
                        c.error("alice does not have permission to call this API"));
 } FC_LOG_AND_RETHROW() }
 
+BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
+   tester c( setup_policy::preactivate_feature_and_new_bios );
+   const auto& pfm = c.control->get_protocol_feature_manager();
+
+   // Ensure SYNC_CALL not yet activated
+   BOOST_CHECK( !c.control->is_builtin_activated( builtin_protocol_feature_t::sync_call ) );
+
+   // Activate SYNC_CALL.
+   auto d = pfm.get_builtin_digest( builtin_protocol_feature_t::sync_call );
+   BOOST_REQUIRE( d );
+   c.preactivate_protocol_features({ *d });
+   c.produce_block();
+
+   // Ensure SYNC_CALL is now activated
+   BOOST_CHECK( c.control->is_builtin_activated( builtin_protocol_feature_t::sync_call ) );
+} FC_LOG_AND_RETHROW()
+
 BOOST_AUTO_TEST_SUITE_END()
