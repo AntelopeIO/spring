@@ -272,13 +272,13 @@ namespace eosio::testing {
             break;
          }
          case setup_policy::full:
-         case setup_policy::full_except_do_not_disable_deferred_trx:
+         case setup_policy::full_prior_to_disable_deferred_trx:
          case setup_policy::full_except_do_not_transition_to_savanna: {
             schedule_preactivate_protocol_feature();
             produce_block();
             set_before_producer_authority_bios_contract();
-            if( policy == setup_policy::full_except_do_not_disable_deferred_trx ) {
-               preactivate_all_but_disable_deferred_trx();
+            if( policy == setup_policy::full_prior_to_disable_deferred_trx ) {
+               preactivate_all_prior_to_disable_deferred_trx();
             } else {
                preactivate_all_builtin_protocol_features();
             }
@@ -288,7 +288,7 @@ namespace eosio::testing {
             }
 
             // Do not transition to Savanna under full_except_do_not_transition_to_savanna or
-            // full_except_do_not_disable_deferred_trx
+            // full_prior_to_disable_deferred_trx
             if( policy == setup_policy::full ) {
                // BLS voting is slow. Use only 1 finalizer for default testser.
                finalizer_keys fin_keys(*this, 1u /* num_keys */, 1u /* finset_size */);
@@ -1475,16 +1475,21 @@ namespace eosio::testing {
       preactivate_builtin_protocol_features( get_all_builtin_protocol_features() );
    }
 
-   void base_tester::preactivate_all_but_disable_deferred_trx() {
+   void base_tester::preactivate_all_prior_to_disable_deferred_trx() {
       std::vector<builtin_protocol_feature_t> builtins;
       for( const auto& f : get_all_builtin_protocol_features() ) {
          // Before deferred trxs feature is fully disabled, existing tests involving
          // deferred trxs need to be exercised to make sure existing behaviors are
-         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2
-         // from full protocol feature list such that existing tests can run.
-         if(   f == builtin_protocol_feature_t::disable_deferred_trxs_stage_1
-            || f == builtin_protocol_feature_t::disable_deferred_trxs_stage_2
-            || f == builtin_protocol_feature_t::savanna ) { // savanna depends on disable_deferred_trxs_stage_1 & 2
+         // maintained. Excluding DISABLE_DEFERRED_TRXS_STAGE_1 and DISABLE_DEFERRED_TRXS_STAGE_2,
+         // and any future protocol features from full protocol feature list such that
+         // existing tests can run.
+         //
+         // Note: We use `f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1`
+         // instead of earlier version of comparing with exact features to make code less
+         // fragile when new protocol features are added. Protocol features order can never change.
+         // Future protocol features' ID is guaranteed by the protocol to be greater than
+         // DISABLE_DEFERRED_TRXS_STAGE_1.
+         if( f >= builtin_protocol_feature_t::disable_deferred_trxs_stage_1 ) {
             continue;
          }
 
