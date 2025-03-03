@@ -3954,20 +3954,6 @@ namespace eosio {
             return;
          controller& cc = my_impl->chain_plug->chain();
 
-         auto fork_db_root_num = my_impl->get_fork_db_root_num();
-
-         // may have come in on a different connection and posted into dispatcher strand before this one
-         if( block_header::num_from_id(id) <= fork_db_root_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
-            boost::asio::post(c->strand, [c, id, ptr{std::move(ptr)}]() {
-               if (my_impl->dispatcher.add_peer_block( id, c->connection_id )) {
-                  c->send_block_nack(id);
-               }
-               const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
-            });
-            return;
-         }
-
          // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
          // savanna block will be reported as unlinkable when lib syncing. We will request that block again and by then
@@ -3989,7 +3975,7 @@ namespace eosio {
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
             fork_db_add_result = abh.add_result;
             obh = std::move(abh.block);
-            unlinkable = !obh;
+            unlinkable = fork_db_add_result == fork_db_add_t::failure;
             close_mode = sync_manager::closing_mode::handshake;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
