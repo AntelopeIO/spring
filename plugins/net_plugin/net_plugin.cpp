@@ -3949,24 +3949,10 @@ namespace eosio {
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+      my_impl->dispatcher.strand.dispatch([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
             return;
          controller& cc = my_impl->chain_plug->chain();
-
-         auto fork_db_root_num = my_impl->get_fork_db_root_num();
-
-         // may have come in on a different connection and posted into dispatcher strand before this one
-         if( block_header::num_from_id(id) <= fork_db_root_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
-            boost::asio::post(c->strand, [c, id, ptr{std::move(ptr)}]() {
-               if (my_impl->dispatcher.add_peer_block( id, c->connection_id )) {
-                  c->send_block_nack(id);
-               }
-               const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
-            });
-            return;
-         }
 
          // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
@@ -3989,7 +3975,7 @@ namespace eosio {
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
             fork_db_add_result = abh.add_result;
             obh = std::move(abh.block);
-            unlinkable = !obh;
+            unlinkable = fork_db_add_result == fork_db_add_t::failure;
             close_mode = sync_manager::closing_mode::handshake;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
@@ -4028,11 +4014,9 @@ namespace eosio {
          c->block_status_monitor_.accepted();
 
          if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            // non-irreversible notifies sync_manager when block is applied
-            my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
-               const fc::microseconds age(fc::time_point::now() - bh.timestamp());
-               sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
-            });
+            // non-irreversible notifies sync_manager when block is applied, call on dispatcher strand
+            const fc::microseconds age(fc::time_point::now() - obh->timestamp());
+            my_impl->sync_master->sync_recv_block(connection_ptr{}, obh->id(), obh->block_num(), age);
          }
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
