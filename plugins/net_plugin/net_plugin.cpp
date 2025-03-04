@@ -626,7 +626,7 @@ namespace eosio {
    };
 
    bool peer_sync_state::valid() const {
-      bool valid = start_block > 0 && end_block >= start_block && last >= start_block && last <= end_block;
+      bool valid = start_block > 0 && end_block >= start_block && last >= start_block-1 && last <= end_block;
       if (sync_type == sync_t::block_nack && valid) {
          // block nack should only be used for "current" blocks, limit size to something reasonable
          const auto size = end_block - start_block;
