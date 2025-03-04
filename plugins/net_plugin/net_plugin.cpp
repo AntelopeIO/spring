@@ -2,6 +2,7 @@
 #include <eosio/net_plugin/protocol.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
+#include <eosio/net_plugin/peer_keys_db.hpp>
 #include <eosio/chain/types.hpp>
 #include <eosio/chain/controller.hpp>
 #include <eosio/chain/exceptions.hpp>
@@ -390,6 +391,7 @@ namespace eosio {
       unique_ptr< sync_manager >       sync_master;
       dispatch_manager                 dispatcher {thread_pool.get_executor()};
       connections_manager              connections;
+      peer_keys_db_t                   peer_keys_db;
 
       /**
        * Thread safe, only updated in plugin initialize
@@ -4080,6 +4082,9 @@ namespace eosio {
          on_pending_schedule(*pending_producers);
       }
       on_active_schedule(chain_plug->chain().active_producers());
+
+      // update peer public keys from chainbase db every so often
+      peer_keys_db.on_accepted_block(chain_plug->chain());
    }
 
    // called from application thread
