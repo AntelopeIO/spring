@@ -923,7 +923,7 @@ namespace eosio {
       std::string                      remote_endpoint_ip     GUARDED_BY(conn_mtx);
       boost::asio::ip::address_v6::bytes_type remote_endpoint_ip_array GUARDED_BY(conn_mtx);
 
-      std::chrono::nanoseconds         connection_start_time{0};
+      std::atomic<std::chrono::nanoseconds>  connection_start_time;
 
       // block nack support
       static constexpr uint16_t consecutive_block_nacks_threshold{2}; // stop sending blocks when reached
@@ -1018,9 +1018,9 @@ namespace eosio {
       void enqueue( const net_message& msg );
       size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, queued_buffer::queue_t queue );
       void enqueue_buffer( msg_type_t net_msg,
+                           std::optional<block_num_type> block_num,
                            queued_buffer::queue_t queue,
                            const std::shared_ptr<std::vector<char>>& send_buffer,
-                           block_num_type block_num,
                            go_away_reason close_after_send);
       void cancel_sync();
       void flush_queues();
@@ -1031,10 +1031,11 @@ namespace eosio {
       void sync_wait();
 
       void queue_write(msg_type_t net_msg,
+                       std::optional<block_num_type> block_num,
                        queued_buffer::queue_t queue,
                        const std::shared_ptr<vector<char>>& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback);
-      void do_queue_write();
+      void do_queue_write(std::optional<block_num_type> block_num);
 
       bool is_valid( const handshake_message& msg ) const;
 
@@ -1073,14 +1074,16 @@ namespace eosio {
 
       fc::variant_object get_logger_variant() const {
          fc::mutable_variant_object mvo;
-         mvo( "_name", log_p2p_address)
+         mvo( "_peer", peer_addr.empty() ? log_p2p_address : peer_addr )
+            ( "_name", log_p2p_address)
             ( "_cid", connection_id )
             ( "_id", conn_node_id )
             ( "_sid", short_conn_node_id )
             ( "_ip", log_remote_endpoint_ip )
             ( "_port", log_remote_endpoint_port )
             ( "_lip", local_endpoint_ip )
-            ( "_lport", local_endpoint_port );
+            ( "_lport", local_endpoint_port )
+            ( "_nver", protocol_version.load() );
          return mvo;
       }
 
@@ -1379,11 +1382,12 @@ namespace eosio {
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
 
       update_endpoints();
-      boost::asio::ip::tcp::no_delay nodelay( true );
       boost::system::error_code ec;
-      socket->set_option( nodelay, ec );
+      socket->set_option( boost::asio::ip::tcp::no_delay{true}, ec );
+      if (!ec) socket->set_option(boost::asio::socket_base::send_buffer_size{1024*1024}, ec);
+      if (!ec) socket->set_option(boost::asio::socket_base::receive_buffer_size{1024*1024}, ec);
       if( ec ) {
-         peer_wlog( this, "connection failed (set_option): ${e1}", ( "e1", ec.message() ) );
+         peer_wlog( this, "connection failed (set_option): ${e}", ( "e", ec.message() ) );
          close();
          return false;
       } else {
@@ -1651,6 +1655,7 @@ namespace eosio {
 
    // called from connection strand
    void connection::queue_write(msg_type_t net_msg,
+                                std::optional<block_num_type> block_num,
                                 queued_buffer::queue_t queue,
                                 const std::shared_ptr<vector<char>>& buff,
                                 std::function<void(boost::system::error_code, std::size_t)> callback) {
@@ -1659,20 +1664,27 @@ namespace eosio {
          close();
          return;
       }
-      do_queue_write();
+      do_queue_write(block_num);
    }
 
    // called from connection strand
-   void connection::do_queue_write() {
-      if( !buffer_queue.ready_to_send(connection_id) || closed() )
+   void connection::do_queue_write(std::optional<block_num_type> block_num) {
+      if( !buffer_queue.ready_to_send(connection_id) ) {
+         if (block_num) {
+            peer_dlog(this, "connection currently sending, queueing block ${n}", ("n", *block_num) );
+         }
          return;
-      connection_ptr c(shared_from_this());
+      }
+      if (closed()) {
+         peer_dlog(this, "connection closed, not sending queued write");
+         return;
+      }
 
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
       boost::asio::async_write( *socket, bufs,
-         boost::asio::bind_executor( strand, [c, socket=socket]( boost::system::error_code ec, std::size_t w ) {
+         boost::asio::bind_executor( strand, [c=shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t w ) {
          try {
             peer_dlog(c, "async write complete");
             // May have closed connection and cleared buffer_queue
@@ -1706,7 +1718,7 @@ namespace eosio {
             c->buffer_queue.clear_out_queue(ec, w);
 
             c->enqueue_sync_block();
-            c->do_queue_write();
+            c->do_queue_write(std::nullopt);
          } catch ( const std::bad_alloc& ) {
            throw;
          } catch ( const boost::interprocess::bad_alloc& ) {
@@ -1928,7 +1940,7 @@ namespace eosio {
 
       buffer_factory buff_factory;
       const auto& send_buffer = buff_factory.get_send_buffer( m );
-      enqueue_buffer( to_msg_type_t(m.index()), queued_buffer::queue_t::general, send_buffer, 0, close_after_send );
+      enqueue_buffer( to_msg_type_t(m.index()), std::nullopt, queued_buffer::queue_t::general, send_buffer, close_after_send );
    }
 
    // called from connection strand
@@ -1939,28 +1951,28 @@ namespace eosio {
       block_buffer_factory buff_factory;
       const auto& sb = buff_factory.get_send_buffer( b );
       latest_blk_time = std::chrono::steady_clock::now();
-      enqueue_buffer( msg_type_t::signed_block, queue, sb, block_num, no_reason);
+      enqueue_buffer( msg_type_t::signed_block, block_num, queue, sb, no_reason);
       return sb->size();
    }
 
    // called from connection strand
    void connection::enqueue_buffer( msg_type_t net_msg,
+                                    std::optional<block_num_type> block_num, // only valid for net_msg == signed_block variant which
                                     queued_buffer::queue_t queue,
                                     const std::shared_ptr<std::vector<char>>& send_buffer,
-                                    block_num_type block_num, // only valid for net_msg == signed_block variant which
                                     go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
-      queue_write(net_msg, queue, send_buffer,
-            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t ) {
+      queue_write(net_msg, block_num, queue, send_buffer,
+            [conn{std::move(self)}, close_after_send, net_msg, block_num](boost::system::error_code ec, std::size_t s) {
                         if (ec) {
                            if (ec != boost::asio::error::operation_aborted && ec != boost::asio::error::connection_reset && conn->socket_is_open()) {
                               fc_elog(logger, "Connection - ${cid} - send failed with: ${e}", ("cid", conn->connection_id)("e", ec.message()));
                            }
                            return;
                         }
-                        if (net_msg == msg_type_t::signed_block)
-                           fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", block_num));
+                        if (net_msg == msg_type_t::signed_block && block_num)
+                           fc_dlog(logger, "Connection - ${cid} - done sending block ${bn}", ("cid", conn->connection_id)("bn", *block_num));
                         if (close_after_send != no_reason) {
                            fc_ilog( logger, "sent a go away message: ${r}, closing connection ${cid}",
                                     ("r", reason_str(close_after_send))("cid", conn->connection_id) );
@@ -2801,7 +2813,7 @@ namespace eosio {
                   boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
                      peer_dlog( cp, "bcast block_notice ${b}", ("b", bnum) );
-                     cp->enqueue_buffer( msg_type_t::block_notice_message, queued_buffer::queue_t::general, send_buffer, 0, no_reason );
+                     cp->enqueue_buffer( msg_type_t::block_notice_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
                   });
                   return;
                }
@@ -2815,7 +2827,7 @@ namespace eosio {
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
                peer_dlog( cp, "bcast block ${b}", ("b", bnum) );
-               cp->enqueue_buffer( msg_type_t::signed_block, queued_buffer::queue_t::general, sb, bnum, no_reason );
+               cp->enqueue_buffer( msg_type_t::signed_block, bnum, queued_buffer::queue_t::general, sb, no_reason );
             }
          });
       } );
@@ -2829,7 +2841,7 @@ namespace eosio {
          boost::asio::post(cp->strand, [cp, msg]() {
             if (vote_logger.is_enabled(fc::log_level::debug))
                peer_dlog(cp, "sending vote msg");
-            cp->enqueue_buffer( msg_type_t::vote_message, queued_buffer::queue_t::general, msg, 0, no_reason );
+            cp->enqueue_buffer( msg_type_t::vote_message, std::nullopt, queued_buffer::queue_t::general, msg, no_reason );
          });
          return true;
       } );
@@ -2850,7 +2862,7 @@ namespace eosio {
          send_buffer_type sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
          boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
-            cp->enqueue_buffer( msg_type_t::packed_transaction, queued_buffer::queue_t::general, sb, 0, no_reason );
+            cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, no_reason );
          } );
       } );
    }
@@ -3300,7 +3312,7 @@ namespace eosio {
       buffer_factory buff_factory;
       auto send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
 
-      enqueue_buffer( msg_type_t::block_nack_message, queued_buffer::queue_t::general, send_buffer, 0, no_reason );
+      enqueue_buffer( msg_type_t::block_nack_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
    }
 
    void net_plugin_impl::plugin_shutdown() {
@@ -3418,6 +3430,7 @@ namespace eosio {
       peer_fork_db_head_block_num = msg.fork_db_head_num;
       fc::unique_lock g_conn( conn_mtx );
       last_handshake_recv = msg;
+      auto c_time = last_handshake_sent.time;
       g_conn.unlock();
 
       set_state(connection_state::connected);
@@ -3461,7 +3474,35 @@ namespace eosio {
                fc::unique_lock g_check_conn( check->conn_mtx );
                fc_dlog( logger, "dup check: connected ${c}, ${l} =? ${r}",
                         ("c", check->connected())("l", check->last_handshake_recv.node_id)("r", msg.node_id) );
-               return check->connected() && check->last_handshake_recv.node_id == msg.node_id;
+               if(check->connected() && check->last_handshake_recv.node_id == msg.node_id) {
+                  if (net_version < proto_dup_goaway_resolution || msg.network_version < proto_dup_goaway_resolution) {
+                     // It's possible that both peers could arrive here at relatively the same time, so
+                     // we need to avoid the case where they would both tell a different connection to go away.
+                     // Using the sum of the initial handshake times of the two connections, we will
+                     // arbitrarily (but consistently between the two peers) keep one of them.
+
+                     auto check_time = check->last_handshake_sent.time + check->last_handshake_recv.time;
+                     g_check_conn.unlock();
+                     if (msg.time + c_time <= check_time)
+                        return false;
+                  } else if (net_version < proto_dup_node_id_goaway || msg.network_version < proto_dup_node_id_goaway) {
+                     if (listen_address < msg.p2p_address) {
+                        fc_dlog( logger, "listen_address '${lhs}' < msg.p2p_address '${rhs}'",
+                                 ("lhs", listen_address)( "rhs", msg.p2p_address ) );
+                        // only the connection from lower p2p_address to higher p2p_address will be considered as a duplicate,
+                        // so there is no chance for both connections to be closed
+                        return false;
+                     }
+                  } else if (my_impl->node_id < msg.node_id) {
+                     fc_dlog( logger, "not duplicate, my_impl->node_id '${lhs}' < msg.node_id '${rhs}'",
+                              ("lhs", my_impl->node_id)("rhs", msg.node_id) );
+                     // only the connection from lower node_id to higher node_id will be considered as a duplicate,
+                     // so there is no chance for both connections to be closed
+                     return false;
+                  }
+                  return true;
+               }
+               return false;
             };
             if (my_impl->connections.any_of_connections(std::move(is_duplicate))) {
                peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
@@ -3910,24 +3951,10 @@ namespace eosio {
    void connection::handle_message( const block_id_type& id, signed_block_ptr ptr ) {
       // post to dispatcher strand so that we don't have multiple threads validating the block header
       peer_dlog(this, "posting block ${n} to dispatcher strand", ("n", ptr->block_num()));
-      my_impl->dispatcher.strand.post([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
+      my_impl->dispatcher.strand.dispatch([id, c{shared_from_this()}, ptr{std::move(ptr)}, cid=connection_id]() mutable {
          if (app().is_quiting()) // large sync span can have many of these queued up, exit quickly
             return;
          controller& cc = my_impl->chain_plug->chain();
-
-         auto fork_db_root_num = my_impl->get_fork_db_root_num();
-
-         // may have come in on a different connection and posted into dispatcher strand before this one
-         if( block_header::num_from_id(id) <= fork_db_root_num || my_impl->dispatcher.have_block( id ) || cc.block_exists( id ) ) { // thread-safe
-            boost::asio::post(c->strand, [c, id, ptr{std::move(ptr)}]() {
-               if (my_impl->dispatcher.add_peer_block( id, c->connection_id )) {
-                  c->send_block_nack(id);
-               }
-               const fc::microseconds age(fc::time_point::now() - ptr->timestamp);
-               my_impl->sync_master->sync_recv_block( c, id, block_header::num_from_id(id), age );
-            });
-            return;
-         }
 
          // proper_svnn_block_seen is for integration tests that verify low number of `unlinkable_blocks` logs.
          // Because we now process blocks immediately into the fork database, during savanna transition the first proper
@@ -3950,7 +3977,7 @@ namespace eosio {
             controller::accepted_block_result abh = cc.accept_block( id, ptr );
             fork_db_add_result = abh.add_result;
             obh = std::move(abh.block);
-            unlinkable = !obh;
+            unlinkable = fork_db_add_result == fork_db_add_t::failure;
             close_mode = sync_manager::closing_mode::handshake;
          } catch( const invalid_qc_claim& ex) {
             exception = true;
@@ -3989,11 +4016,9 @@ namespace eosio {
          c->block_status_monitor_.accepted();
 
          if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
-            // non-irreversible notifies sync_manager when block is applied
-            my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), bh=*obh]() {
-               const fc::microseconds age(fc::time_point::now() - bh.timestamp());
-               sync_master->sync_recv_block(connection_ptr{}, bh.id(), bh.block_num(), age);
-            });
+            // non-irreversible notifies sync_manager when block is applied, call on dispatcher strand
+            const fc::microseconds age(fc::time_point::now() - obh->timestamp());
+            my_impl->sync_master->sync_recv_block(connection_ptr{}, obh->id(), obh->block_num(), age);
          }
 
          if (fork_db_add_result == fork_db_add_t::appended_to_head || fork_db_add_result == fork_db_add_t::fork_switch) {
@@ -4358,9 +4383,10 @@ namespace eosio {
          ( "sync-peer-limit", bpo::value<uint32_t>()->default_value(3),
            "Number of peers to sync from")
          ( "use-socket-read-watermark", bpo::value<bool>()->default_value(false), "Enable experimental socket read watermark optimization")
-         ( "peer-log-format", bpo::value<string>()->default_value( "[\"${_name}\" - ${_cid} ${_ip}:${_port}] " ),
+         ( "peer-log-format", bpo::value<string>()->default_value( "[\"${_peer}\" - ${_cid} ${_ip}:${_port}] " ),
            "The string used to format peers when logging messages about them.  Variables are escaped with ${<variable name>}.\n"
            "Available Variables:\n"
+           "   _peer  \tendpoint name\n\n"
            "   _name  \tself-reported name\n\n"
            "   _cid   \tassigned connection id\n\n"
            "   _id    \tself-reported ID (64 hex characters)\n\n"
@@ -4368,7 +4394,8 @@ namespace eosio {
            "   _ip    \tremote IP address of peer\n\n"
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
-           "   _lport \tlocal port number connected to peer\n\n")
+           "   _lport \tlocal port number connected to peer\n\n"
+           "   _nver  \tp2p protocol version\n\n")
          ( "p2p-keepalive-interval-ms", bpo::value<int>()->default_value(def_keepalive_interval), "peer heartbeat keepalive message interval in milliseconds")
 
         ;

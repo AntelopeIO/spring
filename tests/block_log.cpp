@@ -644,4 +644,26 @@ BOOST_DATA_TEST_CASE(empty_prune_to_partitioned_transitions, bdata::xrange(1, 11
 
 }  FC_LOG_AND_RETHROW() }
 
+//This test adds "a lot" more blocks to the log before transitioning from flat to pruned.
+BOOST_DATA_TEST_CASE(nonprune_to_prune_on_start, bdata::make({1, 1500}) * bdata::make({10, 50}), starting_block, prune_blocks)  { try {
+   //start non pruned
+   block_log_fixture t(true, true, false, std::optional<uint32_t>());
+   t.startup(starting_block);
+
+   const unsigned num_blocks_to_add = prune_blocks*3;
+   unsigned next_block = starting_block == 1 ? 2 : starting_block;
+   for(auto i = 0; i < prune_blocks*3; ++i)
+      t.add(next_block++, payload_size(), 'z');
+   t.check_n_bounce([&]() {});
+
+   //now switch over to pruned mode
+   t.prune_blocks = prune_blocks;
+   t.check_n_bounce([&]() {});
+
+   if(starting_block == 1)
+      t.check_range_present(num_blocks_to_add-prune_blocks+2, next_block-1);
+   else
+      t.check_range_present(starting_block+num_blocks_to_add-prune_blocks, next_block-1);
+}  FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
