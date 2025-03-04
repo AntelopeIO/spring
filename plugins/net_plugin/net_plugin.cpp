@@ -4082,9 +4082,9 @@ namespace eosio {
       fc_dlog(logger, "on_accepted_block_header ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
 
-      boost::asio::post( my_impl->thread_pool.get_executor(), [block, id]() {
+      boost::asio::post( thread_pool.get_executor(), [block, id, this]() {
          fc_dlog(logger, "signaled accepted_block_header, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id));
-         my_impl->dispatcher.bcast_block(block, id);
+         dispatcher.bcast_block(block, id);
       });
    }
 
@@ -4092,9 +4092,9 @@ namespace eosio {
       fc_dlog(logger, "on_accepted_block ${bn} ${id}", ("bn", block->block_num())("id", id));
       update_chain_info();
 
-      if (my_impl->chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
+      if (chain_plug->chain().get_read_mode() != db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4112,9 +4112,9 @@ namespace eosio {
       fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id) );
       update_chain_info(id);
 
-      if (my_impl->chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+      if (chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
-         my_impl->dispatcher.strand.post([sync_master = my_impl->sync_master.get(), block, id]() {
+         dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
@@ -4147,7 +4147,7 @@ namespace eosio {
       case vote_result_t::invalid_signature:
       case vote_result_t::max_exceeded:  // close peer immediately
          fc_elog(vote_logger, "Invalid vote(s), closing connection - ${c}", ("c", connection_id));
-         my_impl->connections.any_of_connections([connection_id](const connection_ptr& c) {
+         connections.any_of_connections([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                c->close( false );
                return true;
@@ -4158,7 +4158,7 @@ namespace eosio {
       case vote_result_t::unknown_block: // track the failure
          fc_dlog(vote_logger, "connection - ${c} vote unknown block #${bn}:${id}..",
                  ("c", connection_id)("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16)));
-         my_impl->connections.any_of_connections([connection_id](const connection_ptr& c) {
+         connections.any_of_connections([connection_id](const connection_ptr& c) {
             if (c->connection_id == connection_id) {
                boost::asio::post(c->strand, [c]() {
                   c->block_status_monitor_.rejected();
@@ -4176,24 +4176,24 @@ namespace eosio {
    }
 
    void net_plugin_impl::bcast_vote_message( uint32_t exclude_peer, const chain::vote_message_ptr& msg ) {
-      if (my_impl->sync_master->syncing_from_peer())
+      if (sync_master->syncing_from_peer())
          return;
 
       fc_dlog(vote_logger, "bcast ${t} vote: block #${bn} ${id}.., ${v}, key ${k}..",
                 ("t", exclude_peer ? "received" : "our")("bn", block_header::num_from_id(msg->block_id))("id", msg->block_id.str().substr(8,16))
                 ("v", msg->strong ? "strong" : "weak")("k", msg->finalizer_key.to_string().substr(8,16)));
 
-      boost::asio::post( my_impl->thread_pool.get_executor(), [exclude_peer, msg]() mutable {
+      boost::asio::post( thread_pool.get_executor(), [exclude_peer, msg, this]() mutable {
             buffer_factory buff_factory;
             auto send_buffer = buff_factory.get_send_buffer( *msg );
 
-            my_impl->dispatcher.bcast_vote_msg( exclude_peer, std::move(send_buffer) );
+            dispatcher.bcast_vote_msg( exclude_peer, std::move(send_buffer) );
       });
    }
 
    // called from application thread
    void net_plugin_impl::transaction_ack(const std::pair<fc::exception_ptr, packed_transaction_ptr>& results) {
-      boost::asio::post( my_impl->thread_pool.get_executor(), [&dispatcher = my_impl->dispatcher, results]() {
+      boost::asio::post( thread_pool.get_executor(), [this, results]() {
          const auto& id = results.second->id();
          if (results.first) {
             fc_dlog( logger, "signaled NACK, trx-id = ${id} : ${why}", ("id", id)( "why", results.first->to_detail_string() ) );
