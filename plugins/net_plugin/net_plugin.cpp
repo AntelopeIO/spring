@@ -609,19 +609,32 @@ namespace eosio {
 
    constexpr uint16_t net_version_max = proto_block_nack;
 
-   /**
-    * Index by start_block_num
-    */
    struct peer_sync_state {
-      explicit peer_sync_state(uint32_t start = 0, uint32_t end = 0, uint32_t last_acted = 0)
-         :start_block( start ), end_block( end ), last( last_acted ),
-          start_time(time_point::now())
+      enum class sync_t {
+         peer_sync, // LIB or head catchup, syncing request_message:catch_up
+         block_nack // sync due to block nack (block_notice_message) request_message:normal
+      };
+      peer_sync_state(uint32_t start, uint32_t end, uint32_t last_acted, sync_t sync_type)
+         :start_block( start ), end_block( end ), last( last_acted ), sync_type( sync_type )
       {}
+
+      bool valid() const;
+
       uint32_t     start_block;
       uint32_t     end_block;
       uint32_t     last; ///< last sent or received
-      time_point   start_time; ///< time request made or received
+      sync_t       sync_type;
    };
+
+   bool peer_sync_state::valid() const {
+      bool valid = start_block > 0 && end_block >= start_block && last >= start_block-1 && last <= end_block;
+      if (sync_type == sync_t::block_nack && valid) {
+         // block nack should only be used for "current" blocks, limit size to something reasonable
+         const auto size = end_block - start_block;
+         valid = size < 100;
+      }
+      return valid;
+   }
 
    // thread safe
    class queued_buffer : boost::noncopyable {
@@ -1011,7 +1024,7 @@ namespace eosio {
 
       void blk_send_branch( const block_id_type& msg_head_id );
       void blk_send_branch_from_nack_request( const block_id_type& msg_head_id, const block_id_type& req_id );
-      void blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num );
+      void blk_send_branch(uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num, peer_sync_state::sync_t sync_type);
 
       void enqueue( const net_message& msg );
       size_t enqueue_block( const std::vector<char>& sb, uint32_t block_num, queued_buffer::queue_t queue );
@@ -1521,7 +1534,7 @@ namespace eosio {
 
       auto msg_head_num = block_header::num_from_id(msg_head_id);
       if (msg_head_num == 0) {
-         blk_send_branch( msg_head_num, fork_db_root_num, head_num );
+         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_sync );
          return;
       }
 
@@ -1534,7 +1547,7 @@ namespace eosio {
          // if peer on fork, start at their last fork_db_root_num, otherwise we can start at msg_head+1
          if (on_fork)
             msg_head_num = 0;
-         blk_send_branch( msg_head_num, fork_db_root_num, head_num );
+         blk_send_branch( msg_head_num, fork_db_root_num, head_num, peer_sync_state::sync_t::peer_sync );
       }
    }
 
@@ -1547,28 +1560,30 @@ namespace eosio {
          // a more complicated better approach would be to find where the fork branches and send from there, for now use lib
          uint32_t fork_db_root_num = my_impl->get_fork_db_root_num();
          // --fork_db_root_num since blk_send_branch adds one to the request, and we want to start at fork_db_root_num
-         blk_send_branch( --fork_db_root_num, 0, head_num);
+         blk_send_branch( --fork_db_root_num, 0, head_num, peer_sync_state::sync_t::block_nack);
       } else {
          auto msg_req_num = block_header::num_from_id(req_id);
          // --msg_req_num since blk_send_branch adds one to the request, and we need to start at msg_req_num
-         blk_send_branch( --msg_req_num, 0, head_num );
+         blk_send_branch( --msg_req_num, 0, head_num, peer_sync_state::sync_t::block_nack );
       }
    }
 
    // called from connection strand
-   void connection::blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num ) {
+   void connection::blk_send_branch( uint32_t msg_head_num, uint32_t fork_db_root_num, uint32_t head_num, peer_sync_state::sync_t sync_type) {
       if( !peer_requested ) {
          auto last = msg_head_num != 0 ? msg_head_num : fork_db_root_num;
-         peer_requested = peer_sync_state( last+1, head_num, last );
+         peer_requested = peer_sync_state( last+1, head_num, last, sync_type );
       } else {
          auto last = msg_head_num != 0 ? msg_head_num : std::min( peer_requested->last, fork_db_root_num );
          uint32_t end = std::max( peer_requested->end_block, head_num );
          if (peer_requested->start_block <= last+1 && peer_requested->end_block >= end)
             return; // nothing to do, send in progress
-         peer_requested = peer_sync_state( last+1, end, last );
+         peer_requested = peer_sync_state( last+1, end, last, sync_type );
       }
-      if( peer_requested->start_block <= peer_requested->end_block ) {
-         peer_ilog( this, "enqueue ${s} - ${e}", ("s", peer_requested->start_block)("e", peer_requested->end_block) );
+      if( peer_requested->valid() ) {
+         peer_ilog( this, "enqueue ${t} ${s} - ${e}",
+                    ("t", sync_type == peer_sync_state::sync_t::peer_sync ? "peer" : "block")
+                    ("s", peer_requested->start_block)("e", peer_requested->end_block) );
          enqueue_sync_block();
       } else {
          peer_ilog( this, "nothing to enqueue" );
@@ -1790,8 +1805,15 @@ namespace eosio {
             block_sync_frame_bytes_sent = 0;
             peer_dlog( this, "completing enqueue_sync_block ${num}", ("num", num) );
          }
+      } else if (peer_requested->sync_type == peer_sync_state::sync_t::block_nack) {
+         // Do not have the block, likely because in the middle of a fork-switch. A fork-switch will send out
+         // block_notice_message for the new blocks. Ignore, similar to the ignore in blk_send_branch().
+         peer_ilog( this, "enqueue block sync, unable to fetch block ${num}, resetting peer request", ("num", num) );
+         peer_requested.reset(); // unable to provide requested blocks
+         block_sync_send_start = 0ns;
+         block_sync_frame_bytes_sent = 0;
       } else {
-         peer_ilog( this, "enqueue sync, unable to fetch block ${num}, sending benign_other go away", ("num", num) );
+         peer_ilog( this, "enqueue peer sync, unable to fetch block ${num}, sending benign_other go away", ("num", num) );
          peer_requested.reset(); // unable to provide requested blocks
          block_sync_send_start = 0ns;
          block_sync_frame_bytes_sent = 0;
@@ -3828,7 +3850,7 @@ namespace eosio {
             peer_requested->end_block = std::max(msg.end_block, peer_requested->end_block);
          }
          else {
-            peer_requested = peer_sync_state( msg.start_block, msg.end_block, msg.start_block-1);
+            peer_requested = peer_sync_state(msg.start_block, msg.end_block, msg.start_block-1, peer_sync_state::sync_t::peer_sync);
          }
          enqueue_sync_block();
       }
