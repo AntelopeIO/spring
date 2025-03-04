@@ -4,7 +4,7 @@
 namespace eosio::chain {
 
 peer_keys_db_t::peer_keys_db_t()
-   : _peer_key_map( boost::shared_ptr<peer_key_map_t>(new peer_key_map_t)) {
+   : _peer_key_map(boost::make_shared<peer_key_map_t>()) {
 }
 
 void peer_keys_db_t::on_accepted_block(const controller& chain) {
@@ -13,7 +13,7 @@ void peer_keys_db_t::on_accepted_block(const controller& chain) {
 
       // let's update once every 20 blocks, so every 10 seconds
       if (head.is_valid() && block_header::num_from_id(head.id()) % 20 == 0) {
-         auto new_map = boost::shared_ptr<peer_key_map_t>(new peer_key_map_t);
+         auto new_map = boost::make_shared<peer_key_map_t>();
 
          const auto& d = chain.db();
          const auto* t_id =
