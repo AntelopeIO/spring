@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/chain/controller.hpp>
+#include <boost/smart_ptr/atomic_shared_ptr.hpp>
 
 namespace eosio::chain {
 
@@ -18,10 +19,10 @@ public:
 
    void on_accepted_block(const controller& chain);        // update the map every N blocks, a small delay is fine
 
-   std::shared_ptr<peer_key_map_t> get_peer_key_map() { return _peer_key_map; }
+   boost::shared_ptr<peer_key_map_t> get_peer_key_map() { return _peer_key_map.load(); }
 
 private:
-   std::atomic<std::shared_ptr<peer_key_map_t>> _peer_key_map;
+   boost::atomic_shared_ptr<peer_key_map_t> _peer_key_map;
 };
 
 } // namespace eosio::chain
