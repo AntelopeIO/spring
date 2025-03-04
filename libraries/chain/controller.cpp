@@ -4238,9 +4238,12 @@ struct controller_impl {
       EOS_ASSERT( b, block_validate_exception, "null block" );
 
       auto f = [&](auto& fork_db) -> controller::accepted_block_result {
+         if (auto bsp = fork_db.get_block(id, include_root_t::yes))
+            return controller::accepted_block_result{.add_result = fork_db_add_t::duplicate, .block{std::optional<block_handle>{std::move(bsp)}}};
          // previous not found, means it is unlinkable
          auto prev = fork_db.get_block( b->previous, include_root_t::yes );
-         if( !prev ) return {};
+         if( !prev )
+            return controller::accepted_block_result{.add_result = fork_db_add_t::failure, .block{}};
 
          return create_block_state_i( fork_db, id, b, *prev );
       };
