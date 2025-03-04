@@ -1792,6 +1792,13 @@ namespace eosio {
             block_sync_frame_bytes_sent = 0;
             peer_dlog( this, "completing enqueue_sync_block ${num}", ("num", num) );
          }
+      } else if (peer_requested->sync_type == peer_sync_state::sync_t::block_nack) {
+         // Do not have the block, likely because in the middle of a fork-switch. A fork-switch will send out
+         // block_notice_message for the new blocks. Ignore, similar to the ignore in blk_send_branch().
+         peer_ilog( this, "enqueue block sync, unable to fetch block ${num}, resetting peer request", ("num", num) );
+         peer_requested.reset(); // unable to provide requested blocks
+         block_sync_send_start = 0ns;
+         block_sync_frame_bytes_sent = 0;
       } else {
          peer_ilog( this, "enqueue peer sync, unable to fetch block ${num}, sending benign_other go away", ("num", num) );
          peer_requested.reset(); // unable to provide requested blocks
