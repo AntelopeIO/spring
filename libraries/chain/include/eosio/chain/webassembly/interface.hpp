@@ -685,6 +685,57 @@ namespace webassembly {
          void set_action_return_value(span<const char> packed_blob);
 
          /**
+          * Makes a sync call in the context of the parent action or parent sync call
+          * of this operation.
+          *
+          * @ingroup sync call
+          * @param receiver - the name of the account that the sync call is made to.
+          * @param flags - flags (bits) representing blockchain level requirements about
+          *                the sync call. LSB bit indicates read-only. All other bits
+          *                are reserved to be 0.
+          * @param data - the data of the sync call, in the format of
+          *
+          *               struct data_header {
+          *                  uint32_t version        = 0;
+          *                  uint64_t function_name;
+          *
+          *                  // Flags representing function level requirements
+          *                  // about the sync call. LSB of flags indicates no_op_if_not_defined.
+          *                  // All other bits are reserved to be 0.
+          *                  // If no_op_if_not_defined is set, the sync call is no-op
+          *                  // if the receiver contract does not have sync_call entry
+          *                  // point or the signature does not match the format,
+          *                  // or the called function_name is not recognized by the receiver.
+          *                  // Otherwise, the call aborts.
+          *                  uint64_t flags          = 0;
+          *               };
+          *
+          *               struct data_t {
+          *                  data_header      header;
+          *                  span<const char> arguments;
+          *               };
+         */
+         void call(name receiver, uint64_t flags, span<const char> data);
+
+         /**
+          * Copies the current sync call data up to the length of memory.
+          *
+          * @ingroup sync call
+          * @param memory - a pointer where up to the size of memory will be copied
+          *
+          * @return the number of bytes of the data that can be retrieved (the number of total bytes).
+         */
+         uint32_t get_call_data(span<char> memory) const;
+
+         /**
+          * Sets the return value to be used by the caller and to be included in sync call trace.
+          *
+          * @ingroup sync call
+          * @param value - a pointer to the packed return value
+         */
+         void set_call_return_value(span<const char> value);
+
+         /**
           * Print a string.
           *
           * @ingroup console
@@ -1627,6 +1678,7 @@ namespace webassembly {
          void* memmove(memcpy_params) const;
          int32_t memcmp(memcmp_params) const;
          void* memset(memset_params) const;
+
 
          /**
           * Send an inline action in the context of the parent transaction of this operation.
