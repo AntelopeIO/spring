@@ -478,7 +478,7 @@ REGISTER_HOST_FUNCTION(set_action_return_value);
 
 // sync call api
 REGISTER_HOST_FUNCTION(call);
-REGISTER_CF_HOST_FUNCTION(get_call_data);
+REGISTER_HOST_FUNCTION(get_call_data);
 REGISTER_HOST_FUNCTION(set_call_return_value);
 
 // console api
