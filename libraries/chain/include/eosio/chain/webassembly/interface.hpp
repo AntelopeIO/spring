@@ -693,27 +693,8 @@ namespace webassembly {
           * @param flags - flags (bits) representing blockchain level requirements about
           *                the sync call. LSB bit indicates read-only. All other bits
           *                are reserved to be 0.
-          * @param data - the data of the sync call, in the format of
+          * @param data - the data of the sync call, which may include function name, arguments and other information.
           *
-          *               struct data_header {
-          *                  uint32_t version        = 0;
-          *                  uint64_t function_name;
-          *
-          *                  // Flags representing function level requirements
-          *                  // about the sync call. LSB of flags indicates no_op_if_not_defined.
-          *                  // All other bits are reserved to be 0.
-          *                  // If no_op_if_not_defined is set, the sync call is no-op
-          *                  // if the receiver contract does not have sync_call entry
-          *                  // point or the signature does not match the format,
-          *                  // or the called function_name is not recognized by the receiver.
-          *                  // Otherwise, the call aborts.
-          *                  uint64_t flags          = 0;
-          *               };
-          *
-          *               struct data_t {
-          *                  data_header      header;
-          *                  span<const char> arguments;
-          *               };
          */
          void call(name receiver, uint64_t flags, span<const char> data);
 
