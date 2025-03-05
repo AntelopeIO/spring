@@ -12,11 +12,28 @@ using namespace eosio;
 
 namespace savanna {
 
-   struct quorum_certificate {
-       //representation of a bitset, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
-       std::vector<uint8_t>   finalizers;
-       //string representation of a BLS signature
-       std::string            signature;
+   constexpr std::array weak_bls_sig_postfix = { 'W', 'E', 'A', 'K' };
+   using weak_digest_t = std::array<uint8_t, sizeof(checksum256) + weak_bls_sig_postfix.size()>;
+
+   inline std::string create_weak_digest(const checksum256& digest) {
+      weak_digest_t res;
+      std::memcpy(res.begin(), digest.data(), digest.size());
+      std::memcpy(res.begin() + digest.size(), weak_bls_sig_postfix.data(), weak_bls_sig_postfix.size());
+      return std::string(res.begin(), res.end());
+   }
+
+   inline std::string create_strong_digest(const checksum256& digest){
+      std::array<uint8_t, 32> fd_data = digest.extract_as_byte_array();
+      return std::string(fd_data.begin(), fd_data.end());
+   }
+
+   struct quorum_certificate_input {
+      //representation of optional strong and weak bitsets, where each bit represents the ordinal finalizer position according to canonical sorting rules of the finalizer policy
+      std::optional<std::vector<uint8_t>>   strong_votes;
+      std::optional<std::vector<uint8_t>>   weak_votes;
+
+      //string representation of a BLS signature
+      std::string            signature;
    };
    
    struct finalizer_authority_internal {
@@ -61,7 +78,7 @@ namespace savanna {
    };
 
    //Compute the maximum number of layers of a merkle tree for a given number of leaves
-   uint64_t calculate_max_depth(uint64_t node_count) {
+   uint64_t calculate_max_depth(const uint64_t node_count) {
       if(node_count <= 1)
          return node_count;
       return 64 - __builtin_clzll(2 << (64 - 1 - __builtin_clzll ((node_count - 1)))); //instead of std::bit_ceil available in C++ 20 
@@ -71,7 +88,7 @@ namespace savanna {
       return __builtin_bswap32(input);
    }
 
-   checksum256 hash_pair(const std::pair<checksum256, checksum256> p){
+   checksum256 hash_pair(const std::pair<checksum256, checksum256>& p){
       auto result = eosio::pack(p);
       return sha256(result.data(), result.size());
    }
@@ -84,7 +101,7 @@ namespace savanna {
    }
 
    //compute path for proof of inclusion
-   std::vector<bool> _get_proof_path(uint64_t leaf_index, const uint64_t leaf_count) {
+   std::vector<bool> _get_proof_path(const uint64_t leaf_index, const uint64_t leaf_count) {
        std::vector<bool> proof_path;
        uint64_t current_leaf_count = leaf_count;
        uint64_t current_index = leaf_index;
@@ -106,10 +123,11 @@ namespace savanna {
    }
 
    //compute the merkle root of target node and vector of merkle branches
-   checksum256 _compute_root(const std::vector<checksum256> proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
+   checksum256 _compute_root(const std::vector<checksum256>& proof_nodes, const checksum256& target, const uint64_t target_block_index, const uint64_t final_block_index){
        checksum256 hash = target;
        std::vector<bool> proof_path = _get_proof_path(target_block_index, final_block_index+1);
-       check(proof_path.size() == proof_nodes.size(), "internal error"); //should not happen
+
+       check(proof_path.size() == proof_nodes.size(), "proof path size and proof nodes size mismatch");
        for (int i = 0 ; i < proof_nodes.size() ; i++){
            const checksum256 node = proof_nodes[i];
            hash = hash_pair(proof_path[i] ? std::make_pair(node, hash) : std::make_pair(hash, node));
@@ -123,50 +141,138 @@ namespace savanna {
       bls_g1_add(op1, op2, r);
       return r;
    }
-
-   // verify signature
-   bool _verify(const std::string& public_key, const std::string& signature, const std::string& message){
-      return bls_signature_verify(decode_bls_public_key_to_g1(public_key), decode_bls_signature_to_g2(signature), message);
-   }
    
-   //verify that the quorum certificate over the finality digest is valid
-   void _check_qc(const quorum_certificate& qc, const checksum256& finality_digest, const finalizer_policy_input finalizer_policy){
+   void check_duplicate_votes(const savanna::bitset& strong_votes, const savanna::bitset& weak_votes, const finalizer_policy_input& finalizer_policy){
+
       auto fa_itr = finalizer_policy.finalizers.begin();
       auto fa_end_itr = finalizer_policy.finalizers.end();
-      size_t finalizer_count = finalizer_policy.finalizers.size();
-      savanna::bitset b(finalizer_count, qc.finalizers);
+
+      size_t index = 0;
+
+      while (fa_itr != fa_end_itr){
+         bool voted_strong = strong_votes.test(index);
+         bool voted_weak = weak_votes.test(index);
+         check (!(voted_strong && voted_weak), "conflicting finalizer votes detected in QC");
+         index++;
+         fa_itr++;
+      }
+
+   }
+
+   uint64_t aggregate_keys(const savanna::bitset& votes, const finalizer_policy_input& finalizer_policy, bls_g1& agg_pub_key){
+      
+      auto fa_itr = finalizer_policy.finalizers.begin();
+      auto fa_end_itr = finalizer_policy.finalizers.end();
 
       bool first = true;
 
       size_t index = 0;
       uint64_t weight = 0;
 
-      bls_g1 agg_pub_key;
-
       while (fa_itr != fa_end_itr){
-          if (b.test(index)){
-              bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
-              if (first){
-                  first=false;
-                  agg_pub_key = pub_key;
-              }
-              else agg_pub_key = _g1add(agg_pub_key, pub_key);
-              weight+=fa_itr->weight;
-          }
-          index++;
-          fa_itr++;
+         if (votes.test(index)){
+            bls_g1 pub_key = decode_bls_public_key_to_g1(fa_itr->public_key);
+            if (first){
+               first=false;
+               agg_pub_key = pub_key;
+            }
+            else agg_pub_key = _g1add(agg_pub_key, pub_key);
+            weight+=fa_itr->weight;
+         }
+         index++;
+         fa_itr++;
       }
 
-      //verify that we have enough vote weight to meet the quorum threshold of the target policy
-      check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
-      std::array<uint8_t, 32> fd_data = finality_digest.extract_as_byte_array();
-      std::string message(fd_data.begin(), fd_data.end());
+      return weight;
 
-      std::string s_agg_pub_key = encode_g1_to_bls_public_key(agg_pub_key);
-      //verify signature validity
-      check(_verify(s_agg_pub_key, qc.signature, message), "signature verification failed");
    }
 
+   void _verify(const std::vector<std::string>& messages, const std::vector<bls_g1>& agg_pub_keys, const std::string& agg_sig){
+
+      check(messages.size() == agg_pub_keys.size(), "messages vector and pub key vectors must be of the same size");
+
+      for (size_t i = 0 ; i < messages.size(); i++){
+         //verify signature validity
+         check(bls_signature_verify(agg_pub_keys[i], decode_bls_signature_to_g2(agg_sig), messages[i]), "signature verification failed");
+      }
+
+   }
+
+   //verify that the quorum certificate over the finality digest is valid
+   void _check_qc(const quorum_certificate_input& qc, const checksum256& finality_digest, const finalizer_policy_input& finalizer_policy, const bool count_strong_only, const bool enforce_threshold_check){
+
+      check(qc.strong_votes.has_value() || qc.weak_votes.has_value(), "quorum certificate must have at least one bitset");
+
+      size_t finalizer_count = finalizer_policy.finalizers.size();
+      
+      uint64_t weight = 0;
+
+      if (count_strong_only){
+         bls_g1 agg_pub_key;
+         check(qc.strong_votes.has_value(), "required strong votes are missing");
+         savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+         weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
+         _verify({create_strong_digest(finality_digest)}, {agg_pub_key}, qc.signature);
+      }
+      else {
+
+         if (qc.strong_votes.has_value() && qc.weak_votes.has_value()){
+            //weak QC (composed of strong and weak votes)
+            bls_g1 strong_agg_pub_key;
+            bls_g1 weak_agg_pub_key;
+            savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+            savanna::bitset weak_b(finalizer_count, qc.weak_votes.value());
+            check_duplicate_votes(strong_b, weak_b, finalizer_policy);
+            uint64_t strong_weight = aggregate_keys(strong_b, finalizer_policy, strong_agg_pub_key);
+            uint64_t weak_weight = aggregate_keys(strong_b, finalizer_policy, weak_agg_pub_key);
+            _verify({create_strong_digest(finality_digest), create_weak_digest(finality_digest)}, {strong_agg_pub_key, weak_agg_pub_key}, qc.signature);
+            weight=strong_weight+weak_weight;
+         }
+         else if (qc.weak_votes.has_value()){
+            //weak QC (composed of weak votes)
+            bls_g1 agg_pub_key;
+            savanna::bitset weak_b(finalizer_count, qc.weak_votes.value());
+            weight = aggregate_keys(weak_b, finalizer_policy, agg_pub_key);
+            _verify({create_weak_digest(finality_digest)}, {agg_pub_key}, qc.signature);
+         }
+         else {
+            //strong QC
+            bls_g1 agg_pub_key;
+            savanna::bitset strong_b(finalizer_count, qc.strong_votes.value());
+            weight = aggregate_keys(strong_b, finalizer_policy, agg_pub_key);
+            _verify({create_strong_digest(finality_digest)}, {agg_pub_key}, qc.signature);
+         }
+
+      }
+
+      if (enforce_threshold_check) check(weight>=finalizer_policy.threshold, "insufficient signatures to reach quorum");
+
+   }
+
+   checksum256 get_merkle_root(const std::vector<checksum256>& leaves) {
+      std::vector<std::vector<checksum256>> tree;
+
+      tree.push_back(leaves);
+
+      std::vector<checksum256> current_level = leaves;
+      while (current_level.size() > 1) {
+         std::vector<checksum256> next_level;
+         for (size_t i = 0; i < current_level.size(); i += 2) {
+            checksum256 left = current_level[i];
+            if (i + 1 < current_level.size()) {
+               checksum256 right = current_level[i + 1];
+               next_level.push_back(hash_pair(std::make_pair(left, right)));
+            } else {
+               next_level.push_back(left);
+            }
+         }
+         tree.insert(tree.begin(), next_level); // Prepend to build the tree upwards
+         current_level = next_level;
+      }
+
+      return current_level.front();
+
+    }
 
    struct authseq {
       name account;
@@ -227,8 +333,8 @@ namespace savanna {
    };
 
    struct action_proof_of_inclusion {
-      uint64_t target_block_index = 0;
-      uint64_t final_block_index = 0;
+      uint64_t target_action_index = 0;
+      uint64_t final_action_index = 0;
 
       action_data target;
 
@@ -237,18 +343,35 @@ namespace savanna {
       //returns the merkle root obtained by hashing target.digest() with merkle_branches
       checksum256 root() const {
          checksum256 digest = action_data_internal(target).digest();
-         checksum256 root = _compute_root(merkle_branches, digest, target_block_index, final_block_index);
+         checksum256 root = _compute_root(merkle_branches, digest, target_action_index, final_action_index);
          return root;
       }; 
    };
 
-   struct level_3_commitments_t {
+   // commitments used in the context of finality violation proofs, minus the base digest
+   struct level_3_commitments_input {
       checksum256 reversible_blocks_mroot{};
       uint32_t latest_qc_claim_block_num{0};
       checksum256 latest_qc_claim_finality_digest{};
       block_timestamp_type latest_qc_claim_timestamp;
       block_timestamp_type timestamp;
-      checksum256 base_digest{};
+   };
+
+   struct level_3_commitments_t : level_3_commitments_input {
+      checksum256 base_digest;
+
+      level_3_commitments_t(const level_3_commitments_input& base, const checksum256& _base_digest) : 
+         level_3_commitments_input(base), 
+         base_digest(_base_digest){
+      }
+
+      EOSLIB_SERIALIZE(level_3_commitments_t, 
+         (reversible_blocks_mroot)
+         (latest_qc_claim_block_num)
+         (latest_qc_claim_finality_digest)
+         (latest_qc_claim_timestamp)
+         (timestamp)
+         (base_digest))
    };
 
    // commitments used in the context of finalizer policy transitions
@@ -256,6 +379,36 @@ namespace savanna {
       checksum256 last_pending_fin_pol_digest{};
       block_timestamp_type last_pending_fin_pol_start_timestamp;
       checksum256 l3_commitments_digest{};
+   };
+
+   struct block_ref_data {
+      uint32_t                block_num{0};
+      block_timestamp_type    timestamp;
+      checksum256             finality_digest;
+      block_timestamp_type    parent_timestamp;
+
+      checksum256 digest() const {
+         auto result = eosio::pack(*this);
+         checksum256 hash = sha256(result.data(), result.size());
+         return hash;
+      };
+
+   };
+
+   struct reversible_proof_of_inclusion {
+      uint64_t target_reversible_block_index = 0;
+      uint64_t final_reversible_block_index = 0;
+
+      block_ref_data target;
+
+      std::vector<checksum256> merkle_branches;
+
+      //returns the merkle root obtained by hashing target.digest() with merkle_branches
+      checksum256 root() const {
+         checksum256 digest = target.digest();
+         checksum256 root = _compute_root(merkle_branches, digest, target_reversible_block_index, final_reversible_block_index);
+         return root;
+      }; 
    };
 
    struct dynamic_data_v0 {
@@ -297,14 +450,16 @@ namespace savanna {
 
       //finalizer_policy_generation for this block
       uint32_t active_finalizer_policy_generation;
-      std::optional<uint32_t> last_pending_finalizer_policy_generation;
+      std::optional<uint32_t> pending_finalizer_policy_generation;
 
       //Allows the contract to obtain knowledge about them and to record them in its internal state.
 
-      std::optional<finalizer_policy_input> pending_finalizer_policy;
+      std::optional<finalizer_policy_input> last_pending_finalizer_policy;
       std::optional<block_timestamp> last_pending_finalizer_policy_start_timestamp;
 
-      //if finality violation info is present (not implemented yet), witness_hash should be the base digest. 
+      std::optional<level_3_commitments_input> level_3_commitments;
+
+      //if level_3_commitments is present, witness_hash should be the base digest. 
       //if finalizer policy transition info is present, witness_hash should be the level 3 commitments digest. 
       //Otherwise, witness_hash should be level 2 commitments digest
       checksum256 witness_hash;
@@ -315,20 +470,44 @@ namespace savanna {
       //resolves witness hash if it needs to be calculated
       checksum256 resolve_witness() const {
 
-         //todo : add support for finality violation proofs
+         checksum256 l3_digest;
 
-         //finalizer policy transition proofs 
+         if (level_3_commitments.has_value()){
 
-         if (pending_finalizer_policy.has_value()  
+            check(last_pending_finalizer_policy.has_value()  
+               && last_pending_finalizer_policy_start_timestamp.has_value()
+               && witness_hash!=checksum256(), "must provide full level 2 commitments when providing level 3 commitments");
+
+            //finality violation proofs
+            auto l3_commitments = level_3_commitments.value();
+
+            auto l3_input = level_3_commitments_input{
+               .reversible_blocks_mroot = l3_commitments.reversible_blocks_mroot,
+               .latest_qc_claim_block_num =  l3_commitments.latest_qc_claim_block_num,
+               .latest_qc_claim_finality_digest =  l3_commitments.latest_qc_claim_finality_digest,
+               .latest_qc_claim_timestamp =  l3_commitments.latest_qc_claim_timestamp,
+               .timestamp = l3_commitments.timestamp
+            };
+
+            auto l3_packed = eosio::pack(level_3_commitments_t{ l3_input, witness_hash});
+
+            l3_digest = sha256(l3_packed.data(), l3_packed.size());
+
+         }
+         else l3_digest = witness_hash;
+         
+         if (last_pending_finalizer_policy.has_value()  
             && last_pending_finalizer_policy_start_timestamp.has_value()
             && witness_hash!=checksum256()){
 
-            checksum256 policy_digest = pending_finalizer_policy.value().digest();
+            //finalizer policy transition information
+
+            checksum256 policy_digest = last_pending_finalizer_policy.value().digest();
             
             auto l2_packed = eosio::pack(level_2_commitments_t{
                .last_pending_fin_pol_digest  = policy_digest, 
                .last_pending_fin_pol_start_timestamp =  last_pending_finalizer_policy_start_timestamp.value(),
-               .l3_commitments_digest = witness_hash
+               .l3_commitments_digest = l3_digest
             });
 
             checksum256 l2_digest = sha256(l2_packed.data(), l2_packed.size());
@@ -351,7 +530,7 @@ namespace savanna {
 
       block_finality_data_internal(const block_finality_data& base) : block_finality_data(base){
          resolved_witness_hash = base.resolve_witness();
-         resolved_last_pending_finalizer_policy_generation = base.last_pending_finalizer_policy_generation.has_value() ? base.last_pending_finalizer_policy_generation.value() : active_finalizer_policy_generation;
+         resolved_last_pending_finalizer_policy_generation = base.pending_finalizer_policy_generation.has_value() ? base.pending_finalizer_policy_generation.value() : active_finalizer_policy_generation;
       }
 
       checksum256 finality_digest() const {
@@ -361,6 +540,7 @@ namespace savanna {
       }
 
       EOSLIB_SERIALIZE(block_finality_data_internal, (major_version)(minor_version)(active_finalizer_policy_generation)(resolved_last_pending_finalizer_policy_generation)(finality_mroot)(resolved_witness_hash))
+   
    };
 
    //used in "heavy" proofs, where verification of finality digest is performed
@@ -466,10 +646,10 @@ namespace savanna {
       block_finality_data qc_block;
 
       //signature over finality_digest() of qc_block by active policy generation 
-      quorum_certificate active_policy_qc;
+      quorum_certificate_input active_policy_qc;
 
       //signature over finality_digest() of qc_block by pending policy generation (required during transitions, prohibited otherwise)
-      std::optional<quorum_certificate> pending_policy_qc;
+      std::optional<quorum_certificate_input> pending_policy_qc;
 
    };
 

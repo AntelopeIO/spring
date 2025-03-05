@@ -10,33 +10,72 @@ namespace finality_proof {
 
    // data relevant to IBC
    struct ibc_block_data_t {
-      signed_block_ptr block;
+      signed_block_ptr block = nullptr;
       qc_data_t qc_data;
       action_trace onblock_trace;
       finality_data_t finality_data;
-      uint32_t active_finalizer_policy_generation = 0;
-      uint32_t last_pending_finalizer_policy_generation = 0;
-      uint32_t last_proposed_finalizer_policy_generation = 0;
+      finalizer_policy active_finalizer_policy;
+      finalizer_policy last_pending_finalizer_policy;
+      finalizer_policy last_proposed_finalizer_policy;
       digest_type action_mroot; //this is the real action_mroot, as returned from finality_data
       digest_type base_digest;
-      digest_type active_finalizer_policy_digest;
-      digest_type last_pending_finalizer_policy_digest;
       block_timestamp_type last_pending_finalizer_policy_start_timestamp;
-      digest_type last_proposed_finalizer_policy_digest;
       digest_type finality_digest;
-      digest_type level_3_commitments_digest;
-      digest_type level_2_commitments_digest;
+      level_3_commitments_t level_3_commitments;
+      level_2_commitments_t level_2_commitments;
       digest_type finality_leaf;
       digest_type finality_root;
       block_timestamp_type parent_timestamp;
+
+      digest_type level_3_commitments_digest() const {
+         return fc::sha256::hash(level_3_commitments);
+      }
+
+      digest_type level_2_commitments_digest() const {
+         return fc::sha256::hash(level_2_commitments);
+      }
+      
    };
 
-   static digest_type hash_pair(const digest_type& a, const digest_type& b) {
+   inline std::string bitset_to_input_string(const boost::dynamic_bitset<unsigned char>& bitset) {
+      static const char* hexchar = "0123456789abcdef";
+
+      boost::dynamic_bitset<unsigned char> bs(bitset);
+      bs.resize((bs.size() + 7) & ~0x7);
+      assert(bs.size() % 8 == 0);
+
+      std::string result;
+      result.resize(bs.size() / 4);
+      for (size_t i = 0; i < bs.size(); i += 4) {
+         size_t x = 0;
+         for (size_t j = 0; j < 4; ++j)
+            x += bs[i+j] << j;
+         auto slot = i / 4;
+         result[slot % 2 ? slot - 1 : slot + 1] = hexchar[x]; // flip the two hex digits for each byte
+      }
+      return result;
+   }
+
+   inline std::string binary_to_hex(const std::string& bin) {
+      boost::dynamic_bitset<unsigned char> bitset(bin.size());
+      for (size_t i = 0; i < bin.size(); ++i) {
+          if (bin[i] == '1') {
+              bitset.set(bin.size() - 1 - i);
+          }
+      }
+      return bitset_to_input_string(bitset);
+   }
+
+   inline auto finalizers_string = [](const vote_bitset_t finalizers)  {
+      return bitset_to_input_string(finalizers);
+   };
+
+   inline digest_type hash_pair(const digest_type& a, const digest_type& b) {
       return fc::sha256::hash(std::pair<const digest_type&, const digest_type&>(a, b));
    }
 
    //generate a proof of inclusion for a node at index from a list of leaves
-   static std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type>& leaves, const size_t index) {
+   inline std::vector<digest_type> generate_proof_of_inclusion(const std::vector<digest_type>& leaves, const size_t index) {
       auto _leaves = leaves;
       auto _index = index;
 
@@ -70,7 +109,7 @@ namespace finality_proof {
    }
 
    //extract instant finality data from block header extension, as well as qc data from block extension
-   static qc_data_t extract_qc_data(const signed_block_ptr& b) {
+   inline qc_data_t extract_qc_data(const signed_block_ptr& b) {
       assert(b);
       auto hexts = b->validate_and_extract_header_extensions();
       if (auto f_entry = hexts.find(finality_extension::extension_id()); f_entry != hexts.end()) {
@@ -87,7 +126,7 @@ namespace finality_proof {
       return {};
    }
 
-   static bool has_finalizer_policy_diffs(const signed_block_ptr& block){
+   inline bool has_finalizer_policy_diffs(const signed_block_ptr& block){
 
       // extract new finalizer policy
       finality_extension f_ext = block->extract_header_extension<finality_extension>();
@@ -96,7 +135,7 @@ namespace finality_proof {
 
    }
 
-   static finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
+   inline finalizer_policy update_finalizer_policy(const signed_block_ptr block, const finalizer_policy& current_policy){
 
       // extract new finalizer policy
       finality_extension f_ext = block->extract_header_extension<finality_extension>();
@@ -115,8 +154,7 @@ namespace finality_proof {
       int32_t blocks_since_proposed = 0;
    };
 
-   template<size_t NUM_NODES>
-   class proof_test_cluster : public finality_test_cluster<NUM_NODES> {
+   class proof_test_cluster : public finality_test_cluster<4> {
    public:
 
       /*****
@@ -144,6 +182,8 @@ namespace finality_proof {
       block_timestamp_type timestamp;
       block_timestamp_type parent_timestamp;
 
+      std::vector<bool> vote_propagation = {1,1,1};
+
       block_timestamp_type prev_last_pending_finalizer_policy_start_timestamp;
 
       // counter to (optimistically) track internal policy changes
@@ -160,7 +200,7 @@ namespace finality_proof {
          return {finality_leaves.begin(), finality_leaves.begin() + cutoff + 1};
       }
 
-      ibc_block_data_t process_result(eosio::testing::produce_block_result_t result){
+      ibc_block_data_t process_result(const eosio::testing::produce_block_result_t& result){
 
          signed_block_ptr block = result.block;
 
@@ -216,30 +256,31 @@ namespace finality_proof {
                blocks_since_proposed_policy[last_proposed_finalizer_policy_digest] = {last_proposed_finalizer_policy, 0};
             }
          }
+        
+         //process votes
+         this->process_finalizer_votes(vote_propagation); //enough to reach quorum threshold
 
-         //process votes and collect / compute the IBC-relevant data
-         this->process_votes(1, this->num_needed_for_quorum); //enough to reach quorum threshold
-
+         // compute the IBC-relevant data
          finality_data_t finality_data = *this->node0.control->head_finality_data();
          digest_type action_mroot = finality_data.action_mroot;
          digest_type base_digest = finality_data.base_digest;
 
          // compute commitments used for proving finality violations
-         digest_type level_3_commitments_digest = fc::sha256::hash(level_3_commitments_t{
+         level_3_commitments_t lvl3_commitments {
             .reversible_blocks_mroot = finality_data.reversible_blocks_mroot,
             .latest_qc_claim_block_num = finality_data.latest_qc_claim_block_num,
             .latest_qc_claim_finality_digest = finality_data.latest_qc_claim_finality_digest,
             .latest_qc_claim_timestamp = finality_data.latest_qc_claim_timestamp,
             .timestamp = timestamp,
             .base_digest = base_digest
-         });
+         };
 
          // compute commitments used for proving finalizer policy changes
-         digest_type level_2_commitments_digest = fc::sha256::hash(level_2_commitments_t{
+         level_2_commitments_t lvl2_commitments {
             .last_pending_fin_pol_digest = last_pending_finalizer_policy_digest,
             .last_pending_fin_pol_start_timestamp = last_pending_finalizer_policy_start_timestamp,
-            .l3_commitments_digest = level_3_commitments_digest
-         });
+            .l3_commitments_digest = fc::sha256::hash(lvl3_commitments)
+         };
 
          // during IF transition, finality_root is always set to an empty digest
          digest_type finality_root = digest_type();
@@ -252,7 +293,7 @@ namespace finality_proof {
             .active_finalizer_policy_generation       = is_genesis ? 1 : active_finalizer_policy.generation,
             .last_pending_finalizer_policy_generation = is_genesis ? 1 : last_pending_finalizer_policy.generation,
             .finality_tree_digest                     = finality_root,
-            .l2_commitments_digest                    = level_2_commitments_digest
+            .l2_commitments_digest                    = fc::sha256::hash(lvl2_commitments)
          });
 
          // compute finality leaf
@@ -278,18 +319,15 @@ namespace finality_proof {
             .qc_data = qc_data, 
             .onblock_trace = onblock_trace, 
             .finality_data = finality_data, 
-            .active_finalizer_policy_generation = active_finalizer_policy.generation, 
-            .last_pending_finalizer_policy_generation = last_pending_finalizer_policy.generation, 
-            .last_proposed_finalizer_policy_generation = last_proposed_finalizer_policy.generation, 
+            .active_finalizer_policy = active_finalizer_policy,
+            .last_pending_finalizer_policy = last_pending_finalizer_policy,
+            .last_proposed_finalizer_policy = last_proposed_finalizer_policy,
             .action_mroot = action_mroot, 
             .base_digest = base_digest, 
-            .active_finalizer_policy_digest = active_finalizer_policy_digest, 
-            .last_pending_finalizer_policy_digest = last_pending_finalizer_policy_digest, 
             .last_pending_finalizer_policy_start_timestamp = last_pending_finalizer_policy_start_timestamp,
-            .last_proposed_finalizer_policy_digest = last_proposed_finalizer_policy_digest, 
             .finality_digest = finality_digest, 
-            .level_3_commitments_digest = level_3_commitments_digest, 
-            .level_2_commitments_digest = level_2_commitments_digest, 
+            .level_3_commitments = lvl3_commitments, 
+            .level_2_commitments = lvl2_commitments, 
             .finality_leaf = finality_leaf,
             .finality_root = finality_root ,
             .parent_timestamp = parent_timestamp 
@@ -312,7 +350,7 @@ namespace finality_proof {
       }
 
       proof_test_cluster(finality_cluster_config_t config = {.transition_to_savanna = false})
-      : finality_test_cluster<NUM_NODES>(config) {
+      : finality_test_cluster<4>(config) {
 
       }
 
