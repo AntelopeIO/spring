@@ -187,9 +187,6 @@ inline constexpr auto get_intrinsic_table() {
       "env.tapos_block_prefix",
       "env.tapos_block_num",
       "env.get_action",
-      "env.call",
-      "env.get_call_data",
-      "env.set_call_return_value",
       "env.send_inline",
       "env.send_context_free_inline",
       "env.send_deferred",
@@ -282,6 +279,9 @@ inline constexpr auto get_intrinsic_table() {
       "env.bls_fp_mul",
       "env.bls_fp_exp",
       "env.set_finalizers",
+      "env.call",
+      "env.get_call_data",
+      "env.set_call_return_value",
       "eosvmoc_internal.check_memcpy_params"
    );
 }
