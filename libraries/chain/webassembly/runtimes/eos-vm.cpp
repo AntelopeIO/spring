@@ -476,6 +476,11 @@ REGISTER_CF_HOST_FUNCTION(action_data_size);
 REGISTER_CF_HOST_FUNCTION(current_receiver);
 REGISTER_HOST_FUNCTION(set_action_return_value);
 
+// sync call api. sync calls are not allowed in context-free actions
+REGISTER_HOST_FUNCTION(call);
+REGISTER_HOST_FUNCTION(get_call_data);
+REGISTER_HOST_FUNCTION(set_call_return_value);
+
 // console api
 REGISTER_LEGACY_CF_HOST_FUNCTION(prints);
 REGISTER_LEGACY_CF_HOST_FUNCTION(prints_l);

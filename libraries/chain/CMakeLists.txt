@@ -65,6 +65,7 @@ set(CHAIN_WEBASSEMBLY_SOURCES
    webassembly/privileged.cpp
    webassembly/producer.cpp
    webassembly/softfloat.cpp
+   webassembly/sync_call.cpp
    webassembly/system.cpp
    webassembly/transaction.cpp
 )
