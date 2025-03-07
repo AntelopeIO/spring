@@ -189,7 +189,7 @@ namespace eosio {
       static void send_handshakes();
       static void send_block_nack_resets();
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
-      bool is_in_sync() const { return sync_state == in_sync; }
+      bool is_in_sync() const { return sync_state != lib_catchup; }
       void sync_reset_fork_db_root_num( const connection_ptr& conn, bool closing );
       void sync_timeout(const connection_ptr& c, const boost::system::error_code& ec);
       void sync_wait(const connection_ptr& c);
