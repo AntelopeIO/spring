@@ -523,7 +523,11 @@ namespace eosio {
       void plugin_initialize(const variables_map& options);
       void plugin_startup();
       void plugin_shutdown();
+
+      // Conceptually interested if node is synced. Checking against in_sync is not recommended as a node can temporarily
+      // switch to head_catchup on delayed blocks. Better to check not in lib_catchup.
       bool not_lib_catchup() const;
+
       fc::logger& get_logger() { return logger; }
 
       void create_session(tcp::socket&& socket, const string listen_address, size_t limit);
