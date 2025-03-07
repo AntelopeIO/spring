@@ -33,6 +33,7 @@
 #include <eosio/chain/qc.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/chainbase.hpp>
 #include <eosio/vm/allocator.hpp>
@@ -1009,6 +1010,7 @@ struct controller_impl {
    std::atomic<bool>               writing_snapshot = false;
    std::atomic<bool>               applying_block = false;
    platform_timer&                 main_thread_timer;
+   peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
@@ -1322,6 +1324,13 @@ struct controller_impl {
          vote_processor.notify_lib(block->block_num());
       });
 
+      accepted_block.connect([this](const block_signal_params& t) {
+         // update peer public keys from chainbase db every so often
+         const auto& [ block, id] = t;
+
+         if (block_header::num_from_id(id) % 20 == 0)   // let's update once every 20 blocks, so every 10 seconds
+            peer_keys_db.update_peer_keys(self);
+      });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
    set_apply_handler( account_name(#receiver), account_name(#contract), action_name(#action), \

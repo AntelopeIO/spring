@@ -1,7 +1,6 @@
 file(GLOB HEADERS "include/eosio/net_plugin/*.hpp" )
 add_library( net_plugin
              net_plugin.cpp
-             peer_keys_db.cpp
              ${HEADERS} )
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14.0)

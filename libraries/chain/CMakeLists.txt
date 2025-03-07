@@ -127,6 +127,7 @@ add_library( eosio_chain
              symbol.cpp
              whitelisted_intrinsics.cpp
              thread_utils.cpp
+             peer_keys_db.cpp
              platform_timer_accuracy.cpp
              ${PLATFORM_TIMER_IMPL}
              ${HEADERS}
