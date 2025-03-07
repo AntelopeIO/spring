@@ -106,9 +106,12 @@ try:
             if peer_names[peer_addr] != "bios":
                 peers.append(peer_names[peer_addr])
                 if not conn["is_bp_peer"]:
-                    Utils.Print("Error: expected connection to {} with is_bp_peer as true".format(peer_addr))
+                    Utils.Print(f"Error: expected connection to {peer_addr} with is_bp_peer as true")
                     connection_failure = True
+                    break
 
+        if connection_failure:
+            break
         if not peers:
             Utils.Print(f"ERROR: found no connected peers for node {nodeId}")
             connection_failure = True
