@@ -132,7 +132,7 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_pending_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && self()->in_sync()) {
+      if (auto_bp_peering_enabled() && self()->not_lib_catchup()) {
          if (schedule.producers.size()) {
             if (pending_schedule_version != schedule.version) {
                /// establish connection to our configured BPs, resolve_and_connect ignored if already connected
@@ -143,7 +143,7 @@ class bp_connection_manager {
                auto pending_connections = configured_bp_accounts(config, schedule.producers);
 
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
-               for (auto i : pending_connections) {
+               for (const auto& i : pending_connections) {
                   self()->connections.resolve_and_connect(config.bp_peer_addresses[i], self()->get_first_p2p_address() );
                }
 
@@ -152,7 +152,7 @@ class bp_connection_manager {
                pending_schedule_version = schedule.version;
             }
          } else {
-            fc_dlog(self()->get_logger(), "pending producer schedule version ${v} has being cleared", ("v", schedule.version));
+            fc_dlog(self()->get_logger(), "pending producer schedule version ${v} is being cleared", ("v", schedule.version));
             pending_configured_bps.clear();
          }
       }
@@ -160,7 +160,7 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_active_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && self()->in_sync()) {
+      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && self()->not_lib_catchup()) {
          /// drops any BP connection which is no longer within our scheduling proximity
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
@@ -181,7 +181,7 @@ class bp_connection_manager {
                              std::back_inserter(peers_to_drop));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
-         for (auto account : peers_to_drop) {
+         for (const auto& account : peers_to_drop) {
             self()->connections.disconnect(config.bp_peer_addresses[account]);
          }
          active_schedule_version = schedule.version;
