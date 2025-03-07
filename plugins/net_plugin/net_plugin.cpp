@@ -2629,10 +2629,12 @@ namespace eosio {
             g_cp_conn.unlock();
             if( fork_db_head_id == null_id ) {
                // continue
-            } else if( c && (fork_db_head_num < blk_num || fork_db_head_id == blk_id) ) {
-               fc::lock_guard g_conn( c->conn_mtx );
-               c->conn_fork_db_head = null_id;
-               c->conn_fork_db_head_num = 0;
+            } else if( fork_db_head_num < blk_num || fork_db_head_id == blk_id ) {
+               if (c) {
+                  fc::lock_guard g_conn( c->conn_mtx );
+                  c->conn_fork_db_head = null_id;
+                  c->conn_fork_db_head_num = 0;
+               }
             } else {
                set_state_to_head_catchup = true;
             }
