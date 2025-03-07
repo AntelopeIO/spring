@@ -132,7 +132,6 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_pending_schedule(const chain::producer_authority_schedule& schedule) {
-      fc_dlog(self()->get_logger(), "pending v ${v}, pending_configured_bps: ${a}", ("v", schedule.version)("a", to_string(pending_configured_bps)));
       if (auto_bp_peering_enabled() && self()->in_sync()) {
          if (schedule.producers.size()) {
             if (pending_schedule_version != schedule.version) {
@@ -161,11 +160,8 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_active_schedule(const chain::producer_authority_schedule& schedule) {
-      fc_dlog(self()->get_logger(), "v ${v}, active_configured_bps: ${a}", ("v", schedule.version)("a", to_string(active_configured_bps)));
       if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && self()->in_sync()) {
          /// drops any BP connection which is no longer within our scheduling proximity
-         fc_dlog(self()->get_logger(), "active_configured_bps: ${a}", ("a", to_string(active_configured_bps)));
-
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
