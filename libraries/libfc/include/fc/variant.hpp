@@ -8,8 +8,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include <string.h> // memset
-
 #include <fc/string.hpp>
 #include <fc/time.hpp>
 #include <fc/container/deque_fwd.hpp>
@@ -349,7 +347,6 @@ namespace fc
         template<typename T>
         explicit variant( const std::optional<T>& v )
         {
-           memset( this, 0, sizeof(*this) );
            if( v.has_value() ) *this = variant(*v);
         }
 
@@ -362,8 +359,8 @@ namespace fc
         void    clear();
       private:
         void    init();
-        double  _data;                ///< Alligned according to double requirements
-        char    _type[sizeof(void*)]; ///< pad to void* size
+        //enough room to store pointers, doubles, uint64s. doubled to allow 1 extra byte to store type at the end
+        alignas(double) std::array<char, std::max(sizeof(uintmax_t ), sizeof(double)) * 2> _data = {};
    };
 
    typedef std::optional<variant> ovariant;
@@ -615,14 +612,12 @@ namespace fc
    template<typename T>
    variant::variant( const T& val )
    {
-      memset( this, 0, sizeof(*this) );
       to_variant( val, *this );
    }
 
    template<typename T>
    variant::variant( const T& val, const fc::yield_function_t& yield )
    {
-      memset( this, 0, sizeof(*this) );
       to_variant( val, *this, yield );
    }
 
