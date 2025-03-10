@@ -4238,9 +4238,12 @@ struct controller_impl {
       EOS_ASSERT( b, block_validate_exception, "null block" );
 
       auto f = [&](auto& fork_db) -> controller::accepted_block_result {
+         if (auto bsp = fork_db.get_block(id, include_root_t::yes))
+            return controller::accepted_block_result{.add_result = fork_db_add_t::duplicate, .block{std::optional<block_handle>{std::move(bsp)}}};
          // previous not found, means it is unlinkable
          auto prev = fork_db.get_block( b->previous, include_root_t::yes );
-         if( !prev ) return {};
+         if( !prev )
+            return controller::accepted_block_result{.add_result = fork_db_add_t::failure, .block{}};
 
          return create_block_state_i( fork_db, id, b, *prev );
       };
@@ -4400,9 +4403,13 @@ struct controller_impl {
          if( switch_fork ) {
             auto head_fork_comp_str =
                block_handle_accessor::apply<std::string>(chain_head, [](auto& head) -> std::string { return log_fork_comparison(*head); });
-            ilog("switching forks from ${chid} (block number ${chn}) ${c} to ${nhid} (block number ${nhn}) ${n}",
-                 ("chid", chain_head.id())("chn", chain_head.block_num())("nhid", new_head->id())("nhn", new_head->block_num())
+            ilog("switching forks from ${chid} (block number ${chn} ${cp}) ${c} to ${nhid} (block number ${nhn} ${np}) ${n}",
+                 ("chid", chain_head.id())("chn", chain_head.block_num())("cp", chain_head.producer())
+                 ("nhid", new_head->id())("nhn", new_head->block_num())("np", new_head->producer())
                  ("c", head_fork_comp_str)("n", log_fork_comparison(*new_head)));
+            if (chain_head.block_num() == new_head->block_num() && chain_head.producer() == new_head->producer()) {
+               wlog("${p} double produced block ${n}", ("p", new_head->producer())("n", new_head->block_num()));
+            }
 
             // not possible to log transaction specific info when switching forks
             if (auto dm_logger = get_deep_mind_logger(false)) {

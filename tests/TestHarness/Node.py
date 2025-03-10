@@ -731,6 +731,30 @@ class Node(Transactions):
         else:
             return True
 
+    # Returns the number of unique unlinkable blocks in stderr.txt.
+    def numUniqueUnlinkableBlocks(self) -> int:
+        dataDir = Utils.getNodeDataDir(self.nodeId)
+        logFile = dataDir + "/stderr.txt"
+
+        pattern = re.compile(r"unlinkable_block\s(\d+)")
+
+        # Use set for uniqueness, as the same block can be unlinkable multiple
+        # times due to multiple connections.
+        uniqueBlocks = set()
+        with open(logFile, 'r') as f:
+            for line in f:
+                match = pattern.search(line)
+                if match:
+                    try:
+                        blockNum = int(match.group(1))
+                        uniqueBlocks.add(blockNum)
+                    except ValueError:
+                        Utils.Print(f"unlinkable block number cannot be converted into integer: in {line.strip()} of {f}")
+                        assert(False)  # Cannot happen. Fail the test.
+        numUnlinkableBlocks = len(uniqueBlocks)
+        Utils.Print(f"Number of unique unlinkable blocks: {numUnlinkableBlocks}")
+        return numUnlinkableBlocks
+
     # Verify that we have only one "Starting block" in the log for any block number unless:
     # - the block was restarted because it was exhausted,
     # - or the second "Starting block" is for a different block time than the first.
