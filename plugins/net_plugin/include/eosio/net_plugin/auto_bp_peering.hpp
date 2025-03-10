@@ -132,7 +132,7 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_pending_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && self()->not_lib_catchup()) {
+      if (auto_bp_peering_enabled() && !self()->is_lib_catchup()) {
          if (schedule.producers.size()) {
             if (pending_schedule_version != schedule.version) {
                /// establish connection to our configured BPs, resolve_and_connect ignored if already connected
@@ -160,7 +160,7 @@ class bp_connection_manager {
 
    // Only called from main thread
    void on_active_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && self()->not_lib_catchup()) {
+      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && !self()->is_lib_catchup()) {
          /// drops any BP connection which is no longer within our scheduling proximity
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));

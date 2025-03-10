@@ -189,7 +189,7 @@ namespace eosio {
       static void send_handshakes();
       static void send_block_nack_resets();
       bool syncing_from_peer() const { return sync_state == lib_catchup; }
-      bool not_lib_catchup() const { return sync_state != lib_catchup; }
+      bool is_lib_catchup() const { return sync_state == lib_catchup; }
       void sync_reset_fork_db_root_num( const connection_ptr& conn, bool closing );
       void sync_timeout(const connection_ptr& c, const boost::system::error_code& ec);
       void sync_wait(const connection_ptr& c);
@@ -526,7 +526,7 @@ namespace eosio {
 
       // Conceptually interested if node is synced. Checking against in_sync is not recommended as a node can temporarily
       // switch to head_catchup on delayed blocks. Better to check not in lib_catchup.
-      bool not_lib_catchup() const;
+      bool is_lib_catchup() const;
 
       fc::logger& get_logger() { return logger; }
 
@@ -2651,7 +2651,7 @@ namespace eosio {
             }
          } else {
             set_state( in_sync );
-            fc_dlog(logger, "Switching to not_lib_catchup, will send handshakes when caught up");
+            fc_dlog(logger, "Switching to not lib_catchup, will send handshakes when caught up");
             send_handshakes_when_synced = true;
          }
       } else if( state == lib_catchup ) {
@@ -2713,7 +2713,7 @@ namespace eosio {
                }
             }
          }
-      } else { // not_lib_catchup
+      } else { // not lib_catchup
          if (blk_applied) {
             send_handshakes_if_synced(blk_latency);
          }
@@ -4726,8 +4726,8 @@ namespace eosio {
       return 0;
    }
 
-   bool net_plugin_impl::not_lib_catchup() const {
-      return sync_master->not_lib_catchup();
+   bool net_plugin_impl::is_lib_catchup() const {
+      return sync_master->is_lib_catchup();
    }
 
    void net_plugin::register_update_p2p_connection_metrics(std::function<void(net_plugin::p2p_connections_metrics)>&& fun){

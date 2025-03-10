@@ -38,12 +38,12 @@ struct mock_connections_manager {
 
 struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_plugin, mock_connection> {
 
-   bool                         is_not_lib_catchup = false;
+   bool                         lib_catchup = true;
    mock_connections_manager     connections;
    std::vector<std::string>     p2p_addresses{"0.0.0.0:9876"};
    const std::string&           get_first_p2p_address() const { return *p2p_addresses.begin(); }
 
-   bool not_lib_catchup() { return is_not_lib_catchup; }
+   bool is_lib_catchup() { return lib_catchup; }
 
    void setup_test_peers() {
       set_bp_peers({ "proda,127.0.0.1:8001:blk"s, "prodb,127.0.0.1:8002:trx"s, "prodc,127.0.0.1:8003"s,
@@ -161,7 +161,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    plugin.connections.resolve_and_connect = [&connected_hosts](std::string host, std::string p2p_address) { connected_hosts.push_back(host); };
 
    // make sure nothing happens when it is not in_sync
-   plugin.is_not_lib_catchup = false;
+   plugin.lib_catchup = true;
    plugin.on_pending_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(connected_hosts, (std::vector<std::string>{}));
@@ -169,7 +169,7 @@ BOOST_AUTO_TEST_CASE(test_on_pending_schedule) {
    BOOST_CHECK_EQUAL(plugin.pending_schedule_version, 0u);
 
    // when it is in sync and on_pending_schedule is called
-   plugin.is_not_lib_catchup = true;
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule1);
 
    // the pending are connected to
@@ -204,7 +204,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
    // make sure nothing happens when it is not in_sync
-   plugin.is_not_lib_catchup = false;
+   plugin.lib_catchup = true;
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
@@ -213,7 +213,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
    // when it is in sync and on_active_schedule is called
-   plugin.is_not_lib_catchup = true;
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule1);
    plugin.on_active_schedule(test_schedule1);
    // then disconnect to prodt
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
 
    // when pending and active schedules are changed simultaneously
-   plugin.is_not_lib_catchup = true;
+   plugin.lib_catchup = false;
    plugin.on_pending_schedule(test_schedule2);
    plugin.on_active_schedule(test_schedule1);
    // then disconnect prodt
