@@ -1,13 +1,13 @@
 cmake_minimum_required( VERSION 3.16 )
 
 project( antelope-spring )
-include(CTest) # suppresses DartConfiguration.tcl error
-enable_testing()
+include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
 include( GNUInstallDirs )
 include( MASSigning )
+include( AddTestHelpers )
 
 set( CMAKE_CXX_STANDARD 20 )
 set( CMAKE_CXX_EXTENSIONS ON )
