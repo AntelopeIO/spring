@@ -12,8 +12,6 @@ function(setup_test_common)
 endfunction()
 
 function(add_p_test)
-   cmake_parse_arguments(PARSE_ARGV 0 arg "" "NAME;COST;TIMEOUT" "COMMAND")
-
    setup_test_common(${ARGV})
 endfunction()
 
