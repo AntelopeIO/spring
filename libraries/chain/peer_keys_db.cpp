@@ -40,8 +40,8 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain) {
       assert(t_id != nullptr);
       const auto& secidx = db.get_index<index64_index, by_secondary>();
 
-      auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, _version, std::numeric_limits<uint64_t>::lowest()));
-      auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, *cb_version, std::numeric_limits<uint64_t>::max()));
+      auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, _version + 1));
+      auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, *cb_version));
 
       auto new_map = boost::make_shared<peer_key_map_t>(*get_peer_key_map());
 
