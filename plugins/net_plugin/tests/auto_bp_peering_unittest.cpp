@@ -65,7 +65,7 @@ const std::vector<std::string> peer_addresses{
    // prodk is intentionally skipped
    "127.0.0.1:8012"s, "127.0.0.1:8013"s, "127.0.0.1:8014"s, "127.0.0.1:8015"s,
    "127.0.0.1:8016"s, "127.0.0.1:8017"s, "127.0.0.1:8018"s, "127.0.0.1:8019"s,
-   // prodt is intentionally skipped
+   // "prodt,127.0.0.1:8020"s - prodt is not included in the schedules
    "127.0.0.1:8021"s};
 
 BOOST_AUTO_TEST_CASE(test_set_bp_peers) {
@@ -131,22 +131,29 @@ const eosio::chain::producer_authority_schedule test_schedule1{
    { { "proda"_n, {} }, { "prodb"_n, {} }, { "prodc"_n, {} }, { "prodd"_n, {} }, { "prode"_n, {} }, { "prodf"_n, {} },
      { "prodg"_n, {} }, { "prodh"_n, {} }, { "prodi"_n, {} }, { "prodj"_n, {} }, { "prodk"_n, {} }, { "prodl"_n, {} },
      { "prodm"_n, {} }, { "prodn"_n, {} }, { "prodo"_n, {} }, { "prodp"_n, {} }, { "prodq"_n, {} }, { "prodr"_n, {} },
-     { "prods"_n, {} }, /*{ "prodt"_n, {} },*/ { "produ"_n, {} } }
+     { "prods"_n, {} },
+     // { "prodt"_n, {} }, pick one to skip so not a full schedule
+     { "produ"_n, {} } }
 };
 
 const eosio::chain::producer_authority_schedule test_schedule2{
    2,
    { { "proda"_n, {} }, { "prode"_n, {} }, { "prodi"_n, {} }, { "prodm"_n, {} }, { "prodp"_n, {} }, { "prods"_n, {} },
-     { "prodb"_n, {} }, { "prodf"_n, {} }, { "prodj"_n, {} }, { "prodn"_n, {} }, { "prodq"_n, {} }, /*{ "prodt"_n, {} },*/
+     { "prodb"_n, {} }, { "prodf"_n, {} }, { "prodj"_n, {} }, { "prodn"_n, {} }, { "prodq"_n, {} },
+     // { "prodt"_n, {} }, pick one to skip so not a full schedule
      { "prodc"_n, {} }, { "prodg"_n, {} }, { "prodk"_n, {} }, { "prodo"_n, {} }, { "prodr"_n, {} }, { "produ"_n, {} },
      { "prodd"_n, {} }, { "prodh"_n, {} }, { "prodl"_n, {} } }
 };
 
 const fc::flat_set<eosio::chain::account_name> producers_minus_prodkt{
    "proda"_n, "prodb"_n, "prodc"_n, "prodd"_n, "prode"_n, "prodf"_n,
-   "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n, /*"prodk"_n,*/ "prodl"_n,
+   "prodg"_n, "prodh"_n, "prodi"_n, "prodj"_n,
+   // "prodk"_n, not part of the peer addresses
+   "prodl"_n,
    "prodm"_n, "prodn"_n, "prodo"_n, "prodp"_n, "prodq"_n, "prodr"_n,
-   "prods"_n, /*"prodt"_n,*/ "produ"_n };
+   "prods"_n,
+   // "prodt"_n, not part of the schedules, see above
+   "produ"_n };
 
 const eosio::chain::producer_authority_schedule reset_schedule1{ 1, {} };
 
