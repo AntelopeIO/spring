@@ -3947,6 +3947,7 @@ int main( int argc, char** argv ) {
    actionsSubcommand->add_option("action", action,
                                  localized("A JSON string or filename defining the action to execute on the contract"))->required()->capture_default_str();
    actionsSubcommand->add_option("data", data, localized("The arguments to the contract"))->required();
+   actionsSubcommand->add_flag("--dry-run", tx_dry_run, localized("Specify an action is dry-run"));
    actionsSubcommand->add_flag("--read", tx_read, localized("Specify an action is read-only"));
 
    add_standard_transaction_options_plus_signing(actionsSubcommand);
