@@ -9,7 +9,7 @@ from TestHarness import Cluster, TestHelper, Utils, WalletMgr
 #
 # This test sets up  a cluster with 21 producers nodeos, each nodeos is configured with only one producer and only connects to the bios node.
 # Moreover, each producer nodeos is also configured with a list of p2p-auto-bp-peer so that each one can automatically establish p2p connections to
-# their downstream two neighbors based on producer schedule on the chain and tear down the connections which are no longer in the scheduling neighborhood.
+# other bps. Test verifies connections are established when producer schedule is active.
 #
 ###############################################################
 
@@ -57,17 +57,6 @@ for nodeId in range(0, producerNodes):
     auto_bp_peer_args += (" --p2p-auto-bp-peer " + producer_name + "," + hostname)
 
 
-def neighbors_in_schedule(name, schedule):
-    index = schedule.index(name)
-    result = []
-    num = len(schedule)
-    result.append(schedule[(index+1) % num])
-    result.append(schedule[(index+2) % num])
-    result.append(schedule[(index-1) % num])
-    result.append(schedule[(index-2) % num])
-    return result.sort()
-
-
 peer_names["localhost:9776"] = "bios"
 
 testSuccessful = False
@@ -93,22 +82,20 @@ try:
 
     # wait until produceru is seen by every node
     for nodeId in range(0, producerNodes):
-        print("Wait for node ", nodeId)
-        cluster.nodes[nodeId].waitForProducer(
-            "defproduceru", exitOnError=True, timeout=300)
+        Utils.Print("Wait for node ", nodeId)
+        cluster.nodes[nodeId].waitForProducer("defproduceru", exitOnError=True, timeout=300)
 
     # retrieve the producer stable producer schedule
     scheduled_producers = []
-    schedule = cluster.nodes[0].processUrllibRequest(
-        "chain", "get_producer_schedule")
+    schedule = cluster.nodes[0].processUrllibRequest("chain", "get_producer_schedule")
     for prod in schedule["payload"]["active"]["producers"]:
         scheduled_producers.append(prod["producer_name"])
+    scheduled_producers.sort()
 
-    connection_check_failures = 0
+    connection_failure = False
     for nodeId in range(0, producerNodes):
-        # retrieve the connections in each node and check if each only connects to their neighbors in the schedule
-        connections = cluster.nodes[nodeId].processUrllibRequest(
-            "net", "connections")
+        # retrieve the connections in each node and check if each connects to the other bps in the schedule
+        connections = cluster.nodes[nodeId].processUrllibRequest("net", "connections")
         peers = []
         for conn in connections["payload"]:
             peer_addr = conn["peer"]
@@ -119,18 +106,26 @@ try:
             if peer_names[peer_addr] != "bios":
                 peers.append(peer_names[peer_addr])
                 if not conn["is_bp_peer"]:
-                    Utils.Print("Error: expected connection to {} with is_bp_peer as true".format(peer_addr))
-                    connection_check_failures = connection_check_failures+1
+                    Utils.Print(f"Error: expected connection to {peer_addr} with is_bp_peer as true")
+                    connection_failure = True
+                    break
 
-        peers = peers.sort()
+        if connection_failure:
+            break
+        if not peers:
+            Utils.Print(f"ERROR: found no connected peers for node {nodeId}")
+            connection_failure = True
+            break
         name = "defproducer" + chr(ord('a') + nodeId)
-        expected_peers = neighbors_in_schedule(name, scheduled_producers)
-        if peers != expected_peers:
-            Utils.Print("ERROR: expect {} has connections to {}, got connections to {}".format(
-                name, expected_peers, peers))
-            connection_check_failures = connection_check_failures+1
+        peers.append(name) # add ourselves so matches schedule_producers
+        peers = list(set(peers))
+        peers.sort()
+        if peers != scheduled_producers:
+            Utils.Print(f"ERROR: expect {name} has connections to {scheduled_producers}, got connections to {peers}")
+            connection_failure = True
+            break
 
-    testSuccessful = connection_check_failures == 0
+    testSuccessful = not connection_failure
 
 finally:
     TestHelper.shutdown(

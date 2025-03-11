@@ -7,11 +7,8 @@
 namespace eosio::auto_bp_peering {
 
 ///
-/// This file implements the functionality for block producers automatically establishing p2p connections to their
-/// neighbors on the producer schedule.
+/// This file implements the functionality for block producers automatically establishing p2p connections to other bps.
 ///
-
-
 
 template <typename Derived, typename Connection>
 class bp_connection_manager {
@@ -31,8 +28,8 @@ class bp_connection_manager {
    } config; // thread safe only because modified at plugin startup currently
 
    // the following member are only accessed from main thread
-   flat_set<account_name> pending_neighbors;
-   flat_set<account_name> active_neighbors;
+   flat_set<account_name> pending_configured_bps;
+   flat_set<account_name> active_configured_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
 
@@ -44,56 +41,21 @@ class bp_connection_manager {
       return boost::algorithm::join(peers | boost::adaptors::transformed([](auto& p) { return p.to_string(); }), ",");
    }
 
-   class neighbor_finder_type {
-
-      const config_t&                               config;
-      const std::vector<chain::producer_authority>& schedule;
-      chain::flat_set<std::size_t>                  my_schedule_indices;
-
-    public:
-      neighbor_finder_type(const config_t& config,
-                           const std::vector<chain::producer_authority>& schedule)
-          : config(config), schedule(schedule) {
-         for (auto account : config.my_bp_accounts) {
-            auto itr = std::find_if(schedule.begin(), schedule.end(),
-                                    [account](auto& e) { return e.producer_name == account; });
-            if (itr != schedule.end())
-               my_schedule_indices.insert(itr - schedule.begin());
+   // Only called from main thread
+   chain::flat_set<account_name> configured_bp_accounts(const config_t& config,
+                                                        const std::vector<chain::producer_authority>& schedule) const
+   {
+      chain::flat_set<account_name> result;
+      for (const auto& auth : schedule) {
+         if (config.bp_peer_addresses.contains(auth.producer_name)) {
+            result.insert(auth.producer_name);
          }
       }
-
-      void add_neighbors_with_distance(chain::flat_set<account_name>& result, int distance) const {
-         for (auto schedule_index : my_schedule_indices) {
-            auto i = (schedule_index + distance) % schedule.size();
-            if (!my_schedule_indices.count(i)) {
-               auto name = schedule[i].producer_name;
-               if (config.bp_peer_addresses.count(name))
-                  result.insert(name);
-            }
-         }
-      }
-
-      flat_set<account_name> downstream_neighbors() const {
-         chain::flat_set<account_name> result;
-         for (std::size_t i = 0; i < proximity_count; ++i) { add_neighbors_with_distance(result, i + 1); }
-         return result;
-      }
-
-      void add_upstream_neighbors(chain::flat_set<account_name>& result) const {
-         for (std::size_t i = 0; i < proximity_count; ++i) { add_neighbors_with_distance(result, -1 - i); }
-      }
-
-      flat_set<account_name> neighbors() const {
-         flat_set<account_name> result = downstream_neighbors();
-         add_upstream_neighbors(result);
-         return result;
-      }
-   };
+      return result;
+   }
 
  public:
-   const static std::size_t proximity_count = 2;
-
-   bool auto_bp_peering_enabled() const { return config.bp_peer_addresses.size() && config.my_bp_accounts.size(); }
+   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty(); }
 
    // Only called at plugin startup
    void set_producer_accounts(const std::set<account_name>& accounts) {
@@ -117,6 +79,7 @@ class bp_connection_manager {
 
             config.bp_peer_accounts[addr]     = account;
             config.bp_peer_addresses[account] = std::move(addr);
+            fc_dlog(self()->get_logger(), "Setting auto-bp-peer ${a} -> ${d}", ("a", account)("d", config.bp_peer_addresses[account]));
          }
       } catch (eosio::chain::name_type_exception&) {
          EOS_ASSERT(false, chain::plugin_config_exception, "the account supplied by --auto-bp-peer option is invalid");
@@ -168,66 +131,59 @@ class bp_connection_manager {
    }
 
    // Only called from main thread
-   neighbor_finder_type neighbor_finder(const std::vector<chain::producer_authority>& schedule) const {
-      return neighbor_finder_type(config, schedule);
-   }
-
-   // Only called from main thread
    void on_pending_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && self()->in_sync()) {
+      if (auto_bp_peering_enabled() && !self()->is_lib_catchup()) {
          if (schedule.producers.size()) {
             if (pending_schedule_version != schedule.version) {
-               /// establish connection to the BPs within our pending scheduling proximity
+               /// establish connection to our configured BPs, resolve_and_connect ignored if already connected
 
                fc_dlog(self()->get_logger(), "pending producer schedule switches from version ${old} to ${new}",
                        ("old", pending_schedule_version)("new", schedule.version));
 
-               auto finder                       = neighbor_finder(schedule.producers);
-               auto pending_downstream_neighbors = finder.downstream_neighbors();
+               auto pending_connections = configured_bp_accounts(config, schedule.producers);
 
-               fc_dlog(self()->get_logger(), "pending_downstream_neighbors: ${pending_downstream_neighbors}",
-                       ("pending_downstream_neighbors", to_string(pending_downstream_neighbors)));
-               for (auto neighbor : pending_downstream_neighbors) { self()->connections.resolve_and_connect(config.bp_peer_addresses[neighbor], self()->get_first_p2p_address() ); }
+               fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
+               for (const auto& i : pending_connections) {
+                  self()->connections.resolve_and_connect(config.bp_peer_addresses[i], self()->get_first_p2p_address() );
+               }
 
-               pending_neighbors = std::move(pending_downstream_neighbors);
-               finder.add_upstream_neighbors(pending_neighbors);
+               pending_configured_bps = std::move(pending_connections);
 
                pending_schedule_version = schedule.version;
             }
          } else {
-            fc_dlog(self()->get_logger(), "pending producer schedule version ${v} has being cleared",
-                    ("v", schedule.version));
-            pending_neighbors.clear();
+            fc_dlog(self()->get_logger(), "pending producer schedule version ${v} is being cleared", ("v", schedule.version));
+            pending_configured_bps.clear();
          }
       }
    }
 
    // Only called from main thread
    void on_active_schedule(const chain::producer_authority_schedule& schedule) {
-      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && self()->in_sync()) {
+      if (auto_bp_peering_enabled() && active_schedule_version != schedule.version && !self()->is_lib_catchup()) {
          /// drops any BP connection which is no longer within our scheduling proximity
-
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
-         auto old_neighbors = std::move(active_neighbors);
-         active_neighbors   = neighbor_finder(schedule.producers).neighbors();
+         auto old_bps = std::move(active_configured_bps);
+         active_configured_bps   = configured_bp_accounts(config, schedule.producers);
 
-         fc_dlog(self()->get_logger(), "active_neighbors: ${active_neighbors}",
-                 ("active_neighbors", to_string(active_neighbors)));
+         fc_dlog(self()->get_logger(), "active_configured_bps: ${a}", ("a", to_string(active_configured_bps)));
 
          flat_set<account_name> peers_to_stay;
-         std::set_union(active_neighbors.begin(), active_neighbors.end(), pending_neighbors.begin(),
-                        pending_neighbors.end(), std::inserter(peers_to_stay, peers_to_stay.begin()));
+         std::set_union(active_configured_bps.begin(), active_configured_bps.end(), pending_configured_bps.begin(), pending_configured_bps.end(),
+                        std::inserter(peers_to_stay, peers_to_stay.begin()));
 
-         fc_dlog(self()->get_logger(), "peers_to_stay: ${peers_to_stay}", ("peers_to_stay", to_string(peers_to_stay)));
+         fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
          std::vector<account_name> peers_to_drop;
-         std::set_difference(old_neighbors.begin(), old_neighbors.end(), peers_to_stay.begin(), peers_to_stay.end(),
+         std::set_difference(old_bps.begin(), old_bps.end(), peers_to_stay.begin(), peers_to_stay.end(),
                              std::back_inserter(peers_to_drop));
-         fc_dlog(self()->get_logger(), "peers to drop: ${peers_to_drop}", ("peers_to_drop", to_string(peers_to_drop)));
+         fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
-         for (auto account : peers_to_drop) { self()->connections.disconnect(config.bp_peer_addresses[account]); }
+         for (const auto& account : peers_to_drop) {
+            self()->connections.disconnect(config.bp_peer_addresses[account]);
+         }
          active_schedule_version = schedule.version;
       }
    }
