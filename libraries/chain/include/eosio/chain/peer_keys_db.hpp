@@ -26,6 +26,7 @@ private:
 
    uint64_t                                 _version = 0;
    boost::atomic_shared_ptr<peer_key_map_t> _peer_key_map;
+   boost::shared_ptr<peer_key_map_t>        _alt_peer_key_map; // we keep two maps so we con't have to copy a whole map every time
 };
 
 } // namespace eosio::chain
