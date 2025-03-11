@@ -1322,14 +1322,9 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-      });
 
-      accepted_block.connect([this](const block_signal_params& t) {
-         // update peer public keys from chainbase db every so often
-         const auto& [ block, id] = t;
-
-         if (block_header::num_from_id(id) % 20 == 0)   // let's update once every 20 blocks, so every 10 seconds
-            peer_keys_db.update_peer_keys(self);
+         // update peer public keys from chainbase db 
+         peer_keys_db.update_peer_keys(self, block->block_num());
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \

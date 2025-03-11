@@ -26,21 +26,29 @@ std::optional<uint64_t> peer_keys_db_t::_get_version(const chainbase::database& 
    return std::optional<uint64_t>(res);
 }
 
-size_t peer_keys_db_t::update_peer_keys(const controller& chain) {
+// we update the keys that were registered up to lib_number (inclusive)
+// --------------------------------------------------------------------
+size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_number) {
    size_t num_updated = 0;
    try {
-      const auto& db = chain.db();
-      auto cb_version = _get_version(db);
-      if (!cb_version || *cb_version <= _version) // possible that chainbase version regresses during a fork switch
+      if (lib_number <= _block_num)
          return num_updated;                      // nothing to do
 
-      const table_id_object* t_id =
-         db.find<table_id_object, by_code_scope_table>(boost::make_tuple("eosio"_n, "eosio"_n, "peerkeys"_n));
-      assert(t_id != nullptr);
+      const auto& db = chain.db();
+      const auto  table_ref = boost::make_tuple("eosio"_n, "eosio"_n, "peerkeys"_n);
+      const auto* t_id      = db.find<table_id_object, by_code_scope_table>(table_ref);
+      EOS_ASSERT(t_id != nullptr, plugin_exception, "cannot retrieve `peerkeys` table");
+
       const auto& secidx = db.get_index<index64_index, by_secondary>();
 
-      const auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, _version + 1));
-      const auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, *cb_version));
+      const auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(_block_num + 1)));
+      const auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(lib_number)));
+
+      if (upper == lower) {
+         // no new keys registered
+         _block_num = lib_number;
+         return num_updated;
+      }
 
       auto _update_map = [&](peer_key_map_t& new_map) {
          size_t num_updated = 0;
@@ -50,7 +58,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain) {
                   db.find<key_value_object, by_scope_primary>(boost::make_tuple(t_id->id, itr->primary_key));
 
                name            row_name;
-               uint64_t        row_version;
+               uint64_t        row_block_num;
                public_key_type row_key;
 
                const auto&                 obj = *itr2;
@@ -60,9 +68,8 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain) {
                fc::raw::unpack(ds, row_name);
                EOS_ASSERT(row_name.good(), plugin_exception, "deserialized invalid name from `peerkeys`");
 
-               fc::raw::unpack(ds, row_version);
-               EOS_ASSERT(row_version > 0 && row_version <= *cb_version, plugin_exception,
-                          "deserialized invalid version from `peerkeys`");
+               fc::raw::unpack(ds, row_block_num);
+               EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), plugin_exception, "deserialized invalid version from `peerkeys`");
 
                fc::raw::unpack(ds, row_key);
                EOS_ASSERT(row_key.valid(), plugin_exception, "deserialized invalid public key from `peerkeys`");
@@ -80,7 +87,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain) {
 
       _update_map(*_alt_peer_key_map);           // update backup map, so it is ready for next time
 
-      _version      = *cb_version;
+      _block_num = lib_number;                   // mark that we have updated up to lib_number
    } FC_LOG_AND_DROP(("Error when updating peer_keys_db"));
    return num_updated;
 }
