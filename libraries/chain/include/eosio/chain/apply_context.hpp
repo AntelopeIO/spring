@@ -4,6 +4,7 @@
 #include <eosio/chain/transaction.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/contract_table_objects.hpp>
+#include <eosio/chain/sync_call.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <fc/utility.hpp>
 #include <sstream>
@@ -494,12 +495,15 @@ class apply_context {
    /// Constructor
    public:
       apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth=0);
+      apply_context(controller& con, transaction_context& trx_ctx);
 
    /// Execution methods:
    public:
 
       void exec_one();
       void exec();
+      void execute_sync_call(name receiver, uint64_t flags, std::span<const char> data
+);
       void execute_inline( action&& a );
       void execute_context_free_inline( action&& a );
       void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing );
@@ -597,8 +601,11 @@ class apply_context {
       bool is_privileged()const { return privileged; }
       action_name get_receiver()const { return receiver; }
       const action& get_action()const { return *act; }
+      const action* get_action_ptr()const { return act; }
+      std::optional<sync_call> get_sync_call()const { return sync_call_info; }
 
       action_name get_sender() const;
+      action_name get_sync_call_sender() const;
 
       bool is_applying_block() const { return trx_context.explicit_billed_cpu_time; }
       bool is_eos_vm_oc_whitelisted() const;
@@ -620,6 +627,8 @@ class apply_context {
       uint32_t                      action_ordinal = 0;
       bool                          privileged   = false;
       bool                          context_free = false;
+
+      std::optional<sync_call>      sync_call_info;  // only one of act and sync_call_info can be present
 
    public:
       std::vector<char>             action_return_value;
