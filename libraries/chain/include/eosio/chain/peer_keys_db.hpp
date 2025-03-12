@@ -1,8 +1,8 @@
 #pragma once
 
 #include <eosio/chain/controller.hpp>
-#include <boost/smart_ptr/atomic_shared_ptr.hpp>
 #include <boost/unordered/unordered_flat_map.hpp>
+#include <fc/mutex.hpp>
 
 namespace eosio::chain {
 
@@ -21,15 +21,17 @@ public:
    size_t update_peer_keys(const controller& chain, uint32_t lib_number);
 
    // safe to be called from any thread
-   std::optional<public_key_type> operator[](name n) const;
+   std::optional<public_key_type> get_peer_key(name n) const;
+
+   // safe to be called from any thread
    size_t size() const;
 
 private:
    std::optional<uint64_t> _get_version(const chainbase::database& db);
 
-   mutable std::mutex _m;
+   mutable fc::mutex  _m;
    uint32_t           _block_num = 0; // below map includes keys registered up to _block_num (inclusive)
-   peer_key_map_t     _peer_key_map;
+   peer_key_map_t     _peer_key_map GUARDED_BY(_m);
 };
 
 } // namespace eosio::chain
