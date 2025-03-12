@@ -6,14 +6,14 @@ namespace eosio::chain {
 peer_keys_db_t::peer_keys_db_t() : _active(false) {}
 
 std::optional<public_key_type> peer_keys_db_t::get_peer_key(name n) const {
-   std::lock_guard g(_m);
+   fc::lock_guard g(_m);
    if (auto it = _peer_key_map.find(n); it != _peer_key_map.end())
       return std::optional<public_key_type>(it->second);
    return std::optional<public_key_type>{};
 }
 
 size_t peer_keys_db_t::size() const {
-   std::lock_guard g(_m);
+   fc::lock_guard g(_m);
    return _peer_key_map.size();
 }
 
@@ -41,7 +41,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
          return num_updated;
       }
 
-      std::lock_guard g(_m); // we only need to protect access to _peer_key_map
+      fc::lock_guard g(_m); // we only need to protect access to _peer_key_map
 
       for (auto itr = lower; itr != upper; ++itr) {
          try {
