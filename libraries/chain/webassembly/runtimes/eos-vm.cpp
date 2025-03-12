@@ -140,8 +140,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             const wasm_config& config = context.control.get_global_properties().wasm_configuration;
             opts = {config.max_pages, config.max_call_depth};
          }
-         const std::optional<sync_call> scall  = context.get_sync_call();
-         assert(scall.has_value());
+         const std::optional<sync_call_context> sync_call_ctx  = context.get_sync_call_ctx();
+         assert(sync_call_ctx.has_value());
          assert(!context.get_action_ptr());
 
          auto fn = [&]() {
@@ -149,9 +149,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             bkend.initialize(&iface, opts);
             bkend.call(
                 iface, "env", "sync_call",
-                scall->sender.to_uint64_t(),
-                scall->receiver.to_uint64_t(),
-                static_cast<uint64_t>(scall->data.size())); // size_t can be uint32_t or uint64_t depending on architecture. Safely cast to uint64_t to always match the type expected by sync_call entry point.
+                sync_call_ctx->sender.to_uint64_t(),
+                sync_call_ctx->receiver.to_uint64_t(),
+                static_cast<uint64_t>(sync_call_ctx->data.size())); // size_t can be uint32_t or uint64_t depending on architecture. Safely cast to uint64_t to always match the type expected by sync_call entry point.
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn);

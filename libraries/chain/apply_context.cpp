@@ -278,9 +278,9 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
          try {
             // use a new apply_context for a new sync call
             apply_context a_ctx(control, trx_context);
-            a_ctx.sync_call_info = sync_call{.sender   = get_sync_call_sender(),
-                                             .receiver = receiver,
-                                             .data     = std::move(data)};
+            a_ctx.sync_call_ctx = sync_call_context{.sender   = get_sync_call_sender(),
+                                                    .receiver = receiver,
+                                                    .data     = std::move(data)};
 
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
          } catch( const wasm_exit&) {}
