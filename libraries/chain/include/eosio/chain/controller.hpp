@@ -427,6 +427,9 @@ namespace eosio::chain {
 
          chain_id_type get_chain_id()const;
 
+         void set_peer_keys_retrieval_active(bool active);          // thread safe
+         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+
          // thread safe
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;

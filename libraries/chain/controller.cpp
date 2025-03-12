@@ -5783,6 +5783,14 @@ chain_id_type controller::get_chain_id()const {
    return my->chain_id;
 }
 
+void controller::set_peer_keys_retrieval_active(bool active) {
+   my->peer_keys_db.set_active(active);
+}
+
+std::optional<public_key_type> controller::get_peer_key(name n) const {
+   return my->peer_keys_db.get_peer_key(n);
+}
+
 db_read_mode controller::get_read_mode()const {
    return my->read_mode;
 }
