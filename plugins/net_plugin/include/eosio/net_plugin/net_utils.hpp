@@ -9,6 +9,15 @@
 
 namespace eosio::net_utils {
 
+// Longest domain name is 253 characters according to wikipedia.
+// Addresses include ":port" where max port is 65535, which adds 6 chars.
+// Addresses may also include ":bitrate" with suffix and separators, which adds 30 chars,
+// for the maximum comma-separated value that fits in a size_t expressed in decimal plus a suffix.
+// We also add our own extentions of "[:trx|:blk] - xxxxxxx", which adds 14 chars, total= 273.
+// Allow for future extentions as well, hence 384.
+constexpr size_t max_p2p_address_length = 253 + 6 + 30;
+constexpr size_t max_handshake_str_length = 384;
+
 namespace detail {
 
    inline static const std::map<std::string, size_t> prefix_multipliers{
@@ -46,6 +55,10 @@ namespace detail {
       // host:port[:trx|:blk][:<rate>]
       if (peer_add.empty()) {
          EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification is empty" );
+         return {};
+      }
+      if (peer_add.size() > max_p2p_address_length) {
+         EOS_ASSERT(!should_throw, chain::plugin_config_exception, "Address specification exceeds max p2p address length" );
          return {};
       }
 

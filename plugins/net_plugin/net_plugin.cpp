@@ -3419,23 +3419,23 @@ namespace eosio {
       if (msg.p2p_address.empty()) {
          peer_wlog( this, "Handshake message validation: p2p_address is null string" );
          valid = false;
-      } else if( msg.p2p_address.length() > max_handshake_str_length ) {
+      } else if( msg.p2p_address.length() > net_utils::max_handshake_str_length ) {
          // see max_handshake_str_length comment in protocol.hpp
          peer_wlog( this, "Handshake message validation: p2p_address too large: ${p}",
-                    ("p", msg.p2p_address.substr(0, max_handshake_str_length) + "...") );
+                    ("p", msg.p2p_address.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
       if (msg.os.empty()) {
          peer_wlog( this, "Handshake message validation: os field is null string" );
          valid = false;
-      } else if( msg.os.length() > max_handshake_str_length ) {
+      } else if( msg.os.length() > net_utils::max_handshake_str_length ) {
          peer_wlog( this, "Handshake message validation: os field too large: ${p}",
-                    ("p", msg.os.substr(0, max_handshake_str_length) + "...") );
+                    ("p", msg.os.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
-      if( msg.agent.length() > max_handshake_str_length ) {
+      if( msg.agent.length() > net_utils::max_handshake_str_length ) {
          peer_wlog( this, "Handshake message validation: agent field too large: ${p}",
-                  ("p", msg.agent.substr(0, max_handshake_str_length) + "...") );
+                  ("p", msg.agent.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
       if ((msg.sig != chain::signature_type() || msg.token != sha256()) && (msg.token != fc::sha256::hash(msg.time))) {
@@ -4485,9 +4485,9 @@ namespace eosio {
                   fc_wlog( logger, "Removed ${count} duplicate p2p-listen-endpoint entries", ("count", addr_diff));
                }
                for( const auto& addr : p2p_addresses ) {
-                  EOS_ASSERT( addr.length() <= max_p2p_address_length, chain::plugin_config_exception,
+                  EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
                               "p2p-listen-endpoint ${a} too long, must be less than ${m}", 
-                              ("a", addr)("m", max_p2p_address_length) );
+                              ("a", addr)("m", net_utils::max_p2p_address_length) );
                }
             }
          }
@@ -4496,9 +4496,9 @@ namespace eosio {
             EOS_ASSERT( p2p_server_addresses.size() <= p2p_addresses.size(), chain::plugin_config_exception,
                         "p2p-server-address may not be specified more times than p2p-listen-endpoint" );
             for( const auto& addr: p2p_server_addresses ) {
-               EOS_ASSERT( addr.length() <= max_p2p_address_length, chain::plugin_config_exception,
+               EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
                            "p2p-server-address ${a} too long, must be less than ${m}", 
-                           ("a", addr)("m", max_p2p_address_length) );
+                           ("a", addr)("m", net_utils::max_p2p_address_length) );
             }
          }
          p2p_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
@@ -4513,22 +4513,23 @@ namespace eosio {
             for (const auto& peer : peers) {
                const auto& [host, port, type] = net_utils::split_host_port_type(peer);
                EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
-                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]");
+                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]", ("p", peer));
             }
             connections.add_supplied_peers(peers);
          }
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
-            EOS_ASSERT( user_agent_name.length() <= max_handshake_str_length, chain::plugin_config_exception,
-                        "agent-name too long, must be less than ${m}", ("m", max_handshake_str_length) );
+            EOS_ASSERT( user_agent_name.length() <= net_utils::max_handshake_str_length, chain::plugin_config_exception,
+                        "agent-name too long, must be less than ${m}", ("m", net_utils::max_handshake_str_length) );
          }
 
          if ( options.count( "p2p-auto-bp-peer")) {
+            EOS_ASSERT(options.count("p2p-producer-peer"), chain::plugin_config_exception,
+                       "p2p-producer-peer required for p2p-auto-bp-peer");
             set_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>());
             for_each_bp_peer_address([&peers](const auto& addr) {
                EOS_ASSERT(std::find(peers.begin(), peers.end(), addr) == peers.end(), chain::plugin_config_exception,
-                          "\"${addr}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.",
-                          ("addr",addr));
+                          "\"${a}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.", ("a",addr));
             });
          }
 

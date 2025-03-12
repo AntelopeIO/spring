@@ -1,8 +1,10 @@
 #pragma once
+
+#include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/chain/producer_schedule.hpp>
+
 #include <boost/algorithm/string.hpp>
 #include <boost/range/adaptor/transformed.hpp>
-
 
 namespace eosio::auto_bp_peering {
 
@@ -69,20 +71,25 @@ class bp_connection_manager {
 
    // Only called at plugin startup
    void set_bp_peers(const std::vector<std::string>& peers) {
-      try {
-         for (auto& entry : peers) {
+      for (const auto& entry : peers) {
+         try {
             auto comma_pos = entry.find(',');
             EOS_ASSERT(comma_pos != std::string::npos, chain::plugin_config_exception,
-                       "auto-bp-peer must consists an account name and server address separated by a comma token");
+                       "p2p-auto-bp-peer must consist of an account name and server address separated by a comma");
             auto         addr = entry.substr(comma_pos + 1);
             account_name account(entry.substr(0, comma_pos));
+            const auto& [host, port, type] = net_utils::split_host_port_type(addr);
+            EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                        "Invalid p2p-auto-bp-peer ${p}, syntax host:port:[trx|blk]", ("p", addr));
 
             config.bp_peer_accounts[addr]     = account;
             config.bp_peer_addresses[account] = std::move(addr);
-            fc_dlog(self()->get_logger(), "Setting auto-bp-peer ${a} -> ${d}", ("a", account)("d", config.bp_peer_addresses[account]));
+            fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}",
+                    ("a", account)("d", config.bp_peer_addresses[account]));
+         } catch (chain::name_type_exception&) {
+            EOS_ASSERT(false, chain::plugin_config_exception,
+                       "the account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", entry));
          }
-      } catch (eosio::chain::name_type_exception&) {
-         EOS_ASSERT(false, chain::plugin_config_exception, "the account supplied by --auto-bp-peer option is invalid");
       }
    }
 
