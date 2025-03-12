@@ -3,7 +3,7 @@
 
 namespace eosio::chain {
 
-peer_keys_db_t::peer_keys_db_t() {}
+peer_keys_db_t::peer_keys_db_t() : _active(false) {}
 
 std::optional<public_key_type> peer_keys_db_t::get_peer_key(name n) const {
    std::lock_guard g(_m);
@@ -21,10 +21,10 @@ size_t peer_keys_db_t::size() const {
 // --------------------------------------------------------------------
 size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_number) {
    size_t num_updated = 0;
-   try {
-      if (lib_number <= _block_num)
-         return num_updated;                      // nothing to do
+   if (!_active || lib_number <= _block_num)
+      return num_updated;                      // nothing to do
 
+   try {
       const auto& db = chain.db();
       const auto  table_ref = boost::make_tuple("eosio"_n, "eosio"_n, "peerkeys"_n);
       const auto* t_id      = db.find<table_id_object, by_code_scope_table>(table_ref);
