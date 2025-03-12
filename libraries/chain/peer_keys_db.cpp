@@ -28,7 +28,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
       const auto& db = chain.db();
       const auto  table_ref = boost::make_tuple("eosio"_n, "eosio"_n, "peerkeys"_n);
       const auto* t_id      = db.find<table_id_object, by_code_scope_table>(table_ref);
-      EOS_ASSERT(t_id != nullptr, plugin_exception, "cannot retrieve `peerkeys` table");
+      EOS_ASSERT(t_id != nullptr, misc_exception, "cannot retrieve `peerkeys` table");
 
       const auto& secidx = db.get_index<index64_index, by_secondary>();
 
@@ -57,14 +57,14 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             // must match `struct peer_key;` in eosio.system.hpp
             // -------------------------------------------------
             fc::raw::unpack(ds, row_name);
-            EOS_ASSERT(row_name.good(), plugin_exception, "deserialized invalid name from `peerkeys`");
+            EOS_ASSERT(row_name.good(), misc_exception, "deserialized invalid name from `peerkeys`");
 
             fc::raw::unpack(ds, row_block_num);
-            EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), plugin_exception,
+            EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), misc_exception,
                        "deserialized invalid version from `peerkeys`");
 
             fc::raw::unpack(ds, row_key);
-            EOS_ASSERT(row_key.valid(), plugin_exception, "deserialized invalid public key from `peerkeys`");
+            EOS_ASSERT(row_key.valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
 
             _peer_key_map[row_name] = row_key;
             ++num_updated;
