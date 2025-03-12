@@ -40,6 +40,10 @@ class eosvmoc_instantiated_module : public wasm_instantiated_module_interface {
             _eosvmoc_runtime.exec_thread_local->execute(*cd, *_eosvmoc_runtime.mem_thread_local, context);
       }
 
+      void do_sync_call(apply_context& context) override {
+         ;
+      }
+
       const digest_type              _code_hash;
       const uint8_t                  _vm_version;
       eosvmoc_runtime&               _eosvmoc_runtime;

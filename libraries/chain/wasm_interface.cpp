@@ -91,6 +91,11 @@ namespace eosio { namespace chain {
       my->apply( code_hash, vm_type, vm_version, context );
    }
 
+   void wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      ilog("wasm_interface::do_sync_call");
+      my->do_sync_call( code_hash, vm_type, vm_version, context );
+   }
+
    bool wasm_interface::is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const {
       return my->is_code_cached(code_hash, vm_type, vm_version);
    }
