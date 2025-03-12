@@ -144,6 +144,26 @@ namespace eosio {
       block_id_type id;
    };
 
+   struct gossip_bp_peers_message {
+      struct bp_peer {
+         eosio::name               producer_name;
+         std::string               server_address;
+         std::vector<std::string>  proposer_peers;  // size limit 2
+         std::vector<std::string>  finalizer_peers; // size limit 2
+         // sig over [producer_name, server_address, proposer_peers, finalizer_peers]
+         signature_type            sig;
+
+         digest_type digest() const;
+         bool operator==(const bp_peer&) const = default;
+         bool operator<(const bp_peer& rhs) const {
+            return std::tie(producer_name, server_address, proposer_peers, finalizer_peers) <
+                   std::tie(rhs.producer_name, rhs.server_address, rhs.proposer_peers, rhs.finalizer_peers);
+         }
+      };
+
+      std::vector<bp_peer> peers;
+   };
+
    using net_message = std::variant<handshake_message,
                                     chain_size_message,
                                     go_away_message,
@@ -155,7 +175,8 @@ namespace eosio {
                                     packed_transaction,
                                     vote_message,
                                     block_nack_message,
-                                    block_notice_message>;
+                                    block_notice_message,
+                                    gossip_bp_peers_message>;
 
 } // namespace eosio
 
@@ -176,6 +197,8 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(proposer_peers)(finalizer_peers)(sig) )
+FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**
  *

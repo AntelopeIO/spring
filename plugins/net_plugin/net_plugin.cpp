@@ -269,6 +269,7 @@ namespace eosio {
       vote_message           = fc::get_index<net_message, vote_message>(),
       block_nack_message     = fc::get_index<net_message, block_nack_message>(),
       block_notice_message   = fc::get_index<net_message, block_notice_message>(),
+      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
       unknown
    };
 
@@ -1083,6 +1084,7 @@ namespace eosio {
       void handle_message( const vote_message& msg ) = delete; // vote_message_ptr overload used instead
       void handle_message( const block_nack_message& msg);
       void handle_message( const block_notice_message& msg);
+      void handle_message( const gossip_bp_peers_message& msg);
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -1173,6 +1175,12 @@ namespace eosio {
       void operator()( const block_notice_message& msg ) const {
          // continue call to handle_message on connection strand
          peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
+         c->handle_message( msg );
+      }
+
+      void operator()( const gossip_bp_peers_message& msg ) const {
+         // continue call to handle_message on connection strand
+         peer_dlog( c, "handle gossip_bp_peers_message size ${s}", ("s", msg.peers.size()) );
          c->handle_message( msg );
       }
    };
