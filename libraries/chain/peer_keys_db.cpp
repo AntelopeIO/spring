@@ -49,7 +49,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
                db.find<key_value_object, by_scope_primary>(boost::make_tuple(t_id->id, itr->primary_key));
 
             name            row_name;
-            uint64_t        row_block_num;
+            uint32_t        row_block_num;
             public_key_type row_key;
 
             const auto&                 obj = *itr2;
