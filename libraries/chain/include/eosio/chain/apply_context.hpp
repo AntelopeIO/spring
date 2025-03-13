@@ -495,7 +495,7 @@ class apply_context {
    /// Constructor
    public:
       apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth=0);
-      apply_context(controller& con, transaction_context& trx_ctx);
+      apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data);  // used to construct sync call context
 
    /// Execution methods:
    public:

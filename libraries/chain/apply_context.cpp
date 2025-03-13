@@ -60,13 +60,11 @@ apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint
    context_free = trace.context_free;
 }
 
-apply_context::apply_context(controller& con, transaction_context& trx_ctx)
+apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data)
 :control(con)
 ,db(con.mutable_db())
 ,trx_context(trx_ctx)
-,recurse_depth(0)
-,first_receiver_action_ordinal(0)
-,action_ordinal(0)
+,sync_call_ctx({sender, receiver, data})
 ,idx64(*this)
 ,idx128(*this)
 ,idx256(*this)
@@ -277,10 +275,7 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
 
          try {
             // use a new apply_context for a new sync call
-            apply_context a_ctx(control, trx_context);
-            a_ctx.sync_call_ctx = sync_call_context{.sender   = get_sync_call_sender(),
-                                                    .receiver = receiver,
-                                                    .data     = std::move(data)};
+            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
 
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
          } catch( const wasm_exit&) {}
