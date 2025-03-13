@@ -248,6 +248,8 @@ void apply_context::exec()
 
 void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data)
 {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
         ("r", receiver)("f", flags)("s", data.size()));
 
