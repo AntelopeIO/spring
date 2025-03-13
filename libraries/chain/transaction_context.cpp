@@ -25,8 +25,8 @@ namespace eosio::chain {
       _timer.stop();
    }
 
-   void transaction_checktime_timer::set_expiration_callback(void(*func)(void*), void* user) {
-      _timer.set_expiration_callback(func, user);
+   void transaction_checktime_timer::set_expiration_callback(void(*func)(void*), void* user, bool appending) {
+      _timer.set_expiration_callback(func, user, appending);
    }
 
    transaction_checktime_timer::~transaction_checktime_timer() {

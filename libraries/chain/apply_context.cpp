@@ -60,6 +60,19 @@ apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint
    context_free = trace.context_free;
 }
 
+apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data)
+:control(con)
+,db(con.mutable_db())
+,trx_context(trx_ctx)
+,sync_call_ctx({sender, receiver, data})
+,idx64(*this)
+,idx128(*this)
+,idx256(*this)
+,idx_double(*this)
+,idx_long_double(*this)
+{
+}
+
 void apply_context::exec_one()
 {
    auto start = fc::time_point::now();
@@ -232,6 +245,61 @@ void apply_context::exec()
    }
 
 } /// exec()
+
+void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data)
+{
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+
+   dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
+        ("r", receiver)("f", flags)("s", data.size()));
+
+   auto* code = control.db().find<account_object, by_name>(receiver);
+   EOS_ASSERT(code != nullptr, action_validate_exception,
+              "sync call's receiver account ${r} does not exist", ("r", receiver));
+
+   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, action_validate_exception,
+              "sync call's flags ${f} can only set bit 0", ("f", flags));
+
+   auto handle_exception = [&](const auto& e)
+   {
+      // TBD need to store the exception in the sync call trace
+      throw;
+   };
+
+   try {
+      try {
+         const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( receiver);
+         if (receiver_account->code_hash == digest_type()) {
+            // TBD store the info in sync call trace
+            ilog("receiver_account->code_hash empty");
+            return;
+         }
+
+         try {
+            // use a new apply_context for a new sync call
+            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
+
+            control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+         } catch( const wasm_exit&) {}
+      } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", receiver))
+   } catch (const std::bad_alloc&) {
+      throw;
+   } catch (const boost::interprocess::bad_alloc&) {
+      throw;
+   } catch(const fc::exception& e) {
+      ilog("fc::exceptio");
+      handle_exception(e);
+   } catch (const std::exception& e) {
+      ilog("std::exception");
+      auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
+      handle_exception(wrapper);
+   }
+}
+
+action_name apply_context::get_sync_call_sender() const {
+   // Current context's receiver is the sender of next sync call
+   return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
+}
 
 bool apply_context::is_account( const account_name& account )const {
    return nullptr != db.find<account_object,by_name>( account );

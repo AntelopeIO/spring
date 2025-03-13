@@ -76,6 +76,8 @@ namespace eosio { namespace chain {
          //Calls apply or error on a given code
          void apply(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
 
+         void do_sync_call(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context);
+
          //Returns true if the code is cached
          bool is_code_cached(const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version) const;
 
