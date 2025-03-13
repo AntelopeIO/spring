@@ -293,6 +293,12 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
       handle_exception(wrapper);
    }
 }
+
+action_name apply_context::get_sync_call_sender() const {
+   // Current context's receiver is the sender of next sync call
+   return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
+}
+
 bool apply_context::is_account( const account_name& account )const {
    return nullptr != db.find<account_object,by_name>( account );
 }
@@ -1147,11 +1153,6 @@ action_name apply_context::get_sender() const {
       const action_trace& creator_trace = trx_context.get_action_trace( trace.creator_action_ordinal );
       return creator_trace.receiver;
    }
-   return action_name();
-}
-
-action_name apply_context::get_sync_call_sender() const {
-   // TBD implement with sync call trace implementation
    return action_name();
 }
 
