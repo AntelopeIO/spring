@@ -45,6 +45,14 @@ void chain_config_v1::validate() const {
                "max action return value size should be less than MAX_SIZE_OF_BYTE_ARRAYS" );
 }
 
+void chain_config_v2::validate() const {
+   chain_config_v1::validate();
+   EOS_ASSERT( 1 <= max_sync_call_depth, action_validate_exception,
+               "max sync call depth should be at least 1" );
+   EOS_ASSERT( max_sync_call_data_size <= MAX_SIZE_OF_BYTE_ARRAYS, action_validate_exception,
+               "max ssync call data size should be less than MAX_SIZE_OF_BYTE_ARRAYS" );
+}
+
 bool config_entry_validator::operator()(uint32_t id) const {
    bool allowed = true;
    switch(id){
@@ -53,6 +61,16 @@ bool config_entry_validator::operator()(uint32_t id) const {
          allowed = control.is_builtin_activated(builtin_protocol_feature_t::action_return_value);
          if (!allowed){
             wlog("action_return_value protocol feature is not active, max_action_return_value_size config is not allowed");
+         }
+      }
+      break;
+
+      case chain_config_v2::max_sync_call_depth_id:
+      case chain_config_v2::max_sync_call_data_size_id:
+      {
+         allowed = control.is_builtin_activated(builtin_protocol_feature_t::sync_call);
+         if (!allowed){
+            wlog("sync_call protocol feature is not active, max_sync_call_depth and max_sync_call_data_size configs are not allowed");
          }
       }
       break;
