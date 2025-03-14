@@ -1,5 +1,6 @@
 #pragma once
 
+#include <eosio/net_plugin/gossip_bps_index.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/buffer_factory.hpp>
 #include <eosio/chain/producer_schedule.hpp>
@@ -29,6 +30,8 @@ class bp_connection_manager {
       flat_map<std::string, account_name> bp_peer_accounts;
       flat_set<account_name> my_bp_accounts;
    } config; // thread safe only because modified at plugin startup currently
+
+   gossip_bp_index_t      gossip_bps;
 
    // the following member are only accessed from main thread
    flat_set<account_name> my_bp_peer_accounts;
@@ -98,9 +101,13 @@ class bp_connection_manager {
       }
    }
 
-   send_buffer_type get_initial_send_buffer() {
+   send_buffer_type get_gossip_bp_initial_send_buffer() {
       fc::lock_guard g(factory_mtx);
       return initial_gossip_msg_factory.get_initial_send_buffer();
+   }
+
+   send_buffer_type get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
+      return factory.get_send_buffer(gossip_bps);
    }
 
    // Only called at plugin startup
@@ -117,12 +124,11 @@ class bp_connection_manager {
 
    // Called at startup and when peer key changes
    // empty modified_keys means to update all
-   void update_bp_producer_peers(const chain::controller& cc, gossip_bp_index_t& gossip_bp_index,
-                                 const std::set<account_name>& modified_keys, const std::string& server_address)
+   void update_bp_producer_peers(const chain::controller& cc, const std::set<account_name>& modified_keys, const std::string& server_address)
    {
       if (my_bp_peer_accounts.empty())
          return;
-      fc::lock_guard g(gossip_bp_index.mtx);
+      fc::lock_guard g(gossip_bps.mtx);
       // normally only one bp peer account except in testing scenarios or test chains
       bool first = true;
       for (const auto& e : my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
@@ -137,15 +143,15 @@ class bp_connection_manager {
                fc::lock_guard lck(factory_mtx);
                initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
             }
-            auto& prod_idx = gossip_bp_index.index.get<by_producer>();
+            auto& prod_idx = gossip_bps.index.get<by_producer>();
             gossip_bp_peers_message::bp_peer peer{.producer_name = e, .server_address = server_address};
             peer.sig = self()->sign_compact(*pk, peer.digest());
             if (auto i = prod_idx.find(boost::make_tuple(e, boost::cref(server_address))); i != prod_idx.end()) {
-               gossip_bp_index.index.modify(i, [&peer](auto& v) {
+               gossip_bps.index.modify(i, [&peer](auto& v) {
                   v = peer;
                });
             } else {
-               gossip_bp_index.index.emplace(peer);
+               gossip_bps.index.emplace(peer);
             }
          }
          first = false;
@@ -182,6 +188,92 @@ class bp_connection_manager {
    bool exceeding_connection_limit(std::shared_ptr<Connection> new_connection) const {
       return auto_bp_peering_enabled() && self()->connections.get_max_client_count() != 0 &&
              established_client_connection(new_connection) && num_established_clients() > self()->connections.get_max_client_count();
+   }
+
+   // thread safe
+   // removes invalid entries from msg
+   bool validate_gossip_bp_peers_message( gossip_bp_peers_message& msg ) {
+      if (msg.peers.empty())
+         return false;
+      if (msg.peers.size() != 1 || !msg.peers[0].server_address.empty()) { // initial case, no server_addresses to validate
+         auto valid_address = [](const std::string& addr) -> bool {
+            const auto& [host, port, type] = net_utils::split_host_port_type(addr);
+            return !host.empty() && !port.empty();
+         };
+         std::map<eosio::name, size_t> producers;
+         const gossip_bp_peers_message::bp_peer* prev = nullptr;
+         for (const auto& peer : msg.peers) {
+            if (peer.producer_name.empty())
+               return false;
+            if (!valid_address(peer.server_address))
+               return false;
+            if (prev != nullptr) {
+               if (prev->producer_name == peer.producer_name) {
+                  if (prev->server_address == peer.server_address)
+                     return false; // duplicate entries not allowed
+               } else if (prev->producer_name > peer.producer_name) {
+                  return false; // required to be sorted
+               }
+            }
+            if (++producers[peer.producer_name] > 4)
+               return false; // only 4 entries per producer allowed
+            prev = &peer;
+         }
+      }
+
+      controller& cc = self()->chain_plug->chain();
+
+      fc::lock_guard g(gossip_bps.mtx);
+      auto& sig_idx = gossip_bps.index.get<by_sig>();
+      auto& prod_idx = gossip_bps.index.get<by_producer>();
+      for (auto i = msg.peers.begin(); i != msg.peers.end();) {
+         const auto& peer = *i;
+         try {
+            if (!sig_idx.contains(peer.sig)) { // we already have it, already verified
+               // peer key may have changed or been removed, so if invalid or not found skip it
+               // todo: when cc.get_peer_key available
+               // if (auto peer_key = cc.get_peer_key(peer.producer_name)) {
+               //    public_key_type pk(peer.sig, peer.digest());
+               //    if (pk != *peer_key) {
+               //       i = msg.peers.erase(i);
+               //       continue;
+               //    }
+               // } else { // unknown key
+               //    i = msg.peers.erase(i);
+               //    continue;
+               // }
+            }
+         } catch (fc::exception& e) {
+            // invalid key
+            i = msg.peers.erase(i);
+            continue;
+         }
+         ++i;
+      }
+
+      return !msg.peers.empty();
+   }
+
+   // thread-safe
+   std::tuple<bool, size_t> update_gossip_bps(const gossip_bp_peers_message& msg) {
+      // providing us with full set
+      fc::lock_guard g(gossip_bps.mtx);
+      auto& idx = gossip_bps.index.get<by_producer>();
+      bool diff = false;
+      for (const auto& peer : msg.peers) {
+         if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
+            if (*i != peer) {
+               gossip_bps.index.modify(i, [&peer](auto& m) {
+                  m = peer;
+               });
+               diff = true;
+            }
+         } else {
+            gossip_bps.index.insert(peer);
+            diff = true;
+         }
+      }
+      return std::make_tuple(gossip_bps.index.size(), diff);
    }
 
    // Only called from main thread

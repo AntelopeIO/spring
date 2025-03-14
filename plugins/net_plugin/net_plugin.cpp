@@ -350,7 +350,6 @@ namespace eosio {
       unique_ptr< sync_manager >       sync_master;
       dispatch_manager                 dispatcher {thread_pool.get_executor()};
       connections_manager              connections;
-      gossip_bp_index_t                gossip_bps;
 
       /**
        * Thread safe, only updated in plugin initialize
@@ -1798,7 +1797,7 @@ namespace eosio {
    void connection::enqueue_buffer( msg_type_t net_msg,
                                     std::optional<block_num_type> block_num, // only valid for net_msg == signed_block variant which
                                     queued_buffer::queue_t queue,
-                                    const std::shared_ptr<std::vector<char>>& send_buffer,
+                                    const send_buffer_type& send_buffer,
                                     go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
@@ -3765,76 +3764,12 @@ namespace eosio {
       return enc.result();
    }
 
-   // thread safe
-   // removes invalid entries from msg
-   bool validate_gossip_bp_peers_message( gossip_bp_peers_message& msg ) {
-      if (msg.peers.empty())
-         return false;
-      if (msg.peers.size() != 1 || !msg.peers[0].server_address.empty()) { // initial case, no server_addresses to validate
-         auto valid_address = [](const std::string& addr) -> bool {
-            const auto& [host, port, type] = net_utils::split_host_port_type(addr);
-            return !host.empty() && !port.empty();
-         };
-         std::map<eosio::name, size_t> producers;
-         const gossip_bp_peers_message::bp_peer* prev = nullptr;
-         for (const auto& peer : msg.peers) {
-            if (peer.producer_name.empty())
-               return false;
-            if (!valid_address(peer.server_address))
-               return false;
-            if (prev != nullptr) {
-               if (prev->producer_name == peer.producer_name) {
-                  if (prev->server_address == peer.server_address)
-                     return false; // duplicate entries not allowed
-               } else if (prev->producer_name > peer.producer_name) {
-                  return false; // required to be sorted
-               }
-            }
-            if (++producers[peer.producer_name] > 2)
-               return false; // only 2 entries per producer allowed
-            prev = &peer;
-         }
-      }
-
-      controller& cc = my_impl->chain_plug->chain();
-
-      fc::lock_guard g(my_impl->gossip_bps.mtx);
-      auto& sig_idx = my_impl->gossip_bps.index.get<by_sig>();
-      auto& prod_idx = my_impl->gossip_bps.index.get<by_producer>();
-      for (auto i = msg.peers.begin(); i != msg.peers.end();) {
-         const auto& peer = *i;
-         try {
-            if (!sig_idx.contains(peer.sig)) { // we already have it, already verified
-               // peer key may have changed or been removed, so if invalid or not found skip it
-               // todo: when cc.get_peer_key available
-               // if (auto peer_key = cc.get_peer_key(peer.producer_name)) {
-               //    public_key_type pk(peer.sig, peer.digest());
-               //    if (pk != *peer_key) {
-               //       i = msg.peers.erase(i);
-               //       continue;
-               //    }
-               // } else { // unknown key
-               //    i = msg.peers.erase(i);
-               //    continue;
-               // }
-            }
-         } catch (fc::exception& e) {
-            // invalid key
-            i = msg.peers.erase(i);
-            continue;
-         }
-         ++i;
-      }
-
-      return !msg.peers.empty();
-   }
-
    // called from connection strand
    void connection::handle_message( gossip_bp_peers_message& msg ) {
       if (!my_impl->auto_bp_peering_enabled())
          return;
 
-      if (!validate_gossip_bp_peers_message(msg)) {
+      if (!my_impl->validate_gossip_bp_peers_message(msg)) {
          peer_wlog( this, "bad gossip_bp_peers_message, closing");
          no_retry = go_away_reason::fatal_other;
          enqueue( go_away_message( fatal_other ) );
@@ -3849,24 +3784,8 @@ namespace eosio {
          // initial message case, send back our entire collection
          send_gossip_bp_peers_message();
       } else {
-         // providing us with full set
-         fc::lock_guard g(my_impl->gossip_bps.mtx);
-         auto& idx = my_impl->gossip_bps.index.get<by_producer>();
-         bool diff = false;
-         for (const auto& peer : msg.peers) {
-            if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
-               if (*i != peer) {
-                  my_impl->gossip_bps.index.modify(i, [&peer](auto& m) {
-                     m = peer;
-                  });
-                  diff = true;
-               }
-            } else {
-               my_impl->gossip_bps.index.insert(peer);
-               diff = true;
-            }
-         }
-         if (msg.peers.size() < idx.size()) { // we have more than sent to us, send back our set
+         auto [diff, size] = my_impl->update_gossip_bps(msg);
+         if (msg.peers.size() < size) { // we have more than sent to us, send back our set
             send_gossip_bp_peers_message();
          }
          if (diff) { // update, let all our peers know about it
@@ -3879,7 +3798,7 @@ namespace eosio {
    void connection::send_gossip_bp_peers_initial_message() {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->auto_bp_peering_enabled())
          return;
-      auto sb = my_impl->get_initial_send_buffer();
+      auto sb = my_impl->get_gossip_bp_initial_send_buffer();
       enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
    }
 
@@ -3888,7 +3807,7 @@ namespace eosio {
    void connection::send_gossip_bp_peers_message() {
       assert(protocol_version >= proto_gossip_bp_peers);
       gossip_buffer_factory factory;
-      auto sb = factory.get_send_buffer(my_impl->gossip_bps);
+      const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
       enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
    }
 
@@ -3898,7 +3817,7 @@ namespace eosio {
          gossip_buffer_factory factory;
          if (this != c.get() && c->is_bp_connection && c->socket_is_open()) {
             assert(c->protocol_version >= proto_gossip_bp_peers);
-            const send_buffer_type& sb = factory.get_send_buffer(my_impl->gossip_bps);
+            const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
             boost::asio::post(c->strand, [sb, c]() {
                c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
             });
@@ -4617,7 +4536,7 @@ namespace eosio {
          cc.aggregated_vote().connect( broadcast_vote );
          cc.voted_block().connect( broadcast_vote );
 
-         update_bp_producer_peers(cc, gossip_bps, std::set<chain::account_name>{}, get_first_p2p_address());
+         update_bp_producer_peers(cc, std::set<chain::account_name>{}, get_first_p2p_address());
       }
 
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(
