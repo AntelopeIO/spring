@@ -1,5 +1,6 @@
 #include <eosio/net_plugin/net_plugin.hpp>
 #include <eosio/net_plugin/protocol.hpp>
+#include <eosio/net_plugin/net_logger.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 #include <eosio/chain/types.hpp>
@@ -75,18 +76,6 @@ namespace eosio {
 
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
-
-   const std::string logger_name("net_plugin_impl");
-   fc::logger logger;
-   std::string peer_log_format;
-
-   template <typename Strand>
-   void verify_strand_in_this_thread(const Strand& strand, const char* func, int line) {
-      if( !strand.running_in_this_thread() ) {
-         fc_elog( logger, "wrong strand: ${f} : line ${n}, exiting", ("f", func)("n", line) );
-         app().quit();
-      }
-   }
 
    struct node_transaction_state {
       transaction_id_type id;
@@ -535,39 +524,6 @@ namespace eosio {
 
       std::string empty{};
    }; //net_plugin_impl
-
-   // peer_[x]log must be called from thread in connection strand
-#define peer_dlog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::debug ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( debug, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_ilog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::info ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( info, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_wlog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::warn ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( warn, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_elog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::error ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( error, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
 
 
    template<class enum_type, class=typename std::enable_if<std::is_enum<enum_type>::value>::type>
