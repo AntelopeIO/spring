@@ -72,7 +72,6 @@ namespace eosio {
 
    using connection_ptr = std::shared_ptr<connection>;
    using connection_wptr = std::weak_ptr<connection>;
-   using send_buffer_type = std::shared_ptr<std::vector<char>>;
 
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
@@ -241,37 +240,6 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
-
-   constexpr auto     message_header_size = sizeof(uint32_t);
-
-   // see protocol net_message
-   enum class msg_type_t {
-      handshake_message      = fc::get_index<net_message, handshake_message>(),
-      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
-      go_away_message        = fc::get_index<net_message, go_away_message>(),
-      time_message           = fc::get_index<net_message, time_message>(),
-      notice_message         = fc::get_index<net_message, notice_message>(),
-      request_message        = fc::get_index<net_message, request_message>(),
-      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
-      signed_block           = fc::get_index<net_message, signed_block>(),
-      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
-      vote_message           = fc::get_index<net_message, vote_message>(),
-      block_nack_message     = fc::get_index<net_message, block_nack_message>(),
-      block_notice_message   = fc::get_index<net_message, block_notice_message>(),
-      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
-      unknown
-   };
-
-   constexpr uint32_t to_index(msg_type_t net_msg) {
-      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
-      return static_cast<uint32_t>(net_msg);
-   }
-
-   constexpr msg_type_t to_msg_type_t(size_t v) {
-      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
-      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
-      return static_cast<msg_type_t>(v);
-   }
 
    class connections_manager {
    public:
@@ -1790,131 +1758,6 @@ namespace eosio {
       }
       return true;
    }
-
-   //------------------------------------------------------------------------
-
-   struct buffer_factory {
-
-      /// caches result for subsequent calls, only provide same net_message instance for each invocation
-      const send_buffer_type& get_send_buffer( const net_message& m ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( m );
-         }
-         return send_buffer;
-      }
-
-   protected:
-      send_buffer_type send_buffer;
-
-   protected:
-      static send_buffer_type create_send_buffer( const net_message& m ) {
-         const uint32_t payload_size = fc::raw::pack_size( m );
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>(buffer_size);
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size);
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, m );
-
-         return send_buffer;
-      }
-
-      template< typename T>
-      static send_buffer_type create_send_buffer( uint32_t which, const T& v ) {
-         // match net_message static_variant pack
-         const uint32_t which_size = fc::raw::pack_size( unsigned_int( which ) );
-         const uint32_t payload_size = which_size + fc::raw::pack_size( v );
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size );
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, unsigned_int( which ) );
-         fc::raw::pack( ds, v );
-
-         return send_buffer;
-      }
-
-      static send_buffer_type create_send_buffer_from_serialized_block( const std::vector<char>& v ) {
-         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
-
-         // match net_message static_variant pack
-         const uint32_t which_size = fc::raw::pack_size( unsigned_int( signed_block_which ) );
-         const uint32_t payload_size = which_size + v.size();
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size );
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, unsigned_int( signed_block_which ) );
-         ds.write( v.data(), v.size() );
-
-         return send_buffer;
-      }
-
-   };
-
-   struct block_buffer_factory : public buffer_factory {
-
-      /// caches result for subsequent calls, only provide same signed_block_ptr instance for each invocation.
-      const send_buffer_type& get_send_buffer( const signed_block_ptr& sb ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( sb );
-         }
-         return send_buffer;
-      }
-
-      const send_buffer_type& get_send_buffer( const std::vector<char>& sb ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( sb );
-         }
-         return send_buffer;
-      }
-
-   private:
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
-         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
-
-         // this implementation is to avoid copy of signed_block to net_message
-         // matches which of net_message for signed_block
-         fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
-         return buffer_factory::create_send_buffer( signed_block_which, *sb );
-      }
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
-         // this implementation is to avoid copy of signed_block to net_message
-         // matches which of net_message for signed_block
-         return buffer_factory::create_send_buffer_from_serialized_block( ssb );
-      }
-   };
-
-   struct trx_buffer_factory : public buffer_factory {
-
-      /// caches result for subsequent calls, only provide same packed_transaction_ptr instance for each invocation.
-      const send_buffer_type& get_send_buffer( const packed_transaction_ptr& trx ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( trx );
-         }
-         return send_buffer;
-      }
-
-   private:
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
-         constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
-
-         // this implementation is to avoid copy of packed_transaction to net_message
-         // matches which of net_message for packed_transaction
-         return buffer_factory::create_send_buffer( packed_transaction_which, *trx );
-      }
-   };
 
    //------------------------------------------------------------------------
 
