@@ -1,6 +1,7 @@
 #pragma once
 
 #include <eosio/net_plugin/net_utils.hpp>
+#include <eosio/net_plugin/buffer_factory.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 
 #include <boost/algorithm/string.hpp>
@@ -30,10 +31,14 @@ class bp_connection_manager {
    } config; // thread safe only because modified at plugin startup currently
 
    // the following member are only accessed from main thread
+   flat_set<account_name> my_bp_peer_accounts;
    flat_set<account_name> pending_configured_bps;
    flat_set<account_name> active_configured_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
+
+   fc::mutex                     factory_mtx;
+   gossip_buffer_initial_factory initial_gossip_msg_factory GUARDED_BY(factory_mtx);
 
    Derived*       self() { return static_cast<Derived*>(this); }
    const Derived* self() const { return static_cast<const Derived*>(this); }
@@ -57,7 +62,7 @@ class bp_connection_manager {
    }
 
  public:
-   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty(); }
+   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() && !my_bp_peer_accounts.empty(); }
 
    // Only called at plugin startup
    void set_producer_accounts(const std::set<account_name>& accounts) {
@@ -93,22 +98,64 @@ class bp_connection_manager {
       }
    }
 
+   send_buffer_type get_initial_send_buffer() {
+      fc::lock_guard g(factory_mtx);
+      return initial_gossip_msg_factory.get_initial_send_buffer();
+   }
+
+   // Only called at plugin startup
+   void set_bp_producer_peers(const std::vector<std::string>& peers) {
+      for (const auto& entry : peers) {
+         try {
+            my_bp_peer_accounts.emplace(chain::name(entry));
+         } catch (chain::name_type_exception&) {
+            EOS_ASSERT(false, chain::plugin_config_exception,
+                       "the producer ${p} supplied by --p2p-producer-peer option is invalid", ("p", entry));
+         }
+      }
+   }
+
+   // Called at startup and when peer key changes
+   // empty modified_keys means to update all
+   void update_bp_producer_peers(const chain::controller& cc, gossip_bp_index_t& gossip_bp_index,
+                                 const std::set<account_name>& modified_keys, const std::string& server_address)
+   {
+      if (my_bp_peer_accounts.empty())
+         return;
+      fc::lock_guard g(gossip_bp_index.mtx);
+      // normally only one bp peer account except in testing scenarios or test chains
+      bool first = true;
+      for (const auto& e : my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
+         if (modified_keys.empty() || modified_keys.contains(e)) {
+            //todo: auto pk = cc.get_peer_key(e);
+            std::optional<public_key_type> pk; // todo
+            // EOS_ASSERT can only be hit on plugin startup, otherwise this method called with modified_keys that are in cc.get_peer_key()
+            EOS_ASSERT(pk, chain::plugin_config_exception, "No on-chain peer key found for ${n}", ("n", e));
+            if (first) {
+               gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
+               signed_empty.sig = self()->sign_compact(*pk, signed_empty.digest());
+               fc::lock_guard lck(factory_mtx);
+               initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
+            }
+            auto& prod_idx = gossip_bp_index.index.get<by_producer>();
+            gossip_bp_peers_message::bp_peer peer{.producer_name = e, .server_address = server_address};
+            peer.sig = self()->sign_compact(*pk, peer.digest());
+            if (auto i = prod_idx.find(boost::make_tuple(e, boost::cref(server_address))); i != prod_idx.end()) {
+               gossip_bp_index.index.modify(i, [&peer](auto& v) {
+                  v = peer;
+               });
+            } else {
+               gossip_bp_index.index.emplace(peer);
+            }
+         }
+         first = false;
+      }
+   }
+
    // Only called at plugin startup
    template <typename T>
    void for_each_bp_peer_address(T&& fun) const {
       for (auto& [_, addr] : config.bp_peer_addresses) { fun(addr); }
-   }
-
-   // Only called from connection strand and the connection constructor
-   void mark_bp_connection(Connection* conn) const {
-      /// mark an connection as a bp connection if it connects to an address in the bp peer list, so that the connection
-      /// won't be subject to the limit of max_client_count.
-      auto space_pos = conn->log_p2p_address.find(' ');
-      // log_p2p_address always has a trailing hex like `localhost:9877 - bc3f55b`
-      std::string addr = conn->log_p2p_address.substr(0, space_pos);
-      if (config.bp_peer_accounts.count(addr)) {
-         conn->is_bp_connection = true;
-      }
    }
 
    // Only called from connection strand

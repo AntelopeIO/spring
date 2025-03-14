@@ -7,6 +7,8 @@ namespace eosio {
    using namespace chain;
    using namespace fc;
 
+   constexpr auto message_header_size = sizeof(uint32_t);
+
    struct chain_size_message {
       uint32_t                   last_irreversible_block_num = 0;
       block_id_type              last_irreversible_block_id;
@@ -139,16 +141,13 @@ namespace eosio {
       struct bp_peer {
          eosio::name               producer_name;
          std::string               server_address;
-         std::vector<std::string>  proposer_peers;  // size limit 2
-         std::vector<std::string>  finalizer_peers; // size limit 2
-         // sig over [producer_name, server_address, proposer_peers, finalizer_peers]
+         // sig over [producer_name, server_address]
          signature_type            sig;
 
          digest_type digest() const;
          bool operator==(const bp_peer&) const = default;
          bool operator<(const bp_peer& rhs) const {
-            return std::tie(producer_name, server_address, proposer_peers, finalizer_peers) <
-                   std::tie(rhs.producer_name, rhs.server_address, rhs.proposer_peers, rhs.finalizer_peers);
+            return std::tie(producer_name, server_address) < std::tie(rhs.producer_name, rhs.server_address);
          }
       };
 
@@ -169,6 +168,35 @@ namespace eosio {
                                     block_notice_message,
                                     gossip_bp_peers_message>;
 
+   // see protocol net_message
+   enum class msg_type_t {
+      handshake_message      = fc::get_index<net_message, handshake_message>(),
+      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
+      go_away_message        = fc::get_index<net_message, go_away_message>(),
+      time_message           = fc::get_index<net_message, time_message>(),
+      notice_message         = fc::get_index<net_message, notice_message>(),
+      request_message        = fc::get_index<net_message, request_message>(),
+      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
+      signed_block           = fc::get_index<net_message, signed_block>(),
+      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
+      vote_message           = fc::get_index<net_message, vote_message>(),
+      block_nack_message     = fc::get_index<net_message, block_nack_message>(),
+      block_notice_message   = fc::get_index<net_message, block_notice_message>(),
+      gossip_bp_peers_message= fc::get_index<net_message, gossip_bp_peers_message>(),
+      unknown
+   };
+
+   constexpr uint32_t to_index(msg_type_t net_msg) {
+      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
+      return static_cast<uint32_t>(net_msg);
+   }
+
+   constexpr msg_type_t to_msg_type_t(size_t v) {
+      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
+      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
+      return static_cast<msg_type_t>(v);
+   }
+
 } // namespace eosio
 
 FC_REFLECT( eosio::select_ids<fc::sha256>, (mode)(pending)(ids) )
@@ -188,7 +216,7 @@ FC_REFLECT( eosio::request_message, (req_trx)(req_blocks) )
 FC_REFLECT( eosio::sync_request_message, (start_block)(end_block) )
 FC_REFLECT( eosio::block_nack_message, (id) )
 FC_REFLECT( eosio::block_notice_message, (previous)(id) )
-FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(proposer_peers)(finalizer_peers)(sig) )
+FC_REFLECT( eosio::gossip_bp_peers_message::bp_peer, (producer_name)(server_address)(sig) )
 FC_REFLECT( eosio::gossip_bp_peers_message, (peers) )
 
 /**
