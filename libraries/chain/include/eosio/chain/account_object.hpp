@@ -4,6 +4,7 @@
 #include <eosio/chain/code_object.hpp>
 #include <eosio/chain/block_timestamp.hpp>
 #include <eosio/chain/abi_def.hpp>
+#include <eosio/chain/snapshot.hpp>
 
 #include "multi_index_includes.hpp"
 
@@ -44,6 +45,12 @@ namespace eosio { namespace chain {
       >
    >;
 
+   namespace detail {
+      template<> struct snapshot_index_order_traits<account_object> {
+         using write_order = by_name;
+      };
+   }
+
    class account_metadata_object : public chainbase::object<account_metadata_object_type, account_metadata_object>
    {
       OBJECT_CTOR(account_metadata_object);
@@ -80,6 +87,12 @@ namespace eosio { namespace chain {
       >
    >;
 
+   namespace detail {
+      template<> struct snapshot_index_order_traits<account_metadata_object> {
+         using write_order = by_name;
+      };
+   }
+
    class account_ram_correction_object : public chainbase::object<account_ram_correction_object_type, account_ram_correction_object>
    {
       OBJECT_CTOR(account_ram_correction_object);
@@ -97,6 +110,12 @@ namespace eosio { namespace chain {
          ordered_unique<tag<by_name>, member<account_ram_correction_object, account_name, &account_ram_correction_object::name>>
       >
    >;
+
+   namespace detail {
+      template<> struct snapshot_index_order_traits<account_ram_correction_object> {
+         using write_order = by_name;
+      };
+   }
 
 } } // eosio::chain
 

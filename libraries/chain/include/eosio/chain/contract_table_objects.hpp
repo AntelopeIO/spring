@@ -216,6 +216,14 @@ namespace eosio { namespace chain {
       }
    };
 
+#define DECLARE_TABLE_WRITE_ORDER( object, tag ) \
+   namespace detail { \
+      template<> struct snapshot_index_order_traits<object> { \
+         using write_order = tag; \
+      }; \
+   }
+
+#if 0
    /**
     * helper template to map from an index type to the best tag
     * to use when traversing by table_id
@@ -238,6 +246,14 @@ namespace eosio { namespace chain {
 
    template<typename T>
    using object_to_table_id_tag_t = typename object_to_table_id_tag<T>::tag_type;
+#endif
+
+   DECLARE_TABLE_WRITE_ORDER(key_value_object, by_scope_primary)
+   DECLARE_TABLE_WRITE_ORDER(index64_object, by_secondary)
+   DECLARE_TABLE_WRITE_ORDER(index128_object, by_secondary)
+   DECLARE_TABLE_WRITE_ORDER(index256_object, by_secondary)
+   DECLARE_TABLE_WRITE_ORDER(index_double_object, by_secondary)
+   DECLARE_TABLE_WRITE_ORDER(index_long_double_object, by_secondary)
 
 namespace config {
    template<>

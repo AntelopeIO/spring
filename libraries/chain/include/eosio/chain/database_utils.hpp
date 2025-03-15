@@ -60,6 +60,11 @@ namespace eosio::chain {
          static void create( chainbase::database& db, F cons ) {
             db.create<typename index_t::value_type>(cons);
          }
+
+         template<typename T, typename F>
+         static void create_in_order( chainbase::database& db, F cons ) {
+            db.create_in_order<T, typename index_t::value_type>(cons);
+         }
    };
 
    template<typename Index>

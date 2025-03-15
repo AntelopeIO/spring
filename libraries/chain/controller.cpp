@@ -2109,7 +2109,7 @@ struct controller_impl {
       contract_database_index_set::walk_indices([this, &snapshot, &row_counter]( auto utils ) {
          using utils_t = decltype(utils);
          using value_t = typename decltype(utils)::index_t::value_type;
-         using by_table_id = object_to_table_id_tag_t<value_t>;
+         using by_table_id = detail::snapshot_index_order_traits<value_t>::write_order;
 
          snapshot->write_section<value_t>([this, &row_counter]( auto& section ) {
             table_id flattened_table_id = -1; //first table id will be assigned 0 by chainbase
@@ -2176,6 +2176,7 @@ struct controller_impl {
       contract_database_index_set::walk_indices_via_post(ctx, [this, &snapshot, &read_row_count]( auto utils ) {
          using utils_t = decltype(utils);
          using value_t = typename decltype(utils)::index_t::value_type;
+         using ordered_by = detail::snapshot_index_order_traits<value_t>::write_order;
 
          snapshot->read_section<value_t>([this, &read_row_count]( auto& section ) {
             bool more = !section.empty();
@@ -2188,7 +2189,7 @@ struct controller_impl {
                read_row_count.fetch_add(2u, std::memory_order_relaxed);
 
                for(size_t idx = 0; idx < rows_for_this_tid.value; idx++) {
-                  utils_t::create(db, [this, &section, &more, &t_id](auto& row) {
+                  utils_t::template create_in_order<ordered_by>(db, [this, &section, &more, &t_id](auto& row) {
                      row.t_id = t_id;
                      more = section.read_row(row, db);
                   });
@@ -2251,7 +2252,7 @@ struct controller_impl {
          }
 
          snapshot->write_section<value_t>([this, &row_counter]( auto& section ){
-            decltype(utils)::walk(db, [this, &section, &row_counter]( const auto &row ) {
+            decltype(utils)::template walk_by<typename detail::snapshot_index_order_traits<value_t>::write_order>(db, [this, &section, &row_counter]( const auto &row ) {
                section.add_row(row, db);
                row_counter.progress();
             });
@@ -2437,7 +2438,7 @@ struct controller_impl {
          snapshot->read_section<value_t>([this,&rows_loaded]( auto& section ) {
             bool more = !section.empty();
             while(more) {
-               decltype(utils)::create(db, [this, &section, &more]( auto &row ) {
+               decltype(utils)::template create_in_order<typename detail::snapshot_index_order_traits<value_t>::write_order>(db, [this, &section, &more]( auto &row ) {
                   more = section.read_row(row, db);
                });
                rows_loaded.fetch_add(1u, std::memory_order_relaxed);

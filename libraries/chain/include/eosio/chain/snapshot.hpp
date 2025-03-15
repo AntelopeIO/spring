@@ -2,6 +2,7 @@
 
 #include <eosio/chain/database_utils.hpp>
 #include <eosio/chain/exceptions.hpp>
+#include <eosio/chain/multi_index_includes.hpp>
 #include <fc/variant_object.hpp>
 #include <fc/io/random_access_file.hpp>
 #include <boost/core/demangle.hpp>
@@ -21,6 +22,11 @@ namespace eosio { namespace chain {
          static std::string section_name() {
             return boost::core::demangle(typeid(T).name());
          }
+      };
+
+      template<typename Index>
+      struct snapshot_index_order_traits {
+         using write_order = by_id;
       };
 
       template<typename T>
