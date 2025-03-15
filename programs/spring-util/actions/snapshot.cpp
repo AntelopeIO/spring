@@ -114,8 +114,7 @@ int snapshot_actions::run_info() {
       });
    }
 
-   std::cout << json::to_pretty_string(mutable_variant_object()("major_version", header.version)
-                                                               ("minor_version", 0)
+   std::cout << json::to_pretty_string(mutable_variant_object()("version", header.version)
                                                                ("chain_id", chain_id)
                                                                ("head_block_id", head_block)
                                                                ("head_block_num", block_header::num_from_id(head_block))

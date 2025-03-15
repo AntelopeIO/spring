@@ -14,8 +14,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v2.bin.gz",
         "result": {
-            "major_version": 2,
-            "minor_version": 0,
+            "version": 2,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
@@ -25,8 +24,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v3.bin.gz",
         "result": {
-            "major_version": 3,
-            "minor_version": 0,
+            "version": 3,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
@@ -36,8 +34,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v4.bin.gz",
         "result": {
-            "major_version": 4,
-            "minor_version": 0,
+            "version": 4,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
@@ -47,8 +44,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v5.bin.gz",
         "result": {
-            "major_version": 5,
-            "minor_version": 0,
+            "version": 5,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
@@ -58,8 +54,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v6.bin.gz",
         "result": {
-            "major_version": 6,
-            "minor_version": 0,
+            "version": 6,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
@@ -69,8 +64,7 @@ expected_results = [
     {
         "file": "unittests/snapshots/snap_v8.bin.gz",
         "result": {
-            "major_version": 8,
-            "minor_version": 0,
+            "version": 8,
             "chain_id": "90d8c7436017001e64891e8b6b7eb0060baeb350048eb52d2cdb594fdbc2617d",
             "head_block_id": "00000003ad205c959e2af857e2cc621d00a63c3df2b82d38392d5dd162b1c511",
             "head_block_num": 3,
