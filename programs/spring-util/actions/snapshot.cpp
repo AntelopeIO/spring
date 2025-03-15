@@ -3,8 +3,6 @@
 #include <eosio/chain/block_log.hpp>
 #include <eosio/chain/config.hpp>
 #include <eosio/chain/controller.hpp>
-#include <eosio/chain/snapshot_detail.hpp>
-#include <eosio/chain/global_property_object.hpp>
 
 #include <memory>
 
