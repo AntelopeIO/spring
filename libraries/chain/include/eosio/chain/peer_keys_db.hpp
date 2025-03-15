@@ -31,7 +31,7 @@ public:
 private:
    std::optional<uint64_t> _get_version(const chainbase::database& db);
 
-   bool               _active;               // if not active (the default), no update occurs
+   bool               _active = false;       // if not active (the default), no update occurs
    uint32_t           _block_num = 0;        // below map includes keys registered up to _block_num (inclusive)
    mutable fc::mutex  _m;
    peer_key_map_t     _peer_key_map GUARDED_BY(_m);
