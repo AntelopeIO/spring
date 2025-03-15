@@ -456,4 +456,6 @@ namespace eosio { namespace chain {
       const size_t total = 0;
       time_t last_print = time(NULL);
    };
+
+   fc::variant snapshot_info(snapshot_reader& snapshot);
 }}
