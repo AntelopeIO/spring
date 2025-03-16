@@ -431,6 +431,30 @@ extern const char* const state_history_plugin_abi = R"({
             ]
         },
         {
+            "name": "chain_config_v2", "fields": [
+                { "type": "uint64", "name": "max_block_net_usage" },
+                { "type": "uint32", "name": "target_block_net_usage_pct" },
+                { "type": "uint32", "name": "max_transaction_net_usage" },
+                { "type": "uint32", "name": "base_per_transaction_net_usage" },
+                { "type": "uint32", "name": "net_usage_leeway" },
+                { "type": "uint32", "name": "context_free_discount_net_usage_num" },
+                { "type": "uint32", "name": "context_free_discount_net_usage_den" },
+                { "type": "uint32", "name": "max_block_cpu_usage" },
+                { "type": "uint32", "name": "target_block_cpu_usage_pct" },
+                { "type": "uint32", "name": "max_transaction_cpu_usage" },
+                { "type": "uint32", "name": "min_transaction_cpu_usage" },
+                { "type": "uint32", "name": "max_transaction_lifetime" },
+                { "type": "uint32", "name": "deferred_trx_expiration_window" },
+                { "type": "uint32", "name": "max_transaction_delay" },
+                { "type": "uint32", "name": "max_inline_action_size" },
+                { "type": "uint16", "name": "max_inline_action_depth" },
+                { "type": "uint16", "name": "max_authority_depth" },
+                { "type": "uint32", "name": "max_action_return_value_size" },
+                { "type": "uint32", "name": "max_sync_call_depth" },
+                { "type": "uint32", "name": "max_sync_call_data_size" }
+            ]
+        },
+        {
             "name": "wasm_config_v0", "fields": [
                 { "type": "uint32", "name": "max_mutable_global_bytes" },
                 { "type": "uint32", "name": "max_table_elements" },
@@ -698,7 +722,7 @@ extern const char* const state_history_plugin_abi = R"({
         { "name": "contract_index256", "types": ["contract_index256_v0"] },
         { "name": "contract_index_double", "types": ["contract_index_double_v0"] },
         { "name": "contract_index_long_double", "types": ["contract_index_long_double_v0"] },
-        { "name": "chain_config", "types": ["chain_config_v0", "chain_config_v1"] },
+        { "name": "chain_config", "types": ["chain_config_v0", "chain_config_v1", "chain_config_v2"] },
         { "name": "wasm_config", "types": ["wasm_config_v0"] },
         { "name": "global_property", "types": ["global_property_v0", "global_property_v1"] },
         { "name": "generated_transaction", "types": ["generated_transaction_v0"] },
