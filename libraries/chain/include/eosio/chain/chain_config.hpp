@@ -288,7 +288,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
 
    //initial requirements were to skip packing field if it is not activated.
    //this approach allows to spam this function with big buffer so changing this behavior
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -366,7 +366,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
    //When the protocol feature is not activated, the old version of nodeos that doesn't know about 
    //the entry MUST behave the same as the new version of nodeos that does.
    //Skipping known but unactivated entries violates this.
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
    
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -398,7 +398,7 @@ inline DataStream &operator<<(DataStream &s, const eosio::chain::data_entry<eosi
    //When the protocol feature is not activated, the old version of nodeos that doesn't know about
    //the entry MUST behave the same as the new version of nodeos that does.
    //Skipping known but unactivated entries violates this.
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v2::max_sync_call_depth_id:
@@ -426,7 +426,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v0, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), eosio::chain::unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v0::max_block_net_usage_id:
@@ -498,7 +498,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v1, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v1::max_action_return_value_size_id:
@@ -523,7 +523,7 @@ template <typename DataStream>
 inline DataStream &operator>>(DataStream &s, eosio::chain::data_entry<eosio::chain::chain_config_v2, eosio::chain::config_entry_validator> &entry){
    using namespace eosio::chain;
 
-   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is no allowed", ("id", entry.id));
+   EOS_ASSERT(entry.is_allowed(), unsupported_feature, "config id ${id} is not allowed", ("id", entry.id));
 
    switch (entry.id){
       case chain_config_v2::max_sync_call_depth_id:
