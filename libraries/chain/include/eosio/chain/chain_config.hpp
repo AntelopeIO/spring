@@ -225,13 +225,6 @@ struct chain_config_v2 : chain_config_v1 {
       return !(lhs == rhs);
    }
 
-   /*
-   inline chain_config_v2& operator= (const Base& b) {
-      Base::operator= (b);
-      return *this;
-   }
-   */
-
    inline chain_config_v2& operator= (const chain_config_v0& b) {
       chain_config_v0::operator= (b);
       return *this;

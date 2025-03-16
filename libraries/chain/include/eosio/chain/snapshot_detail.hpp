@@ -140,7 +140,7 @@ namespace eosio::chain::snapshot_detail {
 
    struct snapshot_block_state_data_v8 {
       static constexpr uint32_t minimum_version = 8;
-      static constexpr uint32_t maximum_version = 8;
+      static constexpr uint32_t maximum_version = 9;
 
       std::optional<snapshot_block_header_state_legacy_v3> bs_l;
       std::optional<snapshot_block_state_v8>               bs;

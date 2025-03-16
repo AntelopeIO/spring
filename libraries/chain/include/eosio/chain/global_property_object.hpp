@@ -66,9 +66,23 @@ namespace eosio::chain {
 
          std::optional<block_num_type>       proposed_schedule_block_num;
          producer_authority_schedule         proposed_schedule;
-         chain_config                        configuration;
+         chain_config_v1                     configuration;
          chain_id_type                       chain_id;
          kv_database_config                  kv_configuration;
+         wasm_config                         wasm_configuration;
+      };
+      struct snapshot_global_property_object_v6 {
+         // minimum_version and maximum_version refer to chain_snapshot_header
+         // version. snapshot_global_property_object_v6 applies to version 7 & 8
+         static constexpr uint32_t minimum_version = 7;
+         static constexpr uint32_t maximum_version = 8;
+         static_assert(chain_snapshot_header::minimum_compatible_version <= maximum_version,
+                       "snapshot_global_property_object_v6 is no longer needed");
+
+         std::optional<block_num_type>       proposed_schedule_block_num;
+         producer_authority_schedule         proposed_schedule;
+         chain_config_v1                     configuration;
+         chain_id_type                       chain_id;
          wasm_config                         wasm_configuration;
       };
    }
@@ -113,7 +127,7 @@ namespace eosio::chain {
          }
       }
 
-      // For snapshot_global_property_object v3, v4, and v5
+      // For snapshot_global_property_object v3, v4, v5, and v6
       template<typename T>
       void initialize_from( const T& legacy ) {
          initialize_from(legacy, legacy.chain_id);
@@ -205,6 +219,10 @@ FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v4,
 
 FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v5,
             (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(kv_configuration)(wasm_configuration)
+          )
+
+FC_REFLECT(eosio::chain::legacy::snapshot_global_property_object_v6,
+            (proposed_schedule_block_num)(proposed_schedule)(configuration)(chain_id)(wasm_configuration)
           )
 
 FC_REFLECT(eosio::chain::snapshot_global_property_object,

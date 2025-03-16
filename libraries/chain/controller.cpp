@@ -2381,6 +2381,7 @@ struct controller_impl {
             using v3 = legacy::snapshot_global_property_object_v3;
             using v4 = legacy::snapshot_global_property_object_v4;
             using v5 = legacy::snapshot_global_property_object_v5;
+            using v6 = legacy::snapshot_global_property_object_v6;
 
             if (std::clamp(header.version, v2::minimum_version, v2::maximum_version) == header.version ) {
                std::optional<genesis_state> genesis = extract_legacy_genesis_state(*snapshot, header.version);
@@ -2425,6 +2426,18 @@ struct controller_impl {
             if (std::clamp(header.version, v5::minimum_version, v5::maximum_version) == header.version) {
                snapshot->read_section<global_property_object>([&db = this->db](auto& section) {
                   v5 legacy_global_properties;
+                  section.read_row(legacy_global_properties, db);
+
+                  db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
+                     gpo.initialize_from(legacy_global_properties);
+                  });
+               });
+               return; // early out to avoid default processing
+            }
+
+            if (std::clamp(header.version, v6::minimum_version, v6::maximum_version) == header.version) {
+               snapshot->read_section<global_property_object>([&db = this->db](auto& section) {
+                  v6 legacy_global_properties;
                   section.read_row(legacy_global_properties, db);
 
                   db.create<global_property_object>([&legacy_global_properties](auto& gpo) {
@@ -6013,6 +6026,7 @@ chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
 
    using v4 = legacy::snapshot_global_property_object_v4;
    using v5 = legacy::snapshot_global_property_object_v5;
+   using v6 = legacy::snapshot_global_property_object_v6;
    if (header.version <= v4::maximum_version) {
       snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
          v4 global_properties;
@@ -6023,6 +6037,13 @@ chain_id_type controller::extract_chain_id(snapshot_reader& snapshot) {
    else if (header.version <= v5::maximum_version) {
       snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
          v5 global_properties;
+         section.read_row(global_properties);
+         chain_id = global_properties.chain_id;
+      });
+   }
+   else if (header.version <= v6::maximum_version) {
+      snapshot.read_section<global_property_object>([&chain_id]( auto &section ){
+         v6 global_properties;
          section.read_row(global_properties);
          chain_id = global_properties.chain_id;
       });
