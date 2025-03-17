@@ -29,7 +29,7 @@ struct gossip_bp_index_t {
 
    alignas(hardware_destructive_interference_sz)
    mutable fc::mutex                mtx;
-   gossip_bps_index_container_t     index GUARDED_BY(mtx);;
+   gossip_bps_index_container_t     index GUARDED_BY(mtx);
 };
 
 

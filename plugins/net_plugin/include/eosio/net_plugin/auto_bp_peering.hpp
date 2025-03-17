@@ -25,18 +25,20 @@ class bp_connection_manager {
    using flat_map = chain::flat_map<Key, Value>;
    template <typename T>
    using flat_set = chain::flat_set<T>;
-   struct config_t {
-      flat_map<account_name, std::string> bp_peer_addresses;
-      flat_map<std::string, account_name> bp_peer_accounts;
-      flat_set<account_name> my_bp_accounts;
-   } config; // thread safe only because modified at plugin startup currently
 
    gossip_bp_index_t      gossip_bps;
 
-   // the following member are only accessed from main thread
-   flat_set<account_name> my_bp_peer_accounts;
-   flat_set<account_name> pending_configured_bps;
-   flat_set<account_name> active_configured_bps;
+   // the following members are thread-safe, only modified during plugin startup
+   struct config_t {
+      flat_map<account_name, std::string> bp_peer_addresses;
+      flat_map<std::string, account_name> bp_peer_accounts;
+      flat_set<account_name> my_bp_accounts;       // block producer --producer-name
+      flat_set<account_name> my_bp_peer_accounts;  // peer key account --p2p-producer-peer
+   } config; // thread safe only because modified at plugin startup currently
+
+   // the following members are only accessed from main thread
+   flat_set<account_name> pending_bps;
+   flat_set<account_name> active_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
 
@@ -52,20 +54,22 @@ class bp_connection_manager {
    }
 
    // Only called from main thread
-   chain::flat_set<account_name> configured_bp_accounts(const config_t& config,
-                                                        const std::vector<chain::producer_authority>& schedule) const
+   chain::flat_set<account_name> bp_accounts(const std::vector<chain::producer_authority>& schedule) const
    {
+
+      fc::lock_guard g(gossip_bps.mtx);
+      auto& prod_idx = gossip_bps.index.get<by_producer>();
       chain::flat_set<account_name> result;
       for (const auto& auth : schedule) {
-         if (config.bp_peer_addresses.contains(auth.producer_name)) {
+         if (config.bp_peer_addresses.contains(auth.producer_name) || prod_idx.contains(auth.producer_name))
             result.insert(auth.producer_name);
-         }
       }
       return result;
    }
 
- public:
-   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() && !my_bp_peer_accounts.empty(); }
+public:
+   bool auto_bp_peering_enabled() const { return !config.bp_peer_addresses.empty() || !config.my_bp_peer_accounts.empty(); }
+   bool bp_gossip_enabled() const { return !config.my_bp_peer_accounts.empty(); }
 
    // Only called at plugin startup
    void set_producer_accounts(const std::set<account_name>& accounts) {
@@ -78,7 +82,8 @@ class bp_connection_manager {
    }
 
    // Only called at plugin startup
-   void set_bp_peers(const std::vector<std::string>& peers) {
+   void set_configured_bp_peers(const std::vector<std::string>& peers) {
+      fc::lock_guard g(gossip_bps.mtx);
       for (const auto& entry : peers) {
          try {
             auto comma_pos = entry.find(',');
@@ -90,10 +95,9 @@ class bp_connection_manager {
             EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
                         "Invalid p2p-auto-bp-peer ${p}, syntax host:port:[trx|blk]", ("p", addr));
 
+            fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}", ("a", account)("d", addr));
             config.bp_peer_accounts[addr]     = account;
             config.bp_peer_addresses[account] = std::move(addr);
-            fc_dlog(self()->get_logger(), "Setting p2p-auto-bp-peer ${a} -> ${d}",
-                    ("a", account)("d", config.bp_peer_addresses[account]));
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "the account ${a} supplied by --p2p-auto-bp-peer option is invalid", ("a", entry));
@@ -101,20 +105,20 @@ class bp_connection_manager {
       }
    }
 
-   send_buffer_type get_gossip_bp_initial_send_buffer() {
-      fc::lock_guard g(factory_mtx);
-      return initial_gossip_msg_factory.get_initial_send_buffer();
-   }
-
-   send_buffer_type get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
-      return factory.get_send_buffer(gossip_bps);
+   // Only called at plugin startup
+   template <typename T>
+   void for_each_bp_peer_address(T&& fun) const {
+      fc::lock_guard g(gossip_bps.mtx);
+      for (const auto& bp_peer : gossip_bps.index) {
+         fun(bp_peer.server_address);
+      }
    }
 
    // Only called at plugin startup
    void set_bp_producer_peers(const std::vector<std::string>& peers) {
       for (const auto& entry : peers) {
          try {
-            my_bp_peer_accounts.emplace(chain::name(entry));
+            config.my_bp_peer_accounts.emplace(chain::name(entry));
          } catch (chain::name_type_exception&) {
             EOS_ASSERT(false, chain::plugin_config_exception,
                        "the producer ${p} supplied by --p2p-producer-peer option is invalid", ("p", entry));
@@ -126,12 +130,12 @@ class bp_connection_manager {
    // empty modified_keys means to update all
    void update_bp_producer_peers(const chain::controller& cc, const std::set<account_name>& modified_keys, const std::string& server_address)
    {
-      if (my_bp_peer_accounts.empty())
+      if (config.my_bp_peer_accounts.empty())
          return;
       fc::lock_guard g(gossip_bps.mtx);
       // normally only one bp peer account except in testing scenarios or test chains
       bool first = true;
-      for (const auto& e : my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
+      for (const auto& e : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          if (modified_keys.empty() || modified_keys.contains(e)) {
             //todo: auto pk = cc.get_peer_key(e);
             std::optional<public_key_type> pk; // todo
@@ -158,16 +162,31 @@ class bp_connection_manager {
       }
    }
 
-   // Only called at plugin startup
-   template <typename T>
-   void for_each_bp_peer_address(T&& fun) const {
-      for (auto& [_, addr] : config.bp_peer_addresses) { fun(addr); }
+   // Only called from connection strand and the connection constructor
+   void mark_configured_bp_connection(Connection* conn) const {
+      /// mark an connection as a configured bp connection if it connects to an address in the bp peer list,
+      /// so that the connection won't be subject to the limit of max_client_count.
+      auto space_pos = conn->log_p2p_address.find(' ');
+      // log_p2p_address always has a trailing hex like `localhost:9877 - bc3f55b`
+      std::string addr = conn->log_p2p_address.substr(0, space_pos);
+      if (config.bp_peer_accounts.count(addr)) {
+         conn->is_configured_bp_connection = true;
+      }
    }
 
    // Only called from connection strand
    template <typename Conn>
    static bool established_client_connection(Conn&& conn) {
-      return !conn->is_bp_connection && conn->socket_is_open() && conn->incoming_and_handshake_received();
+      return !conn->is_gossip_bp_connection && !conn->is_configured_bp_connection && conn->socket_is_open() && conn->incoming_and_handshake_received();
+   }
+
+   send_buffer_type get_gossip_bp_initial_send_buffer() {
+      fc::lock_guard g(factory_mtx);
+      return initial_gossip_msg_factory.get_initial_send_buffer();
+   }
+
+   send_buffer_type get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
+      return factory.get_send_buffer(gossip_bps);
    }
 
    // Only called from connection strand
@@ -286,20 +305,32 @@ class bp_connection_manager {
                fc_dlog(self()->get_logger(), "pending producer schedule switches from version ${old} to ${new}",
                        ("old", pending_schedule_version)("new", schedule.version));
 
-               auto pending_connections = configured_bp_accounts(config, schedule.producers);
+               auto pending_connections = bp_accounts(schedule.producers);
 
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
+
                for (const auto& i : pending_connections) {
                   self()->connections.resolve_and_connect(config.bp_peer_addresses[i], self()->get_first_p2p_address() );
                }
+               fc::lock_guard g(gossip_bps.mtx);
+               auto& prod_idx = gossip_bps.index.get<by_producer>();
+               for (const auto& account : pending_connections) {
+                  if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+                     self()->connections.resolve_and_connect(i->second, self()->get_first_p2p_address() );
+                  }
+                  auto r = prod_idx.equal_range(account);
+                  for (auto i = r.first; i != r.second; ++i) {
+                     self()->connections.resolve_and_connect(i->server_address, self()->get_first_p2p_address() );
+                  }
+               }
 
-               pending_configured_bps = std::move(pending_connections);
+               pending_bps = std::move(pending_connections);
 
                pending_schedule_version = schedule.version;
             }
          } else {
             fc_dlog(self()->get_logger(), "pending producer schedule version ${v} is being cleared", ("v", schedule.version));
-            pending_configured_bps.clear();
+            pending_bps.clear();
          }
       }
    }
@@ -311,13 +342,13 @@ class bp_connection_manager {
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
-         auto old_bps = std::move(active_configured_bps);
-         active_configured_bps   = configured_bp_accounts(config, schedule.producers);
+         auto old_bps = std::move(active_bps);
+         active_bps   = bp_accounts(schedule.producers);
 
-         fc_dlog(self()->get_logger(), "active_configured_bps: ${a}", ("a", to_string(active_configured_bps)));
+         fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
 
          flat_set<account_name> peers_to_stay;
-         std::set_union(active_configured_bps.begin(), active_configured_bps.end(), pending_configured_bps.begin(), pending_configured_bps.end(),
+         std::set_union(active_bps.begin(), active_bps.end(), pending_bps.begin(), pending_bps.end(),
                         std::inserter(peers_to_stay, peers_to_stay.begin()));
 
          fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
@@ -327,8 +358,16 @@ class bp_connection_manager {
                              std::back_inserter(peers_to_drop));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
+         fc::lock_guard g(gossip_bps.mtx);
+         auto& prod_idx = gossip_bps.index.get<by_producer>();
          for (const auto& account : peers_to_drop) {
-            self()->connections.disconnect(config.bp_peer_addresses[account]);
+            if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+               self()->connections.disconnect(i->second);
+            }
+            auto r = prod_idx.equal_range(account);
+            for (auto i = r.first; i != r.second; ++i) {
+               self()->connections.disconnect(i->server_address);
+            }
          }
          active_schedule_version = schedule.version;
       }
