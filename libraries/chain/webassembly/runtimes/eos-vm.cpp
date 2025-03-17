@@ -519,6 +519,7 @@ REGISTER_HOST_FUNCTION(set_action_return_value);
 
 // sync call api. sync calls are not allowed in context-free actions
 REGISTER_HOST_FUNCTION(call);
+REGISTER_HOST_FUNCTION(get_call_return_value);
 REGISTER_HOST_FUNCTION(get_call_data);
 REGISTER_HOST_FUNCTION(set_call_return_value);
 
