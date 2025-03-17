@@ -321,7 +321,7 @@ uint32_t apply_context::get_call_return_value(std::span<char> memory) const {
    const auto copy_size = std::min(memory.size(), data_size);
 
    if (copy_size == 0) {
-      return 0;
+      return data_size;
    }
 
    // Copy up to the length of memory of data to memory
@@ -341,7 +341,7 @@ uint32_t apply_context::get_call_data(std::span<char> memory) const {
    auto        copy_size = std::min(memory.size(), data_size);
 
    if (copy_size == 0) {
-      return 0;
+      return data_size;
    }
 
    // Copy up to the length of memory of data to memory
@@ -361,7 +361,7 @@ void apply_context::set_call_return_value(std::span<const char> return_value) {
               action_return_value_exception,
               "sync call return value size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
 
-   sync_call_ctx->return_value.assign( return_value.data(), return_value.data() + return_value.size() );
+   sync_call_ctx->return_value.assign(return_value.data(), return_value.data() + return_value.size());
 }
 
 bool apply_context::is_account( const account_name& account )const {

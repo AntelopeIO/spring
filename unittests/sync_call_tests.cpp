@@ -31,7 +31,7 @@ static const char sync_call_in_same_account_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $callee) 
    )
 
@@ -91,7 +91,7 @@ static const char callee_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $callee) 
    )
 
@@ -154,7 +154,7 @@ static const char callee1_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $callee) 
    )
 
@@ -176,7 +176,7 @@ static const char callee2_wast[] = R"=====(
    )
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $callee) 
    )
 
@@ -237,7 +237,7 @@ static const char seq_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32))
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
@@ -252,7 +252,7 @@ static const char seq_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $assert (i32.const 0) (i32.const 0))
    )
 
@@ -335,7 +335,7 @@ static const char different_actions_callee1_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $assert (i32.const 0) (i32.const 0))
    )
 
@@ -354,7 +354,7 @@ static const char different_actions_callee2_wast[] = R"=====(
    (export "memory" (memory $0))
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $assert (i32.const 0) (i32.const 0))
    )
 
@@ -423,7 +423,7 @@ static const char recursive_caller_wast[] = R"=====(
 
    ;; called recursively from callee
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $doit (i32.const 0)) ;; argument 0 to request doit to exit
    )
 
@@ -445,7 +445,7 @@ static const char recursive_callee_wast[] = R"=====(
 
    ;; called from caller and calls caller again
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (drop (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 
@@ -499,6 +499,91 @@ BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
    BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
                          action_validate_exception,
                          fc_exception_message_contains("does not exist"));
+} FC_LOG_AND_RETHROW() }
+
+// 1. makes a sync call to the `double` function with argument 1000
+// 2. retrieves the result
+// 3. saves the result in action trace so it can be verified
+static const char basic_params_return_value_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32))) ;; memory
+   (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32)))
+   (memory $0 1)
+   (export "memory" (memory $0))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data_size value as 4 (the last argument)
+      (drop (call $get_call_return_value (i32.const 8)(i32.const 4))) ;; save return value at address 8
+      (call $set_action_return_value (i32.const 8) (i32.const 4))     ;; set the return value to action_return_value so test can check in action trace
+   )
+
+   (data (i32.const 0) "\E8\03\00\00") ;; decimal 1000 in little endian format
+)
+)=====";
+
+// 1. retrieves the argument (1000)
+// 2. passes the argument to `double` function
+// 3. `double` doubles the input and returns the result (2000)
+// 4. saves the result to host (to be retrieved by get_call_return_value in caller)
+static const char basic_params_return_value_callee_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32))) ;; memory
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   ;; multiple the input by 2 and return the result
+   (func $callee (param $n i32) (result i32)
+      get_local $n
+      i32.const 2
+      i32.mul      ;; Multiply $n by 2
+   )
+
+   ;; use get_call_data and set_call_return_value to get argument and store return value
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size)))
+
+      i32.const 16      ;; address to store return value
+      i32.const 0       ;; address of the argument read by get_call_data
+      i32.load          ;; load the argument
+      call $callee
+      i32.store         ;; save the return value at address 16
+
+      (call $set_call_return_value (i32.const 16)(i32.const 4)) ;; store the return value on host
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify basic parameters passing, set and retrieve return value
+BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, basic_params_return_value_caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee = account_name("callee");
+   t.create_account(callee);
+   t.set_code(callee, basic_params_return_value_callee_wast);
+
+   // the test contracts double `1000` and save the result to action_traces
+   auto trx_trace = t.push_action(caller, "doit"_n, caller, {});
+   auto &atrace   = trx_trace->action_traces;
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 2000u);
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
