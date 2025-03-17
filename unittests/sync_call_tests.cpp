@@ -497,7 +497,7 @@ BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
 
    // The caller intends to call a function in "callee"_n account, which is not created. 
    BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
-                         action_validate_exception,
+                         sync_call_validate_exception,
                          fc_exception_message_contains("does not exist"));
 } FC_LOG_AND_RETHROW() }
 

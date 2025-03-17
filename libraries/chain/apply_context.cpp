@@ -253,10 +253,12 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
         ("r", receiver)("f", flags)("s", data.size()));
 
    auto* code = control.db().find<account_object, by_name>(receiver);
-   EOS_ASSERT(code != nullptr, action_validate_exception,
+   EOS_ASSERT(code != nullptr, sync_call_validate_exception,
               "sync call's receiver account ${r} does not exist", ("r", receiver));
-
-   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, action_validate_exception,
+   const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
+              "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
+   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, sync_call_validate_exception,
               "sync call's flags ${f} can only set bit 0", ("f", flags));
 
    auto handle_exception = [&](const auto& e)
@@ -333,7 +335,7 @@ uint32_t apply_context::get_call_return_value(std::span<char> memory) const {
 
 uint32_t apply_context::get_call_data(std::span<char> memory) const {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
-   EOS_ASSERT(sync_call_ctx.has_value(), wasm_serialization_error,
+   EOS_ASSERT(sync_call_ctx.has_value(), sync_call_validate_exception,
               "get_call_data can be only used in sync call");
 
    const auto& data      = sync_call_ctx->data;
@@ -353,12 +355,11 @@ uint32_t apply_context::get_call_data(std::span<char> memory) const {
 
 void apply_context::set_call_return_value(std::span<const char> return_value) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
-   EOS_ASSERT(sync_call_ctx.has_value(), wasm_serialization_error,
+   EOS_ASSERT(sync_call_ctx.has_value(), sync_call_validate_exception,
               "set_call_return_value can be only used in sync call");
 
-   auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
-   EOS_ASSERT(return_value.size() <= max_sync_call_data_size,
-              action_return_value_exception,
+   const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(return_value.size() <= max_sync_call_data_size, sync_call_return_value_exception,
               "sync call return value size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
 
    sync_call_ctx->return_value.assign(return_value.data(), return_value.data() + return_value.size());
