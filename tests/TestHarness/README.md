@@ -1,0 +1,15 @@
+## Files
+- accounts.py -  create the accounts with keys, initialize accounts
+- cluster.py - very important, creates and setups the nodes, launch has lots of config settings and nodes management
+- depresolver.py - ????
+- interface.py - low level socket support needed to support interfaces when launcher was moved from c to python
+- launcher.py - spins up the cluster , called by cluster.py , was c, converted to python
+- libc.py - get access to constants
+- logging.py - contains one function emulate C logging
+- queries.py - API queries , check up on a node
+- Node.py - python representation of a node, and function to interact with a node and state of a node
+- testUtils.py - functions and utilities outside of nodeos or the cluster, for example getting access to a nodes datta directory
+- TestHelper.py - abstracts aways arguments and config into a few lifecycle events
+- TransactionGeneratorsLaunch.py - concurrent load generation by spinning up multiple trx generators
+- transactions.py - refactored , to consolidate transaction logic together
+- WalletMgr.py - python representation of a wallet, uses external wallet manager
