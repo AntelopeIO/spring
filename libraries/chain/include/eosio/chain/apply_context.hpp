@@ -503,6 +503,7 @@ class apply_context {
       void exec_one();
       void exec();
       uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
+      uint32_t get_call_return_value(std::span<char> memory) const;
       uint32_t get_call_data(std::span<char> memory) const;
       void set_call_return_value(std::span<const char> return_value);
       void execute_inline( action&& a );

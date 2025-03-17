@@ -6,8 +6,8 @@ namespace eosio { namespace chain { namespace webassembly {
       return context.execute_sync_call(receiver, flags, data);
    }
 
-   uint32_t interface::get_call_return_value(span<char> /* memory */) const {
-      return 0;
+   uint32_t interface::get_call_return_value(span<char> memory) const {
+      return context.get_call_return_value(memory);;
    }
 
    uint32_t interface::get_call_data(std::span<char> memory) const {

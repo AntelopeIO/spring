@@ -310,6 +310,27 @@ action_name apply_context::get_sync_call_sender() const {
    return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
 }
 
+uint32_t apply_context::get_call_return_value(std::span<char> memory) const {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+
+   if (!sync_call_return_value.has_value()) {
+      return 0;
+   }
+
+   const auto data_size = sync_call_return_value->size();
+   const auto copy_size = std::min(memory.size(), data_size);
+
+   if (copy_size == 0) {
+      return 0;
+   }
+
+   // Copy up to the length of memory of data to memory
+   std::memcpy(memory.data(), sync_call_return_value->data(), copy_size);
+
+   // Return the number of bytes of the data that can be retrieved
+   return data_size;
+}
+
 uint32_t apply_context::get_call_data(std::span<char> memory) const {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
    EOS_ASSERT(sync_call_ctx.has_value(), wasm_serialization_error,
@@ -318,6 +339,10 @@ uint32_t apply_context::get_call_data(std::span<char> memory) const {
    const auto& data      = sync_call_ctx->data;
    auto        data_size = data.size();
    auto        copy_size = std::min(memory.size(), data_size);
+
+   if (copy_size == 0) {
+      return 0;
+   }
 
    // Copy up to the length of memory of data to memory
    std::memcpy(memory.data(), data.data(), copy_size);
