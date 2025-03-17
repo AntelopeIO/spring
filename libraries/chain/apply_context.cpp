@@ -301,6 +301,22 @@ action_name apply_context::get_sync_call_sender() const {
    return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
 }
 
+uint32_t apply_context::get_call_data(std::span<char> memory) const {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+   EOS_ASSERT(sync_call_ctx.has_value(), wasm_serialization_error,
+              "get_call_data can be only used in sync call");
+
+   const auto& data      = sync_call_ctx->data;
+   auto        data_size = data.size();
+   auto        copy_size = std::min(memory.size(), data_size);
+
+   // Copy up to the length of memory of data to memory
+   std::memcpy(memory.data(), data.data(), copy_size);
+
+   // Return the number of bytes of the data that can be retrieved
+   return data_size;
+}
+
 bool apply_context::is_account( const account_name& account )const {
    return nullptr != db.find<account_object,by_name>( account );
 }

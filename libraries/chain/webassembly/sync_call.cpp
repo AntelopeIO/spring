@@ -10,8 +10,8 @@ namespace eosio { namespace chain { namespace webassembly {
       return 0;
    }
 
-   uint32_t interface::get_call_data(span<char> /* memory */) const {
-      return 0;
+   uint32_t interface::get_call_data(span<char> memory) const {
+      return context.get_call_data(memory);
    }
 
    void interface::set_call_return_value(span<const char> /* value */) {
