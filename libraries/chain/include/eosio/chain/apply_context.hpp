@@ -502,7 +502,7 @@ class apply_context {
 
       void exec_one();
       void exec();
-      void execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
+      uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
       uint32_t get_call_data(std::span<char> memory) const;
       void set_call_return_value(std::span<const char> return_value);
       void execute_inline( action&& a );
@@ -630,6 +630,7 @@ class apply_context {
       bool                          context_free = false;
 
       std::optional<sync_call_context> sync_call_ctx{};  // only one of act and sync_call_ctx can be present
+      std::optional<std::vector<char>> sync_call_return_value{};
 
    public:
       std::vector<char>             action_return_value;

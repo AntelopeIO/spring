@@ -246,7 +246,7 @@ void apply_context::exec()
 
 } /// exec()
 
-void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
+uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
 
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
@@ -265,20 +265,29 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
       throw;
    };
 
+   sync_call_return_value     = std::nullopt; // reset for current sync call
+   uint32_t return_value_size = 0;
+
    try {
       try {
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( receiver);
          if (receiver_account->code_hash == digest_type()) {
             // TBD store the info in sync call trace
             ilog("receiver_account->code_hash empty");
-            return;
+            return return_value_size;
          }
 
          try {
             // use a new apply_context for a new sync call
             apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
-
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+
+            // store return value
+            if (a_ctx.sync_call_ctx.has_value()) {
+               sync_call_return_value = std::move(a_ctx.sync_call_ctx->return_value);
+               return_value_size = sync_call_return_value->size();
+               dlog("sync_call_return_value size: ${s}", ("s", return_value_size));
+            }
          } catch( const wasm_exit&) {}
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", receiver))
    } catch (const std::bad_alloc&) {
@@ -286,13 +295,14 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    } catch (const boost::interprocess::bad_alloc&) {
       throw;
    } catch(const fc::exception& e) {
-      ilog("fc::exceptio");
+      ilog("fc::exception"); // To be removed.
       handle_exception(e);
    } catch (const std::exception& e) {
-      ilog("std::exception");
+      ilog("std::exception"); // To be removed.
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
+   return return_value_size;
 }
 
 action_name apply_context::get_sync_call_sender() const {

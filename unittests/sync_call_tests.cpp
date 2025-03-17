@@ -22,7 +22,7 @@ static const char* doit_abi = R"=====(
 static const char sync_call_in_same_account_wast[] = R"=====(
 (module
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
 
@@ -37,7 +37,7 @@ static const char sync_call_in_same_account_wast[] = R"=====(
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (call $call (get_local $receiver) (i64.const 0)(i32.const 0)(i32.const 8)) ;; using the same receiver
+      (drop (call $call (get_local $receiver) (i64.const 0)(i32.const 0)(i32.const 8))) ;; using the same receiver
    )
 
    (data (i32.const 0) "sync_call in same contract called")
@@ -67,14 +67,14 @@ BOOST_AUTO_TEST_CASE(same_account) { try {
 // Make a sync call to a function in "callee"_n account
 static const char caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 )
 )=====";
@@ -128,14 +128,14 @@ BOOST_AUTO_TEST_CASE(different_account) { try {
 // Calls "callee1"_n
 static const char call_depth_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee1 i64 (i64.const 4729647295748898816)) ;; "calllee1"_n uint64 value
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 )
 )=====";
@@ -143,14 +143,14 @@ static const char call_depth_wast[] = R"=====(
 // Calls "callee2"_n
 static const char callee1_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee2 i64 (i64.const 4729647296285769728)) ;; "calllee2"_n uint64 value
 
    ;; callee intentionally asserts such that the test can check it was called
    (func $callee
-      (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 
    (export "sync_call" (func $sync_call))
@@ -217,7 +217,7 @@ BOOST_AUTO_TEST_CASE(multi_level_call_depth) { try {
 // Call "callee1"_n and "callee2"_n in sequence
 static const char seq_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee1 i64 (i64.const 4729647295748898816))
@@ -225,8 +225,8 @@ static const char seq_caller_wast[] = R"=====(
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8))
-      (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8)))
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 )
 )=====";
@@ -296,7 +296,7 @@ BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
 // Make sync calls from different actions
 static const char different_actions_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $doit_value i64 (i64.const 5556755844919459840))
@@ -305,12 +305,12 @@ static const char different_actions_caller_wast[] = R"=====(
 
    ;; sync call a function in "callee1"_n
    (func $doit
-      (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee1) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 
    ;; sync call a function in "callee2"_n
    (func $doit1
-      (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $callee2) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 
    (export "apply" (func $apply))
@@ -403,7 +403,7 @@ BOOST_AUTO_TEST_CASE(calls_from_different_actions) { try {
 // Make recursive sync calls
 static const char recursive_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (import "env" "eosio_assert" (func $assert (param i32 i32)))
    (memory $0 1)
    (export "memory" (memory $0))
@@ -415,7 +415,7 @@ static const char recursive_caller_wast[] = R"=====(
       (get_local $first_time)
       i32.eq  ;; if $first_time is 1, call callee, otherwise exit
       if
-         (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+         (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8)))
       else
          (call $assert (i32.const 0) (i32.const 0))  ;; called recursive from sync_call
       end
@@ -438,7 +438,7 @@ static const char recursive_caller_wast[] = R"=====(
 
 static const char recursive_callee_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $caller i64 (i64.const 4729647518550327296))
@@ -446,7 +446,7 @@ static const char recursive_callee_wast[] = R"=====(
    ;; called from caller and calls caller again
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
-      (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8))
+      (drop (call $call (get_global $caller) (i64.const 0)(i32.const 0)(i32.const 8)))
    )
 
    (export "apply" (func $apply))
