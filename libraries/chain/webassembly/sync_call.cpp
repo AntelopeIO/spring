@@ -10,11 +10,11 @@ namespace eosio { namespace chain { namespace webassembly {
       return 0;
    }
 
-   uint32_t interface::get_call_data(span<char> memory) const {
+   uint32_t interface::get_call_data(std::span<char> memory) const {
       return context.get_call_data(memory);
    }
 
-   void interface::set_call_return_value(span<const char> /* value */) {
-      ;
+   void interface::set_call_return_value(std::span<const char> return_value) {
+      context.set_call_return_value(return_value);;
    }
 }}} // ns eosio::chain::webassembly

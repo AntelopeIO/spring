@@ -246,8 +246,7 @@ void apply_context::exec()
 
 } /// exec()
 
-void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data)
-{
+void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
 
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
@@ -315,6 +314,19 @@ uint32_t apply_context::get_call_data(std::span<char> memory) const {
 
    // Return the number of bytes of the data that can be retrieved
    return data_size;
+}
+
+void apply_context::set_call_return_value(std::span<const char> return_value) {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+   EOS_ASSERT(sync_call_ctx.has_value(), wasm_serialization_error,
+              "set_call_return_value can be only used in sync call");
+
+   auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(return_value.size() <= max_sync_call_data_size,
+              action_return_value_exception,
+              "sync call return value size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
+
+   sync_call_ctx->return_value.assign( return_value.data(), return_value.data() + return_value.size() );
 }
 
 bool apply_context::is_account( const account_name& account )const {

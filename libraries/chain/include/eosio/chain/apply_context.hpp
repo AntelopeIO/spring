@@ -504,6 +504,7 @@ class apply_context {
       void exec();
       void execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
       uint32_t get_call_data(std::span<char> memory) const;
+      void set_call_return_value(std::span<const char> return_value);
       void execute_inline( action&& a );
       void execute_context_free_inline( action&& a );
       void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing );
