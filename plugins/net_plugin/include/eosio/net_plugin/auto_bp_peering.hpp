@@ -309,9 +309,6 @@ public:
 
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
 
-               for (const auto& i : pending_connections) {
-                  self()->connections.resolve_and_connect(config.bp_peer_addresses[i], self()->get_first_p2p_address() );
-               }
                fc::lock_guard g(gossip_bps.mtx);
                auto& prod_idx = gossip_bps.index.get<by_producer>();
                for (const auto& account : pending_connections) {
