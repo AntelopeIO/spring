@@ -287,10 +287,8 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    } catch (const boost::interprocess::bad_alloc&) {
       throw;
    } catch(const fc::exception& e) {
-      ilog("fc::exceptio");
       handle_exception(e);
    } catch (const std::exception& e) {
-      ilog("std::exception");
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
