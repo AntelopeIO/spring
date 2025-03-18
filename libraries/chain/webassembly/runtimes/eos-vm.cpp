@@ -198,6 +198,10 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          } catch(eosio::vm::exception& e) {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure: ${d}", ("d", e.detail()));
          }
+
+         if (multi_expr_callbacks_allowed) {
+            context.trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
+         }
       }
 
       apply_options get_apply_options(const apply_context& context) const {
