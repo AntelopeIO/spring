@@ -292,6 +292,8 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
+
+   trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
 }
 
 action_name apply_context::get_sync_call_sender() const {
