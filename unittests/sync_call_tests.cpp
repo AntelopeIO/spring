@@ -593,7 +593,6 @@ static const char get_call_data_less_memory_wast[] = R"=====(
    (memory $0 1)
    (export "memory" (memory $0))
 
-   ;; use get_call_data and set_call_return_value to get argument and store return value
    (export "sync_call" (func $sync_call))
    (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $get_call_data (i32.const 0)(i32.const 0)) ;; destination memory size is 0
@@ -670,5 +669,78 @@ BOOST_AUTO_TEST_CASE(get_call_data_not_in_sync_call_test) { try {
                          sync_call_validate_exception,
                          fc_exception_message_contains("get_call_data can be only used in sync call"));
 } FC_LOG_AND_RETHROW() }
+
+
+static const char set_call_return_value_invalid_size_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (memory $0 10)  ;; 10 * 64KB, bigger than 512 KB needed below
+   (export "memory" (memory $0))
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $set_call_return_value (i32.const 16)(i32.const 524289)) ;; max allowed return value size is 512 KB (524288)
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify exception is raised if return value is greater than max allowed size
+BOOST_AUTO_TEST_CASE(set_call_return_value_invalid_size_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee = account_name("callee");
+   t.create_account(callee);
+   t.set_code(callee, set_call_return_value_invalid_size_wast);
+
+   BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
+                         sync_call_return_value_exception,
+                         fc_exception_message_contains("sync call return value size must be less or equal to"));
+} FC_LOG_AND_RETHROW() }
+
+static const char set_call_return_value_not_in_sync_call_wast[] = R"=====(
+(module
+   (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (call $set_call_return_value (i32.const 0)(i32.const 8))
+   )
+)
+)=====";
+
+// Verify set_call_return_value can be only called in sync calls
+BOOST_AUTO_TEST_CASE(set_call_return_value_not_in_sync_call_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, set_call_return_value_not_in_sync_call_wast);
+   t.set_abi(caller, doit_abi);
+
+   BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("set_call_return_value can be only used in sync call"));
+} FC_LOG_AND_RETHROW() }
+
 
 BOOST_AUTO_TEST_SUITE_END()
