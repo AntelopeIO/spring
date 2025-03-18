@@ -133,7 +133,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
       void do_sync_call(apply_context& context) override {
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
-         vm::wasm_allocator                       wasm_alloc;
+         vm::wasm_allocator                       wasm_alloc = context.control.get_sync_call_wasm_allocator(); // get the top free wasm allocator from the pool
 
          const std::optional<sync_call_context> sync_call_ctx  = context.get_sync_call_ctx();
          assert(sync_call_ctx.has_value());
@@ -152,6 +152,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
+         context.control.return_sync_call_wasm_allocator(); // return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
       }
 
       void apply(apply_context& context) override {

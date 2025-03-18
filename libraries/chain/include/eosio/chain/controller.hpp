@@ -449,6 +449,8 @@ namespace eosio::chain {
 
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
          vm::wasm_allocator&  get_wasm_allocator();
+         vm::wasm_allocator&  get_sync_call_wasm_allocator();
+         void                 return_sync_call_wasm_allocator();
 #endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
          bool is_eos_vm_oc_enabled() const;
