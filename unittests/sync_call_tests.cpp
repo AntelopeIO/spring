@@ -586,4 +586,89 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 2000u);
 } FC_LOG_AND_RETHROW() }
 
+static const char get_call_data_less_memory_wast[] = R"=====(
+(module
+   (import "env" "eosio_assert" (func $assert (param i32 i32)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   ;; use get_call_data and set_call_return_value to get argument and store return value
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (call $get_call_data (i32.const 0)(i32.const 0)) ;; destination memory size is 0
+      (i32.const 8)  ;; caller passes in 8 bytes. get_call_data should always return 8
+      i32.ne
+      if             ;; assert if get_call_data did not return 8
+         (call $assert (i32.const 0) (i32.const 0))
+      end
+
+      (call $get_call_data (i32.const 0)(i32.const 4)) ;; destination memory size is 4
+      (i32.const 8)  ;; caller passes in 8 bytes. get_call_data should always return 8
+      i32.ne
+      if             ;; assert if get_call_data did not return 8
+         (call $assert (i32.const 0) (i32.const 0))
+      end
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+
+   (data (i32.const 0) "get_call_data did not return actual data size when destination size is 0")
+)
+)=====";
+
+// Verify get_call_data always returns data size even if the destination memory size is 0 or less than the data size
+BOOST_AUTO_TEST_CASE(get_call_data_less_memory_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee = account_name("callee");
+   t.create_account(callee);
+   t.set_code(callee, get_call_data_less_memory_wast);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
+} FC_LOG_AND_RETHROW() }
+
+static const char get_call_data_not_in_sync_call_wast[] = R"=====(
+(module
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $get_call_data (i32.const 0)(i32.const 8)))
+   )
+)
+)=====";
+
+// Verify get_call_data can be only called in sync calls
+BOOST_AUTO_TEST_CASE(get_call_data_not_in_sync_call_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, get_call_data_not_in_sync_call_wast);
+   t.set_abi(caller, doit_abi);
+
+   BOOST_CHECK_EXCEPTION(t.push_action(caller, "doit"_n, caller, {}),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("get_call_data can be only used in sync call"));
+} FC_LOG_AND_RETHROW() }
+
 BOOST_AUTO_TEST_SUITE_END()
