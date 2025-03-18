@@ -1014,7 +1014,7 @@ struct controller_impl {
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
    thread_local static std::vector<vm::wasm_allocator> sync_call_wasm_alloc; // used for sync call. expensive to create one for each call
-   uint32_t            sync_call_wasm_alloc_index;
+   thread_local static uint32_t sync_call_wasm_alloc_index;
 #endif
    wasm_interface wasmif;
    app_window_type app_window = app_window_type::write;
@@ -1303,8 +1303,10 @@ struct controller_impl {
          if( shutdown ) shutdown();
       } );
 
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
       sync_call_wasm_alloc.resize(16); // Will change to use max_sync_call_depth of global property object in future version
       sync_call_wasm_alloc_index = 0;
+#endif
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -5070,7 +5072,7 @@ thread_local platform_timer controller_impl::timer;
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
 thread_local std::vector<eosio::vm::wasm_allocator> controller_impl::sync_call_wasm_alloc;
-thread_local uint32_t sync_call_wasm_alloc_index = 0;
+thread_local uint32_t controller_impl::sync_call_wasm_alloc_index = 0;
 #endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
