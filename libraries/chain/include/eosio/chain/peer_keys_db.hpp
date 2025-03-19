@@ -19,8 +19,8 @@ public:
 
    void set_active(bool b) { _active = b; }
 
-   // must be called from main thread
-   size_t update_peer_keys(const controller& chain, uint32_t lib_number);
+   // must be called from main thread, returns any new or updated producers
+   flat_set<name> update_peer_keys(const controller& chain, uint32_t lib_number);
 
    // safe to be called from any thread
    std::optional<public_key_type> get_peer_key(name n) const;

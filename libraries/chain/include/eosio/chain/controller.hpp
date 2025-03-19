@@ -428,6 +428,8 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
+         // call on main thread with irreversible block
+         flat_set<name> update_peer_keys(uint32_t lib_number);
          std::optional<public_key_type> get_peer_key(name n) const; // thread safe
 
          // thread safe

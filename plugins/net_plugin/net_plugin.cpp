@@ -4030,13 +4030,19 @@ namespace eosio {
       fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id) );
       update_chain_info(id);
 
-      if (chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+      chain::controller& cc = chain_plug->chain();
+      if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
          dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
       }
+
+      // update peer public keys from chainbase db
+      flat_set<name> modified = cc.update_peer_keys(block->block_num());
+      if (!modified.empty())
+         update_bp_producer_peers(cc, modified, get_first_p2p_address());
    }
 
    // called from other threads including net threads
@@ -4540,7 +4546,10 @@ namespace eosio {
          cc.aggregated_vote().connect( broadcast_vote );
          cc.voted_block().connect( broadcast_vote );
 
-         update_bp_producer_peers(cc, std::set<chain::account_name>{}, get_first_p2p_address());
+         if (bp_gossip_enabled()) {
+            cc.set_peer_keys_retrieval_active(true);
+            update_bp_producer_peers(cc, flat_set<chain::account_name>{}, get_first_p2p_address());
+         }
       }
 
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(

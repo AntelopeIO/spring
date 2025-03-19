@@ -19,10 +19,10 @@ size_t peer_keys_db_t::size() const {
 
 // we update the keys that were registered up to lib_number (inclusive)
 // --------------------------------------------------------------------
-size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_number) {
-   size_t num_updated = 0;
+flat_set<name> peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_number) {
+   flat_set<name> result;
    if (!_active || lib_number <= _block_num)
-      return num_updated;                      // nothing to do
+      return result;                      // nothing to do
 
    try {
       const auto& db = chain.db();
@@ -38,7 +38,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
       if (upper == lower) {
          // no new keys registered
          _block_num = lib_number;
-         return num_updated;
+         return result;
       }
 
       fc::lock_guard g(_m); // we only need to protect access to _peer_key_map
@@ -67,14 +67,14 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             EOS_ASSERT(row_key.valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
 
             _peer_key_map[row_name] = row_key;
-            ++num_updated;
+            result.insert(row_name);
          }
          FC_LOG_AND_DROP(("skipping invalid record deserialized from `peerkeys`"));
       }
 
       _block_num = lib_number;                   // mark that we have updated up to lib_number
    } FC_LOG_AND_DROP(("Error when updating peer_keys_db"));
-   return num_updated;
+   return result;
 }
 
 } // namespace eosio::chain

@@ -3,6 +3,7 @@
 #include <eosio/net_plugin/gossip_bps_index.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/buffer_factory.hpp>
+#include <eosio/chain/controller.hpp>
 #include <eosio/chain/producer_schedule.hpp>
 
 #include <boost/algorithm/string.hpp>
@@ -19,12 +20,6 @@ class bp_connection_manager {
 #ifdef BOOST_TEST
  public:
 #endif
-
-   using account_name = chain::account_name;
-   template <typename Key, typename Value>
-   using flat_map = chain::flat_map<Key, Value>;
-   template <typename T>
-   using flat_set = chain::flat_set<T>;
 
    gossip_bp_index_t      gossip_bps;
 
@@ -128,7 +123,7 @@ public:
 
    // Called at startup and when peer key changes
    // empty modified_keys means to update all
-   void update_bp_producer_peers(const chain::controller& cc, const std::set<account_name>& modified_keys, const std::string& server_address)
+   void update_bp_producer_peers(const chain::controller& cc, const flat_set<account_name>& modified_keys, const std::string& server_address)
    {
       if (config.my_bp_peer_accounts.empty())
          return;
@@ -137,8 +132,7 @@ public:
       bool first = true;
       for (const auto& e : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          if (modified_keys.empty() || modified_keys.contains(e)) {
-            //todo: auto pk = cc.get_peer_key(e);
-            std::optional<public_key_type> pk; // todo
+            std::optional<public_key_type> pk = cc.get_peer_key(e);
             // EOS_ASSERT can only be hit on plugin startup, otherwise this method called with modified_keys that are in cc.get_peer_key()
             EOS_ASSERT(pk, chain::plugin_config_exception, "No on-chain peer key found for ${n}", ("n", e));
             if (first) {
@@ -244,23 +238,21 @@ public:
 
       fc::lock_guard g(gossip_bps.mtx);
       auto& sig_idx = gossip_bps.index.get<by_sig>();
-      auto& prod_idx = gossip_bps.index.get<by_producer>();
       for (auto i = msg.peers.begin(); i != msg.peers.end();) {
          const auto& peer = *i;
          try {
             if (!sig_idx.contains(peer.sig)) { // we already have it, already verified
                // peer key may have changed or been removed, so if invalid or not found skip it
-               // todo: when cc.get_peer_key available
-               // if (auto peer_key = cc.get_peer_key(peer.producer_name)) {
-               //    public_key_type pk(peer.sig, peer.digest());
-               //    if (pk != *peer_key) {
-               //       i = msg.peers.erase(i);
-               //       continue;
-               //    }
-               // } else { // unknown key
-               //    i = msg.peers.erase(i);
-               //    continue;
-               // }
+               if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
+                  public_key_type pk(peer.sig, peer.digest());
+                  if (pk != *peer_key) {
+                     i = msg.peers.erase(i);
+                     continue;
+                  }
+               } else { // unknown key
+                  i = msg.peers.erase(i);
+                  continue;
+               }
             }
          } catch (fc::exception& e) {
             // invalid key
