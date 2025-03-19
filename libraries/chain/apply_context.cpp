@@ -269,7 +269,7 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    try {
       try {
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( receiver);
-         if (receiver_account->code_hash == digest_type()) {
+         if (receiver_account->code_hash.empty()) {
             // TBD store the info in sync call trace
             ilog("receiver_account->code_hash empty");
             return;
