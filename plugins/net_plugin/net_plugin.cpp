@@ -1321,6 +1321,7 @@ namespace eosio {
       stat.connecting = state() == connection_state::connecting;
       stat.syncing = peer_syncing_from_us;
       stat.is_bp_peer = is_gossip_bp_connection || is_configured_bp_connection;
+      stat.is_bp_gossip_peer = is_gossip_bp_connection;
       stat.is_socket_open = socket_is_open();
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
