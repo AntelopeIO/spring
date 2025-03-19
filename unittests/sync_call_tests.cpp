@@ -3,6 +3,8 @@
 using namespace eosio::chain;
 using namespace eosio::testing;
 
+using mvo = fc::mutable_variant_object;
+
 BOOST_AUTO_TEST_SUITE(sync_call_tests)
 
 // Generic ABI
@@ -10,9 +12,16 @@ static const char* doit_abi = R"=====(
 {
    "version": "eosio::abi/1.2",
    "types": [],
-   "structs": [{ "name": "doit", "base": "", "fields": [] }],
-   "actions": [{ "name": "doit", "type": "doit", "ricardian_contract": ""},
-               { "name": "doit1", "type": "doit", "ricardian_contract": ""}],
+   "structs": [ { "name": "doit", "base": "", "fields": [] },
+                { "name": "doubleit",
+                  "base": "",
+                  "fields": [{"name": "input", "type": "uint32"}]
+                }
+              ],
+   "actions": [ { "name": "doit", "type": "doit", "ricardian_contract": ""},
+                { "name": "doit1", "type": "doit", "ricardian_contract": ""},
+                { "name": "doubleit", "type": "doubleit", "ricardian_contract": ""}
+              ],
    "tables": [],
    "ricardian_clauses": []
 }
@@ -501,26 +510,27 @@ BOOST_AUTO_TEST_CASE(receiver_account_not_existent) { try {
                          fc_exception_message_contains("does not exist"));
 } FC_LOG_AND_RETHROW() }
 
-// 1. makes a sync call to the `double` function with argument 1000
+// 1. reads input from action
+// 1. makes a sync call to `double` in callee contract with the input as an argument
 // 2. retrieves the result
-// 3. saves the result in action trace so it can be verified
+// 3. saves the result in action trace for verification by test
 static const char basic_params_return_value_caller_wast[] = R"=====(
 (module
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (import "env" "get_call_return_value" (func $get_call_return_value (param i32 i32) (result i32))) ;; memory
    (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32)))
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data_size value as 4 (the last argument)
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))       ;; read action input into address 0
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0
       (drop (call $get_call_return_value (i32.const 8)(i32.const 4))) ;; save return value at address 8
       (call $set_action_return_value (i32.const 8) (i32.const 4))     ;; set the return value to action_return_value so test can check in action trace
    )
-
-   (data (i32.const 0) "\E8\03\00\00") ;; decimal 1000 in little endian format
 )
 )=====";
 
@@ -580,10 +590,20 @@ BOOST_AUTO_TEST_CASE(basic_params_return_value_passing) { try {
    t.create_account(callee);
    t.set_code(callee, basic_params_return_value_callee_wast);
 
-   // the test contracts double `1000` and save the result to action_traces
-   auto trx_trace = t.push_action(caller, "doit"_n, caller, {});
+   // double 0
+   auto trx_trace = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "0"));
    auto &atrace   = trx_trace->action_traces;
-   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 2000u);
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace[0].return_value), 0u);
+
+   // double 1000
+   auto trx_trace1 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "1000"));
+   auto &atrace1   = trx_trace1->action_traces;
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace1[0].return_value), 2000u);
+
+   // double 5000
+   auto trx_trace2 = t.push_action(caller, "doubleit"_n, caller, mvo() ("input", "5000"));
+   auto &atrace2   = trx_trace2->action_traces;
+   BOOST_REQUIRE_EQUAL(fc::raw::unpack<uint32_t>(atrace2[0].return_value), 10000u);
 } FC_LOG_AND_RETHROW() }
 
 static const char get_call_data_less_memory_wast[] = R"=====(
