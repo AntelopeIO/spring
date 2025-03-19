@@ -602,7 +602,7 @@ class apply_context {
       action_name get_receiver()const { return receiver; }
       const action& get_action()const { return *act; }
       const action* get_action_ptr()const { return act; }
-      std::optional<sync_call_context> get_sync_call_ctx()const { return sync_call_ctx; }
+      const std::optional<sync_call_context>& get_sync_call_ctx()const { return sync_call_ctx; }
 
       action_name get_sender() const;
 
