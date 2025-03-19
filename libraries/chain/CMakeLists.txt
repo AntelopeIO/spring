@@ -127,10 +127,15 @@ add_library( eosio_chain
              symbol.cpp
              whitelisted_intrinsics.cpp
              thread_utils.cpp
+             peer_keys_db.cpp
              platform_timer_accuracy.cpp
              ${PLATFORM_TIMER_IMPL}
              ${HEADERS}
              )
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14.0)
+  target_compile_options(eosio_chain PUBLIC -Wthread-safety)
+endif()
 
 ## Boost::accumulators depends on Boost::numeric_ublas, which is still missing cmake support (see
 ## https://github.com/boostorg/cmake/issues/39). Until this is fixed, manually add Boost::numeric_ublas
