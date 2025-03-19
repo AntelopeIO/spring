@@ -296,8 +296,10 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
 }
 
+// Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
 action_name apply_context::get_sync_call_sender() const {
-   // Current context's receiver is the sender of next sync call
+   // The sync call is initiated by this apply_context or its sync_call_ctx.
+   // That's why the context's receiver is the sender of the sync call.
    return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
 }
 
