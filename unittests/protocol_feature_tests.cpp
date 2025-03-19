@@ -2323,9 +2323,13 @@ static const char basic_sync_call_host_funcs_wast[] = R"=====(
    (import "env" "get_call_data" (func $get_call_data (param i32 i32)(result i32)))
    (import "env" "set_call_return_value" (func $set_call_return_value (param i32 i32)))
    (memory $0 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64))
+
    (export "apply" (func $apply))
-   (func $apply (param i64 i64 i64)
-      (call $call (i64.const 0) (i64.const 0) (i32.const 8) (i32.const 16))
+   (func $apply (param $receiver i64) (param $account i64) (param  $action_name i64)
+      (call $call (get_local $receiver) (i64.const 0) (i32.const 8) (i32.const 16))
       (drop (call $get_call_data (i32.const 8) (i32.const 16)))
       (call $set_call_return_value (i32.const 8) (i32.const 16))
    )

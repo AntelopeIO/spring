@@ -4,6 +4,7 @@
 #include <eosio/chain/transaction.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/contract_table_objects.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/deep_mind.hpp>
 #include <fc/utility.hpp>
 #include <sstream>
@@ -494,12 +495,15 @@ class apply_context {
    /// Constructor
    public:
       apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth=0);
+      apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data);  // used to construct sync call context
 
    /// Execution methods:
    public:
 
       void exec_one();
       void exec();
+      void execute_sync_call(name receiver, uint64_t flags, std::span<const char> data
+);
       void execute_inline( action&& a );
       void execute_context_free_inline( action&& a );
       void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing );
@@ -597,6 +601,8 @@ class apply_context {
       bool is_privileged()const { return privileged; }
       action_name get_receiver()const { return receiver; }
       const action& get_action()const { return *act; }
+      const action* get_action_ptr()const { return act; }
+      const std::optional<sync_call_context>& get_sync_call_ctx()const { return sync_call_ctx; }
 
       action_name get_sender() const;
 
@@ -620,6 +626,11 @@ class apply_context {
       uint32_t                      action_ordinal = 0;
       bool                          privileged   = false;
       bool                          context_free = false;
+
+      std::optional<sync_call_context> sync_call_ctx{};  // only one of act and sync_call_ctx can be present
+
+      // Returns the sender of any sync call initiated by this apply_context or its sync_call_ctx
+      action_name get_sync_call_sender() const;
 
    public:
       std::vector<char>             action_return_value;
