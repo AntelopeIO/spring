@@ -4914,8 +4914,12 @@ struct controller_impl {
 #endif
 
    // Only called from read-only trx execution threads when producer_plugin
-   // starts them. Only OC requires initialize thread specific data.
+   // starts them.
    void init_thread_local_data() {
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+      sync_call_wasm_alloc.resize(16);
+      sync_call_wasm_alloc_index = 0;
+#endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
