@@ -526,10 +526,14 @@ static const char basic_params_return_value_caller_wast[] = R"=====(
 
    (export "apply" (func $apply))
    (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
-      (drop (call $read_action_data(i32.const 0)(i32.const 4)))       ;; read action input into address 0
-      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0
-      (drop (call $get_call_return_value (i32.const 8)(i32.const 4))) ;; save return value at address 8
-      (call $set_action_return_value (i32.const 8) (i32.const 4))     ;; set the return value to action_return_value so test can check in action trace
+      (local $input_size i32)
+      (local $return_value_size i32)
+      (call $read_action_data(i32.const 0)(i32.const 4))       ;; read action input into address 0
+      set_local $input_size
+      (call $call (get_global $callee) (i64.const 0)(i32.const 0)(get_local $input_size)) ;; make a sync call with data starting at address 0
+      set_local $return_value_size
+      (drop (call $get_call_return_value (i32.const 8)(get_local $return_value_size))) ;; save return value at address 8
+      (call $set_action_return_value (i32.const 8) (get_local $return_value_size))     ;; set the return value to action_return_value so test can check in action trace
    )
 )
 )=====";
