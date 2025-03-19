@@ -2565,7 +2565,7 @@ struct controller_impl {
 
       genesis.initial_configuration.validate();
       db.create<global_property_object>([&genesis,&chain_id=this->chain_id](auto& gpo ){
-         gpo.configuration = genesis.initial_configuration;
+         gpo.configuration.copy_from_v0(genesis.initial_configuration);
          // TODO: Update this when genesis protocol features are enabled.
          gpo.wasm_configuration = genesis_state::default_initial_wasm_configuration;
          gpo.chain_id = chain_id;

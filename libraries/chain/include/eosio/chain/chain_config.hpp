@@ -214,9 +214,32 @@ struct chain_config_v2 : chain_config_v1 {
       return c.log(out) << "\n";
    }
 
-   inline chain_config_v2& operator= (const chain_config_v0& b) {
-      chain_config_v0::operator= (b);
-      return *this;
+   inline void copy_from_v0(const chain_config_v0& b) {
+      // copy v0 fields
+      max_block_net_usage                 = b.max_block_net_usage;
+      target_block_net_usage_pct          = b.target_block_net_usage_pct;
+      max_transaction_net_usage           = b.max_transaction_net_usage;
+      base_per_transaction_net_usage      = b.base_per_transaction_net_usage;
+      net_usage_leeway                    = b.net_usage_leeway;
+      context_free_discount_net_usage_num = b.context_free_discount_net_usage_num;
+      context_free_discount_net_usage_den = b.context_free_discount_net_usage_den;
+      max_block_cpu_usage                 = b.max_block_cpu_usage;
+      target_block_cpu_usage_pct          = b.target_block_cpu_usage_pct;
+      max_transaction_cpu_usage           = b.max_transaction_cpu_usage;
+      min_transaction_cpu_usage           = b.min_transaction_cpu_usage;
+      max_transaction_lifetime            = b.max_transaction_lifetime;
+      deferred_trx_expiration_window      = b.deferred_trx_expiration_window;
+      max_transaction_delay               = b.max_transaction_delay;
+      max_inline_action_size              = b.max_inline_action_size;
+      max_inline_action_depth             = b.max_inline_action_depth;
+      max_authority_depth                 = b.max_authority_depth;
+
+      // set v1 field to default
+      max_action_return_value_size        = config::default_max_action_return_value_size;
+
+      // set v2 fields to defaults
+      max_sync_call_depth                 = config::default_max_sync_call_depth;
+      max_sync_call_data_size             = config::default_max_sync_call_data_size;
    }
 
 protected:
