@@ -214,17 +214,6 @@ struct chain_config_v2 : chain_config_v1 {
       return c.log(out) << "\n";
    }
 
-   friend inline bool operator == ( const chain_config_v2& lhs, const chain_config_v2& rhs ) {
-      //add v1 parameters comarison here
-      return ( std::tie(lhs.max_sync_call_depth, lhs.max_sync_call_data_size) ==
-               std::tie(lhs.max_sync_call_depth, rhs.max_sync_call_data_size) ) &&
-             lhs.base() == rhs.base();
-   }
-
-   friend inline bool operator != ( const chain_config_v2& lhs, const chain_config_v2& rhs ) {
-      return !(lhs == rhs);
-   }
-
    inline chain_config_v2& operator= (const chain_config_v0& b) {
       chain_config_v0::operator= (b);
       return *this;
