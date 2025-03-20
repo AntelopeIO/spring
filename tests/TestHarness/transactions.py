@@ -379,7 +379,6 @@ class Transactions(NodeosQueries):
                     # Filter out "PREACTIVATE_FEATURE"
                     if codename != "PREACTIVATE_FEATURE":
                         protocolFeatures[protocolFeature["feature_digest"]] = protocolFeature["dependencies"]
-                    break
         return dep(protocolFeatures)
 
 
