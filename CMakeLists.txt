@@ -123,6 +123,10 @@ if(ENABLE_WEXTRA)
 endif()
 
 
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 14.0)
+  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wthread-safety" )
+endif()
+
 option(EOSIO_ENABLE_DEVELOPER_OPTIONS "enable developer options for Spring" OFF)
 
 # based on http://www.delorie.com/gnu/docs/gdb/gdb_70.html
