@@ -305,7 +305,7 @@ BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
 // Make a large number of sync calls in a loop
 static const char loop_caller_wast[] = R"=====(
 (module
-   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
    (memory $0 1)
    (export "memory" (memory $0))
    (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
@@ -316,13 +316,13 @@ static const char loop_caller_wast[] = R"=====(
        (i32.const 500)
        set_local $n      ;; n = 500;
        (loop $loop
-          (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+          (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8)))
 
           get_local $n
           i32.const 1
           i32.sub        ;; top_of_stack = n - 1;
           tee_local $n   ;; n = top_of_stack;
-          br_if $loop  ;; if (n != 0) { goto loop; }
+          br_if $loop    ;; if (n != 0) { goto loop; }
        )
    )
 )
@@ -337,7 +337,7 @@ static const char loop_callee_wast[] = R"=====(
    (func $callee)
 
    (export "sync_call" (func $sync_call))
-   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
       (call $callee)
    )
 
