@@ -151,7 +151,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                 iface, "env", "sync_call",
                 sync_call_ctx->sender.to_uint64_t(),
                 sync_call_ctx->receiver.to_uint64_t(),
-                static_cast<uint64_t>(sync_call_ctx->data.size())); // size_t can be uint32_t or uint64_t depending on architecture. Safely cast to uint64_t to always match the type expected by sync_call entry point.
+                static_cast<uint32_t>(sync_call_ctx->data.size()));
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
@@ -522,6 +522,7 @@ REGISTER_HOST_FUNCTION(set_action_return_value);
 
 // sync call api. sync calls are not allowed in context-free actions
 REGISTER_HOST_FUNCTION(call);
+REGISTER_HOST_FUNCTION(get_call_return_value);
 REGISTER_HOST_FUNCTION(get_call_data);
 REGISTER_HOST_FUNCTION(set_call_return_value);
 

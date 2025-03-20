@@ -6337,6 +6337,7 @@ template<>
 void controller_impl::on_activation<builtin_protocol_feature_t::sync_call>() {
    db.modify( db.get<protocol_state_object>(), [&]( auto& ps ) {
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "call" );
+      add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_return_value" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "get_call_data" );
       add_intrinsic_to_whitelist( ps.whitelisted_intrinsics, "set_call_return_value" );
    } );
