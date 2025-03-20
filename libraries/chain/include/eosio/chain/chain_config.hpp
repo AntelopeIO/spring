@@ -214,6 +214,9 @@ struct chain_config_v2 : chain_config_v1 {
       return c.log(out) << "\n";
    }
 
+   // no need to define !=
+   bool operator == (const chain_config_v2&) const = default;
+
    inline void copy_from_v0(const chain_config_v0& b) {
       // copy v0 fields
       chain_config_v0::operator= (b);
