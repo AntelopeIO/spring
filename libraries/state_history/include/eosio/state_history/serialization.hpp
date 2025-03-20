@@ -350,6 +350,8 @@ datastream<ST>& operator<<(datastream<ST>& ds, const history_serial_wrapper_stat
    fc::raw::pack(ds, as_type<uint16_t>(obj.obj.max_inline_action_depth));
    fc::raw::pack(ds, as_type<uint16_t>(obj.obj.max_authority_depth));
    fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_action_return_value_size));
+   fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_sync_call_depth));
+   fc::raw::pack(ds, as_type<uint32_t>(obj.obj.max_sync_call_data_size));
    return ds;
 }
 
