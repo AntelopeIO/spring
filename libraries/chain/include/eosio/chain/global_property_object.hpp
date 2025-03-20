@@ -116,7 +116,7 @@ namespace eosio::chain {
             proposed_schedule = legacy.proposed_schedule;
          }
 
-         configuration = legacy.configuration;
+         configuration.copy_from_v0(legacy.configuration);
          chain_id = chain_id_val;
 
          if constexpr (std::is_same_v<T, legacy::snapshot_global_property_object_v2> ||

@@ -214,20 +214,15 @@ struct chain_config_v2 : chain_config_v1 {
       return c.log(out) << "\n";
    }
 
-   friend inline bool operator == ( const chain_config_v2& lhs, const chain_config_v2& rhs ) {
-      //add v1 parameters comarison here
-      return ( std::tie(lhs.max_sync_call_depth, lhs.max_sync_call_data_size) ==
-               std::tie(lhs.max_sync_call_depth, rhs.max_sync_call_data_size) ) &&
-             lhs.base() == rhs.base();
-   }
+   // no need to define !=
+   bool operator == (const chain_config_v2&) const = default;
 
-   friend inline bool operator != ( const chain_config_v2& lhs, const chain_config_v2& rhs ) {
-      return !(lhs == rhs);
-   }
-
-   inline chain_config_v2& operator= (const chain_config_v0& b) {
+   inline void copy_from_v0(const chain_config_v0& b) {
+      // copy v0 fields
       chain_config_v0::operator= (b);
-      return *this;
+
+      // leave v1 and v2 fields alone as changing them might break cosensus
+      // if the intention is to only set v0 fields.
    }
 
 protected:

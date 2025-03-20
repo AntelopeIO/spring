@@ -1013,6 +1013,8 @@ struct controller_impl {
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    thread_local static vm::wasm_allocator wasm_alloc; // a copy for main thread and each read-only thread
+   thread_local static std::vector<vm::wasm_allocator> sync_call_wasm_alloc; // used for sync call. expensive to create one for each call
+   thread_local static uint32_t sync_call_wasm_alloc_index;
 #endif
    wasm_interface wasmif;
    app_window_type app_window = app_window_type::write;
@@ -1300,6 +1302,11 @@ struct controller_impl {
          elog( "Exception in vote thread pool, exiting: ${e}", ("e", e.to_detail_string()) );
          if( shutdown ) shutdown();
       } );
+
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+      sync_call_wasm_alloc.resize(16); // Will change to use max_sync_call_depth of global property object in future version
+      sync_call_wasm_alloc_index = 0;
+#endif
 
       set_activation_handler<builtin_protocol_feature_t::preactivate_feature>();
       set_activation_handler<builtin_protocol_feature_t::replace_deferred>();
@@ -2565,7 +2572,7 @@ struct controller_impl {
 
       genesis.initial_configuration.validate();
       db.create<global_property_object>([&genesis,&chain_id=this->chain_id](auto& gpo ){
-         gpo.configuration = genesis.initial_configuration;
+         gpo.configuration.copy_from_v0(genesis.initial_configuration);
          // TODO: Update this when genesis protocol features are enabled.
          gpo.wasm_configuration = genesis_state::default_initial_wasm_configuration;
          gpo.chain_id = chain_id;
@@ -4920,8 +4927,12 @@ struct controller_impl {
 #endif
 
    // Only called from read-only trx execution threads when producer_plugin
-   // starts them. Only OC requires initialize thread specific data.
+   // starts them.
    void init_thread_local_data() {
+#if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
+      sync_call_wasm_alloc.resize(16);
+      sync_call_wasm_alloc_index = 0;
+#endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED
       if ( is_eos_vm_oc_enabled() ) {
          wasmif.init_thread_local_data();
@@ -5077,6 +5088,8 @@ struct controller_impl {
 thread_local platform_timer controller_impl::timer;
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 thread_local eosio::vm::wasm_allocator controller_impl::wasm_alloc;
+thread_local std::vector<eosio::vm::wasm_allocator> controller_impl::sync_call_wasm_alloc;
+thread_local uint32_t controller_impl::sync_call_wasm_alloc_index = 0;
 #endif
 
 const resource_limits_manager&   controller::get_resource_limits_manager()const
@@ -5983,6 +5996,15 @@ uint32_t controller::earliest_available_block_num() const{
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
 vm::wasm_allocator& controller::get_wasm_allocator() {
    return my->wasm_alloc;
+}
+
+vm::wasm_allocator& controller::get_sync_call_wasm_allocator() {
+   EOS_ASSERT( my->sync_call_wasm_alloc_index < 16, misc_exception, "sync_call_wasm_alloc_index ${i} must be less than ${m}", ("i", my->sync_call_wasm_alloc_index) ("m", 16) ); // will change to use max_sync_call_depth
+   return my->sync_call_wasm_alloc[my->sync_call_wasm_alloc_index++];
+}
+
+void controller::return_sync_call_wasm_allocator() {
+   --my->sync_call_wasm_alloc_index;
 }
 #endif
 #ifdef EOSIO_EOS_VM_OC_RUNTIME_ENABLED

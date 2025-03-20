@@ -302,6 +302,72 @@ BOOST_AUTO_TEST_CASE(seq_sync_calls) { try {
                          fc_exception_message_contains("calls in sequence"));
 } FC_LOG_AND_RETHROW() }
 
+// Make a large number of sync calls in a loop
+static const char loop_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32))) ;; receiver, flags, data span
+   (memory $0 1)
+   (export "memory" (memory $0))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+       (local $n i32)
+       (i32.const 500)
+       set_local $n      ;; n = 500;
+       (loop $loop
+          (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 8))
+
+          get_local $n
+          i32.const 1
+          i32.sub        ;; top_of_stack = n - 1;
+          tee_local $n   ;; n = top_of_stack;
+          br_if $loop  ;; if (n != 0) { goto loop; }
+       )
+   )
+)
+)=====";
+
+// A dummy callee
+static const char loop_callee_wast[] = R"=====(
+(module
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   (func $callee)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i64)
+      (call $callee)
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+// Verify a large number of sequential calls can be made, to make sure resources
+// are not exhausted (like wasm allocators)
+BOOST_AUTO_TEST_CASE(large_number_of_sequential_test) { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   const auto& caller = account_name("caller");
+   t.create_account(caller);
+   t.set_code(caller, loop_caller_wast);
+   t.set_abi(caller, doit_abi);
+
+   const auto& callee = account_name("callee");
+   t.create_account(callee);
+   t.set_code(callee, loop_callee_wast);
+
+   BOOST_REQUIRE_NO_THROW(t.push_action(caller, "doit"_n, caller, {}));
+} FC_LOG_AND_RETHROW() }
+
 // Make sync calls from different actions
 static const char different_actions_caller_wast[] = R"=====(
 (module
