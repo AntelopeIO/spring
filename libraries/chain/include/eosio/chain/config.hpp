@@ -87,6 +87,9 @@ const static uint32_t   default_max_variable_signature_length        = 16384u;
 const static uint32_t   default_max_action_return_value_size         = 256;
 const static uint32_t   default_max_reversible_blocks                = 3600u;
 
+const static uint32_t   default_max_sync_call_depth                  = 16u;
+const static uint32_t   default_max_sync_call_data_size              = 512 * 1024; // for input and output each
+
 const static uint32_t   default_max_transaction_finality_status_success_duration_sec = 180;
 const static uint32_t   default_max_transaction_finality_status_failure_duration_sec = 180;
 
