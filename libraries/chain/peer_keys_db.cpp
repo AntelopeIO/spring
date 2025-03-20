@@ -48,11 +48,10 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             const auto* itr2 =
                db.find<key_value_object, by_scope_primary>(boost::make_tuple(t_id->id, itr->primary_key));
 
-            name            row_name;
-            uint32_t        row_block_num;
-            uint8_t         row_version;
-            using variant_t = std::optional<public_key_type>;
-            std::variant<variant_t> data;
+            name                  row_name;
+            uint32_t              row_block_num;
+            uint8_t               row_version;
+            std::variant<v0_data> row_variant;
 
             const auto&                 obj = *itr2;
             fc::datastream<const char*> ds(obj.value.data(), obj.value.size());
@@ -69,13 +68,13 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             if (row_version != 0)
                continue;
 
-            fc::raw::unpack(ds, data);
-            EOS_ASSERT(std::holds_alternative<variant_t>(data), misc_exception, "deserialized invalid data from `peerkeys`");
-            auto& row_key = std::get<variant_t>(data);
-            if (row_key) {
-               EOS_ASSERT(row_key->valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
+            fc::raw::unpack(ds, row_variant);
+            EOS_ASSERT(std::holds_alternative<v0_data>(row_variant), misc_exception, "deserialized invalid data from `peerkeys`");
+            auto& data = std::get<v0_data>(row_variant);
+            if (data.pubkey) {
+               EOS_ASSERT(data.pubkey->valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
 
-               _peer_key_map[row_name] = *row_key;
+               _peer_key_map[row_name] = *data.pubkey;
                ++num_updated;
             }
          }

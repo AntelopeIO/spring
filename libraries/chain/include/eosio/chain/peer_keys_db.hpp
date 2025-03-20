@@ -13,6 +13,10 @@ namespace eosio::chain {
  */
 class peer_keys_db_t {
 public:
+   struct v0_data {                   // must match the one in eosio.system.hpp
+      std::optional<public_key_type> pubkey;
+   };
+
    using peer_key_map_t = boost::unordered_flat_map<name, public_key_type, std::hash<name>>;
 
    peer_keys_db_t();
@@ -38,3 +42,5 @@ private:
 };
 
 } // namespace eosio::chain
+
+FC_REFLECT(eosio::chain::peer_keys_db_t::v0_data, (pubkey))
