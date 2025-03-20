@@ -269,7 +269,7 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    try {
       try {
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( receiver);
-         if (receiver_account->code_hash == digest_type()) {
+         if (receiver_account->code_hash.empty()) {
             // TBD store the info in sync call trace
             ilog("receiver_account->code_hash empty");
             return;
@@ -287,17 +287,19 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
    } catch (const boost::interprocess::bad_alloc&) {
       throw;
    } catch(const fc::exception& e) {
-      ilog("fc::exceptio");
       handle_exception(e);
    } catch (const std::exception& e) {
-      ilog("std::exception");
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
+
+   trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
 }
 
+// Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
 action_name apply_context::get_sync_call_sender() const {
-   // Current context's receiver is the sender of next sync call
+   // The sync call is initiated by this apply_context or its sync_call_ctx.
+   // That's why the context's receiver is the sender of the sync call.
    return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
 }
 

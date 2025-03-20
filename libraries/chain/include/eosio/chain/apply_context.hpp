@@ -602,10 +602,9 @@ class apply_context {
       action_name get_receiver()const { return receiver; }
       const action& get_action()const { return *act; }
       const action* get_action_ptr()const { return act; }
-      std::optional<sync_call_context> get_sync_call_ctx()const { return sync_call_ctx; }
+      const std::optional<sync_call_context>& get_sync_call_ctx()const { return sync_call_ctx; }
 
       action_name get_sender() const;
-      action_name get_sync_call_sender() const;
 
       bool is_applying_block() const { return trx_context.explicit_billed_cpu_time; }
       bool is_eos_vm_oc_whitelisted() const;
@@ -629,6 +628,9 @@ class apply_context {
       bool                          context_free = false;
 
       std::optional<sync_call_context> sync_call_ctx{};  // only one of act and sync_call_ctx can be present
+
+      // Returns the sender of any sync call initiated by this apply_context or its sync_call_ctx
+      action_name get_sync_call_sender() const;
 
    public:
       std::vector<char>             action_return_value;
