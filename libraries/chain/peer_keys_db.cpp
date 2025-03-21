@@ -50,7 +50,8 @@ flat_set<name> peer_keys_db_t::update_peer_keys(const controller& chain, uint32_
 
             name            row_name;
             uint32_t        row_block_num;
-            public_key_type row_key;
+            uint8_t         version;
+            std::optional<public_key_type> row_key;
 
             const auto&                 obj = *itr2;
             fc::datastream<const char*> ds(obj.value.data(), obj.value.size());
@@ -63,10 +64,12 @@ flat_set<name> peer_keys_db_t::update_peer_keys(const controller& chain, uint32_
             EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), misc_exception,
                        "deserialized invalid version from `peerkeys`");
 
+            fc::raw::unpack(ds, version);
             fc::raw::unpack(ds, row_key);
-            EOS_ASSERT(row_key.valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
+            EOS_ASSERT(row_key.has_value(), misc_exception, "deserialized empty optional public key from `peerkeys`");
+            EOS_ASSERT(row_key->valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
 
-            _peer_key_map[row_name] = row_key;
+            _peer_key_map[row_name] = *row_key;
             result.insert(row_name);
          }
          FC_LOG_AND_DROP(("skipping invalid record deserialized from `peerkeys`"));
