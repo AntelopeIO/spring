@@ -269,6 +269,24 @@ struct rex_order_outcome {
    asset stake_change;
 };
 
+struct [[eosio::table("peerkeys"), eosio::contract("eosio.system")]] peer_key {
+   name                             proposer_finalizer_name;
+   uint32_t                         block_num; // block number where this row was emplaced or modified
+   uint8_t                          version;   // version 0 and above must have the `key` optional
+   std::optional<eosio::public_key> key;       // used to verify peer gossip
+
+   uint64_t  primary_key() const { return proposer_finalizer_name.value; }
+   uint64_t  by_block_num() const { return block_num; }
+
+   static constexpr uint8_t current_version = 0;   // increment when optional members are added and update `make_default_row`
+   static peer_key make_default_row(name n) { return peer_key{n, eosio::current_block_number(), current_version, {}}; }
+};
+
+typedef eosio::multi_index<"peerkeys"_n, peer_key,
+                           indexed_by<"byblocknum"_n, const_mem_fun<peer_key, uint64_t, &peer_key::by_block_num>>
+                           > peer_keys_table;
+
+
 class [[eosio::contract("eosio.system")]] system_contract : public native {
 
 private:
@@ -286,6 +304,7 @@ private:
    rex_fund_table          _rexfunds;
    rex_balance_table       _rexbalance;
    rex_order_table         _rexorders;
+   peer_keys_table         _peer_keys;
 
 public:
    static constexpr eosio::name active_permission{"active"_n};
@@ -485,6 +504,28 @@ public:
 
    [[eosio::action]]
    void unregprod( const name producer );
+
+   /**
+    * Action to register a public key for a proposer or finalizer name.
+    * This key will be used to validate a network peer's identity.
+    * A proposer or finalizer can only have have one public key registered at a time.
+    * If a key is already registered for `proposer_finalizer_name`, and `regpeerkey` is
+    * called with a different key, the new key replaces the previous one in `peer_keys_table`
+    */
+   [[eosio::action]]
+   void regpeerkey( const name& proposer_finalizer_name, const public_key& key );
+
+
+   /**
+    * Action to delete a public key for a proposer or finalizer name.
+    *
+    * The intent of this action is only for the account to reclaim the RAM, as
+    * the node software may remember the key after it was deleted using `delpeerkey`.
+    *
+    * An existing public key for a given account can be changed by calling `regpeerkey` again.
+    */
+   [[eosio::action]]
+   void delpeerkey( const name& proposer_finalizer_name, const public_key& key );
 
    [[eosio::action]]
    void setram( uint64_t max_ram_size );

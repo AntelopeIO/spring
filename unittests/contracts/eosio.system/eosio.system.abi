@@ -419,6 +419,20 @@
             ]
         },
         {
+            "name": "delpeerkey",
+            "base": "",
+            "fields": [
+                {
+                    "name": "proposer_finalizer_name",
+                    "type": "name"
+                },
+                {
+                    "name": "key",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
             "name": "deposit",
             "base": "",
             "fields": [
@@ -717,6 +731,28 @@
             ]
         },
         {
+            "name": "peer_key",
+            "base": "",
+            "fields": [
+                {
+                    "name": "proposer_finalizer_name",
+                    "type": "name"
+                },
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "version",
+                    "type": "uint8"
+                },
+                {
+                    "name": "key",
+                    "type": "public_key?"
+                }
+            ]
+        },
+        {
             "name": "permission_level",
             "base": "",
             "fields": [
@@ -857,6 +893,20 @@
                 {
                     "name": "cpu_amount",
                     "type": "asset"
+                }
+            ]
+        },
+        {
+            "name": "regpeerkey",
+            "base": "",
+            "fields": [
+                {
+                    "name": "proposer_finalizer_name",
+                    "type": "name"
+                },
+                {
+                    "name": "key",
+                    "type": "public_key"
                 }
             ]
         },
@@ -1553,6 +1603,11 @@
             "ricardian_contract": ""
         },
         {
+            "name": "delpeerkey",
+            "type": "delpeerkey",
+            "ricardian_contract": ""
+        },
+        {
             "name": "deposit",
             "type": "deposit",
             "ricardian_contract": ""
@@ -1595,6 +1650,11 @@
         {
             "name": "refund",
             "type": "refund",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "regpeerkey",
+            "type": "regpeerkey",
             "ricardian_contract": ""
         },
         {
@@ -1778,6 +1838,13 @@
         {
             "name": "netloan",
             "type": "rex_loan",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "peerkeys",
+            "type": "peer_key",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
