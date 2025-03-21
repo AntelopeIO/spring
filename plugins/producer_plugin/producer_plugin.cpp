@@ -1146,10 +1146,12 @@ public:
              (_max_irreversible_block_age_us.count() >= 0 && get_irreversible_block_age() >= _max_irreversible_block_age_us);
    }
 
+   // thread safe, not modified after plugin_initialize
    bool is_producer_key(const chain::public_key_type& key) const {
       return _signature_providers.find(key) != _signature_providers.end();
    }
 
+   // thread safe, not modified after plugin_initialize
    chain::signature_type sign_compact(const chain::public_key_type& key, const fc::sha256& digest) const {
       if (key != chain::public_key_type()) {
          auto private_key_itr = _signature_providers.find(key);

@@ -1,5 +1,8 @@
 #include <eosio/net_plugin/net_plugin.hpp>
+#include <eosio/net_plugin/buffer_factory.hpp>
+#include <eosio/net_plugin/gossip_bps_index.hpp>
 #include <eosio/net_plugin/protocol.hpp>
+#include <eosio/net_plugin/net_logger.hpp>
 #include <eosio/net_plugin/net_utils.hpp>
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 #include <eosio/chain/types.hpp>
@@ -71,22 +74,9 @@ namespace eosio {
 
    using connection_ptr = std::shared_ptr<connection>;
    using connection_wptr = std::weak_ptr<connection>;
-   using send_buffer_type = std::shared_ptr<std::vector<char>>;
 
    static constexpr int64_t block_interval_ns =
       std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(config::block_interval_ms)).count();
-
-   const std::string logger_name("net_plugin_impl");
-   fc::logger logger;
-   std::string peer_log_format;
-
-   template <typename Strand>
-   void verify_strand_in_this_thread(const Strand& strand, const char* func, int line) {
-      if( !strand.running_in_this_thread() ) {
-         fc_elog( logger, "wrong strand: ${f} : line ${n}, exiting", ("f", func)("n", line) );
-         app().quit();
-      }
-   }
 
    struct node_transaction_state {
       transaction_id_type id;
@@ -252,36 +242,6 @@ namespace eosio {
    constexpr auto     def_resp_expected_wait = std::chrono::seconds(5);
    constexpr auto     def_sync_fetch_span = 1000;
    constexpr auto     def_keepalive_interval = 10000;
-
-   constexpr auto     message_header_size = sizeof(uint32_t);
-
-   // see protocol net_message
-   enum class msg_type_t {
-      handshake_message      = fc::get_index<net_message, handshake_message>(),
-      chain_size_message     = fc::get_index<net_message, chain_size_message>(),
-      go_away_message        = fc::get_index<net_message, go_away_message>(),
-      time_message           = fc::get_index<net_message, time_message>(),
-      notice_message         = fc::get_index<net_message, notice_message>(),
-      request_message        = fc::get_index<net_message, request_message>(),
-      sync_request_message   = fc::get_index<net_message, sync_request_message>(),
-      signed_block           = fc::get_index<net_message, signed_block>(),
-      packed_transaction     = fc::get_index<net_message, packed_transaction>(),
-      vote_message           = fc::get_index<net_message, vote_message>(),
-      block_nack_message     = fc::get_index<net_message, block_nack_message>(),
-      block_notice_message   = fc::get_index<net_message, block_notice_message>(),
-      unknown
-   };
-
-   constexpr uint32_t to_index(msg_type_t net_msg) {
-      static_assert( std::variant_size_v<net_message> == static_cast<uint32_t>(msg_type_t::unknown));
-      return static_cast<uint32_t>(net_msg);
-   }
-
-   constexpr msg_type_t to_msg_type_t(size_t v) {
-      static_assert( std::variant_size_v<net_message> == static_cast<size_t>(msg_type_t::unknown));
-      EOS_ASSERT(v < to_index(msg_type_t::unknown), plugin_exception, "Invalid net_message index: ${v}", ("v", v));
-      return static_cast<msg_type_t>(v);
-   }
 
    class connections_manager {
    public:
@@ -535,39 +495,6 @@ namespace eosio {
       std::string empty{};
    }; //net_plugin_impl
 
-   // peer_[x]log must be called from thread in connection strand
-#define peer_dlog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::debug ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( debug, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_ilog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::info ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( info, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_wlog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::warn ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( warn, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
-#define peer_elog( PEER, FORMAT, ... ) \
-  FC_MULTILINE_MACRO_BEGIN \
-   if( logger.is_enabled( fc::log_level::error ) ) { \
-      verify_strand_in_this_thread( PEER->strand, __func__, __LINE__ ); \
-      logger.log( FC_LOG_MESSAGE( error, peer_log_format + FORMAT, __VA_ARGS__ (PEER->get_logger_variant()) ) ); \
-   } \
-  FC_MULTILINE_MACRO_END
-
 
    template<class enum_type, class=typename std::enable_if<std::is_enum<enum_type>::value>::type>
    inline enum_type& operator|=(enum_type& lhs, const enum_type& rhs)
@@ -609,9 +536,10 @@ namespace eosio {
    constexpr uint16_t proto_block_range = 8;               // include block range in notice_message
    constexpr uint16_t proto_savanna = 9;                   // savanna, adds vote_message
    constexpr uint16_t proto_block_nack = 10;               // adds block_nack_message & block_notice_message
+   constexpr uint16_t proto_gossip_bp_peers = 11;          // adds gossip_bp_peers_message
 #pragma GCC diagnostic pop
 
-   constexpr uint16_t net_version_max = proto_block_nack;
+   constexpr uint16_t net_version_max = proto_gossip_bp_peers;
 
    struct peer_sync_state {
       enum class sync_t {
@@ -915,7 +843,8 @@ namespace eosio {
       std::atomic<uint16_t>   protocol_version = 0;
       uint16_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
-      std::atomic<bool>       is_bp_connection = false;
+      std::atomic<bool>       is_gossip_bp_connection = false;
+      std::atomic<bool>       is_configured_bp_connection = false;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
 
@@ -978,6 +907,10 @@ namespace eosio {
       bool process_next_trx_message(uint32_t message_length);
       bool process_next_vote_message(uint32_t message_length);
       void update_endpoints(const tcp::endpoint& endpoint = tcp::endpoint());
+
+      void send_gossip_bp_peers_initial_message();
+      void send_gossip_bp_peers_message();
+      void send_gossip_bp_peers_message_to_bp_peers();
    public:
 
       bool populate_handshake( handshake_message& hello ) const;
@@ -1083,6 +1016,8 @@ namespace eosio {
       void handle_message( const vote_message& msg ) = delete; // vote_message_ptr overload used instead
       void handle_message( const block_nack_message& msg);
       void handle_message( const block_notice_message& msg);
+      void handle_message( gossip_bp_peers_message& msg);
+      void handle_message( const gossip_bp_peers_message& msg) = delete;
 
       // returns calculated number of blocks combined latency
       uint32_t calc_block_latency();
@@ -1175,6 +1110,12 @@ namespace eosio {
          peer_dlog( c, "handle block_notice_message #${bn}:${id}", ("bn", block_header::num_from_id(msg.id))("id", msg.id) );
          c->handle_message( msg );
       }
+
+      void operator()( gossip_bp_peers_message& msg ) const {
+         // continue call to handle_message on connection strand
+         peer_dlog( c, "handle gossip_bp_peers_message ${m}", ("m", msg) );
+         c->handle_message( msg );
+      }
    };
    
 
@@ -1263,7 +1204,7 @@ namespace eosio {
       auto [host, port, type] = net_utils::split_host_port_type(this_address);
       listen_address = host + ":" + port; // do not include type in listen_address to avoid peer setting type on connection
       set_connection_type( peer_address() );
-      my_impl->mark_bp_connection(this);
+      my_impl->mark_configured_bp_connection(this);
       fc_ilog( logger, "created connection - ${c} to ${n}", ("c", connection_id)("n", endpoint) );
    }
 
@@ -1379,7 +1320,8 @@ namespace eosio {
       connection_status stat;
       stat.connecting = state() == connection_state::connecting;
       stat.syncing = peer_syncing_from_us;
-      stat.is_bp_peer = is_bp_connection;
+      stat.is_bp_peer = is_gossip_bp_connection || is_configured_bp_connection;
+      stat.is_bp_gossip_peer = is_gossip_bp_connection;
       stat.is_socket_open = socket_is_open();
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
@@ -1829,131 +1771,6 @@ namespace eosio {
 
    //------------------------------------------------------------------------
 
-   struct buffer_factory {
-
-      /// caches result for subsequent calls, only provide same net_message instance for each invocation
-      const send_buffer_type& get_send_buffer( const net_message& m ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( m );
-         }
-         return send_buffer;
-      }
-
-   protected:
-      send_buffer_type send_buffer;
-
-   protected:
-      static send_buffer_type create_send_buffer( const net_message& m ) {
-         const uint32_t payload_size = fc::raw::pack_size( m );
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>(buffer_size);
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size);
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, m );
-
-         return send_buffer;
-      }
-
-      template< typename T>
-      static send_buffer_type create_send_buffer( uint32_t which, const T& v ) {
-         // match net_message static_variant pack
-         const uint32_t which_size = fc::raw::pack_size( unsigned_int( which ) );
-         const uint32_t payload_size = which_size + fc::raw::pack_size( v );
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size );
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, unsigned_int( which ) );
-         fc::raw::pack( ds, v );
-
-         return send_buffer;
-      }
-
-      static send_buffer_type create_send_buffer_from_serialized_block( const std::vector<char>& v ) {
-         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
-
-         // match net_message static_variant pack
-         const uint32_t which_size = fc::raw::pack_size( unsigned_int( signed_block_which ) );
-         const uint32_t payload_size = which_size + v.size();
-
-         const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
-         const size_t buffer_size = message_header_size + payload_size;
-
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
-         fc::datastream<char*> ds( send_buffer->data(), buffer_size );
-         ds.write( header, message_header_size );
-         fc::raw::pack( ds, unsigned_int( signed_block_which ) );
-         ds.write( v.data(), v.size() );
-
-         return send_buffer;
-      }
-
-   };
-
-   struct block_buffer_factory : public buffer_factory {
-
-      /// caches result for subsequent calls, only provide same signed_block_ptr instance for each invocation.
-      const send_buffer_type& get_send_buffer( const signed_block_ptr& sb ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( sb );
-         }
-         return send_buffer;
-      }
-
-      const send_buffer_type& get_send_buffer( const std::vector<char>& sb ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( sb );
-         }
-         return send_buffer;
-      }
-
-   private:
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
-         constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
-
-         // this implementation is to avoid copy of signed_block to net_message
-         // matches which of net_message for signed_block
-         fc_dlog( logger, "sending block ${bn}", ("bn", sb->block_num()) );
-         return buffer_factory::create_send_buffer( signed_block_which, *sb );
-      }
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
-         // this implementation is to avoid copy of signed_block to net_message
-         // matches which of net_message for signed_block
-         return buffer_factory::create_send_buffer_from_serialized_block( ssb );
-      }
-   };
-
-   struct trx_buffer_factory : public buffer_factory {
-
-      /// caches result for subsequent calls, only provide same packed_transaction_ptr instance for each invocation.
-      const send_buffer_type& get_send_buffer( const packed_transaction_ptr& trx ) {
-         if( !send_buffer ) {
-            send_buffer = create_send_buffer( trx );
-         }
-         return send_buffer;
-      }
-
-   private:
-
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
-         constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
-
-         // this implementation is to avoid copy of packed_transaction to net_message
-         // matches which of net_message for packed_transaction
-         return buffer_factory::create_send_buffer( packed_transaction_which, *trx );
-      }
-   };
-
-   //------------------------------------------------------------------------
-
    // called from connection strand
    void connection::enqueue( const net_message& m ) {
       verify_strand_in_this_thread( strand, __func__, __LINE__ );
@@ -1983,7 +1800,7 @@ namespace eosio {
    void connection::enqueue_buffer( msg_type_t net_msg,
                                     std::optional<block_num_type> block_num, // only valid for net_msg == signed_block variant which
                                     queued_buffer::queue_t queue,
-                                    const std::shared_ptr<std::vector<char>>& send_buffer,
+                                    const send_buffer_type& send_buffer,
                                     go_away_reason close_after_send)
    {
       connection_ptr self = shared_from_this();
@@ -2941,6 +2758,7 @@ namespace eosio {
    }
 
 
+   // thread safe, only modified in plugin startup
    const string& net_plugin_impl::get_first_p2p_address() const {
       return p2p_addresses.size() > 0 ? *p2p_addresses.begin() : empty;
    }
@@ -3411,23 +3229,23 @@ namespace eosio {
       if (msg.p2p_address.empty()) {
          peer_wlog( this, "Handshake message validation: p2p_address is null string" );
          valid = false;
-      } else if( msg.p2p_address.length() > max_handshake_str_length ) {
+      } else if( msg.p2p_address.length() > net_utils::max_handshake_str_length ) {
          // see max_handshake_str_length comment in protocol.hpp
          peer_wlog( this, "Handshake message validation: p2p_address too large: ${p}",
-                    ("p", msg.p2p_address.substr(0, max_handshake_str_length) + "...") );
+                    ("p", msg.p2p_address.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
       if (msg.os.empty()) {
          peer_wlog( this, "Handshake message validation: os field is null string" );
          valid = false;
-      } else if( msg.os.length() > max_handshake_str_length ) {
+      } else if( msg.os.length() > net_utils::max_handshake_str_length ) {
          peer_wlog( this, "Handshake message validation: os field too large: ${p}",
-                    ("p", msg.os.substr(0, max_handshake_str_length) + "...") );
+                    ("p", msg.os.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
-      if( msg.agent.length() > max_handshake_str_length ) {
+      if( msg.agent.length() > net_utils::max_handshake_str_length ) {
          peer_wlog( this, "Handshake message validation: agent field too large: ${p}",
-                  ("p", msg.agent.substr(0, max_handshake_str_length) + "...") );
+                  ("p", msg.agent.substr(0, net_utils::max_handshake_str_length) + "...") );
          valid = false;
       }
       if ((msg.sig != chain::signature_type() || msg.token != sha256()) && (msg.token != fc::sha256::hash(msg.time))) {
@@ -3474,7 +3292,7 @@ namespace eosio {
          unique_conn_node_id = msg.node_id.str().substr( 0, 7 );
          g_conn.unlock();
 
-         my_impl->mark_bp_connection(this);
+         my_impl->mark_configured_bp_connection(this);
          if (my_impl->exceeding_connection_limit(shared_from_this())) {
             // When auto bp peering is enabled, create_session() check doesn't have enough information to determine
             // if a client is a BP peer. In create_session(), it only has the peer address which a node is connecting
@@ -3601,6 +3419,8 @@ namespace eosio {
          if( sent_handshake_count == 0 ) {
             send_handshake();
          }
+
+         send_gossip_bp_peers_initial_message();
       }
 
       uint32_t nblk_combined_latency = calc_block_latency();
@@ -3941,6 +3761,73 @@ namespace eosio {
       }
    }
 
+   digest_type gossip_bp_peers_message::bp_peer::digest() const {
+      digest_type::encoder enc;
+      fc::raw::pack(enc, my_impl->chain_id);
+      fc::raw::pack(enc, producer_name);
+      fc::raw::pack(enc, server_address);
+
+      return enc.result();
+   }
+
+   // called from connection strand
+   void connection::handle_message( gossip_bp_peers_message& msg ) {
+      if (!my_impl->bp_gossip_enabled())
+         return;
+
+      if (!my_impl->validate_gossip_bp_peers_message(msg)) {
+         peer_wlog( this, "bad gossip_bp_peers_message, closing");
+         no_retry = go_away_reason::fatal_other;
+         enqueue( go_away_message( fatal_other ) );
+         return;
+      }
+
+      // valid gossip peer connection
+      is_gossip_bp_connection = true;
+
+      assert(!msg.peers.empty()); // checked by validate_gossip_bp_peers_message()
+      if (msg.peers.size() == 1 && msg.peers[0].server_address.empty()) {
+         // initial message case, send back our entire collection
+         send_gossip_bp_peers_message();
+      } else {
+         bool diff = my_impl->update_gossip_bps(msg);
+         if (diff) { // update, let all our peers know about it
+            send_gossip_bp_peers_message_to_bp_peers();
+         }
+      }
+   }
+
+   // called from connection strand
+   void connection::send_gossip_bp_peers_initial_message() {
+      if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
+         return;
+      auto sb = my_impl->get_gossip_bp_initial_send_buffer();
+      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+   }
+
+
+   // called from connection strand
+   void connection::send_gossip_bp_peers_message() {
+      assert(my_impl->bp_gossip_enabled());
+      gossip_buffer_factory factory;
+      const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+      enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+   }
+
+   // called from connection strand, thread safe
+   void connection::send_gossip_bp_peers_message_to_bp_peers() {
+      assert(my_impl->bp_gossip_enabled());
+      my_impl->connections.for_each_connection([this](const connection_ptr& c) {
+         gossip_buffer_factory factory;
+         if (this != c.get() && c->is_gossip_bp_connection && c->socket_is_open()) {
+            const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
+            boost::asio::post(c->strand, [sb, c]() {
+               c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
+            });
+         }
+      });
+   }
+
    size_t calc_trx_size( const packed_transaction_ptr& trx ) {
       return trx->get_estimated_size();
    }
@@ -4140,13 +4027,19 @@ namespace eosio {
       fc_dlog( logger, "on_irreversible_block, blk num = ${num}, id = ${id}", ("num", block->block_num())("id", id) );
       update_chain_info(id);
 
-      if (chain_plug->chain().get_read_mode() == db_read_mode::IRREVERSIBLE) {
+      chain::controller& cc = chain_plug->chain();
+      if (cc.get_read_mode() == db_read_mode::IRREVERSIBLE) {
          // irreversible notifies sync_manager when added to fork_db, non-irreversible notifies when applied
          dispatcher.strand.post([sync_master = sync_master.get(), block, id]() {
             const fc::microseconds age(fc::time_point::now() - block->timestamp);
             sync_master->sync_recv_block(connection_ptr{}, id, block->block_num(), age);
          });
       }
+
+      // update peer public keys from chainbase db
+      flat_set<name> modified = cc.update_peer_keys(block->block_num());
+      if (!modified.empty())
+         update_bp_producer_peers(cc, modified, get_first_p2p_address());
    }
 
    // called from other threads including net threads
@@ -4390,6 +4283,8 @@ namespace eosio {
            "    eosproducer1,p2p.eos.io:9876\n"
            "    eosproducer2,p2p.trx.eos.io:9876:trx\n"
            "    eosproducer3,p2p.blk.eos.io:9876:blk\n")
+         ("p2p-producer-peer", boost::program_options::value<vector<string>>()->composing()->multitoken(),
+           "Producer peer name of this node used to retrieve peer key from on-chain peerkeys table. Private key of peer key should be configured via signature-provider.")
          ( "agent-name", bpo::value<string>()->default_value("EOS Test Agent"), "The name supplied to identify this node amongst the peers.")
          ( "allowed-connection", bpo::value<vector<string>>()->multitoken()->default_value({"any"}, "any"), "Can be 'any' or 'producers' or 'specified' or 'none'. If 'specified', peer-key must be specified at least once. If only 'producers', peer-key is not required. 'producers' and 'specified' may be combined.")
          ( "peer-key", bpo::value<vector<string>>()->composing()->multitoken(), "Optional public key of peer allowed to connect.  May be used multiple times.")
@@ -4477,9 +4372,12 @@ namespace eosio {
                   fc_wlog( logger, "Removed ${count} duplicate p2p-listen-endpoint entries", ("count", addr_diff));
                }
                for( const auto& addr : p2p_addresses ) {
-                  EOS_ASSERT( addr.length() <= max_p2p_address_length, chain::plugin_config_exception,
+                  EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
                               "p2p-listen-endpoint ${a} too long, must be less than ${m}", 
-                              ("a", addr)("m", max_p2p_address_length) );
+                              ("a", addr)("m", net_utils::max_p2p_address_length) );
+                  const auto& [host, port, type] = net_utils::split_host_port_type(addr);
+                  EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                              "Invalid p2p-listen-endpoint ${p}, syntax host:port:[trx|blk]", ("p", addr));
                }
             }
          }
@@ -4488,9 +4386,12 @@ namespace eosio {
             EOS_ASSERT( p2p_server_addresses.size() <= p2p_addresses.size(), chain::plugin_config_exception,
                         "p2p-server-address may not be specified more times than p2p-listen-endpoint" );
             for( const auto& addr: p2p_server_addresses ) {
-               EOS_ASSERT( addr.length() <= max_p2p_address_length, chain::plugin_config_exception,
+               EOS_ASSERT( addr.length() <= net_utils::max_p2p_address_length, chain::plugin_config_exception,
                            "p2p-server-address ${a} too long, must be less than ${m}", 
-                           ("a", addr)("m", max_p2p_address_length) );
+                           ("a", addr)("m", net_utils::max_p2p_address_length) );
+               const auto& [host, port, type] = net_utils::split_host_port_type(addr);
+               EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
+                           "Invalid p2p-server-address ${p}, syntax host:port:[trx|blk]", ("p", addr));
             }
          }
          p2p_server_addresses.resize(p2p_addresses.size()); // extend with empty entries as needed
@@ -4505,23 +4406,28 @@ namespace eosio {
             for (const auto& peer : peers) {
                const auto& [host, port, type] = net_utils::split_host_port_type(peer);
                EOS_ASSERT( !host.empty() && !port.empty(), chain::plugin_config_exception,
-                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]");
+                           "Invalid p2p-peer-address ${p}, syntax host:port:[trx|blk]", ("p", peer));
             }
             connections.add_supplied_peers(peers);
          }
          if( options.count( "agent-name" )) {
             user_agent_name = options.at( "agent-name" ).as<string>();
-            EOS_ASSERT( user_agent_name.length() <= max_handshake_str_length, chain::plugin_config_exception,
-                        "agent-name too long, must be less than ${m}", ("m", max_handshake_str_length) );
+            EOS_ASSERT( user_agent_name.length() <= net_utils::max_handshake_str_length, chain::plugin_config_exception,
+                        "agent-name too long, must be less than ${m}", ("m", net_utils::max_handshake_str_length) );
          }
 
          if ( options.count( "p2p-auto-bp-peer")) {
-            set_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>());
+            set_configured_bp_peers(options.at( "p2p-auto-bp-peer" ).as<vector<string>>());
             for_each_bp_peer_address([&peers](const auto& addr) {
                EOS_ASSERT(std::find(peers.begin(), peers.end(), addr) == peers.end(), chain::plugin_config_exception,
-                          "\"${addr}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.",
-                          ("addr",addr));
+                          "\"${a}\" should only appear in either p2p-peer-address or p2p-auto-bp-peer option, not both.", ("a",addr));
             });
+         }
+
+         if ( options.count("p2p-producer-peer") ) {
+            EOS_ASSERT(options.count("signature-provider"), chain::plugin_config_exception,
+                       "signature-provider of associated key required for p2p-producer-peer");
+            set_bp_producer_peers(options.at("p2p-producer-peer").as<vector<string>>());
          }
 
          if( options.count( "allowed-connection" )) {
@@ -4636,6 +4542,14 @@ namespace eosio {
 
          cc.aggregated_vote().connect( broadcast_vote );
          cc.voted_block().connect( broadcast_vote );
+
+         if (bp_gossip_enabled()) {
+            cc.set_peer_keys_retrieval_active(true);
+            // update peer public keys from chainbase db
+            cc.update_peer_keys(cc.head().irreversible_blocknum());
+            // pass in empty set so validation that peer key exists is enforced
+            update_bp_producer_peers(cc, flat_set<chain::account_name>{}, get_first_p2p_address());
+         }
       }
 
       incoming_transaction_ack_subscription = app().get_channel<compat::channels::transaction_ack>().subscribe(
@@ -5009,7 +4923,7 @@ namespace eosio {
             return;
          }
          const connection_ptr& c = it->c;
-         if (c->is_bp_connection) {
+         if (c->is_gossip_bp_connection || c->is_configured_bp_connection) {
             ++num_bp_peers;
          } else if (c->incoming()) {
             ++num_clients;
@@ -5050,7 +4964,7 @@ namespace eosio {
       net_plugin::p2p_per_connection_metrics per_connection(index.size());
       for (auto it = index.begin(); it != index.end(); ++it) {
          const connection_ptr& c = it->c;
-         if(c->is_bp_connection) {
+         if(c->is_gossip_bp_connection || c->is_configured_bp_connection) {
             ++num_bp_peers;
          } else if(c->incoming()) {
             ++num_clients;
