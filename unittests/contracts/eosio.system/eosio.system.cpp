@@ -7,6 +7,7 @@
 #include "voting.cpp"
 #include "exchange_state.cpp"
 #include "rex.cpp"
+#include "peer_keys.cpp"
 
 namespace eosiosystem {
 
@@ -297,35 +298,6 @@ void system_contract::init( unsigned_int version, symbol core ) {
 
    INLINE_ACTION_SENDER(eosio::token, open)( token_account, { _self, active_permission },
                                              { rex_account, core, _self } );
-}
-
-void system_contract::regpeerkey( const name& proposer_finalizer_name, const public_key& key ) {
-   require_auth(proposer_finalizer_name);
-   check(!std::holds_alternative<eosio::webauthn_public_key>(key), "webauthn keys not allowed in regpeerkey action");
-
-   auto peers_itr = _peer_keys.find(proposer_finalizer_name.value);
-   if (peers_itr == _peer_keys.end()) {
-      _peer_keys.emplace(proposer_finalizer_name, [&](auto& row) {
-         row = peer_key::make_default_row(proposer_finalizer_name);
-         row.key = key;
-      });
-   } else {
-      check(peers_itr->key != key, "Provided key is the same as currently stored one");
-      _peer_keys.modify(peers_itr, same_payer, [&](auto& row) {
-         row.block_num = eosio::current_block_number();
-         row.key       = key;
-      });
-   }
-}
-
-void system_contract::delpeerkey( const name& proposer_finalizer_name, const public_key& key ) {
-   require_auth(proposer_finalizer_name);
-
-   // not updating the version here. deleted keys will persist in the memory hashmap
-   auto peers_itr = _peer_keys.find(proposer_finalizer_name.value);
-   check(peers_itr != _peer_keys.end(), "Key not present for name: " + proposer_finalizer_name.to_string());
-   check(peers_itr->key == key, "Current key does not match the provided one");
-   _peer_keys.erase(peers_itr);
 }
 
 } /// eosio.system

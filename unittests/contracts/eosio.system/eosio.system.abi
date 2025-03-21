@@ -747,8 +747,8 @@
                     "type": "uint8"
                 },
                 {
-                    "name": "key",
-                    "type": "public_key?"
+                    "name": "data",
+                    "type": "variant_v0_data"
                 }
             ]
         },
@@ -1439,6 +1439,16 @@
             ]
         },
         {
+            "name": "v0_data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pubkey",
+                    "type": "public_key?"
+                }
+            ]
+        },
+        {
             "name": "voteproducer",
             "base": "",
             "fields": [
@@ -1921,6 +1931,11 @@
         }
     ],
     "ricardian_clauses": [],
-    "variants": [],
+    "variants": [
+        {
+            "name": "variant_v0_data",
+            "types": ["v0_data"]
+        }
+    ],
     "action_results": []
 }

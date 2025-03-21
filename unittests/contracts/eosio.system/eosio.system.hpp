@@ -270,17 +270,26 @@ struct rex_order_outcome {
 };
 
 struct [[eosio::table("peerkeys"), eosio::contract("eosio.system")]] peer_key {
+
+   struct v0_data {
+      std::optional<eosio::public_key> pubkey;  // peer key for network message authentication
+      EOSLIB_SERIALIZE( v0_data, (pubkey) )
+   };
+
    name                             proposer_finalizer_name;
    uint32_t                         block_num; // block number where this row was emplaced or modified
    uint8_t                          version;   // version 0 and above must have the `key` optional
-   std::optional<eosio::public_key> key;       // used to verify peer gossip
+   std::variant<v0_data>            data;
 
    uint64_t  primary_key() const { return proposer_finalizer_name.value; }
    uint64_t  by_block_num() const { return block_num; }
 
-   static constexpr uint8_t current_version = 0;   // increment when optional members are added and update `make_default_row`
-   static peer_key make_default_row(name n) { return peer_key{n, eosio::current_block_number(), current_version, {}}; }
-};
+   void set_public_key(const public_key& key) { data = v0_data{key}; }
+   const std::optional<eosio::public_key>& get_public_key() const {
+      return std::visit([](auto& v) -> const std::optional<eosio::public_key>& { return v.pubkey; }, data);
+   }
+   void update_row() { block_num = eosio::current_block_number(); }
+   void init_row(name n) { *this = peer_key{n, eosio::current_block_number(), 0, v0_data{}}; }};
 
 typedef eosio::multi_index<"peerkeys"_n, peer_key,
                            indexed_by<"byblocknum"_n, const_mem_fun<peer_key, uint64_t, &peer_key::by_block_num>>
