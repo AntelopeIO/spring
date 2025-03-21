@@ -33,12 +33,13 @@ class bp_connection_manager {
 
    // the following members are only accessed from main thread
    flat_set<account_name> pending_bps;
-   flat_set<account_name> active_bps;
    uint32_t               pending_schedule_version = 0;
    uint32_t               active_schedule_version  = 0;
 
-   fc::mutex                     factory_mtx;
-   gossip_buffer_initial_factory initial_gossip_msg_factory GUARDED_BY(factory_mtx);
+   fc::mutex                     mtx;
+   gossip_buffer_initial_factory initial_gossip_msg_factory GUARDED_BY(mtx);
+   flat_set<account_name>        active_bps GUARDED_BY(mtx);
+   flat_set<account_name>        active_schedule GUARDED_BY(mtx);
 
    Derived*       self() { return static_cast<Derived*>(this); }
    const Derived* self() const { return static_cast<const Derived*>(this); }
@@ -49,9 +50,7 @@ class bp_connection_manager {
    }
 
    // Only called from main thread
-   chain::flat_set<account_name> bp_accounts(const std::vector<chain::producer_authority>& schedule) const
-   {
-
+   chain::flat_set<account_name> active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
       fc::lock_guard g(gossip_bps.mtx);
       auto& prod_idx = gossip_bps.index.get<by_producer>();
       chain::flat_set<account_name> result;
@@ -60,6 +59,37 @@ class bp_connection_manager {
             result.insert(auth.producer_name);
       }
       return result;
+   }
+
+   // called from net threads
+   chain::flat_set<account_name> active_bp_accounts(const flat_set<account_name>& active_schedule) const REQUIRES(mtx) {
+      fc::lock_guard g(gossip_bps.mtx);
+      auto& prod_idx = gossip_bps.index.get<by_producer>();
+      chain::flat_set<account_name> result;
+      for (const auto& a : active_schedule) {
+         if (config.bp_peer_addresses.contains(a) || prod_idx.contains(a))
+            result.insert(a);
+      }
+      return result;
+   }
+
+   // thread-safe
+   void set_active_schedule(const std::vector<chain::producer_authority>& schedule) {
+      fc::lock_guard g(mtx);
+      active_schedule.clear();
+      for (const auto& auth : schedule)
+         active_schedule.insert(auth.producer_name);
+   }
+
+   // for testing
+   flat_set<account_name> get_active_bps() {
+      fc::lock_guard g(mtx);
+      return active_bps;
+   }
+   // for testing
+   void set_active_bps(flat_set<account_name> bps) {
+      fc::lock_guard g(mtx);
+      active_bps = std::move(bps);
    }
 
 public:
@@ -78,7 +108,6 @@ public:
 
    // Only called at plugin startup
    void set_configured_bp_peers(const std::vector<std::string>& peers) {
-      fc::lock_guard g(gossip_bps.mtx);
       for (const auto& entry : peers) {
          try {
             auto comma_pos = entry.find(',');
@@ -127,6 +156,7 @@ public:
    {
       if (config.my_bp_peer_accounts.empty())
          return;
+      fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       // normally only one bp peer account except in testing scenarios or test chains
       bool first = true;
@@ -135,10 +165,10 @@ public:
             std::optional<public_key_type> pk = cc.get_peer_key(e);
             // EOS_ASSERT can only be hit on plugin startup, otherwise this method called with modified_keys that are in cc.get_peer_key()
             EOS_ASSERT(pk, chain::plugin_config_exception, "No on-chain peer key found for ${n}", ("n", e));
+            fc_dlog(self()->get_logger(), "Signing with producer_name ${p} key ${k}", ("p", e)("k", *pk));
             if (first) {
                gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
                signed_empty.sig = self()->sign_compact(*pk, signed_empty.digest());
-               fc::lock_guard lck(factory_mtx);
                initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
             }
             auto& prod_idx = gossip_bps.index.get<by_producer>();
@@ -175,7 +205,7 @@ public:
    }
 
    send_buffer_type get_gossip_bp_initial_send_buffer() {
-      fc::lock_guard g(factory_mtx);
+      fc::lock_guard g(mtx);
       return initial_gossip_msg_factory.get_initial_send_buffer();
    }
 
@@ -246,15 +276,19 @@ public:
                if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
                   public_key_type pk(peer.sig, peer.digest());
                   if (pk != *peer_key) {
+                     fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
+                             ("p", peer.producer_name)("pk", pk)("k", *peer_key));
                      i = msg.peers.erase(i);
                      continue;
                   }
                } else { // unknown key
+                  fc_dlog(self()->get_logger(), "Failed to find peer key ${p}", ("p", peer.producer_name));
                   i = msg.peers.erase(i);
                   continue;
                }
             }
          } catch (fc::exception& e) {
+            fc_dlog(self()->get_logger(), "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
             // invalid key
             i = msg.peers.erase(i);
             continue;
@@ -266,9 +300,9 @@ public:
    }
 
    // thread-safe
-   std::tuple<bool, size_t> update_gossip_bps(const gossip_bp_peers_message& msg) {
+   bool update_gossip_bps(const gossip_bp_peers_message& msg) {
       // providing us with full set
-      fc::lock_guard g(gossip_bps.mtx);
+      fc::unique_lock g(gossip_bps.mtx);
       auto& idx = gossip_bps.index.get<by_producer>();
       bool diff = false;
       for (const auto& peer : msg.peers) {
@@ -284,7 +318,40 @@ public:
             diff = true;
          }
       }
-      return std::make_tuple(gossip_bps.index.size(), diff);
+      g.unlock();
+      if (diff) {
+         connect_to_active();
+      }
+      return diff;
+   }
+
+   // thread-safe
+   void connect_to_active() {
+      // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
+      // can be holding connections mutex when trying to acquire these mutexes
+      flat_set<std::string> addresses;
+      {
+         fc::lock_guard gm(mtx);
+         active_bps = active_bp_accounts(active_schedule);
+
+         fc::lock_guard g(gossip_bps.mtx);
+         auto& prod_idx = gossip_bps.index.get<by_producer>();
+         for (const auto& account : active_bps) {
+            if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+               fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
+               addresses.insert(i->second);
+            }
+            auto r = prod_idx.equal_range(account);
+            for (auto i = r.first; i != r.second; ++i) {
+               fc_dlog(self()->get_logger(), "connect to gossip bp peer ${p}", ("p", i->server_address));
+               addresses.insert(i->server_address);
+            }
+         }
+      }
+
+      for (const auto& add : addresses) {
+         self()->connections.resolve_and_connect(add, self()->get_first_p2p_address());
+      }
    }
 
    // Only called from main thread
@@ -297,7 +364,7 @@ public:
                fc_dlog(self()->get_logger(), "pending producer schedule switches from version ${old} to ${new}",
                        ("old", pending_schedule_version)("new", schedule.version));
 
-               auto pending_connections = bp_accounts(schedule.producers);
+               auto pending_connections = active_bp_accounts(schedule.producers);
 
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
 
@@ -305,10 +372,12 @@ public:
                auto& prod_idx = gossip_bps.index.get<by_producer>();
                for (const auto& account : pending_connections) {
                   if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+                     fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
                      self()->connections.resolve_and_connect(i->second, self()->get_first_p2p_address() );
                   }
                   auto r = prod_idx.equal_range(account);
                   for (auto i = r.first; i != r.second; ++i) {
+                     fc_dlog(self()->get_logger(), "connect to gossip bp peer ${p}", ("p", i->server_address));
                      self()->connections.resolve_and_connect(i->server_address, self()->get_first_p2p_address() );
                   }
                }
@@ -331,14 +400,21 @@ public:
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
+         set_active_schedule(schedule.producers);
+         if (active_schedule_version == 0) { // first call since node was launched, connect to active
+            connect_to_active();
+         }
+
+         fc::unique_lock gm(mtx);
          auto old_bps = std::move(active_bps);
-         active_bps   = bp_accounts(schedule.producers);
+         active_bps   = active_bp_accounts(schedule.producers);
 
          fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
 
          flat_set<account_name> peers_to_stay;
          std::set_union(active_bps.begin(), active_bps.end(), pending_bps.begin(), pending_bps.end(),
                         std::inserter(peers_to_stay, peers_to_stay.begin()));
+         gm.unlock();
 
          fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
@@ -351,10 +427,12 @@ public:
          auto& prod_idx = gossip_bps.index.get<by_producer>();
          for (const auto& account : peers_to_drop) {
             if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+               fc_dlog(self()->get_logger(), "disconnect to manual bp peer ${p}", ("p", i->second));
                self()->connections.disconnect(i->second);
             }
             auto r = prod_idx.equal_range(account);
             for (auto i = r.first; i != r.second; ++i) {
+               fc_dlog(self()->get_logger(), "disconnect to gossip bp peer ${p}", ("p", i->server_address));
                self()->connections.disconnect(i->server_address);
             }
          }

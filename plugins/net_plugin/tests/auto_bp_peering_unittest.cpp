@@ -204,7 +204,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    mock_net_plugin plugin;
    plugin.setup_test_peers();
 
-   plugin.active_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
+   plugin.set_active_bps( { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n } );
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
 
    std::vector<std::string> disconnected_hosts;
@@ -215,7 +215,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    plugin.on_active_schedule(test_schedule1);
 
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{}));
-   BOOST_CHECK_EQUAL(plugin.active_bps,
+   BOOST_CHECK_EQUAL(plugin.get_active_bps(),
                      (fc::flat_set<eosio::chain::account_name>{ "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n }));
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 0u);
 
@@ -226,7 +226,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule1) {
    // then disconnect to prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_bps, producers_minus_prodkt);
+   BOOST_CHECK_EQUAL(plugin.get_active_bps(), producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);
@@ -237,7 +237,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    mock_net_plugin plugin;
    plugin.setup_test_peers();
 
-   plugin.active_bps = { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n };
+   plugin.set_active_bps( { "proda"_n, "prodh"_n, "prodn"_n, "prodt"_n } );
    plugin.connections.resolve_and_connect = [](std::string host, std::string p2p_address) {};
    std::vector<std::string> disconnected_hosts;
    plugin.connections.disconnect = [&disconnected_hosts](std::string host) { disconnected_hosts.push_back(host); };
@@ -249,7 +249,7 @@ BOOST_AUTO_TEST_CASE(test_on_active_schedule2) {
    // then disconnect prodt
    BOOST_CHECK_EQUAL(disconnected_hosts, (std::vector<std::string>{ "127.0.0.1:8020"s }));
 
-   BOOST_CHECK_EQUAL(plugin.active_bps, producers_minus_prodkt);
+   BOOST_CHECK_EQUAL(plugin.get_active_bps(), producers_minus_prodkt);
 
    // make sure we change the active_schedule_version
    BOOST_CHECK_EQUAL(plugin.active_schedule_version, 1u);

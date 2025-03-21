@@ -1113,7 +1113,7 @@ namespace eosio {
 
       void operator()( gossip_bp_peers_message& msg ) const {
          // continue call to handle_message on connection strand
-         peer_dlog( c, "handle gossip_bp_peers_message size ${s}", ("s", msg.peers.size()) );
+         peer_dlog( c, "handle gossip_bp_peers_message ${m}", ("m", msg) );
          c->handle_message( msg );
       }
    };
@@ -3790,10 +3790,7 @@ namespace eosio {
          // initial message case, send back our entire collection
          send_gossip_bp_peers_message();
       } else {
-         auto [diff, size] = my_impl->update_gossip_bps(msg);
-         if (msg.peers.size() < size) { // we have more than sent to us, send back our set
-            send_gossip_bp_peers_message();
-         }
+         bool diff = my_impl->update_gossip_bps(msg);
          if (diff) { // update, let all our peers know about it
             send_gossip_bp_peers_message_to_bp_peers();
          }
@@ -3811,7 +3808,6 @@ namespace eosio {
 
    // called from connection strand
    void connection::send_gossip_bp_peers_message() {
-      assert(protocol_version >= proto_gossip_bp_peers);
       assert(my_impl->bp_gossip_enabled());
       gossip_buffer_factory factory;
       const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
@@ -3824,7 +3820,6 @@ namespace eosio {
       my_impl->connections.for_each_connection([this](const connection_ptr& c) {
          gossip_buffer_factory factory;
          if (this != c.get() && c->is_gossip_bp_connection && c->socket_is_open()) {
-            assert(c->protocol_version >= proto_gossip_bp_peers);
             const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
             boost::asio::post(c->strand, [sb, c]() {
                c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
@@ -4550,6 +4545,9 @@ namespace eosio {
 
          if (bp_gossip_enabled()) {
             cc.set_peer_keys_retrieval_active(true);
+            // update peer public keys from chainbase db
+            cc.update_peer_keys(cc.head().irreversible_blocknum());
+            // pass in empty set so validation that peer key exists is enforced
             update_bp_producer_peers(cc, flat_set<chain::account_name>{}, get_first_p2p_address());
          }
       }
