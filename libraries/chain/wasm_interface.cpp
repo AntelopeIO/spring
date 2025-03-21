@@ -54,7 +54,7 @@ namespace eosio { namespace chain {
 
       if (control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
          const auto& gpo = control.get_global_properties();
-         webassembly::eos_vm_runtime::validate( code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
+         webassembly::eos_vm_runtime::validate( control, code, gpo.wasm_configuration, pso.whitelisted_intrinsics );
          return;
       }
       Module module;

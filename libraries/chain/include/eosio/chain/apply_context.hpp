@@ -495,7 +495,7 @@ class apply_context {
    /// Constructor
    public:
       apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth=0);
-      apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data);  // used to construct sync call context
+      apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, uint64_t flags, std::span<const char> data);  // used to construct sync call context
 
    /// Execution methods:
    public:
@@ -605,6 +605,7 @@ class apply_context {
       const action& get_action()const { return *act; }
       const action* get_action_ptr()const { return act; }
       const std::optional<sync_call_context>& get_sync_call_ctx()const { return sync_call_ctx; }
+      std::optional<sync_call_context>& get_mutable_sync_call_ctx() { return sync_call_ctx; }
 
       action_name get_sender() const;
 
