@@ -60,11 +60,12 @@ apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint
    context_free = trace.context_free;
 }
 
-apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, std::span<const char> data)
+// For sync calls
+apply_context::apply_context(controller& con, transaction_context& trx_ctx, name sender, name receiver, uint64_t flags, std::span<const char> data)
 :control(con)
 ,db(con.mutable_db())
 ,trx_context(trx_ctx)
-,sync_call_ctx({sender, receiver, data})
+,sync_call_ctx(sync_call_context(sender, receiver, flags, data))
 ,idx64(*this)
 ,idx128(*this)
 ,idx256(*this)
@@ -258,8 +259,8 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
    const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
    EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
               "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
-   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, sync_call_validate_exception,
-              "sync call's flags ${f} can only set bit 0", ("f", flags));
+   EOS_ASSERT((flags & ~0b11) == 0, sync_call_validate_exception,  // all but last 2 bits are 0s
+              "only two least significant bits of sync call's flags (${flags}) can be set", ("flags", flags)); // bit 0 for read-only, bit 1 for no-op if no sync call entry point exists
 
    auto handle_exception = [&](const auto& e)
    {
@@ -281,7 +282,7 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
 
          try {
             // use a new apply_context for a new sync call
-            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
+            apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, flags, std::move(data));
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
 
             // store return value
