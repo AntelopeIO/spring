@@ -124,10 +124,10 @@ try:
         if not node.relaunch(chainArg=" --p2p-producer-peer " + producer_name):
             errorExit(f"Failed to relaunch node {nodeId}")
 
-    # wait until producert is seen by every node
+    # give time for messages to be gossiped around
     for nodeId in range(0, producerNodes):
         Utils.Print("Wait for defproducert on node ", nodeId)
-        cluster.getNode(nodeId).waitForProducer("defproducert", exitOnError=True, timeout=300)
+        cluster.getNode(nodeId).waitForHeadToAdvance(5)
 
     # retrieve the producer stable producer schedule
     scheduled_producers = []
