@@ -73,9 +73,7 @@ class bp_connection_manager {
       return result;
    }
 
-   // thread-safe
-   void set_active_schedule(const std::vector<chain::producer_authority>& schedule) {
-      fc::lock_guard g(mtx);
+   void set_active_schedule(const std::vector<chain::producer_authority>& schedule) REQUIRES(mtx) {
       active_schedule.clear();
       for (const auto& auth : schedule)
          active_schedule.insert(auth.producer_name);
@@ -400,14 +398,17 @@ public:
          fc_dlog(self()->get_logger(), "active producer schedule switches from version ${old} to ${new}",
                  ("old", active_schedule_version)("new", schedule.version));
 
-         set_active_schedule(schedule.producers);
-         if (active_schedule_version == 0) { // first call since node was launched, connect to active
-            connect_to_active();
-         }
-
          fc::unique_lock gm(mtx);
          auto old_bps = std::move(active_bps);
-         active_bps   = active_bp_accounts(schedule.producers);
+
+         set_active_schedule(schedule.producers);
+         if (active_schedule_version == 0) { // first call since node was launched, connect to active
+            gm.unlock();
+            connect_to_active();
+            gm.lock();
+         }
+
+         active_bps = active_bp_accounts(schedule.producers);
 
          fc_dlog(self()->get_logger(), "active_bps: ${a}", ("a", to_string(active_bps)));
 
