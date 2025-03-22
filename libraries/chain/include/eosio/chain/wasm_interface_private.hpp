@@ -181,7 +181,7 @@ struct eosvmoc_tier {
          if (allow_oc_interrupt)
             executing_code_hash.store(code_hash);
          try {
-            get_instantiated_module(code_hash, vm_type, vm_version, context)->apply(context);
+            get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->apply(context);
          } catch (const interrupt_exception& e) {
             if (allow_oc_interrupt && eos_vm_oc_compile_interrupt && main_thread_timer.timer_state() == platform_timer::state_t::interrupted) {
                ++eos_vm_oc_compile_interrupt_count;
@@ -197,7 +197,7 @@ struct eosvmoc_tier {
       }
 
       void do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
-         get_instantiated_module(code_hash, vm_type, vm_version, context)->do_sync_call(context);
+         get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->do_sync_call(context);
       }
 
       // used for testing
@@ -248,16 +248,16 @@ struct eosvmoc_tier {
          const digest_type&   code_hash,
          const uint8_t&       vm_type,
          const uint8_t&       vm_version,
-         apply_context&       context)
+         transaction_context& trx_context)
       {
-         if (context.trx_context.control.is_write_window()) {
+         if (trx_context.control.is_write_window()) {
             // When in write window (either read only threads are not enabled or
             // they are not schedued to run), only main thread is processing
             // transactions. No need to lock.
-            return get_or_build_instantiated_module(code_hash, vm_type, vm_version, context);
+            return get_or_build_instantiated_module(code_hash, vm_type, vm_version, trx_context);
          } else {
             std::lock_guard g(instantiation_cache_mutex);
-            return get_or_build_instantiated_module(code_hash, vm_type, vm_version, context);
+            return get_or_build_instantiated_module(code_hash, vm_type, vm_version, trx_context);
          }
       }
 
@@ -266,7 +266,7 @@ struct eosvmoc_tier {
          const digest_type&   code_hash,
          const uint8_t&       vm_type,
          const uint8_t&       vm_version,
-         apply_context&       context)
+         transaction_context& trx_context)
       {
          wasm_cache_index::iterator it = wasm_instantiation_cache.find( boost::make_tuple(code_hash, vm_type, vm_version) );
          if (it != wasm_instantiation_cache.end()) {
@@ -281,12 +281,12 @@ struct eosvmoc_tier {
             .last_block_num_used = UINT32_MAX,
             .module = nullptr,
             .vm_type = vm_type,
-            .vm_version = vm_version,
+            .vm_version = vm_version
          } ).first;
          auto timer_pause = fc::make_scoped_exit([&](){
-            context.trx_context.resume_billing_timer();
+            trx_context.resume_billing_timer();
          });
-         context.trx_context.pause_billing_timer();
+         trx_context.pause_billing_timer();
          wasm_instantiation_cache.modify(it, [&](auto& c) {
             c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version);
          });
