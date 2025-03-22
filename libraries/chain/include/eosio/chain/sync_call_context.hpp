@@ -5,7 +5,6 @@
 namespace eosio { namespace chain {
    struct sync_call_context {
       sync_call_context(account_name sender, account_name receiver, uint64_t flags, std::span<const char>  data);
-      void set_receiver_supports_sync_call(bool supported);
       bool is_read_only()const;
       bool no_op_if_receiver_not_support_sync_call()const;
 
@@ -17,10 +16,7 @@ namespace eosio { namespace chain {
 
       // output
       std::vector<char>      return_value{};
-
-      // temporary
-      bool                   receiver_supports_sync_call = false; // the receiver contract has valid sync_call entry point
    };
 } } /// namespace eosio::chain
 
-FC_REFLECT(eosio::chain::sync_call_context, (sender)(receiver)(flags)(data)(return_value)(receiver_supports_sync_call))
+FC_REFLECT(eosio::chain::sync_call_context, (sender)(receiver)(flags)(data)(return_value))

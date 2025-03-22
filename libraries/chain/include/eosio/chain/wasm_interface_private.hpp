@@ -42,7 +42,6 @@ namespace eosio { namespace chain {
          std::unique_ptr<wasm_instantiated_module_interface>  module;
          uint8_t                                              vm_type = 0;
          uint8_t                                              vm_version = 0;
-         bool                                                 sync_call_supported = false;
       };
       struct by_hash;
       struct by_last_block_num;
@@ -273,9 +272,6 @@ struct eosvmoc_tier {
          if (it != wasm_instantiation_cache.end()) {
             // An instantiated module's module should never be null.
             assert(it->module);
-            if (context.get_sync_call_ctx().has_value()) {
-               context.get_mutable_sync_call_ctx()->set_receiver_supports_sync_call(it->sync_call_supported);
-            }
             return it->module;
          }
 
@@ -286,19 +282,13 @@ struct eosvmoc_tier {
             .module = nullptr,
             .vm_type = vm_type,
             .vm_version = vm_version,
-            .sync_call_supported = false
          } ).first;
          auto timer_pause = fc::make_scoped_exit([&](){
             context.trx_context.resume_billing_timer();
          });
          context.trx_context.pause_billing_timer();
          wasm_instantiation_cache.modify(it, [&](auto& c) {
-            bool sync_call_supported = false;  // set by instantiate_module
-            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version, sync_call_supported);
-            c.sync_call_supported = sync_call_supported;
-            if (context.get_sync_call_ctx().has_value()) {
-               context.get_mutable_sync_call_ctx()->set_receiver_supports_sync_call(sync_call_supported);
-            }
+            c.module = runtime_interface->instantiate_module(codeobject->code.data(), codeobject->code.size(), code_hash, vm_type, vm_version);
          });
          return it->module;
       }

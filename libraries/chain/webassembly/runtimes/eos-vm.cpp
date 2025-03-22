@@ -146,7 +146,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          assert(sync_call_ctx.has_value());
          assert(!context.get_action_ptr());
 
-         if (!sync_call_ctx->receiver_supports_sync_call) {
+         uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
+         if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
             if (sync_call_ctx->no_op_if_receiver_not_support_sync_call()) {
                dlog("receiver does not have sync call entry point or the entry point is invalid, and the no-op flag is set. just returns");
                return;
@@ -154,6 +155,8 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
                EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");
             }
          }
+         // If the contract contains sync_call entry point, its signature had already been
+         // validated when the contract was deployed.
 
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
@@ -161,7 +164,6 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          // always return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
          auto ensure = fc::make_scoped_exit([&]() { context.control.return_sync_call_wasm_allocator(); });
-
 
          apply_options opts = get_apply_options(context);
 
@@ -308,7 +310,7 @@ eos_vm_runtime<Impl>::eos_vm_runtime() {}
 
 template<typename Impl>
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                             const digest_type&, const uint8_t&, const uint8_t&, bool& sync_call_supported) {
+                                                                                             const digest_type&, const uint8_t&, const uint8_t&) {
 
    using backend_t = eos_vm_backend_t<Impl>;
    try {
@@ -324,15 +326,6 @@ std::unique_ptr<wasm_instantiated_module_interface> eos_vm_runtime<Impl>::instan
          bkend = std::make_unique<backend_t>(code, code_size, nullptr, options, false, false); // false, false <--> 2-passes parsing, backend does not own execution context (execution context is reused per thread)
                                                                                                //
       eos_vm_host_functions_t::resolve(bkend->get_module());
-
-      // check sync_call entry point
-      sync_call_supported = false;
-      uint32_t sync_call_idx = bkend->get_module().get_exported_function("sync_call");
-      if (sync_call_idx < std::numeric_limits<uint32_t>::max()) {
-         // signature has already been checked when the contract was deployed
-         sync_call_supported = true;
-      }
-
       return std::make_unique<eos_vm_instantiated_module<Impl>>(this, std::move(bkend));
    } catch(eosio::vm::exception& e) {
       FC_THROW_EXCEPTION(wasm_execution_error, "Error building eos-vm interp: ${e}", ("e", e.what()));
@@ -346,7 +339,7 @@ template class eos_vm_runtime<eosio::vm::jit>;
 eos_vm_profile_runtime::eos_vm_profile_runtime() {}
 
 std::unique_ptr<wasm_instantiated_module_interface> eos_vm_profile_runtime::instantiate_module(const char* code_bytes, size_t code_size,
-                                                                                               const digest_type&, const uint8_t&, const uint8_t&, bool& sync_call_supported) {
+                                                                                               const digest_type&, const uint8_t&, const uint8_t&) {
 
    using backend_t = eosio::vm::backend<eos_vm_host_functions_t, eosio::vm::jit_profile, webassembly::eos_vm_runtime::apply_options, vm::profile_instr_map>;
    try {

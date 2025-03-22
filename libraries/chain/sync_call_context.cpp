@@ -10,10 +10,6 @@ sync_call_context::sync_call_context(account_name sender, account_name receiver,
 {
 }
 
-void sync_call_context::set_receiver_supports_sync_call(bool supported) {
-   receiver_supports_sync_call = supported;
-}
-
 bool sync_call_context::is_read_only()const {
    return flags & 0b1; // LSB. bit index 0
 }
