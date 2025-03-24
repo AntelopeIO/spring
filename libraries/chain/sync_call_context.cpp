@@ -11,11 +11,11 @@ sync_call_context::sync_call_context(account_name sender, account_name receiver,
 }
 
 bool sync_call_context::is_read_only()const {
-   return flags & 0b1; // LSB. bit index 0
+   return flags & static_cast<uint64_t>(sync_call_flags::read_only);
 }
 
 bool sync_call_context::no_op_if_receiver_not_support_sync_call()const {
-   return flags & 0b10;  // second bit from LSB. bit index 1
+   return flags & static_cast<uint64_t>(sync_call_flags::no_op_if_receiver_not_support_sync_call);
 }
 
 } /// eosio::chain

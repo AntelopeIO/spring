@@ -259,8 +259,8 @@ uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::sp
    const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
    EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
               "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
-   EOS_ASSERT((flags & ~0b11) == 0, sync_call_validate_exception,  // all but last 2 bits are 0s
-              "only two least significant bits of sync call's flags (${flags}) can be set", ("flags", flags)); // bit 0 for read-only, bit 1 for no-op if no sync call entry point exists
+   EOS_ASSERT(flags <= static_cast<uint64_t>(sync_call_flags::last), sync_call_validate_exception,  // all but last `sync_call_flags::last` bits must be 0s
+              "only ${last} least significant bits of sync call's flags (${flags}) can be set", ("last", static_cast<uint64_t>(sync_call_flags::last))("flags", flags));
 
    auto handle_exception = [&](const auto& e)
    {
