@@ -120,7 +120,7 @@ class PluginHttpTest(unittest.TestCase):
 
         retMap = self.nodeos.publishContract(eosioAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
 
-        self.nodeos.preactivateAllBuiltinProtocolFeature()
+        self.nodeos.activateAllBuiltinProtocolFeature()
 
     # test all chain api
     def test_ChainApi(self) :
