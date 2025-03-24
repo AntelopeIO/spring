@@ -1012,7 +1012,7 @@ BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
    t.create_account(callee);
    BOOST_CHECK_EXCEPTION(t.set_code(callee, bad_entry_point_wast),
                          wasm_serialization_error,
-                         fc_exception_message_contains("sync call entry point has wrong type"));
+                         fc_exception_message_contains("sync call entry point has wrong function signature"));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
