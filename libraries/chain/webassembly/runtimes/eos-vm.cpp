@@ -113,7 +113,7 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
          uint32_t sync_call_idx = bkend.get_module().get_exported_function("sync_call");
          if (sync_call_idx < std::numeric_limits<uint32_t>::max()) {
             const vm::func_type& sync_call_type = bkend.get_module().get_function_type(sync_call_idx);
-            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong type");
+            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong function signature");
          }
       }
    } catch(vm::exception& e) {
