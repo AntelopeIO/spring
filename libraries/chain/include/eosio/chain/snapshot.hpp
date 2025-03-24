@@ -146,7 +146,9 @@ namespace eosio { namespace chain {
             write_section(detail::snapshot_section_traits<T>::section_name(), f);
          }
 
-      virtual ~snapshot_writer(){};
+         virtual ~snapshot_writer(){};
+
+         virtual const char* name() const = 0;
 
       protected:
          virtual void write_start_section( const std::string& section_name ) = 0;
@@ -304,6 +306,7 @@ namespace eosio { namespace chain {
       public:
          variant_snapshot_writer(fc::mutable_variant_object& snapshot);
 
+         const char* name() const override { return "variant snapshot"; }
          void write_start_section( const std::string& section_name ) override;
          void write_row( const detail::abstract_snapshot_row_writer& row_writer ) override;
          void write_end_section( ) override;
@@ -337,6 +340,7 @@ namespace eosio { namespace chain {
       public:
          explicit ostream_snapshot_writer(std::ostream& snapshot);
 
+         const char* name() const override { return "snapshot"; }
          void write_start_section( const std::string& section_name ) override;
          void write_row( const detail::abstract_snapshot_row_writer& row_writer ) override;
          void write_end_section( ) override;
@@ -355,6 +359,7 @@ namespace eosio { namespace chain {
       public:
          explicit ostream_json_snapshot_writer(std::ostream& snapshot);
 
+         const char* name() const override { return "JSON snapshot"; }
          void write_start_section( const std::string& section_name ) override;
          void write_row( const detail::abstract_snapshot_row_writer& row_writer ) override;
          void write_end_section() override;
@@ -434,6 +439,7 @@ namespace eosio { namespace chain {
       public:
          explicit integrity_hash_snapshot_writer(fc::sha256::encoder&  enc);
 
+         const char* name() const override { return "integrity hash"; }
          void write_start_section( const std::string& section_name ) override;
          void write_row( const detail::abstract_snapshot_row_writer& row_writer ) override;
          void write_end_section( ) override;
@@ -445,15 +451,16 @@ namespace eosio { namespace chain {
    };
    
    struct snapshot_written_row_counter {
-      snapshot_written_row_counter(const size_t total) : total(total) {}
+      snapshot_written_row_counter(const size_t total, const char* name) : total(total), name(name) {}
       void progress() {
          if(++count % 50000 == 0 && time(NULL) - last_print >= 5) {
-            ilog("Snapshot creation ${pct}% complete", ("pct",std::min((unsigned)(((double)count/total)*100),100u)));
+            ilog("${n} creation ${pct}% complete", ("n", name)("pct",std::min((unsigned)(((double)count/total)*100),100u)));
             last_print = time(NULL);
          }
       }
       size_t count = 0;
       const size_t total = 0;
+      const char* name;
       time_t last_print = time(NULL);
    };
 
