@@ -460,7 +460,7 @@ namespace eosio { namespace chain {
       }
       size_t count = 0;
       const size_t total = 0;
-      const char* name;
+      const char* name = nullptr;
       time_t last_print = time(NULL);
    };
 
