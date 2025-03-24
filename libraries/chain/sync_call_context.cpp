@@ -6,7 +6,7 @@ sync_call_context::sync_call_context(account_name sender, account_name receiver,
    : sender(sender)
    , receiver(receiver)
    , flags(flags)
-   , data(std::move(data))
+   , data(data)
 {
 }
 
