@@ -33,6 +33,7 @@
 #include <eosio/chain/qc.hpp>
 #include <eosio/chain/vote_message.hpp>
 #include <eosio/chain/vote_processor.hpp>
+#include <eosio/chain/peer_keys_db.hpp>
 
 #include <chainbase/chainbase.hpp>
 #include <eosio/vm/allocator.hpp>
@@ -1009,6 +1010,7 @@ struct controller_impl {
    std::atomic<bool>               writing_snapshot = false;
    std::atomic<bool>               applying_block = false;
    platform_timer&                 main_thread_timer;
+   peer_keys_db_t                  peer_keys_db;
 
    thread_local static platform_timer timer; // a copy for main thread and each read-only thread
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
@@ -1320,8 +1322,10 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-      });
 
+         // update peer public keys from chainbase db 
+         peer_keys_db.update_peer_keys(self, block->block_num());
+      });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
    set_apply_handler( account_name(#receiver), account_name(#contract), action_name(#action), \
@@ -2232,7 +2236,7 @@ struct controller_impl {
       // clear in case the previous call to clear did not finish in time of deadline
       clear_expired_input_transactions( fc::time_point::maximum() );
 
-      snapshot_written_row_counter row_counter(expected_snapshot_row_count());
+      snapshot_written_row_counter row_counter(expected_snapshot_row_count(), snapshot->name());
 
       snapshot->write_section<chain_snapshot_header>([this]( auto &section ){
          section.add_row(chain_snapshot_header(), db);
@@ -5777,6 +5781,14 @@ bool controller::is_eos_vm_oc_whitelisted(const account_name& n) const {
 
 chain_id_type controller::get_chain_id()const {
    return my->chain_id;
+}
+
+void controller::set_peer_keys_retrieval_active(bool active) {
+   my->peer_keys_db.set_active(active);
+}
+
+std::optional<public_key_type> controller::get_peer_key(name n) const {
+   return my->peer_keys_db.get_peer_key(n);
 }
 
 db_read_mode controller::get_read_mode()const {
