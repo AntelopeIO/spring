@@ -4736,14 +4736,16 @@ namespace eosio {
 
       {
          std::shared_lock g( connections_mtx );
-         if( find_connection_i( peer_address ) )
+         if( find_connection_i( peer_address ) ) {
+            fc_dlog( logger, "Already connected to ${p}", ("p", peer_address));
             return "already connected";
+         }
       }
 
       connection_ptr c = std::make_shared<connection>( peer_address, listen_address );
       if (c->resolve_and_connect()) {
          add(std::move(c));
-
+         fc_dlog( logger, "Adding connection to ${p}", ("p", peer_address));
          return "added connection";
       }
 
@@ -4764,8 +4766,10 @@ namespace eosio {
       }
 
       auto [host, port, type] = net_utils::split_host_port_type(peer_address());
-      if (host.empty())
+      if (host.empty()) {
+         fc_elog( logger, "Unexpected invalid peer address ${p}", ("p", peer_address()));
          return false;
+      }
 
       connection_ptr c = shared_from_this();
 
