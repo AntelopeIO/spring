@@ -13,6 +13,7 @@
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/chain/thread_utils.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <fc/scoped_exit.hpp>
 
 #include "IR/Module.h"
@@ -196,7 +197,7 @@ struct eosvmoc_tier {
          }
       }
 
-      void do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+      void do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
          get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->do_sync_call(context);
       }
 

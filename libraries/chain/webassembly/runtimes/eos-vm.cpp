@@ -2,6 +2,7 @@
 #include <eosio/chain/webassembly/interface.hpp>
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/apply_context.hpp>
+#include <eosio/chain/sync_call_context.hpp>
 #include <eosio/chain/transaction_context.hpp>
 #include <eosio/chain/global_property_object.hpp>
 #include <eosio/chain/wasm_eosio_constraints.hpp>
@@ -141,14 +142,10 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void do_sync_call(apply_context& context) override {
-         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
-         assert(sync_call_ctx.has_value());
-         assert(!context.get_action_ptr());
-
+      void do_sync_call(sync_call_context& context) override {
          uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
          if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
-            if (sync_call_ctx->no_op_if_receiver_not_support_sync_call()) {
+            if (context.no_op_if_receiver_not_support_sync_call()) {
                dlog("receiver does not have sync call entry point or the entry point is invalid, and the no-op flag is set. just returns");
                return;
             } else {
@@ -172,9 +169,9 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
             bkend.initialize(&iface, opts);
             bkend.call(
                 iface, "env", "sync_call",
-                sync_call_ctx->sender.to_uint64_t(),
-                sync_call_ctx->receiver.to_uint64_t(),
-                static_cast<uint32_t>(sync_call_ctx->data.size()));
+                context.sender.to_uint64_t(),
+                context.receiver.to_uint64_t(),
+                static_cast<uint32_t>(context.data.size()));
          };
 
          execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
@@ -200,7 +197,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
       }
 
    private:
-      void execute(apply_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
+      void execute(host_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
          // set up backend to share the compiled mod in the instantiated
          // module of the contract
          bkend.share(*_instantiated_module);
@@ -226,7 +223,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          }
       }
 
-      apply_options get_apply_options(const apply_context& context) const {
+      apply_options get_apply_options(const host_context& context) const {
          apply_options opts;
          if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
             const wasm_config& config = context.control.get_global_properties().wasm_configuration;
@@ -278,7 +275,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          }
       }
 
-      void do_sync_call(apply_context& context) override {}
+      void do_sync_call(sync_call_context& context) override {}
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();

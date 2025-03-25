@@ -13,7 +13,7 @@ class apply_context;
 class wasm_instantiated_module_interface {
    public:
       virtual void apply(apply_context& context) = 0;
-      virtual void do_sync_call(apply_context& context) = 0;
+      virtual void do_sync_call(sync_call_context& context) = 0;
 
       virtual ~wasm_instantiated_module_interface();
 };
