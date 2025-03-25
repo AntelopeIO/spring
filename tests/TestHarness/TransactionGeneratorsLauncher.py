@@ -15,7 +15,7 @@ from re import sub
 Print = Utils.Print
 
 class TpsTrxGensConfig:
-
+    """Specifing for TPS testing; distinct config"""
     def __init__(self, targetTps: int, tpsLimitPerGenerator: int, connectionPairList: list):
         self.targetTps: int = targetTps
         self.tpsLimitPerGenerator: int = tpsLimitPerGenerator
@@ -36,7 +36,7 @@ class TpsTrxGensConfig:
             self.targetTpsPerGenList.append(curTps)
 
 class TransactionGeneratorsLauncher:
-
+    """Lanches multiple trx generator for simulatous load uses os POpen"""
     def __init__(self, trxGenerator: Path, chainId: int, lastIrreversibleBlockId: int, contractOwnerAccount: str, accts: str, privateKeys: str, trxGenDurationSec: int, logDir: str,
                  abiFile: Path, actionsData, actionsAuths, tpsTrxGensConfig: TpsTrxGensConfig, endpointMode: str, apiEndpoint: str=None):
         self.trxGenerator = trxGenerator
