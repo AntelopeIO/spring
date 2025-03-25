@@ -114,7 +114,7 @@ void validate( const controller& control, const bytes& code, const wasm_config& 
          uint32_t sync_call_idx = bkend.get_module().get_exported_function("sync_call");
          if (sync_call_idx < std::numeric_limits<uint32_t>::max()) {
             const vm::func_type& sync_call_type = bkend.get_module().get_function_type(sync_call_idx);
-            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong type");
+            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong function signature");
          }
       }
    } catch(vm::exception& e) {
@@ -146,7 +146,6 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
          if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
             if (context.no_op_if_receiver_not_support_sync_call()) {
-               dlog("receiver does not have sync call entry point or the entry point is invalid, and the no-op flag is set. just returns");
                return;
             } else {
                EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");

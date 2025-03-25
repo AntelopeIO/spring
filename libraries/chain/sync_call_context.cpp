@@ -10,7 +10,7 @@ sync_call_context::sync_call_context(controller& con, transaction_context& trx_c
    , sender(sender)
    , receiver(receiver)
    , flags(flags)
-   , data(std::move(data))
+   , data(data)
 {
 }
 
@@ -39,11 +39,11 @@ void sync_call_context::set_call_return_value(std::span<const char> rv) {
 }
 
 bool sync_call_context::is_read_only()const {
-   return flags & 0b1; // LSB. bit index 0
+   return flags & static_cast<uint64_t>(sync_call_flags::read_only);
 }
 
 bool sync_call_context::no_op_if_receiver_not_support_sync_call()const {
-   return flags & 0b10;  // second bit from LSB. bit index 1
+   return flags & static_cast<uint64_t>(sync_call_flags::no_op_if_receiver_not_support_sync_call);
 }
 
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx

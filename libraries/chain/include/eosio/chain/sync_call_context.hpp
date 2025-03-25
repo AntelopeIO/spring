@@ -4,6 +4,12 @@
 
 namespace eosio { namespace chain {
 
+enum class sync_call_flags {
+   read_only                               = 1ull<<0,
+   no_op_if_receiver_not_support_sync_call = 1ull<<1,
+   last                                    = no_op_if_receiver_not_support_sync_call
+};
+
 class sync_call_context : public host_context {
 public:
    sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, uint64_t flags, std::span<const char> data);
