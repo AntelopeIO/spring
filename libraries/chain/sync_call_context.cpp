@@ -52,18 +52,26 @@ action_name sync_call_context::get_sender() const {
    return receiver;
 }
 
-// EOS_ASSERTs and tests will be added for the following methods in next PR
-void sync_call_context::require_authorization(const account_name& account) {
-}
+// Always return false in sync calls
 bool sync_call_context::has_authorization(const account_name& account) const {
    return false;
+}
+bool sync_call_context::has_recipient(account_name account)const {
+   return false;
+}
+bool sync_call_context::is_context_free()const {
+   return false;
+}
+bool sync_call_context::is_privileged()const {
+   return false;
+}
+
+// EOS_ASSERTs and tests will be added for the following methods in next PR
+void sync_call_context::require_authorization(const account_name& account) {
 }
 void sync_call_context::require_authorization(const account_name& account, const permission_name& permission) {
 }
 void sync_call_context::require_recipient(account_name account) {
-}
-bool sync_call_context::has_recipient(account_name account)const {
-   return false;
 }
 void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {
 }
@@ -72,12 +80,6 @@ int sync_call_context::get_action( uint32_t type, uint32_t index, char* buffer, 
 }
 int sync_call_context::get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const {
    return 0;
-}
-bool sync_call_context::is_context_free()const {
-   return false;
-}
-bool sync_call_context::is_privileged()const {
-   return false;
 }
 const action& sync_call_context::get_action()const {
    static action t;
