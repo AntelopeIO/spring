@@ -87,7 +87,6 @@ class apply_context : public host_context {
 
       bool is_context_free()const override { return context_free; }
       bool is_privileged()const override { return privileged; }
-      action_name get_receiver()const override { return receiver; }
       const action& get_action()const override { return *act; }
       const action* get_action_ptr()const override { return act; }
 

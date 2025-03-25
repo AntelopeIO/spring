@@ -39,7 +39,6 @@ public:
    int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const override;
    bool is_context_free()const override;
    bool is_privileged()const override;
-   action_name get_receiver()const override;
    const action& get_action()const override;
    const action* get_action_ptr()const override;
    void exec() override;

@@ -6,9 +6,8 @@
 namespace eosio::chain {
 
 sync_call_context::sync_call_context(controller& con, transaction_context& trx_ctx, account_name sender, account_name receiver, uint64_t flags, std::span<const char>data)
-   : host_context(con, trx_ctx)
+   : host_context(con, trx_ctx, receiver)
    , sender(sender)
-   , receiver(receiver)
    , flags(flags)
    , data(data)
 {
@@ -79,9 +78,6 @@ bool sync_call_context::is_context_free()const {
 }
 bool sync_call_context::is_privileged()const {
    return false;
-}
-action_name sync_call_context::get_receiver()const {
-   return {};
 }
 const action& sync_call_context::get_action()const {
    static action t;

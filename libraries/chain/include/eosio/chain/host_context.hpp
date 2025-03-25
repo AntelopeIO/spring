@@ -485,6 +485,7 @@ public:
 public:
    /// Constructor and destructor:
    host_context(controller& con, transaction_context& trx_ctx);
+   host_context(controller& con, transaction_context& trx_ctx, account_name receiver);
    virtual ~host_context();
 
    /// Authorization methods:
@@ -557,7 +558,7 @@ public:
    virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const = 0;
    virtual bool is_context_free()const = 0;
    virtual bool is_privileged()const = 0;
-   virtual action_name get_receiver()const = 0;
+   action_name get_receiver()const { return receiver; };
    virtual const action& get_action()const = 0;
    virtual const action* get_action_ptr()const = 0;
    virtual action_name get_sender() const = 0;
