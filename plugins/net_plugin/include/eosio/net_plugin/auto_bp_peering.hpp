@@ -157,14 +157,13 @@ public:
       fc::lock_guard gm(mtx);
       fc::lock_guard g(gossip_bps.mtx);
       // normally only one bp peer account except in testing scenarios or test chains
-      bool first = true;
       for (const auto& e : config.my_bp_peer_accounts) { // my_bp_peer_accounts not modified after plugin startup
          if (modified_keys.empty() || modified_keys.contains(e)) {
             std::optional<public_key_type> pk = cc.get_peer_key(e);
             // EOS_ASSERT can only be hit on plugin startup, otherwise this method called with modified_keys that are in cc.get_peer_key()
             EOS_ASSERT(pk, chain::plugin_config_exception, "No on-chain peer key found for ${n}", ("n", e));
             fc_dlog(self()->get_logger(), "Signing with producer_name ${p} key ${k}", ("p", e)("k", *pk));
-            if (first) {
+            if (e == *config.my_bp_peer_accounts.begin()) { // use the first one of the set, doesn't matter which one is used, just need one
                gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
                signed_empty.sig = self()->sign_compact(*pk, signed_empty.digest());
                initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
@@ -180,7 +179,6 @@ public:
                gossip_bps.index.emplace(peer);
             }
          }
-         first = false;
       }
    }
 
