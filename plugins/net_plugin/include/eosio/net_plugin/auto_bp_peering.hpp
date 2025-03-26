@@ -195,14 +195,14 @@ public:
       // log_p2p_address always has a trailing hex like `localhost:9877 - bc3f55b`
       std::string addr = conn->log_p2p_address.substr(0, space_pos);
       if (config.bp_peer_accounts.count(addr)) {
-         conn->is_configured_bp_connection = true;
+         conn->bp_connection = Connection::bp_connection_type::bp_config;
       }
    }
 
    // Only called from connection strand
    template <typename Conn>
    static bool established_client_connection(Conn&& conn) {
-      return !conn->is_gossip_bp_connection && !conn->is_configured_bp_connection && conn->socket_is_open() && conn->incoming_and_handshake_received();
+      return conn->bp_connection == Connection::bp_connection_type::non_bp && conn->socket_is_open() && conn->incoming_and_handshake_received();
    }
 
    send_buffer_type get_gossip_bp_initial_send_buffer() {

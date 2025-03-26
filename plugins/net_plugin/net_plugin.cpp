@@ -843,8 +843,8 @@ namespace eosio {
       std::atomic<uint16_t>   protocol_version = 0;
       uint16_t                net_version = net_version_max;
       std::atomic<uint16_t>   consecutive_immediate_connection_close = 0;
-      std::atomic<bool>       is_gossip_bp_connection = false;
-      std::atomic<bool>       is_configured_bp_connection = false;
+      enum class bp_connection_type { non_bp, bp_config, bp_gossip };
+      std::atomic<bp_connection_type> bp_connection = bp_connection_type::non_bp;
       block_status_monitor    block_status_monitor_;
       std::atomic<time_point> last_vote_received;
 
@@ -1320,8 +1320,8 @@ namespace eosio {
       connection_status stat;
       stat.connecting = state() == connection_state::connecting;
       stat.syncing = peer_syncing_from_us;
-      stat.is_bp_peer = is_gossip_bp_connection || is_configured_bp_connection;
-      stat.is_bp_gossip_peer = is_gossip_bp_connection;
+      stat.is_bp_peer = bp_connection != bp_connection_type::non_bp;
+      stat.is_bp_gossip_peer = bp_connection == bp_connection_type::bp_gossip;
       stat.is_socket_open = socket_is_open();
       stat.is_blocks_only = is_blocks_only_connection();
       stat.is_transactions_only = is_transactions_only_connection();
@@ -3783,7 +3783,7 @@ namespace eosio {
       }
 
       // valid gossip peer connection
-      is_gossip_bp_connection = true;
+      bp_connection = bp_connection_type::bp_gossip;
 
       assert(!msg.peers.empty()); // checked by validate_gossip_bp_peers_message()
       if (msg.peers.size() == 1 && msg.peers[0].server_address.empty()) {
@@ -3820,7 +3820,7 @@ namespace eosio {
       assert(my_impl->bp_gossip_enabled());
       my_impl->connections.for_each_connection([this](const connection_ptr& c) {
          gossip_buffer_factory factory;
-         if (this != c.get() && c->is_gossip_bp_connection && c->socket_is_open()) {
+         if (this != c.get() && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
             const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
             boost::asio::post(c->strand, [sb, c]() {
                c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
@@ -4933,7 +4933,7 @@ namespace eosio {
             return;
          }
          const connection_ptr& c = it->c;
-         if (c->is_gossip_bp_connection || c->is_configured_bp_connection) {
+         if (c->bp_connection != connection::bp_connection_type::non_bp) {
             ++num_bp_peers;
          } else if (c->incoming()) {
             ++num_clients;
@@ -4974,7 +4974,7 @@ namespace eosio {
       net_plugin::p2p_per_connection_metrics per_connection(index.size());
       for (auto it = index.begin(); it != index.end(); ++it) {
          const connection_ptr& c = it->c;
-         if(c->is_gossip_bp_connection || c->is_configured_bp_connection) {
+         if(c->bp_connection != connection::bp_connection_type::non_bp) {
             ++num_bp_peers;
          } else if(c->incoming()) {
             ++num_clients;

@@ -2,12 +2,13 @@
 #include <eosio/net_plugin/auto_bp_peering.hpp>
 
 struct mock_connection {
-   bool is_configured_bp_connection   = false;
-   bool is_gossip_bp_connection       = false;
+   enum class bp_connection_type { non_bp, bp_config, bp_gossip };
+   bp_connection_type bp_connection = bp_connection_type::non_bp;
+
    bool is_open            = false;
    bool handshake_received = false;
    mock_connection(bool bp_connection, bool open, bool received)
-     : is_configured_bp_connection(bp_connection)
+     : bp_connection(bp_connection ? bp_connection_type::bp_config : bp_connection_type::non_bp)
      , is_open(open)
      , handshake_received(received)
    {}
