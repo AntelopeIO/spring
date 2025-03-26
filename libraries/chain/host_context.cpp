@@ -5,10 +5,11 @@
 
 namespace eosio::chain {
 
-host_context::host_context(controller& con, transaction_context& trx_ctx)
+host_context::host_context(controller& con, transaction_context& trx_ctx, uint32_t depth)
    : control(con)
    , db(con.mutable_db())
    , trx_context(trx_ctx)
+   , recurse_depth(depth)
    , idx64(*this)
    , idx128(*this)
    , idx256(*this)
@@ -17,10 +18,11 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
 {
 }
 
-host_context::host_context(controller& con, transaction_context& trx_ctx, account_name receiver)
+host_context::host_context(controller& con, transaction_context& trx_ctx, uint32_t depth, account_name receiver)
    : control(con)
    , db(con.mutable_db())
    , trx_context(trx_ctx)
+   , recurse_depth(depth)
    , receiver(receiver)
    , idx64(*this)
    , idx128(*this)
@@ -63,7 +65,7 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
 
          try {
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, get_sender(), call_receiver, flags, data);
+            sync_call_context call_ctx(control, trx_context, 0, get_sender(), call_receiver, flags, data);
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
             // store return value

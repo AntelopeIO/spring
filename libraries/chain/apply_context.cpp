@@ -39,8 +39,7 @@ static inline void print_debug(account_name receiver, const action_trace& ar) {
 }
 
 apply_context::apply_context(controller& con, transaction_context& trx_ctx, uint32_t action_ordinal, uint32_t depth)
-:host_context(con, trx_ctx)
-,recurse_depth(depth)
+:host_context(con, trx_ctx, depth)
 ,first_receiver_action_ordinal(action_ordinal)
 ,action_ordinal(action_ordinal)
 {
