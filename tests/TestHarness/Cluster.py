@@ -1111,7 +1111,7 @@ class Cluster(object):
             return None
 
         if pfSetupPolicy == PFSetupPolicy.FULL:
-            biosNode.preactivateAllBuiltinProtocolFeature()
+            biosNode.activateAllBuiltinProtocolFeature()
         Node.validateTransaction(trans)
 
         contract="eosio.bios"

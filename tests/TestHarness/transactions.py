@@ -368,8 +368,9 @@ class Transactions(NodeosQueries):
         assert self.waitForHeadToAdvance(blocksToAdvance=2), "ERROR: TIMEOUT WAITING FOR PREACTIVATE"
 
     # Return an array of feature digests to be preactivated in a correct order respecting dependencies
+    # but skip "PREACTIVATE_FEATURE"
     # Require producer_api_plugin
-    def getAllBuiltinFeatureDigestsToPreactivate(self):
+    def getAllBuiltinFeatureDigestsToActivate(self):
         protocolFeatures = {}
         supportedProtocolFeatures = self.getSupportedProtocolFeatures()
         for protocolFeature in supportedProtocolFeatures["payload"]:
@@ -384,7 +385,7 @@ class Transactions(NodeosQueries):
 
 
     # Require PREACTIVATE_FEATURE to be activated and require eosio.bios with preactivate_feature
-    def preactivateProtocolFeatures(self, featureDigests:list):
+    def activateProtocolFeatures(self, featureDigests:list):
         for group in featureDigests:
             for digest in group:
                 Utils.Print("push activate action with digest {}".format(digest))
@@ -397,7 +398,6 @@ class Transactions(NodeosQueries):
             self.waitForTransactionInBlock(trans['transaction_id'])
 
     # Require PREACTIVATE_FEATURE to be activated and require eosio.bios with preactivate_feature
-    def preactivateAllBuiltinProtocolFeature(self):
-        allBuiltinProtocolFeatureDigests = self.getAllBuiltinFeatureDigestsToPreactivate()
-        self.preactivateProtocolFeatures(allBuiltinProtocolFeatureDigests)
-
+    def activateAllBuiltinProtocolFeature(self):
+        sorted_groups_of_digests = self.getAllBuiltinFeatureDigestsToActivate()
+        self.activateProtocolFeatures(sorted_groups_of_digests)
