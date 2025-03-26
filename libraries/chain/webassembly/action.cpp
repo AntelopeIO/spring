@@ -4,6 +4,8 @@
 
 namespace eosio { namespace chain { namespace webassembly {
    int32_t interface::read_action_data(legacy_span<char> memory) const {
+      EOS_ASSERT(dynamic_cast<apply_context*>(&context), sync_call_validate_exception, "read_action_data is only allowed in actions");
+
       auto s = context.get_action().data.size();
       auto copy_size = std::min( static_cast<size_t>(memory.size()), s );
       if( copy_size == 0 ) return s;
@@ -13,6 +15,7 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    int32_t interface::action_data_size() const {
+      EOS_ASSERT(dynamic_cast<apply_context*>(&context), sync_call_validate_exception, "action_data_size is only allowed in actions");
       return context.get_action().data.size();
    }
 
@@ -21,6 +24,7 @@ namespace eosio { namespace chain { namespace webassembly {
    }
 
    void interface::set_action_return_value( span<const char> packed_blob ) {
+      EOS_ASSERT(dynamic_cast<apply_context*>(&context), sync_call_validate_exception, "set_action_return_value is only allowed in actions");
       auto max_action_return_value_size = 
          context.control.get_global_properties().configuration.max_action_return_value_size;
       if( !context.trx_context.is_read_only() )

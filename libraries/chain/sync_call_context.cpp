@@ -53,15 +53,17 @@ action_name sync_call_context::get_sender() const {
    return receiver;
 }
 
-// EOS_ASSERTs and tests will be added for the following methods in next PR
 void sync_call_context::require_authorization(const account_name& account) {
+   EOS_ASSERT(false, sync_call_validate_exception, "require_auth is only allowed in actions");
 }
 bool sync_call_context::has_authorization(const account_name& account) const {
    return false;
 }
 void sync_call_context::require_authorization(const account_name& account, const permission_name& permission) {
+   EOS_ASSERT(false, sync_call_validate_exception, "require_auth2 is only allowed in actions");
 }
 void sync_call_context::require_recipient(account_name account) {
+   EOS_ASSERT(false, sync_call_validate_exception, "require_recipient is only allowed in actions");
 }
 bool sync_call_context::has_recipient(account_name account)const {
    return false;
@@ -69,10 +71,10 @@ bool sync_call_context::has_recipient(account_name account)const {
 void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {
 }
 int sync_call_context::get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size)const {
-   return 0;
+   EOS_ASSERT(false, sync_call_validate_exception, "get_action is only allowed in actions");
 }
 int sync_call_context::get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const {
-   return 0;
+   EOS_ASSERT(false, sync_call_validate_exception, "get_context_free_data is only allowed in actions");
 }
 bool sync_call_context::is_context_free()const {
    return false;
@@ -94,15 +96,19 @@ const action* sync_call_context::get_action_ptr()const {
 void sync_call_context::exec() {
 }
 void sync_call_context::execute_inline( action&& a ) {
+   EOS_ASSERT(false, sync_call_validate_exception, "send_inline is only allowed in actions");
 }
 void sync_call_context::execute_context_free_inline( action&& a ) {
+   EOS_ASSERT(false, sync_call_validate_exception, "send_context_free_inline is only allowed in actions");
 }
 void sync_call_context::schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) {
+   EOS_ASSERT(false, sync_call_validate_exception, "send_deferred is only allowed in actions");
 }
 bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id, account_name sender ) {
    return false;
 }
 bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id) {
+   EOS_ASSERT(false, sync_call_validate_exception, "cancel_deferred is only allowed in actions");
    return false;
 }
 

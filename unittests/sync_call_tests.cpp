@@ -13,14 +13,13 @@ static const char* doit_abi = R"=====(
    "version": "eosio::abi/1.2",
    "types": [],
    "structs": [ { "name": "doit", "base": "", "fields": [] },
-                { "name": "doubleit",
-                  "base": "",
-                  "fields": [{"name": "input", "type": "uint32"}]
-                }
+                { "name": "doubleit", "base": "", "fields": [{"name": "input", "type": "uint32"}] },
+                { "name": "callhostfunc", "base": "", "fields": [{"name": "index", "type": "uint32"}] }
               ],
    "actions": [ { "name": "doit", "type": "doit", "ricardian_contract": ""},
                 { "name": "doit1", "type": "doit", "ricardian_contract": ""},
-                { "name": "doubleit", "type": "doubleit", "ricardian_contract": ""}
+                { "name": "doubleit", "type": "doubleit", "ricardian_contract": ""},
+                { "name": "callhostfunc", "type": "callhostfunc", "ricardian_contract": ""}
               ],
    "tables": [],
    "ricardian_clauses": []
@@ -1013,6 +1012,210 @@ BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
    BOOST_CHECK_EXCEPTION(t.set_code(callee, bad_entry_point_wast),
                          wasm_serialization_error,
                          fc_exception_message_contains("sync call entry point has wrong function signature"));
+} FC_LOG_AND_RETHROW() }
+
+
+static const char constrains_enforcement_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
+   (memory $0 1)
+   (export "memory" (memory $0))
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input (index) into address 0
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0, size 4 (we know index is an i32)
+   )
+)
+)=====";
+
+// Call a host function based on index inside a sync call.
+// Those host function are not allowed in sync calls and they should fail.
+static const char constrains_enforcement_callee_wast[] = R"=====(
+(module
+   (import "env" "require_auth" (func $require_auth (param i64)))            ;; index 0
+   (import "env" "require_auth2" (func $require_auth2 (param i64 i64)))      ;; index 1
+   (import "env" "require_recipient" (func $require_recipient (param i64)))  ;; index 2
+   (import "env" "get_action" (func $get_action (param i32 i32 i32 i32) (result i32))) ;; index 3
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32))) ;; index 4
+   (import "env" "action_data_size" (func $action_data_size (result i32))) ;; index 5
+   (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32))) ;; index 6
+   (import "env" "get_context_free_data" (func $get_context_free_data (param i32 i32 i32) (result i32)))  ;; index 7
+   (import "env" "send_inline" (func $send_inline (param i32 i32)))          ;; index 8
+   (import "env" "send_context_free_inline" (func $send_context_free_inline (param i32 i32)))   ;; index 9
+   (import "env" "send_deferred" (func $send_deferred (param i32 i64 i32 i32 i32)))  ;; index 10
+   (import "env" "cancel_deferred" (func $cancel_deferred (param i32) (result i32))) ;; index 11
+
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
+   (memory $0 1)
+   (export "memory" (memory $0))
+
+   (table 12 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
+   (elem (i32.const 0) $case_require_auth)               ;; index 0
+   (elem (i32.const 1) $case_require_auth2)              ;; index 1
+   (elem (i32.const 2) $case_require_recipient)          ;; index 2
+   (elem (i32.const 3) $case_get_action)                 ;; index 3
+   (elem (i32.const 4) $case_read_action_data)           ;; index 4
+   (elem (i32.const 5) $case_action_data_size)           ;; index 5
+   (elem (i32.const 6) $case_set_action_return_value)    ;; index 6
+   (elem (i32.const 7) $case_get_context_free_data)      ;; index 7
+   (elem (i32.const 8) $case_send_inline)                ;; index 8
+   (elem (i32.const 9) $case_send_context_free_inline)   ;; index 9
+   (elem (i32.const 10) $case_send_deferred)             ;; index 10
+   (elem (i32.const 11) $case_cancel_deferred)           ;; index 11
+
+   (type $ftable (func))      ;; function table instantiation
+   (func $case_require_auth
+      i64.const 0             ;; argument of require_auth
+      call $require_auth
+   )
+   (func $case_require_auth2
+      i64.const 0             ;; 1st argument of require_auth2
+      i64.const 0             ;; 2nd argument of require_auth2
+      call $require_auth2
+   )
+   (func $case_require_recipient
+      i64.const 0             ;; argument of require_recipient
+      call $require_recipient
+   )
+   (func $case_get_action
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      (drop (call $get_action))
+   )
+   (func $case_read_action_data
+      i32.const 0
+      i32.const 0
+      (drop (call $read_action_data))
+   )
+   (func $case_action_data_size
+      (drop (call $action_data_size))
+   )
+   (func $case_set_action_return_value
+      i32.const 0
+      i32.const 0
+      call $set_action_return_value
+   )
+   (func $case_get_context_free_data
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      (drop (call $get_context_free_data))
+   )
+   (func $case_send_inline
+      i32.const 0
+      i32.const 0
+      call $send_inline
+   )
+   (func $case_send_context_free_inline
+      i32.const 0
+      i32.const 0
+      call $send_context_free_inline
+   )
+   (func $case_send_deferred
+      i32.const 4  ;; create a pointer
+      i64.const 0
+      i32.const 0
+      i32.const 0
+      i32.const 0
+      call $send_deferred
+   )
+   (func $case_cancel_deferred
+      i32.const 4  ;; create a pointer
+      (drop (call $cancel_deferred))
+   )
+
+   (func $callee (param $index i32)
+      get_local $index
+      call_indirect (type $ftable)  ;; switch on function table
+   )
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size)))  ;; read the argument: index
+      i32.const 0       ;; address of index (stored by get_call_data)
+      i32.load          ;; load index
+      call $callee
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(constrains_enforcement_caller_wast, constrains_enforcement_callee_wast, t);
+
+   // require_auth
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "0")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("require_auth is only allowed in actions"));
+
+   // require_auth2
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "1")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("require_auth2 is only allowed in actions"));
+
+   // require_recipient
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "2")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("require_recipient is only allowed in actions"));
+
+   // get_action
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "3")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("get_action is only allowed in actions"));
+
+   // read_action_data
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "4")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("read_action_data is only allowed in actions"));
+
+   // action_data_size
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "5")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("action_data_size is only allowed in actions"));
+
+   // set_action_return_value
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "6")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("set_action_return_value is only allowed in actions"));
+
+   // get_context_free_data. sync calls not allowed in context-free trxs
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "7")),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API may only be called from context_free apply"));
+
+   // send_inline
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "8")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("send_inline is only allowed in actions"));
+
+   // send_context_free_inline
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "9")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("send_context_free_inline is only allowed in actions"));
+
+   // send_deferred
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "10")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("send_deferred is only allowed in actions"));
+
+   // cancel_deferred
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "11")),
+                         sync_call_validate_exception,
+                         fc_exception_message_contains("cancel_deferred is only allowed in actions"));
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
