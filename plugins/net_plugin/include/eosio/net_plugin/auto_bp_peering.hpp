@@ -312,9 +312,9 @@ public:
       bool diff = false;
       for (const auto& peer : msg.peers) {
          if (auto i = idx.find(boost::make_tuple(peer.producer_name, boost::cref(peer.server_address))); i != idx.end()) {
-            if (*i != peer) {
+            if (i->sig != peer.sig) { // signature has changed, producer_name and server_address has not changed
                gossip_bps.index.modify(i, [&peer](auto& m) {
-                  m = peer;
+                  m.sig = peer.sig; // update the signature, producer_name and server_address has not changed
                });
                diff = true;
             }
