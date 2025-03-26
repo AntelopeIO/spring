@@ -40,12 +40,9 @@ public:
    bool is_context_free()const override;
    bool is_privileged()const override;
    const action& get_action()const override;
-   const action* get_action_ptr()const override;
-   void exec() override;
    void execute_inline( action&& a ) override;
    void execute_context_free_inline( action&& a ) override;
    void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) override;
-   bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender ) override;
    bool cancel_deferred_transaction( const uint128_t& sender_id ) override;
 };
 

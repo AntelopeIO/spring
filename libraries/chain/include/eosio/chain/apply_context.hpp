@@ -17,11 +17,11 @@ class apply_context : public host_context {
    public:
 
       void exec_one();
-      void exec() override;
+      void exec();
       void execute_inline( action&& a ) override;
       void execute_context_free_inline( action&& a ) override;
       void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) override;
-      bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender ) override;
+      bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender );
       bool cancel_deferred_transaction( const uint128_t& sender_id ) override { return cancel_deferred_transaction(sender_id, receiver); }
 
       // Not callable from apply_context (actions)
@@ -88,7 +88,7 @@ class apply_context : public host_context {
       bool is_context_free()const override { return context_free; }
       bool is_privileged()const override { return privileged; }
       const action& get_action()const override { return *act; }
-      const action* get_action_ptr()const override { return act; }
+      const action* get_action_ptr()const { return act; }
 
       action_name get_sender() const override;
 

@@ -560,12 +560,9 @@ public:
    virtual bool is_privileged()const = 0;
    action_name get_receiver()const { return receiver; };
    virtual const action& get_action()const = 0;
-   virtual const action* get_action_ptr()const = 0;
    virtual action_name get_sender() const = 0;
 
    /// Execution methods:
-
-   virtual void exec() = 0;
 
    // sync calls can be initiated from actions or other sync calls
    uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
@@ -577,7 +574,6 @@ public:
    virtual void execute_inline( action&& a ) = 0;
    virtual void execute_context_free_inline( action&& a ) = 0;
    virtual void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) = 0;
-   virtual bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender ) = 0;
    virtual bool cancel_deferred_transaction( const uint128_t& sender_id ) = 0;
 
    /// Fields:

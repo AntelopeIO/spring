@@ -85,20 +85,11 @@ const action& sync_call_context::get_action()const {
    static action t;
    return t;
 }
-const action* sync_call_context::get_action_ptr()const {
-   static action t;
-   return &t;
-}
-void sync_call_context::exec() {
-}
 void sync_call_context::execute_inline( action&& a ) {
 }
 void sync_call_context::execute_context_free_inline( action&& a ) {
 }
 void sync_call_context::schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) {
-}
-bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id, account_name sender ) {
-   return false;
 }
 bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id) {
    return false;
