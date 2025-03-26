@@ -21,6 +21,7 @@ class bp_connection_manager {
  public:
 #endif
 
+   static constexpr size_t max_bp_peers_per_producer = 4;
    gossip_bp_index_t      gossip_bps;
 
    // the following members are thread-safe, only modified during plugin startup
@@ -242,8 +243,8 @@ public:
             const auto& [host, port, type] = net_utils::split_host_port_type(addr);
             return !host.empty() && !port.empty();
          };
-         std::map<eosio::name, size_t> producers;
          const gossip_bp_peers_message::bp_peer* prev = nullptr;
+         size_t num_per_producer = 0;
          for (const auto& peer : msg.peers) {
             if (peer.producer_name.empty())
                return false; // invalid bp_peer data
@@ -251,48 +252,53 @@ public:
                return false; // invalid address
             if (prev != nullptr) {
                if (prev->producer_name == peer.producer_name) {
+                  ++num_per_producer;
+                  if (num_per_producer > max_bp_peers_per_producer)
+                     return false; // more than allowed per producer
                   if (prev->server_address == peer.server_address)
                      return false; // duplicate entries not allowed
                } else if (prev->producer_name > peer.producer_name) {
                   return false; // required to be sorted
+               } else {
+                  num_per_producer = 0;
                }
             }
-            if (++producers[peer.producer_name] > 4)
-               return false; // only 4 entries per producer allowed
             prev = &peer;
          }
       }
 
-      controller& cc = self()->chain_plug->chain();
+      const controller& cc = self()->chain_plug->chain();
+      auto is_peer_key_valid = [&](const gossip_bp_peers_message::bp_peer& peer) -> bool {
+         try {
+            if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
+               public_key_type pk(peer.sig, peer.digest());
+               if (pk != *peer_key) {
+                  fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
+                          ("p", peer.producer_name)("pk", pk)("k", *peer_key));
+                  return false;
+               }
+            } else { // unknown key
+               fc_dlog(self()->get_logger(), "Failed to find peer key ${p}", ("p", peer.producer_name));
+               return false;
+            }
+         } catch (fc::exception& e) {
+            fc_dlog(self()->get_logger(), "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
+            return false; // invalid key
+         }
+         return true;
+      };
 
       fc::lock_guard g(gossip_bps.mtx);
       auto& sig_idx = gossip_bps.index.get<by_sig>();
       for (auto i = msg.peers.begin(); i != msg.peers.end();) {
          const auto& peer = *i;
-         try {
-            if (!sig_idx.contains(peer.sig)) { // we already have it, already verified
-               // peer key may have changed or been removed on-chain, do not consider that a fatal error, just remove it
-               if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
-                  public_key_type pk(peer.sig, peer.digest());
-                  if (pk != *peer_key) {
-                     fc_dlog(self()->get_logger(), "Recovered peer key did not match on-chain ${p}, recovered: ${pk} != expected: ${k}",
-                             ("p", peer.producer_name)("pk", pk)("k", *peer_key));
-                     i = msg.peers.erase(i);
-                     continue;
-                  }
-               } else { // unknown key
-                  fc_dlog(self()->get_logger(), "Failed to find peer key ${p}", ("p", peer.producer_name));
-                  i = msg.peers.erase(i);
-                  continue;
-               }
-            }
-         } catch (fc::exception& e) {
-            fc_dlog(self()->get_logger(), "Exception recovering peer key ${p}, error: ${e}", ("p", peer.producer_name)("e", e.to_detail_string()));
-            // invalid key
+         bool have_sig = sig_idx.contains(peer.sig); // we already have it, already verified
+         if (!have_sig && !is_peer_key_valid(peer)) {
+            // peer key may have changed or been removed on-chain, do not consider that a fatal error, just remove it
             i = msg.peers.erase(i);
-            continue;
+         } else {
+            ++i;
          }
-         ++i;
       }
 
       return !msg.peers.empty();
@@ -313,6 +319,10 @@ public:
                diff = true;
             }
          } else {
+            if (idx.count(peer.producer_name) >= max_bp_peers_per_producer) {
+               // only allow max_bp_peers_per_producer, choose one to remove
+               gossip_bps.index.erase(idx.find(peer.producer_name));
+            }
             gossip_bps.index.insert(peer);
             diff = true;
          }
