@@ -4039,8 +4039,13 @@ namespace eosio {
 
       // update peer public keys from chainbase db
       flat_set<name> modified = cc.update_peer_keys(block->block_num());
-      if (!modified.empty())
-         update_bp_producer_peers(cc, modified, get_first_p2p_address());
+      if (!modified.empty()) {
+         try {
+            update_bp_producer_peers(cc, modified, get_first_p2p_address());
+         } catch (fc::exception& e) {
+            fc_elog( logger, "Unable to update bp producer peers, error: ${e}", ("e", e.to_detail_string()));
+         }
+      }
    }
 
    // called from other threads including net threads

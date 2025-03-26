@@ -167,14 +167,18 @@ public:
             if (e == *config.my_bp_peer_accounts.begin()) { // use the first one of the set, doesn't matter which one is used, just need one
                gossip_bp_peers_message::bp_peer signed_empty{.producer_name = e}; // .server_address not set for initial message
                signed_empty.sig = self()->sign_compact(*pk, signed_empty.digest());
+               EOS_ASSERT(signed_empty.sig != signature_type{}, chain::plugin_config_exception,
+                          "Unable to sign empty gossip bp peer, private key not found for ${k}", ("k", pk->to_string({})));
                initial_gossip_msg_factory.set_initial_send_buffer(signed_empty);
             }
             auto& prod_idx = gossip_bps.index.get<by_producer>();
             gossip_bp_peers_message::bp_peer peer{.producer_name = e, .server_address = server_address};
             peer.sig = self()->sign_compact(*pk, peer.digest());
+            EOS_ASSERT(peer.sig != signature_type{}, chain::plugin_config_exception,
+                       "Unable to sign bp peer ${p}, private key not found for ${k}", ("p", peer.producer_name)("k", pk->to_string({})));
             if (auto i = prod_idx.find(boost::make_tuple(e, boost::cref(server_address))); i != prod_idx.end()) {
                gossip_bps.index.modify(i, [&peer](auto& v) {
-                  v = peer;
+                  v.sig = peer.sig;
                });
             } else {
                gossip_bps.index.emplace(peer);
