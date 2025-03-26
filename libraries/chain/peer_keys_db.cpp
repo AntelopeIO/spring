@@ -50,7 +50,6 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
 
             name                  row_name;
             uint32_t              row_block_num;
-            uint8_t               row_version;
             std::variant<v0_data> row_variant;
 
             const auto&                 obj = *itr2;
@@ -64,12 +63,10 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), misc_exception,
                        "deserialized invalid version from `peerkeys`");
 
-            fc::raw::unpack(ds, row_version);
-            if (row_version != 0)
-               continue;
-
             fc::raw::unpack(ds, row_variant);
-            EOS_ASSERT(std::holds_alternative<v0_data>(row_variant), misc_exception, "deserialized invalid data from `peerkeys`");
+            EOS_ASSERT(std::holds_alternative<v0_data>(row_variant), misc_exception,
+                       "deserialized invalid data from `peerkeys`");
+
             auto& data = std::get<v0_data>(row_variant);
             if (data.pubkey) {
                EOS_ASSERT(data.pubkey->valid(), misc_exception, "deserialized invalid public key from `peerkeys`");
