@@ -230,11 +230,14 @@ public:
    }
 
    // thread safe
-   // removes invalid entries from msg
+   // removes outdated signed bp_peers from msg
    bool validate_gossip_bp_peers_message( gossip_bp_peers_message& msg ) {
       if (msg.peers.empty())
          return false;
-      if (msg.peers.size() != 1 || !msg.peers[0].server_address.empty()) { // initial case, no server_addresses to validate
+      // initial case, no server_addresses to validate
+      bool initial_msg = msg.peers.size() == 1 && msg.peers[0].server_address.empty();
+      if (!initial_msg) {
+         // validate structure and data of msg
          auto valid_address = [](const std::string& addr) -> bool {
             const auto& [host, port, type] = net_utils::split_host_port_type(addr);
             return !host.empty() && !port.empty();
@@ -243,9 +246,9 @@ public:
          const gossip_bp_peers_message::bp_peer* prev = nullptr;
          for (const auto& peer : msg.peers) {
             if (peer.producer_name.empty())
-               return false;
+               return false; // invalid bp_peer data
             if (!valid_address(peer.server_address))
-               return false;
+               return false; // invalid address
             if (prev != nullptr) {
                if (prev->producer_name == peer.producer_name) {
                   if (prev->server_address == peer.server_address)
@@ -268,7 +271,7 @@ public:
          const auto& peer = *i;
          try {
             if (!sig_idx.contains(peer.sig)) { // we already have it, already verified
-               // peer key may have changed or been removed, so if invalid or not found skip it
+               // peer key may have changed or been removed on-chain, do not consider that a fatal error, just remove it
                if (std::optional<public_key_type> peer_key = cc.get_peer_key(peer.producer_name)) {
                   public_key_type pk(peer.sig, peer.digest());
                   if (pk != *peer_key) {
