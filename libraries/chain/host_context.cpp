@@ -17,6 +17,19 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
 {
 }
 
+host_context::host_context(controller& con, transaction_context& trx_ctx, account_name receiver)
+   : control(con)
+   , db(con.mutable_db())
+   , trx_context(trx_ctx)
+   , receiver(receiver)
+   , idx64(*this)
+   , idx128(*this)
+   , idx256(*this)
+   , idx_double(*this)
+   , idx_long_double(*this)
+{
+}
+
 host_context::~host_context() = default;
 
 // called from apply_context or sync_call_context
