@@ -3792,6 +3792,7 @@ namespace eosio {
       } else {
          bool diff = my_impl->update_gossip_bps(msg);
          if (diff) { // update, let all our peers know about it
+            my_impl->connect_to_active_bp_peers();
             send_gossip_bp_peers_message_to_bp_peers();
          }
       }

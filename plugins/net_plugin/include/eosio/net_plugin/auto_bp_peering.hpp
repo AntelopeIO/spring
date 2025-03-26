@@ -53,7 +53,7 @@ class bp_connection_manager {
    // Only called from main thread
    chain::flat_set<account_name> active_bp_accounts(const std::vector<chain::producer_authority>& schedule) const {
       fc::lock_guard g(gossip_bps.mtx);
-      auto& prod_idx = gossip_bps.index.get<by_producer>();
+      const auto& prod_idx = gossip_bps.index.get<by_producer>();
       chain::flat_set<account_name> result;
       for (const auto& auth : schedule) {
          if (config.bp_peer_addresses.contains(auth.producer_name) || prod_idx.contains(auth.producer_name))
@@ -65,7 +65,7 @@ class bp_connection_manager {
    // called from net threads
    chain::flat_set<account_name> active_bp_accounts(const flat_set<account_name>& active_schedule) const REQUIRES(mtx) {
       fc::lock_guard g(gossip_bps.mtx);
-      auto& prod_idx = gossip_bps.index.get<by_producer>();
+      const auto& prod_idx = gossip_bps.index.get<by_producer>();
       chain::flat_set<account_name> result;
       for (const auto& a : active_schedule) {
          if (config.bp_peer_addresses.contains(a) || prod_idx.contains(a))
@@ -307,7 +307,7 @@ public:
    // thread-safe
    bool update_gossip_bps(const gossip_bp_peers_message& msg) {
       // providing us with full set
-      fc::unique_lock g(gossip_bps.mtx);
+      fc::lock_guard g(gossip_bps.mtx);
       auto& idx = gossip_bps.index.get<by_producer>();
       bool diff = false;
       for (const auto& peer : msg.peers) {
@@ -327,15 +327,11 @@ public:
             diff = true;
          }
       }
-      g.unlock();
-      if (diff) {
-         connect_to_active();
-      }
       return diff;
    }
 
    // thread-safe
-   void connect_to_active() {
+   void connect_to_active_bp_peers() {
       // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
       // can be holding connections mutex when trying to acquire these mutexes
       flat_set<std::string> addresses;
@@ -344,7 +340,7 @@ public:
          active_bps = active_bp_accounts(active_schedule);
 
          fc::lock_guard g(gossip_bps.mtx);
-         auto& prod_idx = gossip_bps.index.get<by_producer>();
+         const auto& prod_idx = gossip_bps.index.get<by_producer>();
          for (const auto& account : active_bps) {
             if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
                fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
@@ -378,7 +374,7 @@ public:
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
 
                fc::lock_guard g(gossip_bps.mtx);
-               auto& prod_idx = gossip_bps.index.get<by_producer>();
+               const auto& prod_idx = gossip_bps.index.get<by_producer>();
                for (const auto& account : pending_connections) {
                   if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
                      fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
@@ -415,7 +411,7 @@ public:
          set_active_schedule(schedule.producers);
          if (active_schedule_version == 0) { // first call since node was launched, connect to active
             gm.unlock();
-            connect_to_active();
+            connect_to_active_bp_peers();
             gm.lock();
          }
 
@@ -436,7 +432,7 @@ public:
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
          fc::lock_guard g(gossip_bps.mtx);
-         auto& prod_idx = gossip_bps.index.get<by_producer>();
+         const auto& prod_idx = gossip_bps.index.get<by_producer>();
          for (const auto& account : peers_to_drop) {
             if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
                fc_dlog(self()->get_logger(), "disconnect to manual bp peer ${p}", ("p", i->second));
