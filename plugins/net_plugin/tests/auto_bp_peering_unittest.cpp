@@ -56,7 +56,7 @@ struct mock_net_plugin : eosio::auto_bp_peering::bp_connection_manager<mock_net_
                      "prodt,127.0.0.1:8020"s, "produ,127.0.0.1:8021"s });
    }
 
-   fc::logger get_logger() { return fc::logger::get(DEFAULT_LOGGER); }
+   fc::logger get_logger() const { return fc::logger::get(DEFAULT_LOGGER); }
 };
 
 const std::vector<std::string> peer_addresses{

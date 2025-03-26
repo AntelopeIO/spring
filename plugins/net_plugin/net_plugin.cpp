@@ -488,7 +488,7 @@ namespace eosio {
       // switch to head_catchup on delayed blocks. Better to check not in lib_catchup.
       bool is_lib_catchup() const;
 
-      fc::logger& get_logger() { return logger; }
+      fc::logger& get_logger() const { return logger; }
 
       void create_session(tcp::socket&& socket, const string listen_address, size_t limit);
 

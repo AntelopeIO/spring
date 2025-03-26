@@ -330,6 +330,24 @@ public:
       return diff;
    }
 
+   flat_set<std::string> find_gossip_bp_addresses(const flat_set<account_name>& accounts, const char* desc) const {
+      flat_set<std::string> addresses;
+      fc::lock_guard g(gossip_bps.mtx);
+      const auto& prod_idx = gossip_bps.index.get<by_producer>();
+      for (const auto& account : accounts) {
+         if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
+            fc_dlog(self()->get_logger(), "${d} manual bp peer ${p}", ("d", desc)("p", i->second));
+            addresses.insert(i->second);
+         }
+         auto r = prod_idx.equal_range(account);
+         for (auto i = r.first; i != r.second; ++i) {
+            fc_dlog(self()->get_logger(), "${d} gossip bp peer ${p}", ("d", desc)("p", i->server_address));
+            addresses.insert(i->server_address);
+         }
+      }
+      return addresses;
+   }
+
    // thread-safe
    void connect_to_active_bp_peers() {
       // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
@@ -338,20 +356,7 @@ public:
       {
          fc::lock_guard gm(mtx);
          active_bps = active_bp_accounts(active_schedule);
-
-         fc::lock_guard g(gossip_bps.mtx);
-         const auto& prod_idx = gossip_bps.index.get<by_producer>();
-         for (const auto& account : active_bps) {
-            if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
-               fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
-               addresses.insert(i->second);
-            }
-            auto r = prod_idx.equal_range(account);
-            for (auto i = r.first; i != r.second; ++i) {
-               fc_dlog(self()->get_logger(), "connect to gossip bp peer ${p}", ("p", i->server_address));
-               addresses.insert(i->server_address);
-            }
-         }
+         addresses = find_gossip_bp_addresses(active_bps, "connect");
       }
 
       for (const auto& add : addresses) {
@@ -373,18 +378,11 @@ public:
 
                fc_dlog(self()->get_logger(), "pending_connections: ${c}", ("c", to_string(pending_connections)));
 
-               fc::lock_guard g(gossip_bps.mtx);
-               const auto& prod_idx = gossip_bps.index.get<by_producer>();
-               for (const auto& account : pending_connections) {
-                  if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
-                     fc_dlog(self()->get_logger(), "connect to manual bp peer ${p}", ("p", i->second));
-                     self()->connections.resolve_and_connect(i->second, self()->get_first_p2p_address() );
-                  }
-                  auto r = prod_idx.equal_range(account);
-                  for (auto i = r.first; i != r.second; ++i) {
-                     fc_dlog(self()->get_logger(), "connect to gossip bp peer ${p}", ("p", i->server_address));
-                     self()->connections.resolve_and_connect(i->server_address, self()->get_first_p2p_address() );
-                  }
+               // do not hold mutexes when calling resolve_and_connect which acquires connections mutex since other threads
+               // can be holding connections mutex when trying to acquire these mutexes
+               flat_set<std::string> addresses = find_gossip_bp_addresses(pending_connections, "connect");
+               for (const auto& add : addresses) {
+                  self()->connections.resolve_and_connect(add, self()->get_first_p2p_address());
                }
 
                pending_bps = std::move(pending_connections);
@@ -426,24 +424,16 @@ public:
 
          fc_dlog(self()->get_logger(), "peers_to_stay: ${p}", ("p", to_string(peers_to_stay)));
 
-         std::vector<account_name> peers_to_drop;
+         flat_set<account_name> peers_to_drop;
          std::set_difference(old_bps.begin(), old_bps.end(), peers_to_stay.begin(), peers_to_stay.end(),
-                             std::back_inserter(peers_to_drop));
+                             std::inserter(peers_to_drop, peers_to_drop.end()));
          fc_dlog(self()->get_logger(), "peers to drop: ${p}", ("p", to_string(peers_to_drop)));
 
-         fc::lock_guard g(gossip_bps.mtx);
-         const auto& prod_idx = gossip_bps.index.get<by_producer>();
-         for (const auto& account : peers_to_drop) {
-            if (auto i = config.bp_peer_addresses.find(account); i != config.bp_peer_addresses.end()) {
-               fc_dlog(self()->get_logger(), "disconnect to manual bp peer ${p}", ("p", i->second));
-               self()->connections.disconnect(i->second);
-            }
-            auto r = prod_idx.equal_range(account);
-            for (auto i = r.first; i != r.second; ++i) {
-               fc_dlog(self()->get_logger(), "disconnect to gossip bp peer ${p}", ("p", i->server_address));
-               self()->connections.disconnect(i->server_address);
-            }
+         flat_set<std::string> addresses = find_gossip_bp_addresses(peers_to_drop, "disconnect");
+         for (const auto& add : addresses) {
+            self()->connections.disconnect(add);
          }
+
          active_schedule_version = schedule.version;
       }
    }
