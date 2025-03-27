@@ -20,6 +20,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bridge_for_fork_test_shape.json ${CMA
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cluster_launcher.py ${CMAKE_CURRENT_BINARY_DIR}/cluster_launcher.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/distributed-transactions-test.py ${CMAKE_CURRENT_BINARY_DIR}/distributed-transactions-test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/spring_util_bls_test.py ${CMAKE_CURRENT_BINARY_DIR}/spring_util_bls_test.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/spring_util_snapshot_info_test.py ${CMAKE_CURRENT_BINARY_DIR}/spring_util_snapshot_info_test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/sample-cluster-map.json ${CMAKE_CURRENT_BINARY_DIR}/sample-cluster-map.json COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/restart-scenarios-test.py ${CMAKE_CURRENT_BINARY_DIR}/restart-scenarios-test.py COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/terminate-scenarios-test.py ${CMAKE_CURRENT_BINARY_DIR}/terminate-scenarios-test.py COPYONLY)
@@ -285,6 +286,7 @@ add_np_test(NAME lib_advance_test COMMAND tests/lib_advance_test.py -v ${UNSHARE
 add_np_test(NAME lib_advance_if_test COMMAND tests/lib_advance_test.py --activate-if -v ${UNSHARE})
 
 add_p_test(NAME spring_util_bls_test COMMAND tests/spring_util_bls_test.py)
+add_p_test(NAME spring_util_snapshot_info_test COMMAND tests/spring_util_snapshot_info_test.py)
 
 add_np_test(NAME http_plugin_test COMMAND tests/http_plugin_test.py ${UNSHARE} TIMEOUT 100)
 
@@ -322,7 +324,7 @@ add_np_test(NAME performance_test_basic_new_acct_trx_spec COMMAND tests/Performa
 add_np_test(NAME performance_test_basic_cpu_trx_spec COMMAND tests/PerformanceHarnessScenarioRunner.py singleTest -v --producer-nodes 1 --validation-nodes 1 --target-tps 20 --tps-limit-per-generator 10 --test-duration-sec 5 --chain-state-db-size-mb 200 --account-name "c" --abi-file eosmechanics.abi --wasm-file eosmechanics.wasm --contract-dir unittests/contracts/eosio.mechanics --user-trx-data-file tests/PerformanceHarness/cpuTrxData.json ${UNSHARE})
 add_np_test(NAME performance_test_basic_ram_trx_spec COMMAND tests/PerformanceHarnessScenarioRunner.py singleTest -v --producer-nodes 1 --validation-nodes 1 --target-tps 20 --tps-limit-per-generator 10 --test-duration-sec 5 --chain-state-db-size-mb 200 --account-name "r" --abi-file eosmechanics.abi --wasm-file eosmechanics.wasm --contract-dir unittests/contracts/eosio.mechanics --user-trx-data-file tests/PerformanceHarness/ramTrxData.json ${UNSHARE})
 add_np_test(NAME performance_test_basic_net_trx_spec COMMAND tests/PerformanceHarnessScenarioRunner.py singleTest -v --producer-nodes 1 --validation-nodes 1 --target-tps 20 --tps-limit-per-generator 10 --test-duration-sec 5 --chain-state-db-size-mb 200 --account-name "n" --abi-file eosmechanics.abi --wasm-file eosmechanics.wasm --contract-dir unittests/contracts/eosio.mechanics --user-trx-data-file tests/PerformanceHarness/netTrxData.json ${UNSHARE})
-add_np_test(NAME performance_test_basic_read_only_trxs COMMAND tests/PerformanceHarnessScenarioRunner.py singleTest -v --endpoint-mode http --producer-nodes 1 --validation-nodes 1 --api-nodes 1 --api-nodes-read-only-threads 2 --read-only-write-window-time-us 1000 --read-only-read-window-time-us 165000 --target-tps 20 --tps-limit-per-generator 10 --test-duration-sec 5 --chain-state-db-size-mb 200 --account-name "payloadless" --abi-file payloadless.abi --wasm-file payloadless.wasm --contract-dir unittests/test-contracts/payloadless --user-trx-data-file tests/PerformanceHarness/readOnlySlowTrxData.json ${UNSHARE})
+add_np_test(NAME performance_test_basic_read_only_trxs COMMAND tests/PerformanceHarnessScenarioRunner.py singleTest -v --endpoint-mode http --producer-nodes 1 --validation-nodes 1 --api-nodes 1 --api-nodes-read-only-threads 2 --read-only-write-window-time-us 1000 --read-only-read-window-time-us 165000 --target-tps 10 --tps-limit-per-generator 5 --test-duration-sec 5 --chain-state-db-size-mb 200 --account-name "payloadless" --abi-file payloadless.abi --wasm-file payloadless.wasm --contract-dir unittests/test-contracts/payloadless --user-trx-data-file tests/PerformanceHarness/readOnlySlowTrxData.json ${UNSHARE})
 
 if(ENABLE_COVERAGE_TESTING)
 
