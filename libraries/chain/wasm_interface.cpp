@@ -91,7 +91,7 @@ namespace eosio { namespace chain {
       my->apply( code_hash, vm_type, vm_version, context );
    }
 
-   void wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+   void wasm_interface::do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, sync_call_context& context ) {
       my->do_sync_call( code_hash, vm_type, vm_version, context );
    }
 

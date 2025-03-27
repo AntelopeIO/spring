@@ -43,7 +43,7 @@ namespace eosio { namespace chain { namespace webassembly {
       (void)legacy_ptr<int64_t>(std::move(cpu_weight));
    }
 
-   int64_t set_proposed_producers_common( apply_context& context, vector<producer_authority> && producers, bool validate_keys ) {
+   int64_t set_proposed_producers_common( host_context& context, vector<producer_authority> && producers, bool validate_keys ) {
       EOS_ASSERT( producers.size() > 0
                   || !context.control.is_builtin_activated( builtin_protocol_feature_t::disallow_empty_producer_schedule ),
                   wasm_execution_error,
