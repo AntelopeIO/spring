@@ -120,7 +120,7 @@ class PluginHttpTest(unittest.TestCase):
 
         retMap = self.nodeos.publishContract(eosioAccount, contractDir, wasmFile, abiFile, waitForTransBlock=True)
 
-        self.nodeos.preactivateAllBuiltinProtocolFeature()
+        self.nodeos.activateAllBuiltinProtocolFeature()
 
     # test all chain api
     def test_ChainApi(self) :
@@ -172,6 +172,17 @@ class PluginHttpTest(unittest.TestCase):
         command = "get_activated_protocol_features"
         ret_json = self.nodeos.processUrllibRequest(resource, command, endpoint=endpoint)
         self.assertEqual(type(ret_json["payload"]["activated_protocol_features"]), list)
+
+        # some extra debugging info
+        activated_features = ret_json["payload"]["activated_protocol_features"]
+        activated_names = [feature['specification'][0]['value'] for feature in activated_features]
+        expected_names = allFeatureCodenames
+        Utils.Print("activated_features={}".format(activated_features))
+        Utils.Print("expected_names={}".format(expected_names))
+        for n in expected_names:
+            if n not in activated_names:
+                Utils.Print("Missing feature: {}".format(n))
+
         self.assertEqual(len(ret_json["payload"]["activated_protocol_features"]), ACT_FEATURE_CURRENT_EXPECTED_TOTAL)
         for dict_feature in ret_json["payload"]["activated_protocol_features"]:
             self.assertTrue(dict_feature['feature_digest'] in allFeatureDigests)
