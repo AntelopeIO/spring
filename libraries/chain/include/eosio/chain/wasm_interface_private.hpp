@@ -196,6 +196,10 @@ struct eosvmoc_tier {
          }
       }
 
+      void do_sync_call( const digest_type& code_hash, const uint8_t& vm_type, const uint8_t& vm_version, apply_context& context ) {
+         get_instantiated_module(code_hash, vm_type, vm_version, context.trx_context)->do_sync_call(context);
+      }
+
       // used for testing
       uint64_t get_eos_vm_oc_compile_interrupt_count() const { return eos_vm_oc_compile_interrupt_count; }
 

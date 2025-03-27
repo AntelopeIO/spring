@@ -23,12 +23,12 @@ namespace wasm_constraints = eosio::chain::wasm_constraints;
 namespace {
 
   struct checktime_watchdog {
-     checktime_watchdog(transaction_checktime_timer& timer) : _timer(timer) {}
+     checktime_watchdog(transaction_checktime_timer& timer, bool appending) : _timer(timer), _appending(appending) {}
      template<typename F>
      struct guard {
-        guard(transaction_checktime_timer& timer, F&& func)
+        guard(transaction_checktime_timer& timer, F&& func, bool appending)
            : _timer(timer), _func(std::forward<F>(func)) {
-           _timer.set_expiration_callback(&callback, this);
+           _timer.set_expiration_callback(&callback, this, appending);
            platform_timer::state_t expired = _timer.timer_state();
            if(expired == platform_timer::state_t::timed_out || expired == platform_timer::state_t::interrupted) {
               _func(); // it's harmless if _func is invoked twice
@@ -46,9 +46,10 @@ namespace {
      };
      template<typename F>
      guard<F> scoped_run(F&& func) {
-        return guard{_timer, std::forward<F>(func)};
+        return guard{_timer, std::forward<F>(func), _appending};
      }
      transaction_checktime_timer& _timer;
+     bool _appending = false;
   };
 }
 
@@ -129,37 +130,70 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _runtime(runtime),
          _instantiated_module(std::move(mod)) {}
 
-      void apply(apply_context& context) override {
-         // set up backend to share the compiled mod in the instantiated
-         // module of the contract
-         _runtime->_bkend.share(*_instantiated_module);
-         // set exec ctx's mod to instantiated module's mod
-         _runtime->_exec_ctx.set_module(&(_instantiated_module->get_module()));
-         // link exe ctx to backend
-         _runtime->_bkend.set_context(&_runtime->_exec_ctx);
-         // set max_call_depth and max_pages to original values
-         _runtime->_bkend.reset_max_call_depth();
-         _runtime->_bkend.reset_max_pages();
-         // set wasm allocator per apply data
-         _runtime->_bkend.set_wasm_allocator(&context.control.get_wasm_allocator());
+      void do_sync_call(apply_context& context) override {
+         backend_t                                bkend;
+         typename eos_vm_runtime<Impl>::context_t exec_ctx;
+         vm::wasm_allocator&                      wasm_alloc = context.control.get_sync_call_wasm_allocator(); // get the top free wasm allocator from the pool
 
-         apply_options opts;
-         if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
-            const wasm_config& config = context.control.get_global_properties().wasm_configuration;
-            opts = {config.max_pages, config.max_call_depth};
-         }
+         // always return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
+         auto ensure = fc::make_scoped_exit([&]() { context.control.return_sync_call_wasm_allocator(); });
+
+         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
+         assert(sync_call_ctx.has_value());
+         assert(!context.get_action_ptr());
+
+         apply_options opts = get_apply_options(context);
+
          auto fn = [&]() {
             eosio::chain::webassembly::interface iface(context);
-            _runtime->_bkend.initialize(&iface, opts);
-            _runtime->_bkend.call(
+            bkend.initialize(&iface, opts);
+            bkend.call(
+                iface, "env", "sync_call",
+                sync_call_ctx->sender.to_uint64_t(),
+                sync_call_ctx->receiver.to_uint64_t(),
+                static_cast<uint64_t>(sync_call_ctx->data.size())); // size_t can be uint32_t or uint64_t depending on architecture. Safely cast to uint64_t to always match the type expected by sync_call entry point.
+         };
+
+         execute(context, bkend, exec_ctx, wasm_alloc, fn, true);
+      }
+
+      void apply(apply_context& context) override {
+         auto& bkend      = _runtime->_bkend;
+         auto& exec_ctx   = _runtime->_exec_ctx;
+         auto& wasm_alloc = context.control.get_wasm_allocator();
+
+         apply_options opts = get_apply_options(context);
+         auto fn = [&]() {
+            eosio::chain::webassembly::interface iface(context);
+            bkend.initialize(&iface, opts);
+            bkend.call(
                 iface, "env", "apply",
                 context.get_receiver().to_uint64_t(),
                 context.get_action().account.to_uint64_t(),
                 context.get_action().name.to_uint64_t());
          };
+
+         execute(context, bkend, exec_ctx, wasm_alloc, fn, false);
+      }
+
+   private:
+      void execute(apply_context& context, backend_t& bkend, eos_vm_runtime<Impl>::context_t& exec_ctx, vm::wasm_allocator& wasm_alloc, std::function<void()> fn, bool multi_expr_callbacks_allowed) {
+         // set up backend to share the compiled mod in the instantiated
+         // module of the contract
+         bkend.share(*_instantiated_module);
+         // set exec ctx's mod to instantiated module's mod
+         exec_ctx.set_module(&(_instantiated_module->get_module()));
+         // link exe ctx to backend
+         bkend.set_context(&exec_ctx);
+         // set max_call_depth and max_pages to original values
+         bkend.reset_max_call_depth();
+         bkend.reset_max_pages();
+         // set wasm allocator per apply data
+         bkend.set_wasm_allocator(&wasm_alloc);
+
          try {
-            checktime_watchdog wd(context.trx_context.transaction_timer);
-            _runtime->_bkend.timed_run(std::move(wd), std::move(fn));
+            checktime_watchdog wd(context.trx_context.transaction_timer, multi_expr_callbacks_allowed);
+            bkend.timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
          } catch(eosio::vm::wasm_memory_exception& e) {
@@ -169,8 +203,16 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          }
       }
 
-   private:
-      eos_vm_runtime<Impl>*            _runtime;
+      apply_options get_apply_options(const apply_context& context) const {
+         apply_options opts;
+         if(context.control.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
+            const wasm_config& config = context.control.get_global_properties().wasm_configuration;
+            opts = {config.max_pages, config.max_call_depth};
+         }
+         return opts;
+      }
+
+      eos_vm_runtime<Impl>*      _runtime;
       std::unique_ptr<backend_t> _instantiated_module;
 };
 
@@ -202,7 +244,7 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
          profile_data* prof = start(context);
          try {
             scoped_profile profile_runner(prof);
-            checktime_watchdog wd(context.trx_context.transaction_timer);
+            checktime_watchdog wd(context.trx_context.transaction_timer, false);
             _instantiated_module->timed_run(std::move(wd), std::move(fn));
          } catch(eosio::vm::timeout_exception&) {
             context.trx_context.checktime();
@@ -212,6 +254,8 @@ class eos_vm_profiling_module : public wasm_instantiated_module_interface {
             FC_THROW_EXCEPTION(wasm_execution_error, "eos-vm system failure");
          }
       }
+
+      void do_sync_call(apply_context& context) override {}
 
       profile_data* start(apply_context& context) {
          name account = context.get_receiver();

@@ -155,11 +155,18 @@ def verifyOcVirtualMemory():
             # The main thread uses 529 slices; each read-only thread uses 11 slices.
             # Total virtual memory is around:
             # 529 slices * 8GB (for main thread) + numReadOnlyThreads * 11 slices * 8GB
+            #
+            # In addition, main thread and each read-only thread pre-allocates
+            # `max_sync_call_depth` wasm allocator. Each wasm allocator mmap 8GB
+            #
             # This test verifies virtual memory does not grow by the number
-            # of read-only thread in the order of TB.
-            memoryByOthersGB = 1000 # add 1TB for virtual memory used by others
-            expectedVmSize = ((529 * 8) + (args.read_only_threads * 88) + memoryByOthersGB) * 1024 * 1024 * 1024
-            Utils.Print(f"pid: {apiNode.pid}, actualVmSize: {actualVmSize}, expectedVmSize: {expectedVmSize}")
+            # of read-only threads in the order of TB.
+            GB = 1024 * 1024 * 1024
+            memoryByWasmAllocators = (args.read_only_threads + 1) * 16 * 8 * GB # use 16 for now. change to use actual configured max_sync_call_depth in PR https://github.com/AntelopeIO/spring/pull/1257
+            memoryByOC             = (529 + (args.read_only_threads * 11)) * 8 * GB
+            memoryForOthers        = 1000 * GB # add 1TB for virtual memory used by others
+            expectedVmSize         = memoryByOC + memoryByWasmAllocators + memoryForOthers
+            Utils.Print(f"pid: {apiNode.pid}, memoryByWasmAllocators: {memoryByWasmAllocators}, memoryByOC: {memoryByOC}, memoryForOthers: {memoryForOthers}, actualVmSize: {actualVmSize}, expectedVmSize: {expectedVmSize}")
             assert(actualVmSize < expectedVmSize)
     except FileNotFoundError:
         Utils.Print(f"/proc/{apiNode.pid}/statm not found")
