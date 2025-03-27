@@ -22,7 +22,6 @@ public:
    action_name get_sender() const override;
 
    account_name           sender{};
-   account_name           receiver{};
    uint64_t               flags = 0;
    std::span<const char>  data{}; // includes function name, arguments, and other information
    std::vector<char>      return_value{};
