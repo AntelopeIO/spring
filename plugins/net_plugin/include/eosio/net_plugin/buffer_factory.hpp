@@ -10,7 +10,7 @@
 
 namespace eosio {
 
-   using send_buffer_type = std::unique_ptr<std::vector<char>>;
+   using send_buffer_type = std::shared_ptr<std::vector<char>>;
 
    struct buffer_factory {
 
@@ -32,7 +32,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_unique<vector<char>>(buffer_size);
+         auto send_buffer = std::make_shared<vector<char>>(buffer_size);
          fc::datastream<char*> ds( send_buffer->data(), buffer_size);
          ds.write( header, message_header_size );
          fc::raw::pack( ds, m );
@@ -49,7 +49,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
+         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
@@ -68,7 +68,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
+         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( signed_block_which ) );
@@ -164,7 +164,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
+         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
@@ -205,7 +205,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
+         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
