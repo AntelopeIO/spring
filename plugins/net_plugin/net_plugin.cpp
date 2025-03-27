@@ -224,7 +224,7 @@ namespace eosio {
       bool have_txn( const transaction_id_type& tid ) const;
       void expire_txns();
 
-      void bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg );
+      void bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg );
    };
 
    /**
@@ -616,7 +616,7 @@ namespace eosio {
       // @param callback must not callback into queued_buffer
       bool add_write_queue(msg_type_t net_msg,
                            queue_t queue,
-                           const std::shared_ptr<vector<char>>& buff,
+                           const send_buffer_type& buff,
                            std::function<void(boost::system::error_code, std::size_t)> callback) {
          fc::lock_guard g( _mtx );
          if( net_msg == msg_type_t::packed_transaction ) {
@@ -666,7 +666,7 @@ namespace eosio {
 
    private:
       struct queued_write {
-         std::shared_ptr<vector<char>> buff;
+         const send_buffer_type& buff;
          std::function<void( boost::system::error_code, std::size_t )> callback;
       };
 
@@ -968,7 +968,7 @@ namespace eosio {
       void enqueue_buffer( msg_type_t net_msg,
                            std::optional<block_num_type> block_num,
                            queued_buffer::queue_t queue,
-                           const std::shared_ptr<std::vector<char>>& send_buffer,
+                           const send_buffer_type& send_buffer,
                            go_away_reason close_after_send);
       void cancel_sync();
       void flush_queues();
@@ -981,7 +981,7 @@ namespace eosio {
       void queue_write(msg_type_t net_msg,
                        std::optional<block_num_type> block_num,
                        queued_buffer::queue_t queue,
-                       const std::shared_ptr<vector<char>>& buff,
+                       const send_buffer_type& buff,
                        std::function<void(boost::system::error_code, std::size_t)> callback);
       void do_queue_write(std::optional<block_num_type> block_num);
 
@@ -1616,7 +1616,7 @@ namespace eosio {
    void connection::queue_write(msg_type_t net_msg,
                                 std::optional<block_num_type> block_num,
                                 queued_buffer::queue_t queue,
-                                const std::shared_ptr<vector<char>>& buff,
+                                const send_buffer_type& buff,
                                 std::function<void(boost::system::error_code, std::size_t)> callback) {
       if( !buffer_queue.add_write_queue( net_msg, queue, buff, std::move(callback) )) {
          peer_wlog( this, "write_queue full ${s} bytes, giving up on connection", ("s", buffer_queue.write_queue_size()) );
@@ -2652,8 +2652,8 @@ namespace eosio {
             if (cp->consecutive_blocks_nacks > connection::consecutive_block_nacks_threshold) {
                // only send block_notice if we didn't produce the block, otherwise broadcast the block below
                if (!my_impl->is_producer(b->producer)) {
-                  auto send_buffer = block_notice_buff_factory.get_send_buffer( block_notice_message{b->previous, id} );
-                  boost::asio::post(cp->strand, [cp, send_buffer{std::move(send_buffer)}, bnum]() {
+                  const auto& send_buffer = block_notice_buff_factory.get_send_buffer( block_notice_message{b->previous, id} );
+                  boost::asio::post(cp->strand, [cp, &send_buffer, bnum]() {
                      cp->latest_blk_time = std::chrono::steady_clock::now();
                      peer_dlog( cp, "bcast block_notice ${b}", ("b", bnum) );
                      cp->enqueue_buffer( msg_type_t::block_notice_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
@@ -2663,9 +2663,9 @@ namespace eosio {
             }
          }
 
-         send_buffer_type sb = buff_factory.get_send_buffer( b );
+         const send_buffer_type& sb = buff_factory.get_send_buffer( b );
 
-         boost::asio::post(cp->strand, [cp, bnum, sb{std::move(sb)}]() {
+         boost::asio::post(cp->strand, [cp, bnum, &sb]() {
             cp->latest_blk_time = std::chrono::steady_clock::now();
             bool has_block = cp->peer_fork_db_root_num >= bnum;
             if( !has_block ) {
@@ -2676,12 +2676,12 @@ namespace eosio {
       } );
    }
 
-   void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, send_buffer_type msg ) {
-      my_impl->connections.for_each_block_connection( [exclude_peer, msg{std::move(msg)}]( auto& cp ) {
+   void dispatch_manager::bcast_vote_msg( uint32_t exclude_peer, const send_buffer_type& msg ) {
+      my_impl->connections.for_each_block_connection( [exclude_peer, &msg]( auto& cp ) {
          if( !cp->current() ) return true;
          if( cp->connection_id == exclude_peer ) return true;
          if (cp->protocol_version < proto_savanna) return true;
-         boost::asio::post(cp->strand, [cp, msg]() {
+         boost::asio::post(cp->strand, [cp, &msg]() {
             if (vote_logger.is_enabled(fc::log_level::debug))
                peer_dlog(cp, "sending vote msg");
             cp->enqueue_buffer( msg_type_t::vote_message, std::nullopt, queued_buffer::queue_t::general, msg, no_reason );
@@ -2702,9 +2702,9 @@ namespace eosio {
             return;
          }
 
-         send_buffer_type sb = buff_factory.get_send_buffer( trx );
+         const send_buffer_type& sb = buff_factory.get_send_buffer( trx );
          fc_dlog( logger, "sending trx: ${id}, to connection - ${cid}", ("id", trx->id())("cid", cp->connection_id) );
-         boost::asio::post(cp->strand, [cp, sb{std::move(sb)}]() {
+         boost::asio::post(cp->strand, [cp, &sb]() {
             cp->enqueue_buffer( msg_type_t::packed_transaction, std::nullopt, queued_buffer::queue_t::general, sb, no_reason );
          } );
       } );
@@ -3154,7 +3154,7 @@ namespace eosio {
       peer_dlog(this, "Sending nack ${n}", ("n", block_header::num_from_id(block_id)));
 
       buffer_factory buff_factory;
-      auto send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
+      auto& send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
 
       enqueue_buffer( msg_type_t::block_nack_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
    }
@@ -3802,7 +3802,7 @@ namespace eosio {
    void connection::send_gossip_bp_peers_initial_message() {
       if (protocol_version < proto_gossip_bp_peers || !my_impl->bp_gossip_enabled())
          return;
-      auto sb = my_impl->get_gossip_bp_initial_send_buffer();
+      const auto& sb = my_impl->get_gossip_bp_initial_send_buffer();
       enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
    }
 
@@ -3822,7 +3822,7 @@ namespace eosio {
          gossip_buffer_factory factory;
          if (this != c.get() && c->bp_connection == bp_connection_type::bp_gossip && c->socket_is_open()) {
             const send_buffer_type& sb = my_impl->get_gossip_bp_send_buffer(factory);
-            boost::asio::post(c->strand, [sb, c]() {
+            boost::asio::post(c->strand, [&sb, c]() {
                c->enqueue_buffer(msg_type_t::gossip_bp_peers_message, {}, queued_buffer::queue_t::general, sb, no_reason);
             });
          }
@@ -4112,9 +4112,9 @@ namespace eosio {
 
       boost::asio::post( thread_pool.get_executor(), [exclude_peer, msg, this]() mutable {
             buffer_factory buff_factory;
-            auto send_buffer = buff_factory.get_send_buffer( *msg );
+            const auto& send_buffer = buff_factory.get_send_buffer( *msg );
 
-            dispatcher.bcast_vote_msg( exclude_peer, std::move(send_buffer) );
+            dispatcher.bcast_vote_msg( exclude_peer, send_buffer );
       });
    }
 

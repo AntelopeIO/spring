@@ -205,12 +205,12 @@ public:
       return conn->bp_connection == Connection::bp_connection_type::non_bp && conn->socket_is_open() && conn->incoming_and_handshake_received();
    }
 
-   send_buffer_type get_gossip_bp_initial_send_buffer() {
+   const send_buffer_type& get_gossip_bp_initial_send_buffer() {
       fc::lock_guard g(mtx);
       return initial_gossip_msg_factory.get_initial_send_buffer();
    }
 
-   send_buffer_type get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
+   const send_buffer_type& get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
       return factory.get_send_buffer(gossip_bps);
    }
 

@@ -10,7 +10,7 @@
 
 namespace eosio {
 
-   using send_buffer_type = std::shared_ptr<std::vector<char>>;
+   using send_buffer_type = std::unique_ptr<std::vector<char>>;
 
    struct buffer_factory {
 
@@ -32,7 +32,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_shared<vector<char>>(buffer_size);
+         auto send_buffer = std::make_unique<vector<char>>(buffer_size);
          fc::datastream<char*> ds( send_buffer->data(), buffer_size);
          ds.write( header, message_header_size );
          fc::raw::pack( ds, m );
@@ -49,7 +49,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
+         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
@@ -68,7 +68,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
+         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( signed_block_which ) );
@@ -98,7 +98,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
+      static send_buffer_type create_send_buffer( const signed_block_ptr& sb ) {
          constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
 
          // this implementation is to avoid copy of signed_block to net_message
@@ -107,7 +107,7 @@ namespace eosio {
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
       }
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
+      static send_buffer_type create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
          return buffer_factory::create_send_buffer_from_serialized_block( ssb );
@@ -126,7 +126,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
+      static send_buffer_type create_send_buffer( const packed_transaction_ptr& trx ) {
          constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
 
          // this implementation is to avoid copy of packed_transaction to net_message
@@ -147,7 +147,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer(const gossip_bp_index_t& gossip_bp_peers) {
+      static send_buffer_type create_send_buffer(const gossip_bp_index_t& gossip_bp_peers) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          fc::lock_guard g(gossip_bp_peers.mtx);
@@ -164,7 +164,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
+         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
@@ -192,7 +192,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          // match net_message static_variant pack
@@ -205,7 +205,7 @@ namespace eosio {
          const char* const header = reinterpret_cast<const char* const>(&payload_size); // avoid variable size encoding of uint32_t
          const size_t buffer_size = message_header_size + payload_size;
 
-         auto send_buffer = std::make_shared<vector<char>>( buffer_size );
+         auto send_buffer = std::make_unique<vector<char>>( buffer_size );
          fc::datastream<char*> ds( send_buffer->data(), buffer_size );
          ds.write( header, message_header_size );
          fc::raw::pack( ds, unsigned_int( which ) );
