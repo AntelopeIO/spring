@@ -19,9 +19,9 @@ size_t peer_keys_db_t::size() const {
 
 // we update the keys that were registered up to lib_number (inclusive)
 // --------------------------------------------------------------------
-size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_number) {
+size_t peer_keys_db_t::update_peer_keys(const controller& chain, block_timestamp_type lib_timestamp) {
    size_t num_updated = 0;
-   if (!_active || lib_number <= _block_num)
+   if (!_active || lib_timestamp <= _block_timestamp)
       return num_updated;                      // nothing to do
 
    try {
@@ -32,12 +32,12 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
 
       const auto& secidx = db.get_index<index64_index, by_secondary>();
 
-      const auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(_block_num + 1)));
-      const auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(lib_number)));
+      const auto lower = secidx.lower_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(_block_timestamp.slot + 1)));
+      const auto upper = secidx.upper_bound(std::make_tuple(t_id->id._id, static_cast<uint64_t>(lib_timestamp.slot)));
 
       if (upper == lower) {
          // no new keys registered
-         _block_num = lib_number;
+         _block_timestamp = lib_timestamp;
          return num_updated;
       }
 
@@ -49,7 +49,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
                db.find<key_value_object, by_scope_primary>(boost::make_tuple(t_id->id, itr->primary_key));
 
             name                  row_name;
-            uint32_t              row_block_num;
+            block_timestamp_type  row_block_timestamp;
             std::variant<v0_data> row_variant;
 
             const auto&                 obj = *itr2;
@@ -59,8 +59,8 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
             fc::raw::unpack(ds, row_name);
             EOS_ASSERT(row_name.good(), misc_exception, "deserialized invalid name from `peerkeys`");
 
-            fc::raw::unpack(ds, row_block_num);
-            EOS_ASSERT(row_block_num > static_cast<uint64_t>(_block_num), misc_exception,
+            fc::raw::unpack(ds, row_block_timestamp);
+            EOS_ASSERT(row_block_timestamp > _block_timestamp, misc_exception,
                        "deserialized invalid version from `peerkeys`");
 
             fc::raw::unpack(ds, row_variant);
@@ -78,7 +78,7 @@ size_t peer_keys_db_t::update_peer_keys(const controller& chain, uint32_t lib_nu
          FC_LOG_AND_DROP(("skipping invalid record deserialized from `peerkeys`"));
       }
 
-      _block_num = lib_number;                   // mark that we have updated up to lib_number
+      _block_timestamp = lib_timestamp;                   // mark that we have updated up to lib_timestamp
    } FC_LOG_AND_DROP(("Error when updating peer_keys_db"));
    return num_updated;
 }

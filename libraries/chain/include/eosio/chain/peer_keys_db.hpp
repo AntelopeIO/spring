@@ -24,7 +24,7 @@ public:
    void set_active(bool b) { _active = b; }
 
    // must be called from main thread
-   size_t update_peer_keys(const controller& chain, uint32_t lib_number);
+   size_t update_peer_keys(const controller& chain, block_timestamp_type lib_timestamp);
 
    // safe to be called from any thread
    std::optional<public_key_type> get_peer_key(name n) const;
@@ -35,10 +35,10 @@ public:
 private:
    std::optional<uint64_t> _get_version(const chainbase::database& db);
 
-   bool               _active = false;       // if not active (the default), no update occurs
-   uint32_t           _block_num = 0;        // below map includes keys registered up to _block_num (inclusive)
-   mutable fc::mutex  _m;
-   peer_key_map_t     _peer_key_map GUARDED_BY(_m);
+   bool                 _active{false};   // if not active (the default), no update occurs
+   block_timestamp_type _block_timestamp; // below map includes keys registered up to _block_timestamp (inclusive)
+   mutable fc::mutex    _m;
+   peer_key_map_t       _peer_key_map GUARDED_BY(_m);
 };
 
 } // namespace eosio::chain
