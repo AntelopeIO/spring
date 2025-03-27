@@ -3154,7 +3154,7 @@ namespace eosio {
       peer_dlog(this, "Sending nack ${n}", ("n", block_header::num_from_id(block_id)));
 
       buffer_factory buff_factory;
-      auto& send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
+      const auto& send_buffer = buff_factory.get_send_buffer( block_nack_message{block_id} );
 
       enqueue_buffer( msg_type_t::block_nack_message, std::nullopt, queued_buffer::queue_t::general, send_buffer, no_reason );
    }
