@@ -1,14 +1,16 @@
 #include <eosio/chain/host_context.hpp>
 #include <eosio/chain/sync_call_context.hpp>
+#include <eosio/chain/apply_context.hpp>
 #include <eosio/chain/account_object.hpp>
 #include <eosio/chain/global_property_object.hpp>
 
 namespace eosio::chain {
 
-host_context::host_context(controller& con, transaction_context& trx_ctx)
+host_context::host_context(controller& con, transaction_context& trx_ctx, uint32_t depth)
    : control(con)
    , db(con.mutable_db())
    , trx_context(trx_ctx)
+   , recurse_depth(depth)
    , idx64(*this)
    , idx128(*this)
    , idx256(*this)
@@ -17,10 +19,11 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
 {
 }
 
-host_context::host_context(controller& con, transaction_context& trx_ctx, account_name receiver)
+host_context::host_context(controller& con, transaction_context& trx_ctx, uint32_t depth, account_name receiver)
    : control(con)
    , db(con.mutable_db())
    , trx_context(trx_ctx)
+   , recurse_depth(depth)
    , receiver(receiver)
    , idx64(*this)
    , idx128(*this)
@@ -34,12 +37,18 @@ host_context::~host_context() = default;
 
 // called from apply_context or sync_call_context
 uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
-   auto* code = control.db().find<account_object, by_name>(call_receiver);
+   const auto max_depth = control.get_global_properties().configuration.max_sync_call_depth;
+   EOS_ASSERT(recurse_depth < max_depth, sync_call_depth_exception,
+              "reached sync call max call depth ${max_depth}", ("max_depth", max_depth));
+
+   const auto max_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(data.size() <= max_data_size, sync_call_call_data_exception,
+              "sync call call data size must be less or equal to ${max_data_size} bytes", ("max_data_size", max_data_size));
+
+   const auto* code = control.db().find<account_object, by_name>(call_receiver);
    EOS_ASSERT(code != nullptr, sync_call_validate_exception,
               "sync call's receiver account ${r} does not exist", ("r", call_receiver));
-   const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
-   EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
-              "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
+
    EOS_ASSERT((flags & ~0b11) == 0, sync_call_validate_exception,  // all but last 2 bits are 0s
               "only two least significant bits of sync call's flags (${flags}) can be set", ("flags", flags)); // bit 0 for read-only, bit 1 for no-op if no sync call entry point exists
 
@@ -62,8 +71,13 @@ uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std
          }
 
          try {
+            // If the call is initiated from an apply_context (an action), it is the first
+            // level of a sync call by the action, set septh to 1.
+            // Otherwise the call is from another sync call, increment the call depth by 1.
+            const uint32_t depth = dynamic_cast<apply_context*>(this) ? 1 : recurse_depth + 1;
+
             // use a new sync_call_context for next sync call
-            sync_call_context call_ctx(control, trx_context, get_sender(), call_receiver, flags, data);
+            sync_call_context call_ctx(control, trx_context, depth, get_sync_call_sender(), call_receiver, flags, data);
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, call_ctx);
 
             // store return value

@@ -1,3 +1,4 @@
+#include <eosio/chain/config.hpp>
 #include <eosio/testing/tester.hpp>
 
 using namespace eosio::chain;
@@ -13,14 +14,13 @@ static const char* doit_abi = R"=====(
    "version": "eosio::abi/1.2",
    "types": [],
    "structs": [ { "name": "doit", "base": "", "fields": [] },
-                { "name": "doubleit",
-                  "base": "",
-                  "fields": [{"name": "input", "type": "uint32"}]
-                }
+                { "name": "doubleit", "base": "", "fields": [{"name": "input", "type": "uint32"}] },
+                { "name": "callwithinpt", "base": "", "fields": [{"name": "input", "type": "uint32"}] }
               ],
    "actions": [ { "name": "doit", "type": "doit", "ricardian_contract": ""},
                 { "name": "doit1", "type": "doit", "ricardian_contract": ""},
-                { "name": "doubleit", "type": "doubleit", "ricardian_contract": ""}
+                { "name": "doubleit", "type": "doubleit", "ricardian_contract": ""},
+                { "name": "callwithinpt", "type": "callwithinpt", "ricardian_contract": ""}
               ],
    "tables": [],
    "ricardian_clauses": []
@@ -1013,6 +1013,186 @@ BOOST_AUTO_TEST_CASE(bad_entry_point_test)  { try {
    BOOST_CHECK_EXCEPTION(t.set_code(callee, bad_entry_point_wast),
                          wasm_serialization_error,
                          fc_exception_message_contains("sync call entry point has wrong function signature"));
+} FC_LOG_AND_RETHROW() }
+
+// 1. reads an i32 value as an input from action
+// 2. makes a sync call to "callee"_n contract sync_call using the input as the argument
+static const char one_input_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input into address 0
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0, size 4
+   )
+)
+)=====";
+
+// A direct recursive call. If parameter `n` is 0, stop; otherwise sync call itself with `n - 1`
+static const char direct_recursive_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (local $n i32)
+
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
+      (set_local $n (i32.load (i32.const 0))) ;; set n
+
+      (get_local $n)
+      i32.const 0
+      i32.ne
+      if  ;; n != 0
+         (i32.store
+            (i32.const 4)
+            (i32.sub (get_local $n) (i32.const 1))
+         ) ;;  store `n - 1` to memory[4]
+         (drop (call $call
+                        (get_local $receiver)  ;; use the same receiver
+                        ;;(i64.const 4729647295212027904)
+                        (i64.const 0)          ;; flags
+                        (i32.const 4)          ;; memory[4]
+                        (i32.const 4)          ;; size
+         )) ;; recursive call to itself with `n - 1 `
+      end
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(one_input_caller_wast, direct_recursive_wast, t);
+
+   // Do a recursive call with n == 0
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "0")));
+
+   // Do a recursive call with n == config::default_max_sync_call_depth - 1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string(config::default_max_sync_call_depth - 1))));
+
+   // Use default_max_sync_call_depth as we have not change max_sync_call_depth
+   // parameter
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth))),
+                         sync_call_depth_exception,
+                         fc_exception_message_contains("reached sync call max call depth"));
+} FC_LOG_AND_RETHROW() }
+
+// 1. reads an i32 value `input` from action
+// 2. in `apply` entry point, makes a sync call to "callee"_n contract using `input` as the argument
+// 2. in `sync_call` entry point with `n` as the parameter, makes a further sync call to "callee"_n contract using `n` as the argument
+static const char indirect_recursive_caller_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32))) ;; receiver, flags, data span
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32)))
+
+   (memory (export "memory") 1)
+   (global $callee i64 (i64.const 4729647295212027904)) ;; "callee"_n uint64_t value
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (local $n i32)
+
+      (drop (call $get_call_data (i32.const 4)(get_local $data_size))) ;; read function parameter into memory[4]
+      (set_local $n (i32.load (i32.const 4))) ;; set n
+
+      (i32.store (i32.const 8) (get_local $n)) ;;  store `n` to memory[8]
+      (drop
+         (call
+            $call
+               (get_local $sender)    ;; call back to the sender
+               (i64.const 0)          ;; flags
+               (i32.const 8)          ;; memory[8]
+               (i32.const 4)          ;; size
+         )
+      ) ;; recursive call to to the sender with `n`
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64)
+      (drop (call $read_action_data(i32.const 0)(i32.const 4)))  ;; read action input into address 0
+      (drop (call $call (get_global $callee) (i64.const 0)(i32.const 0)(i32.const 4))) ;; make a sync call with data starting at address 0, size 4
+   )
+)
+)=====";
+
+// An indirect recursive call. If parameter `n` is 0, stop; otherwise do a sync call to the caller contract (a different one) with `n - 1`
+static const char indirect_recursive_callee_wast[] = R"=====(
+(module
+   (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
+   (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32)))
+   (memory (export "memory") 1)
+
+   (export "sync_call" (func $sync_call))
+   (func $sync_call (param $sender i64) (param $receiver i64) (param $data_size i32)
+      (local $n i32)
+
+      (drop (call $get_call_data (i32.const 0)(get_local $data_size))) ;; read function parameter into address 0
+      (set_local $n (i32.load (i32.const 0))) ;; set n
+
+      (get_local $n)
+      i32.const 0
+      i32.ne
+      if  ;; n != 0
+         (i32.store
+            (i32.const 4)
+            (i32.sub (get_local $n) (i32.const 1))
+         ) ;;  store `n - 1` to memory[4]
+         (drop
+            (call
+               $call
+                  (get_local $sender)    ;; call back to the sender
+                  (i64.const 0)          ;; flags
+                  (i32.const 4)          ;; memory[4]
+                  (i32.const 4)          ;; size
+         )) ;; recursive call to itself with `n - 1 `
+      end
+   )
+
+   (export "apply" (func $apply))
+   (func $apply (param $receiver i64) (param $account i64) (param $action_name i64))
+)
+)=====";
+
+BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
+   validating_tester t;
+
+   if( t.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
+   create_accounts_and_set_code(indirect_recursive_caller_wast, indirect_recursive_callee_wast, t);
+
+   // Do a recursive call with n == 0
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "0")));
+
+   // Do a recursive call with n == config::default_max_sync_call_depth/2 - 1
+   // Use default_max_sync_call_depth as we have not change max_sync_call_depth
+   // parameter
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string((config::default_max_sync_call_depth / 2) - 1))));
+
+   // The caller and callee call each other per round, that's why we can only do
+   // max_sync_call_depth / 2 round
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth / 2))),
+                         sync_call_depth_exception,
+                         fc_exception_message_contains("reached sync call max call depth"));
+
 } FC_LOG_AND_RETHROW() }
 
 BOOST_AUTO_TEST_SUITE_END()
