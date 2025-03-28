@@ -281,6 +281,7 @@ inline constexpr auto get_intrinsic_table() {
       "env.set_finalizers",
       "eosvmoc_internal.check_memcpy_params",
       "env.call",
+      "env.get_call_return_value",
       "env.get_call_data",
       "env.set_call_return_value"
    );

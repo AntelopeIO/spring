@@ -246,18 +246,19 @@ void apply_context::exec()
 
 } /// exec()
 
-void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data)
-{
+uint32_t apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<const char> data) {
    assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
 
    dlog("receiver: ${r}, flags: ${f}, data size: ${s}",
         ("r", receiver)("f", flags)("s", data.size()));
 
    auto* code = control.db().find<account_object, by_name>(receiver);
-   EOS_ASSERT(code != nullptr, action_validate_exception,
+   EOS_ASSERT(code != nullptr, sync_call_validate_exception,
               "sync call's receiver account ${r} does not exist", ("r", receiver));
-
-   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, action_validate_exception,
+   const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(data.size() <= max_sync_call_data_size, sync_call_call_data_exception,
+              "sync call call data size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
+   EOS_ASSERT((flags & 0xFFFFFFFFFFFFFFFE) == 0, sync_call_validate_exception,
               "sync call's flags ${f} can only set bit 0", ("f", flags));
 
    auto handle_exception = [&](const auto& e)
@@ -266,20 +267,28 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
       throw;
    };
 
+   sync_call_return_value     = std::nullopt; // reset for current sync call
+   uint32_t return_value_size = 0;
+
    try {
       try {
          const account_metadata_object* receiver_account = &db.get<account_metadata_object, by_name>( receiver);
          if (receiver_account->code_hash.empty()) {
             // TBD store the info in sync call trace
             ilog("receiver_account->code_hash empty");
-            return;
+            return return_value_size;
          }
 
          try {
             // use a new apply_context for a new sync call
             apply_context a_ctx(control, trx_context, get_sync_call_sender(), receiver, std::move(data));
-
             control.get_wasm_interface().do_sync_call(receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, a_ctx);
+
+            // store return value
+            if (a_ctx.sync_call_ctx.has_value()) {
+               sync_call_return_value = std::move(a_ctx.sync_call_ctx->return_value);
+               return_value_size = sync_call_return_value->size();
+            }
          } catch( const wasm_exit&) {}
       } FC_RETHROW_EXCEPTIONS(warn, "sync call exception on ${receiver}", ("receiver", receiver))
    } catch (const std::bad_alloc&) {
@@ -292,8 +301,8 @@ void apply_context::execute_sync_call(name receiver, uint64_t flags, std::span<c
       auto wrapper = fc::std_exception_wrapper::from_current_exception(e);
       handle_exception(wrapper);
    }
-
    trx_context.checktime(); // protect against the case where during the removal of the callback, the timer expires.
+   return return_value_size;
 }
 
 // Returns the sender of any sync call initiated by this apply_context or sync_call_ctx
@@ -301,6 +310,59 @@ action_name apply_context::get_sync_call_sender() const {
    // The sync call is initiated by this apply_context or its sync_call_ctx.
    // That's why the context's receiver is the sender of the sync call.
    return sync_call_ctx ? sync_call_ctx->receiver : get_receiver();
+}
+
+uint32_t apply_context::get_call_return_value(std::span<char> memory) const {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+
+   if (!sync_call_return_value.has_value()) {
+      return 0;
+   }
+
+   const auto data_size = sync_call_return_value->size();
+   const auto copy_size = std::min(memory.size(), data_size);
+
+   if (copy_size == 0) {
+      return data_size;
+   }
+
+   // Copy up to the length of memory of data to memory
+   std::memcpy(memory.data(), sync_call_return_value->data(), copy_size);
+
+   // Return the number of bytes of the data that can be retrieved
+   return data_size;
+}
+
+uint32_t apply_context::get_call_data(std::span<char> memory) const {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+   EOS_ASSERT(sync_call_ctx.has_value(), sync_call_validate_exception,
+              "get_call_data can be only used in sync call");
+
+   const auto& data      = sync_call_ctx->data;
+   auto        data_size = data.size();
+   auto        copy_size = std::min(memory.size(), data_size);
+
+   if (copy_size == 0) {
+      return data_size;
+   }
+
+   // Copy up to the length of memory of data to memory
+   std::memcpy(memory.data(), data.data(), copy_size);
+
+   // Return the number of bytes of the data that can be retrieved
+   return data_size;
+}
+
+void apply_context::set_call_return_value(std::span<const char> return_value) {
+   assert(sync_call_ctx.has_value() ^ (act != nullptr)); // can be only one of action and sync call
+   EOS_ASSERT(sync_call_ctx.has_value(), sync_call_validate_exception,
+              "set_call_return_value can be only used in sync call");
+
+   const auto max_sync_call_data_size = control.get_global_properties().configuration.max_sync_call_data_size;
+   EOS_ASSERT(return_value.size() <= max_sync_call_data_size, sync_call_return_value_exception,
+              "sync call return value size must be less or equal to ${s} bytes", ("s", max_sync_call_data_size));
+
+   sync_call_ctx->return_value.assign(return_value.data(), return_value.data() + return_value.size());
 }
 
 bool apply_context::is_account( const account_name& account )const {

@@ -679,4 +679,13 @@ namespace eosio { namespace chain {
                                  3260000, "Finalizer exception" )
       FC_DECLARE_DERIVED_EXCEPTION( finalizer_safety_exception, finalizer_exception,
                                     3260001, "Finalizer safety file exception" )
+
+   FC_DECLARE_DERIVED_EXCEPTION( sync_call_exception,    chain_exception,
+                                 3270000, "Sync call exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_validate_exception, sync_call_exception,
+                                    3270001, "Sync call validation exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_return_value_exception, sync_call_exception,
+                                    3270002, "Sync call return value exception" )
+      FC_DECLARE_DERIVED_EXCEPTION( sync_call_call_data_exception, sync_call_exception,
+                                    3270003, "Sync call call data exception" )
 } } // eosio::chain
