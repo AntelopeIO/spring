@@ -1324,7 +1324,7 @@ struct controller_impl {
          vote_processor.notify_lib(block->block_num());
 
          // update peer public keys from chainbase db 
-         peer_keys_db.update_peer_keys(self, block->block_num());
+         peer_keys_db.update_peer_keys(self, block->timestamp);
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
