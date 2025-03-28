@@ -209,6 +209,22 @@ public:
       params_object(1_ui)(17_ui)(512_32).set();
       ASSERT_EQ(params_object(1_ui)(17_ui).get(), 
                 params_object(1_ui)(17_ui)(512_32));
+
+      //v2 config, max_sync_call_depth
+      ASSERT_EQ(params_object(1_ui)(18_ui).get(),
+                params_object(1_ui)(18_ui)(16_32));  // default value
+
+      params_object(1_ui)(18_ui)(4_32).set();
+      ASSERT_EQ(params_object(1_ui)(18_ui).get(),
+                params_object(1_ui)(18_ui)(4_32));
+
+      //v2 config, max_sync_call_data_size
+      ASSERT_EQ(params_object(1_ui)(19_ui).get(),
+                params_object(1_ui)(19_ui)(512*1024_32));  // default value
+
+      params_object(1_ui)(19_ui)(64*1024_32).set();
+      ASSERT_EQ(params_object(1_ui)(19_ui).get(),
+                params_object(1_ui)(19_ui)(64*1024_32));
    }
 
    [[eosio::action]] void setthrow1(){
@@ -252,6 +268,16 @@ public:
       params_object(1_ui)(17_ui)(1024_32).set();
       ASSERT_EQ(params_object(1_ui)(17_ui).get(), 
                 params_object(1_ui)(17_ui)(1024_32));
+
+      //v2 config, max_sync_call_depth
+      params_object(1_ui)(18_ui)(4_32).set();
+      ASSERT_EQ(params_object(1_ui)(18_ui).get(),
+                params_object(1_ui)(18_ui)(4_32));
+
+      //v2 config, max_sync_call_data_size
+      params_object(1_ui)(19_ui)(64*1024_32).set();
+      ASSERT_EQ(params_object(1_ui)(19_ui).get(),
+                params_object(1_ui)(19_ui)(64*1024_32));
    }
 
    [[eosio::action]] void throwrvia2(){
@@ -260,5 +286,13 @@ public:
       //v1 config, max_action_return_value_size
       ASSERT_EQ(params_object(1_ui)(17_ui).get(), 
                 params_object(1_ui)(17_ui)(1024_32));
+
+      //v2 config, max_sync_call_depth
+      ASSERT_EQ(params_object(1_ui)(18_ui).get(),
+                params_object(1_ui)(18_ui)(4_32));
+
+      //v2 config, max_sync_call_data_size
+      ASSERT_EQ(params_object(1_ui)(19_ui).get(),
+                params_object(1_ui)(19_ui)(64*1024_32));
    }
 };
