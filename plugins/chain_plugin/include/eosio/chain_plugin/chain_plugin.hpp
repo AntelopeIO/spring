@@ -830,7 +830,7 @@ public:
 
    using get_consensus_parameters_params = empty;
    struct get_consensus_parameters_results {
-     chain::chain_config               chain_config;
+     fc::variant                       chain_config; //filled as chain_config_v0, v1, etc depending on activated features
      std::optional<chain::wasm_config> wasm_config;
    };
    get_consensus_parameters_results get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& deadline) const;
