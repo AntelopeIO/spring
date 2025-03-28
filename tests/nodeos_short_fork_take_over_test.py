@@ -356,8 +356,9 @@ try:
     while remainingChecks>0:
         if checkMatchBlock == killBlockNum and checkHead:
             checkMatchBlock = prodNodes[0].getBlockNum()
-        blockProducer0=prodNodes[0].getBlockProducerByNum(checkMatchBlock)
-        blockProducer1=prodNodes[1].getBlockProducerByNum(checkMatchBlock)
+        # do not exit on error as fork switching can make block not available temporarily
+        blockProducer0=prodNodes[0].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
+        blockProducer1=prodNodes[1].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
         match=blockProducer0==blockProducer1
         if match:
             if checkHead:
