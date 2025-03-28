@@ -221,7 +221,7 @@ struct chain_config_v2 : chain_config_v1 {
       // copy v0 fields
       chain_config_v0::operator= (b);
 
-      // leave v1 and v2 fields alone as changing them might break cosensus
+      // leave v1 and v2 fields alone as changing them might break consensus
       // if the intention is to only set v0 fields.
    }
 
