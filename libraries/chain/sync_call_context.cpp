@@ -14,8 +14,4 @@ bool sync_call_context::is_read_only()const {
    return flags & static_cast<uint64_t>(sync_call_flags::read_only);
 }
 
-bool sync_call_context::no_op_if_receiver_not_support_sync_call()const {
-   return flags & static_cast<uint64_t>(sync_call_flags::no_op_if_receiver_not_support_sync_call);
-}
-
 } /// eosio::chain

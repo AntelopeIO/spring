@@ -148,11 +148,7 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
 
          uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
          if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
-            if (sync_call_ctx->no_op_if_receiver_not_support_sync_call()) {
-               return;
-            } else {
-               EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");
-            }
+            EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");
          }
          // If the contract contains sync_call entry point, its signature had already been
          // validated when the contract was deployed.
