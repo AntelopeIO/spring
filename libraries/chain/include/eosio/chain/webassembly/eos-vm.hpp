@@ -31,7 +31,7 @@ using namespace eosio::vm;
 
 void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics );
 
-void validate(const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics );
+void validate(const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics );
 
 struct apply_options;
 

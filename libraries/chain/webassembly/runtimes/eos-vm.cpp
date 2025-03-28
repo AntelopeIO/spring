@@ -84,7 +84,7 @@ void validate(const bytes& code, const whitelisted_intrinsics_type& intrinsics) 
    }
 }
 
-void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
+void validate( const controller& control, const bytes& code, const wasm_config& cfg, const whitelisted_intrinsics_type& intrinsics ) {
    EOS_ASSERT(code.size() <= cfg.max_module_bytes, wasm_serialization_error, "Code too large");
    wasm_code_ptr code_ptr((uint8_t*)code.data(), code.size());
    try {
@@ -105,6 +105,17 @@ void validate( const bytes& code, const wasm_config& cfg, const whitelisted_intr
       EOS_ASSERT(apply_idx < std::numeric_limits<uint32_t>::max(), wasm_serialization_error, "apply not exported");
       const vm::func_type& apply_type = bkend.get_module().get_function_type(apply_idx);
       EOS_ASSERT((apply_type == vm::host_function{{vm::i64, vm::i64, vm::i64}, {}}), wasm_serialization_error, "apply has wrong type");
+
+      // Check sync-call entry point after the protocol feature is activated.
+      // It is optional for a contract to provide sync calls.
+      // To prevent problems, if sync call entry point is present, its signature must be correct
+      if (control.is_builtin_activated(builtin_protocol_feature_t::sync_call)) {
+         uint32_t sync_call_idx = bkend.get_module().get_exported_function("sync_call");
+         if (sync_call_idx < std::numeric_limits<uint32_t>::max()) {
+            const vm::func_type& sync_call_type = bkend.get_module().get_function_type(sync_call_idx);
+            EOS_ASSERT((sync_call_type == vm::host_function{{vm::i64, vm::i64, vm::i32}, {}}), wasm_serialization_error, "sync call entry point has wrong function signature");
+         }
+      }
    } catch(vm::exception& e) {
       EOS_THROW(wasm_serialization_error, e.detail());
    }
@@ -131,16 +142,27 @@ class eos_vm_instantiated_module : public wasm_instantiated_module_interface {
          _instantiated_module(std::move(mod)) {}
 
       void do_sync_call(apply_context& context) override {
+         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
+         assert(sync_call_ctx.has_value());
+         assert(!context.get_action_ptr());
+
+         uint32_t sync_call_idx = _instantiated_module->get_module().get_exported_function("sync_call");
+         if (sync_call_idx == std::numeric_limits<uint32_t>::max()) {
+            if (sync_call_ctx->no_op_if_receiver_not_support_sync_call()) {
+               return;
+            } else {
+               EOS_ASSERT(false, sync_call_not_supported_by_receiver_exception, "receiver does not support sync calls");
+            }
+         }
+         // If the contract contains sync_call entry point, its signature had already been
+         // validated when the contract was deployed.
+
          backend_t                                bkend;
          typename eos_vm_runtime<Impl>::context_t exec_ctx;
          vm::wasm_allocator&                      wasm_alloc = context.control.get_sync_call_wasm_allocator(); // get the top free wasm allocator from the pool
 
          // always return the wasm_allocator obtainded by get_sync_wasm_allocator back to the pool
          auto ensure = fc::make_scoped_exit([&]() { context.control.return_sync_call_wasm_allocator(); });
-
-         const std::optional<sync_call_context>& sync_call_ctx  = context.get_sync_call_ctx();
-         assert(sync_call_ctx.has_value());
-         assert(!context.get_action_ptr());
 
          apply_options opts = get_apply_options(context);
 

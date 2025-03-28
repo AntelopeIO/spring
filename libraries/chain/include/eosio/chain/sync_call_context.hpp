@@ -3,10 +3,21 @@
 #include <eosio/chain/types.hpp>
 
 namespace eosio { namespace chain {
+   enum class sync_call_flags {
+      read_only                               = 1ull<<0,
+      no_op_if_receiver_not_support_sync_call = 1ull<<1,
+      last                                    = no_op_if_receiver_not_support_sync_call
+   };
+
    struct sync_call_context {
+      sync_call_context(account_name sender, account_name receiver, uint64_t flags, std::span<const char>  data);
+      bool is_read_only()const;
+      bool no_op_if_receiver_not_support_sync_call()const;
+
       // input
       account_name           sender{};
       account_name           receiver{};
+      uint64_t               flags = 0;
       std::span<const char>  data{}; // includes function name, arguments, and other information
 
       // output
@@ -14,4 +25,4 @@ namespace eosio { namespace chain {
    };
 } } /// namespace eosio::chain
 
-FC_REFLECT(eosio::chain::sync_call_context, (sender)(receiver)(data))
+FC_REFLECT(eosio::chain::sync_call_context, (sender)(receiver)(flags)(data)(return_value))

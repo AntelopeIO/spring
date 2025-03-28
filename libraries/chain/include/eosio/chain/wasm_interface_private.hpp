@@ -266,7 +266,7 @@ struct eosvmoc_tier {
          const digest_type&   code_hash,
          const uint8_t&       vm_type,
          const uint8_t&       vm_version,
-         transaction_context& trx_context )
+         transaction_context& trx_context)
       {
          wasm_cache_index::iterator it = wasm_instantiation_cache.find( boost::make_tuple(code_hash, vm_type, vm_version) );
          if (it != wasm_instantiation_cache.end()) {
