@@ -80,6 +80,13 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
+   struct peer_info_t {
+      uint32_t                       rank;
+      std::optional<public_key_type> key;
+
+      bool operator==(const peer_info_t&) const = default;
+   };
+
    struct controller_impl;
    using chainbase::database;
    using chainbase::pinnable_mapped_file;
@@ -428,7 +435,7 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
-         std::optional<public_key_type> get_peer_key(name n) const; // thread safe
+         peer_info_t  get_peer_info(name n) const; // thread safe
 
          // thread safe
          db_read_mode get_read_mode()const;

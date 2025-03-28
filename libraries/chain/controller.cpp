@@ -1274,6 +1274,11 @@ struct controller_impl {
       apply_handlers[receiver][make_pair(contract,action)] = v;
    }
 
+   peer_keys_db_t::getpeerkeys_res_t get_top_producer_keys() {
+      peer_keys_db_t::getpeerkeys_res_t x;
+      return x;
+   }
+
    controller_impl( const controller::config& cfg, controller& s, protocol_feature_set&& pfs, const chain_id_type& chain_id )
    :rnh(),
     self(s),
@@ -1323,8 +1328,11 @@ struct controller_impl {
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
 
-         // update peer public keys from chainbase db 
-         peer_keys_db.update_peer_keys(self, block->block_num());
+         // update peer public keys from chainbase db using a readonly trx
+         auto block_num = block->block_num();
+         if (block_num % 120 == 0) {
+            peer_keys_db.update_peer_keys(get_top_producer_keys()); // update once/minute
+         }
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
@@ -5787,8 +5795,8 @@ void controller::set_peer_keys_retrieval_active(bool active) {
    my->peer_keys_db.set_active(active);
 }
 
-std::optional<public_key_type> controller::get_peer_key(name n) const {
-   return my->peer_keys_db.get_peer_key(n);
+peer_info_t controller::get_peer_info(name n) const {
+   return my->peer_keys_db.get_peer_info(n);
 }
 
 db_read_mode controller::get_read_mode()const {
