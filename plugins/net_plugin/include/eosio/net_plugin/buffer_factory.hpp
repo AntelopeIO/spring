@@ -185,7 +185,7 @@ namespace eosio {
       }
 
       /// requires set_initial_send_buffer to be called first
-      const send_buffer_type& get_initial_send_buffer() {
+      send_buffer_type get_initial_send_buffer() {
          assert(send_buffer);
          return send_buffer;
       }
