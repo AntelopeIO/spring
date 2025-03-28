@@ -98,7 +98,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const signed_block_ptr& sb ) {
+      static send_buffer_type create_send_buffer( const signed_block_ptr& sb ) {
          constexpr uint32_t signed_block_which = to_index(msg_type_t::signed_block);
 
          // this implementation is to avoid copy of signed_block to net_message
@@ -107,7 +107,7 @@ namespace eosio {
          return buffer_factory::create_send_buffer( signed_block_which, *sb );
       }
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
+      static send_buffer_type create_send_buffer( const std::vector<char>& ssb ) { // ssb: serialized signed block
          // this implementation is to avoid copy of signed_block to net_message
          // matches which of net_message for signed_block
          return buffer_factory::create_send_buffer_from_serialized_block( ssb );
@@ -126,7 +126,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer( const packed_transaction_ptr& trx ) {
+      static send_buffer_type create_send_buffer( const packed_transaction_ptr& trx ) {
          constexpr uint32_t packed_transaction_which = to_index(msg_type_t::packed_transaction);
 
          // this implementation is to avoid copy of packed_transaction to net_message
@@ -147,7 +147,7 @@ namespace eosio {
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_send_buffer(const gossip_bp_index_t& gossip_bp_peers) {
+      static send_buffer_type create_send_buffer(const gossip_bp_index_t& gossip_bp_peers) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          fc::lock_guard g(gossip_bp_peers.mtx);
@@ -185,14 +185,14 @@ namespace eosio {
       }
 
       /// requires set_initial_send_buffer to be called first
-      const send_buffer_type& get_initial_send_buffer() {
+      send_buffer_type get_initial_send_buffer() {
          assert(send_buffer);
          return send_buffer;
       }
 
    private:
 
-      static std::shared_ptr<std::vector<char>> create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
+      static send_buffer_type create_initial_send_buffer(const gossip_bp_peers_message::bp_peer& signed_empty) {
          constexpr uint32_t which = to_index(msg_type_t::gossip_bp_peers_message);
 
          // match net_message static_variant pack

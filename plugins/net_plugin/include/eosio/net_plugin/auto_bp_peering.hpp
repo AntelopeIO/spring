@@ -210,7 +210,7 @@ public:
       return initial_gossip_msg_factory.get_initial_send_buffer();
    }
 
-   send_buffer_type get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
+   const send_buffer_type& get_gossip_bp_send_buffer(gossip_buffer_factory& factory) {
       return factory.get_send_buffer(gossip_bps);
    }
 
