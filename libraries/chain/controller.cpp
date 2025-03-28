@@ -1322,9 +1322,6 @@ struct controller_impl {
          const auto& [ block, id] = t;
          wasmif.current_lib(block->block_num());
          vote_processor.notify_lib(block->block_num());
-
-         // update peer public keys from chainbase db 
-         peer_keys_db.update_peer_keys(self, block->block_num());
       });
 
 #define SET_APP_HANDLER( receiver, contract, action) \
@@ -5785,6 +5782,10 @@ chain_id_type controller::get_chain_id()const {
 
 void controller::set_peer_keys_retrieval_active(bool active) {
    my->peer_keys_db.set_active(active);
+}
+
+flat_set<name> controller::update_peer_keys(uint32_t lib_number) {
+   return my->peer_keys_db.update_peer_keys(*this, lib_number);
 }
 
 std::optional<public_key_type> controller::get_peer_key(name n) const {
