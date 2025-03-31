@@ -107,13 +107,13 @@ try:
         a = accounts[nodeId]
         node = cluster.getNode(nodeId)
 
-        results = cluster.biosNode.pushMessage('eosio', 'regpeerkey', f'{{"proposer_finalizer_name":"{producer_name}","key":"{a.activePublicKey}"}}', f'-p {producer_name}@active')
-        assert(results[0])
+        success, trans = cluster.biosNode.pushMessage('eosio', 'regpeerkey', f'{{"proposer_finalizer_name":"{producer_name}","key":"{a.activePublicKey}"}}', f'-p {producer_name}@active')
+        assert(success)
 
-    # wait until produceru is seen by every node
+    # wait for regpeerkey to be final
     for nodeId in range(0, producerNodes):
-        Utils.Print("Wait for defproduceru on node ", nodeId)
-        cluster.getNode(nodeId).waitForProducer("defproduceru", exitOnError=True, timeout=300)
+        Utils.Print("Wait for last regpeerkey to be final on ", nodeId)
+        cluster.getNode(nodeId).waitForTransFinalization(trans['transaction_id'])
 
     # relaunch with p2p-producer-peer
     for nodeId in range(0, producerNodes):
