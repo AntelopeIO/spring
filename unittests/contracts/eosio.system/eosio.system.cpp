@@ -298,12 +298,6 @@ void system_contract::init( unsigned_int version, symbol core ) {
                                              { rex_account, core, _self } );
 }
 
-system_contract::getpeerkeys_response system_contract::getpeerkeys() {
-   getpeerkeys_response resp{{{"n1"_n, {}}}};
-   return resp;
-}
-
-
 } /// eosio.system
 
 

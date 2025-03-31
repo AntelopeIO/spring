@@ -3,16 +3,12 @@
     "version": "eosio::abi/1.2",
     "types": [
         {
-            "new_type_name": "B_optional_public_key_E",
-            "type": "public_key?"
-        },
-        {
-            "new_type_name": "B_pair_name_B_optional_public_key_E_E",
-            "type": "pair_name_B_optional_public_key_E"
-        },
-        {
             "new_type_name": "B_pair_time_point_sec_int64_E",
             "type": "pair_time_point_sec_int64"
+        },
+        {
+            "new_type_name": "getpeerkeys_response",
+            "type": "peerkeys_t[]"
         }
     ],
     "structs": [
@@ -598,16 +594,6 @@
             "fields": []
         },
         {
-            "name": "getpeerkeys_response",
-            "base": "",
-            "fields": [
-                {
-                    "name": "v",
-                    "type": "B_pair_name_B_optional_public_key_E_E[]"
-                }
-            ]
-        },
-        {
             "name": "init",
             "base": "",
             "fields": [
@@ -726,20 +712,6 @@
             ]
         },
         {
-            "name": "pair_name_B_optional_public_key_E",
-            "base": "",
-            "fields": [
-                {
-                    "name": "first",
-                    "type": "name"
-                },
-                {
-                    "name": "second",
-                    "type": "B_optional_public_key_E"
-                }
-            ]
-        },
-        {
             "name": "pair_time_point_sec_int64",
             "base": "",
             "fields": [
@@ -750,6 +722,20 @@
                 {
                     "name": "second",
                     "type": "int64"
+                }
+            ]
+        },
+        {
+            "name": "peerkeys_t",
+            "base": "",
+            "fields": [
+                {
+                    "name": "producer_name",
+                    "type": "name"
+                },
+                {
+                    "name": "peer_key",
+                    "type": "public_key?"
                 }
             ]
         },
