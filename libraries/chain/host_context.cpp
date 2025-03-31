@@ -38,10 +38,7 @@ host_context::~host_context() = default;
 
 // called from apply_context or sync_call_context
 uint32_t host_context::execute_sync_call(name call_receiver, uint64_t flags, std::span<const char> data) {
-   // If the call is initiated from an apply_context (an action), it is the first
-   // level of a sync call by the action, set the depth to 1.
-   // Otherwise the call is from another sync call, increment the depth by 1.
-   const uint32_t depth = dynamic_cast<apply_context*>(this) ? 1 : sync_call_depth + 1;
+   const uint32_t depth = sync_call_depth + 1;
    const auto max_depth = control.get_global_properties().configuration.max_sync_call_depth;
    EOS_ASSERT(depth <= max_depth, sync_call_depth_exception,
               "reached sync call max call depth ${max_depth}", ("max_depth", max_depth));
