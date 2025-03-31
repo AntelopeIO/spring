@@ -99,6 +99,7 @@ class apply_context : public host_context {
    private:
       const action*                 act = nullptr; ///< action being applied
       // act pointer may be invalidated on call to trx_context.schedule_action
+      uint32_t                      recurse_depth; ///< how deep inline actions can recurse
       uint32_t                      first_receiver_action_ordinal = 0;
       uint32_t                      action_ordinal = 0;
       bool                          privileged   = false;

@@ -484,8 +484,8 @@ public:
 
 public:
    /// Constructor and destructor:
-   host_context(controller& con, transaction_context& trx_ctx, uint32_t depth);
-   host_context(controller& con, transaction_context& trx_ctx, uint32_t depth,  account_name receiver);
+   host_context(controller& con, transaction_context& trx_ctx);
+   host_context(controller& con, transaction_context& trx_ctx, account_name receiver, uint32_t sync_call_depth );
    virtual ~host_context();
 
    /// Authorization methods:
@@ -583,10 +583,11 @@ public:
    controller&                      control;
    chainbase::database&             db;  ///< database where state is stored
    transaction_context&             trx_context; ///< transaction context in which the action is running
-   uint32_t                         recurse_depth; ///< how deep inline actions can recurse
    account_name                     receiver; ///< the code that is currently running
    std::vector<char>                action_return_value;
-   std::optional<std::vector<char>> last_sync_call_return_value{}; /// return value of last sync call initiated by the current code (host context)
+
+   std::optional<std::vector<char>> last_sync_call_return_value{}; // return value of last sync call initiated by the current code (host context)
+   uint32_t                         sync_call_depth = 0; // depth for sync call
 
    generic_index<index64_object>                                  idx64;
    generic_index<index128_object>                                 idx128;

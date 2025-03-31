@@ -1032,7 +1032,8 @@ static const char one_input_caller_wast[] = R"=====(
 )
 )=====";
 
-// A direct recursive call. If parameter `n` is 0, stop; otherwise sync call itself with `n - 1`
+// A direct recursive function calling itself `n - 1` times. Including the fisrt call
+// by caller's `apply` entry point, total call depth is `n`.
 static const char direct_recursive_wast[] = R"=====(
 (module
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
@@ -1047,9 +1048,9 @@ static const char direct_recursive_wast[] = R"=====(
       (set_local $n (i32.load (i32.const 0))) ;; set n
 
       (get_local $n)
-      i32.const 0
+      i32.const 1
       i32.ne
-      if  ;; n != 0
+      if  ;; n != 1
          (i32.store
             (i32.const 4)
             (i32.sub (get_local $n) (i32.const 1))
@@ -1079,15 +1080,14 @@ BOOST_AUTO_TEST_CASE(direct_recursive_depth_enforcement_test)  { try {
 
    create_accounts_and_set_code(one_input_caller_wast, direct_recursive_wast, t);
 
-   // Do a recursive call with n == 0
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "0")));
+   // Do a recursive call with n == 1
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
 
-   // Do a recursive call with n == config::default_max_sync_call_depth - 1
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string(config::default_max_sync_call_depth - 1))));
+   // Do a recursive call with n == config::default_max_sync_call_depth
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string(config::default_max_sync_call_depth))));
 
-   // Use default_max_sync_call_depth as we have not change max_sync_call_depth
-   // parameter
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth))),
+   // Verify `config::default_max_sync_call_depth + 1` recursive calls will fail
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth + 1))),
                          sync_call_depth_exception,
                          fc_exception_message_contains("reached sync call max call depth"));
 } FC_LOG_AND_RETHROW() }
@@ -1131,7 +1131,7 @@ static const char indirect_recursive_caller_wast[] = R"=====(
 )
 )=====";
 
-// An indirect recursive call. If parameter `n` is 0, stop; otherwise do a sync call to the caller contract (a different one) with `n - 1`
+// An indirect recursive function calling its sender and the sender calls back again.
 static const char indirect_recursive_callee_wast[] = R"=====(
 (module
    (import "env" "call" (func $call (param i64 i64 i32 i32) (result i32)))
@@ -1146,9 +1146,9 @@ static const char indirect_recursive_callee_wast[] = R"=====(
       (set_local $n (i32.load (i32.const 0))) ;; set n
 
       (get_local $n)
-      i32.const 0
+      i32.const 1
       i32.ne
-      if  ;; n != 0
+      if  ;; n != 1
          (i32.store
             (i32.const 4)
             (i32.sub (get_local $n) (i32.const 1))
@@ -1179,17 +1179,15 @@ BOOST_AUTO_TEST_CASE(indirect_recursive_depth_enforcement_test)  { try {
 
    create_accounts_and_set_code(indirect_recursive_caller_wast, indirect_recursive_callee_wast, t);
 
-   // Do a recursive call with n == 0
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "0")));
+   // Do a recursive call with n == 1 round. Each round consumes 2 call depths
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", "1")));
 
-   // Do a recursive call with n == config::default_max_sync_call_depth/2 - 1
-   // Use default_max_sync_call_depth as we have not change max_sync_call_depth
-   // parameter
-   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string((config::default_max_sync_call_depth / 2) - 1))));
+   // Do a recursive call with n == config::default_max_sync_call_depth/2 rounds.
+   BOOST_REQUIRE_NO_THROW(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo()("input", std::to_string((config::default_max_sync_call_depth / 2)))));
 
    // The caller and callee call each other per round, that's why we can only do
    // max_sync_call_depth / 2 round
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string(config::default_max_sync_call_depth / 2))),
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callwithinpt"_n, "caller"_n, mvo() ("input", std::to_string((config::default_max_sync_call_depth / 2 + 1)))),
                          sync_call_depth_exception,
                          fc_exception_message_contains("reached sync call max call depth"));
 
