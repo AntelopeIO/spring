@@ -1217,34 +1217,36 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
 (module
    (import "env" "require_auth" (func $require_auth (param i64)))            ;; index 0
    (import "env" "require_auth2" (func $require_auth2 (param i64 i64)))      ;; index 1
-   (import "env" "require_recipient" (func $require_recipient (param i64)))  ;; index 2
-   (import "env" "get_action" (func $get_action (param i32 i32 i32 i32) (result i32))) ;; index 3
-   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32))) ;; index 4
-   (import "env" "action_data_size" (func $action_data_size (result i32))) ;; index 5
-   (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32))) ;; index 6
-   (import "env" "get_context_free_data" (func $get_context_free_data (param i32 i32 i32) (result i32)))  ;; index 7
-   (import "env" "send_inline" (func $send_inline (param i32 i32)))          ;; index 8
-   (import "env" "send_context_free_inline" (func $send_context_free_inline (param i32 i32)))   ;; index 9
-   (import "env" "send_deferred" (func $send_deferred (param i32 i64 i32 i32 i32)))  ;; index 10
-   (import "env" "cancel_deferred" (func $cancel_deferred (param i32) (result i32))) ;; index 11
+   (import "env" "has_auth" (func $has_auth (param i64) (result i32)))       ;; index 2
+   (import "env" "require_recipient" (func $require_recipient (param i64)))  ;; index 3
+   (import "env" "get_action" (func $get_action (param i32 i32 i32 i32) (result i32))) ;; index 4
+   (import "env" "read_action_data" (func $read_action_data (param i32 i32) (result i32))) ;; index 5
+   (import "env" "action_data_size" (func $action_data_size (result i32))) ;; index 6
+   (import "env" "set_action_return_value" (func $set_action_return_value (param i32 i32))) ;; index 7
+   (import "env" "get_context_free_data" (func $get_context_free_data (param i32 i32 i32) (result i32)))  ;; index 8
+   (import "env" "send_inline" (func $send_inline (param i32 i32)))          ;; index 9
+   (import "env" "send_context_free_inline" (func $send_context_free_inline (param i32 i32)))   ;; index 10
+   (import "env" "send_deferred" (func $send_deferred (param i32 i64 i32 i32 i32)))  ;; index 11
+   (import "env" "cancel_deferred" (func $cancel_deferred (param i32) (result i32))) ;; index 12
 
    (import "env" "get_call_data" (func $get_call_data (param i32 i32) (result i32))) ;; memory
    (memory $0 1)
    (export "memory" (memory $0))
 
-   (table 12 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
+   (table 13 anyfunc)          ;; function table definition. update the number of entries below when a new function is added
    (elem (i32.const 0) $case_require_auth)               ;; index 0
    (elem (i32.const 1) $case_require_auth2)              ;; index 1
-   (elem (i32.const 2) $case_require_recipient)          ;; index 2
-   (elem (i32.const 3) $case_get_action)                 ;; index 3
-   (elem (i32.const 4) $case_read_action_data)           ;; index 4
-   (elem (i32.const 5) $case_action_data_size)           ;; index 5
-   (elem (i32.const 6) $case_set_action_return_value)    ;; index 6
-   (elem (i32.const 7) $case_get_context_free_data)      ;; index 7
-   (elem (i32.const 8) $case_send_inline)                ;; index 8
-   (elem (i32.const 9) $case_send_context_free_inline)   ;; index 9
-   (elem (i32.const 10) $case_send_deferred)             ;; index 10
-   (elem (i32.const 11) $case_cancel_deferred)           ;; index 11
+   (elem (i32.const 2) $case_has_auth)                   ;; index 2
+   (elem (i32.const 3) $case_require_recipient)          ;; index 3
+   (elem (i32.const 4) $case_get_action)                 ;; index 4
+   (elem (i32.const 5) $case_read_action_data)           ;; index 5
+   (elem (i32.const 6) $case_action_data_size)           ;; index 6
+   (elem (i32.const 7) $case_set_action_return_value)    ;; index 7
+   (elem (i32.const 8) $case_get_context_free_data)      ;; index 8
+   (elem (i32.const 9) $case_send_inline)                ;; index 9
+   (elem (i32.const 10) $case_send_context_free_inline)   ;; index 10
+   (elem (i32.const 11) $case_send_deferred)             ;; index 11
+   (elem (i32.const 12) $case_cancel_deferred)           ;; index 12
 
    (type $ftable (func))      ;; function table instantiation
    (func $case_require_auth
@@ -1255,6 +1257,10 @@ static const char constrains_enforcement_callee_wast[] = R"=====(
       i64.const 0             ;; 1st argument of require_auth2
       i64.const 0             ;; 2nd argument of require_auth2
       call $require_auth2
+   )
+   (func $case_has_auth
+      i64.const 0             ;; argument of has_auth
+      call $require_auth
    )
    (func $case_require_recipient
       i64.const 0             ;; argument of require_recipient
@@ -1347,53 +1353,58 @@ BOOST_AUTO_TEST_CASE(constrains_enforcement_test)  { try {
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // require_recipient
+   // has_auth
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "2")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // get_action
+   // require_recipient
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "3")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // read_action_data
+   // get_action
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "4")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // action_data_size
+   // read_action_data
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "5")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // set_action_return_value
+   // action_data_size
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "6")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // get_context_free_data. sync calls not allowed in context-free trxs
+   // set_action_return_value
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "7")),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API may only be called from action"));
+
+   // get_context_free_data. sync calls not allowed in context-free trxs
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "8")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from context_free apply"));
 
    // send_inline
-   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "8")),
-                         unaccessible_api,
-                         fc_exception_message_contains("this API may only be called from action"));
-
-   // send_context_free_inline
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "9")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // send_deferred
+   // send_context_free_inline
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "10")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 
-   // cancel_deferred
+   // send_deferred
    BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "11")),
+                         unaccessible_api,
+                         fc_exception_message_contains("this API may only be called from action"));
+
+   // cancel_deferred
+   BOOST_CHECK_EXCEPTION(t.push_action("caller"_n, "callhostfunc"_n, "caller"_n, mvo() ("index", "12")),
                          unaccessible_api,
                          fc_exception_message_contains("this API may only be called from action"));
 } FC_LOG_AND_RETHROW() }

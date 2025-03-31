@@ -28,7 +28,6 @@ public:
 
    // Those cannot be called from sync_call_context. EOS_ASSERTs and tests will be added
    // in next PR.
-   bool has_authorization(const account_name& account) const override;
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;
    bool is_context_free()const override;

@@ -515,7 +515,7 @@ REGISTER_HOST_FUNCTION(get_account_creation_time);
 // authorization api
 REGISTER_HOST_FUNCTION(require_auth, action_check);
 REGISTER_HOST_FUNCTION(require_auth2, action_check);
-REGISTER_HOST_FUNCTION(has_auth);
+REGISTER_HOST_FUNCTION(has_auth, action_check);
 REGISTER_HOST_FUNCTION(require_recipient, action_check);
 REGISTER_HOST_FUNCTION(is_account);
 REGISTER_HOST_FUNCTION(get_code_hash);

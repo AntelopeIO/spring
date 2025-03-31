@@ -500,7 +500,7 @@ public:
     * @throws missing_auth_exception If no sufficient permission was found
     */
    virtual void require_authorization(const account_name& account) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); } // This function should never be called in sync calls due to require_auth host wrapper preconditions. This EOS_ASSERT double makes sure that.
-   virtual bool has_authorization(const account_name& account) const = 0;
+   virtual bool has_authorization(const account_name& account) const { assert(false); __builtin_unreachable(); }
    virtual void require_authorization(const account_name& account, const permission_name& permission) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
 
    /**

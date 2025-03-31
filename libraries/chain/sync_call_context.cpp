@@ -52,9 +52,6 @@ action_name sync_call_context::get_sender() const {
 }
 
 // Always return false in sync calls
-bool sync_call_context::has_authorization(const account_name& account) const {
-   return false;
-}
 bool sync_call_context::has_recipient(account_name account)const {
    return false;
 }
