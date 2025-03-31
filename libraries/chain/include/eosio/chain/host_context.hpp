@@ -499,9 +499,9 @@ public:
     *
     * @throws missing_auth_exception If no sufficient permission was found
     */
-   virtual void require_authorization(const account_name& account) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); } // This function should never be called in sync calls due to require_auth host wrapper preconditions. This EOS_ASSERT double makes sure that.
+   virtual void require_authorization(const account_name& account) { assert(false); } // This function should never be called in sync calls due to require_auth host wrapper preconditions. The `assert` is used to prevent any coding errors.
    virtual bool has_authorization(const account_name& account) const { assert(false); __builtin_unreachable(); }
-   virtual void require_authorization(const account_name& account, const permission_name& permission) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual void require_authorization(const account_name& account, const permission_name& permission) { assert(false); }
 
    /**
     * @return true if account exists, false if it does not
@@ -514,7 +514,7 @@ public:
    /**
     * Requires that the current action be delivered to account
     */
-   virtual void require_recipient(account_name account) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); };
+   virtual void require_recipient(account_name account) { assert(false); }
 
    /**
     * Return true if the current action has already been scheduled to be
@@ -554,12 +554,12 @@ private:
 public:
    vector<account_name> get_active_producers() const;
 
-   virtual int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size ) const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
-   virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size ) const { assert(false); __builtin_unreachable(); }
+   virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const { assert(false); __builtin_unreachable(); }
    virtual bool is_context_free()const = 0;
    virtual bool is_privileged()const = 0;
    action_name get_receiver()const { return receiver; };
-   virtual const action& get_action()const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); };
+   virtual const action& get_action()const { assert(false); __builtin_unreachable(); }
    virtual action_name get_sender() const = 0;
    account_name get_sync_call_sender() const { return receiver; } // current action or sync call's receiver is next call's sender
 
@@ -574,10 +574,10 @@ public:
    virtual uint32_t get_call_data(std::span<char> memory) const { return 0; };
    virtual void set_call_return_value(std::span<const char> return_value) {};
 
-   virtual void execute_inline( action&& a ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
-   virtual void execute_context_free_inline( action&& a ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
-   virtual void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
-   virtual bool cancel_deferred_transaction( const uint128_t& sender_id ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual void execute_inline( action&& a ) { assert(false); }
+   virtual void execute_context_free_inline( action&& a ) { assert(false); }
+   virtual void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) { assert(false); }
+   virtual bool cancel_deferred_transaction( const uint128_t& sender_id ) { assert(false); __builtin_unreachable(); }
 
    /// Fields:
 public:
