@@ -2678,7 +2678,11 @@ read_only::get_consensus_parameters_results
 read_only::get_consensus_parameters(const get_consensus_parameters_params&, const fc::time_point& ) const {
    get_consensus_parameters_results results;
 
-   results.chain_config = db.get_global_properties().configuration;
+   if (db.is_builtin_activated(builtin_protocol_feature_t::action_return_value))
+      to_variant(db.get_global_properties().configuration,        results.chain_config); //chain_config_v1
+   else
+      to_variant(db.get_global_properties().configuration.base(), results.chain_config); //chain_config_v0
+
    if (db.is_builtin_activated(builtin_protocol_feature_t::configurable_wasm_limits)) {
       results.wasm_config = db.get_global_properties().wasm_configuration;
    }
