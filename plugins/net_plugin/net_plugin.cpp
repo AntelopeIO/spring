@@ -3456,7 +3456,6 @@ namespace eosio {
       peer_fork_db_head_block_num = msg.fork_db_head_num;
       fc::unique_lock g_conn( conn_mtx );
       last_handshake_recv = msg;
-      auto c_time = last_handshake_sent.time;
       g_conn.unlock();
 
       set_state(connection_state::connected);
@@ -3492,57 +3491,37 @@ namespace eosio {
                set_connection_type( msg.p2p_address);
             else
                peer_dlog(this, "Invalid handshake p2p_address ${p}", ("p", msg.p2p_address));
-
-            peer_dlog( this, "checking for duplicate" );
-            auto is_duplicate = [&](const connection_ptr& check) {
-               if(check.get() == this)
-                  return false;
-               fc::unique_lock g_check_conn( check->conn_mtx );
-               fc_dlog( logger, "dup check: connected ${c}, ${l} =? ${r}",
-                        ("c", check->connected())("l", check->last_handshake_recv.node_id)("r", msg.node_id) );
-               if(check->connected() && check->last_handshake_recv.node_id == msg.node_id) {
-                  if (net_version < proto_dup_goaway_resolution || msg.network_version < proto_dup_goaway_resolution) {
-                     // It's possible that both peers could arrive here at relatively the same time, so
-                     // we need to avoid the case where they would both tell a different connection to go away.
-                     // Using the sum of the initial handshake times of the two connections, we will
-                     // arbitrarily (but consistently between the two peers) keep one of them.
-
-                     auto check_time = check->last_handshake_sent.time + check->last_handshake_recv.time;
-                     g_check_conn.unlock();
-                     if (msg.time + c_time <= check_time)
-                        return false;
-                  } else if (net_version < proto_dup_node_id_goaway || msg.network_version < proto_dup_node_id_goaway) {
-                     if (listen_address < msg.p2p_address) {
-                        fc_dlog( logger, "listen_address '${lhs}' < msg.p2p_address '${rhs}'",
-                                 ("lhs", listen_address)( "rhs", msg.p2p_address ) );
-                        // only the connection from lower p2p_address to higher p2p_address will be considered as a duplicate,
-                        // so there is no chance for both connections to be closed
-                        return false;
-                     }
-                  } else if (my_impl->node_id < msg.node_id) {
-                     fc_dlog( logger, "not duplicate, my_impl->node_id '${lhs}' < msg.node_id '${rhs}'",
-                              ("lhs", my_impl->node_id)("rhs", msg.node_id) );
-                     // only the connection from lower node_id to higher node_id will be considered as a duplicate,
-                     // so there is no chance for both connections to be closed
-                     return false;
-                  }
-                  return true;
-               }
-               return false;
-            };
-            if (my_impl->connections.any_of_connections(std::move(is_duplicate))) {
-               peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
-               go_away_message gam(duplicate);
-               gam.node_id = conn_node_id;
-               enqueue(gam);
-               no_retry = duplicate;
-               return;
-            }
          } else {
-            peer_dlog(this, "skipping duplicate check, addr == ${pa}, id = ${ni}", ("pa", peer_address())("ni", msg.node_id));
-
             // check if peer requests no trx or no blocks
             set_peer_connection_type(msg.p2p_address);
+         }
+
+         peer_dlog( this, "checking for duplicate" );
+         auto is_duplicate = [&](const connection_ptr& check) {
+            if(check.get() == this)
+               return false;
+            fc::unique_lock g_check_conn( check->conn_mtx );
+            fc_dlog( logger, "dup check: connected ${c}, ${l} =? ${r}",
+                     ("c", check->connected())("l", check->last_handshake_recv.node_id)("r", msg.node_id) );
+            if(check->connected() && check->last_handshake_recv.node_id == msg.node_id) {
+               if (my_impl->node_id < msg.node_id) {
+                  fc_dlog( logger, "not duplicate, my_impl->node_id '${lhs}' < msg.node_id '${rhs}'",
+                           ("lhs", my_impl->node_id)("rhs", msg.node_id) );
+                  // only the connection from lower node_id to higher node_id will be considered as a duplicate,
+                  // so there is no chance for both connections to be closed
+                  return false;
+               }
+               return true;
+            }
+            return false;
+         };
+         if (my_impl->connections.any_of_connections(std::move(is_duplicate))) {
+            peer_dlog( this, "sending go_away duplicate, msg.p2p_address: ${add}", ("add", msg.p2p_address) );
+            go_away_message gam(duplicate);
+            gam.node_id = conn_node_id;
+            enqueue(gam);
+            no_retry = duplicate;
+            return;
          }
 
          if( msg.chain_id != my_impl->chain_id ) {
