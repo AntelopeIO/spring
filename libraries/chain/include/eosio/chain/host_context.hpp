@@ -568,8 +568,8 @@ public:
    // sync calls can be initiated from actions or other sync calls
    uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
    uint32_t get_call_return_value(std::span<char> memory) const;
-   bool is_action() const { return _is_action; }
-   bool is_sync_call() const { return _is_sync_call; }
+   virtual bool is_action() const { return false; }
+   virtual bool is_sync_call() const { return false; }
 
    virtual uint32_t get_call_data(std::span<char> memory) const { return 0; };
    virtual void set_call_return_value(std::span<const char> return_value) {};
@@ -601,9 +601,6 @@ private:
    // act pointer may be invalidated on call to trx_context.schedule_action
    iterator_cache<key_value_object>    keyval_cache;
    std::string                         _pending_console_output;
-
-   const bool                          _is_action    = true;  // used to avoid using dynamic_cast to identify type of host_context
-   const bool                          _is_sync_call = false; // used to avoid using dynamic_cast to identify type of host_context
 };
 
 } } // namespace eosio::chain

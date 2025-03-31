@@ -17,6 +17,8 @@ public:
    uint32_t get_call_data(std::span<char> memory) const override;
    void set_call_return_value(std::span<const char> return_value) override;
 
+   bool is_sync_call() const override { return true; }
+
    bool is_read_only()const;
    bool no_op_if_receiver_not_support_sync_call()const;
    action_name get_sender() const override;
@@ -26,8 +28,6 @@ public:
    std::span<const char>  data{}; // includes function name, arguments, and other information
    std::vector<char>      return_value{};
 
-   // Those cannot be called from sync_call_context. EOS_ASSERTs and tests will be added
-   // in next PR.
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;
    bool is_context_free()const override;

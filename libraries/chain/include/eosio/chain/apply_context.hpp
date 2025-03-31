@@ -67,6 +67,8 @@ class apply_context : public host_context {
 
    /// Misc methods:
    public:
+      bool is_action() const override { return true; }
+
       int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size )const override;
       int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const override;
 
