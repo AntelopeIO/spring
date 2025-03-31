@@ -519,6 +519,13 @@ public:
    [[eosio::action]]
    void bidrefund( name bidder, name newname );
 
+   struct getpeerkeys_response {
+      std::vector<std::pair<name, std::optional<public_key>>> v;
+   };
+
+   [[eosio::action]]
+   getpeerkeys_response getpeerkeys();
+
 private:
 
    // Implementation details:

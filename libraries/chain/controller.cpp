@@ -1286,11 +1286,10 @@ struct controller_impl {
       }
    }
 
-   peer_keys_db_t::getpeerkeys_res_t get_top_producer_keys() {
+   getpeerkeys_res_t get_top_producer_keys() {
       try {
          auto get_getpeerkeys_transaction = [&]() {
-            auto perms = vector<permission_level>{{config::system_account_name, config::active_name}};
-            action act(std::move(perms), config::system_account_name, "getpeerkeys"_n, {});
+            action act(vector<permission_level>{}, config::system_account_name, "getpeerkeys"_n, {});
 
             signed_transaction trx;
             trx.actions.emplace_back(std::move(act));
@@ -1307,7 +1306,7 @@ struct controller_impl {
          auto trace = push_transaction(metadata, fc::time_point::maximum(), fc::microseconds::maximum(),
                                        gpo.configuration.min_transaction_cpu_usage, true, 0);
 
-         peer_keys_db_t::getpeerkeys_res_t res;
+         getpeerkeys_res_t res;
          if (!trace->action_traces.empty()) {
             const auto& act_trace = trace->action_traces[0];
             const auto& retval = act_trace.return_value;
@@ -5825,6 +5824,10 @@ void controller::set_peer_keys_retrieval_active(bool active) {
 
 peer_info_t controller::get_peer_info(name n) const {
    return my->peer_keys_db.get_peer_info(n);
+}
+
+getpeerkeys_res_t controller::get_top_producer_keys() {
+   return my->get_top_producer_keys();
 }
 
 db_read_mode controller::get_read_mode()const {

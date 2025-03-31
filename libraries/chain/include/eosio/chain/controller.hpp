@@ -80,6 +80,11 @@ namespace eosio::chain {
       class resource_limits_manager;
    };
 
+   // vector, sorted by rank, of the top-60 producer names and their peer key
+   // if populated on-chain.
+   // -----------------------------------------------------------------------
+   using  getpeerkeys_res_t = std::vector<std::pair<name, std::optional<public_key_type>>>;
+
    struct peer_info_t {
       uint32_t                       rank;
       std::optional<public_key_type> key;
@@ -435,7 +440,8 @@ namespace eosio::chain {
          chain_id_type get_chain_id()const;
 
          void set_peer_keys_retrieval_active(bool active);
-         peer_info_t  get_peer_info(name n) const; // thread safe
+         peer_info_t  get_peer_info(name n) const;  // thread safe
+         getpeerkeys_res_t get_top_producer_keys(); // must be called from main thread
 
          // thread safe
          db_read_mode get_read_mode()const;

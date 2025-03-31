@@ -13,11 +13,6 @@ namespace eosio::chain {
  */
 class peer_keys_db_t {
 public:
-   // vector, sorted by rank, of the top-60 producer names and their peer key
-   // if populated on-chain.
-   // -----------------------------------------------------------------------
-   using  getpeerkeys_res_t = std::vector<std::pair<name, std::optional<public_key_type>>>;
-
    using peer_key_map_t = boost::unordered_flat_map<name, peer_info_t, std::hash<name>>;
    using new_peers_t    = flat_set<name>;
 
