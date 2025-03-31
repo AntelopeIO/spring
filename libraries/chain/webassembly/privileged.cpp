@@ -230,7 +230,7 @@ namespace eosio { namespace chain { namespace webassembly {
       cfg.validate();
       context.db.modify( context.control.get_global_properties(),
          [&]( auto& gprops ) {
-              gprops.configuration = cfg;
+              gprops.configuration.copy_from_v0(cfg);
       });
    }
    
