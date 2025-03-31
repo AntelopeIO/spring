@@ -694,12 +694,25 @@ namespace webassembly {
           *                the sync call. LSB bit indicates read-only. All other bits
           *                are reserved to be 0.
           * @param data - the data of the sync call, which may include function name, arguments and other information.
+          * @return the number of bytes of the return value of the call (to be used by next get_call_return_value) .
           *
          */
-         void call(name receiver, uint64_t flags, span<const char> data);
+         uint32_t call(name receiver, uint64_t flags, span<const char> data);
 
          /**
-          * Copies the current sync call data up to the length of memory.
+          * Copies the last sync call return value to `memory` up to the length of `memory`.
+          * This should be called by the caller right after `call` host function.
+          * Otherwise the return value will be overwritten by future sync calls in the same action or function
+          *
+          * @ingroup sync call
+          * @param memory - a pointer where up to the size of memory will be copied
+          *
+          * @return the number of bytes of the return value that can be retrieved (the number of total bytes).
+         */
+         uint32_t get_call_return_value(span<char> memory) const;
+
+         /**
+          * Copies the current sync call data to `memory` up to the length of `memory`.
           *
           * @ingroup sync call
           * @param memory - a pointer where up to the size of memory will be copied

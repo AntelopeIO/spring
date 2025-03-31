@@ -502,8 +502,10 @@ class apply_context {
 
       void exec_one();
       void exec();
-      void execute_sync_call(name receiver, uint64_t flags, std::span<const char> data
-);
+      uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
+      uint32_t get_call_return_value(std::span<char> memory) const;
+      uint32_t get_call_data(std::span<char> memory) const;
+      void set_call_return_value(std::span<const char> return_value);
       void execute_inline( action&& a );
       void execute_context_free_inline( action&& a );
       void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing );
@@ -628,6 +630,7 @@ class apply_context {
       bool                          context_free = false;
 
       std::optional<sync_call_context> sync_call_ctx{};  // only one of act and sync_call_ctx can be present
+      std::optional<std::vector<char>> sync_call_return_value{};
 
       // Returns the sender of any sync call initiated by this apply_context or its sync_call_ctx
       action_name get_sync_call_sender() const;
