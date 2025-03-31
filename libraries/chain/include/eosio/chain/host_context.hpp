@@ -602,8 +602,8 @@ private:
    iterator_cache<key_value_object>    keyval_cache;
    std::string                         _pending_console_output;
 
-   bool                                _is_action    = true;  // used to avoid using dynamic_cast to identify type of host_context
-   bool                                _is_sync_call = false; // used to avoid using dynamic_cast to identify type of host_context
+   const bool                          _is_action    = true;  // used to avoid using dynamic_cast to identify type of host_context
+   const bool                          _is_sync_call = false; // used to avoid using dynamic_cast to identify type of host_context
 };
 
 } } // namespace eosio::chain
