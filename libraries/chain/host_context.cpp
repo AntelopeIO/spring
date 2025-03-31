@@ -16,6 +16,8 @@ host_context::host_context(controller& con, transaction_context& trx_ctx)
    , idx256(*this)
    , idx_double(*this)
    , idx_long_double(*this)
+   , _is_action(true)
+   , _is_sync_call(false)
 {
 }
 
@@ -31,6 +33,8 @@ host_context::host_context(controller& con, transaction_context& trx_ctx, accoun
    , idx256(*this)
    , idx_double(*this)
    , idx_long_double(*this)
+   , _is_action(false)
+   , _is_sync_call(true)
 {
 }
 

@@ -24,14 +24,6 @@ class apply_context : public host_context {
       bool cancel_deferred_transaction( const uint128_t& sender_id, account_name sender );
       bool cancel_deferred_transaction( const uint128_t& sender_id ) override { return cancel_deferred_transaction(sender_id, receiver); }
 
-      // Not callable from apply_context (actions)
-      uint32_t get_call_data(std::span<char> memory) const override {
-         EOS_ASSERT(false, sync_call_validate_exception, "get_call_data can be only used in sync call");
-      };
-      void set_call_return_value(std::span<const char> return_value) override {
-         EOS_ASSERT(false, sync_call_validate_exception, "set_call_return_value can be only used in sync call");
-      };
-
    protected:
       uint32_t schedule_action( uint32_t ordinal_of_action_to_schedule, account_name receiver, bool context_free );
       uint32_t schedule_action( action&& act_to_schedule, account_name receiver, bool context_free );

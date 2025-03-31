@@ -28,21 +28,11 @@ public:
 
    // Those cannot be called from sync_call_context. EOS_ASSERTs and tests will be added
    // in next PR.
-   void require_authorization(const account_name& account) override;
    bool has_authorization(const account_name& account) const override;
-   void require_authorization(const account_name& account, const permission_name& permission) override;
-   void require_recipient(account_name account) override;
    bool has_recipient(account_name account)const override;
    void update_db_usage( const account_name& payer, int64_t delta ) override;
-   int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size)const override;
-   int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const override;
    bool is_context_free()const override;
    bool is_privileged()const override;
-   const action& get_action()const override;
-   void execute_inline( action&& a ) override;
-   void execute_context_free_inline( action&& a ) override;
-   void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) override;
-   bool cancel_deferred_transaction( const uint128_t& sender_id ) override;
 };
 
 } } /// namespace eosio::chain

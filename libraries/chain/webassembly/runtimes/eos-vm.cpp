@@ -513,10 +513,10 @@ REGISTER_HOST_FUNCTION(get_permission_last_used);
 REGISTER_HOST_FUNCTION(get_account_creation_time);
 
 // authorization api
-REGISTER_HOST_FUNCTION(require_auth);
-REGISTER_HOST_FUNCTION(require_auth2);
+REGISTER_HOST_FUNCTION(require_auth, action_check);
+REGISTER_HOST_FUNCTION(require_auth2, action_check);
 REGISTER_HOST_FUNCTION(has_auth);
-REGISTER_HOST_FUNCTION(require_recipient);
+REGISTER_HOST_FUNCTION(require_recipient, action_check);
 REGISTER_HOST_FUNCTION(is_account);
 REGISTER_HOST_FUNCTION(get_code_hash);
 
@@ -534,16 +534,16 @@ REGISTER_CF_HOST_FUNCTION(eosio_assert_code)
 REGISTER_CF_HOST_FUNCTION(eosio_exit)
 
 // action api
-REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data);
-REGISTER_CF_HOST_FUNCTION(action_data_size);
+REGISTER_LEGACY_CF_HOST_FUNCTION(read_action_data, action_check);
+REGISTER_CF_HOST_FUNCTION(action_data_size, action_check);
 REGISTER_CF_HOST_FUNCTION(current_receiver);
-REGISTER_HOST_FUNCTION(set_action_return_value);
+REGISTER_HOST_FUNCTION(set_action_return_value, action_check);
 
 // sync call api. sync calls are not allowed in context-free actions
 REGISTER_HOST_FUNCTION(call);
 REGISTER_HOST_FUNCTION(get_call_return_value);
-REGISTER_HOST_FUNCTION(get_call_data);
-REGISTER_HOST_FUNCTION(set_call_return_value);
+REGISTER_HOST_FUNCTION(get_call_data, sync_call_check);
+REGISTER_HOST_FUNCTION(set_call_return_value, sync_call_check);
 
 // console api
 REGISTER_LEGACY_CF_HOST_FUNCTION(prints);
@@ -638,10 +638,10 @@ REGISTER_LEGACY_CF_HOST_FUNCTION(memcmp);
 REGISTER_LEGACY_CF_HOST_FUNCTION(memset);
 
 // transaction api
-REGISTER_LEGACY_HOST_FUNCTION(send_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline);
-REGISTER_LEGACY_HOST_FUNCTION(send_deferred);
-REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred);
+REGISTER_LEGACY_HOST_FUNCTION(send_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_context_free_inline, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(send_deferred, action_check);
+REGISTER_LEGACY_HOST_FUNCTION(cancel_deferred, action_check);
 
 // context-free transaction api
 REGISTER_LEGACY_CF_HOST_FUNCTION(read_transaction);
@@ -649,7 +649,7 @@ REGISTER_CF_HOST_FUNCTION(transaction_size);
 REGISTER_CF_HOST_FUNCTION(expiration);
 REGISTER_CF_HOST_FUNCTION(tapos_block_num);
 REGISTER_CF_HOST_FUNCTION(tapos_block_prefix);
-REGISTER_LEGACY_CF_HOST_FUNCTION(get_action);
+REGISTER_LEGACY_CF_HOST_FUNCTION(get_action, action_check);
 
 // compiler builtins api
 REGISTER_LEGACY_CF_HOST_FUNCTION(__ashlti3);

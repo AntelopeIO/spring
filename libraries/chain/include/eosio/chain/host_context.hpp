@@ -499,9 +499,9 @@ public:
     *
     * @throws missing_auth_exception If no sufficient permission was found
     */
-   virtual void require_authorization(const account_name& account) = 0;
+   virtual void require_authorization(const account_name& account) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); } // This function should never be called in sync calls due to require_auth host wrapper preconditions. This EOS_ASSERT double makes sure that.
    virtual bool has_authorization(const account_name& account) const = 0;
-   virtual void require_authorization(const account_name& account, const permission_name& permission) = 0;
+   virtual void require_authorization(const account_name& account, const permission_name& permission) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
 
    /**
     * @return true if account exists, false if it does not
@@ -514,7 +514,7 @@ public:
    /**
     * Requires that the current action be delivered to account
     */
-   virtual void require_recipient(account_name account) = 0;
+   virtual void require_recipient(account_name account) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); };
 
    /**
     * Return true if the current action has already been scheduled to be
@@ -554,12 +554,12 @@ private:
 public:
    vector<account_name> get_active_producers() const;
 
-   virtual int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size )const = 0;
-   virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const = 0;
+   virtual int get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size ) const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual int get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
    virtual bool is_context_free()const = 0;
    virtual bool is_privileged()const = 0;
    action_name get_receiver()const { return receiver; };
-   virtual const action& get_action()const = 0;
+   virtual const action& get_action()const { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); };
    virtual action_name get_sender() const = 0;
    account_name get_sync_call_sender() const { return receiver; } // current action or sync call's receiver is next call's sender
 
@@ -568,14 +568,16 @@ public:
    // sync calls can be initiated from actions or other sync calls
    uint32_t execute_sync_call(name receiver, uint64_t flags, std::span<const char> data);
    uint32_t get_call_return_value(std::span<char> memory) const;
+   bool is_action() const { return _is_action; }
+   bool is_sync_call() const { return _is_sync_call; }
 
-   virtual uint32_t get_call_data(std::span<char> memory) const = 0;
-   virtual void set_call_return_value(std::span<const char> return_value) = 0;
+   virtual uint32_t get_call_data(std::span<char> memory) const { return 0; };
+   virtual void set_call_return_value(std::span<const char> return_value) {};
 
-   virtual void execute_inline( action&& a ) = 0;
-   virtual void execute_context_free_inline( action&& a ) = 0;
-   virtual void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) = 0;
-   virtual bool cancel_deferred_transaction( const uint128_t& sender_id ) = 0;
+   virtual void execute_inline( action&& a ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual void execute_context_free_inline( action&& a ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual void schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
+   virtual bool cancel_deferred_transaction( const uint128_t& sender_id ) { EOS_ASSERT(false, unaccessible_api, "default implemention should never be used"); }
 
    /// Fields:
 public:
@@ -599,6 +601,9 @@ private:
    // act pointer may be invalidated on call to trx_context.schedule_action
    iterator_cache<key_value_object>    keyval_cache;
    std::string                         _pending_console_output;
+
+   bool                                _is_action    = true;  // used to avoid using dynamic_cast to identify type of host_context
+   bool                                _is_sync_call = false; // used to avoid using dynamic_cast to identify type of host_context
 };
 
 } } // namespace eosio::chain

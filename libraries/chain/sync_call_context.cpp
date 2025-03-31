@@ -61,37 +61,11 @@ bool sync_call_context::has_recipient(account_name account)const {
 bool sync_call_context::is_context_free()const {
    return false;
 }
-bool sync_call_context::is_privileged()const {
+bool sync_call_context::is_privileged()const { // to be revisited when privileged is being worked
    return false;
 }
 
-// EOS_ASSERTs and tests will be added for the following methods in next PR
-void sync_call_context::require_authorization(const account_name& account) {
-}
-void sync_call_context::require_authorization(const account_name& account, const permission_name& permission) {
-}
-void sync_call_context::require_recipient(account_name account) {
-}
-void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {
-}
-int sync_call_context::get_action( uint32_t type, uint32_t index, char* buffer, size_t buffer_size)const {
-   return 0;
-}
-int sync_call_context::get_context_free_data( uint32_t index, char* buffer, size_t buffer_size )const {
-   return 0;
-}
-const action& sync_call_context::get_action()const {
-   static action t;
-   return t;
-}
-void sync_call_context::execute_inline( action&& a ) {
-}
-void sync_call_context::execute_context_free_inline( action&& a ) {
-}
-void sync_call_context::schedule_deferred_transaction( const uint128_t& sender_id, account_name payer, transaction&& trx, bool replace_existing ) {
-}
-bool sync_call_context::cancel_deferred_transaction( const uint128_t& sender_id) {
-   return false;
-}
+// This needs to be investigated further
+void sync_call_context::update_db_usage( const account_name& payer, int64_t delta ) {}
 
 } /// eosio::chain
