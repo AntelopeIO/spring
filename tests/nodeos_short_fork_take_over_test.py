@@ -360,7 +360,7 @@ try:
         blockProducer0=prodNodes[0].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
         blockProducer1=prodNodes[1].getBlockProducerByNum(checkMatchBlock, exitOnError=False)
         match=blockProducer0==blockProducer1
-        if match:
+        if match and blockProducer0 is not None:
             if checkHead:
                 forkResolved=True
                 break
