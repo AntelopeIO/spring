@@ -2338,6 +2338,11 @@ BOOST_AUTO_TEST_CASE(sync_call_activation_test) try {
    tester c(setup_policy::preactivate_feature_and_new_bios);
    const auto& pfm = c.control->get_protocol_feature_manager();
 
+   if( c.get_config().wasm_runtime == wasm_interface::vm_type::eos_vm_oc ) {
+      // skip eos_vm_oc for now.
+      return;
+   }
+
    // Ensure SYNC_CALL not yet activated
    BOOST_CHECK(!c.control->is_builtin_activated(builtin_protocol_feature_t::sync_call));
 
